@@ -26,6 +26,8 @@ The inspected local implementation loads its root from disk, syncs appended data
 
 The first-party organization also has [Java](https://github.com/xit-vcs/xitdb-java), [TypeScript](https://github.com/xit-vcs/xitdb-ts) and [Go](https://github.com/xit-vcs/xitdb-go) implementations. **Inference:** “usable outside Zig” is insufficient differentiation. A C source distribution with Rust bindings, strict immutable private values, selective retention through compaction and compatible independent-record commits is a more defensible comparison. The last three are weekend-db targets, not benchmarked advantages. [Design §§2–7](../../DESIGN.md)
 
+**Inference from reachability:** an xitdb application could also keep named references to old values inside its latest moment, making those values reachable by compaction. Explicit retention is therefore better viewed as a proposed built-in policy and interface guarantee, not a fundamentally exclusive capability. Much of the proposed product experience could potentially be built above xitdb rather than requiring a new engine.
+
 ### Vedis: packaging and structured storage already overlap
 
 Vedis is an embedded C datastore with disk and memory modes and a cross-platform file format. Its command surface includes hashes, sets, lists, and BEGIN/COMMIT/ROLLBACK. It ships as `vedis.c` plus a header. [Overview](https://vedis.symisc.net/), [commands](https://vedis.symisc.net/commands.html), [amalgamation source](https://github.com/symisc/vedis/blob/master/vedis.c)

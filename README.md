@@ -13,6 +13,7 @@ Then use the [roadmap](ROADMAP.md), including its first-weekend checklist.
 - [Domain vocabulary](GLOSSARY.md)
 - [Current transaction decision](docs/adr/0007-merge-stable-record-assignments.md)
 - [Transaction-model research and tradeoffs](docs/design/transaction-model-research.md)
+- [Comparison with existing solutions and potential niche](docs/design/positioning-research.md)
 - [Schema and deferred list-rebasing notes](docs/design/list-rebasing-and-record-schemas.md)
 
 Plan for roughly 6–8 hours per weekend. Milestones are learning checkpoints,
