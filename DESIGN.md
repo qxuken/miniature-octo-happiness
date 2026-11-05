@@ -7,8 +7,11 @@ bytes. Applications read a fixed version, prepare changes privately, and publish
 compatible record assignments atomically. Earlier retained versions remain
 readable after reopening the database.
 
-The target is a small C interface and a comprehensible implementation that can
-be developed over successive weekends. Rust is the first consumer. The engine
+The target is a small C-compatible interface and a comprehensible implementation
+that can be developed over successive weekends. Rust is the first consumer.
+The implementation language is open again: C was the original choice, but
+iteration speed, standard-library support, and ownership safety deserve a
+packaging experiment before that decision is fixed. The engine
 supports memory and file storage; typed access, schema validation, application
 migrations, and optional secondary lookups sit above it. This is a design target,
 not a description of implemented or production-verified behavior.
@@ -17,7 +20,20 @@ The record-scoped transaction contract, durable commits, explicit retention,
 and optional schemas are agreed decisions. The concrete tree shapes, internal
 structures, ownership choices, and publication format below are **working
 sketches**. They make the intended logic concrete without freezing an untested
-file format. Remaining implementation choices are collected at the end.
+file format. Remaining implementation choices, implementation milestones, reading assignments,
+and definitions of done are collected below. This is the single source of truth
+for the project; earlier separate plans and decision records are consolidated here.
+
+
+Use this document as both the target and the implementation workbook:
+
+- [Architecture and invariants](#1-the-state-that-the-database-stores)
+- [Primary reading references](#references-and-rationale-map)
+- [Language and packaging experiment](#language-and-distribution-decide-by-experiment)
+- [Milestones and definitions of done](#implementation-milestones)
+- [Comparison with existing solutions](#comparison-and-reason-to-build-this)
+- [Decision summary](#decision-summary-and-deferred-alternatives)
+- [Vocabulary](#vocabulary) and [shared definition of done](#shared-definition-of-done)
 
 ## 1. The state that the database stores
 
@@ -166,12 +182,11 @@ coordination is in one process under one writer authority per store; a file
 adapter must not permit an uncoordinated second writer. Multi-process protocols
 and lock-free publication are later work.
 
-Develop small C source files and generate one header with an implementation
-switch. Prefix exported symbols and keep helpers internal. Compile both normal
-and amalgamated distributions from multiple translation units. This source-level
-integration is deliberate: the Rust reference documents composition problems
-between independently built Rust static libraries, a packaging concern that
-motivated the C implementation. [Rust linkage](https://doc.rust-lang.org/reference/linkage.html#mixed-rust-and-foreign-codebases)
+If C wins the language experiment, develop small source files and generate one
+header with an implementation switch. Prefix exported symbols and keep helpers
+internal; test ordinary and amalgamated distributions from multiple translation
+units. If another language wins, preserve the small C ABI and document its
+proven library/toolchain distribution instead. Milestone 1 resolves this choice.
 
 ## 4. Transactions contain final assignments
 
@@ -491,8 +506,8 @@ and use-after-free through sanitizers and targeted tests. Coverage and mutation
 checks evaluate whether the tests exercise important decisions; they are not
 proof of durable semantics. SQLite's [testing account](https://www.sqlite.org/testing.html)
 is the reference for combining coverage with fault injection, fuzzing, and
-testing shipped configurations. Test release builds and the generated C header
-as well as instrumented development builds.
+testing shipped configurations. Test release builds and the selected distribution artifact
+as well as instrumented development builds, if C source distribution is selected.
 
 Measure reads, nested updates, list middle edits, batches, allocation traffic,
 conflict rates, retained-history growth, and durable commit latency. Compare
@@ -501,7 +516,7 @@ append-only growth are deliberate starting costs, not performance claims.
 
 ## 11. Decisions still open before implementation freezes
 
-The first implementation exercises must choose the C baseline, allocator and
+The first implementation exercises must choose the implementation language and baseline, allocator and
 handle contract, exact scalar/key encodings, map hashing policy, list layout,
 checksums, protected-write assumptions, root verification strategy, storage
 callbacks, and resource limits. Each needs a small contract and acceptance tests.
@@ -510,9 +525,7 @@ The working sketches above suggest a path but do not quietly settle them.
 The target deliberately defers field-level conflict domains, list rebasing,
 replication, multi-process writer coordination, general queries, automatic
 schema enforcement, and generated migrations. These can be revisited after a
-measured workload justifies their additional invariants. The implementation
-sequence and stopping points are in [ROADMAP.md](ROADMAP.md); the compact agreed
-scope is in [PLAN.md](PLAN.md).
+measured workload justifies their additional invariants. The implementation sequence and stopping points follow in this document.
 
 ## References and rationale map
 
@@ -535,8 +548,366 @@ scope is in [PLAN.md](PLAN.md).
 - [Protocol Buffers schema evolution](https://protobuf.dev/programming-guides/proto3/#updating):
   stable field numbers and compatibility discipline.
 - [Rust linkage](https://doc.rust-lang.org/reference/linkage.html#mixed-rust-and-foreign-codebases):
-  the source-distribution rationale for a C implementation.
+  constraints to check when embedding Rust behind a C interface.
 - [Automerge merge rules](https://automerge.org/docs/reference/under-the-hood/merge-rules/):
   an intentionally deferred approach to list-operation identity.
-- [ADR 0007](docs/adr/0007-merge-stable-record-assignments.md): the accepted local
-  decision to use stable record assignments instead of positional rebasing.
+
+
+## How to use this plan
+
+Budget roughly 6–8 hours per weekend. A milestone is a usable stopping point,
+not a promise to finish in one weekend. Concurrency and durability may each
+need several. The user writes the implementation. Keep experiments small and
+record the chosen invariant, a counterexample it prevents, and the evidence
+that the implementation preserves it.
+
+Read the state, collections, and transaction sections first. Read storage
+protocol details when approaching persistence. Each milestone below has a
+focused reading assignment: extract an implementation idea and its assumptions,
+rather than reproduce another database wholesale.
+
+The first useful result is an in-memory store with persistent nested values.
+The first durable result is a deliberately limited experimental file store.
+Neither is a production-safety claim. Target 64-bit macOS first, then test Linux
+and Windows when available; intended portability and tested support differ.
+
+## Language and distribution: decide by experiment
+
+Keep the C ABI goal separate from the implementation language. A generated
+single implementation header requires a C-compatible implementation; exporting
+C functions from another language does not provide C-only source distribution.
+The single-header artifact is conditional until the language experiment ends.
+
+C remains an option when compiling the source with an ordinary C toolchain is
+an important consumer requirement. Its cost includes manual ownership, cleanup,
+containers, and checked arithmetic. Rust is the leading alternative to test
+for iteration and ownership safety. Zig is another candidate if explicit
+allocation and native embedding are decisive. C++ or Odin can be included only
+if a specific consumer or experiment gives a reason; do not build five engines.
+
+In particular, do not assume a C ABI solves Rust static-library integration.
+The official [Rust linkage reference](https://doc.rust-lang.org/reference/linkage.html#mixed-rust-and-foreign-codebases)
+discusses combining Rust subsystems into a single static library and potential
+conflicts between independently built Rust static libraries. Test the actual
+Odin consumer alongside the existing prebuilt wgpu-native dependency. A shared
+library or coordinated single Rust build may be acceptable, but changes the
+distribution contract and must be chosen explicitly.
+
+For Zig, read its [overview](https://ziglang.org/learn/overview/) for allocators,
+error cleanup, safety checks, and C ABI exports. Safety checks do not constitute
+Rust-style lifetime verification. For Rust, evaluate ownership and FFI on the
+actual value/handle API instead of treating language safety as a recovery proof.
+No language makes a flawed commit protocol durable.
+
+Choose the language that makes the implementation easy to change while meeting
+the proven consumer contract. Record toolchain version, build commands, cleanup
+rules, and the accepted distribution tradeoff here after the experiment.
+
+## Implementation milestones
+
+These follow the architecture above. Complete the acceptance cases before adding
+the next layer; split a milestone across weekends whenever needed.
+
+## Milestone 1. Choose a language and prove the consumer boundary
+
+Write the same tiny vertical slice in the two strongest candidates: C and Rust
+unless a concrete embedding requirement makes Zig more useful. Include a nested
+value, an immutable clone, one private edit, an error path, and explicit cleanup.
+Expose a minimal C ABI and call it from Rust and Odin. Link the Odin example
+with the existing prebuilt wgpu-native dependency to reproduce or rule out the
+previous symbol collision. This is a packaging/ownership probe, not a database.
+
+Compare how much code and effort each version requires to change one value
+operation, diagnose a lifetime mistake, and add a failure path. Time-box the
+comparison to the first weekend; leave an unmet requirement explicit instead of
+expanding the experiment into competing engines.
+
+**Read:** the language/distribution section above and the official Rust linkage
+reference; consult Zig's overview only if testing Zig. Write the smallest desired
+consumer example before freezing signatures.
+
+**Definition of done:** choose an implementation language and distribution
+contract; a fresh checkout builds the probe with documented commands; both
+consumer examples run, including the wgpu-native combination, or the chosen
+contract explicitly excludes an unacceptable combination. Document slice/handle
+lifetimes, allocation, errors, and close behavior in at most one page. If C source
+packaging wins, prove split-source and generated-header builds and inclusion
+from two C translation units without duplicate symbols. Otherwise replace the
+single-header promise with the demonstrated library/header/toolchain contract.
+
+## Milestone 2. Build a simple reference model
+
+**Read:** architecture §§1–2. Use Clojure’s persistent-collection semantics to distinguish logical immutability from the later tree implementation. The reference model should favor clarity over sharing.
+
+Use straightforward in-memory keyed records, nested maps/lists, and copied
+snapshots. Select a fixed first scalar set and define absence, bounds, key
+identity, and cloning semantics. Use deliberately small, deterministic fixtures.
+Add the slow model's logical operations before optimizing representation.
+
+**Definition of done:** nested map/list updates, independent clones, and historical reads
+have clear expected outcomes. This model becomes the oracle for persistent
+collections and transaction schedules.
+
+## Milestone 3. Implement persistent collections
+
+**Read:** architecture §2, Bagwell’s Ideal Hash Trees, and Clojure’s collection documentation. Sketch hash routing, full-key collisions, path copying, and list indexing before coding.
+
+Replace whole-state copying with structural sharing and path copying behind the
+collection interface, retaining both maps and lists. Choose one simple tree
+layout, write down its invariants, and defer tuning. Preserve full map key
+identity even if routing uses hashes. Shared immutable storage must not become
+shared mutable object identity between records.
+
+**Definition of done:** random operation sequences agree with the reference model, old
+snapshots never change, clones diverge independently, and allocation failures
+leave reachable committed state intact. Test routing collisions and shared-value
+lifetimes. Record the chosen layout and its tradeoffs.
+
+## Milestone 4. Build a whole-root transaction baseline
+
+**Read:** architecture §§4–5 and the private-work/validation/publication parts of Kung and Robinson. Start with the root revision rule; do not implement the full paper’s machinery.
+
+Implement a base snapshot, private final put/delete overlay, read-your-writes,
+and atomic commit/abort. Give commits monotonic revisions. At publication check
+that the current revision still equals the base revision; otherwise conflict.
+Initially interleave two handles on one thread.
+
+**Definition of done:** a conflict/abort publishes none of its writes, only one of two drafts
+at one base can commit, and intervening equal-value/ABA writes are detected.
+This intentionally rejects unrelated concurrent edits: it is a correctness
+baseline, not the completed merge feature. Do not replay old callbacks on retry.
+
+## Milestone 5. Refine to conservative record-scoped merging
+
+**Read:** architecture §§4–5 and PostgreSQL’s isolation examples. Turn write skew, empty scans, missing keys, and ABA into explicit schedules for this contract.
+
+Track observed present-record generations and write-target generations. A
+nested access tracks the containing record. Use a containing collection
+version for missing-key reads and any supported scans; bump it on every
+relevant write. This avoids relying on equality or an indefinite missing-key
+history, at the cost of false conflicts.
+
+Under one commit gate validate dependencies, apply only final assignments to the
+current root, and publish. Preserve other transactions' independent changes.
+Cover namespace/ancestor replacement consistently; do not use physical node
+addresses as conflict identities. Add observations to the interface only with
+an accompanying validation rule.
+
+**Definition of done:** two transactions updating different existing records commit in both
+orders; edits within one record, including its lists, conflict; stale/missing
+reads and supported scans invalidate safely; and failures never publish partial
+changes. Explicitly test unrelated-insert false conflicts. Compare short
+transaction schedules with a simple sequential oracle and minimize failures.
+Do not claim serializability before covering every supported observation.
+
+## Milestone 6. Specify the byte format and simulated durability
+
+**Read:** architecture §6, SQLite’s atomic-commit analysis, redb’s storage design, and SQLite’s testing account. List every assumed atomicity/sync guarantee before choosing metadata layout.
+
+Specify integer encoding, lengths/offset bounds, value tags, format version,
+checksums, root metadata, and persistence ordering. Choose and document a
+recovery protocol before writing a real file adapter. An append-only
+copy-on-write format with independently protected root slots is a candidate to
+evaluate, not a preselected implementation.
+
+Build a simulator separating volatile and durable bytes. Inject short writes,
+allocation/I/O/sync failures, permitted reordered or dropped unsynced writes,
+and torn writes under a declared failure model. Include failures in recovery and
+an ambiguous commit outcome. Add corruption/operation fuzzing and regression
+cases here, not only after all storage work is complete.
+
+**Definition of done:** reopening after explored failures yields a complete allowed state,
+preserves all acknowledged durable commits under the model, rejects unsupported
+formats, and reports malformed data safely. Define whether a failed commit
+requires handle recovery before additional writes.
+
+## Milestone 7. Add the macOS file adapter and retained snapshots
+
+**Read:** architecture §§6–7 and the selected platform’s official file/sync API documentation before implementing its adapter. Write down creation, sync, close, and replacement assumptions.
+
+Apply the tested format/protocol to real file operations. Handle creation,
+publication, synchronization, errors, and reopening. Persist snapshot retain/
+release metadata. Distinguish live snapshot handles from durable retention;
+closing/releasing a handle must obey the ownership contract from milestone 1.
+
+**Definition of done:** Rust writes, commits, retains a prior snapshot, reopens, and reads both
+versions. Aborted state stays unpublished, and process-interruption tests agree
+with the contract. Keep simulator tests: process termination alone does not
+model all unsynced-write loss or reordering. These tests establish evidence
+within the fault model, not immunity to arbitrary hardware failure.
+
+## Milestone 8. Add schema metadata and one typed Rust example
+
+**Read:** architecture §§8–9 and Protocol Buffers’ schema-evolution rules. Borrow stable IDs and compatibility discipline, not its wire format by default.
+
+Store immutable versioned descriptors as ordinary data. Define stable type/field
+IDs, absence/default rules, and unknown-field preservation. A handwritten Rust
+wrapper can expose field setters, but commits a final record assignment; field
+IDs do not imply field-level concurrent merging.
+
+Write an app-side migration and one explicit secondary lookup map, such as email
+to record ID. Update primary data, schema/catalog references, and lookup entries
+atomically. Let schema metadata guide accessors; do not build a schema compiler
+or a general query engine.
+
+**Definition of done:** a rename, optional field, and semantic conversion behave explicitly;
+retained records retain their old schema descriptors; unknown fields survive
+supported updates; and secondary lookup stays consistent under failures and
+conflicts. Document that bypassing wrapper maintenance bypasses these guarantees.
+File-format migration is a different future exercise.
+
+## Milestone 9. Add real thread overlap and platform checks
+
+**Read:** architecture §§3 and 10, SQLite’s testing account, and the selected language’s official threading/FFI rules. Enumerate all shared mutable bookkeeping.
+
+Synchronize publication/shared bookkeeping and specify which handles may be
+shared across threads. Keep transaction preparation private and snapshot reads
+stable. Stress simultaneous readers and compatible/conflicting commits.
+
+**Definition of done:** thread tests and applicable sanitizers pass on tested configurations.
+Expand operation/corruption fuzzing and report coverage. Add Linux/Windows
+build/test jobs when available, including release builds and the selected distribution artifact;
+label platforms accurately rather than assuming support. Establish minimized
+regressions and a release checklist. Keep multi-process writers out of scope.
+
+## Milestone 10. Reclaim space and measure
+
+**Read:** architecture §§7 and 10, then the comparison below. Define reachable roots and matched benchmark policies before choosing a reclamation or performance target.
+
+Start compaction with a documented quiescent requirement if that keeps the
+contract smaller. Copy reachable values into a new store while preserving
+sharing, retained roots, and schema/lookup metadata. Define safe replacement
+under the platform's file semantics and test interrupted replacement. Do not
+discard the only good store before the replacement is complete.
+
+Measure point reads, nested updates, list edits, batches, conflicts, retained
+history growth, and durable commit latency. Compare equal durability, workloads,
+and retention policies. Set optimization targets from actual bottlenecks.
+
+**Definition of done:** compaction preserves retained state and its metadata through modeled
+failures, and measurements identify the next useful experiment. Possible next
+projects are layout tuning, finer key scopes, generated wrappers, engine-format
+conversion, explicit three-way merges, list rebasing, or replication.
+
+
+## Comparison and reason to build this
+
+**Inference:** yes, there is a credible specialist niche: a portable application-state store with direct nested persistent values, explicitly retained historical roots that survive reopening, and atomic record-scoped optimistic transactions. The opportunity is this combination and its integration experience. Neither “embedded NoSQL” nor “immutable database” alone distinguishes it. This review establishes differences among close alternatives, not universal competitor absence or proof that developers want another engine.
+
+“Direct nested values” matters: changing one leaf should share unchanged stored subtrees without decoding and rewriting the entire containing document. “Historical” means an application-retained version remains addressable after shutdown and compaction, not merely a read transaction observing a fixed current view. Both are explicit targets, still requiring implementation evidence. The relevant contracts are specified above.
+
+## Closest alternatives
+
+| Alternative | Existing overlap | Consequence for positioning |
+| --- | --- | --- |
+| xitdb | Embedded, nested persistent collections, file-stored history, cheap undo | Closest abstraction; C packaging and transaction contract must earn their keep |
+| Vedis | Portable embedded C, structured commands, transactions, amalgamation | C plus hashes/lists is already available |
+| UnQLite | Portable C amalgamation, transactional KV and document storage | Differentiate persistent value graphs from encoded documents |
+| LMDB | C, copy-on-write, concurrent snapshot readers | A live MVCC view is not an explicit durable history catalog |
+| redb | Embedded Rust, persistent rollback savepoints | Durable checkpoints already exist; distinguish historical reading from restoration |
+
+### xitdb: the decisive comparison
+
+xitdb already exposes arbitrarily nested maps/lists, structural sharing, memory/file backends and incremental access. Its documented pattern stores successive “moments” in a top-level list; undo appends a reference to an earlier moment. This is stored history, not only live-reader isolation. Writes are serialized; readers can run concurrently. [Official README](https://github.com/xit-vcs/xitdb#readme)
+
+The inspected local implementation loads its root from disk, syncs appended data before publishing the root, and defaults file synchronization on. Its compactor treats a root list as history and copies only its latest moment into a new history. These source facts support normal reopen persistence and explain history loss under that compaction policy; they are not an independent crash-safety certification. [xitdb source](https://github.com/xit-vcs/xitdb/blob/master/src/lib.zig)
+
+The first-party organization also has [Java](https://github.com/xit-vcs/xitdb-java), [TypeScript](https://github.com/xit-vcs/xitdb-ts) and [Go](https://github.com/xit-vcs/xitdb-go) implementations. **Inference:** “usable outside Zig” is insufficient differentiation. A convenient native distribution with Rust bindings, strict immutable private values, selective retention through compaction and compatible independent-record commits is a more defensible comparison. The last three are weekend-db targets, not benchmarked advantages. The relevant contracts are specified above.
+
+**Inference from reachability:** an xitdb application could also keep named references to old values inside its latest moment, making those values reachable by compaction. Explicit retention is therefore better viewed as a proposed built-in policy and interface guarantee, not a fundamentally exclusive capability. Much of the proposed product experience could potentially be built above xitdb rather than requiring a new engine.
+
+### Vedis: packaging and structured storage already overlap
+
+Vedis is an embedded C datastore with disk and memory modes and a cross-platform file format. Its command surface includes hashes, sets, lists, and BEGIN/COMMIT/ROLLBACK. It ships as `vedis.c` plus a header. [Overview](https://vedis.symisc.net/), [commands](https://vedis.symisc.net/commands.html), [amalgamation source](https://github.com/symisc/vedis/blob/master/vedis.c)
+
+Its hash command implementation stores entry data in byte blobs and returns strings; transaction rollback invokes the pager's current-transaction rollback. The reviewed API does not expose named retained historical roots or xitdb-style arbitrarily nested immutable collection handles. That is a bounded finding about this interface, not proof history could never be built above it. [Source: `vedis_cmd_hmget`, `vedis_rollback`](https://github.com/symisc/vedis/blob/master/vedis.c)
+
+### UnQLite: nested documents differ from persistent subtrees
+
+UnQLite already provides in-process transactional C storage, a portable file, an amalgamation, raw binary KV and a Jx9 document layer. [Official repository](https://github.com/symisc/unqlite)
+
+The distinction is visible in code: `CollectionStore` and `CollectionUpdate` call `FastJsonEncode`, then replace a KV record; fetching reads the record and calls `FastJsonDecode`. Nested JSON therefore does not itself supply a public persistent map/list graph whose unchanged subtrees are shared across application versions. The reviewed public transaction interface is begin/commit/rollback, not a retained-snapshot catalog. [Document storage implementation](https://github.com/symisc/unqlite/blob/master/unqlite.c), [public header](https://github.com/symisc/unqlite/blob/master/unqlite.h)
+
+### LMDB and redb: be precise about snapshots
+
+LMDB offers C transactions, copy-on-write pages, concurrent readers and one active writer. Its API documents that long-lived readers prevent page reuse and that freed pages are otherwise recycled. Its normal read transactions pin views during their lifetime; the reviewed API does not provide an application catalog of arbitrary retained roots to reopen later. Separate database copies can preserve versions, with different costs and management. [Official API source](https://github.com/LMDB/lmdb/blob/mdb.master/libraries/liblmdb/lmdb.h)
+
+redb explicitly has `persistent_savepoint`, deletion/listing and `restore_savepoint`; these require appropriate durability and retain otherwise reusable pages. Persistent savepoints survive reopening, as its tests demonstrate. However, `Savepoint` is a restoration token, with no direct historical table-reading API exposed on it. Restoration happens in a write transaction and invalidates later savepoints. This overlaps checkpoint/rollback use cases, without being the same historical-read interface. [WriteTransaction](https://docs.rs/redb/latest/redb/struct.WriteTransaction.html), [Savepoint](https://docs.rs/redb/latest/redb/struct.Savepoint.html), [tests: `persistent_savepoint`](https://github.com/cberner/redb/blob/master/tests/integration_tests.rs)
+
+## What the current design can honestly serve
+
+**Recommendations, not evidence of demand:** start with an application that owns one writer process and needs historical inspection of structured state:
+
+- A desktop configuration/workspace store: inspect the settings and metadata associated with named checkpoints after reopening.
+- A local build or analysis tool: retain selected dependency graphs or analysis results and read an earlier run without loading complete serialized graphs.
+- A game/tooling state inspector: checkpoint stable entities and compare versions while ordinary work continues.
+
+These examples fit keyed records and selective checkpoints. They do not require SQL, replication or collaborative text merging. They still need retention budgets, useful inspection and a concrete consumer.
+
+Do not advertise automatic undo, branching or an editor backend yet. Transactions currently begin at the current head; retained snapshots are readable, but arbitrary historical writes, old-root restoration and a branching API are absent. An application could deliberately create compensating assignments, but that requires its own restoration semantics. Middle list insertion/removal may cost O(n), and two edits to different fields or list positions inside one record conflict. Even unrelated new inserts can conflict through collection-level absence tracking. These are material constraints for large editable documents. The relevant contracts are specified above.
+
+Record-level OCC is conventional concurrency control, not a fundamental invention: private work followed by read/write validation and publication has long precedent. **Inference:** its value here is a clear conflict contract and avoiding unnecessary retries for independent records; measure whether that matters before making it the headline. [Kung and Robinson](https://www.eecs.harvard.edu/~htk/publication/1981-tods-kung-robinson.pdf)
+
+## Validation before expanding scope
+
+**Recommendation:** validate one consumer against xitdb and an encoded-document baseline with matching durability and retention policies. Measure integration effort, allocations, bytes written for a leaf update, retained-history growth, reopen latency, durable commit latency and conflict/retry rates. A result is useful only if the consumer values the difference enough to adopt the API.
+
+Require crash/reopen tests preserving acknowledged commits and retained roots; compaction must preserve selected history and reclaim released history. Exercise same-record conflicts, independent existing records, absence/scan dependencies and allocation failures. Explicitly demonstrate historical inspection; do not imply restoration from it. The relevant contracts are specified above.
+
+The present design also lacks a stable disk format, proven recovery, inspection/export/repair tools, established bindings, ordered range queries and automatic index/schema enforcement. **Inference:** these delivery costs may outweigh any algorithmic advantage for an early adopter. A small trustworthy state store with one convincing workload would establish usefulness beyond learning; expanding toward a general database before that would not establish demand. The relevant contracts are specified above.
+
+
+## Decision summary and deferred alternatives
+
+- Persistent maps and lists are early core types. Structural sharing makes
+  historical values cheap to preserve; it does not settle concurrent writes.
+- Use private final record assignments and conservative observation validation.
+  Fine-grained changeset replay was rejected for the initial version because
+  list positions, ancestor replacement, delete/recreate, missing reads, and
+  history retention multiply the rules to verify. Record boundaries provide a
+  smaller contract while still accepting independent existing-record edits.
+- CRDTs remain a separate experiment. They require explicit identities and merge
+  semantics; accepting concurrent edits does not itself preserve application
+  invariants. Distributed replication is outside this plan.
+- Durable commits are the default for file storage. An explicit weaker mode can
+  be designed later. Append-only copy-on-write publication is the candidate;
+  a separate WAL is not currently required.
+- Retention is explicit. A live view and a persisted historical checkpoint have
+  different lifetimes. Releasing retention is not an immediate reclamation promise.
+- File formats are versioned from the beginning and initially experimental.
+  Application record migrations use normal transactions; format conversion is
+  a separate future tool. Schema/index enforcement belongs to the wrapper.
+- Retained history supports inspection, not automatic undo, writable branches,
+  or restore-as-new-commit. SQL, general queries, multi-process writers,
+  automatic callback retries, list rebasing, and code generation are deferred.
+- Implementation language and single-header packaging remain open until milestone 1.
+
+## Vocabulary
+
+| Term | Meaning |
+| --- | --- |
+| Snapshot | Immutable view of application data at one version. |
+| Retained snapshot | Snapshot explicitly kept across close/reopen until released; not a backup. |
+| Base snapshot | The version from which a live transaction starts. |
+| Record | Stable collection/key entry; its entire nested value is one conflict unit. |
+| Changeset | Final record assignments/removals, not a list operation history or byte diff. |
+| Transaction | Base reads, tracked observations, and proposed assignments that commit together. |
+| Conflict | Failed validation after intervening changes, including safe false conflicts. |
+| Merge | Apply compatible record assignments to the current state; no last-writer-wins rule. |
+| Record schema | Versioned logical descriptor with stable type/field identities. |
+| Record migration | Application transformation between record meanings/versions. |
+
+## Shared definition of done
+
+A milestone is complete when its stated behavior runs from a fresh checkout,
+its relevant acceptance cases pass, and limitations are written beside the API.
+Preserve minimized regression cases for discovered bugs. Test the artifact a
+consumer receives, including release configurations, not only an instrumented
+development build. Update this document when an experiment changes a decision.
+
+Before calling a durable release trustworthy, require evidence across logical
+model checks, transaction schedules, allocation failures, simulated storage
+failures, malformed-file fuzzing, real reopen/interruption tests, and actual
+supported platforms. State the fault model and untested assumptions. Coverage
+is feedback about exercised paths, not a correctness certificate. Performance
+claims require reproducible workloads with matched durability and retention.
