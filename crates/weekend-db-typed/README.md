@@ -51,8 +51,9 @@ the `Model` trait and its derive macro, plus the engine as `engine`.
 weekend-db-typed = { path = "path/to/weekend-db/crates/weekend-db-typed" }
 ```
 
-`Store::create_file(path)` and `open_file(path)` use the macOS or Linux adapter.
-Creation is exclusive. Close the store before `Store::compact_file(path)`. Byte-backed
+`Store::create_file(path)` and `open_file(path)` use the macOS, Linux, or Windows
+NTFS adapter. Creation is exclusive. On macOS and Linux, close the store before
+`Store::compact_file(path)`. Byte-backed
 stores also support `create_on`, `open_on`, and `compact_to(&mut self, target)`.
 `Store::initialize(database)` accepts a fresh revision-zero engine database with
 custom limits; `from_database` opens one already initialized by this module.
@@ -155,8 +156,9 @@ Restoration/migration must fit one transaction. All exact unique indexes share
 a collection, so conservative absence tracking can conflict across tables.
 Owned models and user defaults use ordinary Rust allocations; this is not a
 process-memory quota. Compile-time macro dependencies are isolated from the
-dependency-free engine. File persistence/replacement is available on macOS and
-Linux (x86_64/aarch64); the memory/byte-adapter interfaces remain portable.
+dependency-free engine. File persistence is available on macOS, Linux
+(x86_64/aarch64), and Windows NTFS. Windows can write a compact copy via
+`compact_to` and `engine::storage::FileStore::create(new_path)`.
 
 ## Compile-time contracts
 

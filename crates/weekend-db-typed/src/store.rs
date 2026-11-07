@@ -194,11 +194,11 @@ impl Store {
     ) -> Result<Self> {
         Self::from_database(Database::open_on(backend, limits)?)
     }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn create_file(path: impl AsRef<std::path::Path>) -> Result<Self> {
         Self::initialize(Database::create_file(path, Limits::default())?)
     }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn open_file(path: impl AsRef<std::path::Path>) -> Result<Self> {
         Self::from_database(Database::open_file(path, Limits::default())?)
     }

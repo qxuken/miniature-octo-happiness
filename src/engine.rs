@@ -255,13 +255,13 @@ impl Database {
                 .as_ref()
                 .is_some_and(Storage::requires_recovery)
     }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn create_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
         limits.validate()?;
         let identity = crate::storage::file_identity()?;
         Self::create_on(crate::storage::FileStore::create(path)?, identity, limits)
     }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn open_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
         limits.validate()?;
         Self::open_on(crate::storage::FileStore::open(path)?, limits)

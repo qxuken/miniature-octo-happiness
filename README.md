@@ -15,7 +15,7 @@ in [Raw and typed Rust](#raw-and-typed-rust).
 
 ```sh
 cargo run -p weekend-tasks -- demo
-# macOS/Linux: choose a new database path
+# Choose a new path. On Windows, use a path on local fixed NTFS.
 cargo run -p weekend-tasks -- --db /tmp/my-tasks.wdb init
 cargo run -p weekend-tasks -- --db /tmp/my-tasks.wdb add learn "Build a Rust app"
 cargo run -p weekend-tasks -- --db /tmp/my-tasks.wdb list
@@ -40,9 +40,10 @@ observe the collection, so unrelated new inserts can conflict. Databases and
 immutable handles can be shared across threads; transaction drafts have one
 owner and can transfer between threads. Publication is serialized by a mutex. The byte codec/durability simulator (milestone 6) and macOS
 file storage with durable snapshot retain/release (milestone 7) are implemented.
-Linux file persistence is also implemented. Both adapters use exclusive inode
-locking; macOS uses `F_FULLFSYNC` and Linux uses `fsync`. Their hardware
-assumptions and tested scope are documented in DESIGN.md.
+Linux and Windows file persistence use the same v2 format. macOS uses
+`F_FULLFSYNC`, Linux uses `fsync`, and Windows uses exclusive handles,
+write-through I/O, and `FlushFileBuffers` on local fixed NTFS. See the
+[file adapter contracts](DESIGN.md#windows-file-storage).
 Milestone 8 adds optional schema descriptors and a typed Rust example with stable
 field IDs, unknown-field preservation, explicit migrations, and an email lookup.
 
@@ -67,7 +68,7 @@ Rust callers can use `Database::create_on` / `open_on` with `MemoryStore` or
 `SimulatedDisk` to exercise the real codec and recovery protocol. The simulator
 models separate volatile/durable bytes, torn and short writes, failed syncs,
 and reordered/dropped unsynced writes. Native `create_file` / `open_file` and C
-`wdb_file_create` / `wdb_file_open` use the macOS or Linux adapter. See the
+`wdb_file_create` / `wdb_file_open` use the native adapter. See the
 [v2 format and file contract](DESIGN.md#milestone-7-files-and-byte-format-v2).
 The experimental v2 reader rejects v1 images; there is no automatic conversion.
 
@@ -96,11 +97,11 @@ abort the entire draft on error so partial primary/index changes cannot commit.
 `cargo build --release` produces `target/release/libweekend_db.dylib` on macOS.
 Foreign consumers use [include/weekend_db.h](include/weekend_db.h); the examples
 arrange the loader search path with rpath. Shipping a relocatable bundle remains
-future work. Linux runtime checks also run in a local Linux container; Windows
-runtime results remain pending CI, with local cross-compilation checks.
-`tools/check.py` also loads each shared library through its C ABI. File factories
-support macOS and Linux (x86_64/aarch64). Native Rust consumers use this crate
-directly. Run `cargo clean` to remove engine artifacts.
+future work. The CI matrix runs native checks on macOS, Linux, and Windows.
+`tools/check.py` loads each shared library through its C ABI. File factories
+support macOS, Linux (x86_64/aarch64), and Windows on local fixed NTFS.
+Native Rust consumers use this crate directly. Run `cargo clean` to remove
+engine artifacts.
 
 The [milestone-1 C-versus-Rust experiment](probe/README.md) now exercises a shared
 C ABI, immutable nested values, and C/Rust/Odin consumers, including the local
@@ -116,6 +117,8 @@ first, then use `Database::compact_file(path, limits)` or C/Odin
 exchange. Hard-link sources are rejected. Interrupted operations may leave
 `.wdb-compact-*.tmp` recovery copies; reopen the canonical path before removing
 any leftovers. See the [compaction contract](DESIGN.md#milestone-10-compaction-and-measurements).
+On Windows, use `compact_to` with `storage::FileStore::create(new_path)` to
+write a verified compact copy to a new NTFS file.
 
 To record release microbenchmarks and before/after compaction results:
 

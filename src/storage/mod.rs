@@ -1,5 +1,5 @@
 //! Experimental byte storage, publication protocol, and power-loss simulator.
-//! The macOS/Linux file adapters preserve the modeled ordering; hardware assumptions
+//! Native file adapters preserve the modeled ordering; hardware assumptions
 //! remain conditional and are documented in DESIGN.md.
 mod codec;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -11,6 +11,8 @@ mod macos;
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 mod replacement;
 mod simulator;
+#[cfg(windows)]
+mod windows;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub use file::FileStore;
 #[cfg(target_os = "macos")]
@@ -29,6 +31,12 @@ pub(crate) use linux::identity as file_identity;
 #[cfg(target_os = "macos")]
 pub(crate) use macos::identity as file_identity;
 pub use simulator::{Crash, Fault, IoEvent, IoKind, MemoryStore, SimulatedDisk};
+#[cfg(windows)]
+pub use windows::FileStore;
+#[cfg(windows)]
+pub use windows::FileStore as WindowsFileStore;
+#[cfg(windows)]
+pub(crate) use windows::identity as file_identity;
 
 use crate::{
     Error, Result,

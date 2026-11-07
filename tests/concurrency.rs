@@ -196,6 +196,7 @@ fn concurrent_durable_commits_reopen_with_retained_root() {
 
 #[cfg(any(
     target_os = "macos",
+    windows,
     all(
         target_os = "linux",
         any(target_arch = "x86_64", target_arch = "aarch64")

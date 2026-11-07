@@ -21,13 +21,14 @@ fn portable_demo_runs() -> Result<()> {
 
 #[cfg(any(
     target_os = "macos",
+    windows,
     all(
         target_os = "linux",
         any(target_arch = "x86_64", target_arch = "aarch64")
     )
 ))]
 #[test]
-fn cli_reopens_history_restores_and_compacts_real_files() {
+fn cli_reopens_history_and_restores_real_files() {
     use std::{fs, process::Command};
     let directory = std::env::temp_dir().join(format!("weekend-task-cli-{}", std::process::id()));
     fs::create_dir(&directory).unwrap();
@@ -79,7 +80,7 @@ fn cli_reopens_history_restores_and_compacts_real_files() {
         let store = Store::open_file(&path).unwrap();
         assert_eq!(store.database().snapshot().revision(), revision);
     }
-    run(&["compact"], true);
+    run(&["compact"], !cfg!(windows));
     assert!(run(&["show", "first"], true).contains("Build a Rust app"));
     assert!(run(&["history"], true).contains(checkpoint));
     run(&["upgrade"], true);

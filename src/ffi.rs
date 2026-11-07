@@ -132,9 +132,8 @@ export!(wdb_open(out: *mut *mut CDatabase) {
     *out = mem.raw(CDatabase { db: database, handles: AtomicUsize::new(0) })?;
     Ok(())
 });
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 unsafe fn path<'a>(bytes: *const u8, len: usize) -> Result<&'a std::path::Path> {
-    use std::os::unix::ffi::OsStrExt;
     if bytes.is_null() || len == 0 {
         return Err(Error::Invalid);
     }
@@ -145,17 +144,24 @@ unsafe fn path<'a>(bytes: *const u8, len: usize) -> Result<&'a std::path::Path> 
     if bytes.contains(&0) {
         return Err(Error::Invalid);
     }
-    Ok(std::path::Path::new(std::ffi::OsStr::from_bytes(bytes)))
+    #[cfg(windows)]
+    let name = std::str::from_utf8(bytes).map_err(|_| Error::Invalid)?;
+    #[cfg(not(windows))]
+    let name = {
+        use std::os::unix::ffi::OsStrExt;
+        std::ffi::OsStr::from_bytes(bytes)
+    };
+    Ok(std::path::Path::new(name))
 }
 macro_rules! file_factory {
     ($name:ident,$method:ident)=>{export!($name(bytes:*const u8,len:usize,out:*mut *mut CDatabase) {
         output(out)?;
-        #[cfg(any(target_os="macos",target_os="linux"))]
+        #[cfg(any(target_os="macos",target_os="linux",windows))]
         {
             let database=Database::$method(path(bytes,len)?,crate::Limits::default())?;
             let mem=database.mem.clone();*out=mem.raw(CDatabase {db:database,handles:AtomicUsize::new(0)})?;Ok(())
         }
-        #[cfg(not(any(target_os="macos",target_os="linux")))]
+        #[cfg(not(any(target_os="macos",target_os="linux",windows)))]
         {let _=(bytes,len);Err(Error::UnsupportedPlatform)}
     });};
 }

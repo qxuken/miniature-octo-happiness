@@ -1,5 +1,5 @@
 //! Experimental thread-safe persistent values, transactions, byte codec,
-//! macOS/Linux files, offline compaction, durable retained snapshots, and optional
+//! macOS/Linux/Windows files, offline compaction, durable retained snapshots, and optional
 //! schema access conventions. See examples/typed.rs for the application layer.
 //! See DESIGN.md for implemented contracts and the remaining durability work.
 mod engine;

@@ -19,8 +19,8 @@ secondary lookup maintenance. Milestone 9 adds synchronized publication, real
 thread overlap, stress tests, sanitizers, coverage, and platform build checks.
 Milestone 10 adds quiescent compaction, safe macOS file replacement, and baseline
 measurements. The Rust convenience workspace and task CLI are implemented;
-the subsequent Linux persistence extension adds native file storage and
-compaction without changing v2 bytes.
+the Linux extension adds native storage and in-place compaction. Windows
+adds local NTFS storage and verified compact copies using the same v2 bytes.
 Implemented behavior and its limits are recorded below; this is not a
 production-safety claim.
 
@@ -46,6 +46,7 @@ Use this document as both the target and the implementation workbook:
 - [Compaction and measurements](#milestone-10-compaction-and-measurements)
 - [Rust convenience package and task application](#rust-convenience-package-and-task-application)
 - [Linux persistence and recovery results](#linux-persistence-and-recovery-results)
+- [Windows file storage](#windows-file-storage)
 - [Review corrections: scans and unique presence](#review-corrections-scans-and-unique-presence)
 - [Milestones and definitions of done](#implementation-milestones)
 - [Comparison with existing solutions](#comparison-and-reason-to-build-this)
@@ -1751,9 +1752,10 @@ and example evidence. Generated access does not change its guarantees.
 
 **Implemented 2026-11-06.** Native file creation, reopening and offline compaction
 now support **Linux x86_64 and aarch64** through the same `Database`, typed `Store`,
-C ABI, examples and `weekend-tasks` commands as macOS. Windows file factories
-still return `UnsupportedPlatform`. Other Linux ABIs also return that error
-before file I/O; the in-memory/byte-backed engine remains buildable there.
+C ABI, examples and `weekend-tasks` commands as macOS. The later
+[Windows adapter](#windows-file-storage) extends the file factories. Other Linux
+ABIs return `UnsupportedPlatform` before file I/O. The in-memory and byte-backed
+engine remain buildable there.
 The engine adds no external crate dependency, no C symbols, and no format change:
 the experimental on-disk format remains **v2**, and the C header still exports
 **44 functions**. This section supersedes earlier milestones' Linux file/runtime
@@ -1889,7 +1891,7 @@ CLI are saved in `target/linux-persistence-artifacts/aarch64-unknown-linux-gnu/`
 The temporary container/volume were removed after validation. These are evidence
 from this run, not a checked-in certification artifact.
 
-**Remaining scope:** native x86_64 Linux execution awaits CI; Windows file
+**Remaining scope at this milestone:** native x86_64 Linux execution awaits CI; Windows file
 persistence, older libc compatibility, other Linux ABIs, additional filesystems,
 network/FUSE/overlay-backed database paths, inaccessible/security-specific
 metadata policies, actual device power cuts and host/VM crashes remain unverified.
@@ -1899,6 +1901,59 @@ remain required assumptions. Process-kill tests retain kernel/device caches and
 cannot certify those physical assumptions. The 64 MiB image cap, retained-ID
 limits, explicit compaction quiescence and no automatic recovery-copy cleanup
 remain unchanged.
+
+## Windows file storage
+
+`Database::create_file` and `open_file`, the typed `Store`, the task CLI, and
+`wdb_file_create` / `wdb_file_open` support local fixed NTFS. The same `ByteStore`
+codec writes v2 images, with the same root, witness, recovery and retention rules.
+Rust uses native paths and the C ABI uses explicit-length UTF-8 on Windows.
+The existing C exports and status codes cover the new platform.
+
+The adapter resolves and opens the parent before touching the final component.
+It checks the drive type and filesystem, rejects alternate data streams and
+special device prefixes, and uses `FILE_FLAG_OPEN_REPARSE_POINT` to reject final
+reparse points. Sparse, compressed and encrypted files are outside the supported
+storage scope. Creation uses `CREATE_NEW` and inherits the parent security policy.
+An interrupted creation can leave an incomplete file which recovery rejects.
+
+`CreateFileW` sharing mode zero holds the exclusive file lease through recovery
+and publication. Competing opens through the canonical path or a hard-link alias
+return `Busy`. The handle also denies ordinary deletion and rename of the open
+file. `ByteStore::unlock` closes the handle. Opening again obtains a new lease.
+File identities come from `BCryptGenRandom` using the system-preferred RNG.
+
+Positioned I/O uses a synchronous file handle with `FILE_FLAG_WRITE_THROUGH`.
+Every protocol barrier calls `File::sync_all` (`FlushFileBuffers`) and propagates
+failure. The Windows creation contract relies on NTFS persisting the file and
+its namespace metadata through write-through writes and the first successful
+flush. The documented NTFS metadata ordering and the underlying storage stack's
+4 KiB protected-region and safe-append behavior are assumptions of this adapter.
+Process interruption checks exercise recovery with the kernel and device caches
+still live. Hardware power loss remains a separate validation requirement.
+
+On Windows, use `db.compact_to(storage::FileStore::create(new_path)?)` to write a
+verified compact image. The original stays open and the new file can be reopened
+independently. The typed `Store::compact_to` offers the same operation. In-place
+`compact_file` / `wdb_file_compact` remain macOS/Linux capabilities. The Unix
+protocol relies on holding both leases through an atomic namespace exchange and
+synchronizing the directory. Windows `ReplaceFileW` acquires its own handles,
+has partial failure states, and its write-through flag is unsupported. Windows
+needs a separate durable replacement protocol before enabling that operation.
+
+The Windows CI job runs create/reopen, retained snapshots, file concurrency,
+compact copies, Unicode paths, hard-link exclusion, the CLI lifecycle, and
+shared-library calls including UTF-8 path validation. The common file worker
+terminates a child process before/after selected I/O calls in creation, data
+commits, retain/release and recovery, then checks the reopened state. The worker
+also checks that process exit releases the exclusive handle. The simulator
+continues to exercise torn writes and failed synchronization independently of OS
+behavior.
+
+Primary references include Microsoft's [CreateFileW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew),
+[FlushFileBuffers](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers),
+[BCryptGenRandom](https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcryptgenrandom),
+and [ReplaceFileW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew).
 
 ## Review corrections: scans and unique presence
 
