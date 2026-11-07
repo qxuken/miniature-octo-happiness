@@ -1,0 +1,57 @@
+name: Engine checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust
+        run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+      - run: rustup override set 1.99.1
+      - run: cargo fetch --locked
+      - name: Rust debug/release and interruption checks; C consumers on macOS/Linux
+        run: python tools/check.py --skip-odin
+      - name: Save release shared library and C header
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: error
+          path: |
+            target/release/*.dylib
+            target/release/*.so
+            target/release/*.dll
+            include/weekend_db.h
+  sanitizers:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [address, thread]
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install nightly --profile minimal --component rust-src
+      - run: python3 tools/sanitizers.py ${{ matrix.kind }}
+  coverage:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.99.1 --profile minimal --component llvm-tools-preview
+      - run: rustup override set 1.99.1
+      - run: cargo fetch --locked
+      - run: python3 tools/coverage.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rust-test-coverage
+          if-no-files-found: error
+          path: |
+            target/coverage/report.txt
+            target/coverage/html/

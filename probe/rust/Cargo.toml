@@ -1,0 +1,11 @@
+[package]
+name = "weekend-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[profile.release]
+debug = true

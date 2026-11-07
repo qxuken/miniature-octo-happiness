@@ -1,0 +1,30 @@
+[package]
+name = "weekend-db"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace]
+members = ["crates/weekend-db-typed", "crates/weekend-db-macros", "apps/weekend-tasks"]
+default-members = [".", "crates/weekend-db-typed", "crates/weekend-db-macros", "apps/weekend-tasks"]
+resolver = "3"
+exclude = ["probe/rust"]
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+fault-injection = []
+
+[[bin]]
+name = "benchmark"
+path = "tools/benchmark.rs"
+
+[[bin]]
+name = "file-worker"
+path = "tools/file_worker.rs"
+required-features = ["fault-injection"]
+
+[profile.release]
+overflow-checks = true

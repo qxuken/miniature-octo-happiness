@@ -1,0 +1,13 @@
+[package]
+name = "weekend-db-typed"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[features]
+fault-injection = ["weekend-db/fault-injection"]
+
+[dependencies]
+weekend-db = { path = "../.." }
+weekend-db-macros = { path = "../weekend-db-macros" }
