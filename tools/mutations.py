@@ -27,6 +27,17 @@ for field, condition in [
     add('memory-' + field, 'src/memory.rs', condition, 'false', 'allocation', '--test')
 add('memory-capacity', 'src/memory.rs', 'needed > vec.capacity()', 'needed >= vec.capacity()', 'memory::tests::reservation_checks')
 add('memory-abort-threshold', 'src/memory.rs', '>= isize::MAX as usize', '> isize::MAX as usize', 'memory::tests::shared_clone_aborts')
+# Live-byte admission mutations never invalidate pointers or object ownership.
+add('live-budget-equality', 'src/memory.rs', '*n <= self.0.limits.max_live_bytes',
+    '*n < self.0.limits.max_live_bytes', 'memory::live_budget_tests')
+add('live-budget-cap', 'src/memory.rs', '.filter(|n| *n <= self.0.limits.max_live_bytes)',
+    '.filter(|_| true)', 'memory::live_budget_tests')
+add('live-budget-overflow', 'src/memory.rs', 'used.checked_add(bytes)',
+    'Some(used.wrapping_add(bytes))', 'memory::live_budget_tests')
+add('live-budget-release', 'src/memory.rs', 'self.owner.0.used.fetch_sub(self.bytes, Ordering::AcqRel);',
+    'self.owner.0.used.fetch_sub(0, Ordering::AcqRel);', 'memory::live_budget_tests')
+add('live-budget-peak-sample', 'src/memory.rs', 'self.0.peak.fetch_max(live, Ordering::Relaxed).max(live)',
+    'self.0.peak.load(Ordering::Relaxed)' , 'memory::live_budget_tests')
 for name, old, new in [
     ('byte-null', 'buffer.is_null() && capacity != 0', 'buffer.is_null() || capacity != 0'),
     ('byte-capacity', 'capacity < bytes.len()', 'capacity <= bytes.len()'),

@@ -102,3 +102,13 @@ pub use typed::schema_index_migration;
 
 mod operations;
 pub use operations::{backup_restore, bytestore_contract, logical_import_export};
+mod coordinator;
+mod peer;
+pub use coordinator::coordinator_protocol;
+pub use peer::peer_transport;
+// The replacement sequencer's internal tests use the engine crate-root names.
+pub use weekend_db::{Error, Result, storage};
+mod adversarial;
+mod namespace;
+pub use adversarial::tree_adversarial_keys;
+pub use namespace::replacement_namespace;

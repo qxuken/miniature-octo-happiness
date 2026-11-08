@@ -1,3 +1,5 @@
+mod protocol;
+use protocol::{Enrollment, StudyReplica, command, utf8};
 #[cfg(test)]
 mod tests;
 mod tls;
@@ -7,7 +9,6 @@ mod tls;
 mod study;
 
 use std::{
-    ffi::OsStr,
     fs,
     io::{self, BufRead, Write},
     net::{SocketAddr, TcpListener},
@@ -19,15 +20,10 @@ use std::{
     thread,
     time::Duration,
 };
-use study::StudyProgress;
 use tls::{Credentials, Incoming, Tls};
-use weekend_db::{
-    Database, Error, Limits,
-    crdt::{Actor, Policy, Replica},
-};
+use weekend_db::{Database, Error, Limits};
 
 type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
-type StudyReplica<'db> = Replica<'db, StudyProgress>;
 
 const USAGE: &str = "study-peer keygen <credentials-dir>
 study-peer init <file> <a|b> <32-hex-collection-id>
@@ -36,39 +32,6 @@ commands: edit <lesson> <minutes> <weekly-goal> <session-limit>, practice <minut
 const COLLECTION_ROW: u64 = 1;
 const POLL: Duration = Duration::from_millis(250);
 const MAX_BACKOFF: Duration = Duration::from_secs(2);
-
-#[derive(Clone, Copy)]
-struct Enrollment {
-    policy: Policy,
-    actor: [u8; 16],
-}
-
-impl Enrollment {
-    fn new(actor: &str, collection: [u8; 16]) -> AppResult<Self> {
-        let policy = Policy {
-            collection,
-            generation: 7,
-            actors: [[1; 16], [2; 16]],
-        };
-        let actor = match actor {
-            "a" => policy.actors[0],
-            "b" => policy.actors[1],
-            _ => return Err("actor must be a or b".into()),
-        };
-        if collection == [0; 16] {
-            return Err("collection ID must be nonzero".into());
-        }
-        Ok(Self { policy, actor })
-    }
-
-    fn parse(actor: &OsStr, id: &OsStr) -> AppResult<Self> {
-        let id = utf8(id)?;
-        if id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err("collection ID must be 32 hexadecimal digits".into());
-        }
-        Self::new(utf8(actor)?, u128::from_str_radix(id, 16)?.to_be_bytes())
-    }
-}
 
 struct Network {
     listener: TcpListener,
@@ -114,12 +77,6 @@ pub fn main() -> AppResult<()> {
         }
         _ => Err(USAGE.into()),
     }
-}
-
-fn utf8(value: &OsStr) -> AppResult<&str> {
-    value
-        .to_str()
-        .ok_or_else(|| "expected a UTF-8 argument".into())
 }
 
 fn initialize(path: &Path, enrollment: Enrollment) -> AppResult<()> {
@@ -249,58 +206,4 @@ fn run<S: io::Read + Write>(
         outgoing.join().map_err(|_| Error::Panic)?;
         result
     })
-}
-
-fn command(words: &[&str], db: &Database, replica: &StudyReplica<'_>) -> AppResult<String> {
-    let revision = match words {
-        ["show"] => {
-            let snapshot = db.snapshot();
-            let state = replica.read_at(&snapshot)?;
-            return Ok(format!(
-                "state {} {} {:?} {:?} {:?}",
-                snapshot.revision(),
-                state.practice_minutes.total(),
-                state.weekly_goal.values().collect::<Vec<_>>(),
-                state.session_limit.values().collect::<Vec<_>>(),
-                state.completed.iter().collect::<Vec<_>>(),
-            ));
-        }
-        ["practice", minutes] => {
-            let minutes = minutes.parse()?;
-            edit(replica, |state, actor| {
-                state.practice_minutes.increment(actor, minutes)
-            })?
-        }
-        ["edit", lesson, minutes, goal, limit] => {
-            let (lesson, minutes, goal, limit) = (
-                lesson.parse()?,
-                minutes.parse()?,
-                goal.parse()?,
-                limit.parse()?,
-            );
-            edit(replica, |state, actor| {
-                state.completed.insert(lesson)?;
-                state.practice_minutes.increment(actor, minutes)?;
-                state.weekly_goal.assign(actor, goal)?;
-                state.session_limit.assign(actor, limit)
-            })?
-        }
-        _ => return Err("unknown command (see study-peer --help)".into()),
-    };
-    Ok(format!("local {revision}"))
-}
-
-fn edit(
-    replica: &StudyReplica<'_>,
-    edit: impl Fn(&mut StudyProgress, Actor) -> weekend_db::Result<()>,
-) -> weekend_db::Result<u64> {
-    // These commands only edit the draft. A definite conflict can run again
-    // against a fresh snapshot. OutcomeUnknown must reach the caller.
-    for _ in 0..2 {
-        let result = replica.update(&edit);
-        if result != Err(Error::Conflict) {
-            return result;
-        }
-    }
-    replica.update(edit)
 }

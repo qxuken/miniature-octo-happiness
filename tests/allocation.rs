@@ -4,6 +4,7 @@ use weekend_db::{Database, Error, Limits, TransactionState};
 #[test]
 fn allocation_limits_reject_each_independent_invalid_configuration() {
     let valid = Limits {
+        max_live_bytes: usize::MAX,
         max_depth: 64,
         max_entries: 1_000_000,
         max_writes: 1_000_000,
@@ -56,6 +57,7 @@ fn allocation_limits_reject_each_independent_invalid_configuration() {
     // not permit every application operation.
     assert!(
         Database::with_limits(Limits {
+            max_live_bytes: usize::MAX,
             max_depth: 1,
             max_entries: 0,
             max_writes: 0,

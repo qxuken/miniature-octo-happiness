@@ -9,7 +9,7 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust
@@ -27,6 +27,15 @@ jobs:
         run: |
           python tools/windows_consumers.py --library target/debug/weekend_db.dll
           python tools/windows_consumers.py --library target/release/weekend_db.dll
+      - name: Qualify private native package and relocation (no publication)
+        run: python tools/release.py --output target/private-package --features crdt,replication
+      - name: Save native private package evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-private-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-package/
       - name: Save release shared library and C header
         uses: actions/upload-artifact@v7
         with:

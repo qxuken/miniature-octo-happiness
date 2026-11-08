@@ -19,7 +19,7 @@ pub use engine::{
     CollectionId, Database, MAX_RETAINED_SNAPSHOTS, Rows, Snapshot, Transaction, TransactionState,
     Validation,
 };
-pub use memory::Limits;
+pub use memory::{Limits, MemoryUsage};
 pub use value::{Kind, Value};
 
 pub type Result<T> = std::result::Result<T, Error>;

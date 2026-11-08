@@ -1,4 +1,5 @@
 use super::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, read_all};
+use crate::memory::ChargedVec;
 use crate::{
     Error, Kind, Result, Value,
     engine::{Collection, Head, MAX_RETAINED_SNAPSHOTS, Record, Retained, Retention},
@@ -147,21 +148,21 @@ pub(crate) struct DataEntry {
 }
 pub(crate) struct Candidate {
     pub start: u64,
-    pub bytes: Vec<u8>,
+    pub bytes: ChargedVec<u8>,
     pub descriptor: u64,
     pub end: u64,
-    pub cache: Vec<CacheEntry>,
-    pub data_cache: Vec<DataEntry>,
+    pub cache: ChargedVec<CacheEntry>,
+    pub data_cache: ChargedVec<DataEntry>,
 }
 struct Writer<'a> {
     mem: &'a Memory,
-    bytes: Vec<u8>,
+    bytes: ChargedVec<u8>,
 }
 impl<'a> Writer<'a> {
     fn new(mem: &'a Memory) -> Self {
         Self {
             mem,
-            bytes: Vec::new(),
+            bytes: ChargedVec::new(),
         }
     }
     fn add(&mut self, bytes: &[u8]) -> Result<()> {
@@ -190,9 +191,9 @@ struct Encoder<'a> {
     identity: [u8; 16],
     revision: u64,
     start: u64,
-    bytes: Vec<u8>,
-    cache: Vec<CacheEntry>,
-    data_cache: Vec<DataEntry>,
+    bytes: ChargedVec<u8>,
+    cache: ChargedVec<CacheEntry>,
+    data_cache: ChargedVec<DataEntry>,
 }
 impl Encoder<'_> {
     fn object(&mut self, kind: u32, payload: &[u8]) -> Result<(u64, u64)> {
@@ -284,7 +285,7 @@ impl Encoder<'_> {
         payload.int(head.data_revision)?;
         payload.int(next_collection)?;
         payload.int(head.collections.len() as u64)?;
-        let mut collections = Vec::new();
+        let mut collections = ChargedVec::new();
         self.mem.reserve(&mut collections, head.collections.len())?;
         head.collections.visit(&mut |key, c| {
             let id = u64::from_le_bytes(key.try_into().map_err(|_| Error::Invalid)?);
@@ -296,7 +297,7 @@ impl Encoder<'_> {
             payload.int(id)?;
             payload.int(c.revision)?;
             payload.int(c.records.len() as u64)?;
-            let mut records = Vec::new();
+            let mut records = ChargedVec::new();
             self.mem.reserve(&mut records, c.records.len())?;
             c.records.visit(&mut |key, record| {
                 records.push((key, record));
@@ -336,10 +337,10 @@ pub(crate) fn encode(
     if start < APPEND_START as u64 || !start.is_multiple_of(REGION as u64) {
         return Err(Error::Invalid);
     }
-    let mut cache = Vec::new();
+    let mut cache = ChargedVec::new();
     mem.reserve(&mut cache, old_cache.len())?;
     cache.extend(old_cache.iter().cloned());
-    let mut data_cache = Vec::new();
+    let mut data_cache = ChargedVec::new();
     mem.reserve(&mut data_cache, old_data.len())?;
     data_cache.extend(old_data.iter().cloned());
     let mut encoder = Encoder {
@@ -347,7 +348,7 @@ pub(crate) fn encode(
         identity,
         revision: head.revision,
         start,
-        bytes: Vec::new(),
+        bytes: ChargedVec::new(),
         cache,
         data_cache,
     };
@@ -418,7 +419,7 @@ impl<'a> Cursor<'a> {
     }
 }
 struct Object {
-    payload: Vec<u8>,
+    payload: ChargedVec<u8>,
     born: u64,
     end: u64,
 }
@@ -427,14 +428,14 @@ struct Reader<'a> {
     mem: &'a Memory,
     identity: [u8; 16],
     revision: u64,
-    cache: Vec<CacheEntry>,
+    cache: ChargedVec<CacheEntry>,
     // One slot per aligned region in the selected image. Zero is unoccupied,
     // one is occupied, and n >= 2 names value cache entry n - 2 at its start.
-    regions: Vec<usize>,
+    regions: ChargedVec<usize>,
     region_count: usize,
     objects: usize,
     work: usize,
-    data_cache: Vec<DecodedData>,
+    data_cache: ChargedVec<DecodedData>,
 }
 struct DecodedData {
     entry: DataEntry,
@@ -492,7 +493,7 @@ impl Reader<'_> {
             .checked_add(size as usize + OBJECT_HEADER)
             .filter(|n| *n <= 2 * MAX_IMAGE_BYTES)
             .ok_or(Error::Limit)?;
-        let mut bytes = Vec::new();
+        let mut bytes = ChargedVec::new();
         self.mem.reserve(&mut bytes, size as usize)?;
         bytes.resize(size as usize, 0);
         read_all(self.backend, offset, &mut bytes)?;
@@ -690,8 +691,8 @@ pub(crate) struct Recovered {
     pub witnessed: bool,
     pub head: Shared<Head>,
     pub next_collection: u64,
-    pub cache: Vec<CacheEntry>,
-    pub data_cache: Vec<DataEntry>,
+    pub cache: ChargedVec<CacheEntry>,
+    pub data_cache: ChargedVec<DataEntry>,
     pub retention: Retention,
 }
 pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recovered> {
@@ -747,12 +748,12 @@ pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recov
         mem,
         identity,
         revision: slot.revision,
-        cache: Vec::new(),
-        regions: Vec::new(),
+        cache: ChargedVec::new(),
+        regions: ChargedVec::new(),
         region_count: (slot.end / REGION as u64) as usize,
         objects: 0,
         work: 0,
-        data_cache: Vec::new(),
+        data_cache: ChargedVec::new(),
     };
     let root = reader.object(slot.descriptor, COMMIT, slot.end)?;
     if root.end != slot.end || root.born != slot.revision {
@@ -776,7 +777,7 @@ pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recov
         data_revision,
         collections,
     })?;
-    let mut entries = Vec::new();
+    let mut entries = ChargedVec::new();
     let head_next_collection = next_collection;
     mem.reserve(&mut entries, count)?;
     let mut previous_id = 0;
@@ -811,7 +812,7 @@ pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recov
         });
     }
     cursor.done()?;
-    let mut data_cache = Vec::new();
+    let mut data_cache = ChargedVec::new();
     mem.reserve(&mut data_cache, reader.data_cache.len())?;
     data_cache.extend(reader.data_cache.into_iter().map(|r| r.entry));
     Ok(Recovered {

@@ -29,6 +29,35 @@ struct Receipt {
     #[weekend(id = 1)]
     day: u64,
 }
+fn limits() -> Limits {
+    #[cfg(feature = "live-budget")]
+    return Limits {
+        max_live_bytes: 16 * 1024 * 1024,
+        ..Limits::default()
+    };
+    #[cfg(not(feature = "live-budget"))]
+    Limits::default()
+}
+fn open(path: impl AsRef<Path>) -> Store {
+    Store::from_database(weekend_db::Database::open_file(path, limits()).unwrap()).unwrap()
+}
+fn memory_json(store: &Store) -> String {
+    #[cfg(feature = "live-budget")]
+    {
+        let usage = store.database().memory_usage();
+        assert!(usage.live_bytes <= usage.peak_bytes);
+        assert!(usage.peak_bytes <= usage.limit_bytes);
+        format!(
+            "{{\"live_bytes\":{},\"peak_bytes\":{},\"limit_bytes\":{}}}",
+            usage.live_bytes, usage.peak_bytes, usage.limit_bytes
+        )
+    }
+    #[cfg(not(feature = "live-budget"))]
+    {
+        let _ = store;
+        "null".into()
+    }
+}
 fn policy() -> Policy {
     Policy {
         collection: [31; 16],
@@ -122,7 +151,8 @@ fn main() {
     let mut conflicts = 0;
     let mut retry = 0;
     if phase == "init" {
-        let mut store = Store::create_file(path).unwrap();
+        let mut store =
+            Store::initialize(weekend_db::Database::create_file(path, limits()).unwrap()).unwrap();
         let tasks = store.table::<Task>("tasks").unwrap();
         let receipt = store.table::<Receipt>("receipt").unwrap();
         store
@@ -145,21 +175,17 @@ fn main() {
         assert_eq!(c.as_u64(), 6);
         Replica::<StudyProgress>::enroll(db, c, policy(), policy().actors[role]).unwrap();
     } else if phase == "backup" {
-        storage::backup_file(path, path.with_extension("backup"), Limits::default()).unwrap();
+        storage::backup_file(path, path.with_extension("backup"), limits()).unwrap();
         let backup_us = start.elapsed().as_micros();
         let restore_started = Instant::now();
         storage::restore_file(
             path.with_extension("backup"),
             path.with_extension("restored"),
-            Limits::default(),
+            limits(),
         )
         .unwrap();
         let restore_us = restore_started.elapsed().as_micros();
-        verify(
-            &mut Store::open_file(path.with_extension("restored")).unwrap(),
-            role,
-            day,
-        );
+        verify(&mut open(path.with_extension("restored")), role, day);
         println!(
             "{{\"phase\":\"backup\",\"role\":{role},\"day\":{day},\"backup_us\":{backup_us},\"restore_us\":{restore_us},\"elapsed_us\":{}}}",
             start.elapsed().as_micros()
@@ -167,7 +193,7 @@ fn main() {
         return;
     } else {
         let opened = Instant::now();
-        let mut store = Store::open_file(path).unwrap();
+        let mut store = open(path);
         let reopen_us = opened.elapsed().as_micros();
         match phase.as_str() {
             "day" => {
@@ -295,8 +321,9 @@ fn main() {
             _ => panic!("unknown phase"),
         }
         println!(
-            "{{\"phase\":\"{phase}\",\"role\":{role},\"day\":{day},\"revision\":{},\"transaction_us\":{transaction_us:?},\"reopen_us\":{reopen_us},\"elapsed_us\":{},\"commits\":{commits},\"conflicts\":{conflicts},\"retries\":{retry},\"file_bytes\":{}}}",
+            "{{\"phase\":\"{phase}\",\"role\":{role},\"day\":{day},\"revision\":{},\"memory_usage\":{},\"transaction_us\":{transaction_us:?},\"reopen_us\":{reopen_us},\"elapsed_us\":{},\"commits\":{commits},\"conflicts\":{conflicts},\"retries\":{retry},\"file_bytes\":{}}}",
             store.database().snapshot().revision(),
+            memory_json(&store),
             start.elapsed().as_micros(),
             std::fs::metadata(path).unwrap().len()
         );

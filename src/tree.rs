@@ -1,12 +1,16 @@
+use crate::memory::ChargedVec;
 use crate::{
     Error, Result,
     memory::{Memory, Shared},
 };
 
-type Key = Shared<Vec<u8>>;
+type Key = Shared<ChargedVec<u8>>;
 type Children<V> = [Option<Shared<MapNode<V>>>; 16];
 enum MapNode<V: Clone> {
-    Leaf { hash: u64, entries: Vec<(Key, V)> },
+    Leaf {
+        hash: u64,
+        entries: ChargedVec<(Key, V)>,
+    },
     Branch(Children<V>),
 }
 pub(crate) struct Map<V: Clone> {
@@ -107,14 +111,14 @@ impl<V: Clone> Map<V> {
             }
             Ok(())
         })?;
-        let mut out = Vec::new();
+        let mut out = ChargedVec::new();
         mem.reserve(&mut out, self.len)?;
         self.visit(&mut |key, value| {
-            out.push((mem.copy(key)?, project(value)));
+            out.push((mem.copy_external(key)?, project(value)));
             Ok(())
         })?;
         out.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-        Ok(out)
+        Ok(out.into_external())
     }
     pub(crate) fn visit<'a>(
         &'a self,
@@ -145,7 +149,7 @@ impl<V: Clone> Map<V> {
     }
 }
 fn leaf<V: Clone>(mem: &Memory, key: Key, value: V, hash: u64) -> Result<Shared<MapNode<V>>> {
-    let mut entries = Vec::new();
+    let mut entries = ChargedVec::new();
     mem.reserve(&mut entries, 1)?;
     entries.push((key, value));
     mem.shared(MapNode::Leaf { hash, entries })
@@ -169,7 +173,7 @@ fn insert<V: Clone>(
             let index = entries
                 .iter()
                 .position(|(k, _)| k.as_slice() == key.as_slice());
-            let mut copy = Vec::new();
+            let mut copy = ChargedVec::new();
             mem.reserve(&mut copy, entries.len() + usize::from(index.is_none()))?;
             copy.extend(entries.iter().cloned());
             if let Some(i) = index {
@@ -225,7 +229,7 @@ fn remove<V: Clone>(
             if entries.len() == 1 {
                 return Ok(None);
             }
-            let mut copy = Vec::new();
+            let mut copy = ChargedVec::new();
             mem.reserve(&mut copy, entries.len() - 1)?;
             copy.extend(entries.iter().filter(|(k, _)| k.as_slice() != key).cloned());
             Ok(Some(mem.shared(MapNode::Leaf {

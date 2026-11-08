@@ -1,6 +1,7 @@
 //! Experimental byte storage, publication protocol, and power-loss simulator.
 //! Native file adapters preserve the modeled ordering; hardware assumptions
 //! remain conditional and are documented in DESIGN.md.
+use crate::memory::ChargedVec;
 mod codec;
 pub(crate) mod diagnostics;
 pub use diagnostics::capture as with_native_diagnostics;
@@ -103,8 +104,8 @@ pub(crate) struct Storage {
     identity: [u8; 16],
     revision: u64,
     end: u64,
-    data_cache: Vec<DataEntry>,
-    cache: Vec<CacheEntry>,
+    data_cache: ChargedVec<DataEntry>,
+    cache: ChargedVec<CacheEntry>,
     poisoned: bool,
 }
 impl Drop for Storage {
@@ -187,8 +188,8 @@ impl Storage {
             identity: [0; 16],
             revision: 0,
             end: 0,
-            data_cache: Vec::new(),
-            cache: Vec::new(),
+            data_cache: ChargedVec::new(),
+            cache: ChargedVec::new(),
             poisoned: false,
         })
     }

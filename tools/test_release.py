@@ -43,6 +43,89 @@ class ReleaseConfiguration(unittest.TestCase):
                 self.assertNotEqual(second, release.build_configuration(env))
 
 
+class NativePackageCommands(unittest.TestCase):
+    def test_windows_packages_dll_and_import_library(self):
+        self.assertEqual(release.platform_artifacts('win32'), ('weekend_db.dll', 'weekend_db.dll.lib'))
+        self.assertEqual(release.platform_artifacts('darwin'), ('libweekend_db.dylib',))
+        self.assertEqual(release.platform_artifacts('linux'), ('libweekend_db.so',))
+        with self.assertRaises(RuntimeError):
+            release.platform_artifacts('unknown')
+
+    def test_windows_clients_use_packaged_header_and_linker_input(self):
+        output = Path('package with spaces')
+        library = output / 'weekend_db.dll'
+        with patch.object(release.shutil, 'which', side_effect=lambda name, path: 'msvc/' + name):
+            commands = release.consumer_commands('win32', output, library, {'Path': 'toolchain'})
+            symbols = release.symbol_command('win32', library, {'Path': 'toolchain'})
+        self.assertEqual(symbols, ['msvc/dumpbin.exe', '/nologo', '/exports', str(library)])
+        for (name, version, command, executable), language in zip(commands, ['/TC', '/TP']):
+            self.assertEqual(version, ['msvc/cl.exe', '/?'])
+            self.assertIn(language, command)
+            self.assertIn('/MD', command)
+            self.assertIn('/I' + str(output), command)
+            self.assertNotIn('/I' + str(release.ROOT / 'include'), command)
+            self.assertEqual(command[command.index('/link') + 1:], [str(output / 'weekend_db.dll.lib')])
+            self.assertEqual(executable, output / (name + '.exe'))
+        with patch.object(release.shutil, 'which', return_value=None):
+            with self.assertRaises(RuntimeError):
+                release.symbol_command('win32', library, {})
+
+    def test_unix_exact_artifact_commands_are_preserved(self):
+        output = Path('package')
+        for platform in ['darwin', 'linux']:
+            library = output / release.platform_artifacts(platform)[0]
+            commands = release.consumer_commands(platform, output, library, {})
+            for name, version, command, executable in commands:
+                self.assertIn(str(library), command)
+                self.assertIn('-Wl,-rpath,' + ('@loader_path' if platform == 'darwin' else '$ORIGIN'), command)
+                self.assertEqual(executable, output / name)
+                self.assertEqual(version[-1], '--version')
+
+    def test_relocatable_library_and_odin_commands(self):
+        self.assertIn('link-arg=-Wl,-install_name,@rpath/libweekend_db.dylib', release.library_link_flags('darwin'))
+        self.assertIn('link-arg=-Wl,-soname,libweekend_db.so', release.library_link_flags('linux'))
+        self.assertEqual(release.library_link_flags('win32'), [])
+        output = Path('/package with spaces')
+        for platform in ['darwin', 'linux', 'win32']:
+            library = output / release.platform_artifacts(platform)[0]
+            command, executable = release.odin_command(platform, 'odin', output, library)
+            self.assertIn('-collection:weekend=' + str(output / 'bindings'), command)
+            linked = 'weekend_db.dll.lib' if platform == 'win32' else library.name
+            self.assertIn('-define:WEEKEND_DB_LIBRARY=../../' + linked, command)
+            self.assertEqual(executable.parent, output)
+            if platform != 'win32':
+                self.assertIn('-extra-linker-flags:-Wl,-rpath,' + ('@loader_path' if platform == 'darwin' else '$ORIGIN'), command)
+        with patch.object(release.shutil, 'which', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'cannot be skipped'):
+                release.find_odin({})
+
+    def test_odin_binding_exactly_tracks_header_signatures_and_constants(self):
+        header = (release.ROOT / 'include/weekend_db.h').read_text()
+        actual = (release.ROOT / 'bindings/odin/weekend_db.odin').read_text()
+        self.assertEqual(release.odin_bindings.generate(header), actual)
+        changed = header.replace('wdb_tx_commit(wdb_tx *tx, uint64_t *revision)',
+                                 'wdb_tx_commit(wdb_tx *tx, int32_t *revision)')
+        self.assertNotEqual(release.odin_bindings.generate(changed), actual)
+        self.assertNotEqual(release.odin_bindings.generate(header.replace('WDB_ABI_VERSION 1u', 'WDB_ABI_VERSION 2u')), actual)
+        with self.assertRaises(ValueError):
+            release.odin_bindings.generate(header + '\nuint64_t wdb_unknown(void);')
+
+    def test_windows_toolchain_versions_are_required_and_case_insensitive(self):
+        identity = release.windows_toolchain_identity({'VCToolsVersion': '14.44', 'WindowsSDKVersion': '10.0.26100.0', 'SECRET': 'not evidence'})
+        self.assertEqual(identity, {'vctoolsversion': '14.44', 'windowssdkversion': '10.0.26100.0'})
+        with self.assertRaises(RuntimeError):
+            release.windows_toolchain_identity({'VCToolsVersion': '14.44'})
+
+    def test_runtime_configuration_and_candidate_gates_are_distinct(self):
+        release.require_dynamic_crt('panic="unwind"\ntarget_feature="sse2"\n')
+        with self.assertRaises(RuntimeError):
+            release.require_dynamic_crt('panic="unwind"\ntarget_feature="crt-static"\n')
+        self.assertTrue(release.candidate_eligible('', True))
+        # Both packages may verify at runtime; neither can be a candidate.
+        self.assertFalse(release.candidate_eligible(' M source', True))
+        self.assertFalse(release.candidate_eligible('', False))
+
+
 class Attribution(unittest.TestCase):
     def test_built_packages_only_and_missing_inputs_are_review_gates(self):
         with tempfile.TemporaryDirectory() as temporary:

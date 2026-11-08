@@ -156,8 +156,8 @@ impl Location {
                 .open(parent)
         })?;
         let mem = Memory::new(Limits::default())?;
-        let mut name = mem.copy(name)?;
-        mem.reserve(&mut name, 1)?;
+        let mut name = mem.copy_external(name)?;
+        mem.reserve_external(&mut name, 1)?;
         name.push(0);
         Ok(Self { directory, name })
     }
@@ -170,7 +170,7 @@ impl Location {
             directory: retry(NativeIoOperation::DuplicateHandle, || {
                 self.directory.try_clone()
             })?,
-            name: Memory::new(Limits::default())?.copy(&self.name)?,
+            name: Memory::new(Limits::default())?.copy_external(&self.name)?,
         };
         let access = if writable { 2 } else { 0 };
         let file = self.open_flags(access | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
@@ -246,8 +246,8 @@ impl Location {
         }
     }
     fn scratch(&self, mem: &Memory) -> Result<Self> {
-        let mut name = mem.copy(b".wdb-compact-")?;
-        mem.reserve(&mut name, 37)?;
+        let mut name = mem.copy_external(b".wdb-compact-")?;
+        mem.reserve_external(&mut name, 37)?;
         for byte in identity()? {
             for n in [byte >> 4, byte & 15] {
                 name.push(b"0123456789abcdef"[n as usize]);

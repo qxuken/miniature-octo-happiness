@@ -245,3 +245,114 @@ The ByteStore target bounds short progress to the first 64 calls, choosing
 terminate with an error; positive progress must preserve the complete copy.
 These targets do not establish native filesystem correctness, broad schema
 coverage, exhaustive crash coverage, or full MC/DC coverage.
+
+## Shipped application protocol boundaries
+
+`coordinator_protocol` includes the exact private module used by the shipped
+write-coordinator. It shares the bounded line reader, authentication matcher,
+command execution and durable receipt implementation. The socket wrapper still
+sets its original absolute request deadline before each byte read. The harness
+uses a cursor and a deterministic deadline callback, independently checking
+newline position, the 256-byte limit, UTF-8 and premature EOF, plus a forced
+pre-read timeout that must consume no bytes. Raw authentication is compared
+against the configured exact prefix; generated authorized/unauthorized requests
+then drive real state changes.
+
+Up to 32 commands run against a durable MemoryStore. An independent
+revision/value/receipt map predicts get, successful/stale set, identified commit,
+old acknowledgment replay, mismatched reuse and invalid IDs/numbers. Every
+operation checks state and every eighth operation reopens the image. Receipts
+are bounded to eight IDs here; capacity exhaustion is covered by the existing
+application test at the real 1,024-receipt limit.
+
+`peer_transport` exercises the shipped study-peer application's exact enrollment
+parser and local command executor, including its existing conflict retry helper.
+These functions were moved into a private module and are included by path,
+without a duplicate test parser or new public API. Arbitrary command text checks
+that rejection leaves revision and CRDT state unchanged. Generated show,
+practice and edit commands use an independent counter/set/register oracle,
+including zero increments, lesson bounds, malformed arity and numeric overflow.
+Enrollment checks actor choice, exact hexadecimal width, nonzero identity and,
+on Unix, invalid UTF-8 OS arguments. Inputs are capped at 2 KiB and generated
+schedules at 32 commands.
+
+The target name does not imply a TLS handshake or arbitrary network fault
+campaign. It covers the application configuration/local-command boundary;
+`crdt_frames` separately covers the engine's binary frame decoder. Certificate
+loading/pinning and native deadlines remain exercised by existing application
+TLS/process tests. The peer fuzz schedule has no concurrent writer and therefore
+does not force the retry helper's conflict branches. No new MC/DC denominator or
+whole-transport coverage claim is made. Neither target opens network listeners.
+
+Thirteen deterministic seeds are checked in for these two targets. Run stable
+replay with `cargo test --offline --locked --manifest-path fuzz/Cargo.toml --lib`
+and the existing app tests with `cargo test --offline --locked -p
+write-coordinator -p study-peer`. Use a separate CARGO_TARGET_DIR when other
+agents are building the workspace concurrently.
+
+The initial arm64 macOS ASan smoke completed 1,000 executions per target with
+seed 1, a 2 KiB input cap and no findings. Final evidence is under
+`target/fuzz-evidence/app-protocols-final`. All 13 stable fuzz library tests
+passed; the final peer replay also passed after adding actor/OS-text cases.
+Both applications passed all seven existing debug and release tests, including
+native TLS, process concurrency, durable receipt replay and authentication
+rejection. App and fuzz all-target warnings-denied Clippy passed. These checks
+used the current dirty development tree, including in-progress engine memory
+accounting changes, rather than a frozen release. They are bounded smoke
+results and scoped regression evidence, not a complete transport qualification.
+
+## Namespace replacement and adversarial tree keys
+
+`replacement_namespace` includes the exact production `publish` sequencer from
+`src/storage/replacement.rs`. Its adapter model keeps separate durable,
+directory-flushed and volatile namespace maps. Inputs choose failure before or
+after each of six publication actions, one of three crash persistence policies,
+and up to eight retries with fresh candidate names. Previously orphaned candidates
+and an unrelated sentinel name must survive unrelated publication attempts. An
+independent completed-action oracle predicts every name in all three layers.
+Each candidate references either a verified original image or its verified
+compact copy; every observable canonical image must reopen with current
+revision 4, retained revision 2 and exact current/historical rows.
+
+A simulated busy lease rejects an attempt before publication or candidate
+creation. Lease acquisition itself is an adapter assumption here, not exercised
+native locking code. The starting candidate is already verified and durable;
+atomic exchange and the directory/file persistence model are explicit premises.
+The harness does not claim to simulate a real filesystem, device cache, native
+orphan cleanup or power loss. Native namespace/lease fault drills remain
+separate evidence. Both existing production-sequencer unit tests also run in
+the ordinary stable fuzz replay build.
+
+`tree_adversarial_keys` stresses public immutable maps/lists and their storage
+in database snapshots against independent `BTreeMap<Vec<u8>, u64>` and `Vec<u64>`
+models. It starts lists at 31/32/33 or 1023/1024/1025 entries, then inserts,
+removes and replaces across radix boundaries. Map keys include empty, binary,
+long shared prefixes and lengths through 4 KiB. Floating payloads preserve
+bit patterns for signed zero, subnormal, infinities and NaNs. Every edit checks
+current values and old immutable values; retained in-memory database snapshots
+are rechecked after later commits. This does not assume random input will find
+a full 64-bit hash collision. The existing engine unit test
+`tree::tests::full_hash_collisions_and_long_prefixes` injects those collisions
+explicitly and remains the collision-path evidence.
+
+Forty-nine deterministic seeds cover all namespace boundary/persistence choices
+and six list boundary sizes plus long binary keys. The tree schedule is bounded
+to 32 edits and the namespace schedule to eight attempts.
+
+The planned `txn_program` overlaps the implemented `txn_schedule`: the existing
+target already generates draft begin/read/write/remove/count/scan/commit/abort
+and collection drops, both validation modes, and independent observation/conflict
+oracles. A second name would add no assurance. Larger key/value spaces are
+covered by these tree/value targets; arbitrary schema-aware transactional
+programs or additional concurrent scheduling would require a new oracle, not
+just another entrypoint.
+
+On arm64 macOS, ASan completed 1,000 namespace executions and 1,000 final tree
+executions with seed 1 and a 256-byte input cap, without findings. Namespace
+execution took 7 seconds and the final tree run took 16 seconds. Evidence is in
+`target/fuzz-evidence/tree-namespace` and `target/fuzz-evidence/tree-final`
+respectively. The final tree oracle also rejects duplicate enumeration and
+cross-checks map length and point lookups. Full stable fuzz replay passed all
+17 tests; final tree replay, warnings-denied Clippy and the injected collision
+unit test passed. These are bounded smoke results on the current development
+source, not measured whole-tree MC/DC or native filesystem qualification.

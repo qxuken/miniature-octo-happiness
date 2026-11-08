@@ -132,6 +132,8 @@ def main():
                         'session_limit':20,'task_score_formula':'3000 + 10*role + id, id=1..8',
                         'retained_roots_per_node':30},
         'latency_us':{phase:latency(phase,'elapsed_us') for phase in ['day','sync','serve','checkpoint','verify','backup']},
+        'core_memory_by_phase':[{'role':row['role'],'day':row['day'],'phase':row['phase'],**row['memory_usage']} for row in rows if row.get('memory_usage') is not None],
+        'memory_scope':'requested core heap layouts per process domain; excludes backend, typed/app output buffers and RSS overhead',
         'reopen_us':latency('verify','reopen_us'),
         'successful_transaction_us':distribution(value for row in rows for value in row.get('transaction_us',[])),
         'backup_us':latency('backup','backup_us'),'restore_us':latency('backup','restore_us'),

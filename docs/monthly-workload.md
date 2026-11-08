@@ -137,3 +137,19 @@ JSON/CSV events, binary/source bindings and independent restored files. These
 profiles exercise real native adapters and TCP but retain the workload/auth,
 virtual-device and accelerated-time limitations above. They do not qualify
 physical power failure or the later live-allocation-budget implementation.
+
+## Optional core admission profile
+
+Build with `--features live-budget` to apply a 16 MiB requested-core-heap cap
+to each database/open/backup domain and record live/peak/limit in every normal
+phase. This feature requires an engine revision containing max_live_bytes.
+The Docker runner accepts `--live-budget` to build the same profile on both
+platforms. Outputs and backend/native allocations have the exclusions in
+[memory-budget.md](memory-budget.md); the cap is not a process RSS bound.
+
+A local two-peer run of the new implementation passed all 30 days under this
+cap. Its 420 sampled phases had maximum charged peak 1,210,643 bytes and live
+887,165 bytes. The run took 12.48 seconds; 112 returned transaction samples had
+median 8.234 ms, p95 10.128 ms and maximum 11.508 ms. Evidence is
+`target/monthly-workload/mac-live-budget`; this development run predates the
+final concurrent peak-reporting correction and the next clean candidate.

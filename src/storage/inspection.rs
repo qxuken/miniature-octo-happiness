@@ -30,7 +30,7 @@ fn information(
     mem: &Memory,
 ) -> Result<ImageInfo> {
     let mut retained = Vec::new();
-    mem.reserve(&mut retained, recovered.retention.entries.len())?;
+    mem.reserve_external(&mut retained, recovered.retention.entries.len())?;
     for entry in &recovered.retention.entries {
         retained.push(RetainedInfo {
             id: entry.id,

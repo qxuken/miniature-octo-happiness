@@ -4425,3 +4425,116 @@ subprocess now clears instrumentation/target overrides, retaining its compiler;
 the outer runtime suite remains instrumented. The original failure was
 reproduced, then targeted ASan/TSan, stable tests, Clippy and poisoned-environment
 regressions passed. A fresh complete matrix remains the final combined check.
+
+
+## Aggregate live allocation admission
+
+`Limits::max_live_bytes` optionally bounds requested core heap layouts in one
+Memory domain, including in-flight reservations. Default usize::MAX preserves
+aggregate admission behavior. `MemoryUsage` reports live/peak/limit through
+Database and Value, including values outliving their database. Shared nodes and
+charged internal vectors retain a budget guard until final destruction and
+deallocation; clones do not charge again. Drafts, retained roots, byte payloads,
+keys, codec caches and logical-format scratch use this domain. Native/backend
+allocations, foreign handles, application input/output buffers, allocator overhead
+and application-layer typed/replication buffers remain explicit exclusions.
+See docs/memory-budget.md.
+
+Growth admits the complete new capacity while the old capacity stays charged,
+then uses exact-layout realloc. Null preserves the old buffer and rolls back
+the new reservation. The initial allocate/copy implementation caused a measured
+recovery slowdown and was replaced before qualification. The realloc version's
+local release medians are 108.6 ms at 8,000 scalar records and 204.8 ms at 16,000,
+compared with the earlier 79.5/160.4 ms without accounting. These measurements
+include counter/header overhead and are not controlled latency guarantees.
+
+Independent review and Miri checked alignment, null rollback, alias ownership,
+partial iteration, unwinding destructors and overflow. Nine private and five
+public budget tests passed under Miri, with workspace tests/doctests, release
+allocation/budget suites, Clippy and Windows/Linux cross-checks. Scoped direct
+decision pairs and two additional public equality/rollback tests are recorded in
+docs/memory-budget-decisions.md. Five safe admission/telemetry mutations were
+caught. Follow-up review found that a sampled peak could decrease before the
+admitting thread updated it; a deterministic failing control now passes after
+queries atomically persist observed high water. Its seven admission tests passed
+again in debug/release and the window regression passed Miri.
+
+The simulated month passed locally with a 16 MiB per-domain cap, peaking at
+1,210,643 charged bytes across 420 reported phases. Native process RSS is a
+separate measurement. The new cap never permits partial recovery, silent
+fallback or publication of a failed candidate. Wire format and C statuses
+remain unchanged; Rust Limits has an additional public field.
+
+## Engine and schema source decision audits
+
+The engine audit classifies all 141 production source records, with explicit
+execution evidence, local predicate pairs, coupled/invariant records and native
+delegations. Ten new public tests and six private boundary/arithmetic tests
+cover terminal APIs, record/collection and overlay predicates, revision/ID
+exhaustion, poisoned publication, preparation rollback and checked arithmetic.
+A small highly shared value DAG reaches transaction logical-weight overflow
+while core memory stays below 1 MiB; failed staging preserves the earlier write.
+A private checked-charge helper preserves the original operation order and
+permits exact arithmetic boundary tests without impossible key allocations.
+Debug/release transaction/allocation/schedule tests and targeted Miri passed;
+three wrapping-arithmetic mutations were caught. Native RNG failure remains
+an explicit delegated obligation. See docs/decisions/engine.md.
+
+The raw schema audit classifies 176 source records. Nine directed tests and the
+15 existing schema tests pass debug/release, with Clippy. Cases cover descriptor
+and envelope fields, defaults/presence, all value kinds, successor/reservation
+rules, descriptor key validation and publication's error/active-state guard.
+The audit distinguishes 42 delegated primitive propagations from local predicates.
+A valid empty record with max_bytes=7 demonstrates that projecting an eight-byte
+field key can legitimately return Limit; those paths are tested, not assumed
+infeasible. No production schema changes were needed. See docs/decisions/schema.md.
+
+## Application, tree and namespace fuzzing
+
+The corpus now has 21 targets. coordinator_protocol and peer_transport share
+exact extracted private production parsers/command executors with the apps.
+Independent arithmetic/receipt maps check state, revision, retry, enrollment,
+length/UTF8/auth gates and malformed input. The peer target covers local command
+and enrollment boundaries; TLS handshakes and network faults remain separately
+qualified. Existing app process tests passed debug/release. Both new targets
+passed 1,000 ASan executions and stable replay with 13 permanent seeds.
+
+replacement_namespace exercises the production sequencer against an independent
+durable/flushed/volatile namespace model, including every boundary, retry, orphan
+and unrelated entry. Model leases and exchange/persistence assumptions are not
+native filesystem evidence. tree_adversarial_keys compares long/binary/prefix
+keys, float bits, immutable snapshots and radix-boundary lists against BTreeMap/Vec.
+The two targets have 49 seeds, passed 1,000 ASan executions each, stable replay and
+Clippy. Forced full-hash collisions remain a separate explicit production unit
+test; random fuzzing does not claim to discover them. txn_program is consolidated
+into the existing schedule harness rather than duplicated as a target alias.
+
+At checkpoint 83954e8, the complete native macOS/Ubuntu/Windows matrix, ASan,
+TSan and coverage passed. Linux CI also passed all then-current 17 fuzz targets:
+16,409 actual executions under the configured bounds (schema/index stopped at
+409 on its time budget; the other targets reached 1,000 each). New work requires
+a new combined candidate.
+
+## Private package relocation and Odin bindings
+
+Private packaging now supports native Windows MSVC DLL/import-library delivery
+with packaged-header C/C++ clients, dumpbin exports/dependencies, runtime identity
+and compiler/SDK provenance. Dynamic CRT prerequisites are recorded; vendor
+runtime DLLs are not bundled. All native CI platforms now build private packages.
+
+The generated raw Odin binding mirrors all 49 C declarations and constants, with
+a generator that rejects unsupported signatures. Optional --odin qualification
+packages and compiles a standalone consumer against the exact library, without
+wgpu. It checks identity, binary buffer handling, transactions and retained-file
+reopening. Missing requested tools or concrete attribution inputs fail their gate.
+
+This work found a real packaging defect: macOS copied libraries retained a
+temporary Cargo install-name, and earlier C/C++ checks passed while that directory
+still existed. The linker now uses @rpath/libweekend_db.dylib with @loader_path
+clients; Linux uses an explicit SONAME and literal $ORIGIN. Packaging deletes the
+build directory before runtime checks, then moves the package so its original
+path is unavailable and reruns consumers. Actual macOS Odin/C/C++/ctypes and
+Linux C/C++/ctypes relocation passed. Earlier private-package verification does
+not establish relocation. Windows execution of the new packager awaits CI.
+Eleven regression tests and generated-binding checks pass. Nothing is published
+to a registry. See docs/odin-private-package.md and docs/windows-private-package.md.

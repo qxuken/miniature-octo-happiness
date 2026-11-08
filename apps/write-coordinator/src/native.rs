@@ -1,3 +1,7 @@
+mod protocol;
+#[cfg(test)]
+use protocol::MAX_RECEIPTS;
+use protocol::{COLLECTION, KEY, handle, state};
 use std::{
     ffi::OsStr,
     io::{self, BufRead, Read, Write},
@@ -5,7 +9,9 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
-use weekend_db::{Database, Error, Limits, Result as DbResult};
+#[cfg(test)]
+use weekend_db::Error;
+use weekend_db::{Database, Limits, Result as DbResult};
 
 const USAGE: &str = "write-coordinator init <file>
 write-coordinator serve <file> <port>
@@ -14,11 +20,7 @@ write-coordinator serve <file> <port> --secret-file <file>
 write-coordinator client <port> --secret-file <file>
 client commands: get, set <expected-revision> <unsigned-value>,
 set-id <request-id> <expected-revision> <unsigned-value>, quit";
-const COLLECTION: u64 = 1;
-const KEY: &[u8] = b"counter";
 const TIMEOUT: Duration = Duration::from_secs(3);
-const MAX_LINE: usize = 256;
-const MAX_RECEIPTS: usize = 1024;
 
 type AppResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -74,21 +76,8 @@ impl Secret {
         }
         Ok(Self(bytes.try_into().unwrap()))
     }
-    fn matches(&self, candidate: &str) -> bool {
-        if candidate.len() != self.0.len() {
-            return false;
-        }
-        self.0
-            .iter()
-            .zip(candidate.bytes())
-            .fold(0, |difference, (a, b)| {
-                difference | std::hint::black_box(a ^ b)
-            })
-            == 0
-    }
     fn authorize<'a>(&self, request: &'a str) -> Option<&'a str> {
-        let (candidate, command) = request.strip_prefix("auth ")?.split_once(' ')?;
-        self.matches(candidate).then_some(command)
+        protocol::authorize(&self.0, request)
     }
 }
 
@@ -110,98 +99,6 @@ fn initialize(path: &Path) -> DbResult<()> {
     Ok(())
 }
 
-fn state(db: &Database) -> DbResult<(u64, u64)> {
-    let snapshot = db.snapshot();
-    let value = snapshot
-        .get(db.collection_id(COLLECTION), KEY)?
-        .ok_or(Error::NotFound)?
-        .as_u64()?;
-    Ok((snapshot.revision(), value))
-}
-
-fn handle(db: &mut Database, line: &str) -> DbResult<String> {
-    if db.requires_recovery() {
-        return Err(Error::RecoveryRequired);
-    }
-    let words: Vec<_> = line.split_whitespace().collect();
-    match words.as_slice() {
-        ["get"] => {
-            let (revision, value) = state(db)?;
-            Ok(format!("value {revision} {value}"))
-        }
-        ["set", expected, value] => {
-            let expected = expected.parse::<u64>().map_err(|_| Error::Invalid)?;
-            let value = value.parse::<u64>().map_err(|_| Error::Invalid)?;
-            // The same owner handles the comparison and commit before accepting
-            // another request. This demo uses the revision of its one-record DB.
-            let (revision, current) = state(db)?;
-            if revision != expected {
-                return Ok(format!("conflict {revision} {current}"));
-            }
-            let mut tx = db.begin();
-            tx.put(db.collection_id(COLLECTION), KEY, &db.unsigned(value)?)?;
-            Ok(format!("committed {}", tx.commit()?))
-        }
-        ["set-id", id, expected, value] => {
-            let expected = expected.parse::<u64>().map_err(|_| Error::Invalid)?;
-            let value = value.parse::<u64>().map_err(|_| Error::Invalid)?;
-            submit_identified(db, id, expected, value)
-        }
-        _ => Err(Error::Invalid),
-    }
-}
-
-fn submit_identified(db: &Database, id: &str, expected: u64, value: u64) -> DbResult<String> {
-    if id.is_empty()
-        || id.len() > 32
-        || !id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-    {
-        return Err(Error::Invalid);
-    }
-    let collection = db.collection_id(COLLECTION);
-    let key = format!("receipt/{id}");
-    let mut tx = db.begin_with_validation(weekend_db::Validation::WholeDatabase);
-    if let Some(receipt) = tx.get(collection, key.as_bytes())? {
-        let bytes = receipt.as_bytes().map_err(|_| Error::Corrupt)?;
-        if bytes.len() != 25 || bytes[0] != 1 {
-            return Err(Error::Corrupt);
-        }
-        let original_expected = u64::from_le_bytes(bytes[1..9].try_into().unwrap());
-        let original_value = u64::from_le_bytes(bytes[9..17].try_into().unwrap());
-        let acknowledged = u64::from_le_bytes(bytes[17..25].try_into().unwrap());
-        if original_expected.checked_add(1) != Some(acknowledged)
-            || acknowledged > db.snapshot().revision()
-        {
-            return Err(Error::Corrupt);
-        }
-        if original_expected != expected || original_value != value {
-            return Err(Error::Invalid);
-        }
-        return Ok(format!("committed {acknowledged}"));
-    }
-    let (revision, current) = state(db)?;
-    if revision != expected {
-        return Ok(format!("conflict {revision} {current}"));
-    }
-    // Receipts never expire or get evicted. Exhaustion rejects new IDs while
-    // retaining every existing retry result.
-    if tx.count(collection)? > MAX_RECEIPTS {
-        return Err(Error::Limit);
-    }
-    let acknowledged = revision.checked_add(1).ok_or(Error::Exhausted)?;
-    let mut receipt = [0u8; 25];
-    receipt[0] = 1;
-    receipt[1..9].copy_from_slice(&expected.to_le_bytes());
-    receipt[9..17].copy_from_slice(&value.to_le_bytes());
-    receipt[17..25].copy_from_slice(&acknowledged.to_le_bytes());
-    tx.put(collection, KEY, &db.unsigned(value)?)?;
-    tx.put(collection, key.as_bytes(), &db.bytes(&receipt)?)?;
-    assert_eq!(tx.commit()?, acknowledged);
-    Ok(format!("committed {acknowledged}"))
-}
-
 fn configure(stream: &TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(TIMEOUT))?;
     stream.set_write_timeout(Some(TIMEOUT))
@@ -209,27 +106,12 @@ fn configure(stream: &TcpStream) -> io::Result<()> {
 
 fn read_line(stream: &TcpStream) -> io::Result<String> {
     let deadline = Instant::now() + TIMEOUT;
-    let mut bytes = Vec::new();
-    let mut stream = stream;
-    while bytes.len() < MAX_LINE {
+    protocol::read_line_from(&mut &*stream, || {
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "request deadline exceeded"))?;
-        stream.set_read_timeout(Some(remaining))?;
-        let mut byte = [0];
-        if stream.read(&mut byte)? == 0 {
-            break;
-        }
-        if byte[0] == b'\n' {
-            return String::from_utf8(bytes)
-                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid text"));
-        }
-        bytes.push(byte[0]);
-    }
-    Err(io::Error::new(
-        io::ErrorKind::InvalidData,
-        "missing or oversized line",
-    ))
+        stream.set_read_timeout(Some(remaining))
+    })
 }
 
 fn serve(path: &Path, address: SocketAddr, secret: Option<Secret>) -> AppResult<()> {

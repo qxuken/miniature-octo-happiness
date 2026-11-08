@@ -155,7 +155,7 @@ fn blob(mem: &Memory, mut read: impl FnMut(*mut c_void, usize) -> isize) -> Resu
         return Err(Error::Limit);
     }
     let mut bytes = Vec::new();
-    mem.reserve(&mut bytes, size)?;
+    mem.reserve_external(&mut bytes, size)?;
     bytes.resize(size, 0);
     let n = call(bytes.as_mut_ptr().cast(), size)?;
     if n != size {

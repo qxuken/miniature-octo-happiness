@@ -1,5 +1,6 @@
 //! Versioned logical snapshots, independent of physical offsets and value sharing.
 use super::{ByteStore, MAX_IMAGE_BYTES, Storage, codec};
+use crate::memory::ChargedVec;
 use crate::{
     Error, Kind, Limits, MAX_RETAINED_SNAPSHOTS, Result, Value,
     engine::{Collection, Head, Record, Retained, Retention},
@@ -11,7 +12,7 @@ const MAGIC: &[u8; 8] = b"WDBLOG01";
 const VERSION: u64 = 1;
 const MAX_NODES: usize = MAX_IMAGE_BYTES / super::REGION;
 struct Writer<'a> {
-    bytes: Vec<u8>,
+    bytes: ChargedVec<u8>,
     mem: &'a Memory,
     nodes: usize,
 }
@@ -70,7 +71,7 @@ impl Writer<'_> {
     fn data(&mut self, head: &Head, next: u64) -> Result<()> {
         self.int(head.data_revision)?;
         self.int(next)?;
-        let mut collections = Vec::new();
+        let mut collections = ChargedVec::new();
         self.mem.reserve(&mut collections, head.collections.len())?;
         head.collections.visit(&mut |key, collection| {
             collections.push((
@@ -84,7 +85,7 @@ impl Writer<'_> {
         for (id, collection) in collections {
             self.int(id)?;
             self.int(collection.revision)?;
-            let mut records = Vec::new();
+            let mut records = ChargedVec::new();
             self.mem.reserve(&mut records, collection.records.len())?;
             collection.records.visit(&mut |key, record| {
                 records.push((key, record));
@@ -109,7 +110,7 @@ pub fn export_logical_on<B: ByteStore + 'static>(source: B, limits: Limits) -> R
     let mut source = Storage::locked(source, &mem)?;
     let recovered = codec::recover(&mut *source.backend, &mem)?;
     let mut writer = Writer {
-        bytes: Vec::new(),
+        bytes: ChargedVec::new(),
         mem: &mem,
         nodes: 0,
     };
@@ -120,7 +121,7 @@ pub fn export_logical_on<B: ByteStore + 'static>(source: B, limits: Limits) -> R
     writer.int(recovered.head.data_revision)?;
     writer.int(recovered.retention.next_id)?;
     writer.int(recovered.retention.entries.len() as u64)?;
-    let mut data = Vec::new();
+    let mut data = ChargedVec::new();
     mem.reserve(&mut data, recovered.retention.entries.len() + 1)?;
     data.push((&*recovered.head, recovered.next_collection));
     for root in &recovered.retention.entries {
@@ -139,7 +140,7 @@ pub fn export_logical_on<B: ByteStore + 'static>(source: B, limits: Limits) -> R
     // Expansion of shared values can outgrow the physical format. Promise a
     // restorable export by checking the same resource envelope before return.
     decode(&writer.bytes, &mem)?;
-    Ok(writer.bytes)
+    Ok(writer.bytes.into_external())
 }
 
 struct Reader<'a> {
@@ -164,7 +165,7 @@ impl Reader<'_> {
             Ok(n)
         }
     }
-    fn blob(&mut self) -> Result<Vec<u8>> {
+    fn blob(&mut self) -> Result<ChargedVec<u8>> {
         let n = self.count(self.mem.limits().max_bytes)?;
         let mem = self.mem;
         mem.copy(self.take(n)?)
@@ -200,10 +201,13 @@ impl Reader<'_> {
             6 => {
                 let n = self.count(self.mem.limits().max_entries)?;
                 let mut map = Map::new();
-                let mut previous: Option<Vec<u8>> = None;
+                let mut previous: Option<ChargedVec<u8>> = None;
                 for _ in 0..n {
                     let key = self.blob()?;
-                    if previous.as_ref().is_some_and(|old| old >= &key) {
+                    if previous
+                        .as_ref()
+                        .is_some_and(|old| old.as_slice() >= key.as_slice())
+                    {
                         return Err(Error::Corrupt);
                     }
                     let child = self.value(depth + 1)?;
@@ -242,10 +246,13 @@ impl Reader<'_> {
             previous_id = id;
             let count = self.count(self.mem.limits().max_entries)?;
             let mut records = Map::new();
-            let mut previous: Option<Vec<u8>> = None;
+            let mut previous: Option<ChargedVec<u8>> = None;
             for _ in 0..count {
                 let key = self.blob()?;
-                if previous.as_ref().is_some_and(|old| old >= &key) {
+                if previous
+                    .as_ref()
+                    .is_some_and(|old| old.as_slice() >= key.as_slice())
+                {
                     return Err(Error::Corrupt);
                 }
                 let written = self.int()?;
@@ -318,7 +325,7 @@ fn decode(bytes: &[u8], mem: &Memory) -> Result<Image> {
         return Err(Error::Corrupt);
     }
     let count = reader.count(MAX_RETAINED_SNAPSHOTS)?;
-    let mut roots = Vec::new();
+    let mut roots = ChargedVec::new();
     mem.reserve(&mut roots, count)?;
     let mut previous = 0;
     for _ in 0..count {
@@ -337,7 +344,7 @@ fn decode(bytes: &[u8], mem: &Memory) -> Result<Image> {
         previous = id;
     }
     let count = reader.count(MAX_RETAINED_SNAPSHOTS + 1)?;
-    let mut data = Vec::new();
+    let mut data = ChargedVec::new();
     mem.reserve(&mut data, count)?;
     for index in 0..count {
         let (head, next) = reader.data()?;
@@ -368,7 +375,7 @@ fn decode(bytes: &[u8], mem: &Memory) -> Result<Image> {
         data_revision,
         collections: current.collections.clone(),
     })?;
-    let mut entries = Vec::new();
+    let mut entries = ChargedVec::new();
     mem.reserve(&mut entries, roots.len())?;
     for (id, captured, revision) in roots {
         let (old, old_next) = data

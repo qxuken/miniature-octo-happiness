@@ -1,3 +1,4 @@
+use crate::memory::ChargedVec;
 use crate::{
     Error, Result,
     memory::{Memory, Shared},
@@ -22,7 +23,7 @@ enum Data {
     Integer(i64),
     Unsigned(u64),
     Float(u64),
-    Bytes(Vec<u8>),
+    Bytes(ChargedVec<u8>),
     Map(Map<Value>),
     List(List<Value>),
 }
@@ -40,6 +41,12 @@ pub struct Value {
     node: Shared<Node>,
 }
 impl Value {
+    /// The originating database's shared budget, valid after the database drops.
+    /// See [`crate::MemoryUsage`] for the accounted boundary.
+    pub fn memory_usage(&self) -> crate::MemoryUsage {
+        self.mem.public_usage()
+    }
+
     pub(crate) fn same_node(&self, other: &Self) -> bool {
         self.node.ptr_eq(&other.node)
     }
@@ -346,7 +353,7 @@ impl PartialEq for Value {
             (Data::Integer(a), Data::Integer(b)) => a == b,
             (Data::Unsigned(a), Data::Unsigned(b)) => a == b,
             (Data::Float(a), Data::Float(b)) => a == b,
-            (Data::Bytes(a), Data::Bytes(b)) => a == b,
+            (Data::Bytes(a), Data::Bytes(b)) => a.as_slice() == b.as_slice(),
             (Data::List(a), Data::List(b)) => {
                 a.len() == b.len() && (0..a.len()).all(|i| a.get(i) == b.get(i))
             }

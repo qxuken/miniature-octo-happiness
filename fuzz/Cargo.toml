@@ -138,3 +138,31 @@ path = "fuzz_targets/bytestore_contract.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "coordinator_protocol"
+path = "fuzz_targets/coordinator_protocol.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "peer_transport"
+path = "fuzz_targets/peer_transport.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "replacement_namespace"
+path = "fuzz_targets/replacement_namespace.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tree_adversarial_keys"
+path = "fuzz_targets/tree_adversarial_keys.rs"
+test = false
+doc = false
+bench = false

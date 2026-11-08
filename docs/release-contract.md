@@ -45,13 +45,15 @@ inputs for legal review. The tooling does not approve their terms.
 Metadata and compiled package IDs are joined using Cargo's opaque
 package identity. [Cargo metadata](https://doc.rust-lang.org/cargo/commands/cargo-metadata.html)
 
-Candidate eligibility means these packaging checks passed from
-clean source. The roadmap adds further acceptance gates. Windows compiled
-packaging and full Odin delivery remain tracked. Windows CI now compiles
-and executes C11 and C++17 memory consumers against both debug and release
-MSVC DLLs using `tools/windows_consumers.py`, and archives the import
-library with the DLL. This job still needs a native run before claiming
-Windows compiled-consumer qualification for a candidate.
+Candidate eligibility means these packaging checks passed from clean source;
+the roadmap adds further acceptance gates. Native Windows compiled C11/C++17
+consumers passed at checkpoint 83954e8. The new private Windows packager
+requires its own candidate run. Optional `--odin` packages generated bindings
+and runs a standalone consumer against the exact artifact. macOS Odin/C/C++
+and Linux C/C++ relocation checks passed after fixing a temporary install-name
+dependency; the package is moved and its build directory removed before checks.
+See [Windows packaging](windows-private-package.md) and
+[Odin packaging](odin-private-package.md) for scope and evidence.
 
 Incompatible byte formats require a new version, read-only rejection by
 unsupported readers, logical migration, archived source and rollback tests.
@@ -78,8 +80,9 @@ of the durability contract.
 The security-report and release-owner contact is `sec@qxuken.dev`, supplied by
 the owner on 2026-11-09. [SECURITY.md](../SECURITY.md) describes reporting and
 private patch handling. The primary deployment profile is a Linux server and
-macOS client. A reproducible 30-day simulated workload is being added with
-stored task/study updates, retained history, sync/restart failures and restore.
+macOS client. A reproducible 30-day simulated workload passed with stored task/study updates,
+retained history, sync/restart failures and restore. See
+[workload evidence](monthly-workload.md).
 Native architecture/filesystem evidence and measured latency/resource results
 accompany that workload. Accelerated calendar simulation does not establish a
 month of continuous wall-clock uptime or device power-loss behavior.

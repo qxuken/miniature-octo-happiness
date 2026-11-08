@@ -84,8 +84,8 @@ impl SimulatedDisk {
         }
         let mem = Memory::new(Limits::default())?;
         let disk = mem.shared(Mutex::new(Disk {
-            volatile: mem.copy(image)?,
-            durable: mem.copy(image)?,
+            volatile: mem.copy_external(image)?,
+            durable: mem.copy_external(image)?,
             pending: Vec::new(),
             events: Vec::new(),
             fault: None,
@@ -113,18 +113,18 @@ impl SimulatedDisk {
     pub fn trace(&self) -> Result<Vec<IoEvent>> {
         let disk = self.disk.lock().unwrap();
         let mut out = Vec::new();
-        self.mem.reserve(&mut out, disk.events.len())?;
+        self.mem.reserve_external(&mut out, disk.events.len())?;
         out.extend_from_slice(&disk.events);
         Ok(out)
     }
     pub fn durable_image(&self) -> Result<Vec<u8>> {
-        self.mem.copy(&self.disk.lock().unwrap().durable)
+        self.mem.copy_external(&self.disk.lock().unwrap().durable)
     }
     pub fn crash(&self, policy: Crash) -> Result<()> {
         let mut disk = self.disk.lock().unwrap();
         let epoch = disk.epoch.checked_add(1).ok_or(Error::Exhausted)?;
         let durable = survive(&self.mem, &disk, policy)?;
-        let volatile = self.mem.copy(&durable)?;
+        let volatile = self.mem.copy_external(&durable)?;
         disk.durable = durable;
         disk.volatile = volatile;
         disk.pending.clear();
@@ -152,7 +152,7 @@ impl SimulatedDisk {
             if disk.events.len() >= 262_144 {
                 return Err(Error::Limit);
             }
-            self.mem.reserve(&mut disk.events, 1)?;
+            self.mem.reserve_external(&mut disk.events, 1)?;
             disk.events.push(event);
         }
         let step = disk.steps;
@@ -175,14 +175,14 @@ fn range(offset: u64, len: usize) -> Result<(usize, usize)> {
 fn apply(mem: &Memory, image: &mut Vec<u8>, offset: usize, bytes: &[u8]) -> Result<()> {
     let (_, end) = range(offset as u64, bytes.len())?;
     if end > image.len() {
-        mem.reserve(image, end - image.len())?;
+        mem.reserve_external(image, end - image.len())?;
         image.resize(end, 0);
     }
     image[offset..end].copy_from_slice(bytes);
     Ok(())
 }
 fn survive(mem: &Memory, disk: &Disk, policy: Crash) -> Result<Vec<u8>> {
-    let mut image = mem.copy(&disk.durable)?;
+    let mut image = mem.copy_external(&disk.durable)?;
     match policy {
         Crash::DropAll => {}
         Crash::PersistAll => {
@@ -287,14 +287,14 @@ impl ByteStore for SimulatedDisk {
             if disk.pending.len() >= 2 * MAX_IMAGE_BYTES / super::REGION {
                 return Err(Error::Limit);
             }
-            let copy = self.mem.copy(&bytes[..n])?;
-            self.mem.reserve(&mut disk.pending, 1)?;
+            let copy = self.mem.copy_external(&bytes[..n])?;
+            self.mem.reserve_external(&mut disk.pending, 1)?;
             let extra = end.saturating_sub(disk.volatile.len());
-            self.mem.reserve(&mut disk.volatile, extra)?;
+            self.mem.reserve_external(&mut disk.volatile, extra)?;
             // Reserve the possible immediate durable tear before changing either image.
             if durable {
                 let extra = end.saturating_sub(disk.durable.len());
-                self.mem.reserve(&mut disk.durable, extra)?;
+                self.mem.reserve_external(&mut disk.durable, extra)?;
             }
             apply(&self.mem, &mut disk.volatile, start, &copy)?;
             if durable {
@@ -319,7 +319,7 @@ impl ByteStore for SimulatedDisk {
         )?;
         match fault {
             None => {
-                let durable = self.mem.copy(&disk.volatile)?;
+                let durable = self.mem.copy_external(&disk.volatile)?;
                 disk.durable = durable;
                 disk.pending.clear();
                 Ok(())
