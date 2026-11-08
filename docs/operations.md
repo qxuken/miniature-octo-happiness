@@ -49,8 +49,8 @@ the CLI in independent processes and verifies a read-only source.
 
 Typed `Read::check_indexes` and `Write::rebuild_indexes` verify or atomically
 rebuild indexes from primary records. Explicit complete-root salvage is
-documented in [salvage.md](salvage.md). Detailed corruption offsets remain a
-roadmap item. Use the read-only verifier before migration and preserve the
+documented in [salvage.md](salvage.md). Opt-in [verification diagnostics](verification-diagnostics.md) report the failed
+stage and structure-start offset when known. Use the read-only verifier before migration and preserve the
 original image.
 
 Logical format 1 export/import is documented in [logical-format.md](logical-format.md).

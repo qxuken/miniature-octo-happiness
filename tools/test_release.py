@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import release
 import release_notices
+import rust_source_package
 
 
 class ReleaseConfiguration(unittest.TestCase):
@@ -124,6 +125,68 @@ class NativePackageCommands(unittest.TestCase):
         # Both packages may verify at runtime; neither can be a candidate.
         self.assertFalse(release.candidate_eligible(' M source', True))
         self.assertFalse(release.candidate_eligible('', False))
+
+
+class RustSourceProfile(unittest.TestCase):
+    def test_source_copy_is_explicit_and_excludes_untracked_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'repo'
+            root.mkdir()
+            (root / 'Cargo.toml').write_text('[package]\nname="root"\npublish=false\n')
+            (root / 'secret.txt').write_text('never distribute')
+            for relative in rust_source_package.CONSUMER_FILES:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('[package]\nname="consumer"\npublish=false\n' if path.name == 'Cargo.toml' else 'fixture')
+            destination = Path(temporary) / 'delivered'
+            inventory = rust_source_package.copy_sources(root, destination, ['Cargo.toml'])
+            self.assertEqual(len(inventory), 4)
+            self.assertFalse((destination / 'secret.txt').exists())
+            self.assertEqual((destination / 'Cargo.toml').read_bytes(), (root / 'Cargo.toml').read_bytes())
+            with self.assertRaises(RuntimeError):
+                rust_source_package.copy_sources(root, Path(temporary) / 'bad', ['../secret.txt'])
+            link = root / 'linked-source'
+            try:
+                link.symlink_to(root / 'secret.txt')
+            except OSError:
+                pass  # Some Windows runners lack symlink privileges.
+            else:
+                with self.assertRaisesRegex(RuntimeError, 'regular in-tree'):
+                    rust_source_package.copy_sources(root, Path(temporary) / 'symlink', ['linked-source'])
+            (root / 'Cargo.toml').write_text('[package]\nname="root"\n')
+            with self.assertRaisesRegex(RuntimeError, 'publish=false'):
+                rust_source_package.copy_sources(root, Path(temporary) / 'public', ['Cargo.toml'])
+
+    def test_source_metadata_rejects_escape_git_sources_and_publishable_packages(self):
+        source = Path('/delivered').resolve()
+        local = {'name': 'private', 'manifest_path': str(source / 'Cargo.toml'), 'source': None, 'publish': []}
+        self.assertEqual(rust_source_package.validate_metadata({'packages': [local]}, source), ['Cargo.toml'])
+        for changed in [dict(local, manifest_path=str(source.parent / 'outside/Cargo.toml')),
+                        dict(local, publish=None), dict(local, source='git+https://example.invalid/repo')]:
+            with self.assertRaises(RuntimeError):
+                rust_source_package.validate_metadata({'packages': [changed]}, source)
+
+    def test_dependency_scan_does_not_mask_a_sibling_of_delivered_source(self):
+        original = Path('/repo').resolve()
+        delivered = original / 'target/package/rust-source'
+        self.assertFalse(rust_source_package.references_original('out: ' + str(delivered / 'src/lib.rs'), original, [delivered]))
+        sibling = original / 'target/package/rust-source-escape/file.rs'
+        self.assertTrue(rust_source_package.references_original('out: ' + str(sibling), original, [delivered]))
+        self.assertTrue(rust_source_package.references_original('out: ' + str(original / 'src/lib.rs'), original, [delivered]))
+
+    def test_source_build_is_locked_and_isolation_mounts_only_delivered_source(self):
+        source, original = Path('/delivered'), Path('/original')
+        metadata, build = rust_source_package.build_commands(source, Path('/unique-target'))
+        for command in [metadata, build]:
+            self.assertIn('--locked', command)
+            self.assertIn('--offline', command)
+            self.assertIn(str(source / rust_source_package.CONSUMER), command)
+        command = rust_source_package.isolated_command(source, original, 'source-id', 'rust:image', 'private-test')
+        mounts = [command[i+1] for i, value in enumerate(command) if value == '--mount']
+        self.assertEqual(mounts, [f'type=bind,source={source},target=/package-source,readonly'])
+        self.assertIn('CARGO_INCREMENTAL=0', command)
+        self.assertIn('[ ! -e "$ORIGINAL_SOURCE" ]', command[-1])
+        self.assertIn('--locked', command[-1])
 
 
 class Attribution(unittest.TestCase):

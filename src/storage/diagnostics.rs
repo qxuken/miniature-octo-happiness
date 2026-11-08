@@ -1,4 +1,4 @@
-//! Synchronous opt-in native error context. No paths or record bytes are stored.
+//! Synchronous opt-in storage error context. No paths or record bytes are stored.
 use crate::{Error, Result};
 use std::cell::Cell;
 #[cfg(any(test, target_os = "macos", target_os = "linux", windows))]
@@ -38,10 +38,32 @@ pub struct NativeIoDiagnostic {
     pub raw_os_error: Option<i32>,
 }
 
+/// The verification boundary that returned an error; this is not a repair hint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VerificationStage {
+    ImageLength,
+    Header,
+    RootSlot,
+    Witness,
+    RootSelection,
+    CommitDescriptor,
+    Directory,
+    Value,
+}
+
+/// Offset is the rejected structure or attempted reference start, not necessarily
+/// the exact bad byte or even an offset inside the image.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VerificationDiagnostic {
+    pub stage: VerificationStage,
+    pub offset: Option<u64>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StorageFailure {
     pub error: Error,
     pub native: Option<NativeIoDiagnostic>,
+    pub verification: Option<VerificationDiagnostic>,
 }
 impl std::fmt::Display for StorageFailure {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -53,51 +75,98 @@ impl std::fmt::Display for StorageFailure {
                 native.operation, native.category, native.raw_os_error
             )?;
         }
+        if let Some(verification) = self.verification {
+            write!(out, " (verification {:?}", verification.stage)?;
+            if let Some(offset) = verification.offset {
+                write!(out, ", structure offset {offset}")?;
+            }
+            write!(out, ")")?;
+        }
         Ok(())
     }
 }
 impl std::error::Error for StorageFailure {}
 
-thread_local! {
-    static CAPTURE: Cell<Option<Option<NativeIoDiagnostic>>> = const { Cell::new(None) };
+#[derive(Clone, Copy, Default)]
+struct Context {
+    native: Option<NativeIoDiagnostic>,
+    verification: Option<VerificationDiagnostic>,
 }
-struct Scope(Option<Option<NativeIoDiagnostic>>);
+thread_local! {
+    static CAPTURE: Cell<Option<Context>> = const { Cell::new(None) };
+}
+struct Scope(Option<Context>);
 impl Drop for Scope {
     fn drop(&mut self) {
         CAPTURE.with(|state| state.set(self.0));
     }
 }
 
-/// Capture native context for one synchronous fallible operation on this thread.
+/// Capture native and verification context for one synchronous operation on this thread.
 /// The returned Error remains authoritative. Context identifies the first
 /// terminal native failure observed within the scope, including cleanup.
 /// Nested scopes restore their caller's state, including during unwinding.
-/// Custom ByteStore errors may have no native diagnostic.
+/// Custom ByteStore errors may have no native diagnostic. Verification context
+/// records an observed failure within this operation. A caller that handles an
+/// error and continues should use a nested capture for that separate operation:
+/// Copy errors cannot carry causal identity through arbitrary caller closures.
 pub fn capture<T>(action: impl FnOnce() -> Result<T>) -> std::result::Result<T, StorageFailure> {
-    let _scope = Scope(CAPTURE.with(|state| state.replace(Some(None))));
+    let _scope = Scope(CAPTURE.with(|state| state.replace(Some(Context::default()))));
     action().map_err(|error| StorageFailure {
         error,
-        native: CAPTURE.with(|state| state.get().flatten()),
+        native: CAPTURE.with(|state| state.get().and_then(|context| context.native)),
+        verification: CAPTURE.with(|state| state.get().and_then(|context| context.verification)),
     })
 }
 
 #[cfg(any(test, target_os = "macos", target_os = "linux", windows))]
 pub(super) fn record(operation: NativeIoOperation, error: &io::Error) {
     CAPTURE.with(|state| {
-        if state.get() == Some(None) {
+        if let Some(mut context) = state.get()
+            && context.native.is_none()
+        {
             let category = match error.kind() {
                 io::ErrorKind::PermissionDenied => NativeIoCategory::Permission,
                 io::ErrorKind::StorageFull => NativeIoCategory::DiskFull,
                 io::ErrorKind::QuotaExceeded => NativeIoCategory::Quota,
                 _ => NativeIoCategory::Other,
             };
-            state.set(Some(Some(NativeIoDiagnostic {
+            context.native = Some(NativeIoDiagnostic {
                 operation,
                 category,
                 raw_os_error: error.raw_os_error(),
-            })));
+            });
+            state.set(Some(context));
         }
     });
+}
+
+/// Start a new recovery attempt, or discard a deliberately handled failed probe.
+/// Native observations have their own established lifetime and are not reset.
+pub(super) fn clear_verification() {
+    CAPTURE.with(|state| {
+        if let Some(mut context) = state.get() {
+            context.verification = None;
+            state.set(Some(context));
+        }
+    });
+}
+
+pub(super) fn verify<T>(
+    stage: VerificationStage,
+    offset: Option<u64>,
+    action: impl FnOnce() -> Result<T>,
+) -> Result<T> {
+    action().inspect_err(|_| {
+        CAPTURE.with(|state| {
+            if let Some(mut context) = state.get()
+                && context.verification.is_none()
+            {
+                context.verification = Some(VerificationDiagnostic { stage, offset });
+                state.set(Some(context));
+            }
+        });
+    })
 }
 
 #[cfg(test)]
@@ -141,6 +210,7 @@ mod tests {
             StorageFailure {
                 error: Error::Closed,
                 native: None,
+                verification: None,
             }
         );
     }
@@ -308,5 +378,72 @@ mod tests {
         };
         assert_eq!(failure.error, Error::Invalid);
         assert_eq!(failure.native, None);
+    }
+    #[test]
+    fn verification_inner_failure_wins_and_scopes_restore_on_unwind() {
+        let outer = capture(|| {
+            let _ = verify::<()>(VerificationStage::Header, Some(0), || Err(Error::Corrupt));
+            let failure = capture(|| {
+                verify(VerificationStage::CommitDescriptor, Some(4096), || {
+                    verify::<()>(VerificationStage::Value, Some(8192), || Err(Error::Corrupt))
+                })
+            })
+            .unwrap_err();
+            assert_eq!(
+                failure.verification.unwrap().stage,
+                VerificationStage::Value
+            );
+            assert_eq!(failure.verification.unwrap().offset, Some(8192));
+            assert!(
+                std::panic::catch_unwind(|| capture::<()>(|| {
+                    let _ =
+                        verify::<()>(VerificationStage::Header, Some(0), || Err(Error::Corrupt));
+                    panic!("intentional capture unwind");
+                }))
+                .is_err()
+            );
+            Err::<(), _>(Error::Corrupt)
+        })
+        .unwrap_err();
+        assert_eq!(
+            outer.verification,
+            Some(VerificationDiagnostic {
+                stage: VerificationStage::Header,
+                offset: Some(0)
+            })
+        );
+        assert_eq!(outer.native, None);
+        assert_eq!(
+            capture::<()>(|| Err(Error::Limit))
+                .unwrap_err()
+                .verification,
+            None
+        );
+    }
+
+    #[test]
+    fn verification_context_is_thread_local_and_independent_from_native_context() {
+        let barrier = std::sync::Barrier::new(2);
+        std::thread::scope(|scope| {
+            for offset in [4096, 8192] {
+                let barrier = &barrier;
+                scope.spawn(move || {
+                    let failure = capture(|| {
+                        record(
+                            NativeIoOperation::Read,
+                            &io::Error::from(io::ErrorKind::PermissionDenied),
+                        );
+                        let result =
+                            verify::<()>(VerificationStage::Value, Some(offset), || Err(Error::Io));
+                        barrier.wait();
+                        result
+                    })
+                    .unwrap_err();
+                    assert_eq!(failure.error, Error::Io);
+                    assert_eq!(failure.native.unwrap().operation, NativeIoOperation::Read);
+                    assert_eq!(failure.verification.unwrap().offset, Some(offset));
+                });
+            }
+        });
     }
 }

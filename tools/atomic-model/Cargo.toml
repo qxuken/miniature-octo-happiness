@@ -4,6 +4,11 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 license = "MIT OR Apache-2.0"
+default-run = "weekend-atomic-model"
+
+[[bin]]
+name = "budget"
+path = "src/budget.rs"
 
 [workspace]
 

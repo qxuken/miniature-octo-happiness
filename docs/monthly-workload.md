@@ -153,3 +153,23 @@ cap. Its 420 sampled phases had maximum charged peak 1,210,643 bytes and live
 median 8.234 ms, p95 10.128 ms and maximum 11.508 ms. Evidence is
 `target/monthly-workload/mac-live-budget`; this development run predates the
 final concurrent peak-reporting correction and the next clean candidate.
+
+
+The capped profile also passed across the actual Linux ext4 server/macOS APFS
+client at clean engine checkpoint `62663591a8cd4d8618ecae68f19bee89a5961388`.
+Evidence is `target/monthly-workload/cross-os-live-budget-6266359`; the source
+archive SHA-256 is `ef7c4eb49a0d444d40d74c6cd14cd5e140f3125d869d7ee25b402a83b959a22d`.
+The runner records its own and all driver hashes separately. The orchestrating
+checkout changed while agents continued work; both engines were built from the
+pinned archive, not that mutable checkout.
+
+All 420 reported phases stayed under the 16 MiB core cap; peak requested layout
+bytes were 1,210,643 and peak live bytes 887,165. The workload took 19.05 seconds.
+Its 112 successful transaction samples had median 5.449 ms, p95 25.520 ms and
+maximum 40.789 ms; 60 reopen samples had median 11.875 ms, p95 32.886 ms and
+maximum 37.388 ms. Backup took 48.062/68.661 ms and restore 41.288/60.839 ms.
+Each final image was 6,668,288 bytes with 30 retained roots. Local child RSS
+peaked at 32,129,024 bytes, excluding remote descendants. These are recorded
+samples with concurrent development activity, not latency guarantees or a
+controlled before/after benchmark. The full state/retention/restore oracle and
+repeat-sync no-commit checks passed.

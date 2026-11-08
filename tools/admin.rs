@@ -78,7 +78,7 @@ fn run(args: &[std::ffi::OsString]) -> weekend_db::Result<()> {
 fn main() {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
-    let result = run(&args);
+    let result = weekend_db::storage::with_storage_diagnostics(|| run(&args));
     #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
     let result: weekend_db::Result<()> = {
         let _ = args;

@@ -356,3 +356,11 @@ cross-checks map length and point lookups. Full stable fuzz replay passed all
 17 tests; final tree replay, warnings-denied Clippy and the injected collision
 unit test passed. These are bounded smoke results on the current development
 source, not measured whole-tree MC/DC or native filesystem qualification.
+
+
+Checkpoint 6266359 passed all 21 Linux ASan targets: 20,456 actual executions
+(schema/index 538, adversarial tree 918, other 19 targets 1,000 each). The runner now
+records completed_runs separately from requested budgets, rejects missing/zero
+completion reports, and checks source and permanent-seed hashes for changes.
+--build-directory selects an explicit build cache. Two runner regression tests
+and 100 real raw-image executions passed; longer campaigns remain.

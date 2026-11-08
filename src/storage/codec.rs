@@ -1,3 +1,4 @@
+use super::diagnostics::{self, VerificationStage as Stage};
 use super::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, read_all};
 use crate::memory::ChargedVec;
 use crate::{
@@ -525,6 +526,11 @@ impl Reader<'_> {
         })
     }
     fn value(&mut self, offset: u64, parent: u64, depth: usize) -> Result<Value> {
+        diagnostics::verify(Stage::Value, Some(offset), || {
+            self.value_inner(offset, parent, depth)
+        })
+    }
+    fn value_inner(&mut self, offset: u64, parent: u64, depth: usize) -> Result<Value> {
         if depth > self.mem.limits().max_depth || offset >= parent {
             return Err(Error::Corrupt);
         }
@@ -600,6 +606,16 @@ impl Reader<'_> {
         Ok(value)
     }
     fn data(
+        &mut self,
+        offset: u64,
+        parent: u64,
+        expected_revision: u64,
+    ) -> Result<(Map<Collection>, u64)> {
+        diagnostics::verify(Stage::Directory, Some(offset), || {
+            self.data_inner(offset, parent, expected_revision)
+        })
+    }
+    fn data_inner(
         &mut self,
         offset: u64,
         parent: u64,
@@ -696,134 +712,154 @@ pub(crate) struct Recovered {
     pub retention: Retention,
 }
 pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recovered> {
-    let length = backend.length()?;
-    if length < APPEND_START as u64 || length > MAX_IMAGE_BYTES as u64 {
-        return Err(Error::Corrupt);
-    }
-    let mut header = [0; REGION];
-    read_all(backend, 0, &mut header)?;
-    if &header[..8] != b"WEEKDB01" || u32_at(&header, 8) != VERSION {
-        return Err(Error::UnsupportedFormat);
-    }
-    if checksum(&header, 64) != u64_at(&header, 64)
-        || u32_at(&header, 12) != 0
-        || u64_at(&header, 16) != REGION as u64
-        || u64_at(&header, 24) != APPEND_START as u64
-        || u64_at(&header, 48) != MAX_IMAGE_BYTES as u64
-        || u64_at(&header, 56) != MAX_OBJECTS as u64
-        || header[72..].iter().any(|b| *b != 0)
-    {
-        return Err(Error::Corrupt);
-    }
-    let identity: [u8; 16] = header[32..48].try_into().unwrap();
-    if identity == [0; 16] {
-        return Err(Error::Corrupt);
-    }
+    diagnostics::clear_verification();
+    let length = diagnostics::verify(Stage::ImageLength, None, || {
+        let length = backend.length()?;
+        if length < APPEND_START as u64 || length > MAX_IMAGE_BYTES as u64 {
+            return Err(Error::Corrupt);
+        }
+        Ok(length)
+    })?;
+    let identity = diagnostics::verify(Stage::Header, Some(0), || {
+        let mut header = [0; REGION];
+        read_all(backend, 0, &mut header)?;
+        if &header[..8] != b"WEEKDB01" || u32_at(&header, 8) != VERSION {
+            return Err(Error::UnsupportedFormat);
+        }
+        if checksum(&header, 64) != u64_at(&header, 64)
+            || u32_at(&header, 12) != 0
+            || u64_at(&header, 16) != REGION as u64
+            || u64_at(&header, 24) != APPEND_START as u64
+            || u64_at(&header, 48) != MAX_IMAGE_BYTES as u64
+            || u64_at(&header, 56) != MAX_OBJECTS as u64
+            || header[72..].iter().any(|b| *b != 0)
+        {
+            return Err(Error::Corrupt);
+        }
+        let identity: [u8; 16] = header[32..48].try_into().unwrap();
+        if identity == [0; 16] {
+            return Err(Error::Corrupt);
+        }
+        Ok(identity)
+    })?;
     let mut slots = [None; 2];
     let mut witnesses = [None; 2];
     for i in 0..2 {
-        let mut bytes = [0; REGION];
-        read_all(backend, ((1 + i) * REGION) as u64, &mut bytes)?;
-        slots[i] = parse_metadata(&bytes, identity, i, false, length)?;
-        read_all(backend, ((3 + i) * REGION) as u64, &mut bytes)?;
-        witnesses[i] = parse_metadata(&bytes, identity, i, true, length)?;
+        slots[i] = diagnostics::verify(Stage::RootSlot, Some(((1 + i) * REGION) as u64), || {
+            let mut bytes = [0; REGION];
+            read_all(backend, ((1 + i) * REGION) as u64, &mut bytes)?;
+            parse_metadata(&bytes, identity, i, false, length)
+        })?;
+        witnesses[i] =
+            diagnostics::verify(Stage::Witness, Some(((3 + i) * REGION) as u64), || {
+                let mut bytes = [0; REGION];
+                read_all(backend, ((3 + i) * REGION) as u64, &mut bytes)?;
+                parse_metadata(&bytes, identity, i, true, length)
+            })?;
     }
-    let slot = slots
-        .into_iter()
-        .flatten()
-        .max_by_key(|s| s.revision)
-        .ok_or(Error::Corrupt)?;
-    for witness in witnesses.into_iter().flatten() {
-        if witness.revision > slot.revision
-            || (witness.revision == slot.revision && witness != slot)
+    let slot = diagnostics::verify(Stage::RootSelection, None, || {
+        let slot = slots
+            .into_iter()
+            .flatten()
+            .max_by_key(|s| s.revision)
+            .ok_or(Error::Corrupt)?;
+        for witness in witnesses.into_iter().flatten() {
+            if witness.revision > slot.revision
+                || (witness.revision == slot.revision && witness != slot)
+            {
+                return Err(Error::Corrupt);
+            }
+        }
+        if slots[0].is_some_and(|a| slots[1].is_some_and(|b| a.revision.abs_diff(b.revision) != 1))
         {
             return Err(Error::Corrupt);
         }
-    }
-    if slots[0].is_some_and(|a| slots[1].is_some_and(|b| a.revision.abs_diff(b.revision) != 1)) {
-        return Err(Error::Corrupt);
-    }
-    let mut reader = Reader {
-        backend,
-        mem,
-        identity,
-        revision: slot.revision,
-        cache: ChargedVec::new(),
-        regions: ChargedVec::new(),
-        region_count: (slot.end / REGION as u64) as usize,
-        objects: 0,
-        work: 0,
-        data_cache: ChargedVec::new(),
-    };
-    let root = reader.object(slot.descriptor, COMMIT, slot.end)?;
-    if root.end != slot.end || root.born != slot.revision {
-        return Err(Error::Corrupt);
-    }
-    let mut cursor = Cursor::new(&root.payload);
-    let revision = cursor.int()?;
-    let data_ref = cursor.int()?;
-    let data_revision = cursor.int()?;
-    if revision != slot.revision || data_revision > revision {
-        return Err(Error::Corrupt);
-    }
-    let next_id = cursor.int()?;
-    if next_id == 0 {
-        return Err(Error::Corrupt);
-    }
-    let count = cursor.count(MAX_RETAINED_SNAPSHOTS)?;
-    let (collections, next_collection) = reader.data(data_ref, slot.descriptor, data_revision)?;
-    let head = mem.shared(Head {
-        revision,
-        data_revision,
-        collections,
+        Ok(slot)
     })?;
-    let mut entries = ChargedVec::new();
-    let head_next_collection = next_collection;
-    mem.reserve(&mut entries, count)?;
-    let mut previous_id = 0;
-    for _ in 0..count {
-        let id = cursor.int()?;
-        let snapshot_revision = cursor.int()?;
-        let offset = cursor.int()?;
-        let snapshot_data_revision = cursor.int()?;
-        if id <= previous_id
-            || id >= next_id
-            || snapshot_revision >= revision
-            || snapshot_data_revision > snapshot_revision
-            || snapshot_data_revision > data_revision
-        {
+    diagnostics::verify(Stage::CommitDescriptor, Some(slot.descriptor), || {
+        let mut reader = Reader {
+            backend,
+            mem,
+            identity,
+            revision: slot.revision,
+            cache: ChargedVec::new(),
+            regions: ChargedVec::new(),
+            region_count: (slot.end / REGION as u64) as usize,
+            objects: 0,
+            work: 0,
+            data_cache: ChargedVec::new(),
+        };
+        let root = reader.object(slot.descriptor, COMMIT, slot.end)?;
+        if root.end != slot.end || root.born != slot.revision {
             return Err(Error::Corrupt);
         }
-        previous_id = id;
+        let mut cursor = Cursor::new(&root.payload);
+        let revision = cursor.int()?;
+        let data_ref = cursor.int()?;
+        let data_revision = cursor.int()?;
+        if revision != slot.revision || data_revision > revision {
+            return Err(Error::Corrupt);
+        }
+        let next_id = cursor.int()?;
+        if next_id == 0 {
+            return Err(Error::Corrupt);
+        }
+        let count = cursor.count(MAX_RETAINED_SNAPSHOTS)?;
         let (collections, next_collection) =
-            reader.data(offset, slot.descriptor, snapshot_data_revision)?;
-        if next_collection > head_next_collection {
-            return Err(Error::Corrupt);
-        }
+            reader.data(data_ref, slot.descriptor, data_revision)?;
         let head = mem.shared(Head {
-            revision: snapshot_revision,
-            data_revision: snapshot_data_revision,
+            revision,
+            data_revision,
             collections,
         })?;
-        entries.push(Retained {
-            id,
+        let mut entries = ChargedVec::new();
+        let head_next_collection = next_collection;
+        mem.reserve(&mut entries, count)?;
+        let mut previous_id = 0;
+        for _ in 0..count {
+            let id = cursor.int()?;
+            let snapshot_revision = cursor.int()?;
+            let offset = cursor.int()?;
+            let snapshot_data_revision = cursor.int()?;
+            if id <= previous_id
+                || id >= next_id
+                || snapshot_revision >= revision
+                || snapshot_data_revision > snapshot_revision
+                || snapshot_data_revision > data_revision
+            {
+                return Err(Error::Corrupt);
+            }
+            previous_id = id;
+            let (collections, next_collection) =
+                reader.data(offset, slot.descriptor, snapshot_data_revision)?;
+            if next_collection > head_next_collection {
+                return Err(Error::Corrupt);
+            }
+            let head = mem.shared(Head {
+                revision: snapshot_revision,
+                data_revision: snapshot_data_revision,
+                collections,
+            })?;
+            entries.push(Retained {
+                id,
+                head,
+                next_collection,
+            });
+        }
+        cursor.done()?;
+        let mut data_cache = ChargedVec::new();
+        mem.reserve(&mut data_cache, reader.data_cache.len())?;
+        data_cache.extend(reader.data_cache.into_iter().map(|r| r.entry));
+        Ok(Recovered {
+            identity,
+            slot,
+            witnessed: witnesses[slot.index] == Some(slot),
             head,
             next_collection,
-        });
-    }
-    cursor.done()?;
-    let mut data_cache = ChargedVec::new();
-    mem.reserve(&mut data_cache, reader.data_cache.len())?;
-    data_cache.extend(reader.data_cache.into_iter().map(|r| r.entry));
-    Ok(Recovered {
-        identity,
-        slot,
-        witnessed: witnesses[slot.index] == Some(slot),
-        head,
-        next_collection,
-        cache: reader.cache,
-        data_cache,
-        retention: Retention { next_id, entries },
+            cache: reader.cache,
+            data_cache,
+            retention: Retention { next_id, entries },
+        })
     })
 }
 
@@ -1934,5 +1970,157 @@ mod tests {
             Error::UnsupportedFormat,
             "v1 requires an explicit converter"
         );
+    }
+    fn verification_failure(image: &[u8], error: Error, stage: Stage, offset: Option<u64>) {
+        let disk = SimulatedDisk::from_image(image).unwrap();
+        let failure = crate::storage::with_storage_diagnostics(|| {
+            crate::storage::inspect_on(disk.clone(), Limits::default())
+        })
+        .unwrap_err();
+        assert_eq!(failure.error, error);
+        assert_eq!(failure.native, None);
+        assert_eq!(
+            failure.verification,
+            Some(crate::storage::VerificationDiagnostic { stage, offset })
+        );
+        assert_eq!(disk.durable_image().unwrap(), image);
+    }
+
+    #[test]
+    fn verification_diagnostics_identify_metadata_and_selected_graph_failures() {
+        let original = fixture();
+        verification_failure(&[], Error::Corrupt, Stage::ImageLength, None);
+        let mut image = original.clone();
+        image[0] ^= 1;
+        verification_failure(&image, Error::UnsupportedFormat, Stage::Header, Some(0));
+        let mut image = original.clone();
+        image[12] = 1;
+        resign(&mut image, 0, REGION, 64);
+        verification_failure(&image, Error::Corrupt, Stage::Header, Some(0));
+        for (region, stage) in [(1, Stage::RootSlot), (3, Stage::Witness)] {
+            let mut image = original.clone();
+            image[region * REGION + 72] = 1;
+            resign(&mut image, region * REGION, REGION, 64);
+            verification_failure(
+                &image,
+                Error::Corrupt,
+                stage,
+                Some((region * REGION) as u64),
+            );
+        }
+        let mut image = original.clone();
+        image[REGION..APPEND_START].fill(0);
+        verification_failure(&image, Error::Corrupt, Stage::RootSelection, None);
+        // Every damaged object belongs to the selected newest root. The intact
+        // older root must not be used as a fallback, and inner value errors must
+        // not be relabeled with the parent directory/commit's successful read.
+        let objects = spans(&original);
+        for (kind, stage) in [
+            (COMMIT, Stage::CommitDescriptor),
+            (DATA, Stage::Directory),
+            (VALUE, Stage::Value),
+        ] {
+            let offset = if kind == VALUE {
+                objects.iter().find(|(_, _, k)| *k == kind).unwrap().0
+            } else {
+                objects.iter().rev().find(|(_, _, k)| *k == kind).unwrap().0
+            };
+            let mut image = original.clone();
+            image[offset + OBJECT_HEADER] ^= 1;
+            verification_failure(&image, Error::Corrupt, stage, Some(offset as u64));
+        }
+    }
+
+    #[test]
+    fn verification_diagnostics_preserve_io_resource_errors_and_success_has_no_marker() {
+        let image = fixture();
+        let root = spans(&image)
+            .into_iter()
+            .rev()
+            .find(|(_, _, k)| *k == COMMIT)
+            .unwrap()
+            .0 as u64;
+        let disk = SimulatedDisk::from_image(&image).unwrap();
+        disk.arm(1, crate::storage::Fault::Error); // length succeeds, header read fails
+        let failure = crate::storage::with_storage_diagnostics(|| {
+            crate::storage::inspect_on(disk, Limits::default())
+        })
+        .unwrap_err();
+        assert_eq!(failure.error, Error::Io);
+        assert_eq!(failure.native, None); // simulator/custom I/O has no invented OS error
+        assert_eq!(
+            failure.verification,
+            Some(crate::storage::VerificationDiagnostic {
+                stage: Stage::Header,
+                offset: Some(0)
+            })
+        );
+        let failure = crate::storage::with_storage_diagnostics(|| {
+            crate::storage::inspect_on(
+                SimulatedDisk::from_image(&image).unwrap(),
+                Limits {
+                    max_live_bytes: 0,
+                    ..Limits::default()
+                },
+            )
+        })
+        .unwrap_err();
+        assert_eq!(failure.error, Error::Limit);
+        assert_eq!(
+            failure.verification.unwrap(),
+            crate::storage::VerificationDiagnostic {
+                stage: Stage::CommitDescriptor,
+                offset: Some(root)
+            }
+        );
+        let mem = Memory::new(Limits::default()).unwrap();
+        mem.fail_after(Some(0));
+        let mut disk = SimulatedDisk::from_image(&image).unwrap();
+        disk.lock().unwrap();
+        let failure =
+            crate::storage::with_storage_diagnostics(|| recover(&mut disk, &mem).map(|_| ()))
+                .unwrap_err();
+        assert_eq!(failure.error, Error::OutOfMemory);
+        assert_eq!(
+            failure.verification.unwrap(),
+            crate::storage::VerificationDiagnostic {
+                stage: Stage::CommitDescriptor,
+                offset: Some(root)
+            }
+        );
+        disk.unlock();
+        let mut torn = image.clone();
+        torn[2 * REGION] ^= 1; // stale root's bad checksum is tolerated, not a failure
+        let failure = crate::storage::with_storage_diagnostics(|| {
+            let bad = SimulatedDisk::from_image(&[]).unwrap();
+            assert!(crate::storage::inspect_on(bad, Limits::default()).is_err());
+            crate::storage::inspect_on(
+                SimulatedDisk::from_image(&torn).unwrap(),
+                Limits::default(),
+            )?;
+            Err::<(), _>(Error::Io) // unrelated error after successful verification
+        })
+        .unwrap_err();
+        assert_eq!(failure.error, Error::Io);
+        assert_eq!(failure.verification, None);
+    }
+
+    #[test]
+    fn discarded_salvage_probe_does_not_label_destination_failure() {
+        let mut image = fixture();
+        // Revision 2 in slot0 is good. Make slot1's older graph bad, so its later
+        // independent salvage probe is discarded after a successful candidate.
+        let old_root = u64_at(&image, 2 * REGION + 40) as usize;
+        image[old_root + OBJECT_HEADER] ^= 1;
+        let source = SimulatedDisk::from_image(&image).unwrap();
+        let destination = SimulatedDisk::new().unwrap();
+        destination.arm(0, crate::storage::Fault::Error); // destination length
+        let failure = crate::storage::with_storage_diagnostics(|| {
+            crate::storage::salvage_on(source.clone(), destination, Limits::default())
+        })
+        .unwrap_err();
+        assert_eq!(failure.error, Error::Io);
+        assert_eq!(failure.verification, None);
+        assert_eq!(source.durable_image().unwrap(), image);
     }
 }

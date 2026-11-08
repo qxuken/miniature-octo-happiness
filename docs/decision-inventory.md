@@ -152,3 +152,13 @@ independent Python check verified all 5,523 production source/condition/exclusio
 blind-spot ranges and SHA-256 values against actual file bytes, all full-file
 hashes and unique decision IDs. Regenerate after code changes; these counts are a
 snapshot, not a permanent coverage assertion.
+
+
+After allocation accounting, extracted application parsers and verification
+diagnostics, the inventory contains 2,408 explicit records across 47 files and
+10 targets, with 284 macro/derive blind spots, 28 test exclusions and no parse
+failures. The recorded source-set hash is
+`c3bb8892b935eb14e6399d6a7e54a1dea0a110ed68a164cdf73bcae655b858d7`;
+output is `target/decision-inventory-current`. [Module audits](decisions/README.md)
+classify 584 of these explicit records, with scoped proofs and delegated gaps.
+This is an audit status, not a coverage percentage or an expanded FFI denominator.

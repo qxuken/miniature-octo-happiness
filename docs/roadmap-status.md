@@ -8,22 +8,22 @@ decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
-| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. Initial inventory recorded 2,380 decisions/macro blind spots. Engine141 and schema176 source audits plus allocation pairs added; other module classifications and delegated obligations remain open. |
-| Fuzzing | Twenty-one targets and deterministic seeds exist. Remaining inventory is in the roadmap. The 17-target checkpoint campaign passed Linux ASan CI; new targets await the next matrix. |
-| Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Corruption offsets remain. |
+| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. Updated inventory records 2,408 explicit decisions plus 284 macro blind spots. Engine/schema/tree/value/storage/replacement/simulator audits classify 584 records plus scoped allocation pairs; other classifications and delegated obligations remain. |
+| Fuzzing | Twenty-one targets and deterministic seeds exist. Remaining inventory is in the roadmap. The 21-target 6266359 Linux ASan campaign passed 20,456 actual executions. Longer campaigns remain. |
+| Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Verification stage/structure-start offsets implemented and fault-tested. |
 | Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore across processes and old retained schemas is tested. Deployment restore-time budgets remain. |
 | Migration/salvage | Logical export/import format 1 implemented with frozen fixture. Explicit complete-root salvage is tested. Future-version conversion remains. |
 | Storage lifecycle | Compaction exists. Append headroom and near-cap recovery/compaction tests implemented. Indexed recovery measured near the cap. Cleanup policy and device qualification remain. |
 | Resources | Per-value/transaction limits exist. Opt-in aggregate core layout budget for pinned/draft allocations implemented and independently reviewed. Application/backend/RSS envelopes and sustained soak remain. |
-| Packaging | Runtime identity and private artifact checks added. Private identity/notice checks existed at a7dc343; later relocation testing exposed and fixed its temporary loader-path defect. Windows compiled consumers passed at 1ca5e5ab. Windows private packaging and optional macOS Odin exact-artifact checks added; fresh combined CI is pending. |
+| Packaging | Runtime identity and private artifact checks added. Private identity/notice checks existed at a7dc343; later relocation testing exposed and fixed its temporary loader-path defect. Windows compiled consumers passed at 1ca5e5ab. Windows private packaging passed 6266359; macOS Odin relocation passed locally. Copied Rust source profile added; clean qualification pending. |
 | Compatibility | v2 format rejection exists. Archived v2 and logical-v1 fixtures exist. a7dc343 reads 1ca5e5ab files in tested pre1 cases. Broader version/feature qualification remains. |
-| Native matrix | macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu passed 1ca5e5ab; simulated month also passed Linux ext4 server/macOS APFS client. New candidate/device qualification remains. |
-| Unsafe/concurrency | Thread/process/sanitizer tests exist. A bounded Loom model, Miri and abort subprocess checks passed. Charged allocation/realloc paths independently reviewed and tested under Miri. Additional model workloads and full unsafe review remain. |
+| Native matrix | macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu, ASan and TSan passed 6266359; simulated month also passed Linux ext4 server/macOS APFS client. New candidate/device qualification remains. |
+| Unsafe/concurrency | Thread/process/sanitizer tests exist. Bounded ownership/admission Loom models, negative controls, Miri and abort checks passed. C-side ASan passed locally with calibration; Linux job pending. Charged allocation/realloc paths independently reviewed and tested under Miri. Additional model workloads and full unsafe review remain. |
 | Typed Rust | Models/migrations/indexes exist. Verification/rebuild implemented and fault-tested. Explicit bounded migration with atomic progress tested. Mixed-version qualification remains. |
 | Snapshot replication | Verified snapshots and separate acknowledgment exist. Manifest bounds, cleanup, compaction and explicit reseed are tested. Authenticated deployment and mixed-version qualification remain. |
 | CRDT peers | Fixed two-actor TLS demo exists. Policy evolution, stale backup identity, reserved-row ownership and resource/soak gates remain. |
 | Coordinator | Conditional writes, durable receipts and configured loopback authentication tested. Deployment qualification remains. |
-| Release operations | Support/security policy, provenance, workload budgets, restore drill and final evidence bundle remain. |
+| Release operations | Support/security policy and provenance recorded; capped cross-OS month and restore passed. Sustained soak, deployment latency guarantees and final bundle remain. |
 
 The full acceptance inventory is in [production-readiness.md](production-readiness.md).
 Rows stay open until evidence is recorded. Physical power-loss qualification

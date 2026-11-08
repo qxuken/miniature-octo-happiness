@@ -5,7 +5,11 @@ use crate::memory::ChargedVec;
 mod codec;
 pub(crate) mod diagnostics;
 pub use diagnostics::capture as with_native_diagnostics;
-pub use diagnostics::{NativeIoCategory, NativeIoDiagnostic, NativeIoOperation, StorageFailure};
+pub use diagnostics::capture as with_storage_diagnostics;
+pub use diagnostics::{
+    NativeIoCategory, NativeIoDiagnostic, NativeIoOperation, StorageFailure,
+    VerificationDiagnostic, VerificationStage,
+};
 mod inspection;
 mod logical;
 pub use inspection::{ImageInfo, RetainedInfo, backup_on, inspect_on};
@@ -479,5 +483,108 @@ mod transfer_tests {
         store.answer = Ok(REGION);
         assert_eq!(read_all(&mut store, 0, &mut vec![0; 2 * REGION]), Ok(()));
         assert_eq!(store.calls, [(0, REGION), (REGION as u64, REGION)]);
+    }
+}
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    use crate::{Limits, memory::ChargedVec, tree::Map};
+
+    fn fixture() -> (Storage, Memory, Shared<Head>, Retention, SimulatedDisk) {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let head = mem
+            .shared(Head {
+                revision: 0,
+                data_revision: 0,
+                collections: Map::new(),
+            })
+            .unwrap();
+        let retention = Retention {
+            next_id: 1,
+            entries: ChargedVec::new(),
+        };
+        let disk = SimulatedDisk::new().unwrap();
+        let storage = Storage::create(disk.clone(), &mem, &head, 1, [1; 16], &retention).unwrap();
+        (storage, mem, head, retention, disk)
+    }
+
+    #[test]
+    fn verification_envelope_predicates_have_independent_controls() {
+        for changed in ["none", "identity", "revision", "end", "witness"] {
+            let (mut storage, mem, _, _, disk) = fixture();
+            match changed {
+                "identity" => storage.identity = [2; 16],
+                "revision" => storage.revision = 1,
+                "end" => storage.end += REGION as u64,
+                "witness" => {
+                    storage
+                        .backend
+                        .write(3 * REGION as u64, &[0; REGION])
+                        .unwrap();
+                    storage.backend.sync().unwrap();
+                }
+                _ => {}
+            }
+            let before = disk.durable_image().unwrap();
+            disk.arm(usize::MAX, Fault::Error);
+            let expected = if changed == "none" {
+                Ok(())
+            } else {
+                Err(Error::Corrupt)
+            };
+            assert_eq!(storage.verify(&mem), expected, "{changed}");
+            #[cfg(feature = "replication")]
+            assert_eq!(
+                recover_replica(
+                    &mut *storage.backend,
+                    &mem,
+                    storage.identity,
+                    storage.revision,
+                    storage.end
+                )
+                .map(|_| ()),
+                expected,
+                "replica {changed}"
+            );
+            assert_eq!(disk.durable_image().unwrap(), before);
+            assert!(
+                disk.trace()
+                    .unwrap()
+                    .iter()
+                    .all(|event| matches!(event.kind, IoKind::Length | IoKind::Read))
+            );
+        }
+    }
+
+    #[test]
+    fn persist_revision_mismatch_and_exhaustion_reject_before_io() {
+        for (current, proposed, expected) in [
+            (0, 0, Err(Error::Invalid)),
+            (0, 2, Err(Error::Invalid)),
+            (u64::MAX, 0, Err(Error::Invalid)),
+            (0, 1, Ok(())),
+        ] {
+            let (mut storage, mem, _, retention, disk) = fixture();
+            storage.revision = current; // model only the private precondition boundary
+            let head = mem
+                .shared(Head {
+                    revision: proposed,
+                    data_revision: proposed,
+                    collections: Map::new(),
+                })
+                .unwrap();
+            let before = disk.durable_image().unwrap();
+            disk.arm(usize::MAX, Fault::Error);
+            assert_eq!(storage.persist(&mem, &head, 1, &retention), expected);
+            if expected.is_err() {
+                assert!(disk.trace().unwrap().is_empty());
+                assert_eq!(disk.durable_image().unwrap(), before);
+                assert!(!storage.requires_recovery());
+            } else {
+                assert_eq!(storage.revision, 1);
+                assert!(storage.verify(&mem).is_ok());
+            }
+        }
     }
 }

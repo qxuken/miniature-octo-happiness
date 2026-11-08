@@ -364,3 +364,78 @@ impl ByteStore for MemoryStore {
         self.0.sync()
     }
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+
+    #[test]
+    fn epoch_and_event_counters_accept_last_step_then_fail_without_wrap() {
+        let mut disk = SimulatedDisk::new().unwrap();
+        disk.disk.lock().unwrap().epoch = u64::MAX - 1;
+        disk.lock().unwrap();
+        disk.crash(Crash::DropAll).unwrap();
+        assert_eq!(disk.disk.lock().unwrap().epoch, u64::MAX);
+        disk.lock().unwrap();
+        disk.write(0, &[9]).unwrap();
+        assert_eq!(disk.crash(Crash::PersistAll), Err(Error::Exhausted));
+        assert_eq!(disk.length(), Ok(1));
+        assert!(disk.durable_image().unwrap().is_empty());
+        {
+            let mut state = disk.disk.lock().unwrap();
+            state.record = false;
+            state.events.clear();
+            state.steps = usize::MAX - 1;
+        }
+        assert_eq!(disk.length(), Ok(1));
+        assert_eq!(disk.length(), Err(Error::Exhausted));
+        assert_eq!(disk.disk.lock().unwrap().steps, usize::MAX);
+        disk.disk.lock().unwrap().steps = 0;
+        disk.sync().unwrap();
+        assert_eq!(disk.durable_image().unwrap(), [9]);
+    }
+
+    #[test]
+    fn event_capacity_and_recording_controls_preserve_step_order() {
+        let mut disk = SimulatedDisk::new().unwrap();
+        disk.lock().unwrap();
+        {
+            let mut state = disk.disk.lock().unwrap();
+            state.events.resize(
+                262_143,
+                IoEvent {
+                    kind: IoKind::Length,
+                    offset: 0,
+                    len: 0,
+                },
+            );
+            state.steps = 262_143;
+        }
+        assert_eq!(disk.length(), Ok(0));
+        assert_eq!(disk.length(), Err(Error::Limit));
+        assert_eq!(disk.disk.lock().unwrap().steps, 262_144);
+        assert_eq!(disk.disk.lock().unwrap().events.len(), 262_144);
+        // Turning tracing off is the actual MemoryStore policy: I/O continues
+        // even with a full trace buffer, and does not append another event.
+        disk.disk.lock().unwrap().record = false;
+        assert_eq!(disk.length(), Ok(0));
+        assert_eq!(disk.disk.lock().unwrap().steps, 262_145);
+        assert_eq!(disk.disk.lock().unwrap().events.len(), 262_144);
+        let mut memory = MemoryStore::new().unwrap();
+        memory.lock().unwrap();
+        memory.write(0, &[1]).unwrap();
+        assert!(memory.0.disk.lock().unwrap().events.is_empty());
+    }
+
+    #[test]
+    fn synthetic_range_addition_and_extent_guards_are_distinct() {
+        assert_eq!(
+            range(MAX_IMAGE_BYTES as u64, 0),
+            Ok((MAX_IMAGE_BYTES, MAX_IMAGE_BYTES))
+        );
+        assert_eq!(range(MAX_IMAGE_BYTES as u64, 1), Err(Error::Limit));
+        assert_eq!(range(usize::MAX as u64, 1), Err(Error::Limit));
+        #[cfg(target_pointer_width = "32")]
+        assert_eq!(range(u64::from(u32::MAX) + 1, 0), Err(Error::Limit));
+    }
+}

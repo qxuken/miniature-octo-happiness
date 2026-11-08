@@ -4538,3 +4538,78 @@ Linux C/C++/ctypes relocation passed. Earlier private-package verification does
 not establish relocation. Windows execution of the new packager awaits CI.
 Eleven regression tests and generated-binding checks pass. Nothing is published
 to a registry. See docs/odin-private-package.md and docs/windows-private-package.md.
+
+
+## Verification diagnostics and further source audits
+
+StorageFailure now carries optional verification stage and structure-start offset;
+with_storage_diagnostics names combined opt-in capture, while the previous name
+remains available. Engine errors, format, C ABI, recovery selection and barriers
+are unchanged. Deepest direct-propagation failure wins; offsets may be invalid
+attempted references, not exact corrupt bytes. Nested capture is required when a
+caller handles errors and continues; salvage clears discarded probe failures.
+The additional public Rust field changes exhaustive pre-1 patterns/literals.
+All 61 targeted checks passed debug/release plus Clippy and CLI smoke. See
+docs/verification-diagnostics.md.
+
+Tree69, value (79), storage core (57), replacement (2) and simulator (60) records now have
+explicit source-audit dispositions. Nine new tree/value tests plus ten existing
+tests pass each profile; thirteen new storage tests plus reused suites total 76.
+Pairs cover collapse/shrink, real shared-graph weight overflow, four verification
+envelope predicates, image bounds, revision/counter exhaustion, trace limits,
+tear/sync survival and allocation rollback. Only test code changed for these
+audits. Invariants and delegated obligations remain explicit; see docs/decisions.
+
+## C sanitizer calibration and allocation concurrency model
+
+C memory/thread/file consumers and a Rust ASan library with rebuilt std now use
+one explicit sanitizer runtime. Four calibration controls require valid C/Rust
+reads to succeed and deliberate heap overruns in each language to fail. Apple
+Clang 21's incompatible runtime failed; LLVM 23 passed all controls and consumers
+on macOS. The oversized C input now allocates its full stated length. Input and
+binary hashes are retained; changing sources rejects evidence. Native Linux CI
+is configured; its first result is pending. See docs/c-sanitizers.md.
+
+A second Loom model copies allocation admission CAS, release and peak sampling.
+Three threads, preemption bound 2 and branch bound 1,000 check exact-cap admission,
+competing release, rollback, zero final live bytes and monotone sampled peaks.
+Both ownership/budget baselines passed. Load/store admission and non-persisting
+peak mutants fail their required assertions. This bounded copied model does not
+prove raw-pointer correctness or every schedule; see tools/atomic-model/README.md.
+
+## Qualification at checkpoint 6266359
+
+All native macOS/Ubuntu/Windows, ASan, TSan and coverage jobs passed at 6266359,
+including private Windows DLL/import-library C/C++ packaging. All21 Linux ASan
+fuzz targets passed with 20,456 actual executions: schema/index 538, tree 918,
+other 19 targets 1,000 each. The updated runner binds source/seed hashes and rejects
+changed inputs or missing/zero completion reports. Two runner tests and 100 real
+raw-image executions passed. Longer campaigns remain.
+
+The capped month passed Linux ext4 server/macOS APFS client with archived 6266359
+engines and separately hashed drivers. All 420 reported phases stayed within 16 MiB
+core admission; peak charged layouts were 1,210,643 bytes. Current/retained/restore
+oracles and repeat-sync no-commit checks passed. See docs/monthly-workload.md for
+latencies and scope. Accelerated calendar execution is not continuous-month
+uptime or physical power-loss evidence. Later changes need a new combined
+candidate. Cargo publication remains disabled.
+
+
+## Private Rust source distribution
+
+Optional --rust-source packages tracked regular source files with workspace and
+consumer lockfiles, verifies relative dependency closure, and compiles a fresh
+private Rust consumer. No precompiled rlib portability or vendored/offline SDK
+claim is made. Registry inputs remain external and pinned. The consumer checks
+source identity, derived typed models and unique index updates, and derived CRDT
+Record/Resolution enrollment, offline edits, committed-policy convergence and
+repeat-sync stability. Optional --rust-source-isolated builds in bounded Linux
+Docker with only the copied source mounted and the original checkout absent.
+Native compilation and Linux isolation have separate evidence fields. Fifteen
+packager regression tests plus consumer release/Clippy passed; exact clean
+candidate qualification follows checkpointing. See docs/rust-source-package.md.
+
+The combined worktree passed python3 tools/check.py after these additions:
+workspace tests and consumers in debug/release, strict Clippy, Rust/C/Odin
+file/memory/thread examples and wgpu coexistence. This local macOS run precedes
+the next clean-source CI and source-package qualification.

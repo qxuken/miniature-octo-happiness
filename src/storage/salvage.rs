@@ -76,7 +76,7 @@ fn salvage<S: ByteStore + 'static, D: ByteStore + 'static>(
                     selected = Some((slot, candidate));
                 }
             }
-            Err(Error::Corrupt) => {}
+            Err(Error::Corrupt) => super::diagnostics::clear_verification(),
             Err(error) => return Err(error),
         }
     }

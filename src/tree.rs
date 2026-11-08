@@ -537,3 +537,108 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn branch_collapse_distinguishes_one_child_and_leaf_independently() {
+        let mem = Memory::new(Default::default()).unwrap();
+        let base = Map::new()
+            .set_hashed(&mem, b"a", 1, 0)
+            .unwrap()
+            .set_hashed(&mem, b"b", 2, 16)
+            .unwrap()
+            .set_hashed(&mem, b"c", 3, 1)
+            .unwrap();
+        let remove_key = |map: &Map<i32>, key: &[u8], hash| Map {
+            root: remove(&mem, map.root.as_ref().unwrap(), key, hash, 0).unwrap(),
+            len: map.len - 1,
+        };
+        assert_eq!(base.get_hashed(b"missing", 2), None);
+        let one_branch = remove_key(&base, b"c", 1); // one child, not leaf
+        assert!(matches!(
+            &**one_branch.root.as_ref().unwrap(),
+            MapNode::Branch(_)
+        ));
+        let two_leaves = remove_key(&base, b"b", 16); // two children, first leaf
+        assert!(matches!(
+            &**two_leaves.root.as_ref().unwrap(),
+            MapNode::Branch(_)
+        ));
+        let one_leaf = remove_key(&two_leaves, b"c", 1); // one child and leaf
+        assert!(matches!(
+            &**one_leaf.root.as_ref().unwrap(),
+            MapNode::Leaf { .. }
+        ));
+        assert_eq!(one_leaf.get_hashed(b"a", 0), Some(&1));
+        assert_eq!(base.get_hashed(b"b", 16), Some(&2));
+        assert_eq!(one_branch.get_hashed(b"b", 16), Some(&2));
+    }
+    #[test]
+    fn list_capacity_shrink_bounds_and_tail_clear_have_controls() {
+        let mem = Memory::new(crate::Limits {
+            max_entries: 258,
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(matches!(List::<u64>::new().pop(&mem), Err(Error::Bounds)));
+        let mut list = List::new();
+        for n in 0..258 {
+            list = list.push(&mem, n).unwrap();
+            if [1, 2, 16, 17, 18, 256, 257, 258].contains(&list.len()) {
+                let old = list.clone();
+                let popped = list.pop(&mem).unwrap();
+                assert_eq!(popped.len(), list.len() - 1);
+                assert_eq!(
+                    popped.height,
+                    if popped.len() <= 16 {
+                        0
+                    } else if popped.len() <= 256 {
+                        1
+                    } else {
+                        2
+                    }
+                );
+                for i in 0..popped.len() {
+                    assert_eq!(popped.get(i), Some(&(i as u64)));
+                }
+                assert!(popped.get(popped.len()).is_none());
+                assert_eq!(old.get(old.len() - 1), Some(&n));
+            }
+        }
+        assert!(matches!(list.push(&mem, 999), Err(Error::Limit)));
+        assert!(matches!(list.set(&mem, 258, 999), Err(Error::Bounds)));
+        assert_eq!(list.set(&mem, 257, 999).unwrap().get(257), Some(&999));
+    }
+    #[test]
+    fn visit_error_stops_before_later_items_and_empty_visit_never_calls() {
+        let mem = Memory::new(Default::default()).unwrap();
+        Map::<u64>::new()
+            .visit(&mut |_, _| panic!("empty visit"))
+            .unwrap();
+        for hashes in [[0, 0], [0, 1]] {
+            let map = Map::new()
+                .set_hashed(&mem, b"a", 1, hashes[0])
+                .unwrap()
+                .set_hashed(&mem, b"b", 2, hashes[1])
+                .unwrap();
+            let mut calls = 0;
+            assert_eq!(
+                map.visit(&mut |_, _| {
+                    calls += 1;
+                    Err(Error::Io)
+                }),
+                Err(Error::Io)
+            );
+            assert_eq!(calls, 1);
+            let mut calls = 0;
+            map.visit(&mut |_, _| {
+                calls += 1;
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(calls, 2);
+        }
+    }
+}

@@ -37,7 +37,10 @@ Fuzz weekend-db’s file decoder and reopen path with both malformed images and 
 
 For weekend-db, state separately what is stable in the Rust API, C ABI and Odin bindings, and on-disk format. Keep fixtures written by prior releases and check every supported upgrade or downgrade direction; check that unsupported images are rejected before any write. Give each candidate a short checklist and keep its results with the artifact version and source revision.
 
-## Where the project stands
+## Initial audit baseline (historical)
+
+This table records the original audit. Current implementation and executed
+qualification are tracked in [roadmap-status.md](roadmap-status.md).
 
 | Area | Evidence already in the repository | What still needs a release gate |
 |---|---|---|

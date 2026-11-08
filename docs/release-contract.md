@@ -66,6 +66,9 @@ ownership, valid pointers, buffers and close quiescence. Incompatible
 signatures or ownership require a new ABI version. Test exact artifacts.
 
 Rust consumers pin the matching workspace, macros and typed runtime.
+Optional [Rust source packaging](rust-source-package.md) delivers the exact
+source inventory and lockfiles and verifies a fresh typed/CRDT consumer. Registry
+dependencies remain external; optional Docker proof isolates the copied source.
 Expansion and schema/wire markers require compatibility tests.
 Replication and CRDT decoders enforce separate versions. Mixed-version
 deployment requires an interoperability test before rollout.

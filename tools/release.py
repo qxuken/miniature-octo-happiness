@@ -13,6 +13,7 @@ import tempfile
 import release_notices
 import windows_consumers
 import odin_bindings
+import rust_source_package
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -28,7 +29,7 @@ def build_configuration(env):
     """Hash overrides/configs, never copy their potentially secret contents."""
     names = {'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'RUSTC', 'RUSTC_WRAPPER',
              'RUSTC_WORKSPACE_WRAPPER', 'RUSTUP_TOOLCHAIN', 'CARGO_HOME',
-             'CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS'}
+             'CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'CARGO_INCREMENTAL'}
     overrides = {name: hashlib.sha256(value.encode()).hexdigest()
                  for name, value in env.items()
                  if name in names or name.startswith(('CARGO_PROFILE_', 'CARGO_BUILD_', 'CARGO_TARGET_'))}
@@ -156,7 +157,12 @@ def main():
     parser.add_argument('--features', default='')
     parser.add_argument('--odin', action='store_true', help='Package and require exact-artifact Odin qualification')
     parser.add_argument('--allow-dirty', action='store_true', help='Mark package ineligible as a release candidate')
+    parser.add_argument('--rust-source', action='store_true', help='Deliver checked source and qualify a fresh typed/CRDT Rust consumer')
+    parser.add_argument('--rust-source-isolated', action='store_true', help='Also require Linux Docker proof with the original checkout unavailable')
+    parser.add_argument('--rust-source-image', default='rust:1-bookworm')
     args = parser.parse_args()
+    if args.rust_source_isolated and not args.rust_source:
+        parser.error('--rust-source-isolated requires --rust-source')
     dirty = capture('git', 'status', '--porcelain')
     if dirty and not args.allow_dirty:
         parser.error('A release candidate requires a clean source tree. --allow-dirty creates an ineligible development package.')
@@ -176,11 +182,14 @@ def main():
     inherited_configuration = build_configuration(env)
     env['WEEKEND_DB_SOURCE_ID'] = source_id
     env['CARGO_PROFILE_RELEASE_PANIC'] = 'unwind'
+    env['CARGO_INCREMENTAL'] = '0'
     # Keep candidate products isolated from ordinary developer builds.
     build = Path(tempfile.mkdtemp(prefix='weekend-release-'))
     evidence = {'source': source, 'source_id': source_id, 'dirty_status': dirty,
                 'candidate_eligible': False, 'verified': False,
-                'features': args.features, 'toolchain': capture('rustc', '-Vv'),
+                'features': args.features,
+                'requested_profiles': {'odin': args.odin, 'rust_source': args.rust_source, 'rust_source_isolated': args.rust_source_isolated},
+                'toolchain': capture('rustc', '-Vv'),
                 'cargo': capture('cargo', '-V'), 'lockfile_sha256': digest(ROOT / 'Cargo.lock'),
                 'source_files_sha256': initial_hashes, 'commands': [],
                 'inherited_build_configuration': inherited_configuration,
@@ -188,17 +197,17 @@ def main():
 
     log_output = output
 
-    def run(*command, collect=False):
+    def run(*command, collect=False, cwd=None, timeout=None):
         command = [str(item) for item in command]
         evidence['commands'].append(command)
         with (log_output / 'checks.log').open('a') as log:
             if collect:
-                result = subprocess.run(command, cwd=ROOT, env=env, stdout=subprocess.PIPE,
-                                        stderr=subprocess.STDOUT, text=True)
+                result = subprocess.run(command, cwd=cwd or ROOT, env=env, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, text=True, timeout=timeout)
                 log.write(result.stdout)
                 result.check_returncode()
                 return result.stdout
-            subprocess.run(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+            subprocess.run(command, cwd=cwd or ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=timeout)
 
     try:
         if sys.platform == 'win32':
@@ -208,6 +217,7 @@ def main():
             # VS setup inherits process variables; retain the packaging overrides.
             env['WEEKEND_DB_SOURCE_ID'] = source_id
             env['CARGO_PROFILE_RELEASE_PANIC'] = 'unwind'
+            env['CARGO_INCREMENTAL'] = '0'
             evidence['effective_build_configuration'] = build_configuration(env)
         # Metadata inventories the workspace, including dependencies not built
         # by this library profile. Populate that locked input set on fresh hosts.
@@ -332,6 +342,19 @@ def main():
             finally:
                 relocated.rename(output)
                 log_output = output
+        if args.rust_source:
+            tracked = capture('git', 'ls-files', '--cached', '-z').split('\0')
+            source_info, source_metadata, source_packages = rust_source_package.qualify(
+                ROOT, output, [name for name in tracked if name], source_id, run,
+                args.rust_source_image if args.rust_source_isolated else None)
+            if any(initial_hashes.get(name) != checksum for name, checksum in source_info['source_files_sha256'].items()):
+                raise RuntimeError('Delivered Rust source differs from the initial checked source inventory')
+            source_attribution = release_notices.collect(
+                source_metadata, source_packages, output / 'rust-source/examples/rust_package/Cargo.lock',
+                output / 'notices/rust-source', Path(capture('rustc', '--print', 'sysroot')), evidence['toolchain'])
+            evidence['rust_source'] = source_info
+            evidence['attribution_inputs_complete'] &= source_attribution['attribution_inputs_complete']
+            evidence['attribution_review_items'].extend(source_attribution['review_items'])
         # Assert embedded build identity independently of the generic ABI smoke.
         import ctypes
         api = ctypes.CDLL(str(library))
