@@ -262,9 +262,6 @@ impl ByteStore for SimulatedDisk {
         let (start, _) = range(offset, requested)?;
         let n = requested.min(disk.volatile.len().saturating_sub(start));
         if n != 0 {
-            if disk.pending.len() >= 2 * MAX_IMAGE_BYTES / super::REGION {
-                return Err(Error::Limit);
-            }
             out[..n].copy_from_slice(&disk.volatile[start..start + n]);
         }
         Ok(n)
@@ -287,6 +284,9 @@ impl ByteStore for SimulatedDisk {
         };
         let (start, end) = range(offset, n)?;
         if n != 0 {
+            if disk.pending.len() >= 2 * MAX_IMAGE_BYTES / super::REGION {
+                return Err(Error::Limit);
+            }
             let copy = self.mem.copy(&bytes[..n])?;
             self.mem.reserve(&mut disk.pending, 1)?;
             let extra = end.saturating_sub(disk.volatile.len());

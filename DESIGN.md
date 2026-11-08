@@ -48,6 +48,8 @@ Use this document as both the target and the implementation workbook:
 - [Linux persistence and recovery results](#linux-persistence-and-recovery-results)
 - [Windows file storage](#windows-file-storage)
 - [Review corrections: scans and unique presence](#review-corrections-scans-and-unique-presence)
+- [Snapshot replication](#snapshot-replication)
+- [Optional collection merge policies](#optional-collection-merge-policies)
 - [Milestones and definitions of done](#implementation-milestones)
 - [Comparison with existing solutions](#comparison-and-reason-to-build-this)
 - [Decision summary](#decision-summary-and-deferred-alternatives)
@@ -995,9 +997,10 @@ Format stability,
 physical tree serialization, and performance tuning remain future decisions.
 
 The target deliberately defers field-level conflict domains, list rebasing,
-replication, multi-process writer coordination, general queries, automatic
-schema enforcement, and generated migrations. These can be revisited after a
-measured workload justifies their additional invariants. The implementation sequence and stopping points follow in this document.
+multi-process writer coordination, general queries, automatic schema enforcement,
+and generated migrations. The [snapshot replication design](#snapshot-replication)
+defines a first network extension. The implementation sequence and stopping points
+follow in this document.
 
 ## References and rationale map
 
@@ -1061,7 +1064,8 @@ contract; duplicate-symbol suppression is not a supported workaround. The
 [Rust linkage reference](https://doc.rust-lang.org/reference/linkage.html#mixed-rust-and-foreign-codebases)
 explains the broader integration constraint.
 
-Baseline: Rust/Cargo 1.99 or later, edition 2024; no external crate dependencies.
+The baseline uses Rust/Cargo 1.99 or later and edition 2024. The default engine
+build has no external crate dependencies.
 Tested on arm64 macOS 27.0.1 with rustc/Cargo 1.99.1, Apple clang 21.0.0, and
 Odin `dev-2026-10:a22aa1984`. `cargo build --release` builds the library/header
 consumer artifact at `target/release/libweekend_db.dylib` on macOS. The header
@@ -1390,8 +1394,8 @@ implicitly capture earlier retention catalogs.
 
 The encoder starts with empty value/data caches, memoizes shared `Value` nodes
 and data versions across every root, writes a new header and one complete v2
-root/witness pair, completes all durability barriers, then invokes the ordinary
-full-graph recovery verifier on the result before it can replace a file. Sharing
+root/witness pair, completes all durability barriers, then verifies the graph
+and the selected root's matching witness before it can replace a file. Sharing
 is preserved at v2's stored value/data-object granularity. Internal HAMT/radix
 branches are still reconstructed from logical containers; physical tree-page
 serialization is future work. No export/import conversion or ID remapping is
@@ -2022,6 +2026,895 @@ are under ignored `target/review-fixes-*`. The corrected Linux shared library an
 CLI are retained at `target/review-fixes-linux-artifacts/aarch64-unknown-linux-gnu/`;
 the temporary validation container/volume are removed after saving them.
 
+## Snapshot replication
+
+The selected first design uses one configured primary and one passive follower.
+The optional Rust `replication` feature implements export, transport framing,
+installation, and durable progress. It enables the `sha2` crate for image
+verification. The application runs the transfer on its own schedule after local
+publication. Automatic promotion and writable replicas require separate designs
+for writer authority and divergence.
+
+### Acknowledgments and visibility
+
+| Result | When it can be returned | What the caller can rely on |
+| --- | --- | --- |
+| Primary `commit() -> Ok(revision)` | The primary completes its v2 data, root and witness barriers and installs the head | The revision is recoverable on the primary under its storage assumptions. New local snapshots can see it. |
+| Follower durable acknowledgment | The follower verifies and synchronizes the received image, then commits its manifest entry | The follower can recover the selected image, including its current root and retained catalog. |
+| Replication wait reaches its deadline | The caller has a local revision and the follower has yet to confirm the requested progress | The caller can report local success and pending replication, then wait again for that revision. |
+
+The primary releases the commit gate before network transfer or any follower
+wait. A disconnected follower can lag while local commits succeed. If the
+primary's storage is lost, recovery from the follower starts at its last
+recoverable installed revision. Newer local successes may be lost. A local
+`OutcomeUnknown` still requires primary recovery. Recovery can find a durable
+revision whose original response never reached its caller.
+
+A progress wait can use `installed_revision >= requested_revision` within the
+same stream. A newer complete image can supersede intermediate snapshots. The
+follower's installed revision describes a recoverable database state. Explicitly
+retained snapshots inside that state are the available historical views. If we
+later serve reads from the follower, the read interface should report which
+installed revision it pinned. The distinction between durable receipt and
+visibility also appears in [PostgreSQL's acknowledgment modes](https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-SYNCHRONOUS-COMMIT).
+
+### Export, transfer and installation
+
+An operator pairs the two endpoints with a fresh stream ID, an expected v2
+file identity and authenticated peer identities. The stream ID identifies one
+continuous primary history. Compact copies preserve the v2 file identity, so
+restoring the primary from an older backup or forking a copy requires a new
+stream and explicit enrollment. A file identity by itself cannot distinguish
+those histories.
+
+1. **Export.** Capture the current commit revision and call `compact_to` while
+   the primary is quiescent. Use a fresh local destination. This includes the
+   current and retained roots, schema and index records, and allocation counters.
+   Release exclusive access to the primary after the compact image has been
+   synchronized, verified and hashed. The export retains its own byte-store
+   lease for the transfer and retries. The primary can resume writes while
+   that lease is held. The `&mut Database` requirement makes export a local
+   pause in this first version.
+2. **Transfer.** Send an envelope containing protocol version, stream ID, file
+   identity, commit revision, image length and SHA-256 digest, followed by the
+   image bytes. The application authenticates the configured peer and supplies
+   the connection. The receiver bounds the declared length by the v2 image
+   limit before creating a staging file. It exclusively creates a fresh file
+   at the inactive slot in its private directory. A transfer carries
+   identities and bytes with no receiver path.
+3. **Verify.** Write to the new file using the native adapter's synchronization
+   and creation barriers. Hash the synchronized file and run full v2 recovery
+   verification. The recovered identity, revision and end must match the
+   envelope. The selected root must already have its matching v2 durability
+   witness. The verifier checks the reachable graph and retained roots, and
+   closes the file without rewriting it. The digest covers the same bytes
+   at installation and on restart.
+4. **Install.** Commit one manifest record containing the stream ID, revision,
+   digest and slot in a separate v2 database. The manifest is the follower's
+   authoritative selector. Keep the previous image available through this
+   commit. Borrowed replica snapshots pin the decoded read view and exclude
+   another installation until their borrows end. Separate slots let the
+   follower install a copy on Windows through the existing create and sync
+   contract.
+5. **Acknowledge.** After the manifest commit succeeds, report the installed
+   `(stream_id, revision, digest)` to the primary. On restart, recover the manifest
+   and verify its referenced image before reporting progress. A manifest commit
+   with an uncertain outcome requires recovery before any acknowledgment or
+   image cleanup.
+
+The receiver serializes installation and advances monotonically within a
+stream. An identical retry returns the existing acknowledgment. An older offer
+returns the installed progress. An offer at the installed revision with a
+different digest is rejected as a conflicting offer. Senders reuse the same
+artifact for retries and ask for installed progress on reconnect before exporting
+again. The primary accepts progress only from the configured follower for the
+current stream and within its own verified history. A late response cannot
+reduce recorded progress.
+
+Run one transfer at a time and coalesce lag into a newer complete snapshot.
+Retry interrupted transfers from the start. The follower bounds staging to
+two image slots of up to 64 MiB each, plus its v2 manifest. Before staging,
+it reclaims only the inactive slot after recovering the manifest and while
+holding the manifest lease. An interrupted initial enrollment needs a fresh
+directory. Disk or manifest capacity exhaustion pauses replication and leaves
+the last verified read view available. The manifest currently grows by one
+v2 commit per installation. Long-running manifest rotation and reclamation
+need an explicit maintenance policy. If a consumer eventually requires every
+revision, it will need a durable change feed with retention and gap recovery
+rules.
+
+### Rust API and framing
+
+1. Enable the `replication` feature. Build a `Primary` from the recovered
+   byte-backed database and a fresh nonzero stream ID. Use its `Enrollment`
+   to create the `Follower` in an existing empty, private local directory.
+   Persist the enrollment with both peers' configuration and reuse it on open.
+2. Call `Primary::poll` after connecting or recovering from a lost reply.
+   If the follower lags, capture one `Export` with `Primary::export_file`
+   and send it with `Primary::ship`. Drop the export to release its lease
+   before removing its file. The scheduler owns that one export file, retries
+   and coalescing. `Follower::serve_authenticated` handles each request.
+3. Treat `DurableAck` as a separate result from local `commit()`. An
+   application can check its stream and compare its revision with the local
+   revision it is waiting on. Set deadlines on the transport and open a fresh
+   authenticated channel for each exchange. Peer authentication and transport
+   setup belong to the application, for example with mutually authenticated
+   TLS and configured peer identities. The stream ID and digest identify
+   history and content.
+
+Protocol v1 uses seven ASCII bytes `WDBREPL` and a version byte of 1. The
+next byte is 0 for a progress query or 1 for an offer, followed by the
+16-byte stream and 16-byte file identities. An offer appends revision and
+image length as little-endian u64s and the 32-byte SHA-256 digest. A reply
+starts with one status byte. 0 means empty, 1 requests the offered image
+body, and 2 returns the stream identity, little-endian u64 revision and
+digest. Errors 3 through 10 represent unsupported format, foreign stream
+or file, conflict, limit, corruption, recovery required, invalid request
+and I/O failure respectively. If requested, the declared length frames
+the entire image. Each exchange ends after its terminal reply or a
+transport error. A valid stale or duplicate offer can receive a terminal
+reply without sending its body.
+
+The follower's `replica-manifest.wdb` stores one `replica-v1` row. Its bytes
+contain the stream and file identities, then optionally a slot byte, the
+revision and length as little-endian u64s, and the digest. The slot selects
+`replica-0.wdb` or `replica-1.wdb`. A recovered manifest selects exactly one
+image even when the other slot contains a complete prior or prepared image.
+The manifest uses the engine's default limits internally. The caller's limits
+apply when decoding the replica on installation and reopen.
+
+### Failure cases and acceptance checks
+
+| Failure or ordering case | Required result |
+| --- | --- |
+| Primary crashes after local success and before export | Recover the primary and export a verified current image. Follower progress remains at its earlier revision until installation. |
+| Local publication returns `OutcomeUnknown` | Recover the primary before exporting. A complete recovered revision can be exported after stabilization. |
+| Export fails or is interrupted | Keep the primary's commits intact. Transfer only a completed verified image. |
+| Transfer drops, truncates, exceeds the byte cap, or corrupts data | Keep the active manifest and image. Discard or reclaim the incomplete candidate and retry within the staging budget. |
+| Wrong stream, file identity, revision or protocol version | Reject the offer before installation. Explicit enrollment starts a new stream. |
+| Older image, duplicate image or conflicting digest at the same revision | Preserve the installed generation. Return progress for an older offer, acknowledge an identical retry, and report the conflicting offer. |
+| Follower stops before its image is synchronized and verified | Recover the old manifest. An incomplete candidate has no durable acknowledgment. |
+| Follower stops after image sync and before manifest commit | Recover the old manifest and preserve its image. The prepared candidate can be reclaimed after recovery. |
+| Manifest commit definitely fails | Keep the old image selected. Reclaim the unreferenced candidate on a later staging attempt after any required recovery. |
+| Manifest publication returns an uncertain outcome | Recover the manifest and validate the selected image before acknowledging or deleting either generation. |
+| Follower stops after the manifest commits or the reply is lost | Recover and report the same installed revision. The sender can resume waiting without repeating the primary transaction. |
+| Installed image is missing or damaged on restart | Surface replica failure and require repair or reseeding. An older orphan is insufficient evidence to report progress. |
+| Follower is offline or out of space | Local acknowledgments continue under the primary's own storage contract. Follower progress stalls and the sender coalesces future offers. |
+| Primary storage is permanently lost while the follower lags | The follower provides its last recoverable revision. Local successes after that revision are outside the replica's recovery point. |
+
+The simulator exercises failed staging sync and each of the manifest's data,
+root and witness barriers with both the pending writes dropped and the pending
+writes surviving. It reopens the selected state and retries the same offer.
+The scripted transport checks malformed and corrupted offers, truncation,
+duplicate and delayed offers, and an acknowledgment lost after installation.
+The native TCP tests compare current rows, retained roots and secondary
+lookups after transfer. A second process is killed during upload and again
+after the manifest commit but before its reply. Reopen keeps the old image
+in the first case and reports the new revision in the second. A missing or
+damaged selected image fails reopen even if a previous image exists.
+
+**Observed validation:** all five replication tests pass in debug and
+release on arm64 macOS and aarch64 Linux with a Docker-managed ext4 volume.
+The full macOS `python3 tools/check.py` passes workspace Clippy, tests, and
+Rust, C and Odin consumer checks in both modes. All-feature cross-checks
+pass for x86_64 Linux and Windows MSVC. Windows replication has compilation
+coverage here. The native interruption tests exercise process kills under
+the existing file adapter assumptions.
+
+### Publication review and refactor
+
+The review reproduced two failures. A follower with a 64-byte value budget
+could enroll and verify a scalar snapshot but fail to write its private
+manifest selector. Separating the manifest and replica limits lets that
+snapshot install and reopen while the follower still rejects a later image
+that exceeds the replica budget. Compact-copy verification also accepted a
+fresh root with a missing witness. The codec now reports whether the selected
+root already has its matching witness. Compaction and replication both require
+it. Ordinary writable recovery still synchronizes and witnesses a verified
+root, including one whose witness is missing.
+
+Transaction, collection and retention writes use one guarded entry and one
+persist-and-install path. The state fields are installed after durable storage
+returns success. The writer derives the v2 slot from the revision's parity and
+uses the same write-and-sync operation for the append, root and witness.
+Definite append errors and uncertain root or witness errors retain their
+existing meanings. The Unix replacement driver names each namespace step
+explicitly, so its fault observer needs no separate phase flag. The measured
+mechanical refactor removes 37 production lines. Follower installation still
+synchronizes and verifies the image before committing the manifest and issuing
+its separate durable acknowledgment.
+
+The before-and-after simulator comparison produced identical bytes and I/O
+traces for ordinary commits, retention changes, odd and even compact copies,
+and reopen followed by another commit. Both regressions failed on the
+pre-fix code. The resulting tests also exercise the existing fault schedules
+and native process interruptions.
+
+**Observed validation:** `python3 tools/check.py` passed on arm64 macOS with
+126 tests and six doctests per build mode, plus the Rust, C and Odin consumer
+checks. Native aarch64 Linux on a Docker-managed ext4 volume passed the
+all-feature workspace suite with 128 tests and six doctests per build mode.
+Warnings-denied all-feature cross-checks passed for x86_64 Linux and Windows
+MSVC. Windows was checked through compilation.
+
+## Optional collection merge policies
+
+The Rust `crdt` feature provides mergeable types and a generic record
+interface for two configured writers. Each actor has its own byte-backed
+database and can commit while disconnected. For the standalone counter,
+enroll a dedicated local collection on each
+side with `Counter::enroll`. The local collection numbers may differ. Both
+sides configure the same stable replicated collection ID, policy generation
+and ordered pair of actor IDs. Reopen with `Counter::open` and the same
+configuration. The reserved counter row stores that configuration, the local
+actor and the two components together. Route writes to the row through the
+counter interface so raw writes cannot overwrite its merge state.
+
+Each actor advances only its own component. The receiver merges by taking
+the larger known total for the sender's component. It checks that the
+sender's copy of the receiver's component never exceeds the receiver's
+local total. The count is the sum of both components, each bounded by half
+of `u64::MAX` so valid states stay within range after a merge. Merging
+component totals is associative, commutative and idempotent on states
+produced by the configured actors. [State-based CRDTs and grow-only counters](https://dsf.berkeley.edu/cs286/papers/crdt-tr2011.pdf)
+
+An application opens a direct duplex connection authenticated to the configured
+peer, sets deadlines and calls `push_authenticated` on one side and
+`serve_authenticated` on the other. An offer carries the current counter state.
+The receiver validates it, commits any advance in an ordinary local transaction,
+and returns its published components as a `MergeAck`. A duplicate or delayed
+offer can be acknowledged from existing state without a new commit. If the
+reply is lost, the sender can retry on a fresh connection. Each push is
+one-way, so the scheduler pushes in both directions to converge. Local
+`increment` returns the node's commit revision, and the peer's acknowledgment
+reports which components its own database covers. These are separate results.
+
+The persisted row and wire frame use 81 bytes. They start with seven ASCII
+bytes `WDBGCTR` and encoding version 1, then a 16-byte collection ID,
+a little-endian u64 policy generation, two 16-byte actor IDs, a one-byte
+actor index and two little-endian u64 components. The actor index identifies
+the frame's sender. The receiver rejects mismatched collection, policy or actor
+before changing its state. Concurrent local updates and merges use tracked
+reads and may return a transaction conflict for the caller to retry.
+
+Policy generation, state encoding version and local commit revision are
+separate. This implementation pins the enrolled policy. A future migration
+would have to preserve the old contributions and change the descriptor and
+state atomically. Each actor identity belongs to one writable history.
+Restoring an old copy under the same identity can lose increments, including
+increments no peer has ever seen. A newer copy of that actor's component
+detected in a peer frame causes a conflict. Restored writers need a new
+identity and an explicit migration. Retained snapshots can read the counter
+as it was visible on their node through `Counter::count_at`.
+
+The replicated records use full mergeable state over direct connections.
+A sync scheduler can later choose when to exchange state. General deletes,
+secondary uniqueness, coordinated writes and discovery have separate rules.
+The passive snapshot follower can still back up the local database and its
+retained roots.
+
+### Composing a set and a counter
+
+An application defines its own state by implementing `crdt::Record` and opens
+it with `Replica::<AppState>::enroll` or `open`. The trait supplies a row key,
+a versioned format marker, a fixed payload codec of up to 4096 bytes, the
+field joins, and checks for actor-owned fields. `GrowSet`, `GrowCounter`,
+`AddWinsSet`, and `MultiValueRegister` provide fixed-width codecs and joins
+for composition.
+The application owns the record's merge rules and must preserve validity
+when combining valid states.
+
+`Replica::update` gives the edit closure the record and its local actor.
+Before committing, the replica checks that the edited record still covers the
+previous state and that it does not advance the other actor's fields.
+`Replica::push_authenticated` returns a separate `ReplicaAck<AppState>`
+after the receiving peer has published the merge. The executable study
+example declares its layout and calls the generic interface.
+[App-owned StudyProgress example](examples/study_progress.rs)
+
+`#[derive(Record)]` is the fixed-width composition shortcut. On
+[StudyProgress](examples/support/study.rs), `#[record(...)]` specifies the
+`course-progress` row key, the eight-byte format marker, and every field in
+wire order. The derive concatenates the nested `Record` payloads without
+padding or field headers and delegates joins and peer checks to those same
+fields. Rust declaration order is independent of wire order. The application
+must change the format marker when it changes the payload layout or codec.
+Use a handwritten `Record` for a custom layout or cross-field merge rules.
+
+The study payload is 2,140 bytes: completed lessons (8), practice minutes
+(16), planned lessons (2,048), weekly goal (34), then session limit (34).
+A wire fixture matches the full 2,205-byte offer, including the 65-byte
+envelope, with both the handwritten and derived codecs. The six-line
+attribute replaces the 62-line trait implementation and the separate size
+constant; the example record module goes from 99 to 39 lines.
+
+The study record lives with the example and uses `Replica<StudyProgress>`.
+An update can insert a completed lesson and add practice minutes in one
+commit. The completed set joins by union and accepts IDs from 0 through 63.
+The counter joins by taking the maximum for each actor. Peers that complete
+lessons {1, 3} and {2, 3} offline and log 20 and 15 minutes converge to
+{1, 2, 3} and 35 minutes after a push in each direction.
+
+Run `cargo test -p weekend-db --features crdt --test crdt` for the loopback
+examples. They cover offline increments, convergence, delayed offers,
+storage failure, a lost reply followed by recovery and retry, retained reads,
+and rejection of a different policy generation or stale actor state. The
+composite test reopens one peer after the merge and checks that a duplicate
+offer leaves its revision alone.
+
+### Resolving concurrent adds and removals
+
+`AddWinsSet` is an observed-remove set for the two configured actors and
+IDs from 0 through 63. Each add advances its actor's sequence for that ID,
+including an add to an already visible ID. A remove records the additions
+visible at that replica. A concurrent add can advance beyond that recorded
+sequence and survive the merge. Once a replica has seen the concurrent add,
+another remove can clear it. [Observed-remove semantics](https://arxiv.org/abs/1210.3368)
+
+Each ID and actor has an add sequence and a removal watermark. Both are
+little-endian u64s. The decoder requires the watermark to be at most the
+sequence. The join takes their componentwise maxima, and an ID is visible
+when any sequence exceeds its removal watermark. That keeps the stored
+state monotone even as an ID disappears from the visible set. The fixed
+2048-byte payload keeps removal evidence across reopen and delayed replay.
+As a standalone `Record` the set uses key `add-wins-set` and marker
+`WDBASET` followed by encoding version 1.
+
+The study example composes `planned: AddWinsSet` with its completed set
+and practice counter.
+The loopback test exercises a concurrent re-add, a later observed removal,
+and replay of the original add after simulated crash and reopen.
+
+### Resolving concurrent assignments
+
+`MultiValueRegister` stores the latest assignment sequence and an optional
+u64 value for each of the two actors. Assigning a new value advances the
+local sequence and retires the assignments the writer has seen. A join
+keeps the newer sequence for each actor. At equal sequences, a retired
+assignment stays retired. This preserves concurrent choices and keeps a
+delayed offer from reviving a superseded value. `values` lists the distinct
+visible choices. [State-based multi-value registers](https://www.csa.iisc.ac.in/~raghavan/CleanedPods2021/crdt-shapiro-2011-techreport.pdf)
+
+The standalone register uses marker `WDBMVRG` followed by version 1 and key
+`multi-value-register`. Its payload is 34 bytes. In actor order, each entry
+stores a little-endian u64 sequence, a presence byte, and a little-endian
+u64 value. A retired entry retains its sequence and encodes a zero value
+with the presence byte cleared. A live entry requires a positive sequence.
+
+The manual-mode study test starts with offline choices of 60 and 90 minutes.
+Each peer reviews both values and resolves them offline, one to 70 and the
+other to 80. Each resolution supersedes 60 and 90. The resolutions are
+themselves concurrent assignments, so both 70 and 80 remain visible after
+the next sync. The manual resolution transaction checks that the register
+still matches the reviewed state before accepting a choice.
+
+`MultiValueRegister::resolve_with` gives each field an automatic read
+policy. An empty register yields `None` and a single choice yields that
+value. For two distinct choices, the function calls the field's policy in
+actor order. Peers use the same deterministic policy for the same
+collection generation. Change the generation when changing the policy's
+meaning.
+
+`ResolutionPolicy` gives a field a named deterministic rule. A
+`PolicyRegister<P>` reads the effective value and can apply that rule in
+an ordinary `Replica::update` transaction. `resolve(actor)` creates a new
+assignment when there are two distinct choices. `MaxRegister` and
+`MinRegister` select the higher and lower value respectively. They use
+standalone format markers `WDBMAXR` and `WDBMINR` with version 1 and share
+the multi-value payload layout. An embedded register gets its policy from
+the enclosing record's configuration and generation.
+
+With explicit resolution, StudyProgress peers can each apply `MaxRegister`
+offline and commit 80 from {70, 80}. After the next sync, the register
+retains both assignment identities and exposes one distinct value, 80.
+The manual-mode test checks an offline policy commit across reopen before
+sync, convergence, stale review rejection, and replay after a later edit.
+
+`Record::resolve_conflicts` lets a record opt fields into automatic
+resolution. After an incoming offer advances the record, the receiver
+passes the merged state and local actor to the hook. It validates the
+result as a local edit, then commits the merge and resolution together
+before replying. A repeated offer covered by the stored state can be
+acknowledged without another commit.
+
+StudyProgress uses `#[derive(Resolution)]` with `#[resolve]` on its
+`weekly_goal: MaxRegister` and `session_limit: MinRegister` fields.
+The derive implements `Resolution::resolve_fields` by visiting the marked
+fields in declaration order. `resolve = AUTO_RESOLVE` in `#[record(...)]`
+wires that method into the record's sync hook when the flag is true. The
+fields declare their policies next to their participation in automatic
+resolution. The `crdt` feature reexports both derives. Renamed dependencies
+can use `crate = "path"` in the `#[record(...)]` and `#[resolution(...)]`
+attributes.
+
+Run `cargo run -p weekend-db --features crdt --example study_progress`.
+The peers set weekly goals of 60 and 90 minutes and session limits of 20
+and 30 minutes while offline. Both fields converge in one merge commit
+per receiver. The committed weekly goal is 90 and the session limit is
+20. The test reopens the first receiver after its acknowledgment and
+checks that another exchange in both directions leaves the revisions
+alone. The expanded example record uses marker `COURSES` with version 6
+and policy generation 7 in automatic mode. Its manual mode uses marker
+version 5.
+
+### Two file-backed StudyProgress writers
+
+The [study-peer application](apps/study-peer/README.md) gives each actor its
+own process, file, private key and configured peer address. The same
+`Replica<StudyProgress>` serves edits, incoming merges and outgoing offers
+on separate threads. [Rustls](https://docs.rs/rustls/0.23.46/rustls/server/struct.WebPkiClientVerifier.html)
+and certificate generation are dependencies of the application. Before
+handing a stream to the CRDT engine, both sides
+validate TLS and check the presented leaf certificate against the configured
+peer's certificate. The application uses a fixed roster and manually
+exchanged pins.
+
+Each outgoing attempt opens a fresh connection and offers the current
+committed state. The runner polls every 250 ms after success and backs
+off to at most two seconds after failures. TCP connection setup and the
+subsequent TLS and record exchange each have a three-second deadline.
+Both directions run independently. Periodic exchange resumes on process
+start, so pending work is recoverable from the stored record without a
+separate send queue. A local command reports its own commit revision.
+The peer status reports a separate acknowledgment covering the offered
+state. For its draft-only edits the application can retry a definite
+transaction conflict on a fresh snapshot. It surfaces `OutcomeUnknown`
+to the caller, who must recover and determine the outcome before
+resubmitting an increment.
+
+A deterministic overlap test holds a local draft while an incoming merge
+commits against the same row. The stale draft conflicts and a fresh retry
+preserves both increments. The native process test starts with 20 and 15
+offline minutes, reconnects the peers, and stops the receiver at the first
+reply write after its merge commit. The receiver commits another five
+minutes while the sender is waiting, then is killed. After reopening,
+retry acknowledges the covered offer at the recovered revision. Sync in
+the other direction converges both files at 40 minutes, a 90-minute
+weekly goal, and a 20-minute session limit. Additional exchanges in both
+directions leave the local revisions at 4 and 5.
+
+The peer and CRDT tests passed in debug and release on arm64 macOS and
+aarch64 Linux. The full macOS workspace and Rust, C and Odin consumer
+checks passed. The peer app and its tests passed warnings-denied
+cross-compilation for x86_64 Windows MSVC.
+
+## Coordinated writes to one file
+
+The [write coordinator demo](apps/write-coordinator/README.md) has two
+client processes and one process that holds the database file lease.
+Clients connect over loopback and submit conditional replacements for a
+single unsigned record. The app uses the core database API.
+
+A read returns the revision and value from the same snapshot. A write
+supplies the revision it read. The coordinator handles one request at a
+time, so the revision check and the subsequent transaction commit run
+before it handles the next request. This demo uses the database revision
+as the precondition for its single editable record. It reports
+`committed <revision>` after the native commit succeeds. A stale write
+returns `conflict <revision> <value>` without a commit. The client can use
+that state to recompute its edit and make a new conditional request.
+A connection failure before the reply leaves the outcome unknown to the
+client. The demo surfaces that failure without replaying the edit.
+
+The process test starts both clients at revision 2 and value 0, then
+submits replacements of 20 and 15 before reading either response.
+Either client can win. One commits revision 3 and the other gets a
+conflict with the winning value. The loser recomputes its edit and
+commits 35 at revision 4. Killing and reopening the coordinator
+preserves revision 4 and its value, and replaying the original revision
+2 request still conflicts.
+
+The test passed in debug and release on macOS and Linux. The coordinator
+and its test also passed warnings-denied cross-compilation for Windows MSVC.
+
+## MC/DC decision ledger
+
+The [production readiness roadmap](docs/production-readiness.md) tracks
+the remaining module inventory, fuzz targets and release gates.
+
+### TX-V1. Whole-database revision check
+
+The [transaction validation guard](src/engine.rs#L712) rejects a draft
+when both conditions hold.
+
+- **A** is `validation == WholeDatabase`.
+- **B** is `base.revision != current.revision`.
+
+The [table-driven test](tests/transactions.rs) starts from two existing
+records `a = 0` and `b = 0` at revision `r`. The draft writes `a = 1`
+in every case. The intervening transaction, when scheduled first,
+commits `b = 2` without changing the observed record `a`. Each row shows
+the state immediately after attempting the draft's commit.
+
+| Case | Validation mode (A) | Intervening commit (B) | Draft result | Head revision | Published `a`, `b` |
+|---|---|---|---|---|---|
+| 1 | WholeDatabase (true) | Yes (true) | Conflict | `r + 1` | `0, 2` |
+| 2 | Records (false) | Yes (true) | Commit | `r + 2` | `1, 2` |
+| 3 | WholeDatabase (true) | No (false) | Commit | `r + 1` | `1, 0` |
+| 4 | Records (false) | No (false) | Commit | `r + 1` | `1, 0` |
+
+Cases 1 and 2 show A's independent effect with an advanced head.
+Short-circuit evaluation skips the revision comparison in case 2, and
+the successful intervening commit establishes the revision mismatch
+in the fixture. Cases 1 and 3 show B's independent effect with
+`WholeDatabase` selected. Case 4 is the existing record-mode control.
+
+`existing_record_edits_follow_validation_mode` extends the existing
+independent-edit test. It keeps both publication orders in record mode
+and adds the two whole-database cases with the same draft. It checks the
+commit result, head revision, and both published values. The existing
+`whole_root_baseline_rejects_unrelated_commits_and_no_partial_writes`
+still checks a stale multi-write draft and its terminal state.
+
+All 23 tests in the transaction, concurrency, and retention suites passed
+in debug and release on arm64 macOS with rustc 1.99.1. Removing A from the
+guard in a disposable copy made case 2 fail. Removing B made case 3 fail.
+The table and tests provide MC/DC evidence for both conditions of TX-V1.
+Collection validation, record validation, and durable publication are
+separate decisions. The workspace coverage script reports line and region
+coverage separately.
+
+The verification used the working tree based on `13d61c6`.
+The Git blob for `src/engine.rs` was `6696ea74ac00dcfa2eb7934c7c15cdabb13e474d`
+and the blob for `tests/transactions.rs` was `0833308ab1f9a0a5856e61b16457a0a48d4ae5ef`.
+
+### PUB-V1. Local commit barriers
+
+The [publication fault test](tests/durability.rs) uses the same staged
+two-record edit in every run. Let `r` be the last acknowledged revision.
+The test takes the append, root and witness sync positions from a clean
+commit trace. It then injects `Fault::Error` at every I/O and checks the
+exact trace prefix, result, in-process revision, and reopened revision
+and values.
+
+| Case | Injected failure | Pending bytes after power loss | Commit result | Revision in process | Revision reopened |
+|---|---|---|---|---|---|
+| P1 | None | Drop pending writes | `Ok(r + 1)` | `r + 1` | `r + 1` |
+| P2 | Append write or sync | Drop or persist pending writes | `Io` | `r` | `r` |
+| P3 | Root write, before any bytes are written | Drop or persist pending writes | `OutcomeUnknown` | `r` | `r` |
+| P4 | Root sync | Drop the pending root | `OutcomeUnknown` | `r` | `r` |
+| P5 | Root sync | Persist the pending root | `OutcomeUnknown` | `r` | `r + 1` |
+| P6 | Witness write or sync | Drop or persist pending writes | `OutcomeUnknown` | `r` | `r + 1` |
+
+P1 paired with P2 at the append sync shows that append success gates
+the root write. P1 paired with P4 shows that root sync success gates
+the witness write. P1 paired with P6 shows that witness success gates
+in-process publication and acknowledgment. These are successive I/O
+gates. Each failure masks the stages after it. P4 and P5 hold the commit
+error fixed and vary whether the root survives. The test also checks that
+retaining only the root's pending write reopens `r + 1` and that retaining
+only its first 63 bytes reopens `r`.
+
+### REC-V1. Witness agreement with the selected root
+
+The [recovery guard](src/storage/codec.rs#L705) rejects a selected root if
+any valid witness satisfies `A || (B && C)`. A means the witness revision
+is newer than the selected root. B means the revisions are equal.
+C means the witness and root metadata differ. The test keeps roots 1 and
+2 and the same appended bytes in every case. It presents one valid
+witness to selected root 2. The mismatched witness keeps revision 2 and
+uses the descriptor and end of revision 3 with a repaired checksum.
+
+| Case | Witness | A | B | C | Reopen result |
+|---|---|---|---|---|---|
+| W1 | Older, revision 1 | False | False | True | Revision 2 |
+| W2 | Newer, revision 3 | True | False | True | `Corrupt`, no revision |
+| W3 | Matching, revision 2 | False | True | False | Revision 2 |
+| W4 | Same revision, different descriptor and end | False | True | True | `Corrupt`, no revision |
+
+W1 and W2 isolate A. W1 and W4 isolate B. W3 and W4 isolate C. The table
+records the logical condition values of the inputs. Short-circuiting
+skips C in W1 and skips B and C in W2. Rejection leaves the durable bytes
+unchanged. The existing corruption test also exercises an acknowledged
+root lost while its newer witness remains intact.
+
+### REC-V2. Stabilization before a writable reopen
+
+The existing [volatile-root recovery test](tests/durability.rs) starts
+with a failed commit at root sync. The full root for `r + 1` is visible
+in volatile bytes and revision `r` is durable. A writable open must sync
+the verified root, write its witness, and sync the witness before
+returning a handle.
+
+| Case | First reopen | Result of first reopen | Revision reopened after the next crash |
+|---|---|---|---|
+| S1 | All recovery I/O succeeds | Handle at `r + 1` | `r + 1` |
+| S2 | Stabilization sync fails and the pending root is lost | `Io`, no handle | `r` |
+| S3 | Stabilization sync fails and the pending root survives | `Io`, no handle | `r + 1` |
+| S4 | Witness write tears after stabilization succeeds | `Io`, no handle | `r + 1` |
+| S5 | Witness sync fails after stabilization succeeds | `Io`, no handle | `r + 1` |
+
+S1 paired with S2 shows that stabilization success gates the witness
+write. S1 paired with S4 or S5 shows that writing and syncing the witness
+gate returning a handle. S2 and S3 vary only whether the root survives
+the failed stabilization and subsequent crash. Each failed open stops at
+the injected I/O. The second open checks the complete old or new record
+state associated with the expected revision.
+
+This pass covers local publication, witness agreement, and writable
+recovery stabilization. The format parser, graph verifier, root-slot
+adjacency check, and follower acknowledgment have separate decisions.
+
+On arm64 macOS, 60 library, durability, compaction, file, replication,
+and retention tests passed in both debug and release with all features.
+In disposable copies, bypassing each publication gate and each writable
+recovery gate triggered a regression. The witness test also detected
+independent changes to the newer, same-revision, and agreement conditions
+in cases W2, W1, and W4, respectively.
+
+The verification used the working tree based on `13d61c6`. The Git blobs
+were `000d289111767aa499624895de1ddbf2788ab14e` for `src/storage/mod.rs`,
+`05bc4c409a690d7ba4cf7b63ab7757d430518124` for `src/storage/codec.rs`,
+and `fa620ab7c8fb73fb631cb91a435d10201f6c39a1` for `tests/durability.rs`.
+
+### REC-V3. Root-slot selection and adjacency
+
+The [simulator test](tests/durability.rs#L368) saves real root slots from
+commits 2 through 5 of the same store. Every case keeps the object bytes
+through revision 5. It varies which saved slots appear in the two root
+regions and clears both witness regions to isolate slot selection. It
+checks both the reopened revision and a record value from that revision.
+
+| Case | Even slot | Odd slot | Reopen result | Reopened value of `b` |
+|---|---|---|---|---|
+| R1 | 2 | 5 | `Corrupt`, no revision | — |
+| R2 | Missing | 5 | Revision 5 | 5 |
+| R3 | 2 | Missing | Revision 2 | 0 |
+| R4 | 4 | 5 | Revision 5 | 5 |
+| R5 | 4 | 3 | Revision 4 | 4 |
+| R6 | Missing | Missing | `Corrupt`, no revision | — |
+
+The [adjacency guard](src/storage/codec.rs#L712) rejects when the even slot
+is present, the odd slot is present, and their revisions differ by more
+than one. R1 and R2 isolate even-slot presence. R1 and R3 isolate odd-slot
+presence. The gap comparison is masked when either slot is missing.
+R1 and R4 isolate the gap with both slots present and the same newest
+revision. R4 and R5 show that the highest revision wins in either slot.
+R6 paired with R2 or R3 shows the need for at least one valid root, even
+with intact commit objects in the tail. Both rejection cases perform
+no write or sync and preserve the durable bytes.
+
+The existing [acknowledged-corruption test](tests/durability.rs) covers
+the witness interaction separately. A newer intact witness makes
+recovery reject a lost newest root instead of reopening the older one.
+
+All 37 library and durability tests passed in debug and release on arm64
+macOS with all features. Six deliberate changes in disposable copies
+were caught by their matching cases. They bypassed the gap check,
+required each missing slot in turn, preferred each slot in turn, or
+changed the error for an empty pair. Verification used the working tree
+based on `13d61c6` with Git blobs
+`05bc4c409a690d7ba4cf7b63ab7757d430518124` for `src/storage/codec.rs`
+and `305ce014951ebd7c9c8825744c9641ce57d6b7bd` for `tests/durability.rs`.
+
+### REC-V4. Verify the selected graph before opening
+
+Recovery selects a root from the slot metadata, then verifies its
+descriptor and the graphs reachable from it. A failure in that graph
+returns an error with no handle and no recovery writes. If the newest
+slot itself is absent, the older slot can be selected when the witness
+checks permit it. The existing checksum and corruption tests exercise
+damaged roots, payloads, backward references, and unreachable objects.
+The [decision tests](src/storage/codec.rs) reuse their simulator fixture
+and checksum repair helper.
+
+In each new rejection case, the newest slot is valid and its witness
+is cleared. The simulator checks the precise error, that no write or
+sync occurred, and that the durable bytes are identical. As a control,
+it clears the newest slot from a separate copy of the same damaged
+image and verifies that the previous revision opens. That control
+establishes that the older graph was usable throughout.
+
+| Valid graph in the pair | Condition changed independently | Result with newest slot present | Result with newest slot cleared |
+|---|---|---|---|
+| Revision 3, current graph | Commit object's born revision is 2 | `Corrupt` | Revision 2 |
+| Revision 3, current graph | Commit payload revision differs from slot, or its data revision exceeds the commit revision | `Corrupt` | Revision 2 |
+| Revision 3, current graph | DATA revision disagrees with the descriptor, or DATA born revision disagrees with its payload | `Corrupt` | Revision 2 |
+| Revision 3, empty directory | DATA next collection ID is zero | `Corrupt` | Revision 2 |
+| Revision 4, two collections | Second collection repeats an ID, reaches the next ID, has revision zero, or has a future revision | `Corrupt` | Revision 3 |
+| Revision 3, current graph | Record write revision is zero or exceeds the collection revision | `Corrupt` | Revision 2 |
+| Revision 3, current graph | A record refers forward to its directory | `Corrupt` | Revision 2 |
+| Revision 3, current graph | A reachable value has wrong magic, kind, version, identity, or reserved bytes | `Corrupt` | Revision 2 |
+| Revision 3, current graph | A reachable value has a wrong checksum or nonzero padding | `Corrupt` | Revision 2 |
+| Revision 4, retained graph | A value reachable only from the retained revision has invalid boolean bits | `Corrupt` | Revision 3 |
+
+Each alternative in a row is a separate case paired with the clean
+image. Structural edits have their object checksums repaired. The
+checksum case changes a value's payload without repairing it. The
+tests also verify that descriptor revision failures stop before any
+DATA read, even when a later check would reject the same image.
+The descriptor's end comparison has no feasible failing input after
+the preceding checks. A valid slot bounds its descriptor to one region
+and a successfully read object occupies at least one aligned region.
+The stable-image value cases hold the two object header reads equal.
+The ledger records the checks above separately from the remaining
+decoder cache and traversal bounds.
+
+### REC-V5. Verify the retained catalog
+
+The [retained-catalog test](src/storage/codec.rs) extends the existing
+corruption test using a publishing revision of 7 and current data
+revision 4. The retained entries capture revisions 5 and 2, respectively.
+The first entry points to data revision 4 and the second to data
+revision 2. The persisted next retained ID is 3.
+
+| Condition isolated against a valid catalog | Changed input | Reopen result |
+|---|---|---|
+| ID fails the ordering check | First ID is zero, or second ID repeats 1 | `Corrupt` |
+| ID reaches the next retained ID | Second ID is 3 | `Corrupt` |
+| Capture reaches the publishing revision | First capture is 7 | `Corrupt` |
+| Data revision exceeds its capture | Second data revision is 3, above capture 2 and below current data 4 | `Corrupt` |
+| Data revision exceeds current data | First data revision is 5, equal to capture 5 and above current data 4 | `Corrupt` |
+
+For the last pair, the valid and invalid entries use the same
+uncached reference to data revision 2. The valid entry declares 2 and
+opens revision 7. The failing entry declares 5, and the trace confirms
+recovery rejects the catalog before reading that reference. The
+above-capture case also rejects before reading its retained reference.
+The reused next-ID, forward-reference, and count cases return
+`Corrupt`, `Corrupt`, and `Limit`, respectively. Clearing the newest
+slot in each rejected image allows revision 6 to open.
+
+All 46 library, durability, and retention tests passed in debug and
+release on arm64 macOS with all features. The decision tests caught
+24 independent changes to the audited checks in disposable copies.
+Verification used the working tree based on `13d61c6` with Git blob
+`13a58f2a49c76f0768a2d8182d1eb1d8f035fdf3` for `src/storage/codec.rs`.
+
+### FOL-V1. Durable installation and progress
+
+The [follower fault test](src/replication/follower/tests.rs#L174) starts
+with primary revision 2 installed and offers revision 3. It checks the
+terminal wire reply, then drops the receiver, crashes the simulated
+stores, reopens, and polls for progress. The reported acknowledgment and
+the reopened replica's revision and row value must agree.
+
+| Case | Installation or failure point | Sender sees | Revision reported after reopening |
+|---|---|---|---|
+| F1 | Staging sync, verification, and manifest commit succeed | Durable acknowledgment for 3 | 3 |
+| F2 | Staging sync fails, with staged bytes lost or surviving | `Io` | 2 |
+| F3 | Staging sync succeeds and image verification fails | `Corrupt` | 2 |
+| F4 | Manifest append sync fails, with append lost or surviving | `Io` | 2 |
+| F5 | Manifest root sync fails and the pending root is lost | `RecoveryRequired` | 2 |
+| F6 | Manifest root sync fails and the pending root survives | `RecoveryRequired` | 3 |
+| F7 | Manifest witness sync fails after its root sync succeeded | `RecoveryRequired` | 3 |
+| F8 | Manifest commit succeeds and the reply is lost | Transport `Io` | 3 |
+
+Pair F1 with F2, F3, or a manifest failure in F4–F7 to test the staging
+sync, image verification, and manifest commit gates in order. F5 and F6
+hold the sender's error fixed and vary only whether the manifest root
+survives. Before reopening, a staging sync failure still allows a poll
+to report revision 2. A manifest fault makes the same poll return
+`RecoveryRequired`. A retry after reopen uploads the image again if
+revision 2 survived, or receives revision 3 immediately if it was
+already selected.
+
+The existing [native interruption test](tests/replication.rs#L191)
+kills a follower during upload and again after durable selection but
+before the reply. It reports the previous revision after the first
+restart and the offered revision after the second. If the selected
+image is missing or damaged, reopen returns `Corrupt` and reports no
+revision even though the old image remains.
+
+### FOL-V2. Image verification
+
+The [verification test](src/replication/follower/tests.rs#L296)
+starts with the same installed revision 2 for each case. It holds all
+other checks passing while failing one check. The four conditions of the
+[replica rejection guard](src/storage/mod.rs#L344) are an identity
+mismatch, a revision mismatch, a committed end different from the
+declared length, and the absence of a matching witness.
+
+| Case | Input | Terminal reply | Revision reported after reopening |
+|---|---|---|---|
+| V1 | Valid image of revision 3 | Durable acknowledgment for 3 | 3 |
+| V2 | Wrong transfer digest | `Corrupt` | 2 |
+| V3 | Valid image with a different file identity and matching transfer digest | `Corrupt` | 2 |
+| V4 | Valid image of revision 3 offered as revision 4 | `Corrupt` | 2 |
+| V5 | Valid image with a trailing region included in its declared length and digest | `Corrupt` | 2 |
+| V6 | Valid root with a damaged witness and matching transfer digest | `Corrupt` | 2 |
+
+V1 and V2 exercise the transfer digest gate. V1 paired with each of V3
+through V6 demonstrates the independent effect of the corresponding
+condition in the four-condition rejection guard. In each rejected case
+the candidate is fully synced and the manifest sees no I/O.
+
+### FOL-V3. Older and duplicate offers
+
+The [lost-reply test](src/replication/follower/tests.rs#L391) reopens at
+revision 3 after F8. It exercises the condition that returns the installed
+acknowledgment when an offer is older or exactly matches the installed
+offer.
+
+| Case | Offer | Older | Exact match | Reply | Revision reported after reopening again |
+|---|---|---|---|---|---|
+| D1 | Earlier revision 2 | True | False | Durable acknowledgment for 3 | 3 |
+| D2 | Identical revision 3 | False | True | Durable acknowledgment for 3 | 3 |
+| D3 | Revision 3 with a different digest | False | False | `Conflict` | 3 |
+
+D1 and D3 isolate the older condition. D2 and D3 isolate the exact-match
+condition. These requests read the offer header only and leave the
+manifest bytes intact. The acknowledgment checks here cover the follower's
+selection and reporting decisions. The primary's handling of replies
+is a separate decision.
+
+All 37 selected library, durability, and replication tests passed in
+debug and release on arm64 macOS. The seven simulator and native
+replication tests also passed in both modes on aarch64 Linux. In
+disposable copies, the tests caught independent changes to all four
+replica metadata conditions, the digest check, the staging sync and
+manifest selection gates, the recovery-required progress gate, and both
+offer shortcut conditions.
+
+The verification used the working tree based on `13d61c6`. The Git blobs
+were `b06eaef7a2cd467d94b7f3cdef1f81a39a354005` for
+`src/replication/follower.rs`,
+`636b01b0e0292f480dd2c0554decd8adba49f674` for its tests, and
+`000d289111767aa499624895de1ddbf2788ab14e` for `src/storage/mod.rs`.
+
+### PRI-V1. Accepting follower progress
+
+The [poll test](src/replication/tests.rs#L67) creates verified exports of
+revisions 0, 1, and 2. The primary's verified head is revision 2. Except
+for Q7, the test records the acknowledgment for revision 1 before
+delivering the reply under test.
+
+| Case | Reply to a progress query | Primary result | Recorded revision |
+|---|---|---|---|
+| Q1 | Revision 2, correct stream | Accept | 2 |
+| Q2 | Exact acknowledgment for revision 1 | Accept | 1 |
+| Q3 | Revision 2, wrong stream | `ForeignStore` | 1 |
+| Q4 | Revision 3, correct stream | `ForeignStore` | 1 |
+| Q5 | Revision 0, correct stream | `Conflict` | 1 |
+| Q6 | Revision 1, different digest | `Conflict` | 1 |
+| Q7 | Empty, before the primary observes any progress | `Ok(None)` | None |
+| Q8 | Empty, after the primary observes revision 1 | `Conflict` | 1 |
+
+Q1 and Q3 isolate the stream mismatch. Q1 and Q4 isolate whether the
+reply exceeds the verified head. After those checks, the primary rejects
+an older revision or an equal revision with a different acknowledgment.
+Q1 and Q5 isolate the older condition. Q1 and Q6 isolate the equal
+revision condition while the acknowledgment differs. Q2 and Q6 isolate
+acknowledgment equality at the same revision. Q7 and Q8 isolate the
+presence of prior progress for an empty reply.
+
+After each rejection, another poll confirms that revision 0 still
+conflicts and that the exact acknowledgment for revision 1 is still
+accepted. After accepting revision 2, revision 1 conflicts. This
+progress is held by the primary instance. A restarted primary polls
+the follower to learn its recovered durable progress.
+
+### PRI-V2. Acknowledgment before and after upload
+
+The [ship test](src/replication/tests.rs#L123) offers revision 1 while
+the primary has recorded revision 0 and verified through revision 2.
+It delivers each reply directly or after `Ready`.
+
+| Case | Acknowledgment | Direct reply | Reply after upload |
+|---|---|---|---|
+| T1 | Exact acknowledgment for offered revision 1 | Accept revision 1 | Accept revision 1 |
+| T2 | Newer verified revision 2, correct stream | Accept revision 2 | `Conflict` |
+| T3 | Older revision 0 | `Conflict` | `Conflict` |
+| T4 | Revision 1 with a different digest | `Conflict` | `Conflict` |
+| T5 | Revision 1 with a different stream | `Conflict` | `Conflict` |
+
+For the direct reply guard, T2 and T4 isolate the newer revision
+condition, and T1 and T4 isolate exact acknowledgment equality. After
+`Ready`, T1 paired with any rejection shows that the reply must match
+the offered stream, revision, and digest. In particular, T2 flips from
+acceptance to conflict when it follows an upload. A direct reply leaves
+only the offer header on the outgoing channel. `Ready` triggers the
+image upload.
+Follow-up polls verify that acceptance records the acknowledged
+revision and that rejection preserves revision 0.
+
+All nine replication tests passed in debug and release on arm64 macOS.
+The two primary tests also detected nine independent changes to the
+audited checks in disposable copies. The verification used the working
+tree based on `13d61c6`. The Git blobs were
+`02feaeaea9d7b196fc4f741a642ba75eb3516356` for `src/replication/mod.rs`
+and `9993751adc493658e80ca458ce414326638ae6a4` for its tests.
+
 ## Implementation milestones
 
 These follow the architecture above. Complete the acceptance cases before adding
@@ -2383,9 +3276,20 @@ conversion, explicit three-way merges, list rebasing, or replication.
 
 ## Comparison and reason to build this
 
-**Inference:** yes, there is a credible specialist niche: a portable application-state store with direct nested persistent values, explicitly retained historical roots that survive reopening, and atomic record-scoped optimistic transactions. The opportunity is this combination and its integration experience. Neither “embedded NoSQL” nor “immutable database” alone distinguishes it. This review establishes differences among close alternatives, not universal competitor absence or proof that developers want another engine.
+The independent comparison points to checkpoint-oriented embedded application
+state as the strongest fit. An application can retain a version, inspect its
+records, schema and indexes alongside the current head, and reopen or compact
+the database with that version still available. The task tracker exercises
+this through explicit migration and table-level undo and redo. The value of
+the combination depends on how often a real consumer needs that workflow.
+[Typed store](crates/weekend-db-typed/src/store.rs), [task tracker](apps/weekend-tasks/README.md)
 
-“Direct nested values” matters: changing one leaf should share unchanged stored subtrees without decoding and rewriting the entire containing document. “Historical” means an application-retained version remains addressable after shutdown and compaction, not merely a read transaction observing a fixed current view. Both are explicit targets, still requiring implementation evidence. The relevant contracts are specified above.
+The v2 encoder can reuse offsets for unchanged child values. It serializes
+the index of each changed container and the current data directory on a data
+revision. The in-memory sharing model therefore leaves the disk cost of a
+leaf edit dependent on container and directory size. The existing measurements
+are same-engine baselines. A relative write-amplification claim needs a matched
+workload. [v2 encoder](src/storage/codec.rs), [baseline results](#milestone-10-compaction-and-measurements)
 
 ## Closest alternatives
 
@@ -2396,6 +3300,7 @@ conversion, explicit three-way merges, list rebasing, or replication.
 | UnQLite | Portable C amalgamation, transactional KV and document storage | Differentiate persistent value graphs from encoded documents |
 | LMDB | C, copy-on-write, concurrent snapshot readers | A live MVCC view is not an explicit durable history catalog |
 | redb | Embedded Rust, persistent rollback savepoints | Durable checkpoints already exist; distinguish historical reading from restoration |
+| SQLite | SQL, indexes and JSON, WAL snapshots, remote copying | Compare against application-managed retained versions with equivalent durability |
 
 ### xitdb: the decisive comparison
 
@@ -2403,9 +3308,15 @@ xitdb already exposes arbitrarily nested maps/lists, structural sharing, memory/
 
 The inspected local implementation loads its root from disk, syncs appended data before publishing the root, and defaults file synchronization on. Its compactor treats a root list as history and copies only its latest moment into a new history. These source facts support normal reopen persistence and explain history loss under that compaction policy; they are not an independent crash-safety certification. [xitdb source](https://github.com/xit-vcs/xitdb/blob/master/src/lib.zig)
 
-The first-party organization also has [Java](https://github.com/xit-vcs/xitdb-java), [TypeScript](https://github.com/xit-vcs/xitdb-ts) and [Go](https://github.com/xit-vcs/xitdb-go) implementations. **Inference:** “usable outside Zig” is insufficient differentiation. A convenient native distribution with Rust bindings, strict immutable private values, selective retention through compaction and compatible independent-record commits is a more defensible comparison. The last three are weekend-db targets, not benchmarked advantages. The relevant contracts are specified above.
+The first-party organization also has Java, TypeScript and Go implementations.
+The relevant comparison is how each project exposes retention, concurrent
+edits and historical reads to the application. [Java](https://github.com/xit-vcs/xitdb-java), [TypeScript](https://github.com/xit-vcs/xitdb-ts), [Go](https://github.com/xit-vcs/xitdb-go)
 
-**Inference from reachability:** an xitdb application could also keep named references to old values inside its latest moment, making those values reachable by compaction. Explicit retention is therefore better viewed as a proposed built-in policy and interface guarantee, not a fundamentally exclusive capability. Much of the proposed product experience could potentially be built above xitdb rather than requiring a new engine.
+The xitdb documentation shows how to retain selected history inside the latest
+moment so it remains reachable through compaction. That makes xitdb the closest
+comparison for implementing the same user-visible retention policy. In
+weekend-db the engine owns the retained catalog, and applications address
+historical views by stable snapshot IDs. [xitdb compaction](https://github.com/xit-vcs/xitdb#compaction)
 
 ### Vedis: packaging and structured storage already overlap
 
@@ -2425,6 +3336,31 @@ LMDB offers C transactions, copy-on-write pages, concurrent readers and one acti
 
 redb explicitly has `persistent_savepoint`, deletion/listing and `restore_savepoint`; these require appropriate durability and retain otherwise reusable pages. Persistent savepoints survive reopening, as its tests demonstrate. However, `Savepoint` is a restoration token, with no direct historical table-reading API exposed on it. Restoration happens in a write transaction and invalidates later savepoints. This overlaps checkpoint/rollback use cases, without being the same historical-read interface. [WriteTransaction](https://docs.rs/redb/latest/redb/struct.WriteTransaction.html), [Savepoint](https://docs.rs/redb/latest/redb/struct.Savepoint.html), [tests: `persistent_savepoint`](https://github.com/cberner/redb/blob/master/tests/integration_tests.rs)
 
+### SQLite and replication
+
+SQLite is a baseline for SQL constraints, expression indexes and JSON. Its
+optional WAL snapshot interface can reopen a historical view until
+checkpointing overwrites the needed state. To match a durable retained
+catalog, a comparison workload should explicitly store versions or keep
+consistent backup copies. [Expression indexes](https://www.sqlite.org/expridx.html), [JSON](https://www.sqlite.org/json1.html), [WAL snapshots](https://www.sqlite.org/c3ref/snapshot_open.html), [Backup](https://www.sqlite.org/backup.html)
+
+Replication already has strong baselines. xitdb can stream incremental
+committed bytes and documents staging a full copy to preserve the previous
+replica on interruption. SQLite's `sqlite3_rsync` sends changed pages for a
+consistent snapshot over SSH while the source can keep accepting writes.
+Litestream asynchronously ships WAL changes and supports restore to available
+points in its retained log. weekend-db ships the current head together with
+the explicitly retained roots, then acknowledges the selected image separately
+from the local commit. [xitdb replication](https://github.com/xit-vcs/xitdb#replication), [SQLite remote copy](https://www.sqlite.org/rsync.html), [Litestream replication](https://litestream.io/how-it-works/)
+
+The current prototype fits occasional checkpoints. It has an exclusive writer
+process, a 64 MiB image limit, a quiescent export, and full-image network
+transfers. Each successful follower installation appends three 4 KiB objects
+to its manifest, so a fresh manifest can hold roughly 5,450 installations
+before reaching its image limit, excluding abandoned tails. This is an
+estimate from the v2 layout. Sustained follower use needs a maintenance policy
+for that manifest. [Follower manifest](#snapshot-replication), [v2 encoder](src/storage/codec.rs)
+
 ## What the current design can honestly serve
 
 **Recommendations, not evidence of demand:** start with an application that owns one writer process and needs historical inspection of structured state:
@@ -2441,7 +3377,12 @@ Record-level OCC is conventional concurrency control, not a fundamental inventio
 
 ## Validation before expanding scope
 
-**Recommendation:** validate one consumer against xitdb and an encoded-document baseline with matching durability and retention policies. Measure integration effort, allocations, bytes written for a leaf update, retained-history growth, reopen latency, durable commit latency and conflict/retry rates. A result is useful only if the consumer values the difference enough to adopt the API.
+Use one checkpoint-heavy application workload to compare weekend-db with
+xitdb's explicit history pattern and SQLite or redb with application-managed
+history. Match retained versions, durability and crash expectations. Measure
+integration effort, allocations, bytes per leaf edit, retained-history growth,
+compaction and reopen time, durable commit latency, and conflict/retry rates.
+For the replication case, also measure export pause and follower lag.
 
 Require crash/reopen tests preserving acknowledged commits and retained roots; compaction must preserve selected history and reclaim released history. Exercise same-record conflicts, independent existing records, absence/scan dependencies and allocation failures. Explicitly demonstrate historical inspection; do not imply restoration from it. The relevant contracts are specified above.
 
@@ -2457,9 +3398,9 @@ The present design also lacks a stable disk format, proven recovery, inspection/
   list positions, ancestor replacement, delete/recreate, missing reads, and
   history retention multiply the rules to verify. Record boundaries provide a
   smaller contract while still accepting independent existing-record edits.
-- CRDTs remain a separate experiment. They require explicit identities and merge
-  semantics; accepting concurrent edits does not itself preserve application
-  invariants. Distributed replication is outside this plan.
+- Snapshot replication starts with a fixed primary, one follower, local commit
+  acknowledgment and separate durable follower progress. The optional CRDT
+  experiment binds an explicit resolver to versioned collection metadata.
 - Durable commits are the default for file storage. An explicit weaker mode can
   be designed later. Append-only copy-on-write publication is the candidate;
   a separate WAL is not currently required.

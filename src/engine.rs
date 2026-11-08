@@ -72,9 +72,25 @@ struct State {
     retention: Retention,
 }
 impl State {
-    fn persist(&mut self, mem: &Memory, head: &Head, next_collection: u64) -> Result<()> {
+    fn publish(
+        &mut self,
+        mem: &Memory,
+        head: Shared<Head>,
+        next_collection: u64,
+        retention: Option<Retention>,
+    ) -> Result<()> {
         if let Some(storage) = &mut self.storage {
-            storage.persist(mem, head, next_collection, &self.retention)?;
+            storage.persist(
+                mem,
+                &head,
+                next_collection,
+                retention.as_ref().unwrap_or(&self.retention),
+            )?;
+        }
+        self.head = head;
+        self.next_collection = next_collection;
+        if let Some(retention) = retention {
+            self.retention = retention;
         }
         Ok(())
     }
@@ -157,16 +173,50 @@ impl Database {
         &mut self,
         destination: B,
     ) -> Result<crate::storage::CompactionStats> {
+        self.compact_copy(destination).map(|(_, stats)| stats)
+    }
+    pub(crate) fn compact_copy<B: ByteStore + 'static>(
+        &mut self,
+        destination: B,
+    ) -> Result<(Storage, crate::storage::CompactionStats)> {
         let state = self.state.get_mut().map_err(|_| Error::RecoveryRequired)?;
         let storage = state.storage.as_mut().ok_or(Error::Invalid)?;
-        let (_copy, stats) = storage.compact(
+        storage.compact(
             destination,
             &self.mem,
             &state.head,
             state.next_collection,
             &state.retention,
-        )?;
-        Ok(stats)
+        )
+    }
+    #[cfg(feature = "replication")]
+    pub(crate) fn replication_head(&self) -> Result<([u8; 16], u64)> {
+        let state = self.write_state()?;
+        let storage = state.storage.as_ref().ok_or(Error::Invalid)?;
+        storage.guard()?;
+        Ok((storage.identity(), state.head.revision))
+    }
+    #[cfg(all(
+        feature = "replication",
+        any(test, target_os = "macos", target_os = "linux", windows)
+    ))]
+    pub(crate) fn decode_replica(
+        backend: &mut dyn ByteStore,
+        identity: [u8; 16],
+        revision: u64,
+        length: u64,
+        limits: Limits,
+    ) -> Result<Self> {
+        let db = Self::with_limits(limits)?;
+        let recovered =
+            crate::storage::recover_replica(backend, &db.mem, identity, revision, length)?;
+        *db.write_state()? = State {
+            head: recovered.head,
+            next_collection: recovered.next_collection,
+            storage: None,
+            retention: recovered.retention,
+        };
+        Ok(db)
     }
     /// Offline compaction: close every database handle for this file first.
     /// Both old and replacement inodes remain locked through durable exchange.
@@ -185,6 +235,13 @@ impl Database {
     }
     fn write_state(&self) -> Result<MutexGuard<'_, State>> {
         self.state.lock().map_err(|_| Error::RecoveryRequired)
+    }
+    fn publication_state(&self) -> Result<MutexGuard<'_, State>> {
+        let state = self.write_state()?;
+        if let Some(storage) = &state.storage {
+            storage.guard()?;
+        }
+        Ok(state)
     }
     pub fn new() -> Result<Self> {
         Self::with_limits(Limits::default())
@@ -272,10 +329,7 @@ impl Database {
         if !std::ptr::eq(self, snapshot.db) {
             return Err(Error::ForeignStore);
         }
-        let mut state = self.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.publication_state()?;
         if state.retention.entries.len() >= MAX_RETAINED_SNAPSHOTS {
             return Err(Error::Limit);
         }
@@ -295,18 +349,11 @@ impl Database {
             collections: state.head.collections.clone(),
         })?;
         let next_collection = state.next_collection;
-        if let Some(storage) = &mut state.storage {
-            storage.persist(&self.mem, &head, next_collection, &retention)?;
-        }
-        state.retention = retention;
-        state.head = head;
+        state.publish(&self.mem, head, next_collection, Some(retention))?;
         Ok(id)
     }
     pub fn release_retained(&self, id: u64) -> Result<()> {
-        let mut state = self.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.publication_state()?;
         let index = state
             .retention
             .entries
@@ -322,11 +369,7 @@ impl Database {
             collections: state.head.collections.clone(),
         })?;
         let next_collection = state.next_collection;
-        if let Some(storage) = &mut state.storage {
-            storage.persist(&self.mem, &head, next_collection, &retention)?;
-        }
-        state.retention = retention;
-        state.head = head;
+        state.publish(&self.mem, head, next_collection, Some(retention))?;
         Ok(())
     }
     pub fn retained_snapshot(&self, id: u64) -> Result<Snapshot<'_>> {
@@ -367,10 +410,7 @@ impl Database {
         }
     }
     pub fn create_collection(&self) -> Result<CollectionId> {
-        let mut state = self.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.publication_state()?;
         let next = state.head.revision.checked_add(1).ok_or(Error::Exhausted)?;
         let id = state.next_collection;
         let following = id.checked_add(1).ok_or(Error::Exhausted)?;
@@ -387,19 +427,14 @@ impl Database {
             data_revision: next,
             collections,
         })?;
-        state.persist(&self.mem, &head, following)?;
-        state.head = head;
-        state.next_collection = following;
+        state.publish(&self.mem, head, following, None)?;
         Ok(self.collection_id(id))
     }
     /// Catalog operations are immediate atomic commits, never part of a draft.
     /// IDs are never reused; transactions on a removed collection conflict.
     pub fn drop_collection(&self, id: CollectionId) -> Result<()> {
         self.check_collection(id)?;
-        let mut state = self.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.publication_state()?;
         if state.head.collections.get(&id.id.to_le_bytes()).is_none() {
             return Err(Error::NotFound);
         }
@@ -414,8 +449,7 @@ impl Database {
             collections,
         })?;
         let next_collection = state.next_collection;
-        state.persist(&self.mem, &head, next_collection)?;
-        state.head = head;
+        state.publish(&self.mem, head, next_collection, None)?;
         Ok(())
     }
     pub fn snapshot(&self) -> Snapshot<'_> {
@@ -698,10 +732,7 @@ impl Transaction<'_> {
     fn publish(&self) -> Result<u64> {
         // The commit gate covers validation, rebasing, persistence and publication.
         // ByteStore methods must not call back into this database.
-        let mut state = self.db.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.db.publication_state()?;
         self.validate(&state.head)?;
         let next = state.head.revision.checked_add(1).ok_or(Error::Exhausted)?;
         let mut collections = state.head.collections.clone();
@@ -740,8 +771,7 @@ impl Transaction<'_> {
             collections,
         })?;
         let next_collection = state.next_collection;
-        state.persist(&self.db.mem, &head, next_collection)?;
-        state.head = head;
+        state.publish(&self.db.mem, head, next_collection, None)?;
         Ok(next)
     }
     /// Commit errors are terminal. Conflicts abort; preparation failures fail.

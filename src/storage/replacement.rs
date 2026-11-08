@@ -1,18 +1,27 @@
 //! Namespace publication after a replacement image is fully durable/verified.
 //! An atomic exchange and ordered namespace persistence are adapter assumptions.
-pub(crate) trait Replacement {
-    fn exchange(&mut self) -> crate::Result<()>;
-    fn sync_directory(&mut self) -> crate::Result<()>;
-    fn sync_device(&mut self) -> crate::Result<()>;
-    fn remove_old(&mut self) -> crate::Result<()>;
+pub(crate) enum Step {
+    Exchange,
+    SyncDirectory,
+    SyncReplacement,
+    RemoveOld,
+    SyncCleanupDirectory,
+    SyncCleanupFile,
 }
-pub(crate) fn publish(fs: &mut impl Replacement) -> crate::Result<()> {
-    fs.exchange()?;
-    fs.sync_directory()?;
-    fs.sync_device()?;
-    fs.remove_old()?;
-    fs.sync_directory()?;
-    fs.sync_device()
+
+pub(crate) fn publish(mut apply: impl FnMut(Step) -> crate::Result<()>) -> crate::Result<()> {
+    use Step::*;
+    for step in [
+        Exchange,
+        SyncDirectory,
+        SyncReplacement,
+        RemoveOld,
+        SyncCleanupDirectory,
+        SyncCleanupFile,
+    ] {
+        apply(step)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -43,20 +52,6 @@ mod tests {
             }
             self.boundary += 1;
             Ok(())
-        }
-    }
-    impl Replacement for Namespace {
-        fn exchange(&mut self) -> crate::Result<()> {
-            self.step(|s| std::mem::swap(&mut s.volatile.canonical, &mut s.volatile.scratch))
-        }
-        fn sync_directory(&mut self) -> crate::Result<()> {
-            self.step(|s| s.flushed = s.volatile)
-        }
-        fn sync_device(&mut self) -> crate::Result<()> {
-            self.step(|s| s.durable = s.flushed)
-        }
-        fn remove_old(&mut self) -> crate::Result<()> {
-            self.step(|s| s.volatile.scratch = None)
         }
     }
     #[test]
@@ -93,7 +88,16 @@ mod tests {
                 boundary: 0,
                 fail,
             };
-            let result = publish(&mut namespace);
+            let result = publish(|step| {
+                namespace.step(|s| match step {
+                    Step::Exchange => {
+                        std::mem::swap(&mut s.volatile.canonical, &mut s.volatile.scratch)
+                    }
+                    Step::SyncDirectory | Step::SyncCleanupDirectory => s.flushed = s.volatile,
+                    Step::SyncReplacement | Step::SyncCleanupFile => s.durable = s.flushed,
+                    Step::RemoveOld => s.volatile.scratch = None,
+                })
+            });
             for (policy, names) in [namespace.durable, namespace.flushed, namespace.volatile]
                 .into_iter()
                 .enumerate()

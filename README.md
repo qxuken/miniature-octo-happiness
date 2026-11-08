@@ -22,15 +22,17 @@ cargo run -p weekend-tasks -- --db /tmp/my-tasks.wdb list
 ```
 
 The core, convenience runtime, derive implementation, and application are separate
-Cargo workspace packages. The engine still has no external crate dependencies;
-the derive builds with `syn`, `quote`, `proc-macro2`, and `unicode-ident`.
+Cargo workspace packages. The default engine build has no external crate
+dependencies. The derive builds with `syn`, `quote`, `proc-macro2`, and
+`unicode-ident`.
 Run `cargo fetch --locked` once before the offline check scripts on a fresh
 checkout. `python3 tools/check.py` checks the whole workspace in debug/release,
 including the CLI lifecycle and a renamed-dependency consumer.
 
 [DESIGN.md](DESIGN.md) contains the complete target design, implementation
 sketches, decisions, competitor comparison, reading references, milestones,
-and definitions of done. It is the single planning document.
+and definitions of done. The [production readiness roadmap](docs/production-readiness.md)
+tracks release requirements, coverage, fuzzing, and operational gaps.
 
 The in-memory engine through milestone 5 implements immutable nested maps/lists,
 scalars/bytes, historical live snapshots, final put/delete overlays, and
@@ -55,7 +57,7 @@ cargo run --example file -- /tmp/weekend-demo.db
 python3 tools/check.py
 ```
 
-Rust/Cargo 1.99+ is required; the engine has no external crate dependencies.
+Rust/Cargo 1.99+ is required.
 The file example creates a new path, retains an old snapshot, reopens both
 versions, releases retention, and leaves the database in place. Creation never
 overwrites an existing file. The check script uses temporary paths and runs
@@ -71,6 +73,20 @@ and reordered/dropped unsynced writes. Native `create_file` / `open_file` and C
 `wdb_file_create` / `wdb_file_open` use the native adapter. See the
 [v2 format and file contract](DESIGN.md#milestone-7-files-and-byte-format-v2).
 The experimental v2 reader rejects v1 images; there is no automatic conversion.
+
+The opt-in Rust `replication` feature ships verified snapshots to one passive
+follower over an application-authenticated connection. It uses `sha2` to
+verify transferred images and reports follower durability separately from
+local commits. See [the replication API and failure cases](DESIGN.md#snapshot-replication).
+
+The [StudyProgress peer demo](apps/study-peer/README.md) runs two writable
+files in separate processes. Each accepts local edits while disconnected
+and exchanges mergeable state in the background with one configured peer.
+The demo reports local commit revisions separately from peer acknowledgments.
+
+The [write coordinator demo](apps/write-coordinator/README.md) lets two
+client processes edit one record in a single file. It uses ordinary
+transactions and returns a conflict when a client submits a stale revision.
 
 `retain_snapshot`, `retained_snapshot`, `retained_ids`, and `release_retained`
 manage up to 64 persisted snapshot IDs per store. Releasing retention preserves

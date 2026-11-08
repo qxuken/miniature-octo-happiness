@@ -2,9 +2,13 @@
 //! macOS/Linux/Windows files, offline compaction, durable retained snapshots, and optional
 //! schema access conventions. See examples/typed.rs for the application layer.
 //! See DESIGN.md for implemented contracts and the remaining durability work.
+#[cfg(feature = "crdt")]
+pub mod crdt;
 mod engine;
 mod ffi;
 mod memory;
+#[cfg(feature = "replication")]
+pub mod replication;
 pub mod schema;
 pub mod storage;
 mod tree;

@@ -75,7 +75,6 @@ pub trait ByteStore: Send {
 pub(crate) struct Storage {
     backend: Box<dyn ByteStore>,
     identity: [u8; 16],
-    slot: usize,
     revision: u64,
     end: u64,
     data_cache: Vec<DataEntry>,
@@ -88,6 +87,14 @@ impl Drop for Storage {
     }
 }
 impl Storage {
+    #[cfg(feature = "replication")]
+    pub(crate) fn identity(&self) -> [u8; 16] {
+        self.identity
+    }
+    #[cfg(feature = "replication")]
+    pub(crate) fn image_bytes(&mut self) -> &mut dyn ByteStore {
+        &mut *self.backend
+    }
     pub(crate) fn compact<B: ByteStore + 'static>(
         &mut self,
         destination: B,
@@ -122,8 +129,8 @@ impl Storage {
         let verified = codec::recover(&mut *self.backend, mem)?;
         if verified.identity != self.identity
             || verified.slot.revision != self.revision
-            || verified.slot.index != self.slot
             || verified.slot.end != self.end
+            || !verified.witnessed
         {
             return Err(Error::Corrupt);
         }
@@ -135,7 +142,6 @@ impl Storage {
         Ok(Self {
             backend,
             identity: [0; 16],
-            slot: 1,
             revision: 0,
             end: 0,
             data_cache: Vec::new(),
@@ -159,9 +165,6 @@ impl Storage {
             return Err(Error::Invalid);
         }
         storage.identity = identity;
-        // A compact image starts at an existing revision, which can be odd.
-        // The v2 slot index must equal revision parity on its first publication.
-        storage.slot = 1 - (head.revision & 1) as usize;
         // Prepare everything before modifying the previously empty byte store.
         let candidate = codec::encode(
             mem,
@@ -193,15 +196,13 @@ impl Storage {
         // then witness it before exposing that recovered head to the caller.
         storage.backend.sync().map_err(|_| Error::Io)?;
         let witness = codec::metadata(recovered.identity, recovered.slot, true);
-        write_all(
+        write_synced(
             &mut *storage.backend,
             ((3 + recovered.slot.index) * REGION) as u64,
             &witness,
         )
-        .and_then(|_| storage.backend.sync())
         .map_err(|_| Error::Io)?;
         storage.identity = recovered.identity;
-        storage.slot = recovered.slot.index;
         storage.revision = recovered.slot.revision;
         storage.end = recovered.slot.end;
         storage.data_cache = recovered.data_cache;
@@ -259,7 +260,7 @@ impl Storage {
         self.publish(candidate, head.revision)
     }
     fn publish(&mut self, candidate: codec::Candidate, revision: u64) -> Result<()> {
-        let index = 1 - self.slot;
+        let index = (revision & 1) as usize;
         let slot = Slot {
             index,
             revision,
@@ -268,34 +269,30 @@ impl Storage {
         };
         let publication = codec::metadata(self.identity, slot, false);
         let witness = codec::metadata(self.identity, slot, true);
-        let before_publication = write_all(&mut *self.backend, candidate.start, &candidate.bytes)
-            .and_then(|_| self.backend.sync());
-        if before_publication.is_err() {
-            self.poisoned = true;
-            return Err(Error::Io);
-        }
+        write_synced(&mut *self.backend, candidate.start, &candidate.bytes)
+            .map_err(|_| Error::Io)
+            .inspect_err(|_| self.poisoned = true)?;
         // From the first slot-write attempt onward the caller cannot infer the
         // result from an error. The witness is a durable acknowledged-revision
         // lower bound, synchronized before the in-process head becomes visible.
-        let publication_result = write_all(
+        write_synced(
             &mut *self.backend,
             ((1 + index) * REGION) as u64,
             &publication,
         )
-        .and_then(|_| self.backend.sync())
-        .and_then(|_| write_all(&mut *self.backend, ((3 + index) * REGION) as u64, &witness))
-        .and_then(|_| self.backend.sync());
-        if publication_result.is_err() {
-            self.poisoned = true;
-            return Err(Error::OutcomeUnknown);
-        }
-        self.slot = index;
+        .and_then(|_| write_synced(&mut *self.backend, ((3 + index) * REGION) as u64, &witness))
+        .map_err(|_| Error::OutcomeUnknown)
+        .inspect_err(|_| self.poisoned = true)?;
         self.revision = revision;
         self.end = candidate.end;
         self.data_cache = candidate.data_cache;
         self.cache = candidate.cache;
         Ok(())
     }
+}
+fn write_synced(backend: &mut dyn ByteStore, offset: u64, bytes: &[u8]) -> Result<()> {
+    write_all(backend, offset, bytes)?;
+    backend.sync()
 }
 pub(crate) fn read_all(
     backend: &mut dyn ByteStore,
@@ -313,7 +310,11 @@ pub(crate) fn read_all(
     }
     Ok(())
 }
-fn write_all(backend: &mut dyn ByteStore, mut offset: u64, mut bytes: &[u8]) -> Result<()> {
+pub(crate) fn write_all(
+    backend: &mut dyn ByteStore,
+    mut offset: u64,
+    mut bytes: &[u8],
+) -> Result<()> {
     while !bytes.is_empty() {
         let size = bytes.len().min(REGION - (offset % REGION as u64) as usize);
         let n = backend.write(offset, &bytes[..size])?;
@@ -324,4 +325,28 @@ fn write_all(backend: &mut dyn ByteStore, mut offset: u64, mut bytes: &[u8]) -> 
         bytes = &bytes[n..];
     }
     Ok(())
+}
+
+#[cfg(all(
+    feature = "replication",
+    any(test, target_os = "macos", target_os = "linux", windows)
+))]
+pub(crate) fn recover_replica(
+    backend: &mut dyn ByteStore,
+    mem: &Memory,
+    identity: [u8; 16],
+    revision: u64,
+    length: u64,
+) -> Result<codec::Recovered> {
+    let recovered = codec::recover(backend, mem)?;
+    // A shipped image has completed all barriers. Keep verification read-only
+    // so it cannot modify an immutable installed image on restart.
+    if recovered.identity != identity
+        || recovered.slot.revision != revision
+        || recovered.slot.end != length
+        || !recovered.witnessed
+    {
+        return Err(Error::Corrupt);
+    }
+    Ok(recovered)
 }

@@ -657,6 +657,7 @@ impl Reader<'_> {
 pub(crate) struct Recovered {
     pub identity: [u8; 16],
     pub slot: Slot,
+    pub witnessed: bool,
     pub head: Shared<Head>,
     pub next_collection: u64,
     pub cache: Vec<CacheEntry>,
@@ -784,6 +785,7 @@ pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recov
     Ok(Recovered {
         identity,
         slot,
+        witnessed: witnesses[slot.index] == Some(slot),
         head,
         next_collection,
         cache: reader.cache,
@@ -861,7 +863,7 @@ mod tests {
             Ok(b"shared".as_slice())
         );
     }
-    fn fixture() -> Vec<u8> {
+    fn fixture_store() -> (SimulatedDisk, Database) {
         let disk = SimulatedDisk::new().unwrap();
         let db = Database::create_on(disk.clone(), ID, Limits::default()).unwrap();
         let c = db.create_collection().unwrap();
@@ -885,6 +887,11 @@ mod tests {
         tx.put(c, b"b", &bytes).unwrap();
         tx.put(c, b"flag", &db.boolean(true).unwrap()).unwrap();
         tx.commit().unwrap();
+        drop(tx);
+        (disk, db)
+    }
+    fn fixture() -> Vec<u8> {
+        let (disk, _db) = fixture_store();
         disk.durable_image().unwrap()
     }
     fn spans(image: &[u8]) -> Vec<(usize, usize, u32)> {
@@ -909,6 +916,227 @@ mod tests {
             Err(e) => e,
         }
     }
+
+    fn check_newest_graph(
+        image: &[u8],
+        newest: u64,
+        expected: Result<u64>,
+        case: &str,
+    ) -> Vec<crate::storage::IoEvent> {
+        use crate::storage::IoKind;
+
+        let mut image = image.to_vec();
+        let index = (newest & 1) as usize;
+        // A newer witness alone would rule out fallback, masking the graph check.
+        image[(3 + index) * REGION..(4 + index) * REGION].fill(0);
+        let disk = SimulatedDisk::from_image(&image).unwrap();
+        let reopened =
+            Database::open_on(disk.clone(), Limits::default()).map(|db| db.snapshot().revision());
+        assert_eq!(reopened, expected, "{case}");
+        let trace = disk.trace().unwrap();
+        if expected.is_err() {
+            assert_eq!(disk.durable_image().unwrap(), image, "{case}");
+            assert!(
+                trace
+                    .iter()
+                    .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync)),
+                "{case}"
+            );
+            // The same damaged object bytes still allow the older root to
+            // open when the newest slot itself is absent.
+            image[(1 + index) * REGION..(2 + index) * REGION].fill(0);
+            let older = SimulatedDisk::from_image(&image).unwrap();
+            let db = Database::open_on(older, Limits::default()).unwrap();
+            assert_eq!(db.snapshot().revision(), newest - 1, "{case}");
+        }
+        trace
+    }
+
+    #[test]
+    fn selected_graph_errors_do_not_reopen_the_older_root() {
+        use crate::storage::IoKind;
+
+        let (disk, db) = fixture_store();
+        let old = db.snapshot();
+        assert_eq!(old.revision(), 2);
+        let original = disk.durable_image().unwrap();
+        let collection = db.collection_id(1);
+        let mut edit = db.begin();
+        edit.put(collection, b"flag", &db.boolean(false).unwrap())
+            .unwrap();
+        assert_eq!(edit.commit(), Ok(3));
+        let current = disk.durable_image().unwrap();
+        let root = current.len() - REGION;
+        let data = u64_at(&current, root + OBJECT_HEADER + 8) as usize;
+        let (value, _, _) = spans(&current)
+            .into_iter()
+            .find(|&(offset, _, kind)| offset >= original.len() && kind == VALUE)
+            .unwrap();
+        check_newest_graph(&current, 3, Ok(3), "valid current graph");
+
+        for (case, object, field, replacement, before_data) in [
+            ("root born revision", root, 24, 2, true),
+            ("root payload revision", root, OBJECT_HEADER, 4, true),
+            ("future data revision", root, OBJECT_HEADER + 16, 4, true),
+            ("data revision mismatch", root, OBJECT_HEADER + 16, 2, false),
+            ("data born revision", data, 24, 2, false),
+            // DATA header is three u64s, followed by the collection header
+            // (three u64s), key length, key b"a", then the write revision.
+            ("zero write revision", data, OBJECT_HEADER + 57, 0, false),
+            ("future write revision", data, OBJECT_HEADER + 57, 4, false),
+            (
+                "forward value reference",
+                data,
+                OBJECT_HEADER + 65,
+                data as u64,
+                false,
+            ),
+        ] {
+            let mut image = current.clone();
+            put64(&mut image, object + field, replacement);
+            resign(&mut image, object, REGION, 48);
+            let trace = check_newest_graph(&image, 3, Err(Error::Corrupt), case);
+            if before_data {
+                assert!(
+                    trace
+                        .iter()
+                        .all(|event| event.kind != IoKind::Read || event.offset != data as u64),
+                    "{case} must fail at the descriptor before reading DATA"
+                );
+            }
+        }
+
+        for (case, field, repair_crc) in [
+            ("value magic", 0, true),
+            ("value kind", 8, true),
+            ("value version", 12, true),
+            ("value identity", 32, true),
+            ("value reserved bytes", 56, true),
+            ("value checksum", OBJECT_HEADER + 8, false),
+            ("value padding", REGION - 1, true),
+        ] {
+            let mut image = current.clone();
+            image[value + field] ^= 1;
+            if repair_crc {
+                resign(&mut image, value, REGION, 48);
+            }
+            check_newest_graph(&image, 3, Err(Error::Corrupt), case);
+        }
+
+        // This value belongs only to the snapshot retained by revision 4.
+        // Revision 3 uses a different value and does not retain revision 2.
+        assert_eq!(db.retain_snapshot(&old), Ok(1));
+        let mut retained = disk.durable_image().unwrap();
+        check_newest_graph(&retained, 4, Ok(4), "valid retained graph");
+        let (old_flag, size, _) = spans(&original)
+            .into_iter()
+            .find(|&(offset, _, kind)| {
+                kind == VALUE && u64_at(&original, offset + OBJECT_HEADER) == 1
+            })
+            .unwrap();
+        put64(&mut retained, old_flag + OBJECT_HEADER + 8, 2);
+        resign(&mut retained, old_flag, size, 48);
+        check_newest_graph(&retained, 4, Err(Error::Corrupt), "retained-only value");
+    }
+
+    #[test]
+    fn empty_data_graph_still_requires_a_next_collection_id() {
+        let (disk, db) = fixture_store();
+        db.drop_collection(db.collection_id(1)).unwrap();
+        let mut image = disk.durable_image().unwrap();
+        check_newest_graph(&image, 3, Ok(3), "valid empty data directory");
+        let root = image.len() - REGION;
+        let data = u64_at(&image, root + OBJECT_HEADER + 8) as usize;
+        put64(&mut image, data + OBJECT_HEADER + 8, 0);
+        resign(&mut image, data, REGION, 48);
+        check_newest_graph(&image, 3, Err(Error::Corrupt), "zero next collection ID");
+    }
+
+    #[test]
+    fn collection_directory_rejects_each_invalid_id_or_revision() {
+        let (disk, db) = fixture_store();
+        db.create_collection().unwrap();
+        let mut edit = db.begin();
+        edit.put(db.collection_id(1), b"flag", &db.boolean(false).unwrap())
+            .unwrap();
+        assert_eq!(edit.commit(), Ok(4));
+        let image = disk.durable_image().unwrap();
+        let root = image.len() - REGION;
+        let data = u64_at(&image, root + OBJECT_HEADER + 8) as usize;
+        check_newest_graph(&image, 4, Ok(4), "valid collection directory");
+
+        let payload = data + OBJECT_HEADER;
+        let mut fields = Cursor::new(&image[payload..]);
+        // Skip the DATA header and first collection's ID and revision.
+        fields.take(5 * 8).unwrap();
+        let records = fields.int().unwrap();
+        for _ in 0..records {
+            fields.key(REGION).unwrap();
+            fields.take(2 * 8).unwrap();
+        }
+        let second = payload + fields.pos;
+        assert_eq!(u64_at(&image, second), 2);
+        assert_eq!(u64_at(&image, second + 16), 0);
+        for (case, field, replacement) in [
+            ("duplicate collection ID", 0, 1),
+            ("collection ID reaches next ID", 0, 3),
+            ("zero collection revision", 8, 0),
+            ("future collection revision", 8, 5),
+        ] {
+            let mut damaged = image.clone();
+            put64(&mut damaged, second + field, replacement);
+            resign(&mut damaged, data, REGION, 48);
+            check_newest_graph(&damaged, 4, Err(Error::Corrupt), case);
+        }
+    }
+
+    #[test]
+    fn recovery_requires_witnesses_to_agree_with_the_selected_root() {
+        let (disk, db) = fixture_store();
+        let original = disk.durable_image().unwrap();
+        let revision = db.snapshot().revision();
+        assert_eq!(db.begin().commit(), Ok(revision + 1));
+        drop(db);
+        let mut image = disk.durable_image().unwrap();
+
+        let matching_offset = (3 + (revision & 1) as usize) * REGION;
+        let other_offset = (3 + ((revision + 1) & 1) as usize) * REGION;
+        let matching = &original[matching_offset..matching_offset + REGION];
+        let older = &original[other_offset..other_offset + REGION];
+        let newer = image[other_offset..other_offset + REGION].to_vec();
+        // Keep the witness revision and parity. Point it at the next commit's
+        // descriptor and end, then repair its checksum so the parser accepts it.
+        let mut mismatched = matching.to_vec();
+        mismatched[40..56].copy_from_slice(&newer[40..56]);
+        resign(&mut mismatched, 0, REGION, 64);
+
+        // Keep both original roots and all appended objects in every case.
+        // Each copy presents exactly one valid witness to the same root pair.
+        image[REGION..3 * REGION].copy_from_slice(&original[REGION..3 * REGION]);
+        image[3 * REGION..5 * REGION].fill(0);
+        for (case, offset, witness, expected) in [
+            ("older", other_offset, older, Ok(revision)),
+            ("newer", other_offset, newer.as_slice(), Err(Error::Corrupt)),
+            ("matching", matching_offset, matching, Ok(revision)),
+            (
+                "same revision, different descriptor and end",
+                matching_offset,
+                mismatched.as_slice(),
+                Err(Error::Corrupt),
+            ),
+        ] {
+            let mut candidate = image.clone();
+            candidate[offset..offset + REGION].copy_from_slice(witness);
+            let disk = SimulatedDisk::from_image(&candidate).unwrap();
+            let reopened = Database::open_on(disk.clone(), Limits::default())
+                .map(|db| db.snapshot().revision());
+            assert_eq!(reopened, expected, "{case}");
+            if expected.is_err() {
+                assert_eq!(disk.durable_image().unwrap(), candidate, "{case}");
+            }
+        }
+    }
+
     #[test]
     fn checksum_known_vector_and_padding() {
         assert_eq!(crc(b"123456789"), 0x6c40df5f0b497347);
@@ -1097,39 +1325,75 @@ mod tests {
     }
     #[test]
     fn retained_catalog_bounds_ids_revisions_and_references_are_checked() {
-        let disk = SimulatedDisk::from_image(&fixture()).unwrap();
-        let db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+        use crate::storage::IoKind;
+
+        let (disk, db) = fixture_store();
         let old = db.snapshot();
-        db.retain_snapshot(&old).unwrap();
-        db.retain_snapshot(&old).unwrap();
+        assert_eq!(db.begin().commit(), Ok(3));
+        let mut edit = db.begin();
+        edit.put(db.collection_id(1), b"flag", &db.boolean(false).unwrap())
+            .unwrap();
+        assert_eq!(edit.commit(), Ok(4));
+        drop(edit);
+        assert_eq!(db.begin().commit(), Ok(5));
+        assert_eq!(db.retain_snapshot(&db.snapshot()), Ok(1));
+        assert_eq!(db.retain_snapshot(&old), Ok(2));
+        assert_eq!(db.snapshot().revision(), 7);
         drop(old);
         drop(db);
         let original = disk.durable_image().unwrap();
         let root = original.len() - REGION;
+        check_newest_graph(&original, 7, Ok(7), "valid retained catalog");
         // Payload: revision, current data, data revision, next ID, count,
         // then (ID, snapshot revision, data offset, data revision) entries.
-        for (field, value) in [
-            (24, 0),
-            (40, 0),
-            (40, 3),
-            (48, u64::MAX),
-            (56, root as u64),
-            (64, u64::MAX),
-            (72, 1),
+        let payload = root + OBJECT_HEADER;
+        let older_data = u64_at(&original, payload + 88);
+        for (case, field, value) in [
+            ("zero next retained ID", 24, 0),
+            ("zero retained ID", 40, 0),
+            ("retained ID reaches next ID", 72, 3),
+            ("snapshot revision reaches publishing revision", 48, 7),
+            ("forward retained data reference", 88, root as u64),
+            ("data revision exceeds captured revision", 96, 3),
+            ("duplicate retained ID", 72, 1),
         ] {
             let mut image = original.clone();
-            put64(&mut image, root + OBJECT_HEADER + field, value);
+            put64(&mut image, payload + field, value);
             resign(&mut image, root, REGION, 48);
-            assert_eq!(rejected(&image), Error::Corrupt, "field={field}");
+            let trace = check_newest_graph(&image, 7, Err(Error::Corrupt), case);
+            if field == 96 {
+                assert!(
+                    trace
+                        .iter()
+                        .all(|e| e.kind != IoKind::Read || e.offset != older_data),
+                    "{case} must fail in the catalog before reading the retained DATA"
+                );
+            }
         }
+
+        // Keep the capture at revision 5 and the current DATA at revision 4.
+        // Give the first entry the same uncached DATA reference on both sides
+        // of the pair so the read trace distinguishes an early catalog reject.
         let mut image = original.clone();
-        put64(
-            &mut image,
-            root + OBJECT_HEADER + 32,
-            MAX_RETAINED_SNAPSHOTS as u64 + 1,
-        );
+        put64(&mut image, payload + 56, older_data);
+        put64(&mut image, payload + 64, 2);
         resign(&mut image, root, REGION, 48);
-        assert_eq!(rejected(&image), Error::Limit);
+        check_newest_graph(&image, 7, Ok(7), "older data under a later capture");
+        put64(&mut image, payload + 64, 5);
+        resign(&mut image, root, REGION, 48);
+        let case = "data revision exceeds current revision";
+        let trace = check_newest_graph(&image, 7, Err(Error::Corrupt), case);
+        assert!(
+            trace
+                .iter()
+                .all(|e| e.kind != IoKind::Read || e.offset != older_data),
+            "{case} must fail in the catalog before reading the retained DATA"
+        );
+
+        let mut image = original.clone();
+        put64(&mut image, payload + 32, MAX_RETAINED_SNAPSHOTS as u64 + 1);
+        resign(&mut image, root, REGION, 48);
+        check_newest_graph(&image, 7, Err(Error::Limit), "retained count limit");
         let mut image = original.clone();
         put32(&mut image, 8, 1);
         resign(&mut image, 0, REGION, 64);

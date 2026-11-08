@@ -422,50 +422,20 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
     })?;
     // From the exchange phase onward retain both names on errors and report an
     // uncertain replacement outcome. Never roll back or delete a recovery copy.
-    struct Namespace<'a> {
-        original: &'a Location,
-        scratch: &'a Location,
-        new_file: &'a File,
-        observer: &'a Observer,
-        exchanged_sync: bool,
-    }
-    impl super::replacement::Replacement for Namespace<'_> {
-        fn exchange(&mut self) -> Result<()> {
-            self.observer.call(CompactionStep::Exchange, || {
-                self.original.exchange(self.scratch)
-            })
+    use super::replacement::Step;
+    super::replacement::publish(|step| match step {
+        Step::Exchange => observer.call(CompactionStep::Exchange, || original.exchange(&scratch)),
+        Step::SyncDirectory => observer.call(CompactionStep::SyncDirectory, || original.sync()),
+        Step::SyncReplacement => {
+            observer.call(CompactionStep::SyncReplacement, || full_sync(&new_file))
         }
-        fn sync_directory(&mut self) -> Result<()> {
-            self.observer.call(
-                if self.exchanged_sync {
-                    CompactionStep::SyncCleanupDirectory
-                } else {
-                    CompactionStep::SyncDirectory
-                },
-                || self.original.sync(),
-            )
+        Step::RemoveOld => observer.call(CompactionStep::RemoveOld, || scratch.remove()),
+        Step::SyncCleanupDirectory => {
+            observer.call(CompactionStep::SyncCleanupDirectory, || original.sync())
         }
-        fn sync_device(&mut self) -> Result<()> {
-            let step = if self.exchanged_sync {
-                CompactionStep::SyncCleanupFile
-            } else {
-                CompactionStep::SyncReplacement
-            };
-            self.observer.call(step, || full_sync(self.new_file))?;
-            self.exchanged_sync = true;
-            Ok(())
+        Step::SyncCleanupFile => {
+            observer.call(CompactionStep::SyncCleanupFile, || full_sync(&new_file))
         }
-        fn remove_old(&mut self) -> Result<()> {
-            self.observer
-                .call(CompactionStep::RemoveOld, || self.scratch.remove())
-        }
-    }
-    super::replacement::publish(&mut Namespace {
-        original: &original,
-        scratch: &scratch,
-        new_file: &new_file,
-        observer: &observer,
-        exchanged_sync: false,
     })
     .map_err(|_| Error::OutcomeUnknown)?;
     Ok(stats)

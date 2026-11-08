@@ -19,23 +19,44 @@ fn read(db: &Database, c: CollectionId, key: &[u8]) -> Option<i64> {
 }
 
 #[test]
-fn independent_existing_records_merge_in_both_orders() {
-    for reverse in [false, true] {
+fn existing_record_edits_follow_validation_mode() {
+    // The draft for "a" is identical in each case. Only its validation mode
+    // and whether "b" commits first vary.
+    for (mode, intervening_commit, outcome, head_advance, values) in [
+        (
+            Validation::WholeDatabase,
+            true,
+            Err(Error::Conflict),
+            1,
+            [0, 2],
+        ),
+        (Validation::Records, true, Ok(2), 2, [1, 2]),
+        (Validation::WholeDatabase, false, Ok(1), 1, [1, 0]),
+        (Validation::Records, false, Ok(1), 1, [1, 0]),
+    ] {
         let (db, c) = seeded();
         let old = db.snapshot();
-        let mut a = db.begin();
+        let base = old.revision();
+        let mut a = db.begin_with_validation(mode);
         let mut b = db.begin();
         a.put(c, b"a", &db.integer(1).unwrap()).unwrap();
         b.put(c, b"b", &db.integer(2).unwrap()).unwrap();
-        if reverse {
-            b.commit().unwrap();
-            a.commit().unwrap();
-        } else {
-            a.commit().unwrap();
-            b.commit().unwrap();
+        if intervening_commit {
+            assert_eq!(b.commit(), Ok(base + 1));
         }
-        assert_eq!(read(&db, c, b"a"), Some(1));
-        assert_eq!(read(&db, c, b"b"), Some(2));
+        assert_eq!(
+            a.commit(),
+            outcome.map(|advance| base + advance),
+            "{mode:?}, intervening commit: {intervening_commit}",
+        );
+        assert_eq!(db.snapshot().revision(), base + head_advance);
+        assert_eq!(read(&db, c, b"a"), Some(values[0]));
+        assert_eq!(read(&db, c, b"b"), Some(values[1]));
+        if !intervening_commit {
+            assert_eq!(b.commit(), Ok(base + 2));
+            assert_eq!(read(&db, c, b"a"), Some(1));
+            assert_eq!(read(&db, c, b"b"), Some(2));
+        }
         assert_eq!(old.get(c, b"a").unwrap().unwrap().as_i64(), Ok(0));
     }
 }
