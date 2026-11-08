@@ -200,7 +200,11 @@ name = "weekend-db-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "proc-macro2",
+ "quote",
+ "syn",
  "weekend-db",
+ "weekend-db-typed",
 ]
 
 [[package]]
@@ -210,4 +214,12 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "weekend-db-typed"
+version = "0.1.0"
+dependencies = [
+ "weekend-db",
+ "weekend-db-macros",
 ]

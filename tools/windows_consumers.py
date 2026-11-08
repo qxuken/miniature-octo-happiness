@@ -49,7 +49,8 @@ def main():
             executable = directory / (name + '.exe')
             command = [compiler, '/nologo', '/W4', '/WX', language, standard,
                        '/I' + str(ROOT / 'include'), str(ROOT / 'examples/memory.c'),
-                       '/Fo' + str(directory / (name + '.obj')), '/Fe' + str(executable), str(imports)]
+                       '/Fo' + str(directory / (name + '.obj')), '/Fe' + str(executable),
+                       '/link', str(imports)]
             subprocess.run(command, env=env, cwd=directory, check=True)
             subprocess.run([str(executable)], env=env, cwd=directory, check=True)
     print('Compiled Windows C and C++ consumers passed against the delivered DLL')

@@ -1,5 +1,6 @@
 //! Exclusive, write-through regular files on local NTFS.
 use super::ByteStore;
+use super::{NativeIoOperation, diagnostics};
 use crate::{Error, Result};
 use std::{
     ffi::c_void,
@@ -41,7 +42,8 @@ unsafe extern "system" {
     fn BCryptGenRandom(algorithm: *mut c_void, buffer: *mut u8, size: u32, flags: u32) -> i32;
 }
 
-fn os_error(error: io::Error) -> Error {
+fn os_error(operation: NativeIoOperation, error: io::Error) -> Error {
+    diagnostics::record(operation, &error);
     match error.raw_os_error() {
         Some(2 | 3) => Error::NotFound,
         Some(32 | 33) => Error::Busy,
@@ -55,7 +57,12 @@ pub(crate) fn identity() -> Result<[u8; 16]> {
     for _ in 0..3 {
         let mut id = [0; 16];
         // SAFETY: the system RNG accepts a null algorithm and a writable buffer.
-        if unsafe { BCryptGenRandom(ptr::null_mut(), id.as_mut_ptr(), 16, 2) } != 0 {
+        let status = unsafe { BCryptGenRandom(ptr::null_mut(), id.as_mut_ptr(), 16, 2) };
+        if status != 0 {
+            diagnostics::record(
+                NativeIoOperation::Random,
+                &io::Error::from_raw_os_error(status),
+            );
             return Err(Error::Io);
         }
         if id != [0; 16] {
@@ -97,7 +104,10 @@ fn check_volume(parent: &File, drive: u8) -> Result<()> {
         )
     } == 0
     {
-        return Err(os_error(io::Error::last_os_error()));
+        return Err(os_error(
+            NativeIoOperation::Volume,
+            io::Error::last_os_error(),
+        ));
     }
     if name[..5] != [b'N', b'T', b'F', b'S', 0].map(u16::from) {
         return Err(Error::UnsupportedPlatform);
@@ -149,15 +159,17 @@ impl FileStore {
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new("."))
             .canonicalize()
-            .map_err(os_error)?;
+            .map_err(|error| os_error(NativeIoOperation::OpenDirectory, error))?;
         let letter = drive(&parent)?.ok_or(Error::UnsupportedPlatform)?;
         let directory = OpenOptions::new()
             .read(true)
             .share_mode(3) // FILE_SHARE_READ | FILE_SHARE_WRITE
             .custom_flags(BACKUP_SEMANTICS)
             .open(&parent)
-            .map_err(os_error)?;
-        let metadata = directory.metadata().map_err(os_error)?;
+            .map_err(|error| os_error(NativeIoOperation::OpenDirectory, error))?;
+        let metadata = directory
+            .metadata()
+            .map_err(|error| os_error(NativeIoOperation::Metadata, error))?;
         if !metadata.is_dir() {
             return Err(Error::Invalid);
         }
@@ -175,8 +187,19 @@ impl FileStore {
             .share_mode(0)
             .custom_flags(OPEN_REPARSE_POINT | WRITE_THROUGH)
             .open(parent.join(name))
-            .map_err(os_error)?;
-        let metadata = file.metadata().map_err(os_error)?;
+            .map_err(|error| {
+                os_error(
+                    if create {
+                        NativeIoOperation::Create
+                    } else {
+                        NativeIoOperation::Open
+                    },
+                    error,
+                )
+            })?;
+        let metadata = file
+            .metadata()
+            .map_err(|error| os_error(NativeIoOperation::Metadata, error))?;
         // SAFETY: the handle is open for the duration of GetFileType.
         if unsafe { GetFileType(file.as_raw_handle()) } != 1
             || !metadata.is_file()
@@ -216,18 +239,47 @@ impl ByteStore for FileStore {
     }
 
     fn length(&mut self) -> Result<u64> {
-        Ok(self.file()?.metadata().map_err(os_error)?.len())
+        Ok(self
+            .file()?
+            .metadata()
+            .map_err(|error| os_error(NativeIoOperation::Metadata, error))?
+            .len())
     }
 
     fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
-        self.file()?.seek_read(out, offset).map_err(os_error)
+        self.file()?
+            .seek_read(out, offset)
+            .map_err(|error| os_error(NativeIoOperation::Read, error))
     }
 
     fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
-        self.file()?.seek_write(bytes, offset).map_err(os_error)
+        self.file()?
+            .seek_write(bytes, offset)
+            .map_err(|error| os_error(NativeIoOperation::Write, error))
     }
 
     fn sync(&mut self) -> Result<()> {
-        self.file()?.sync_all().map_err(os_error)
+        self.file()?
+            .sync_all()
+            .map_err(|error| os_error(NativeIoOperation::Sync, error))
+    }
+}
+
+impl FileStore {
+    /// Synchronous native context for this exact factory invocation.
+    pub fn create_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::create(path))
+    }
+    pub fn open_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::open(path))
+    }
+    pub fn open_read_only_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::open_read_only(path))
     }
 }

@@ -1,5 +1,6 @@
 //! macOS primitives for the shared regular-file protocol.
 use super::file::retry;
+use super::{NativeIoOperation, diagnostics};
 use crate::{Error, Result, memory::Memory};
 use std::{
     ffi::{c_char, c_int, c_void},
@@ -26,7 +27,8 @@ unsafe extern "C" {
     ) -> c_int;
     fn fcopyfile(from: c_int, to: c_int, state: *mut c_void, flags: u32) -> c_int;
 }
-pub(super) fn os_error(error: io::Error) -> Error {
+pub(super) fn os_error(operation: NativeIoOperation, error: io::Error) -> Error {
+    diagnostics::record(operation, &error);
     match error.raw_os_error() {
         Some(2) => Error::NotFound,
         Some(17) => Error::AlreadyExists,
@@ -36,7 +38,7 @@ pub(super) fn os_error(error: io::Error) -> Error {
     }
 }
 pub(super) fn full_sync(file: &File) -> Result<()> {
-    retry(|| {
+    retry(NativeIoOperation::Sync, || {
         if unsafe { fcntl(file.as_raw_fd(), F_FULLFSYNC) } == 0 {
             Ok(())
         } else {
@@ -74,12 +76,15 @@ pub(super) fn exchange(from_dir: &File, from: &[u8], to_dir: &File, to: &[u8]) -
     {
         Ok(())
     } else {
-        Err(os_error(io::Error::last_os_error()))
+        Err(os_error(
+            NativeIoOperation::Exchange,
+            io::Error::last_os_error(),
+        ))
     }
 }
 pub(super) fn copy_metadata(from: &File, to: &File, _mem: &Memory) -> Result<()> {
     // COPYFILE_METADATA = ACL | STAT | XATTR. No copying/truncating file data.
-    retry(|| {
+    retry(NativeIoOperation::CopyMetadata, || {
         if unsafe { fcopyfile(from.as_raw_fd(), to.as_raw_fd(), std::ptr::null_mut(), 7) } == 0 {
             Ok(())
         } else {

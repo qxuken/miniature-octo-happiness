@@ -17,7 +17,9 @@ jobs:
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
       - name: Release configuration validation
-        run: python tools/test_release.py
+        run: |
+          python tools/test_release.py
+          python tools/test_windows_consumers.py
       - name: Rust debug/release and interruption checks; C consumers on macOS/Linux
         run: python tools/check.py --skip-odin
       - name: Compile Windows C and C++ consumers against both DLL builds

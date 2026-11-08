@@ -1343,3 +1343,261 @@ fn interrupted_index_rebuild_reopens_complete_old_or_repaired_indexes() -> Resul
     }
     Ok(())
 }
+
+#[derive(Model)]
+#[weekend(type_id = 901, version = 1)]
+struct MigrationProgress {
+    #[weekend(id = 1)]
+    completed: u64,
+}
+
+#[test]
+fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history() -> Result<()> {
+    use engine::storage::{Crash, SimulatedDisk};
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [93; 16], engine::Limits::default())?;
+    let legacy = store.table::<OldTask>("tasks")?;
+    let progress = store.table::<MigrationProgress>("progress")?;
+    store.write(|w| {
+        for id in 1..=3 {
+            w.insert(&legacy, id, &old(&format!("task-{id}")))?;
+        }
+        w.insert(&progress, 1, &MigrationProgress { completed: 0 })
+    })?;
+    let db = store.database();
+    let raw = store.read(|r| {
+        Ok(r.get(&legacy, 1)?
+            .unwrap()
+            .record()
+            .set(99, &db.bytes(b"future")?)?)
+    })?;
+    let mut tx = db.begin();
+    tx.put(legacy.collection(), &1u64.to_le_bytes(), raw.as_value())?;
+    tx.commit()?;
+    drop(tx);
+    let checkpoint = store.checkpoint()?;
+    let tasks = store.table::<Task>("tasks")?;
+    let mut called = Vec::new();
+    assert_eq!(
+        store.write(|w| {
+            let count = w.migrate_ids(&tasks, &[2, 1], |id, _, task| {
+                called.push(id);
+                task.priority = id as u8;
+                Ok(())
+            })?;
+            w.update(&progress, 1, |p| {
+                p.completed = 2;
+                Ok(())
+            })?;
+            Ok(count)
+        })?,
+        2
+    );
+    assert_eq!(called, [2, 1]);
+    assert_eq!(store.read(|r| Ok(r.get(&tasks, 3)?.unwrap().version()))?, 1);
+    assert!(store.read(|r| r.check_indexes(&tasks))?.is_consistent());
+    drop(store);
+    disk.crash(Crash::DropAll)?;
+    let mut store = Store::open_on(disk, engine::Limits::default())?;
+    let tasks = store.table::<Task>("tasks")?;
+    let progress = store.table::<MigrationProgress>("progress")?;
+    assert_eq!(
+        store.read(|r| Ok(r.get(&progress, 1)?.unwrap().completed))?,
+        2
+    );
+    let mut called = Vec::new();
+    assert_eq!(
+        store.write(|w| {
+            let count = w.migrate_ids(&tasks, &[1, 2, 3], |id, _, task| {
+                called.push(id);
+                task.priority = 9;
+                Ok(())
+            })?;
+            w.update(&progress, 1, |p| {
+                p.completed = 3;
+                Ok(())
+            })?;
+            Ok(count)
+        })?,
+        1
+    );
+    assert_eq!(called, [3]);
+    store.read(|r| {
+        assert_eq!(
+            r.get(&tasks, 1)?
+                .unwrap()
+                .record()
+                .field(99)?
+                .unwrap()
+                .as_bytes()?,
+            b"future"
+        );
+        assert_eq!(r.find(&tasks, Task::SLUG, "task-3")?.unwrap().priority, 9);
+        assert!(r.check_indexes(&tasks)?.is_consistent());
+        Ok(())
+    })?;
+    assert_eq!(
+        store.read_retained(checkpoint, |r| Ok(r.get(&tasks, 1)?.unwrap().version()))?,
+        1
+    );
+    Ok(())
+}
+
+#[test]
+fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -> Result<()> {
+    let mut store = Store::memory()?;
+    let legacy = store.table::<OldTask>("tasks")?;
+    let progress = store.table::<MigrationProgress>("progress")?;
+    store.write(|w| {
+        w.insert(&legacy, 1, &old("one"))?;
+        w.insert(&legacy, 2, &old("two"))?;
+        w.insert(&progress, 1, &MigrationProgress { completed: 0 })
+    })?;
+    let tasks = store.table::<Task>("tasks")?;
+    for ids in [
+        vec![1, 1],
+        vec![0],
+        vec![1; store.database().limits().max_writes + 1],
+    ] {
+        let before = store.database().snapshot().revision();
+        let expected = if ids.len() > store.database().limits().max_writes {
+            Error::Engine(engine::Error::Limit)
+        } else {
+            Error::InvalidId
+        };
+        let mut calls = 0;
+        assert_eq!(
+            store.write(|w| w.migrate_ids(&tasks, &ids, |_, _, _| {
+                calls += 1;
+                Ok(())
+            })),
+            Err(expected)
+        );
+        assert_eq!(calls, 0);
+        assert_eq!(store.database().snapshot().revision(), before);
+    }
+    for (ids, fail_callback, collide, error) in [
+        (vec![1, 2], true, false, Error::InvalidId),
+        (vec![1, 2], false, true, Error::UniqueViolation(1)),
+        (
+            vec![1, 99],
+            false,
+            false,
+            Error::Engine(engine::Error::NotFound),
+        ),
+    ] {
+        let before = store.database().snapshot().revision();
+        assert_eq!(
+            store.write(|w| {
+                w.update(&progress, 1, |p| {
+                    p.completed = 9;
+                    Ok(())
+                })?;
+                w.migrate_ids(&tasks, &ids, |id, _, task| {
+                    task.slug = if collide {
+                        "new-1".into()
+                    } else {
+                        format!("new-{id}")
+                    };
+                    if fail_callback && id == 2 {
+                        return Err(Error::InvalidId);
+                    }
+                    Ok(())
+                })
+            }),
+            Err(error)
+        );
+        assert_eq!(store.database().snapshot().revision(), before);
+        assert_eq!(
+            store.read(|r| Ok(r.get(&progress, 1)?.unwrap().completed))?,
+            0
+        );
+        store.read(|r| {
+            assert_eq!(r.get(&tasks, 1)?.unwrap().version(), 1);
+            assert!(r.find(&tasks, Task::SLUG, "new-1")?.is_none());
+            assert!(r.find(&tasks, Task::SLUG, "one")?.is_some());
+            Ok(())
+        })?;
+    }
+    assert_eq!(
+        store.write(|w| w.migrate_ids(&tasks, &[], |_, _, _| panic!("empty batch")))?,
+        0
+    );
+    Ok(())
+}
+
+#[test]
+fn migration_batches_conflict_on_selected_rows_and_allow_unrelated_existing_edits() -> Result<()> {
+    use std::{sync::Barrier, thread};
+    for changed_id in [1, 2] {
+        let mut store = Store::memory()?;
+        let legacy = store.table::<OldTask>("tasks")?;
+        store.write(|w| {
+            w.insert(&legacy, 1, &old("one"))?;
+            w.insert(&legacy, 2, &old("two"))
+        })?;
+        let tasks = store.table::<Task>("tasks")?;
+        let ready = Barrier::new(2);
+        let changed = Barrier::new(2);
+        let result = thread::scope(|scope| {
+            let worker = scope.spawn(|| {
+                store.write(|w| {
+                    w.migrate_ids(&tasks, &[1], |_, _, task| {
+                        ready.wait();
+                        changed.wait();
+                        task.priority = 7;
+                        Ok(())
+                    })
+                })
+            });
+            ready.wait();
+            store
+                .write(|w| {
+                    w.update(&legacy, changed_id, |task| {
+                        task.title = "concurrent".into();
+                        Ok(())
+                    })
+                })
+                .unwrap();
+            changed.wait();
+            worker.join().unwrap()
+        });
+        assert_eq!(
+            result,
+            if changed_id == 1 {
+                Err(Error::Engine(engine::Error::Conflict))
+            } else {
+                Ok(1)
+            }
+        );
+        assert_eq!(
+            store.read(|r| Ok(r.get(&tasks, changed_id)?.unwrap().title.clone()))?,
+            "concurrent"
+        );
+        assert_eq!(
+            store.read(|r| Ok(r.get(&tasks, 1)?.unwrap().version()))?,
+            if changed_id == 1 { 1 } else { 2 }
+        );
+        assert!(store.read(|r| r.check_indexes(&tasks))?.is_consistent());
+    }
+    Ok(())
+}
+
+#[test]
+fn migration_batches_check_observation_limit_before_callbacks() -> Result<()> {
+    let limits = engine::Limits {
+        max_observations: 16,
+        ..engine::Limits::default()
+    };
+    let mut store = Store::initialize(engine::Database::with_limits(limits)?)?;
+    let _legacy = store.table::<OldTask>("tasks")?;
+    let tasks = store.table::<Task>("tasks")?;
+    let ids: Vec<_> = (1..=17).collect();
+    let before = store.database().snapshot().revision();
+    assert_eq!(
+        store.write(|w| w.migrate_ids(&tasks, &ids, |_, _, _| panic!("oversized batch"))),
+        Err(Error::Engine(engine::Error::Limit))
+    );
+    assert_eq!(store.database().snapshot().revision(), before);
+    Ok(())
+}

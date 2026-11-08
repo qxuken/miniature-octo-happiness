@@ -157,6 +157,16 @@ pub struct Transaction<'db> {
     _exclusive: PhantomData<Cell<()>>,
 }
 impl Database {
+    /// Measure append headroom with one length query and no graph reads or writes.
+    /// Requires a healthy byte-backed store. Length I/O errors can be retried.
+    /// Impossible physical lengths block publication until reopening.
+    pub fn storage_space(&self) -> Result<crate::storage::StorageSpace> {
+        self.publication_state()?
+            .storage
+            .as_mut()
+            .ok_or(Error::Invalid)?
+            .space()
+    }
     /// Write a fully synchronized, verified compact copy to an empty byte store.
     /// The source stays open and unchanged; the destination lease is released
     /// on return. Requires a byte-backed source and exclusive access to this
@@ -798,6 +808,40 @@ impl Transaction<'_> {
         self.collections.clear();
         self.bytes = 0;
         Ok(())
+    }
+}
+
+impl Database {
+    /// Native I/O context is captured only during this synchronous call.
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    pub fn create_file_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+        limits: Limits,
+    ) -> std::result::Result<Self, crate::storage::StorageFailure> {
+        crate::storage::diagnostics::capture(|| Self::create_file(path, limits))
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    pub fn open_file_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+        limits: Limits,
+    ) -> std::result::Result<Self, crate::storage::StorageFailure> {
+        crate::storage::diagnostics::capture(|| Self::open_file(path, limits))
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    pub fn compact_file_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+        limits: Limits,
+    ) -> std::result::Result<crate::storage::CompactionStats, crate::storage::StorageFailure> {
+        crate::storage::diagnostics::capture(|| Self::compact_file(path, limits))
+    }
+}
+impl Transaction<'_> {
+    /// Commit with operation-scoped native context. The original error and
+    /// transaction terminal-state rules are preserved, including uncertain outcome.
+    pub fn commit_with_diagnostics(
+        &mut self,
+    ) -> std::result::Result<u64, crate::storage::StorageFailure> {
+        crate::storage::diagnostics::capture(|| self.commit())
     }
 }
 

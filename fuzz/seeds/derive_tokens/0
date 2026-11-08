@@ -1,0 +1,1 @@
+#[record(key=b"key",format=b"12345678",fields(a))] struct A { a:u64 }

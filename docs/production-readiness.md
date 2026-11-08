@@ -3,14 +3,13 @@
 The [execution status](roadmap-status.md) tracks the full scope including
 distributed features and remaining gates. Cargo packages stay private.
 
-The proposed first production profile is an embedded, local file store
-for bounded structured state and retained history, with one process holding
-the writer lease and concurrent transactions and readers inside that
-process. Qualify a short list of OS, architecture, and filesystem
-combinations. Treat the typed Rust API and the C/Odin distribution as
-release profiles with their own gates. Keep passive replication, offline
-CRDT writers, and the coordinator on separate release tracks until each
-has its own recovery and operational contract.
+The release scope includes the local embedded store, typed Rust, C/Odin,
+passive snapshot replication, fixed two-actor CRDT peers and the coordinator,
+as selected by the user on 2026-11-09. Each surface has its own qualification
+gates; distributed features are part of the intended release. The local
+profile uses one process holding the writer lease and concurrent transactions
+and readers inside that process. Qualify explicit OS, architecture and
+filesystem combinations for each supported distribution.
 
 Use SQLite as the standard for evidence. For each supported profile,
 document what happens on success, contention, interruption, invalid
@@ -122,8 +121,8 @@ qualification is a separate release-candidate requirement.
   stack, disk amplification, and latency on adversarial inputs and
   near-limit histories. Review fallible allocations, integer
   arithmetic, panic containment and unsafe invariants, including
-  builds made by downstream consumers. Measure the decoder's linear
-  range and cache searches on near-limit graphs. Define aggregate
+  builds made by downstream consumers. Measure indexed decoder traversal, DATA-cache searches and encoder cache
+  searches on near-limit graphs. Define aggregate
   memory budgets for pinned snapshots and concurrent drafts. Publish
   the supported filesystem and device assumptions, path/permission/ACL
   policy, and the corruption threat model. Provide release notes, a license

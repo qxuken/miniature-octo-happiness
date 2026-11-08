@@ -47,11 +47,47 @@ copying. `tests/inspection.rs` sweeps source and destination I/O failures
 and checks the restored current and retained rows. Its native test runs
 the CLI in independent processes and verifies a read-only source.
 
-Full schema/index verification, logical migration, salvage and detailed
-corruption offsets remain tracked in the production roadmap. Use the
-read-only verifier before migration and preserve the original image.
+Typed `Read::check_indexes` and `Write::rebuild_indexes` verify or atomically
+rebuild indexes from primary records. Explicit complete-root salvage is
+documented in [salvage.md](salvage.md). Detailed corruption offsets remain a
+roadmap item. Use the read-only verifier before migration and preserve the
+original image.
 
 Logical format 1 export/import is documented in [logical-format.md](logical-format.md).
 Use `weekend-admin export SOURCE NEW_EXPORT` and
 `weekend-admin import EXPORT NEW_DATABASE`. The parser verifies format,
 checksum, bounds and logical invariants before creating a destination.
+
+## Space and I/O diagnostics
+
+For an open byte-backed database, `database.storage_space()` reports the
+current revision, physical and committed bytes, aligned append offset and
+remaining capacity. It performs one length query under the publication mutex,
+without a graph scan. Remaining capacity is append headroom, not reclaimable
+space. An abandoned partial tail consumes a complete protected region.
+Compact before an expected edit can exhaust this budget, while provisioning
+a complete verified copy alongside the authoritative file.
+
+```rust,ignore
+let space = database.storage_space()?;
+println!("revision {}: {} append bytes remain",
+         space.revision, space.remaining_append_bytes);
+
+match weekend_db::storage::with_native_diagnostics(||
+    weekend_db::storage::inspect_file(path, config)) {
+    Ok(info) => println!("verified revision {}", info.revision),
+    Err(failure) => {
+        // Use failure.error for retry/reopen decisions.
+        // Native context is optional and contains no file path or record data.
+        eprintln!("{:?}: {:?}", failure.error, failure.native);
+    }
+}
+```
+
+Native categories distinguish permission, disk-full and quota failures from
+other errors. The diagnostic describes the first terminal syscall error in the
+synchronous scope, which can include cleanup; it does not change the engine's
+durability classification. No last-error lookup is needed. Nested scopes and
+threads are isolated. Custom adapters and operations on another thread may
+have no native context. Convenience `_with_diagnostics` variants are available
+for file create/open, supported in-place compaction and transaction commit.

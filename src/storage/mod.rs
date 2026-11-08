@@ -2,6 +2,9 @@
 //! Native file adapters preserve the modeled ordering; hardware assumptions
 //! remain conditional and are documented in DESIGN.md.
 mod codec;
+pub(crate) mod diagnostics;
+pub use diagnostics::capture as with_native_diagnostics;
+pub use diagnostics::{NativeIoCategory, NativeIoDiagnostic, NativeIoOperation, StorageFailure};
 mod inspection;
 mod logical;
 pub use inspection::{ImageInfo, RetainedInfo, backup_on, inspect_on};
@@ -67,6 +70,17 @@ pub struct CompactionStats {
     pub after_bytes: u64,
 }
 
+/// Cheap byte-store measurements, without a graph scan or reclaimable-size estimate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StorageSpace {
+    pub revision: u64,
+    pub physical_bytes: u64,
+    pub committed_bytes: u64,
+    pub next_append_offset: u64,
+    pub capacity_bytes: u64,
+    pub remaining_append_bytes: u64,
+}
+
 /// An exclusive writer lease covers recovery and publication. Successful sync
 /// makes all preceding writes durable. Errors may have performed partial I/O.
 /// Writes may be short, including zero. Adapters must protect independent 4096
@@ -99,6 +113,23 @@ impl Drop for Storage {
     }
 }
 impl Storage {
+    pub(crate) fn space(&mut self) -> Result<StorageSpace> {
+        self.guard()?;
+        let physical_bytes = self.backend.length()?;
+        if physical_bytes < self.end || physical_bytes > MAX_IMAGE_BYTES as u64 {
+            self.poisoned = true;
+            return Err(Error::Corrupt);
+        }
+        let next_append_offset = codec::align(physical_bytes)?;
+        Ok(StorageSpace {
+            revision: self.revision,
+            physical_bytes,
+            committed_bytes: self.end,
+            next_append_offset,
+            capacity_bytes: MAX_IMAGE_BYTES as u64,
+            remaining_append_bytes: MAX_IMAGE_BYTES as u64 - next_append_offset,
+        })
+    }
     #[cfg(feature = "replication")]
     pub(crate) fn identity(&self) -> [u8; 16] {
         self.identity

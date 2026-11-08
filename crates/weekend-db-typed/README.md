@@ -152,13 +152,78 @@ creation is immediate. Failed fresh initialization can leave a partial image;
 open rejects it. The runtime adds no engine-format or C ABI changes.
 
 Engine size, observation, transaction and 64-snapshot limits still apply.
-Restoration/migration must fit one transaction. All exact unique indexes share
+Restoration and each migration batch must fit one transaction. All exact unique indexes share
 a collection, so conservative absence tracking can conflict across tables.
 Owned models and user defaults use ordinary Rust allocations; this is not a
 process-memory quota. Compile-time macro dependencies are isolated from the
 dependency-free engine. File persistence is available on macOS, Linux
 (x86_64/aarch64), and Windows NTFS. Windows can write a compact copy via
 `compact_to` and `engine::storage::FileStore::create(new_path)`.
+
+## Bounded, resumable migrations
+
+`write.migrate_ids(&table, &[primary_id, ...], |id, raw, model| ...)` migrates
+only explicit primary IDs using point reads. The existing `migrate` still
+migrates a whole table in one transaction. Split a large migration into batches
+and store application progress in the same `store.write` closure:
+
+```rust
+use weekend_db_typed::{Model, Result, Store, Table};
+#[derive(Model)]
+#[weekend(type_id = 80, version = 1)]
+struct Progress { #[weekend(id = 1)] last_id: u64 }
+
+fn batch<T: Model>(store: &Store, records: &Table<T>, progress: &Table<Progress>,
+                  ids: &[u64]) -> Result<usize> {
+    // The caller supplies ascending IDs from its migration plan.
+    store.write(|write| {
+        let changed = write.migrate_ids(records, ids, |_id, _raw, _model| {
+            // Apply application conversions here, beyond declared defaults.
+            Ok(())
+        })?;
+        if let Some(&last_id) = ids.last() {
+            write.update(progress, 1, |receipt| { receipt.last_id = last_id; Ok(()) })?;
+        }
+        Ok(changed)
+    })
+}
+```
+
+Create the progress row before running batches. A successful commit publishes
+both conversions and progress, so reopening can resume from that receipt. The
+application owns the ID plan and must ensure that its cursor does not skip
+unprocessed rows. For a publication outcome of `OutcomeUnknown`, reopen and
+consult durable progress before deciding whether to retry.
+
+IDs are processed in input order. Zero or duplicate IDs return `InvalidId`
+before any callback. A missing row returns engine `NotFound` and aborts the
+transaction, including earlier conversions and progress edits. Already-current
+rows skip the callback. The return value counts changed rows. Empty or
+already-current batches return zero, but the enclosing `store.write` still
+performs its normal commit.
+
+Input length is capped by the smaller of engine `max_writes` and
+`max_observations` before reads or callbacks. Each selected older row runs its
+callback at most once per invocation. Schema reads, index work, receipt edits,
+and encoded values also consume engine budgets, so a smaller batch may still
+return `Limit`. Callbacks themselves are application code and have no time or
+allocation quota. There is no automatic retry. Callbacks may run before a later
+error or conflict, so keep external side effects out of them.
+
+During migration, old and new record versions coexist. Reads use each row's
+stored schema and declared defaults. Updating an old row through the new model
+still requires migration. Unknown fields survive conversion, reserved retired
+fields are removed, and records and unique indexes change atomically. An
+absent field stays unindexed until conversion actually materializes it.
+Duplicate unique values abort the entire batch. Retained snapshots keep their
+original versions and indexes.
+
+Selected records, schemas, and index claims participate in normal conflict
+validation. Concurrent edits to a selected row conflict; an unrelated existing
+row can change without a table-wide scan conflict. Index absence observations
+can still cause conservative conflicts, including across tables. A batch is
+atomic; the full sequence of batches is not. Applications must support mixed
+versions until their progress plan is complete.
 
 ## Checking and rebuilding unique indexes
 

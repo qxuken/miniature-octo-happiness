@@ -1,6 +1,7 @@
 //! Linux primitives for the shared regular-file protocol. Uses fsync, never a
 //! weaker fallback, and requires renameat2(RENAME_EXCHANGE) for compaction.
 use super::file::retry;
+use super::{NativeIoOperation, diagnostics};
 use crate::{Error, Result, memory::Memory};
 use std::{
     ffi::{c_char, c_int, c_void},
@@ -54,7 +55,8 @@ unsafe extern "C" {
     ) -> c_int;
     fn fremovexattr(fd: c_int, name: *const c_char) -> c_int;
 }
-pub(super) fn os_error(error: io::Error) -> Error {
+pub(super) fn os_error(operation: NativeIoOperation, error: io::Error) -> Error {
+    diagnostics::record(operation, &error);
     match error.raw_os_error() {
         Some(2) => Error::NotFound,
         Some(17) => Error::AlreadyExists,
@@ -64,10 +66,10 @@ pub(super) fn os_error(error: io::Error) -> Error {
     }
 }
 pub(super) fn full_sync(file: &File) -> Result<()> {
-    retry(|| file.sync_all())
+    retry(NativeIoOperation::Sync, || file.sync_all())
 }
 pub(super) fn acquire_open_lock(file: &File) -> Result<()> {
-    retry(|| {
+    retry(NativeIoOperation::Lock, || {
         // LOCK_EX | LOCK_NB. The shared protocol rechecks the pathname after
         // this call, while the lease is held, before reading any database bytes.
         if unsafe { flock(file.as_raw_fd(), 2 | 4) } == 0 {
@@ -85,7 +87,7 @@ pub(crate) fn identity() -> Result<[u8; 16]> {
         let mut id = [0; 16];
         let mut offset = 0;
         while offset < id.len() {
-            let n = retry(|| {
+            let n = retry(NativeIoOperation::Random, || {
                 // The writable suffix is valid for the requested length. No
                 // flags: wait for initialized kernel randomness; no PRNG fallback.
                 let n =
@@ -122,7 +124,10 @@ pub(super) fn exchange(from_dir: &File, from: &[u8], to_dir: &File, to: &[u8]) -
     {
         Ok(())
     } else {
-        Err(os_error(io::Error::last_os_error()))
+        Err(os_error(
+            NativeIoOperation::Exchange,
+            io::Error::last_os_error(),
+        ))
     }
 }
 fn status(code: c_int) -> io::Result<()> {
@@ -134,7 +139,7 @@ fn status(code: c_int) -> io::Result<()> {
 }
 fn blob(mem: &Memory, mut read: impl FnMut(*mut c_void, usize) -> isize) -> Result<Vec<u8>> {
     let mut call = |buffer, size| {
-        retry(|| {
+        retry(NativeIoOperation::CopyMetadata, || {
             let n = read(buffer, size);
             if n < 0 {
                 Err(io::Error::last_os_error())
@@ -168,14 +173,18 @@ fn names(file: &File, mem: &Memory) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 pub(super) fn copy_metadata(from: &File, to: &File, mem: &Memory) -> Result<()> {
-    let metadata = retry(|| from.metadata())?;
-    let target = retry(|| to.metadata())?;
+    let metadata = retry(NativeIoOperation::CopyMetadata, || from.metadata())?;
+    let target = retry(NativeIoOperation::CopyMetadata, || to.metadata())?;
     if metadata.uid() != target.uid() || metadata.gid() != target.gid() {
-        retry(|| status(unsafe { fchown(to.as_raw_fd(), metadata.uid(), metadata.gid()) }))?;
+        retry(NativeIoOperation::CopyMetadata, || {
+            status(unsafe { fchown(to.as_raw_fd(), metadata.uid(), metadata.gid()) })
+        })?;
     }
     // chown may clear set-id bits/capabilities. Set ownership, mode, then exact
     // accessible xattrs (including POSIX ACLs) before syncing and re-verifying.
-    retry(|| to.set_permissions(Permissions::from_mode(metadata.mode() & 0o7777)))?;
+    retry(NativeIoOperation::CopyMetadata, || {
+        to.set_permissions(Permissions::from_mode(metadata.mode() & 0o7777))
+    })?;
     let source_names = names(from, mem)?;
     let target_names = names(to, mem)?;
     for name in target_names.split_inclusive(|b| *b == 0) {
@@ -183,7 +192,9 @@ pub(super) fn copy_metadata(from: &File, to: &File, mem: &Memory) -> Result<()> 
             .split_inclusive(|b| *b == 0)
             .any(|other| other == name)
         {
-            retry(|| status(unsafe { fremovexattr(to.as_raw_fd(), name.as_ptr().cast()) }))?;
+            retry(NativeIoOperation::CopyMetadata, || {
+                status(unsafe { fremovexattr(to.as_raw_fd(), name.as_ptr().cast()) })
+            })?;
         }
     }
     for name in source_names.split_inclusive(|b| *b == 0) {
@@ -193,7 +204,7 @@ pub(super) fn copy_metadata(from: &File, to: &File, mem: &Memory) -> Result<()> 
         let value = blob(mem, |buffer, size| unsafe {
             fgetxattr(from.as_raw_fd(), name.as_ptr().cast(), buffer, size)
         })?;
-        retry(|| {
+        retry(NativeIoOperation::CopyMetadata, || {
             status(unsafe {
                 fsetxattr(
                     to.as_raw_fd(),
@@ -205,7 +216,7 @@ pub(super) fn copy_metadata(from: &File, to: &File, mem: &Memory) -> Result<()> 
             })
         })?;
     }
-    let copied = retry(|| to.metadata())?;
+    let copied = retry(NativeIoOperation::CopyMetadata, || to.metadata())?;
     if copied.uid() != metadata.uid()
         || copied.gid() != metadata.gid()
         || copied.mode() & 0o7777 != metadata.mode() & 0o7777

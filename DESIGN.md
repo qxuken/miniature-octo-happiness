@@ -2862,7 +2862,8 @@ agreement and proves the older graph remains usable.
 | Valid scalar payload, unknown tag, truncated scalar, or trailing scalar byte | `Corrupt` |
 | Ordered record/map keys, duplicate first key | `Corrupt` |
 | Same depth-3 graph opened with depth limits 3 and 2 | Revision 3 or `Corrupt` before reading the depth-3 leaf |
-| Adjacent values, second value referencing a checksummed object embedded inside the first | Revision 2 or `Corrupt` after the embedded header |
+| Adjacent values, second value referencing a checksummed object embedded inside the first, in either decode order | Revision 2 or `Corrupt` after the embedded header |
+| Shared cached value start, same reference plus one unaligned byte | Revision 2 or `Corrupt` without reading the invalid offset |
 | Stable value header, changed born revision on the full read with repaired checksum | Revision 2 or `Corrupt` |
 | Shared DATA offset and revision, same offset with a different declared revision | Revision 4 or `Corrupt`, no additional DATA read |
 | Distinct DATA offsets and revisions, distinct offsets claiming one revision | Revision 4 or `Corrupt` before reading the second directory |
@@ -2873,7 +2874,11 @@ revision and repairs its checksum. This isolates header consistency
 from checksum, padding, and born-revision validity. The existing
 checksum and padding pairs cover the other terms in that decision.
 The overlapping-object fixture first opens with the embedded bytes
-unreferenced, then references those exact bytes as a second value.
+unreferenced, then references those exact bytes as a second value. Both
+decode orders reject. Recovery indexes each protected region as free,
+occupied, or the aligned start of a verified cached value. Interior
+regions and cached starts both prevent overlapping objects. Unaligned
+references cannot use a rounded-down cache entry.
 
 Several defensive branches need a disposition under the current
 public-open invariants. Object count cannot reach `MAX_OBJECTS` after
@@ -2885,7 +2890,7 @@ size have been bounded by that cap. On supported 64-bit targets,
 converting the stored u64 length to usize cannot fail.
 
 An already cached value crossing its new parent's start would overlap
-that parent, which has already passed range verification. Cached DATA
+that parent, which has already passed region occupancy verification. Cached DATA
 always uses the selected descriptor as parent, so its previously
 verified end cannot exceed that same bound on reuse. These end checks
 lack feasible failing pairs on the stable public-open path. The
@@ -4196,3 +4201,153 @@ header, I/O failure, source unchanged, destination existing, retained roots and
 native CLI. Debug/release results are being finalized before checkpoint.
 Final results all three tests passed debug and release with all features on
 arm64 macOS. Core all-target all-feature Clippy passed. Ready for checkpoint.
+
+
+## Recovery scale, space admission and native diagnostics
+
+Recovery uses a lazily allocated region occupancy index in place of linear
+range searches, with O(1) value-cache lookup. It needs at most 16,384 usize
+entries (128 KiB on supported 64-bit targets). Cache entries still preserve
+sharing and serialization identity. Header, checksum, padding, birth-revision,
+parent, depth and work validation retain their ordering. Each accepted region
+is scanned and marked once; CRC, tree reconstruction and DATA-cache searches
+remain additional work. The encoder pointer cache is unchanged.
+
+Release measurements on arm64 macOS with rustc 1.99.1 use five samples,
+exclude fixture construction and disk-image copying, and verify every row.
+Replay with `cargo run --offline --locked --release --example recovery_scale`.
+
+| Records | Image bytes | Previous median ms | Indexed median ms |
+|---|---:|---:|---:|
+| 1,000 | 4,169,728 | 12.266 | 11.914 |
+| 2,000 | 8,298,496 | 20.834 | 19.736 |
+| 4,000 | 16,556,032 | 43.489 | 39.323 |
+| 8,000 | 33,067,008 | 98.008 | 79.520 |
+| 16,000 | 66,093,056 | 231.480 | 160.418 |
+
+The largest image occupies 98.49% of the physical cap; measured median
+recovery fell 30.7%. This is a local workload measurement, not a latency
+guarantee. All 19 codec tests and 39 storage integration tests passed in
+debug/release. Three mutations removing cache alignment or either occupancy
+check were detected. Raw and structured image fuzzing each passed 10,000
+ASan executions. Linux/Windows cross-checks passed; native qualification is
+recorded separately. REC-V7 now describes occupancy rather than range scans.
+
+`Database::storage_space` queries the serialized byte store once and reports
+revision, physical and committed length, aligned next append offset, capacity
+and remaining append bytes. It does not scan the graph or estimate reclaimable
+space. A partial abandoned tail consumes its entire region. Backend length
+errors remain retryable; a length below the committed end or above the format
+cap poisons publication. Memory-only databases return `Invalid`.
+
+Three headroom integration tests pass debug/release. They independently
+exercise retryable length failure, both impossible-length terms and persistent
+poisoning. A near-cap fixture with all 64 retained roots permits the final
+empty commit, rejects further commit/retain before writes, then compacts and
+commits again while preserving all retained rows. No new MC/DC percentage is
+claimed. Application headroom thresholds must leave space for expected edits.
+
+Opt-in native diagnostics pair the stable engine error with the first native
+syscall failure in the synchronous operation. Categories distinguish permission,
+disk-full, quota and other failures; operation and optional raw OS code carry
+context. They contain no paths or record values. `storage::with_native_diagnostics`
+wraps any synchronous engine Result operation; file open/create/compact and
+transaction commit also have convenience wrappers. Private nonallocating TLS
+scopes reset, nest and restore on unwind. Terminal errors are captured at the
+source before cleanup; interrupted retries do not replace the eventual result.
+The stable `Io`/`OutcomeUnknown`/`RecoveryRequired` error remains authoritative.
+A custom ByteStore or work dispatched to another thread can yield no diagnostic.
+
+Five diagnostic tests pass debug/release, covering scope isolation, unwind,
+first-error retention, native missing-parent failure, category mapping, EINTR
+and publication phase classification. Existing file/durability/compaction tests,
+Clippy and cross-checks pass. Actual full-device and quota-mount qualification
+remains open; category tests do not substitute for it. The C ABI is unchanged.
+
+## Bounded typed migration and macro assurance
+
+`Write::migrate_ids(table, ids, callback)` accepts an explicit bounded ID plan.
+It checks count against write and observation limits and rejects zero/duplicate
+IDs before reading or invoking callbacks. Missing rows abort the transaction;
+current-version rows skip conversion. Input order is preserved. Each old row
+invokes its callback once per call with its ID, raw record and mutable model.
+There is no automatic retry. The shared per-row migration path preserves
+unknown fields and atomic primary/index changes. Whole-table migrate remains.
+An application progress record can be written in the same closure. Raw ID
+discovery, callback cost and external callback effects remain app-owned.
+
+Four new tests cover resume after simulated reopen, atomic progress, retained
+old schemas, unknown fields, physical missing/default semantics, rollback of
+callback/missing-row/unique failures, independently bounded observations and
+real concurrent selected/unrelated row edits. All 26 typed model tests and six
+doctests pass debug/release; one existing renamed-dependency doctest is ignored
+and separately executed by the workspace check script. Empty/current-only
+batches return zero but a Store::write still performs its normal commit.
+
+`schema_index_migration` fuzzing independently tracks primary rows, schema
+versions and unique ownership in a BTreeMap through up to 48 operations.
+It checks every bounded key after each operation, including migration rollback,
+rebuild and reopen. `derive_tokens` exercises the exact pure expansion functions
+for Model/Record/Resolution and parses successful output as Rust syntax. Model's
+implementation moved unchanged to a private module for this reuse. Syntax
+parsing does not prove downstream type correctness. Twelve actual downstream
+compile-fail fixtures separately check malformed attributes and diagnostics.
+
+Both targets have eight total checked-in seeds and passed 1,000 ASan executions
+each with seed 1 and max_len 8192. Stable fuzz replay (10 tests), macro tests in
+both profiles, typed/CRDT regressions, all-target Clippy and StudyProgress passed.
+StudyProgress converges both goals to 90/20 and repeat sync keeps revision 4 on
+both peers. The fixed-schema fuzz model does not cover arbitrary schema graphs
+or injected storage faults; existing crash harnesses retain that scope.
+
+
+## Operational copy fuzzing
+
+Three further targets cover logical import/export, backup/restore and bounded
+ByteStore progress. The logical target combines raw streams, truncation,
+XOR edits and independently recomputed CRC64 edits; an explicit repaired
+zero-next-retention-ID image rejects before destination writes. A clean fixture
+has an independent revision/current/retained row oracle. Other accepted logical
+streams must re-export identically, a codec consistency check rather than an
+independent parser proof. Sources stay byte-identical.
+
+Backup schedules inject copy errors, zero progress or failed sync with persisted
+bytes, crash, fail a second time during reopen, crash again and inspect the final
+state. A successful copy always reopens; any usable interrupted copy must match
+the complete source current and retained state. Invalid sources cannot alter an
+occupied destination. Progress cases independently vary 0/1/63/4095/4096/8192
+bytes for the first 64 reads/writes before returning to full progress, keeping
+simulator queue bounds from masking the transfer behavior.
+
+The 66 seeds replay in debug/release; five logical modes and a repaired rejection,
+36 progress combinations and 72 copy/recovery schedules passed. All-target fuzz
+Clippy passed. Native arm64 macOS ASan completed 500 repaired-logical runs and
+100 runs each for backup and progress with seed 1 and bounded time/RSS. These
+are smoke runs; native filesystem faults and extended campaigns remain separate.
+There are now 17 discovered cargo-fuzz targets.
+
+## Checkpoint-heavy native lifecycle measurement
+
+`examples/storage_lifecycle.rs` fills a new native file to 66,162,688 bytes
+with 240 edits of a 256 KiB checkpoint and keeps 64 distinct retained roots.
+Every current and retained byte is checked after reopen, backup, restore and
+compaction. The tool requires a new output directory and keeps its files for
+inspection. Measurements below use an optimized build on the local arm64
+macOS host; they are a sample workload, not the user's deployment budget.
+
+| Operation | Samples | p50 ms | p95 ms | p99 ms | Result bytes |
+|---|---:|---:|---:|---:|---:|
+| Commit 256 KiB checkpoint | 240 | 11.964 | 14.178 | 15.080 | 66,162,688 |
+| Retain current snapshot | 64 | 7.003 | 9.918 | 11.060 | 66,162,688 |
+| Reopen with 64 retained roots | 5 | 42.791 | 71.245 | 71.245 | 66,162,688 |
+| Verified backup | 1 | 169.542 | 169.542 | 169.542 | 17,596,416 |
+| Verified restore | 1 | 177.797 | 177.797 | 177.797 | 17,596,416 |
+| Compact after releasing 32 roots | 1 | 102.777 | 102.777 | 102.777 | 8,945,664 |
+
+Each edit appended 274,432 bytes. Percentiles use nearest rank; one sample
+does not establish a latency distribution. The source remains authoritative
+while the verified compact copy is produced. After reopening the compact copy,
+a further commit and reopen preserve the remaining 32 roots. File contents
+and timings passed on the native adapter; no power-loss/device or RSS bound
+is inferred from this run. Replay with `cargo run --offline --locked --release
+--example storage_lifecycle -- NEW_DIRECTORY`.

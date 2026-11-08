@@ -94,3 +94,11 @@ pub use crdt::{crdt_frames, crdt_schedule};
 
 mod snapshot;
 pub use snapshot::{snapshot_frames, snapshot_install_schedule};
+
+mod derive;
+pub use derive::derive_tokens;
+mod typed;
+pub use typed::schema_index_migration;
+
+mod operations;
+pub use operations::{backup_restore, bytestore_contract, logical_import_export};

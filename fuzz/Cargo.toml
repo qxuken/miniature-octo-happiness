@@ -12,6 +12,11 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 weekend-db = { path = "..", features = ["crdt", "replication"] }
 
+weekend-db-typed = { path = "../crates/weekend-db-typed" }
+proc-macro2 = "=1.0.107"
+quote = "=1.0.47"
+syn = { version = "=2.0.119", features = ["full"] }
+
 [workspace]
 members = ["."]
 
@@ -95,6 +100,41 @@ bench = false
 [[bin]]
 name = "snapshot_install_schedule"
 path = "fuzz_targets/snapshot_install_schedule.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "schema_index_migration"
+path = "fuzz_targets/schema_index_migration.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "derive_tokens"
+path = "fuzz_targets/derive_tokens.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "logical_import_export"
+path = "fuzz_targets/logical_import_export.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "backup_restore"
+path = "fuzz_targets/backup_restore.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bytestore_contract"
+path = "fuzz_targets/bytestore_contract.rs"
 test = false
 doc = false
 bench = false

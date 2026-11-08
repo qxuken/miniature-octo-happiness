@@ -428,7 +428,11 @@ struct Reader<'a> {
     identity: [u8; 16],
     revision: u64,
     cache: Vec<CacheEntry>,
-    ranges: Vec<(u64, u64)>,
+    // One slot per aligned region in the selected image. Zero is unoccupied,
+    // one is occupied, and n >= 2 names value cache entry n - 2 at its start.
+    regions: Vec<usize>,
+    region_count: usize,
+    objects: usize,
     work: usize,
     data_cache: Vec<DecodedData>,
 }
@@ -470,8 +474,16 @@ impl Reader<'_> {
         if born > self.revision {
             return Err(Error::Corrupt);
         }
-        if self.ranges.len() >= MAX_OBJECTS
-            || self.ranges.iter().any(|(a, b)| offset < *b && end > *a)
+        let first_region = (offset / REGION as u64) as usize;
+        let end_region = (end / REGION as u64) as usize;
+        if self.objects >= MAX_OBJECTS
+            || (!self.regions.is_empty()
+                && self
+                    .regions
+                    .get(first_region..end_region)
+                    .ok_or(Error::Corrupt)?
+                    .iter()
+                    .any(|&entry| entry != 0))
         {
             return Err(Error::Corrupt);
         }
@@ -490,8 +502,18 @@ impl Reader<'_> {
         {
             return Err(Error::Corrupt);
         }
-        self.mem.reserve(&mut self.ranges, 1)?;
-        self.ranges.push((offset, end));
+        // Allocate lazily at the former range-registration boundary, after the
+        // full object validates. Malformed first headers still fail before any
+        // index allocation. Every accepted region is marked exactly once.
+        if self.regions.is_empty() {
+            self.mem.reserve(&mut self.regions, self.region_count)?;
+            self.regions.resize(self.region_count, 0);
+        }
+        self.regions
+            .get_mut(first_region..end_region)
+            .ok_or(Error::Corrupt)?
+            .fill(1);
+        self.objects += 1;
         // Move the payload down in the already allocated buffer; no second allocation.
         bytes.copy_within(OBJECT_HEADER..OBJECT_HEADER + payload_len, 0);
         bytes.truncate(payload_len);
@@ -505,7 +527,14 @@ impl Reader<'_> {
         if depth > self.mem.limits().max_depth || offset >= parent {
             return Err(Error::Corrupt);
         }
-        if let Some(old) = self.cache.iter().find(|old| old.offset == offset) {
+        // An unaligned reference must never alias the cache entry in the same
+        // region. Let object() reject it at the existing validation boundary.
+        let cached = offset
+            .is_multiple_of(REGION as u64)
+            .then(|| self.regions.get((offset / REGION as u64) as usize))
+            .flatten()
+            .and_then(|entry| entry.checked_sub(2));
+        if let Some(old) = cached.map(|index| &self.cache[index]) {
             if old.end > parent {
                 return Err(Error::Corrupt);
             }
@@ -561,6 +590,7 @@ impl Reader<'_> {
         };
         cursor.done()?;
         self.mem.reserve(&mut self.cache, 1)?;
+        self.regions[(offset / REGION as u64) as usize] = self.cache.len() + 2;
         self.cache.push(CacheEntry {
             value: value.clone(),
             offset,
@@ -718,7 +748,9 @@ pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recov
         identity,
         revision: slot.revision,
         cache: Vec::new(),
-        ranges: Vec::new(),
+        regions: Vec::new(),
+        region_count: (slot.end / REGION as u64) as usize,
+        objects: 0,
         work: 0,
         data_cache: Vec::new(),
     };
@@ -1383,6 +1415,31 @@ mod tests {
         assert_eq!(trace.last().unwrap().offset, embedded as u64);
         assert_eq!(trace.last().unwrap().len, OBJECT_HEADER);
         assert_eq!(trace.last().unwrap().kind, IoKind::Read);
+
+        // Decode the embedded scalar first, so the overlapping region now
+        // contains a cached start marker rather than an occupied interior.
+        put64(&mut image, data + OBJECT_HEADER + 65, embedded as u64);
+        put64(&mut image, b_ref, a as u64);
+        resign(&mut image, data, REGION, 48);
+        let trace = check_newest_graph(&image, 2, Err(Error::Corrupt), "overlap with cached start");
+        assert_eq!(trace.last().unwrap().offset, a as u64);
+        assert_eq!(trace.last().unwrap().len, OBJECT_HEADER);
+    }
+
+    #[test]
+    fn unaligned_reference_cannot_reuse_a_cached_value_region() {
+        let mut image = fixture();
+        check_newest_graph(&image, 2, Ok(2), "shared value at its aligned start");
+        let descriptor = image.len() - REGION;
+        let data = u64_at(&image, descriptor + OBJECT_HEADER + 8) as usize;
+        // Record a's map has already decoded the bytes shared by record b.
+        let reference = data + OBJECT_HEADER + 90;
+        let shared = u64_at(&image, reference);
+        put64(&mut image, reference, shared + 1);
+        resign(&mut image, data, REGION, 48);
+        let trace =
+            check_newest_graph(&image, 2, Err(Error::Corrupt), "unaligned cached reference");
+        assert!(trace.iter().all(|event| event.offset != shared + 1));
     }
 
     #[test]

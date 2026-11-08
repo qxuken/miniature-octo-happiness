@@ -1,5 +1,6 @@
 //! Shared macOS/Linux regular-file protocol. Protected-region/safe-append assumptions
 //! remain conditional; process interruption tests are not physical power cuts.
+use super::NativeIoOperation;
 #[cfg(target_os = "linux")]
 use super::linux as sys;
 #[cfg(target_os = "macos")]
@@ -26,11 +27,14 @@ unsafe extern "C" {
     fn flock(fd: c_int, operation: c_int) -> c_int;
     fn unlinkat(directory: c_int, name: *const c_char, flags: c_int) -> c_int;
 }
-pub(super) fn retry<T>(mut action: impl FnMut() -> io::Result<T>) -> Result<T> {
+pub(super) fn retry<T>(
+    operation: NativeIoOperation,
+    mut action: impl FnMut() -> io::Result<T>,
+) -> Result<T> {
     loop {
         match action() {
             Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
-            result => return result.map_err(os_error),
+            result => return result.map_err(|error| os_error(operation, error)),
         }
     }
 }
@@ -67,7 +71,7 @@ impl ByteStore for FileStore {
         if self.claimed {
             return Err(Error::Busy);
         }
-        retry(|| {
+        retry(NativeIoOperation::Lock, || {
             if unsafe { flock(self.file.as_raw_fd(), 2 | 4) } == 0 {
                 Ok(())
             } else {
@@ -82,7 +86,7 @@ impl ByteStore for FileStore {
         Ok(())
     }
     fn unlock(&mut self) {
-        let _ = retry(|| {
+        let _ = retry(NativeIoOperation::Unlock, || {
             if unsafe { flock(self.file.as_raw_fd(), 8) } == 0 {
                 Ok(())
             } else {
@@ -94,15 +98,17 @@ impl ByteStore for FileStore {
     }
     fn length(&mut self) -> Result<u64> {
         self.check()?;
-        Ok(retry(|| self.file.metadata())?.len())
+        Ok(retry(NativeIoOperation::Metadata, || self.file.metadata())?.len())
     }
     fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
         self.check()?;
-        retry(|| self.file.read_at(out, offset))
+        retry(NativeIoOperation::Read, || self.file.read_at(out, offset))
     }
     fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
         self.check()?;
-        retry(|| self.file.write_at(bytes, offset))
+        retry(NativeIoOperation::Write, || {
+            self.file.write_at(bytes, offset)
+        })
     }
     fn sync(&mut self) -> Result<()> {
         self.check()?;
@@ -143,7 +149,7 @@ impl Location {
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
-        let directory = retry(|| {
+        let directory = retry(NativeIoOperation::OpenDirectory, || {
             std::fs::OpenOptions::new()
                 .read(true)
                 .custom_flags(sys::OPEN_DIRECTORY)
@@ -161,12 +167,14 @@ impl Location {
     fn open_mode(&self, create: bool, writable: bool) -> Result<FileStore> {
         // Allocate/copy the lease location before creating any directory entry.
         let location = Self {
-            directory: retry(|| self.directory.try_clone())?,
+            directory: retry(NativeIoOperation::DuplicateHandle, || {
+                self.directory.try_clone()
+            })?,
             name: Memory::new(Limits::default())?.copy(&self.name)?,
         };
         let access = if writable { 2 } else { 0 };
         let file = self.open_flags(access | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
-        if !retry(|| file.metadata())?.is_file() {
+        if !retry(NativeIoOperation::Metadata, || file.metadata())?.is_file() {
             return Err(Error::Invalid);
         }
         self.acquire_open_lease(&file)?;
@@ -190,8 +198,8 @@ impl Location {
             Err(Error::NotFound) => return Err(Error::Busy),
             other => other?,
         };
-        let actual = retry(|| actual.metadata())?;
-        let expected = retry(|| file.metadata())?;
+        let actual = retry(NativeIoOperation::Metadata, || actual.metadata())?;
+        let expected = retry(NativeIoOperation::Metadata, || file.metadata())?;
         if actual.is_file() && actual.dev() == expected.dev() && actual.ino() == expected.ino() {
             Ok(())
         } else {
@@ -199,27 +207,34 @@ impl Location {
         }
     }
     fn open_flags(&self, flags: c_int) -> Result<File> {
-        let fd = retry(|| {
-            let fd = unsafe {
-                openat(
-                    self.directory.as_raw_fd(),
-                    self.name.as_ptr().cast(),
-                    flags | OPEN_REQUIRED,
-                    0o600 as c_int,
-                )
-            };
-            if fd < 0 {
-                Err(io::Error::last_os_error())
+        let fd = retry(
+            if flags & OPEN_CREATE != 0 {
+                NativeIoOperation::Create
             } else {
-                Ok(fd)
-            }
-        })?;
+                NativeIoOperation::Open
+            },
+            || {
+                let fd = unsafe {
+                    openat(
+                        self.directory.as_raw_fd(),
+                        self.name.as_ptr().cast(),
+                        flags | OPEN_REQUIRED,
+                        0o600 as c_int,
+                    )
+                };
+                if fd < 0 {
+                    Err(io::Error::last_os_error())
+                } else {
+                    Ok(fd)
+                }
+            },
+        )?;
         Ok(unsafe { File::from_raw_fd(fd) })
     }
     fn matches(&self, file: &File) -> Result<()> {
         let actual_file = self.open_flags(0)?;
-        let actual = retry(|| actual_file.metadata())?;
-        let expected = retry(|| file.metadata())?;
+        let actual = retry(NativeIoOperation::Metadata, || actual_file.metadata())?;
+        let expected = retry(NativeIoOperation::Metadata, || file.metadata())?;
         if actual.is_file()
             && actual.dev() == expected.dev()
             && actual.ino() == expected.ino()
@@ -240,12 +255,14 @@ impl Location {
         }
         name.extend_from_slice(b".tmp\0");
         Ok(Self {
-            directory: retry(|| self.directory.try_clone())?,
+            directory: retry(NativeIoOperation::DuplicateHandle, || {
+                self.directory.try_clone()
+            })?,
             name,
         })
     }
     fn sync(&self) -> Result<()> {
-        retry(|| self.directory.sync_all())
+        retry(NativeIoOperation::Sync, || self.directory.sync_all())
     }
     fn exchange(&self, other: &Self) -> Result<()> {
         sys::exchange(&self.directory, &self.name, &other.directory, &other.name)
@@ -254,7 +271,10 @@ impl Location {
         if unsafe { unlinkat(self.directory.as_raw_fd(), self.name.as_ptr().cast(), 0) } == 0 {
             Ok(())
         } else {
-            Err(os_error(io::Error::last_os_error()))
+            Err(os_error(
+                NativeIoOperation::Remove,
+                io::Error::last_os_error(),
+            ))
         }
     }
 }
@@ -382,9 +402,11 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
     let mem = Memory::new(limits)?;
     let original = Location::new(path)?;
     let source = original.open(false)?;
-    let old_file = retry(|| source.file.try_clone())?;
+    let old_file = retry(NativeIoOperation::DuplicateHandle, || {
+        source.file.try_clone()
+    })?;
     // Replacing one name cannot preserve a hard-link alias's writer authority.
-    if retry(|| old_file.metadata())?.nlink() != 1 {
+    if retry(NativeIoOperation::Metadata, || old_file.metadata())?.nlink() != 1 {
         return Err(Error::Invalid);
     }
     let (mut storage, head, next_collection, retention) = Storage::open(
@@ -397,7 +419,9 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
     )?;
     let scratch = original.scratch(&mem)?;
     let target = scratch.open(true)?;
-    let new_file = retry(|| target.file.try_clone())?;
+    let new_file = retry(NativeIoOperation::DuplicateHandle, || {
+        target.file.try_clone()
+    })?;
     let (mut replacement, stats) = storage
         .compact(
             Observed {
@@ -447,6 +471,25 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
     })
     .map_err(|_| Error::OutcomeUnknown)?;
     Ok(stats)
+}
+
+impl FileStore {
+    /// Synchronous native context for this exact factory invocation.
+    pub fn create_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::create(path))
+    }
+    pub fn open_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::open(path))
+    }
+    pub fn open_read_only_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::open_read_only(path))
+    }
 }
 
 #[cfg(all(

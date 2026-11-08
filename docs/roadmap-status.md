@@ -9,17 +9,17 @@ decision tests and first four fuzz targets.
 | Gate | Progress and remaining evidence |
 |---|---|
 | Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. Complete module denominator and remaining module decisions are open. |
-| Fuzzing | Twelve targets and deterministic seeds exist. Remaining inventory is in the roadmap. Scheduled CI needs execution after integration. |
-| Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Detailed errors and cheap space queries remain. |
+| Fuzzing | Seventeen targets and deterministic seeds exist. Remaining inventory is in the roadmap. Scheduled CI needs execution after integration. |
+| Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Corruption offsets remain. |
 | Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore and recovery-time budgets remain. |
 | Migration/salvage | Logical export/import format 1 implemented with frozen fixture. Explicit complete-root salvage is tested. Future-version conversion remains. |
-| Storage lifecycle | Compaction exists. Headroom, near-cap measurements, cleanup policy and native replacement qualification remain. |
+| Storage lifecycle | Compaction exists. Append headroom and near-cap recovery/compaction tests implemented. Indexed recovery measured near the cap. Cleanup policy and device qualification remain. |
 | Resources | Per-value/transaction limits exist. Aggregate pinned/draft budget and adversarial latency/soak remain. |
-| Packaging | Runtime identity and private artifact checks added. Clean candidate, Windows compiled consumers and dependency/license inventory remain. |
+| Packaging | Runtime identity and private artifact checks added. Clean private candidate and dependency/license inventory verified at a7dc343. Windows compiled consumers require the corrected script run. |
 | Compatibility | v2 format rejection exists. Archived v2 and logical-v1 fixtures exist. Historical-reader/new-writer qualification remains. |
 | Native matrix | macOS and Docker aarch64 Linux executed locally. Windows native and same-candidate matrix/device qualification remain. |
 | Unsafe/concurrency | Thread/process/sanitizer tests exist. A bounded Loom model, Miri and abort subprocess checks passed. Additional model workloads and full unsafe review remain. |
-| Typed Rust | Models/migrations/indexes exist. Verification/rebuild implemented and fault-tested. Bounded migration and mixed-version qualification remain. |
+| Typed Rust | Models/migrations/indexes exist. Verification/rebuild implemented and fault-tested. Explicit bounded migration with atomic progress tested. Mixed-version qualification remains. |
 | Snapshot replication | Verified snapshots and separate acknowledgment exist. Manifest bounds, cleanup, compaction and explicit reseed are tested. Authenticated deployment and mixed-version qualification remain. |
 | CRDT peers | Fixed two-actor TLS demo exists. Policy evolution, stale backup identity, reserved-row ownership and resource/soak gates remain. |
 | Coordinator | Conditional writes, durable receipts and configured loopback authentication tested. Deployment qualification remains. |
@@ -58,3 +58,21 @@ License identifiers and notices are being included in private artifacts.
 The target workload/latency/restore budgets and named security/release
 owner have been requested from the user. Those inputs remain required
 for operational sign-off. The implementation work continues independently.
+
+Checkpoint `a7dc343` passed native macOS/Ubuntu, AddressSanitizer,
+ThreadSanitizer and coverage in GitHub Actions run `42525776563`. Windows
+Rust and ctypes passed; its compiled-consumer command incorrectly treated
+the import library as C/C++ source. The `/link` fix has a portable command
+regression and awaits a fresh native run. Private artifact creation from
+that clean checkpoint passed runtime identity, C/C++, symbol and dependency
+notice checks. No registry publication was performed.
+
+The subsequent batch adds indexed recovery (160 ms median for 16,000 scalar
+records in a 66,093,056-byte image on this host), append-space diagnostics,
+scoped native error context, bounded typed migrations and five macro/typed/operational
+fuzz targets. A native 240-edit lifecycle run measured commit/reopen/copy
+latencies near the image cap with 64 retained roots. See DESIGN.md for scoped tests and limitations.
+
+The full workspace `tools/check.py` passed again after the indexed recovery,
+headroom, diagnostics and typed migration changes, in debug and release on
+arm64 macOS, including Rust, C and Odin consumers.

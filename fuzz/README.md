@@ -184,3 +184,64 @@ no findings. Evidence is under
 `target/fuzz-evidence/tmp6nhpcqqd`. The native target requires a writable
 supported local filesystem and is slower because it performs real durable
 writes. Authentication remains the embedding application's responsibility.
+
+## Typed schema/index migration and derive targets
+
+`schema_index_migration` executes up to 48 four-byte commands through public
+`weekend-db-typed` APIs. It starts with version-one records, registers version
+two, then migrates selected IDs, inserts, updates unique keys, deletes, rebuilds
+indexes, reopens the durable memory image, or submits duplicate migration IDs.
+A separate `BTreeMap` predicts primary rows, versions, defaulted values and
+unique ownership. After every command, all rows and every candidate unique key
+are compared against that model. Callback errors, missing IDs and unique
+collisions have explicit expected errors and leave the model unchanged.
+`check_indexes` is an additional assertion, not the source of expected owners.
+This target does not inject storage faults or model arbitrary schema shapes.
+
+`derive_tokens` drives the exact internal `Model`, `Record` and `Resolution`
+expansion functions used by the proc-macro entrypoints. Model expansion lives
+in a private module; the fuzz library includes the three implementation files
+by path, with no copied parser or new public macro API. Inputs up to 8 KiB are
+parsed as derive input, and a second bounded Model fixture varies stable IDs
+and versions from the first two bytes. Both successful expansions and emitted
+diagnostics must parse as Rust file syntax. This oracle detects panics and
+malformed emitted syntax, not every type-checking or semantic error. Stable
+replay includes valid and invalid examples for all three derives.
+
+Eight deterministic seeds are checked into `fuzz/seeds` for these targets.
+Actual downstream compiler rejection is tested separately by
+`cargo test --offline --locked -p weekend-db-macros`: its integration test
+builds twelve malformed attribute fixtures with Cargo/rustc, verifies failure
+and the intended diagnostic, and uses a private temporary target directory.
+The cases cover zero/duplicate/reserved IDs, unknown attributes, unsupported
+generics, repeated/unknown/omitted wire fields and invalid resolution placement.
+
+The initial arm64 macOS ASan smoke completed 1,000 executions per target with
+seed 1, an 8 KiB input cap and no findings. Typed schedules took 19 seconds of
+fuzz execution. Evidence and exact toolchain/commands are in
+`target/fuzz-evidence/typed-derive-batch/evidence.json`. All ten stable fuzz
+library tests and all-target warnings-denied Clippy passed. The macro suite
+passed in debug/release, all 26 typed integration tests and six doctests passed,
+and all eleven CRDT integration tests passed after the expansion extraction.
+StudyProgress still converged to weekly goal 90 and session limit 20 with
+repeat sync leaving both peers at revision 4. These are bounded smoke results,
+not an exhaustive schema or macro semantic proof.
+
+Operational copy boundaries are exercised by `logical_import_export`,
+`backup_restore`, and `bytestore_contract`. Regenerate their 66 committed seeds
+with `cargo run --manifest-path fuzz/Cargo.toml --example operations_seeds`.
+The logical target accepts bounded raw streams, XOR edits, truncation, or a
+known valid stream, plus a checksum-repaired mutation mode (including zero next-retention-ID rejection); rejection must leave the empty destination untouched and
+success must produce the identical canonical export. The fixture additionally
+checks current records and retained revision 2 independently of the codec.
+The backup target faults destination publication, crashes, injects another
+recovery I/O error, crashes again, and reopens. An acknowledged backup must
+remain complete; any image that reopens must match the source's current and
+retained roots. Source bytes remain unchanged; invalid sources cannot modify
+an occupied destination. `restore_file` shares the exercised `backup_on`
+implementation, but native path handling is outside this harness.
+The ByteStore target bounds short progress to the first 64 calls, choosing
+0/1/63/4095/4096/8192 bytes, then resumes normal progress. Zero progress must
+terminate with an error; positive progress must preserve the complete copy.
+These targets do not establish native filesystem correctness, broad schema
+coverage, exhaustive crash coverage, or full MC/DC coverage.
