@@ -1,0 +1,27 @@
+name: Bounded fuzzing
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 2 * * 1'
+permissions:
+  contents: read
+jobs:
+  address:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install nightly --profile minimal
+      - run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - name: Run all manifest targets
+        env:
+          FUZZ_RUNS: ${{ github.event_name == 'schedule' && '100000' || '1000' }}
+          FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '120' || '20' }}
+        run: python3 tools/fuzz.py --runs "$FUZZ_RUNS" --seconds "$FUZZ_SECONDS" --output target/fuzz-evidence/ci
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: fuzz-evidence-${{ github.run_id }}
+          path: target/fuzz-evidence/
+          if-no-files-found: warn

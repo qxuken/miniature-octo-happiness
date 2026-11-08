@@ -3,13 +3,14 @@ name = "weekend-db-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
+license = "MIT OR Apache-2.0"
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-weekend-db = { path = ".." }
+weekend-db = { path = "..", features = ["crdt", "replication"] }
 
 [workspace]
 members = ["."]
@@ -38,6 +39,62 @@ bench = false
 [[bin]]
 name = "txn_schedule"
 path = "fuzz_targets/txn_schedule.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "value_ops"
+path = "fuzz_targets/value_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "image_and_ops"
+path = "fuzz_targets/image_and_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "retention_compact_crash"
+path = "fuzz_targets/retention_compact_crash.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ffi_ops"
+path = "fuzz_targets/ffi_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "crdt_frames"
+path = "fuzz_targets/crdt_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "crdt_schedule"
+path = "fuzz_targets/crdt_schedule.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "snapshot_frames"
+path = "fuzz_targets/snapshot_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "snapshot_install_schedule"
+path = "fuzz_targets/snapshot_install_schedule.rs"
 test = false
 doc = false
 bench = false

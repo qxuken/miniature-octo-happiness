@@ -18,6 +18,21 @@ def main():
         result = function(*args)
         assert result == status, (name, result, status)
 
+    for name, expected in [("abi_version", 1), ("format_version", 2)]:
+        function = getattr(lib, "wdb_" + name)
+        function.argtypes, function.restype = [], c.c_uint32
+        assert function() == expected, name
+    lib.wdb_features.argtypes, lib.wdb_features.restype = [], c.c_uint32
+    assert lib.wdb_features() & ~7 == 0
+    for name in ["package_version", "source_id"]:
+        needed = size()
+        call(name, [ptr, size, c.POINTER(size)], None, 0, c.byref(needed), status=5)
+        assert 0 < needed.value < 256
+        text = c.create_string_buffer(needed.value)
+        call(name, [ptr, size, c.POINTER(size)], text, len(text), c.byref(needed))
+        text.raw.decode("utf-8")
+        call(name, [ptr, size, c.POINTER(size)], text, len(text), None, status=1)
+
     db, tx, value, snapshot, found = (ptr() for _ in range(5))
     collection, revision, bits = (u64() for _ in range(3))
     call("open", [c.POINTER(ptr)], c.byref(db))

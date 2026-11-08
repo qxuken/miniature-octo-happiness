@@ -945,3 +945,48 @@ fn a_stale_actor_copy_cannot_claim_the_peers_acknowledgment() {
     assert_eq!(stale_actor.count(), Ok(1));
     assert_eq!(counter_b.count(), Ok(5));
 }
+
+#[test]
+fn a_lossy_application_codec_cannot_publish_an_unreadable_edit() {
+    #[derive(Clone, Copy, Default, PartialEq, Eq)]
+    struct Lossy(u8);
+    impl Record for Lossy {
+        const KEY: &'static [u8] = b"lossy";
+        const FORMAT: &'static [u8; 8] = b"LOSSY001";
+        const SIZE: usize = 1;
+        fn encode(self, bytes: &mut [u8]) -> weekend_db::Result<()> {
+            bytes[0] = 0;
+            Ok(())
+        }
+        fn decode(bytes: &[u8]) -> weekend_db::Result<Self> {
+            Ok(Self(bytes[0]))
+        }
+        fn merge(&mut self, other: Self) {
+            self.0 = self.0.max(other.0);
+        }
+        fn check_peer(self, _: Self, _: weekend_db::crdt::Actor) -> weekend_db::Result<()> {
+            Ok(())
+        }
+    }
+    let db = Database::new().unwrap();
+    let id = db.create_collection().unwrap();
+    let replica = Replica::<Lossy>::enroll(&db, id, POLICY, POLICY.actors[0]).unwrap();
+    let before = db.snapshot().revision();
+    assert_eq!(
+        replica.update(|record, _| {
+            record.0 = 1;
+            Ok(())
+        }),
+        Err(Error::Invalid)
+    );
+    assert_eq!(db.snapshot().revision(), before);
+    assert_eq!(replica.read().unwrap().0, 0);
+    assert_eq!(
+        Replica::<Lossy>::open(&db, id, POLICY, POLICY.actors[0])
+            .unwrap()
+            .read()
+            .unwrap()
+            .0,
+        0
+    );
+}

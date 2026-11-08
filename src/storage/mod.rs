@@ -2,6 +2,14 @@
 //! Native file adapters preserve the modeled ordering; hardware assumptions
 //! remain conditional and are documented in DESIGN.md.
 mod codec;
+mod inspection;
+mod logical;
+pub use inspection::{ImageInfo, RetainedInfo, backup_on, inspect_on};
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
+pub use inspection::{backup_file, inspect_file, restore_file};
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
+pub use logical::{export_logical_file, import_logical_file};
+pub use logical::{export_logical_on, import_logical_on};
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod file;
 #[cfg(target_os = "linux")]
@@ -10,7 +18,11 @@ mod linux;
 mod macos;
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 mod replacement;
+mod salvage;
 mod simulator;
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
+pub use salvage::salvage_file;
+pub use salvage::{SalvageReport, salvage_on};
 #[cfg(windows)]
 mod windows;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -349,4 +361,91 @@ pub(crate) fn recover_replica(
         return Err(Error::Corrupt);
     }
     Ok(recovered)
+}
+
+#[cfg(test)]
+mod transfer_tests {
+    use super::*;
+
+    struct Progress {
+        answer: Result<usize>,
+        calls: Vec<(u64, usize)>,
+    }
+    impl ByteStore for Progress {
+        fn lock(&mut self) -> Result<()> {
+            Ok(())
+        }
+        fn unlock(&mut self) {}
+        fn length(&mut self) -> Result<u64> {
+            Ok(0)
+        }
+        fn sync(&mut self) -> Result<()> {
+            Ok(())
+        }
+        fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
+            self.calls.push((offset, out.len()));
+            self.answer
+        }
+        fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
+            self.calls.push((offset, bytes.len()));
+            self.answer
+        }
+    }
+
+    #[test]
+    fn exact_transfers_reject_zero_oversized_and_failed_progress() {
+        for writing in [false, true] {
+            for answer in [Ok(0), Ok(1), Ok(3), Err(Error::Io)] {
+                let mut store = Progress {
+                    answer,
+                    calls: Vec::new(),
+                };
+                let result = if writing {
+                    write_all(&mut store, 0, &[0; 2])
+                } else {
+                    read_all(&mut store, 0, &mut [0; 2])
+                };
+                assert_eq!(
+                    result,
+                    if answer == Ok(1) {
+                        Ok(())
+                    } else {
+                        Err(Error::Io)
+                    }
+                );
+                assert_eq!(store.calls[0], (0, 2));
+                assert_eq!(store.calls.len(), if answer == Ok(1) { 2 } else { 1 });
+            }
+        }
+    }
+
+    #[test]
+    fn transfers_skip_empty_buffers_and_bound_offsets_and_regions() {
+        let mut store = Progress {
+            answer: Ok(1),
+            calls: Vec::new(),
+        };
+        assert_eq!(read_all(&mut store, u64::MAX, &mut []), Ok(()));
+        assert_eq!(write_all(&mut store, u64::MAX, &[]), Ok(()));
+        assert!(store.calls.is_empty());
+        assert_eq!(
+            read_all(&mut store, u64::MAX, &mut [0]),
+            Err(Error::Corrupt)
+        );
+        assert_eq!(write_all(&mut store, u64::MAX, &[0]), Err(Error::Limit));
+        store.calls.clear();
+        assert_eq!(write_all(&mut store, REGION as u64 - 1, &[1, 2, 3]), Ok(()));
+        assert_eq!(
+            store.calls,
+            [
+                (REGION as u64 - 1, 1),
+                (REGION as u64, 2),
+                (REGION as u64 + 1, 1)
+            ]
+        );
+        store.calls.clear();
+        store.answer = Ok(REGION);
+        assert_eq!(read_all(&mut store, 0, &mut vec![0; 2 * REGION]), Ok(()));
+        assert_eq!(store.calls, [(0, REGION), (REGION as u64, REGION)]);
+    }
 }

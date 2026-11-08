@@ -420,6 +420,41 @@ fn list_clear<V: Clone>(
 mod tests {
     use super::*;
     #[test]
+    fn map_capacity_and_collision_lookup_have_independent_controls() {
+        let mem = Memory::new(crate::Limits {
+            max_entries: 1,
+            ..Default::default()
+        })
+        .unwrap();
+        let empty = Map::new();
+        let full = empty.set_hashed(&mem, b"a", 1, 0).unwrap();
+        assert_eq!(full.len(), 1);
+        // At capacity, an existing key is replaceable but another key is not.
+        let replacement = full.set_hashed(&mem, b"a", 2, 0).unwrap();
+        assert_eq!(replacement.len(), 1);
+        assert_eq!(replacement.get_hashed(b"a", 0), Some(&2));
+        assert!(matches!(
+            full.set_hashed(&mem, b"b", 3, 0),
+            Err(Error::Limit)
+        ));
+        assert_eq!(full.get_hashed(b"a", 0), Some(&1));
+        assert_eq!(
+            full.get_hashed(b"b", 0),
+            None,
+            "matching hash, different key"
+        );
+        assert_eq!(
+            full.get_hashed(b"a", 1),
+            None,
+            "different hash, matching key"
+        );
+        assert_eq!(empty.get_hashed(b"a", 0), None);
+        let removed = remove(&mem, full.root.as_ref().unwrap(), b"a", 0, 0).unwrap();
+        assert!(removed.is_none());
+        assert_eq!(full.get_hashed(b"a", 0), Some(&1));
+    }
+
+    #[test]
     fn full_hash_collisions_and_long_prefixes() {
         let mem = Memory::new(Default::default()).unwrap();
         let a = Map::new().set_hashed(&mem, b"a", 1, 0).unwrap();

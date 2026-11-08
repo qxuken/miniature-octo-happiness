@@ -340,9 +340,118 @@ export!(wdb_scan_value(scan: *const CScan, index: usize, out: *mut *mut CValue) 
     make_handle(scan.owner, value.clone(), out)
 });
 
+#[unsafe(no_mangle)]
+pub extern "C" fn wdb_abi_version() -> u32 {
+    crate::version::ABI_VERSION
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn wdb_format_version() -> u32 {
+    crate::version::FORMAT_VERSION
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn wdb_features() -> u32 {
+    crate::version::FEATURES
+}
+export!(wdb_package_version(buffer: *mut u8, capacity: usize, required: *mut usize) {
+    copy_bytes(crate::version::PACKAGE_VERSION.as_bytes(), buffer, capacity, required)
+});
+export!(wdb_source_id(buffer: *mut u8, capacity: usize, required: *mut usize) {
+    copy_bytes(crate::version::SOURCE_ID.as_bytes(), buffer, capacity, required)
+});
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn exported_commit_contains_adapter_panic_and_requires_recovery() {
+        use crate::storage::{ByteStore, SimulatedDisk};
+        use std::sync::{Arc, atomic::AtomicBool};
+
+        struct PanickingStore {
+            disk: SimulatedDisk,
+            armed: Arc<AtomicBool>,
+        }
+        impl ByteStore for PanickingStore {
+            fn lock(&mut self) -> Result<()> {
+                self.disk.lock()
+            }
+            fn unlock(&mut self) {
+                self.disk.unlock();
+            }
+            fn length(&mut self) -> Result<u64> {
+                self.disk.length()
+            }
+            fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
+                self.disk.read(offset, out)
+            }
+            fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
+                self.disk.write(offset, bytes)
+            }
+            fn sync(&mut self) -> Result<()> {
+                self.disk.sync()?;
+                assert!(
+                    !self.armed.swap(false, Ordering::Relaxed),
+                    "intentional sync panic"
+                );
+                Ok(())
+            }
+        }
+        let disk = SimulatedDisk::new().unwrap();
+        let armed = Arc::new(AtomicBool::new(false));
+        let db = Database::create_on(
+            PanickingStore {
+                disk: disk.clone(),
+                armed: armed.clone(),
+            },
+            *b"ffi-panic-test01",
+            crate::Limits::default(),
+        )
+        .unwrap();
+        let mem = db.mem.clone();
+        let owner = mem
+            .raw(CDatabase {
+                db,
+                handles: AtomicUsize::new(0),
+            })
+            .unwrap();
+        unsafe {
+            let mut tx = ptr::null_mut();
+            assert_eq!(wdb_tx_begin(owner, 0, &mut tx), 0);
+            armed.store(true, Ordering::Relaxed);
+            let mut revision = u64::MAX;
+            assert_eq!(wdb_tx_commit(tx, &mut revision), Error::Panic as i32);
+            assert_eq!(revision, 0);
+            assert_eq!(
+                wdb_tx_commit(tx, &mut revision),
+                Error::RecoveryRequired as i32
+            );
+            assert_eq!(revision, 0);
+            assert_eq!(wdb_tx_release(tx), 0);
+            assert_eq!(wdb_close(owner), 0);
+        }
+        let reopened = Database::open_on(disk, crate::Limits::default()).unwrap();
+        assert_eq!(reopened.snapshot().revision(), 0);
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    #[test]
+    fn file_path_null_length_and_nul_guards_reset_output() {
+        unsafe {
+            for (bytes, len, expected) in [
+                (ptr::null(), 1, Error::Invalid),
+                (b"x".as_ptr(), 0, Error::Invalid),
+                (b"x".as_ptr(), 1024 * 1024 + 1, Error::Limit),
+                (b"x\0y".as_ptr(), 3, Error::Invalid),
+            ] {
+                let mut database = ptr::dangling_mut();
+                assert_eq!(wdb_file_open(bytes, len, &mut database), expected as i32);
+                assert!(database.is_null());
+            }
+            // A valid byte span reaches path conversion without dereferencing
+            // any output pointer or touching the filesystem.
+            assert_eq!(path(b"x".as_ptr(), 1).unwrap(), std::path::Path::new("x"));
+        }
+    }
     #[test]
     fn byte_buffers_distinguish_null_capacity_and_required_length() {
         unsafe {

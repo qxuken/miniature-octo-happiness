@@ -29,6 +29,9 @@ trait Images {
     type Store: ByteStore;
     fn create(&mut self, slot: u8) -> Result<Self::Store>;
     fn open(&mut self, slot: u8) -> Result<Self::Store>;
+    fn check_manifest_headroom(&self) -> Result<()> {
+        Ok(())
+    }
 }
 struct Lease<B: ByteStore>(B);
 impl<B: ByteStore> Lease<B> {
@@ -203,6 +206,7 @@ impl<I: Images> Receiver<I> {
             .installed
             .as_ref()
             .map_or(0, |(prior, _)| 1 - prior.slot);
+        self.images.check_manifest_headroom()?;
         let selected = Installed { slot, offer };
         let mut image = Lease::new(self.images.create(slot)?)?;
         if image.0.length()? != 0 {
@@ -233,7 +237,7 @@ impl<I: Images> Receiver<I> {
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
-pub use native::Follower;
+pub use native::{Follower, FollowerStatus, MANIFEST_LIMIT_BYTES};
 
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
 mod native {
@@ -284,6 +288,27 @@ mod native {
         fn open(&mut self, slot: u8) -> Result<Self::Store> {
             FileStore::open(self.slot(slot))
         }
+        fn check_manifest_headroom(&self) -> Result<()> {
+            let length = fs::metadata(self.manifest()).map_err(io_error)?.len();
+            if length > MANIFEST_LIMIT_BYTES - 4 * REGION as u64 {
+                return Err(Error::Limit);
+            }
+            Ok(())
+        }
+    }
+
+    /// Admission ceiling, including reserved room for one selection commit.
+    pub const MANIFEST_LIMIT_BYTES: u64 = 1024 * 1024;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct FollowerStatus {
+        pub enrollment: Enrollment,
+        pub durable_ack: Option<DurableAck>,
+        pub requires_recovery: bool,
+        pub manifest_bytes: u64,
+        pub manifest_limit_bytes: u64,
+        pub maintenance_required: bool,
+        pub selected_slot: Option<u8>,
     }
 
     /// Exclusive lease on one passive follower in a dedicated, private local
@@ -335,6 +360,73 @@ mod native {
         }
         pub fn progress(&self) -> Result<Option<DurableAck>> {
             self.0.progress()
+        }
+        pub fn status(&self) -> Result<FollowerStatus> {
+            let requires_recovery = self.0.manifest.requires_recovery();
+            let manifest_bytes = fs::metadata(self.0.images.manifest())
+                .map_err(io_error)?
+                .len();
+            Ok(FollowerStatus {
+                enrollment: self.0.enrollment,
+                durable_ack: if requires_recovery {
+                    None
+                } else {
+                    self.progress()?
+                },
+                requires_recovery,
+                manifest_bytes,
+                manifest_limit_bytes: MANIFEST_LIMIT_BYTES,
+                maintenance_required: manifest_bytes > MANIFEST_LIMIT_BYTES - 4 * REGION as u64,
+                selected_slot: self.0.installed.as_ref().map(|(selected, _)| selected.slot),
+            })
+        }
+        /// Verify the authoritative image again, then remove only the reserved
+        /// inactive slot. A crash can leave that slot present, so retry is safe.
+        /// Other entries in the dedicated directory are never removed.
+        pub fn cleanup_inactive(&mut self) -> Result<usize> {
+            self.progress()?;
+            let selected = self.0.installed.as_ref().map(|(selected, _)| *selected);
+            if let Some(selected) = selected {
+                let mut image = Lease::new(self.0.images.open(selected.slot)?)?;
+                Receiver::<Directory>::verify(
+                    &mut image.0,
+                    selected.offer,
+                    self.0.enrollment,
+                    self.0.replica_limits,
+                )?;
+            }
+            let mut removed = 0;
+            for slot in 0..2 {
+                if selected.is_some_and(|selected| selected.slot == slot) {
+                    continue;
+                }
+                let path = self.0.images.slot(slot);
+                match fs::symlink_metadata(&path) {
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(io_error(error)),
+                    Ok(metadata) if !metadata.file_type().is_file() => return Err(Error::Invalid),
+                    Ok(_) => {
+                        fs::remove_file(path).map_err(io_error)?;
+                        removed += 1;
+                    }
+                }
+            }
+            Ok(removed)
+        }
+        /// Close this lease, compact the authoritative manifest using atomic
+        /// replacement, then reopen and verify the selected image. A competing
+        /// process may acquire the lease during this handoff and cause Busy.
+        /// After any error, recover with open before serving more exchanges.
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        pub fn compact_manifest(self) -> Result<Self> {
+            self.progress()?;
+            let directory = self.0.images.0.clone();
+            let enrollment = self.0.enrollment;
+            let limits = self.0.replica_limits;
+            let manifest = self.0.images.manifest();
+            drop(self);
+            Database::compact_file(manifest, Limits::default())?;
+            Self::open(directory, enrollment, limits)
         }
         /// The last verified read view remains available if an installation
         /// requires recovery. Use progress() for the durable acknowledgment.

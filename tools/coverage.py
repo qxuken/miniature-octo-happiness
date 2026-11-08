@@ -1,55 +1,150 @@
 #!/usr/bin/env python3
-"""Measure native Rust test coverage with the active rustc's llvm-tools-preview."""
+"""Measure Rust line/branch/condition coverage, or reject unavailable MC/DC."""
+import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
+EXCLUSIONS = r'/(tests|examples|tools)/|/\.rustup/|/\.cargo/registry/'
 
 
-def output(*args):
-    return subprocess.check_output([str(a) for a in args], cwd=ROOT, text=True)
+def output(*args, env=None):
+    return subprocess.check_output([str(a) for a in args], cwd=ROOT, env=env, text=True)
+
+
+def source_hashes(scope):
+    names = output('git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z').split('\0')
+    prefixes = ('src/', 'crates/') if scope == 'library' else ('src/', 'crates/', 'apps/', 'tests/', 'examples/', 'tools/')
+    return {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+            for name in names if name and (ROOT / name).is_file()
+            and not name.startswith(('fuzz/', 'probe/', 'tools/atomic-model/'))
+            and ((name.endswith('.rs') and name.startswith(prefixes))
+                 or Path(name).name in ('Cargo.toml', 'Cargo.lock'))}
+
+
+def calibrate(rustc, flags, cov, profdata, dest, mode, env):
+    directory = dest / 'calibration'
+    directory.mkdir(parents=True, exist_ok=True)
+    binary = directory / ('fixture.exe' if os.name == 'nt' else 'fixture')
+    subprocess.run([*rustc, *flags, str(ROOT / 'tools/coverage-fixture.rs'), '-o', str(binary)],
+                   cwd=ROOT, env=env, check=True)
+    evidence = {}
+    for case in ['partial', 'complete']:
+        raw = directory / (case + '.profraw')
+        raw.unlink(missing_ok=True)
+        profile = directory / (case + '.profdata')
+        subprocess.run([str(binary), case], env={**env, 'LLVM_PROFILE_FILE': str(raw)}, check=True)
+        subprocess.run([str(profdata), 'merge', '-sparse', str(raw), '-o', str(profile)], check=True)
+        exported = output(cov, 'export', binary, f'-instr-profile={profile}')
+        (directory / (case + '.json')).write_text(exported)
+        totals = json.loads(exported)['data'][0]['totals']
+        branches = totals['branches']
+        if branches['count'] != 4 or branches['covered'] != (2 if case == 'partial' else 4):
+            raise RuntimeError('Calibration did not measure the expected four branch outcomes')
+        if mode == 'mcdc':
+            mcdc = totals.get('mcdc', {})
+            if mcdc.get('count') != 2 or (mcdc.get('covered') == 2) != (case == 'complete'):
+                raise RuntimeError('Calibration did not measure independent effects for both conditions')
+        evidence[case] = totals
+    return evidence
 
 
 def main():
-    host = next(line.split(": ", 1)[1] for line in output("rustc", "-vV").splitlines()
-                if line.startswith("host:"))
-    llvm = Path(output("rustc", "--print", "sysroot").strip()) / "lib/rustlib" / host / "bin"
-    suffix = ".exe" if os.name == "nt" else ""
-    cov, profdata = (llvm / (name + suffix) for name in ["llvm-cov", "llvm-profdata"])
-    if not cov.exists() or not profdata.exists():
-        raise SystemExit("Install matching tools first: rustup component add llvm-tools-preview")
-    dest = ROOT / "target/coverage"
-    profiles = dest / "profiles"
-    profiles.mkdir(parents=True, exist_ok=True)
-    # Discard only this script's previous raw counters, never other build output.
-    for path in profiles.glob("*.profraw"):
-        path.unlink()
-    env = {**os.environ, "CARGO_TARGET_DIR": str(dest),
-           "RUSTFLAGS": "-C instrument-coverage", "RUSTDOCFLAGS": "-C instrument-coverage",
-           "LLVM_PROFILE_FILE": str(profiles / "%p-%m.profraw")}
-    command = ["cargo", "test", "--offline", "--workspace", "--all-features"]
-    artifacts = subprocess.check_output(command + ["--no-run", "--message-format=json"],
-                                        cwd=ROOT, env=env, text=True)
-    objects = sorted({item["executable"] for line in artifacts.splitlines()
-                      if (item := json.loads(line)).get("reason") == "compiler-artifact"
-                      and item.get("executable")})
-    subprocess.run(command, cwd=ROOT, env=env, check=True)
-    merged = dest / "tests.profdata"
-    subprocess.run([str(profdata), "merge", "-sparse", *map(str, profiles.glob("*.profraw")),
-                    "-o", str(merged)], check=True)
-    args = [str(cov), "report", objects[0], f"-instr-profile={merged}",
-            "-ignore-filename-regex=/(tests|examples|tools)/|/\\.rustup/|/\\.cargo/registry/"]
-    for obj in objects[1:]:
-        args += ["-object", obj]
-    report = output(*args)
-    (dest / "report.txt").write_text(report)
-    print(report)
-    subprocess.run([str(cov), "show", *args[2:], "-format=html",
-                    f"-output-dir={dest / 'html'}"], cwd=ROOT, check=True)
-    print(f"Workspace Rust execution only, including proc-macro expansion; toolchain/registry code and C/Odin consumers are excluded. HTML: {dest / 'html/index.html'}")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--mode', choices=['line', 'branch', 'condition', 'mcdc'], default='line')
+    parser.add_argument('--toolchain', help='Defaults to active toolchain for line mode, nightly otherwise')
+    parser.add_argument('--scope', choices=['workspace', 'library'], default='workspace')
+    parser.add_argument('--fixture-only', action='store_true')
+    parser.add_argument('--output', type=Path)
+    args = parser.parse_args()
+    if args.fixture_only and args.mode == 'line':
+        parser.error('The calibration fixture requires a branch, condition, or MC/DC mode')
+    toolchain = args.toolchain or (None if args.mode == 'line' else 'nightly')
+    selector = [f'+{toolchain}'] if toolchain else []
+    rustc, cargo = ['rustc', *selector], ['cargo', *selector]
+    compiler = output(*rustc, '-vV')
+    host = next(line.split(': ', 1)[1] for line in compiler.splitlines() if line.startswith('host:'))
+    dest = (args.output or ROOT / 'target' / ('coverage' if args.mode == 'line' else f'coverage-{args.mode}')).resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+    flags = ['-C', 'instrument-coverage']
+    if args.mode != 'line':
+        flags += ['-Z', f'coverage-options={args.mode}']
+    evidence = {'mode': args.mode, 'scope': args.scope, 'compiler': compiler, 'rustflags': flags,
+                'features': 'all', 'source': output('git', 'rev-parse', 'HEAD').strip(),
+                'dirty': bool(output('git', 'status', '--porcelain').strip()),
+                'exclusions': EXCLUSIONS, 'status': 'incomplete',
+                'source_files_sha256': source_hashes(args.scope), 'commands': []}
+    manifest = dest / 'evidence.json'
+    try:
+        # Fail before testing if rustc rejects the requested metric. LLVM alone
+        # having a report column does not establish compiler instrumentation.
+        probe = subprocess.run([*rustc, *flags, '--print', 'cfg'], cwd=ROOT, text=True, capture_output=True)
+        evidence['probe'] = {'returncode': probe.returncode, 'stderr': probe.stderr}
+        if probe.returncode:
+            evidence['status'] = 'unsupported'
+            raise RuntimeError(f'Requested {args.mode} instrumentation is unavailable:\n{probe.stderr}')
+        llvm = Path(output(*rustc, '--print', 'sysroot').strip()) / 'lib/rustlib' / host / 'bin'
+        suffix = '.exe' if os.name == 'nt' else ''
+        cov, profdata = (llvm / (name + suffix) for name in ['llvm-cov', 'llvm-profdata'])
+        if not cov.exists() or not profdata.exists():
+            raise RuntimeError('Install matching llvm-tools-preview for the selected toolchain')
+        evidence['llvm_cov'] = output(cov, '--version')
+        profiles = dest / 'profiles'
+        profiles.mkdir(parents=True, exist_ok=True)
+        for path in profiles.glob('*.profraw'):
+            path.unlink()
+        env = os.environ.copy()
+        evidence['replaced_flag_variables'] = [name for name in ['RUSTFLAGS', 'RUSTDOCFLAGS', 'CARGO_ENCODED_RUSTFLAGS'] if name in env]
+        env.pop('CARGO_ENCODED_RUSTFLAGS', None)
+        env.update({'CARGO_TARGET_DIR': str(dest), 'RUSTFLAGS': ' '.join(flags),
+                    'RUSTDOCFLAGS': ' '.join(flags), 'LLVM_PROFILE_FILE': str(profiles / '%p-%m.profraw')})
+        if args.mode != 'line':
+            evidence['calibration'] = calibrate(rustc, flags, cov, profdata, dest, args.mode, env)
+        if args.fixture_only:
+            evidence['status'] = 'calibrated'
+            return
+        scope = ['--workspace'] if args.scope == 'workspace' else ['-p', 'weekend-db', '--lib']
+        command = [*cargo, 'test', '--offline', *scope, '--all-features']
+        evidence['commands'].append(command + ['--no-run', '--message-format=json'])
+        artifacts = output(*evidence['commands'][-1], env=env)
+        objects = sorted({item['executable'] for line in artifacts.splitlines()
+                          if (item := json.loads(line)).get('reason') == 'compiler-artifact' and item.get('executable')})
+        if not objects:
+            raise RuntimeError('No executable test artifacts were collected')
+        evidence['commands'].append(command)
+        subprocess.run(command, cwd=ROOT, env=env, check=True)
+        merged = dest / 'tests.profdata'
+        subprocess.run([str(profdata), 'merge', '-sparse', *map(str, profiles.glob('*.profraw')), '-o', str(merged)], check=True)
+        objects_args = [objects[0], f'-instr-profile={merged}', f'-ignore-filename-regex={EXCLUSIONS}']
+        for obj in objects[1:]:
+            objects_args += ['-object', obj]
+        report_args = ['--show-branch-summary'] if args.mode != 'line' else []
+        show_args = ['--show-branches=count'] if args.mode != 'line' else []
+        if args.mode == 'mcdc':
+            report_args += ['--show-mcdc-summary']
+            show_args += ['--show-mcdc']
+        report = output(cov, 'report', *objects_args, *report_args)
+        (dest / 'report.txt').write_text(report)
+        exported = output(cov, 'export', *objects_args)
+        (dest / 'export.json').write_text(exported)
+        evidence['totals'] = json.loads(exported)['data'][0]['totals']
+        evidence['objects'] = objects
+        metric = 'mcdc' if args.mode == 'mcdc' else 'branches'
+        if args.mode != 'line' and evidence['totals'][metric]['count'] == 0:
+            raise RuntimeError('Requested metric has a zero denominator')
+        subprocess.run([str(cov), 'show', *objects_args, *show_args, '-format=html', f'-output-dir={dest / "html"}'], cwd=ROOT, check=True)
+        evidence['source_stable'] = source_hashes(args.scope) == evidence['source_files_sha256']
+        if not evidence['source_stable']:
+            raise RuntimeError('Source changed during coverage measurement')
+        evidence['status'] = 'measured'
+        print(report)
+        print(f'Metric {args.mode}, scope {args.scope}, all features. Evidence and HTML in {dest}')
+    finally:
+        manifest.write_text(json.dumps(evidence, indent=2) + '\n')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

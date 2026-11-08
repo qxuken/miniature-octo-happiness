@@ -38,6 +38,17 @@ enum {
 enum { WDB_NONE=0, WDB_BOOLEAN=1, WDB_INTEGER=2, WDB_UNSIGNED=3,
        WDB_FLOAT=4, WDB_BYTES=5, WDB_MAP=6, WDB_LIST=7 };
 enum { WDB_RECORDS=0, WDB_WHOLE_DATABASE=1 };
+#define WDB_ABI_VERSION 1u
+#define WDB_FORMAT_VERSION 2u
+/* These queries require no database. Strings are UTF-8 bytes without a NUL.
+ * The ordinary required-size and BUFFER rules apply. Source ID is "unknown"
+ * unless the build sets WEEKEND_DB_SOURCE_ID. Feature bits are replication=1,
+ * CRDT=2, fault injection=4. */
+uint32_t wdb_abi_version(void);
+uint32_t wdb_format_version(void);
+uint32_t wdb_features(void);
+wdb_status wdb_package_version(uint8_t *buffer, size_t capacity, size_t *required);
+wdb_status wdb_source_id(uint8_t *buffer, size_t capacity, size_t *required);
 wdb_status wdb_open(wdb_database **out);
 /* Explicit-length native path bytes on macOS and Linux x86_64/aarch64, UTF-8
  * on Windows (local fixed NTFS). Embedded NULs are invalid. Creation is

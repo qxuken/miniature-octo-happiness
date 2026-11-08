@@ -28,6 +28,30 @@ pub(crate) fn publish(mut apply: impl FnMut(Step) -> crate::Result<()>) -> crate
 mod tests {
     use super::*;
     use crate::{Database, Error, Limits, storage::SimulatedDisk};
+    #[test]
+    fn namespace_publication_stops_at_each_failed_barrier() {
+        for fail in 0..=6 {
+            let mut visited = Vec::new();
+            let result = publish(|step| {
+                let index = match step {
+                    Step::Exchange => 0,
+                    Step::SyncDirectory => 1,
+                    Step::SyncReplacement => 2,
+                    Step::RemoveOld => 3,
+                    Step::SyncCleanupDirectory => 4,
+                    Step::SyncCleanupFile => 5,
+                };
+                visited.push(index);
+                if index == fail {
+                    Err(Error::Io)
+                } else {
+                    Ok(())
+                }
+            });
+            assert_eq!(visited, (0..(fail + 1).min(6)).collect::<Vec<_>>());
+            assert_eq!(result, if fail < 6 { Err(Error::Io) } else { Ok(()) });
+        }
+    }
     #[derive(Clone, Copy, PartialEq, Eq)]
     struct Names {
         canonical: Option<usize>,

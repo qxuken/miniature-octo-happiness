@@ -12,11 +12,15 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::PathBuf,
     process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc::{self, Receiver},
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const BIN: &str = env!("CARGO_BIN_EXE_write-coordinator");
+static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 struct Directory(PathBuf);
 impl Directory {
@@ -25,8 +29,11 @@ impl Directory {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("write-coordinator-{}-{nonce}", std::process::id()));
+        let sequence = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "write-coordinator-{}-{nonce}-{sequence}",
+            std::process::id()
+        ));
         fs::create_dir(&path).unwrap();
         Self(path)
     }
@@ -144,4 +151,144 @@ fn two_processes_edit_one_record_and_the_stale_writer_conflicts() {
     assert_eq!(reader.receive(), "conflict 4 35");
     reader.send("get");
     assert_eq!(reader.receive(), "value 4 35");
+}
+
+#[test]
+fn durable_request_receipts_survive_lost_reply_restart_and_competing_requests() {
+    use std::net::{Shutdown, TcpStream};
+    let dir = Directory::new();
+    let file = dir.0.join("receipts.db");
+    let path = file.to_str().unwrap();
+    assert!(
+        Command::new(BIN)
+            .args(["init", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let mut server = Process::start(&["serve", path, "0"]);
+    let ready = server.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    // Drop the connection after sending a complete request and before reading
+    // any reply. A separate reader observes its durable effect before kill.
+    let mut lost = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+    writeln!(lost, "set-id lost 2 10").unwrap();
+    lost.shutdown(Shutdown::Write).unwrap();
+    drop(lost);
+    let mut observer = Process::start(&["client", port]);
+    observer.send("get");
+    assert_eq!(observer.receive(), "value 3 10");
+    server.stop();
+    let mut server = Process::start(&["serve", path, "0"]);
+    let ready = server.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    let mut a = Process::start(&["client", port]);
+    let mut b = Process::start(&["client", port]);
+    a.send("set-id lost 2 10");
+    assert_eq!(a.receive(), "committed 3");
+    a.send("set-id a 3 20");
+    b.send("set-id b 3 30");
+    let replies = (a.receive(), b.receive());
+    assert!(
+        matches!(
+            (replies.0.as_str(), replies.1.as_str()),
+            ("committed 4", "conflict 4 20") | ("conflict 4 30", "committed 4")
+        ),
+        "{replies:?}"
+    );
+    // One ID with different payloads can never commit twice.
+    a.send("set-id same 4 40");
+    b.send("set-id same 4 50");
+    let replies = (a.receive(), b.receive());
+    assert!(
+        matches!(
+            (replies.0.as_str(), replies.1.as_str()),
+            ("committed 5", "error Invalid") | ("error Invalid", "committed 5")
+        ),
+        "{replies:?}"
+    );
+    a.send("set-id lost 2 10");
+    assert_eq!(a.receive(), "committed 3");
+    a.send("set-id lost 2 99");
+    assert_eq!(a.receive(), "error Invalid");
+    server.stop();
+    let restarted = Process::start(&["serve", path, "0"]);
+    let ready = restarted.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    let mut reader = Process::start(&["client", port]);
+    reader.send("set-id lost 2 10");
+    assert_eq!(reader.receive(), "committed 3");
+    reader.send("get");
+    assert!(matches!(
+        reader.receive().as_str(),
+        "value 5 40" | "value 5 50"
+    ));
+}
+
+#[test]
+fn configured_secret_authenticates_before_writes_and_receipt_lookup() {
+    use std::{io::Read, net::TcpStream};
+    let dir = Directory::new();
+    let file = dir.0.join("authenticated.db");
+    let secret = dir.0.join("secret");
+    let wrong = dir.0.join("wrong-secret");
+    for (path, byte) in [(&secret, b'a'), (&wrong, b'b')] {
+        fs::write(path, [byte; 64]).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+        }
+    }
+    let path = file.to_str().unwrap();
+    assert!(
+        Command::new(BIN)
+            .args(["init", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let secret = secret.to_str().unwrap();
+    let mut server = Process::start(&["serve", path, "0", "--secret-file", secret]);
+    let ready = server.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    // Oversized and incomplete unauthenticated requests are disconnected
+    // without holding the serialized service indefinitely.
+    for bytes in [vec![b'x'; 256], vec![b'a']] {
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        stream.write_all(&bytes).unwrap();
+        let mut byte = [0];
+        match stream.read(&mut byte) {
+            Ok(0) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::ConnectionReset => {}
+            result => panic!("server must close bounded invalid request: {result:?}"),
+        }
+    }
+    let mut anonymous = Process::start(&["client", port]);
+    let mut invalid = Process::start(&["client", port, "--secret-file", wrong.to_str().unwrap()]);
+    let mut valid = Process::start(&["client", port, "--secret-file", secret]);
+    anonymous.send("set-id id 2 50");
+    invalid.send("set-id id 2 60");
+    assert_eq!(anonymous.receive(), "error Unauthorized");
+    assert_eq!(invalid.receive(), "error Unauthorized");
+    valid.send("get");
+    assert_eq!(valid.receive(), "value 2 0");
+    valid.send("set-id id 2 70");
+    assert_eq!(valid.receive(), "committed 3");
+    anonymous.send("set-id id 2 70");
+    assert_eq!(anonymous.receive(), "error Unauthorized");
+    valid.send("set-id id 2 70");
+    assert_eq!(valid.receive(), "committed 3");
+    server.stop();
+    let restarted = Process::start(&["serve", path, "0", "--secret-file", secret]);
+    let ready = restarted.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    let mut valid = Process::start(&["client", port, "--secret-file", secret]);
+    valid.send("set-id id 2 70");
+    assert_eq!(valid.receive(), "committed 3");
+    valid.send("get");
+    assert_eq!(valid.receive(), "value 3 70");
 }

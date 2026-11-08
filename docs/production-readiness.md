@@ -1,5 +1,8 @@
 # Production readiness roadmap
 
+The [execution status](roadmap-status.md) tracks the full scope including
+distributed features and remaining gates. Cargo packages stay private.
+
 The proposed first production profile is an embedded, local file store
 for bounded structured state and retained history, with one process holding
 the writer lease and concurrent transactions and readers inside that

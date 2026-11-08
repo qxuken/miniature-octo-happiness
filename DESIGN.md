@@ -3017,6 +3017,215 @@ AddressSanitizer on aarch64-apple-darwin. The standard library was not
 rebuilt with instrumentation. The all-feature, all-target workspace
 Clippy check passed with warnings denied.
 
+### IO-V1. Exact byte transfer progress
+
+Two storage-core tests exercise the exact-transfer helpers with a scripted
+ByteStore. For both reads and writes, adapter progress 0 and 3 on a two-byte
+request return `Io`, while progress 1 completes in two calls. These pair
+against each side of `n == 0 || n > size`. An explicit adapter error stops
+after the first call. Empty buffers make no calls, even at `u64::MAX`.
+A one-byte result at `u64::MAX` returns `Corrupt` for reads and `Limit` for
+writes. Writes beginning at region offset 4095 split into requests at
+4095, 4096 and 4097. Reads covering two regions issue two region-sized
+requests. These exact helper tests complement the existing public recovery
+short-I/O and commit fault sweeps.
+
+### SIM-V1. Lease and persistence controls
+
+Three new public ByteStore tests in `tests/bytestore.rs` verify unleased
+I/O rejection, exclusive acquisition, clone-without-lease behavior, crash
+invalidation, stale unlock exclusion and reacquisition. The existing
+catalog identity test also checks old database leases against new writers.
+A matching lease while the disk is unlocked is unreachable through these
+public transitions, so this batch does not claim an independent pair for
+each internal lease-conjunction condition.
+
+The crash matrix writes 66 independent bytes. DropAll preserves zeros,
+PersistAll preserves all 66 writes, and Mask with all bits set preserves
+only the first 64 writes. Torn can select write 64, clamps a maximal prefix,
+and preserves nothing for prefix zero or a missing write index. Two
+writes to the same offset verify reverse survival order for Mask.
+Boundary reads at the image cap, above-cap empty writes and overflowing
+write offsets return the documented results. A short read fault is consumed
+once. A failed sync preserves the prior durable bytes and a following
+successful sync persists the complete volatile bytes.
+
+### REPLACE-V1. Ordered namespace error propagation
+
+The new replacement test records the exact visited step prefix for a
+failure at each of Exchange, SyncDirectory, SyncReplacement, RemoveOld,
+SyncCleanupDirectory and SyncCleanupFile. Each returns `Io` and visits no
+later step. The successful control visits all six in order. The existing
+namespace power-loss test independently checks the complete current and
+retained state under each surviving namespace policy.
+
+### FFI-V2. Path validation and panic containment
+
+The native FFI path test isolates null pointer and zero length against
+a valid one-byte path, rejects the 1 MiB-plus-one length before reading
+memory, and rejects embedded NUL. Invalid open attempts reset the database
+output. The valid conversion control calls the path converter directly,
+while existing native file tests exercise actual opens and alias rules.
+
+A new exported-commit test uses a ByteStore that panics after its append
+sync. The C boundary reports `Panic` with revision output zero. The next
+commit reports `RecoveryRequired`, also with zero output. Releasing the
+transaction and closing the owner succeeds, and reopening selects revision
+0. This complements the existing native Rust adapter-panic test. An
+unwinding build is required for catch_unwind containment. Refcount abort,
+abort-on-panic builds, arbitrary pointer validity and exhaustive native
+syscall error mapping remain separate assurance obligations.
+
+### Storage boundary results
+
+On arm64 macOS with rustc 1.99.1, the 3 ByteStore, 14 durability and 8 native
+file tests passed in debug and release with all features. The 2 transfer
+and 2 replacement unit tests passed debug and release. All 10 FFI tests
+passed debug and release. The native file tests reused process-kill,
+symlink/hard-link exclusion, replaced-inode, renamed-parent and nonregular
+path coverage. This run provides native macOS evidence. Linux and Windows
+need their own native runs for this revision.
+
+Seven safe mutations were caught in a disposable copy. They tightened
+zero-progress and oversized-progress comparisons independently for reads
+and writes, ignored replacement errors, allowed mask index 64, and changed
+mask application to forward order.
+This batch adds executable decision evidence, without claiming exhaustive
+MC/DC for all platform adapters or simulator allocation/trace exhaustion.
+
+### MEM-V3. Refcount threshold, modeled ordering and pointer checks
+
+The new subprocess test in src/memory.rs fabricates only the count field
+of a valid Shared allocation in a child. At isize::MAX minus one, clone
+succeeds and reaches isize::MAX. The test restores the true count of two
+before any assertions or destruction. At isize::MAX, clone must abort.
+The native macOS parent verifies SIGABRT specifically, so an ordinary
+assertion failure cannot satisfy the expected abort. The subprocess test
+passed debug and release. Non-Unix builds check abnormal termination
+excluding Rust's ordinary test-failure code and still need native evidence.
+The subprocess is excluded under Miri.
+
+The isolated tools/atomic-model workspace pins Loom 0.7.2. It models the
+production Relaxed increment and AcqRel decrement using three threads,
+one clone per worker, one payload write per worker and two-preemption
+schedules. The last owner must observe both writes before exactly one
+destruction. The final counter is zero. The model passed with a branch
+bound of 1,000 and no permutation or duration cutoff. A disposable mutant
+using Relaxed decrement failed its visibility assertion. This is a bounded
+algorithm model. Native tests and Miri cover raw allocation lifetimes
+separately, and production/model drift requires review.
+
+Miri was installed for the available nightly and successfully ran
+memory::tests::allocation_ownership_transfers_or_drops_exactly_once and
+ffi::tests::byte_buffers_distinguish_null_capacity_and_required_length.
+These exercise failed and successful ownership transfer, shared last drop,
+Box/raw allocation release and caller-provided byte buffer writes.
+
+A thread-local test seam now replaces only the next raw allocator result
+with null, after the ordinary allocation budget check. The shared, boxed
+and raw callers return OutOfMemory, destroy each input once and permit a
+subsequent allocation. This tests the null-result branches without exhausting
+the host or changing allocations in other threads. Actual global allocator
+exhaustion remains subject to the allocator/platform contract. Arbitrary
+invalid caller pointers remain outside the C contract.
+
+### Replaying exact guard mutations
+
+The new tools/mutations.py snapshots the current tracked and untracked
+nonignored files into an isolated directory and records hashes. It runs
+each selected baseline first and rejects failed or zero-test baselines.
+Each mutation changes a production expression, reruns the matching tests,
+restores the expression and saves logs, command and result in evidence.json.
+Compile errors do not count as detected mutations. Source-expression drift
+fails the runner. The --list and repeated --case prefix options allow
+bounded selection. It never mutates the original checkout.
+
+All 25 configured cases were caught in two runs. These cover eight limits,
+capacity and refcount abort threshold, eight FFI buffer/input/owner checks,
+four exact transfer progress checks, replacement error propagation and two
+simulator mask cases. The script, atomic model and lockfile are persistent
+replay artifacts. Python compilation, model Clippy and whitespace checks
+passed.
+
+### VAL-V1. Weight and child-depth limits before editing
+
+`value_edit_weight_and_child_depth_have_independent_boundaries` covers
+four two-condition decisions in `map_set`, `list_set`, `list_push` and
+middle `list_insert`. A is resulting weight above the configured maximum.
+B is child depth at least the configured maximum. Both maxima are held
+fixed at weight 80 and depth 3. The accepted child has depth 2, so the
+result reaches depth 3 exactly.
+
+| Pair input | A | B | Outcome |
+|---|---|---|---|
+| Result weight 80, child depth 2 | False | False | Accepted |
+| Result weight 81, child depth 2 | True | False | `Limit` |
+| Result weight 80, child depth 3 | False | True | `Limit` |
+
+Each operation uses all three rows. Map replacement uses an existing
+one-byte key. List replacement edits a one-element list. Push and middle
+insert grow that list to two elements. Byte payload lengths compensate
+for container overhead so the conditions vary independently. The test
+checks the selected new child and preserves the old root and original
+scalar. With fault injection enabled, failing rows have allocation budget
+zero. `Limit` proves rejection before path allocation, distinguishing
+these guards from the later constructor that would otherwise reject the
+same depth or weight after allocations.
+
+Twelve mutations independently remove each weight/depth term or change
+the weight comparison from `>` to `>=` at each of the four sites. All
+were caught by the existing `values` suite with the new cases. The scoped
+denominator is four compound decisions and eight constituent conditions.
+This is manual decision-pair evidence and does not claim full value-module
+MC/DC or compiler-measured branch coverage.
+
+### TREE-V1. Capacity, hash and key controls
+
+`map_capacity_and_collision_lookup_have_independent_controls` uses an
+entry limit of one. An absent key inserts into the empty map, another
+absent key at capacity returns `Limit`, and replacing the existing key at
+capacity succeeds while preserving length. These three cases isolate the
+two terms of `!exists && len >= max_entries`.
+
+The same stored leaf then answers three point lookups. Matching hash and
+key return its value. The same hash with a different key returns absence.
+The same key with a different injected hash returns absence. Removing
+the only entry removes the root, while the original root remains usable.
+The existing full-hash-collision/long-prefix test and radix growth/shrink
+and suffix-edit tests were reused. The existing path-allocation sweep and
+sharing checks also reran.
+
+Four mutations remove each capacity term or bypass the lookup hash or
+key comparison. All four were caught. The additional scoped denominator
+is one two-condition capacity decision and two single-condition lookup
+checks. These checks do not constitute a complete tree branch inventory.
+
+Remaining tree decision work includes explicit independent pairs for
+branch collapse (one remaining child versus leaf kind), empty/root/child
+traversal transitions, callback-error propagation, collision insert versus
+replace and singleton versus multi-entry removal, exact radix capacity
+and shrink transitions, and materialization arithmetic and output-budget
+branches. Existing tests exercise many outcomes, but they still need a
+source-bound independent-pair mapping or reviewed infeasibility proof.
+The height/power overflow path also needs an explicit proof against the
+configured entry cap. Value kind/store/index checks, constructor scalar
+validity, arithmetic overflow and aggregate weight calculations remain
+outside VAL-V1's denominator.
+
+Seven value tests and three tree tests passed in debug and release on
+arm64 macOS with all features. Warnings-denied Clippy passed. All sixteen
+mutations are reproducible with
+
+    python3 tools/mutations.py --case value- --case tree-
+
+Run evidence is in
+`/var/folders/m4/r5mf72hn7kx9c5lq4050dzfh0000gn/T/weekend-mutations-vm6a8cx1/evidence.json`.
+Source Git blobs were `c8b4e9ae8e06aa5ced9cda3110f8608be0e9c37d`
+for `src/value.rs`, `037dc465da551a110b44f0902c6ce10ae3a32261`
+for `src/tree.rs`, `ff8ea169c73df1b90bac2bc008a6d3183dfcb23e`
+for `tests/values.rs`, and `4e3b41c037377dd18b66f039da95d84abc583d56`
+for `tools/mutations.py`.
+
 ### FOL-V1. Durable installation and progress
 
 The [follower fault test](src/replication/follower/tests.rs#L174) starts
@@ -3702,3 +3911,288 @@ failures, malformed-file fuzzing, real reopen/interruption tests, and actual
 supported platforms. State the fault model and untested assumptions. Coverage
 is feedback about exercised paths, not a correctness certificate. Performance
 claims require reproducible workloads with matched durability and retention.
+
+## Production operations and typed index repair
+
+### Typed index verification and atomic rebuilding
+
+The typed runtime now exposes `Read::check_indexes`,
+`Write::check_indexes`, and `Write::rebuild_indexes` for a registered
+table. `IndexReport` counts primary rows, expected and stored index
+entries, missing keys, orphaned keys, and mismatched record owners.
+`is_consistent()` requires all discrepancy counts to be zero.
+
+Expected indexes are derived from validated stored record envelopes
+using the same physical-field key extraction as typed writes. Missing
+fields and explicit nulls remain unindexed even with schema defaults.
+The verifier validates each record against its own stored schema
+version and rejects duplicate physical unique values with
+`UniqueViolation(field_id)`. Sorting the expected keys detects duplicate
+claims before any repair writes.
+
+Rebuilding stages only missing/mismatched entries and orphan deletions
+in the enclosing write transaction. It returns the pre-repair report.
+Primary records are not rewritten, preserving unknown fields and their
+exact envelopes. Both the primary collection and shared index collection
+are scan dependencies, so an intervening write to either conflicts.
+Shared-index scans also conservatively conflict with index changes to
+other tables. Errors abort the complete typed closure even if caught.
+
+Five new tests cover missing/orphan/invalid-owner entries, preservation
+of another table and unknown fields, retained corrupt snapshots, durable
+reopening, missing fields with defaults, duplicate claims, interleaved
+primary/index writes, caught errors, allocation failure at every core
+allocation before successful repair, and interruption at every copy of
+the repair commit's I/O trace. The fault test drops or persists pending
+writes and verifies that reopened indexes exactly match the whole old
+or repaired state at the recovered revision. Retained indexes remain
+at their captured state throughout.
+
+All 22 typed integration tests passed in debug and release with all
+features on arm64 macOS and rustc 1.99.1. Five active doctests passed in
+both modes, including the new API example and three compile-fail cases.
+One pre-existing illustrative doctest remains ignored. Warnings-denied
+Clippy passed for the crate's all-feature/all-target configuration.
+
+Scope remains one table and one bounded transaction. Keys with that
+table's complete ID prefix are repaired, including malformed suffixes.
+Unattributable malformed global index keys need separate catalog
+inspection. Unsupported record/schema corruption requires an explicit
+application repair. Existing scan, collection, observation, and write
+limits apply. A consistent rebuild still performs the enclosing write
+closure's ordinary commit. Incremental reindexing and index-layout
+migration remain future work.
+
+Read-only inspection and verified copying are described in
+[operations.md](docs/operations.md). Five simulator and native process tests
+passed in debug and release on arm64 macOS, including source/destination
+I/O failures, existing destination preservation and retained rows after
+restoration. Linux/Windows builds were cross-checked.
+
+## Coordinator request receipts and authentication
+
+Coordinator durable request receipts implemented in apps/write-coordinator.
+
+Backward-compatible `get` and `set` stay available. New `set-id ID EXPECTED
+VALUE` writes the counter and a versioned receipt together in one core
+transaction with whole-database validation. Duplicate ID plus identical
+expected revision/value returns the original `committed N` without a new
+commit, even after later writes and process restart. Different payload
+for an accepted ID returns `Invalid`. Stale preconditions return conflict
+without reserving an ID.
+
+Receipt keys are reserved `receipt/ID` entries in collection 1, so existing
+files need no catalog migration or incidental revision change. Each
+receipt contains version byte 1 and three little-endian u64 fields for
+expected revision, replacement value and committed revision. Decoder
+rejects malformed size/version, inconsistent acknowledgment or a future
+acknowledgment. Store layout is owned by the coordinator application.
+
+There is a fixed limit of 1,024 successful identified requests, with no
+expiry, eviction or silent reuse. New IDs at capacity return Limit while
+old receipts remain replayable. IDs are 1–32 ASCII letters/digits/_/-.
+The authenticated wire line cap is 256 bytes, including credential and command.
+README documents uncertain outcome/reopen/retry and restoration of older
+receipt history. Restoring an old backup requires external reconciliation
+for request IDs whose receipts were created after that backup.
+
+Two unit tests and two native process tests pass debug and release on
+arm64 macOS. Tests include full receipt capacity, stale and changed
+payload handling, malformed receipts, process-kill/reopen after a request
+whose reply was never read, replay after later commits, distinct IDs
+racing on one revision, and divergent payloads racing on one ID. Existing
+legacy process test still passes. Adding parallel process tests exposed
+an existing timestamp-only temporary-directory collision. An atomic
+sequence suffix fixes that test infrastructure collision.
+
+Warnings-denied Clippy passes. All-target cross-checks passed for x86_64
+Windows MSVC and x86_64 Linux GNU. Native Windows/Linux execution remains
+a separate qualification gate. Service remains localhost only. Receipt rotation,
+operator tooling at capacity, external restore/reconciliation identity,
+and durable receipts for rejected requests are separate design choices.
+
+Configured localhost authentication
+
+`serve FILE PORT --secret-file SECRET` and `client PORT --secret-file SECRET`
+load a fixed 64-hex-character bearer credential from a bounded regular
+file read. Unix files with group/other permission bits reject. Windows
+ACL provisioning is documented and left to the operator. The server
+validates `auth TOKEN COMMAND` before handling any database command or
+receipt lookup. Unauthorized requests receive a uniform Unauthorized
+reply. Existing no-secret serving is explicitly labeled demo mode on
+stderr. Binding remains localhost only. Secret contents are excluded
+from process arguments, replies, and error diagnostics.
+
+Network reads now have a total three-second deadline as well as a
+256-byte line bound. Reading one byte at a time prevents individual
+short reads from resetting the total deadline. Write timeout remains
+three seconds. The authenticated process test covers missing and wrong
+credentials rejected before writes, correct credentials, receipt replay,
+restart, oversized input disconnect, and incomplete input disconnect on
+timeout. The next authenticated request succeeds with unchanged state.
+
+Final evidence is 2 unit tests and 3 native process tests passing in both
+debug and release on arm64 macOS, warnings-denied Clippy, and Windows/Linux
+all-target cross-compilation. Secrets are loaded once at startup, with
+rotation by restart. Remote TLS, per-client authorization, rate limits,
+Windows ACL validation, and live credential revocation remain outside
+this localhost shared-secret contract.
+
+## Logical export and import
+
+Logical format 1 export/import implemented in src/storage/logical.rs,
+reexported from storage, and available through weekend-admin export/import.
+Exact wire specification and validation contract are docs/logical-format.md.
+The format carries current/retained capture revisions, data revisions,
+collection IDs/content revisions, record keys/write revisions, next IDs,
+identity and every value inline, with CRC64 and no physical offsets.
+Data directories are unique by data revision, preserving alias semantics
+while nested value storage sharing is removed.
+
+The parser is bounded by 64MiB, 16,384 inline value nodes, existing Limits,
+and <=64 retained roots/65 directories. CRC/version/shape/invariants are
+checked before file creation. Physical encoding is preflighted, so valid
+logical data exceeding physical capacity rejects without a destination.
+Exports also verify this expanded representability before returning.
+Highly shared sources may therefore return Limit. Installation reuses
+Storage::create and verify, preserves lineage identity and all counters,
+and publishes with existing durability barriers. Future logical versions
+need explicit converters. No schema migration or salvage is inferred.
+
+Four tests pass debug/release on arm64 macOS. They cover all value tags
+(including NaN bits), nested shared input, retained gaps, exact replay,
+continued IDs, every fixture truncation, CRC-repaired bad metadata/counts,
+unsupported version, trailing bytes, depth limit, no destination touches
+on malformed inputs, native CLI subprocess export/import, no overwrite,
+source bytes unchanged and no creation from invalid input. A checked-in
+logical-v1.bin compatibility fixture replays exact bytes and checks current
+value 21 versus retained value 11. Preserve it for future compatibility.
+Clippy passed before fixture test addition. Windows/Linux tests+CLI cross
+checks passed before fixture test addition. Native platform qualification,
+long-running parser fuzzing, logical version conversion and streaming
+remain explicit future work.
+
+## Follower maintenance and bounded manifests
+
+Implemented passive follower lifecycle additions in src/replication/follower.rs
+and reexports in src/replication/mod.rs. Public FollowerStatus diagnostics include
+enrollment, durable ack, recovery/maintenance state, selected slot, physical
+manifest length and admission ceiling. The native headroom gate runs before
+Ready or inactive image creation. The 1 MiB cap reserves four regions for the
+three-region manifest selection append. Queries and duplicates remain usable
+at the cap. Existing larger manifests can open for maintenance.
+
+cleanup_inactive verifies the selected image again before deleting only reserved
+inactive regular-file entries, or both staging entries when nothing is selected.
+It returns removal count and is retry-safe. It does not claim durable cleanup
+namespace persistence. Missing paths are harmless, nonregular paths fail and
+unrelated names remain untouched. Selected-image corruption prevents cleanup.
+
+macOS/Linux compact_manifest consumes the handle, closes its lease, uses the
+existing verified atomic replacement and reopens through enrollment/image
+verification. The lease handoff permits a competing opener to cause Busy.
+All errors require a fresh open. Windows maintenance uses documented
+fresh-directory reseeding. Existing create+ship APIs provide explicit reseed
+without alias APIs, enrollment reset or deletion of the prior directory.
+
+Seven native replication tests passed debug/release on arm64 macOS. Four
+follower simulator fault tests passed debug/release. New cases cover exact
+reserved-headroom acceptance, cap rejection before staging, duplicates at cap,
+manifest compaction and subsequent installation, idempotent staging cleanup,
+selected damage, preserved unrelated entries and fresh-directory reseeding.
+A compaction fault test sweeps every native compaction hook and verifies exact
+reopened durable ack plus duplicate retry. Existing process-kill and publication
+fault suites are reused. All-target all-feature core Clippy passed before the
+last test-only boundary addition.
+
+User-facing operational documentation is docs/replication-operations.md.
+Transport authentication/deadline/backoff configuration remains application-owned.
+Native Linux/Windows qualification of these additions remains pending.
+
+## Distributed fuzzing and codec enforcement
+
+CRDT assurance completed for fixed two-peer actor identity, backup,
+reserved-row and policy-evolution contract. docs/crdt-operations.md records
+exact supported behavior, app ownership obligations and migration limits.
+
+Concrete validation gap fixed in State::encode: an application Record
+codec could encode a different payload than the provided state while
+returning success, then publish it despite the stated roundtrip contract.
+Encoding now decodes its output and compares with original state before
+publication or writing an outgoing frame. New integration test uses a
+lossy codec and confirms Invalid, no revision advance and unchanged
+reopen state.
+
+New fuzz targets crdt_frames and crdt_schedule, with seven deterministic
+seeds generated by examples/crdt_seeds.rs. Frames target exercises both
+sender acknowledgment validation and receiver merge on counter frames,
+using arbitrary bytes or structural patches to a valid frame. Schedule
+target uses a derived counter/set record on two simulated durable stores.
+Independent integer components and membership bits predict all states
+through local offline edits, send, saved/delayed offers, reply loss and
+restart. It checks full per-actor components, convergence and no extra
+commits after repeat sync.
+
+11 integration tests pass debug/release arm64 macOS. Fuzz replay and
+warnings-denied Clippy pass. Final ASan smoke 5,000 executions per target,
+seed1 max_len128, no findings. Logs /tmp/weekend-crdt-final.xWdsGO.
+Windows/Linux x86_64 all-feature tests cross-compile. Removing the new codec guard in a disposable copy made its regression
+test fail as expected.
+
+Limits remain explicit. Raw writes can forge otherwise valid reserved
+rows, so applications must restrict them. Stale rollback is detectable
+only when remembered state exposes it and cannot safely resume as the
+same actor. Fresh enrollment/migration requires application design.
+No new membership, gossip or actor replacement added. Register causal
+state and custom policy fuzz models remain future work; their existing
+deterministic tests were rerun.
+
+Added snapshot_frames and snapshot_install_schedule targets, wrappers,
+module exports and 29 deterministic seeds with separate snapshot_seeds
+example. Shared fuzz dependency enables replication alongside colleague's
+CRDT feature. Snapshot frame oracle covers errors, exact acknowledgment,
+advance, stale and conflicting digests, foreign enrollment and ahead-of-head.
+The install model starts with no installed image, uses revision3/4 exports
+with retained revision2, predicts dropped reply outcomes, checks exact
+current/retained values and durable acknowledgment after every native reopen.
+Malformed version, enrollment, opcode and truncated request headers are
+covered in addition to upload corruption, truncation, duplicate/stale offers,
+dropped Ready/terminal reply, polling and staging cleanup.
+
+Stable replay and all-warning Clippy passed. ASan completed 1000 frame runs
+and 587 install schedule runs within the 30-second target budget, no findings.
+Evidence target/fuzz-evidence/tmp6nhpcqqd. Added fuzz README instructions and
+expanded docs/replication-operations.md with authenticated peer/enrollment
+binding, deadlines, bounded retries and fresh stream on restore/fork.
+The harness deliberately uses public native follower APIs. Transport faults
+are fuzzed here, while simulated disk faults remain in existing follower
+unit tests. No claim of transport authentication inside the engine.
+
+Measured branch/condition coverage and the unsupported MC/DC instrumentation
+mode are documented in [coverage.md](docs/coverage.md). The calibrated
+library-only condition run covered 601 of 857 instrumented branch outcomes.
+This scope includes unit-test code and excludes integration test execution.
+Manual decision pairs and compiler coverage remain separately reported.
+
+## Explicit complete-root salvage
+
+Implemented explicit complete-root salvage in new src/storage/salvage.rs,
+reexported salvage_on/salvage_file/SalvageReport. It uses a read-only ByteStore
+metadata mask to independently run the existing codec against each root,
+ignoring only the other slot and witnesses. Highest verified complete root
+wins. Current and all retained graphs must verify. Only Corrupt permits
+trying another candidate; I/O/limits/unsupported-format errors abort. Source
+is exclusively leased and untouched. File destination creation happens after
+candidate verification and uses exclusive create. Destination copy is verified.
+Every success flags possible acknowledged data loss. Normal recovery untouched.
+
+Admin salvage SOURCE NEW_FILE reports recovered revision, retained count,
+verified slots and witness/data-loss warning. docs/salvage.md documents procedure,
+partial output failures, identity/enrollment and application reconciliation.
+
+Three tests cover all modes including newest graph corrupt, lost witnesses,
+newest slot lost with intact witness, neither slot/graph usable, unsupported
+header, I/O failure, source unchanged, destination existing, retained roots and
+native CLI. Debug/release results are being finalized before checkpoint.
+Final results all three tests passed debug and release with all features on
+arm64 macOS. Core all-target all-feature Clippy passed. Ready for checkpoint.

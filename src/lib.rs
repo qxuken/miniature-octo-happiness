@@ -13,6 +13,7 @@ pub mod schema;
 pub mod storage;
 mod tree;
 mod value;
+pub mod version;
 
 pub use engine::{
     CollectionId, Database, MAX_RETAINED_SNAPSHOTS, Rows, Snapshot, Transaction, TransactionState,

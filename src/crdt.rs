@@ -274,6 +274,9 @@ impl<P: Record> State<P> {
         bytes[48..64].copy_from_slice(&self.policy.actors[1]);
         bytes[64] = self.actor.0 as u8;
         self.payload.encode(&mut bytes[HEADER..])?;
+        if P::decode(&bytes[HEADER..])? != self.payload {
+            return Err(Error::Invalid);
+        }
         Ok(bytes)
     }
 

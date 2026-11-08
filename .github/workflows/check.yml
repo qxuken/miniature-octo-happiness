@@ -16,8 +16,15 @@ jobs:
         run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
+      - name: Release configuration validation
+        run: python tools/test_release.py
       - name: Rust debug/release and interruption checks; C consumers on macOS/Linux
         run: python tools/check.py --skip-odin
+      - name: Compile Windows C and C++ consumers against both DLL builds
+        if: runner.os == 'Windows'
+        run: |
+          python tools/windows_consumers.py --library target/debug/weekend_db.dll
+          python tools/windows_consumers.py --library target/release/weekend_db.dll
       - name: Save release shared library and C header
         uses: actions/upload-artifact@v7
         with:
@@ -27,6 +34,7 @@ jobs:
             target/release/*.dylib
             target/release/*.so
             target/release/*.dll
+            target/release/*.dll.lib
             include/weekend_db.h
   sanitizers:
     runs-on: macos-latest

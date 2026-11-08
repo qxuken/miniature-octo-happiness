@@ -15,10 +15,10 @@ mod follower;
 mod tests;
 mod wire;
 
-#[cfg(any(target_os = "macos", target_os = "linux", windows))]
-pub use follower::Follower;
 #[cfg(any(test, target_os = "macos", target_os = "linux", windows))]
 pub use follower::Replica;
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
+pub use follower::{Follower, FollowerStatus, MANIFEST_LIMIT_BYTES};
 
 /// Configure both peers with the same enrollment. Use a fresh, nonzero stream
 /// ID whenever restoring, forking or reenrolling a primary history.

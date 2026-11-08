@@ -4,12 +4,13 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 publish = false
+license = "MIT OR Apache-2.0"
 
 [workspace]
 members = ["crates/weekend-db-typed", "crates/weekend-db-macros", "apps/weekend-tasks", "apps/study-peer", "apps/write-coordinator"]
 default-members = [".", "crates/weekend-db-typed", "crates/weekend-db-macros", "apps/weekend-tasks"]
 resolver = "3"
-exclude = ["probe/rust", "fuzz"]
+exclude = ["probe/rust", "fuzz", "tools/atomic-model"]
 
 [lib]
 crate-type = ["rlib", "cdylib"]
@@ -26,6 +27,10 @@ weekend-db-macros = { path = "crates/weekend-db-macros", optional = true }
 [[bin]]
 name = "benchmark"
 path = "tools/benchmark.rs"
+
+[[bin]]
+name = "weekend-admin"
+path = "tools/admin.rs"
 
 [[bin]]
 name = "file-worker"

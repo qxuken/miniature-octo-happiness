@@ -51,6 +51,10 @@ impl FileStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         Self::open_impl(path.as_ref(), false)
     }
+    /// Open with read access and the same exclusive lease as a writer.
+    pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
+        Location::new(path.as_ref())?.open_mode(false, false)
+    }
     fn open_impl(path: &Path, create: bool) -> Result<Self> {
         Location::new(path)?.open(create)
     }
@@ -152,12 +156,16 @@ impl Location {
         Ok(Self { directory, name })
     }
     fn open(&self, create: bool) -> Result<FileStore> {
+        self.open_mode(create, true)
+    }
+    fn open_mode(&self, create: bool, writable: bool) -> Result<FileStore> {
         // Allocate/copy the lease location before creating any directory entry.
         let location = Self {
             directory: retry(|| self.directory.try_clone())?,
             name: Memory::new(Limits::default())?.copy(&self.name)?,
         };
-        let file = self.open_flags(2 | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
+        let access = if writable { 2 } else { 0 };
+        let file = self.open_flags(access | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
         if !retry(|| file.metadata())?.is_file() {
             return Err(Error::Invalid);
         }

@@ -4,7 +4,7 @@ mod codec;
 mod store;
 pub use codec::{Bytes, DecodeError, FieldValue, LookupValue, Presence, UniqueValue};
 use engine::{Database, schema};
-pub use store::{Document, Index, Read, Store, Table, Write};
+pub use store::{Document, Index, IndexReport, Read, Store, Table, Write};
 pub use weekend_db as engine;
 pub use weekend_db::schema::{Record, Schema};
 pub use weekend_db_macros::Model;

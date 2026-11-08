@@ -7,6 +7,20 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+#[cfg(test)]
+thread_local! {
+    static FAIL_SYSTEM_ALLOCATION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+// Tests replace only this thread's next allocation result.
+unsafe fn allocate(layout: Layout) -> *mut u8 {
+    #[cfg(test)]
+    if FAIL_SYSTEM_ALLOCATION.with(|fail| fail.replace(false)) {
+        return std::ptr::null_mut();
+    }
+    unsafe { alloc(layout) }
+}
+
 /// Resource limits are checked before allocation or publication.
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
@@ -66,7 +80,7 @@ impl<T> Shared<T> {
     fn allocate(value: T) -> Result<Self> {
         let layout = Layout::new::<SharedBox<T>>();
         // SharedBox always has a nonzero size due to the count.
-        let ptr = NonNull::new(unsafe { alloc(layout) }.cast::<SharedBox<T>>())
+        let ptr = NonNull::new(unsafe { allocate(layout) }.cast::<SharedBox<T>>())
             .ok_or(Error::OutOfMemory)?;
         unsafe {
             ptr.as_ptr().write(SharedBox {
@@ -197,7 +211,8 @@ impl Memory {
         self.claim()?;
         let layout = Layout::new::<T>();
         assert!(layout.size() != 0);
-        let ptr = NonNull::new(unsafe { alloc(layout) }.cast::<T>()).ok_or(Error::OutOfMemory)?;
+        let ptr =
+            NonNull::new(unsafe { allocate(layout) }.cast::<T>()).ok_or(Error::OutOfMemory)?;
         unsafe {
             ptr.as_ptr().write(value);
         }
@@ -219,6 +234,83 @@ mod tests {
         sync::{Arc, Barrier, Mutex},
         thread,
     };
+    #[test]
+    fn null_system_allocation_drops_inputs_and_allows_retry() {
+        struct Probe(Arc<AtomicUsize>);
+        impl Drop for Probe {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        let mem = Memory::new(Limits::default()).unwrap();
+        let drops = Arc::new(AtomicUsize::new(0));
+        for kind in 0..3 {
+            FAIL_SYSTEM_ALLOCATION.with(|flag| flag.set(true));
+            let input = Probe(drops.clone());
+            let result = match kind {
+                0 => mem.shared(input).map(drop),
+                1 => mem.boxed(input).map(drop),
+                _ => mem.raw(input).map(|ptr| unsafe { free_raw(ptr) }),
+            };
+            assert_eq!(result, Err(Error::OutOfMemory));
+            assert_eq!(drops.load(Ordering::Relaxed), kind + 1);
+            assert!(!FAIL_SYSTEM_ALLOCATION.with(|flag| flag.get()));
+        }
+        drop(mem.shared(Probe(drops.clone())).unwrap());
+        assert_eq!(drops.load(Ordering::Relaxed), 4);
+    }
+    #[test]
+    #[cfg(not(miri))]
+    fn shared_clone_aborts_at_the_refcount_threshold_in_a_subprocess() {
+        const CHILD: &str = "WEEKEND_DB_REFCOUNT_ABORT_CHILD";
+        if let Some(mode) = std::env::var_os(CHILD) {
+            let shared = Shared::allocate(7u8).unwrap();
+            let before = if mode == "below" {
+                isize::MAX as usize - 1
+            } else {
+                isize::MAX as usize
+            };
+            // Only this child fabricates the otherwise impractical boundary.
+            unsafe { shared.ptr.as_ref() }
+                .refs
+                .store(before, Ordering::Relaxed);
+            let cloned = shared.clone();
+            let after = unsafe { shared.ptr.as_ref() }.refs.load(Ordering::Relaxed);
+            // Restore the two real owners before assertions or destruction.
+            unsafe { shared.ptr.as_ref() }
+                .refs
+                .store(2, Ordering::Relaxed);
+            assert_eq!(mode, "below", "clone returned at the abort threshold");
+            assert_eq!(after, isize::MAX as usize);
+            assert_eq!(*cloned, 7);
+            return;
+        }
+        for mode in ["below", "at"] {
+            let result = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "memory::tests::shared_clone_aborts_at_the_refcount_threshold_in_a_subprocess",
+                ])
+                .env(CHILD, mode)
+                .output()
+                .unwrap();
+            if mode == "below" {
+                assert!(
+                    result.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&result.stderr)
+                );
+            } else {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    assert_eq!(result.status.signal(), Some(6), "expected SIGABRT");
+                }
+                #[cfg(not(unix))]
+                assert!(!result.status.success() && result.status.code() != Some(101));
+            }
+        }
+    }
     #[test]
     fn reservation_checks_capacity_overflow_and_budget_independently() {
         let mem = Memory::new(Limits::default()).unwrap();

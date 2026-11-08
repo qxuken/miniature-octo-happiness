@@ -1,5 +1,8 @@
 # weekend-db
 
+Licensed under MIT OR Apache-2.0. Cargo packages remain private.
+[Operations guide](docs/operations.md) · [Private release contract](docs/release-contract.md) · [Roadmap status](docs/roadmap-status.md)
+
 A weekend learning project: an embedded store for persistent nested values,
 explicitly retained snapshots, and conservative record-scoped transactions.
 Implemented in Rust, with a native Rust API and a C shared library for Odin.

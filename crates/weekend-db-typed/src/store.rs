@@ -93,6 +93,21 @@ pub struct Write<'a> {
     tx: Transaction<'a>,
     failed: bool,
 }
+/// Index consistency for one table at one snapshot or transaction view.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct IndexReport {
+    pub records: usize,
+    pub expected_entries: usize,
+    pub stored_entries: usize,
+    pub missing: usize,
+    pub orphaned: usize,
+    pub mismatched: usize,
+}
+impl IndexReport {
+    pub fn is_consistent(self) -> bool {
+        self.missing == 0 && self.orphaned == 0 && self.mismatched == 0
+    }
+}
 trait View: ReadView {
     fn scan_records(&mut self, c: CollectionId) -> engine::Result<engine::Rows>;
 }
@@ -461,6 +476,89 @@ fn index_key(records: u64, field: u64, value: &Value) -> Result<Option<Vec<u8>>>
     key.extend_from_slice(&bytes);
     Ok(Some(key))
 }
+fn record_keys<T: Model>(
+    store: &Store,
+    view: &mut impl View,
+    entry: &Entry,
+    raw: &Record,
+) -> Result<Vec<(u64, Vec<u8>)>> {
+    if raw.type_id() != T::TYPE_ID {
+        return Err(Error::TypeMismatch);
+    }
+    let schema = Schema::load(view, store.db.collection_id(2), T::TYPE_ID, raw.version())?;
+    schema.validate(raw)?;
+    let mut keys = Vec::new();
+    reserve(&mut keys, entry.unique.len())?;
+    for id in &entry.unique {
+        if let Some(value) = raw.field(*id)?
+            && let Some(key) = index_key(entry.records, *id, &value)?
+        {
+            keys.push((*id, key));
+        }
+    }
+    Ok(keys)
+}
+struct IndexState {
+    report: IndexReport,
+    expected: Vec<(Vec<u8>, u64)>,
+    stored: engine::Rows,
+}
+fn index_state<T: Model>(
+    store: &Store,
+    view: &mut impl View,
+    table: &Table<T>,
+) -> Result<IndexState> {
+    let entry = info(store, view, table)?;
+    let records = view.scan_records(table.records)?;
+    let mut expected = Vec::new();
+    for (key, value) in &records {
+        let id = row_id(key)?;
+        let raw = Record::from_value(value.clone())?;
+        for (_, key) in record_keys::<T>(store, view, &entry, &raw)? {
+            expected
+                .try_reserve(1)
+                .map_err(|_| Error::Engine(engine::Error::OutOfMemory))?;
+            expected.push((key, id));
+        }
+    }
+    expected.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    for pair in expected.windows(2) {
+        if pair[0].0 == pair[1].0 {
+            // Keys were produced by index_key above, including the field ID.
+            let field = u64::from_le_bytes(pair[0].0[8..16].try_into().unwrap());
+            return Err(Error::UniqueViolation(field));
+        }
+    }
+    let mut stored = view.scan_records(store.db.collection_id(3))?;
+    stored.retain(|(key, _)| key.starts_with(&entry.records.to_le_bytes()));
+    stored.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    let mut report = IndexReport {
+        records: records.len(),
+        expected_entries: expected.len(),
+        stored_entries: stored.len(),
+        ..IndexReport::default()
+    };
+    for (key, id) in &expected {
+        match stored.binary_search_by(|(candidate, _)| candidate.cmp(key)) {
+            Err(_) => report.missing += 1,
+            Ok(index) if stored[index].1.as_u64().ok() != Some(*id) => report.mismatched += 1,
+            Ok(_) => {}
+        }
+    }
+    report.orphaned = stored
+        .iter()
+        .filter(|(key, _)| {
+            expected
+                .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                .is_err()
+        })
+        .count();
+    Ok(IndexState {
+        report,
+        expected,
+        stored,
+    })
+}
 fn find<T: Model, V: FieldValue, Q: LookupValue<V> + ?Sized>(
     store: &Store,
     view: &mut impl View,
@@ -506,6 +604,10 @@ fn find<T: Model, V: FieldValue, Q: LookupValue<V> + ?Sized>(
     Ok(Some(doc))
 }
 impl Read<'_> {
+    /// Compare this table's primary records with its stored unique indexes.
+    pub fn check_indexes<T: Model>(&mut self, table: &Table<T>) -> Result<IndexReport> {
+        Ok(index_state(self.store, &mut self.snapshot, table)?.report)
+    }
     pub fn get<T: Model>(&mut self, table: &Table<T>, id: u64) -> Result<Option<Document<T>>> {
         get(self.store, &mut self.snapshot, table, id)
     }
@@ -539,6 +641,37 @@ impl Write<'_> {
                 Err(e)
             }
         }
+    }
+    pub fn check_indexes<T: Model>(&mut self, table: &Table<T>) -> Result<IndexReport> {
+        self.checked(|w| Ok(index_state(w.store, &mut w.tx, table)?.report))
+    }
+    /// Repair this table's index rows atomically. Returns the pre-repair report.
+    /// Primary records are validated and never rewritten.
+    pub fn rebuild_indexes<T: Model>(&mut self, table: &Table<T>) -> Result<IndexReport> {
+        self.checked(|w| {
+            let state = index_state(w.store, &mut w.tx, table)?;
+            let indexes = w.store.db.collection_id(3);
+            for (key, _) in &state.stored {
+                if state
+                    .expected
+                    .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                    .is_err()
+                {
+                    w.tx.delete(indexes, key)?;
+                }
+            }
+            for (key, id) in &state.expected {
+                let existing = state
+                    .stored
+                    .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                    .ok()
+                    .and_then(|index| state.stored[index].1.as_u64().ok());
+                if existing != Some(*id) {
+                    w.tx.put(indexes, key, &w.store.db.unsigned(*id)?)?;
+                }
+            }
+            Ok(state.report)
+        })
     }
     pub fn get<T: Model>(&mut self, table: &Table<T>, id: u64) -> Result<Option<Document<T>>> {
         self.checked(|w| get(w.store, &mut w.tx, table, id))
@@ -634,26 +767,7 @@ impl Write<'_> {
         })
     }
     fn keys<T: Model>(&mut self, entry: &Entry, raw: &Record) -> Result<Vec<(u64, Vec<u8>)>> {
-        if raw.type_id() != T::TYPE_ID {
-            return Err(Error::TypeMismatch);
-        }
-        let schema = Schema::load(
-            &mut self.tx,
-            self.store.db.collection_id(2),
-            T::TYPE_ID,
-            raw.version(),
-        )?;
-        schema.validate(raw)?;
-        let mut keys = Vec::new();
-        reserve(&mut keys, entry.unique.len())?;
-        for id in &entry.unique {
-            if let Some(value) = raw.field(*id)?
-                && let Some(key) = index_key(entry.records, *id, &value)?
-            {
-                keys.push((*id, key));
-            }
-        }
-        Ok(keys)
+        record_keys::<T>(self.store, &mut self.tx, entry, raw)
     }
     fn put_raw<T: Model>(
         &mut self,

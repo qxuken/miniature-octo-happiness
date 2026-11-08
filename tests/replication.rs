@@ -362,3 +362,216 @@ fn process_kill_during_upload_or_before_reply_recovers_durable_progress() {
         Err(Error::Corrupt)
     ));
 }
+
+#[test]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn manifest_headroom_checkpoint_and_fresh_directory_reseed_preserve_ack() {
+    use weekend_db::{replication::MANIFEST_LIMIT_BYTES, storage::MemoryStore};
+    let dir = Directory::new();
+    let follower_dir = dir.0.join("lifecycle");
+    fs::create_dir(&follower_dir).unwrap();
+    let mut db =
+        Database::create_on(MemoryStore::new().unwrap(), [81; 16], Limits::default()).unwrap();
+    let mut primary = Primary::new(&db, [82; 16]).unwrap();
+    let enrollment = primary.enrollment();
+    let mut follower = Follower::create(&follower_dir, enrollment, Limits::default()).unwrap();
+    let collection = db.create_collection().unwrap();
+    let mut first = primary
+        .export_to(&mut db, MemoryStore::new().unwrap())
+        .unwrap();
+    let (ack, served) = exchange(&mut follower, |socket| primary.ship(&mut first, socket));
+    served.unwrap();
+    let ack = ack.unwrap();
+    drop(follower);
+    fs::OpenOptions::new()
+        .write(true)
+        .open(follower_dir.join("replica-manifest.wdb"))
+        .unwrap()
+        .set_len(MANIFEST_LIMIT_BYTES)
+        .unwrap();
+    let mut follower = Follower::open(&follower_dir, enrollment, Limits::default()).unwrap();
+    let status = follower.status().unwrap();
+    assert!(status.maintenance_required);
+    assert_eq!(status.durable_ack, Some(ack));
+    let (duplicate, served) = exchange(&mut follower, |socket| primary.ship(&mut first, socket));
+    served.unwrap();
+    assert_eq!(duplicate, Ok(ack));
+    let mut tx = db.begin();
+    tx.put(collection, b"x", &db.unsigned(9).unwrap()).unwrap();
+    tx.commit().unwrap();
+    drop(tx);
+    let mut next = primary
+        .export_to(&mut db, MemoryStore::new().unwrap())
+        .unwrap();
+    let (rejected, served) = exchange(&mut follower, |socket| primary.ship(&mut next, socket));
+    assert_eq!(rejected, Err(Error::Limit));
+    assert_eq!(served, Err(Error::Limit));
+    assert_eq!(follower.progress(), Ok(Some(ack)));
+    assert!(!follower_dir.join("replica-1.wdb").exists());
+    let mut follower = follower.compact_manifest().unwrap();
+    assert!(!follower.status().unwrap().maintenance_required);
+    assert_eq!(follower.progress(), Ok(Some(ack)));
+    let (new_ack, served) = exchange(&mut follower, |socket| primary.ship(&mut next, socket));
+    served.unwrap();
+    let new_ack = new_ack.unwrap();
+    fs::write(follower_dir.join("application-note"), b"keep").unwrap();
+    assert_eq!(follower.cleanup_inactive(), Ok(1));
+    assert_eq!(follower.cleanup_inactive(), Ok(0));
+    assert_eq!(
+        fs::read(follower_dir.join("application-note")).unwrap(),
+        b"keep"
+    );
+    drop(follower);
+    let old = Follower::open(&follower_dir, enrollment, Limits::default()).unwrap();
+    assert_eq!(old.progress(), Ok(Some(new_ack)));
+    let replacement = dir.0.join("replacement");
+    fs::create_dir(&replacement).unwrap();
+    let mut reseeded = Follower::create(&replacement, enrollment, Limits::default()).unwrap();
+    let (reseed_ack, served) = exchange(&mut reseeded, |socket| primary.ship(&mut next, socket));
+    served.unwrap();
+    assert_eq!(reseed_ack, Ok(new_ack));
+    assert_eq!(old.progress(), Ok(Some(new_ack)));
+}
+
+#[test]
+fn cleanup_only_removes_reserved_unselected_regular_files() {
+    use weekend_db::{replication::Enrollment, storage::MemoryStore};
+    let dir = Directory::new();
+    let mut follower = Follower::create(
+        &dir.0,
+        Enrollment {
+            stream_id: [91; 16],
+            file_identity: [92; 16],
+        },
+        Limits::default(),
+    )
+    .unwrap();
+    fs::write(dir.0.join("replica-0.wdb"), b"interrupted first upload").unwrap();
+    assert_eq!(follower.cleanup_inactive(), Ok(1));
+    assert_eq!(follower.progress(), Ok(None));
+    fs::create_dir(dir.0.join("replica-1.wdb")).unwrap();
+    assert_eq!(follower.cleanup_inactive(), Err(Error::Invalid));
+    fs::remove_dir(dir.0.join("replica-1.wdb")).unwrap();
+    let mut db =
+        Database::create_on(MemoryStore::new().unwrap(), [92; 16], Limits::default()).unwrap();
+    let mut primary = Primary::new(&db, [91; 16]).unwrap();
+    let mut image = primary
+        .export_to(&mut db, MemoryStore::new().unwrap())
+        .unwrap();
+    let (ack, served) = exchange(&mut follower, |socket| primary.ship(&mut image, socket));
+    served.unwrap();
+    ack.unwrap();
+    fs::write(
+        dir.0.join("replica-1.wdb"),
+        b"leave inactive intact on error",
+    )
+    .unwrap();
+    fs::write(dir.0.join("replica-0.wdb"), b"damaged selected").unwrap();
+    assert_eq!(follower.cleanup_inactive(), Err(Error::Corrupt));
+    assert_eq!(
+        fs::read(dir.0.join("replica-1.wdb")).unwrap(),
+        b"leave inactive intact on error"
+    );
+}
+
+#[test]
+#[cfg(all(
+    feature = "fault-injection",
+    any(target_os = "macos", target_os = "linux")
+))]
+fn interrupted_manifest_checkpoint_reopens_the_selected_follower_revision() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use weekend_db::storage::{MemoryStore, compact_file_with_hook};
+    let dir = Directory::new();
+    let original = dir.0.join("original");
+    fs::create_dir(&original).unwrap();
+    let mut db =
+        Database::create_on(MemoryStore::new().unwrap(), [71; 16], Limits::default()).unwrap();
+    let mut primary = Primary::new(&db, [72; 16]).unwrap();
+    let enrollment = primary.enrollment();
+    let mut follower = Follower::create(&original, enrollment, Limits::default()).unwrap();
+    db.create_collection().unwrap();
+    let mut image = primary
+        .export_to(&mut db, MemoryStore::new().unwrap())
+        .unwrap();
+    let (ack, served) = exchange(&mut follower, |socket| primary.ship(&mut image, socket));
+    served.unwrap();
+    let ack = ack.unwrap();
+    drop(follower);
+    let template: Vec<_> = fs::read_dir(&original)
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            (entry.file_name(), fs::read(entry.path()).unwrap())
+        })
+        .collect();
+    let count = Arc::new(AtomicUsize::new(0));
+    let observed = count.clone();
+    compact_file_with_hook(
+        &original.join("replica-manifest.wdb"),
+        Limits::default(),
+        move |_| {
+            observed.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        },
+    )
+    .unwrap();
+    for fail in 0..count.load(Ordering::Relaxed) {
+        let path = dir.0.join(format!("fault-{fail}"));
+        fs::create_dir(&path).unwrap();
+        for (name, bytes) in &template {
+            fs::write(path.join(name), bytes).unwrap();
+        }
+        let mut step = 0;
+        let result = compact_file_with_hook(
+            &path.join("replica-manifest.wdb"),
+            Limits::default(),
+            move |_| {
+                let failed = step == fail;
+                step += 1;
+                if failed { Err(Error::Io) } else { Ok(()) }
+            },
+        );
+        assert!(result.is_err(), "fault {fail}");
+        let mut recovered = Follower::open(&path, enrollment, Limits::default()).unwrap();
+        assert_eq!(recovered.progress(), Ok(Some(ack)), "fault {fail}");
+        let (retry, served) = exchange(&mut recovered, |socket| primary.ship(&mut image, socket));
+        served.unwrap();
+        assert_eq!(retry, Ok(ack));
+    }
+}
+
+#[test]
+fn manifest_admission_accepts_exact_reserved_headroom() {
+    use weekend_db::{
+        replication::MANIFEST_LIMIT_BYTES,
+        storage::{MemoryStore, REGION},
+    };
+    let dir = Directory::new();
+    let mut db =
+        Database::create_on(MemoryStore::new().unwrap(), [61; 16], Limits::default()).unwrap();
+    let mut primary = Primary::new(&db, [62; 16]).unwrap();
+    let enrollment = primary.enrollment();
+    let follower = Follower::create(&dir.0, enrollment, Limits::default()).unwrap();
+    drop(follower);
+    fs::OpenOptions::new()
+        .write(true)
+        .open(dir.0.join("replica-manifest.wdb"))
+        .unwrap()
+        .set_len(MANIFEST_LIMIT_BYTES - 4 * REGION as u64)
+        .unwrap();
+    let mut follower = Follower::open(&dir.0, enrollment, Limits::default()).unwrap();
+    assert!(!follower.status().unwrap().maintenance_required);
+    let mut export = primary
+        .export_to(&mut db, MemoryStore::new().unwrap())
+        .unwrap();
+    let (ack, served) = exchange(&mut follower, |socket| primary.ship(&mut export, socket));
+    served.unwrap();
+    ack.unwrap();
+    let status = follower.status().unwrap();
+    assert!(status.manifest_bytes <= MANIFEST_LIMIT_BYTES);
+    assert!(status.maintenance_required);
+}

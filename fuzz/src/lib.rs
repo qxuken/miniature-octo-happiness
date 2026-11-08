@@ -1,10 +1,16 @@
 mod crash;
+mod foreign;
+mod history;
 mod image;
 mod schedule;
+mod values;
 
 pub use crash::commit_crash;
+pub use foreign::ffi_ops;
+pub use history::{image_and_ops, retention_compact_crash};
 pub use image::{open_image_bytes, open_structured_image};
 pub use schedule::txn_schedule;
+pub use values::value_ops;
 
 use std::sync::OnceLock;
 use weekend_db::{
@@ -61,4 +67,30 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn generated_values_and_history_replay() {
+        ffi_ops(&[0, 24, 9, 1, 0, 1, 2, 1, 0, 2, 1, 2, 2, 1, 3, 4, 0, 0]);
+        ffi_ops(&[
+            0, 16, 7, 128, 0, 42, 3, 0, 42, 130, 17, 8, 3, 1, 43, 128, 1, 43,
+        ]);
+        value_ops(&[48, 128, 7, 4, 32, 0, 6, 31, 0, 35, 0, 2, 7, 255, 0]);
+        let commands = [2, 0, 0, 0, 0, 7, 2, 0, 0, 3, 0, 1, 5, 0, 0, 6, 0, 0];
+        for mode in 0..5 {
+            let mut input = vec![mode];
+            input.extend_from_slice(&commands);
+            image_and_ops(&input);
+        }
+        for at in 0..24 {
+            let mut input = vec![at, at % 4, at % 2];
+            input.extend_from_slice(&commands);
+            retention_compact_crash(&input);
+        }
+    }
 }
+
+mod crdt;
+pub use crdt::{crdt_frames, crdt_schedule};
+
+mod snapshot;
+pub use snapshot::{snapshot_frames, snapshot_install_schedule};

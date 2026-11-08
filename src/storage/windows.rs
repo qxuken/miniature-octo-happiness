@@ -114,14 +114,19 @@ pub struct FileStore {
 
 impl FileStore {
     pub fn create(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), true)
+        Self::open_impl(path.as_ref(), true, true)
     }
 
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), false)
+        Self::open_impl(path.as_ref(), false, true)
     }
 
-    fn open_impl(path: &Path, create: bool) -> Result<Self> {
+    /// Open with read access and the same exclusive lease as a writer.
+    pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
+        Self::open_impl(path.as_ref(), false, false)
+    }
+
+    fn open_impl(path: &Path, create: bool, writable: bool) -> Result<Self> {
         drive(path)?;
         let units = path.as_os_str().encode_wide();
         if units.clone().count() >= 32_767 {
@@ -165,7 +170,7 @@ impl FileStore {
         // component is checked separately and opened without following a link.
         let file = OpenOptions::new()
             .read(true)
-            .write(true)
+            .write(writable)
             .create_new(create)
             .share_mode(0)
             .custom_flags(OPEN_REPARSE_POINT | WRITE_THROUGH)

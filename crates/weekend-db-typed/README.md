@@ -160,6 +160,50 @@ dependency-free engine. File persistence is available on macOS, Linux
 (x86_64/aarch64), and Windows NTFS. Windows can write a compact copy via
 `compact_to` and `engine::storage::FileStore::create(new_path)`.
 
+## Checking and rebuilding unique indexes
+
+`read.check_indexes(&table)` compares the table's primary records with
+its entries in the shared index collection. The returned `IndexReport`
+counts records, expected/stored entries, missing keys, orphaned keys,
+and keys with an invalid or incorrect record owner. Its
+`is_consistent()` method checks all three discrepancy counts.
+
+```rust
+use weekend_db_typed::{Model, Result, Store};
+#[derive(Model)]
+#[weekend(type_id = 1, version = 1)]
+struct Item { #[weekend(id = 1, unique)] slug: String }
+fn main() -> Result<()> {
+    let mut store = Store::memory()?;
+    let items = store.table::<Item>("items")?;
+    let report = store.read(|read| read.check_indexes(&items))?;
+    if !report.is_consistent() {
+        let before = store.write(|write| write.rebuild_indexes(&items))?;
+        assert!(!before.is_consistent());
+    }
+    Ok(())
+}
+```
+
+`rebuild_indexes` returns the report from the transaction's initial
+view and stages only the required index changes. The write closure
+commits the repair atomically. Scans of primary records and the shared
+index collection make an intervening edit conflict, including an index
+edit for another table. A caught repair error still aborts the closure.
+Both checking and rebuilding validate stored records against their
+stored schema versions. Duplicate physical unique values return
+`UniqueViolation(field_id)` and require an application decision.
+
+Missing fields and explicit nulls stay unindexed even when a schema
+supplies defaults. Rebuilding preserves the exact primary envelopes,
+including unknown fields. Retained snapshots preserve their original
+indexes and can be checked with `read_retained`. Repair applies to keys
+whose table-ID prefix belongs to the selected table. Unattributable
+malformed global index keys and other tables require separate catalog
+inspection. The scans and edits must fit the engine's existing
+collection, observation, and transaction limits. A consistent rebuild
+still participates in the write closure's ordinary commit.
+
 ## Compile-time contracts
 
 Every field needs an explicit ID:

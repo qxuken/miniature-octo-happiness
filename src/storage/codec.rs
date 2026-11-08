@@ -6,7 +6,7 @@ use crate::{
     tree::{List, Map},
 };
 
-const VERSION: u32 = 2;
+const VERSION: u32 = crate::version::FORMAT_VERSION;
 const MAX_OBJECTS: usize = MAX_IMAGE_BYTES / REGION;
 const OBJECT_HEADER: usize = 64;
 const VALUE: u32 = 1;
