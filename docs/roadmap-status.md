@@ -8,16 +8,16 @@ decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
-| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. Complete module denominator and remaining module decisions are open. |
+| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. Source inventory records 2,380 unreviewed decisions and macro blind spots. Classification and independent pairs remain open. |
 | Fuzzing | Seventeen targets and deterministic seeds exist. Remaining inventory is in the roadmap. Scheduled CI needs execution after integration. |
 | Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Corruption offsets remain. |
-| Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore and recovery-time budgets remain. |
+| Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore across processes and old retained schemas is tested. Deployment restore-time budgets remain. |
 | Migration/salvage | Logical export/import format 1 implemented with frozen fixture. Explicit complete-root salvage is tested. Future-version conversion remains. |
 | Storage lifecycle | Compaction exists. Append headroom and near-cap recovery/compaction tests implemented. Indexed recovery measured near the cap. Cleanup policy and device qualification remain. |
 | Resources | Per-value/transaction limits exist. Aggregate pinned/draft budget and adversarial latency/soak remain. |
-| Packaging | Runtime identity and private artifact checks added. Clean private candidate and dependency/license inventory verified at a7dc343. Windows compiled consumers require the corrected script run. |
-| Compatibility | v2 format rejection exists. Archived v2 and logical-v1 fixtures exist. Historical-reader/new-writer qualification remains. |
-| Native matrix | macOS and Docker aarch64 Linux executed locally. Windows native and same-candidate matrix/device qualification remain. |
+| Packaging | Runtime identity and private artifact checks added. Clean private candidate and dependency/license inventory verified at a7dc343. Windows compiled consumers passed at 1ca5e5ab. New changes require a fresh combined candidate. |
+| Compatibility | v2 format rejection exists. Archived v2 and logical-v1 fixtures exist. a7dc343 reads 1ca5e5ab files in tested pre1 cases. Broader version/feature qualification remains. |
+| Native matrix | macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu passed 1ca5e5ab; simulated month also passed Linux ext4 server/macOS APFS client. New candidate/device qualification remains. |
 | Unsafe/concurrency | Thread/process/sanitizer tests exist. A bounded Loom model, Miri and abort subprocess checks passed. Additional model workloads and full unsafe review remain. |
 | Typed Rust | Models/migrations/indexes exist. Verification/rebuild implemented and fault-tested. Explicit bounded migration with atomic progress tested. Mixed-version qualification remains. |
 | Snapshot replication | Verified snapshots and separate acknowledgment exist. Manifest bounds, cleanup, compaction and explicit reseed are tested. Authenticated deployment and mixed-version qualification remain. |
@@ -55,9 +55,10 @@ commit `309392b18f6b17022f82c701f300433126901068` (1,422 advisories).
 This is a database scan of the current lockfile, with no ignored advisories.
 License identifiers and notices are being included in private artifacts.
 
-The target workload/latency/restore budgets and named security/release
-owner have been requested from the user. Those inputs remain required
-for operational sign-off. The implementation work continues independently.
+The owner selected a Linux server and macOS client with a simulated month
+of stored workload, and `sec@qxuken.dev` as security contact/release owner.
+The 30-day simulated workload passed on an actual Linux server/macOS client pair. Measurements and concrete ext4/APFS execution are recorded; sustained wall-clock
+soak and physical-device qualification remain open.
 
 Checkpoint `a7dc343` passed native macOS/Ubuntu, AddressSanitizer,
 ThreadSanitizer and coverage in GitHub Actions run `42525776563`. Windows

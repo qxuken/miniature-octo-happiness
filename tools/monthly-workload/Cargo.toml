@@ -1,0 +1,13 @@
+[package]
+name = "monthly-workload"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+[workspace]
+[dependencies]
+weekend-db = { path = "../..", features = ["crdt"] }
+weekend-db-typed = { path = "../../crates/weekend-db-typed" }
+[[bin]]
+name = "monthly-workload"
+path = "../monthly_workload.rs"

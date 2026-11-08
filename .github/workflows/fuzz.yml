@@ -1,5 +1,12 @@
 name: Bounded fuzzing
 on:
+  push:
+    paths:
+      - 'src/**'
+      - 'crates/**'
+      - 'fuzz/**'
+      - 'tools/fuzz.py'
+      - '.github/workflows/fuzz.yml'
   pull_request:
   workflow_dispatch:
   schedule:

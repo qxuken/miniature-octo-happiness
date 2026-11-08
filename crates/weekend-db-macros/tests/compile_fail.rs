@@ -1,5 +1,73 @@
 //! Actual downstream rustc compilation, beyond expansion-function diagnostics.
+//!
+//! The test process still runs under the parent suite's sanitizer. Nested Cargo
+//! checks only assert compile-time diagnostics and use an uninstrumented host
+//! build: otherwise global sanitizer flags also instrument the host proc macro,
+//! which rustc rejects before it can diagnose the deliberately malformed input.
 use std::{fs, process::Command};
+
+fn diagnostic_environment(command: &mut Command) {
+    // Include command-local overrides so regression tests need no process-wide
+    // environment mutation (which would race with parallel tests).
+    let keys = std::env::vars_os()
+        .map(|(key, _)| key)
+        .chain(command.get_envs().map(|(key, _)| key.to_owned()))
+        .collect::<Vec<_>>();
+    for key in keys {
+        let name = key.to_string_lossy();
+        if matches!(
+            name.as_ref(),
+            "RUSTFLAGS"
+                | "RUSTDOCFLAGS"
+                | "CARGO_ENCODED_RUSTFLAGS"
+                | "CARGO_ENCODED_RUSTDOCFLAGS"
+                | "CARGO_BUILD_RUSTFLAGS"
+                | "CARGO_BUILD_RUSTDOCFLAGS"
+                | "CARGO_BUILD_TARGET"
+                | "CARGO_UNSTABLE_BUILD_STD"
+                | "CARGO_UNSTABLE_BUILD_STD_FEATURES"
+        ) || (name.starts_with("CARGO_TARGET_") && name.ends_with("_RUSTFLAGS"))
+        {
+            command.env_remove(key);
+        }
+    }
+}
+
+#[test]
+fn diagnostic_commands_remove_inherited_instrumentation_and_target_selection() {
+    let mut command = Command::new(env!("CARGO"));
+    let names = [
+        "RUSTFLAGS",
+        "RUSTDOCFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS",
+        "CARGO_ENCODED_RUSTDOCFLAGS",
+        "CARGO_BUILD_RUSTFLAGS",
+        "CARGO_BUILD_RUSTDOCFLAGS",
+        "CARGO_BUILD_TARGET",
+        "CARGO_UNSTABLE_BUILD_STD",
+        "CARGO_UNSTABLE_BUILD_STD_FEATURES",
+        "CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS",
+        "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS",
+    ];
+    for name in names {
+        command.env(name, "deliberately-invalid-instrumentation-or-target");
+    }
+    command.env("RUSTUP_TOOLCHAIN", "preserve-toolchain");
+    diagnostic_environment(&mut command);
+    for name in names {
+        assert!(
+            command
+                .get_envs()
+                .any(|(key, value)| key == name && value.is_none())
+        );
+    }
+    assert!(
+        command
+            .get_envs()
+            .any(|(key, value)| key == "RUSTUP_TOOLCHAIN"
+                && value == Some(std::ffi::OsStr::new("preserve-toolchain")))
+    );
+}
 
 #[test]
 fn malformed_attributes_fail_in_downstream_compilation() {
@@ -76,13 +144,15 @@ fn malformed_attributes_fail_in_downstream_compilation() {
             format!("#[derive(weekend_db_macros::{derive})]\n{source}\n"),
         )
         .unwrap();
-        let result = Command::new(env!("CARGO"))
+        let mut command = Command::new(env!("CARGO"));
+        command
             .args(["check", "--offline", "--quiet"])
             .arg("--manifest-path")
             .arg(dir.join("Cargo.toml"))
-            .env("CARGO_TARGET_DIR", dir.join("target"))
-            .output()
-            .unwrap();
+            .current_dir(&dir)
+            .env("CARGO_TARGET_DIR", dir.join("target"));
+        diagnostic_environment(&mut command);
+        let result = command.output().unwrap();
         let stderr = String::from_utf8_lossy(&result.stderr);
         assert!(!result.status.success(), "unexpected success for {source}");
         assert!(

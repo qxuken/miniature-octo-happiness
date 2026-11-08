@@ -72,3 +72,14 @@ Panic containment requires unwind-enabled artifacts. Refcount exhaustion
 intentionally aborts. Pointer validity and close quiescence remain C
 caller obligations. Platform/device assumptions in DESIGN.md are part
 of the durability contract.
+
+## Ownership and qualification workload
+
+The security-report and release-owner contact is `sec@qxuken.dev`, supplied by
+the owner on 2026-11-09. [SECURITY.md](../SECURITY.md) describes reporting and
+private patch handling. The primary deployment profile is a Linux server and
+macOS client. A reproducible 30-day simulated workload is being added with
+stored task/study updates, retained history, sync/restart failures and restore.
+Native architecture/filesystem evidence and measured latency/resource results
+accompany that workload. Accelerated calendar simulation does not establish a
+month of continuous wall-clock uptime or device power-loss behavior.

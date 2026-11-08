@@ -4351,3 +4351,77 @@ a further commit and reopen preserve the remaining 32 roots. File contents
 and timings passed on the native adapter; no power-loss/device or RSS bound
 is inferred from this run. Replay with `cargo run --offline --locked --release
 --example storage_lifecycle -- NEW_DIRECTORY`.
+
+
+## Compatibility, native faults and decision inventory
+
+`tools/compatibility.py` builds the same downstream driver against current
+`1ca5e5ab` and archived `a7dc343` using offline locked Cargo on arm64 macOS
+rustc 1.99.1. Both verify current revision 4 and retained revision 2, exact row
+counts/values and missing historical keys. Both reject an unsupported header
+version without changing file bytes. The frozen pre1 fixture covers the opposite
+reader/writer direction. These are named pre1 checkpoints, not a stable-format
+release promise. Evidence binds engine, driver and test source hashes.
+
+The typed process-evolution test runs create, partial migration, verification,
+backup, restore, historical rollback and explicit remigration in separate
+processes. It checks unique indexes, unknown field 99, mixed versions and retained
+originals. Source/backup remain at their original mixed state. Debug/release and
+Clippy passed. These are orderly process boundaries; crash tests remain separate.
+
+`tools/native_faults.py` creates a bounded private 8 MiB Linux tmpfs in Docker.
+An unprivileged UID 10001 receives actual errno 13/Permission on a protected
+directory. Filling only a controlled ballast file produces errno 28/DiskFull
+during append: commit returns Io, visible revision 3 is unchanged, and reopening
+after freeing ballast verifies revision 3 and retained revision 2. Retry commits
+and reopens revision 4. Both drills passed on Linux 7.0.14-linuxkit aarch64 with
+rustc 1.99.1. A 16 MiB write ceiling, 300-second container timeout and 2 GiB memory
+limit prevent unbounded host filling. Tmpfs proves native error behavior, not
+power-loss persistence or quota/device failure. See docs/native-fault-drills.md.
+
+The isolated source decision inventory traverses every workspace library, macro
+and binary root, keeping platform/feature cfg provenance and excluding definite
+test-only code by default. Snapshot ebb8157361edf4c6334f737385ebd0584ec0e050c9f7c8edab024699971e5638
+has 2,380 records across 45 files and 10 targets, 18 exclusions and 274 unexpanded
+macro/derive blind spots. All records are explicitly unreviewed. Module links to
+existing ledger entries do not claim decision coverage. Four fixture tests, strict
+Clippy, deterministic replay and independent range/hash verification passed.
+See docs/decision-inventory.md for scope and remaining classification work.
+
+Compiler condition instrumentation on clean 1ca5e5ab measured 1,179/1,545 branch
+outcomes across the all-feature workspace tests after calibration, with stable
+source hashes. This 76.31% result has a different denominator from the earlier
+library-only run. Compiler coverage, source inventory and manual MC/DC pairs
+remain separate evidence. Macro diagnostic builds need their own compiler
+environment; sanitizer qualification remains gated on the corrected CI harness.
+
+
+## Linux server/macOS client simulated month
+
+The owner selected this primary deployment and `sec@qxuken.dev` as the security
+contact. SECURITY.md records private reporting and release responsibility;
+all Cargo manifests remain unpublished. The month harness uses pinned engine
+1ca5e5ab with typed tasks local to each node and replicated StudyProgress.
+Across 30 simulated days it checks 480 task edits, 60 conflict/retry pairs,
+60 offline CRDT edits, 120 TCP sync sessions, 60 daily retained roots and eight
+receipt-commit/process-exit retries. Every current and retained task/index/CRDT
+state is checked against a closed-form oracle. Final backups and restored
+copies receive the same full verification. Repeat sync must add zero commits.
+
+Actual Linux aarch64 server/macOS arm64 client runs passed twice. The reproducible
+runner uses a private Docker ext4 volume and native APFS client, rustc 1.99.1,
+with source archive and per-platform binary hashes. Final files are 6,668,288
+bytes each and contain 30 retained daily roots. The second run completed in
+30.54 seconds; returned transaction samples have median 7.076 ms and p95
+14.710 ms. This is an accelerated calendar on synthetic eight-task databases,
+not a 30-day wall-clock soak. It uses test-owned TCP endpoints and exercises
+CRDT replies; production TLS and passive follower acknowledgment remain separate.
+See docs/monthly-workload.md for exact state, counts, timings and exclusions.
+
+Native CI at 1ca5e5ab passed macOS, Ubuntu and Windows, including compiled
+Windows C/C++ consumers, plus coverage. Its ASan/TSan jobs exposed inherited
+sanitizer flags in nested macro compile-fail Cargo builds. The diagnostic
+subprocess now clears instrumentation/target overrides, retaining its compiler;
+the outer runtime suite remains instrumented. The original failure was
+reproduced, then targeted ASan/TSan, stable tests, Clippy and poisoned-environment
+regressions passed. A fresh complete matrix remains the final combined check.

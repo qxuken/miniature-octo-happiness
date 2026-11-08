@@ -70,3 +70,15 @@ shows branch counts in source. These totals include the in-source unit
 tests described above. The existing line mode also completed a library
 run using the active stable toolchain, with its evidence stored in
 `target/coverage-line-check`.
+
+A full all-feature workspace condition run at clean source `1ca5e5ab` passed
+calibration and tests on the same nightly/arm64 macOS configuration. It covered
+1,179 of 1,545 instrumented branch outcomes (76.31%), 8,969 of 10,025 lines
+(89.47%), and 11,279 of 13,214 regions (85.36%). Evidence and per-file mappings
+are in `target/coverage-workspace-1ca5e5a`. The run used an isolated worktree
+and verified stable source hashes. This expands execution to integration and
+workspace tests, with the same path exclusions and in-source unit-test inclusion
+noted above. Platform-disabled code and unexpanded/unused code are not a measured
+denominator. It is not an MC/DC independence measurement. The independent
+[source inventory](decision-inventory.md) makes additional source obligations
+and macro blind spots visible.
