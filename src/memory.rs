@@ -220,6 +220,74 @@ mod tests {
         thread,
     };
     #[test]
+    fn reservation_checks_capacity_overflow_and_budget_independently() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let mut bytes = Vec::<u8>::with_capacity(4);
+        bytes.push(7);
+        mem.fail_after(Some(0));
+        assert_eq!(mem.reserve(&mut bytes, 3), Ok(()));
+        assert_eq!(mem.reserve(&mut bytes, 4), Err(Error::OutOfMemory));
+        assert_eq!(mem.reserve(&mut bytes, usize::MAX), Err(Error::Limit));
+        assert_eq!(bytes, [7]);
+        mem.fail_after(Some(1));
+        assert_eq!(mem.reserve(&mut bytes, 4), Ok(()));
+        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+        assert_eq!(bytes, [7]);
+        mem.fail_after(None);
+        assert_eq!(mem.claim(), Ok(()));
+        assert_eq!(mem.claim(), Ok(()));
+        // A representable element count can still exceed Vec's byte limit.
+        let mut words = Vec::<u64>::new();
+        assert_eq!(
+            mem.reserve(&mut words, isize::MAX as usize),
+            Err(Error::OutOfMemory)
+        );
+        assert!(words.is_empty());
+    }
+
+    #[test]
+    fn allocation_ownership_transfers_or_drops_exactly_once() {
+        struct Probe(Arc<AtomicUsize>);
+        impl Drop for Probe {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        let mem = Memory::new(Limits::default()).unwrap();
+        let drops = Arc::new(AtomicUsize::new(0));
+        for allocation in 0..3 {
+            mem.fail_after(Some(0));
+            let probe = Probe(drops.clone());
+            let result = match allocation {
+                0 => mem.shared(probe).map(drop),
+                1 => mem.boxed(probe).map(drop),
+                _ => mem.raw(probe).map(|ptr| unsafe { free_raw(ptr) }),
+            };
+            assert_eq!(result, Err(Error::OutOfMemory));
+            assert_eq!(drops.load(Ordering::Relaxed), allocation + 1);
+        }
+        // A zero-sized box has no allocation and consumes no budget.
+        assert_eq!(mem.boxed(()).map(|value| *value), Ok(()));
+        assert_eq!(mem.copy(b""), Ok(Vec::new()));
+        assert_eq!(mem.copy(b"x"), Err(Error::OutOfMemory));
+        mem.fail_after(Some(1));
+        let shared = mem.shared(Probe(drops.clone())).unwrap();
+        let cloned = shared.clone();
+        assert!(shared.ptr_eq(&cloned));
+        drop(shared);
+        assert_eq!(drops.load(Ordering::Relaxed), 3);
+        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+        drop(cloned);
+        assert_eq!(drops.load(Ordering::Relaxed), 4);
+        mem.fail_after(Some(2));
+        drop(mem.boxed(Probe(drops.clone())).unwrap());
+        let raw = mem.raw(Probe(drops.clone())).unwrap();
+        unsafe { free_raw(raw) };
+        assert_eq!(drops.load(Ordering::Relaxed), 6);
+        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+    }
+
+    #[test]
     fn last_shared_owner_destroys_once_after_cross_thread_accesses() {
         struct Probe {
             visits: Mutex<usize>,

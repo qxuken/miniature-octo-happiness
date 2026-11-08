@@ -274,6 +274,28 @@ own failure containment and restore procedures. [SQLite atomic commit assumption
 
 ## Order of work
 
+The first batch checkpointed the reviewed work at `dcd2402`, added the
+[metadata decision pairs](../DESIGN.md#rec-v6-validate-metadata-before-choosing-a-root),
+and landed the [first three fuzz harnesses](../fuzz/README.md) with
+reproducible seeds and AddressSanitizer smoke results.
+
+The second batch adds the
+[record and collection decision cases](../DESIGN.md#tx-v2-collection-and-record-observations),
+[graph traversal and alias checks](../DESIGN.md#rec-v7-traversal-aliases-and-stable-object-reads),
+and the `txn_schedule` fuzz target with an exact commit/conflict oracle.
+The ledger records defensive bounds that cannot independently reject
+under the current image and graph invariants. Parser resource limits,
+the remaining allocator/FFI boundaries, and the fuzz inventory stay
+tracked in the module tables above.
+
+The allocator and FFI batch adds [MEM-V1/MEM-V2](../DESIGN.md#mem-v1-independent-configuration-bounds)
+and [FFI-V1](../DESIGN.md#ffi-v1-input-output-and-ownership-boundaries).
+Eight allocator configuration mutations and eight FFI mutations were
+detected. The scoped tests passed in debug, release, and a combined
+nightly AddressSanitizer run on arm64 macOS. Remaining native path,
+panic, atomic-interleaving, abort-threshold, and platform checks are
+explicitly tracked in those ledger entries.
+
 1. **Define the release candidate scope and baseline.** Checkpoint the
    reviewed code, assign owners to the support matrix and compatibility
    policies, and turn the decision ledger into a repeatable audit.

@@ -2558,6 +2558,39 @@ The verification used the working tree based on `13d61c6`.
 The Git blob for `src/engine.rs` was `6696ea74ac00dcfa2eb7934c7c15cdabb13e474d`
 and the blob for `tests/transactions.rs` was `0833308ab1f9a0a5856e61b16457a0a48d4ae5ef`.
 
+### TX-V2. Collection and record observations
+
+The test `record_and_collection_validation_distinguish_changes_and_removal`
+in [transactions.rs](tests/transactions.rs) keeps the draft read-only
+to isolate validation from write preparation. Both checks compare an
+observed identity/version with the current head.
+
+| Observation | Intervening action | Draft result |
+|---|---|---|
+| Existing record `a` | Write another existing record `b` | Commit |
+| Existing record `a` | Replace or delete `a` | Conflict |
+| Existing record `a` | Drop its collection | Conflict |
+| Scan or absent key | Write another collection | Commit |
+| Scan or absent key | Write another record in the observed collection | Conflict |
+| Scan or absent key | Drop the observed collection | Conflict |
+
+Each successful control advances the head through an unrelated commit.
+The record comparison is a single predicate with distinct missing-record,
+missing-collection, changed-version, and unchanged-version paths.
+The collection comparison similarly distinguishes a missing collection
+from a present collection with a changed version. Every row checks the
+published revision, unchanged rows after the read-only draft, terminal
+transaction state, rejected second commit, and the pinned old snapshot.
+Existing tests retain the equal-value, ABA, write-skew, overlay,
+collection replacement, and whole-database pairs.
+
+The `txn_schedule` fuzz target adds an independent history of committed
+write footprints. It predicts both accepted and rejected drafts using
+the documented observation scopes, without reading engine versions.
+It checks values during the draft, final state, publication and data
+revisions, and pinned and retained snapshots. See the
+[fuzz instructions](fuzz/README.md) for its bounded schedule and results.
+
 ### PUB-V1. Local commit barriers
 
 The [publication fault test](tests/durability.rs) uses the same staged
@@ -2760,6 +2793,229 @@ release on arm64 macOS with all features. The decision tests caught
 24 independent changes to the audited checks in disposable copies.
 Verification used the working tree based on `13d61c6` with Git blob
 `13a58f2a49c76f0768a2d8182d1eb1d8f035fdf3` for `src/storage/codec.rs`.
+
+### REC-V6. Validate metadata before choosing a root
+
+The [metadata tests](src/storage/codec.rs#L945) use the existing v2
+simulator fixture with roots 1 and 2. They distinguish metadata that
+counts as absent from checksummed metadata that must reject the image.
+Rejections stop at the relevant check and leave the durable bytes
+unchanged. Each malformed field below is paired with a valid fixture.
+
+| Decision | Condition varied | Result |
+|---|---|---|
+| Physical length | Below the reserved regions, or above the format ceiling | `Corrupt` before any read |
+| Header format | Wrong magic or version | `UnsupportedFormat` |
+| Header representation | Wrong checksum, reserved word, region size, append start, image limit, object limit, or padding | `Corrupt` before reading slots |
+| Header identity | All-zero identity | `Corrupt` before reading slots |
+| Slot or witness representation | Valid checksum with wrong magic, version, physical index, identity, or padding | `Corrupt` at that region |
+| Slot or witness layout | Wrong revision parity or predecessor, end beyond the physical length, descriptor before append start, or inconsistent descriptor and end | `Corrupt` at that region |
+| Coupled alignment controls | Unaligned end or descriptor | `Corrupt` at that region |
+
+The physical-length test uses a scripted `ByteStore` for both invalid
+lengths, so testing the upper bound needs no oversized allocation.
+For slot layout pairs, changing parity also updates the predecessor.
+Changing the physical bound or descriptor floor preserves the
+one-region descriptor/end relation. The inconsistent-end case keeps
+both offsets aligned. The slot cases clear the newest witness to
+isolate malformed metadata from an independent witness rejection.
+
+| Newest slot | Newest witness | Result |
+|---|---|---|
+| Valid | Zeroed or bad checksum | Revision 2 |
+| Zeroed or bad checksum | Zeroed or bad checksum | Revision 1 |
+| Zeroed or bad checksum | Valid at revision 2 | `Corrupt` |
+| Checksummed but structurally invalid | Absent | `Corrupt` |
+| Valid | Checksummed but structurally invalid | `Corrupt` |
+
+The public open path rejects an oversized image before parsing any
+metadata. Within the layout guard, an end above the format ceiling
+therefore also fails the preceding physical-length check. The two
+alignment conditions are coupled with the descriptor/end relation.
+An unaligned offset either implies an unaligned other offset or
+violates that relation. The tests exercise the rejection, and the
+ledger records these three conditions as lacking independent
+accept/reject pairs on this path.
+
+The metadata and durability suites passed in debug and release on
+arm64 macOS. The tests caught 24 deliberate changes in disposable
+copies. The reviewed worktree was checkpointed at `dcd2402` before
+this batch. The [fuzz workspace](fuzz/README.md) documents the new raw,
+structured, and commit-crash targets, corpus replay, and sanitizer
+smoke results.
+
+### REC-V7. Traversal, aliases, and stable object reads
+
+The graph decision tests in [codec.rs](src/storage/codec.rs) enter through
+`Database::open_on`. Rejection cases clear the newest witness, assert
+no writes or syncs, and check that clearing the newest slot lets the
+previous revision open. This isolates graph rejection from witness
+agreement and proves the older graph remains usable.
+
+| Control and changed condition | Result |
+|---|---|
+| Valid revision 3 graph, value offset below append start or unaligned | `Corrupt`, no read of the invalid object |
+| Valid backward reference, reference equal to its parent | `Corrupt` before reading the child |
+| Valid object size, overflowing header/payload sum or alignment | `Corrupt` after the header read |
+| Valid size, aligned size beyond the format cap or object crossing its parent | `Corrupt` after the header read |
+| Value born at revision 3, born at revision 4 | `Corrupt` after the header read |
+| Valid scalar payload, unknown tag, truncated scalar, or trailing scalar byte | `Corrupt` |
+| Ordered record/map keys, duplicate first key | `Corrupt` |
+| Same depth-3 graph opened with depth limits 3 and 2 | Revision 3 or `Corrupt` before reading the depth-3 leaf |
+| Adjacent values, second value referencing a checksummed object embedded inside the first | Revision 2 or `Corrupt` after the embedded header |
+| Stable value header, changed born revision on the full read with repaired checksum | Revision 2 or `Corrupt` |
+| Shared DATA offset and revision, same offset with a different declared revision | Revision 4 or `Corrupt`, no additional DATA read |
+| Distinct DATA offsets and revisions, distinct offsets claiming one revision | Revision 4 or `Corrupt` before reading the second directory |
+| Retained next collection ID at the current bound, above that bound | Revision 4 or `Corrupt` |
+
+The unstable-read adapter changes the born revision to another valid
+revision and repairs its checksum. This isolates header consistency
+from checksum, padding, and born-revision validity. The existing
+checksum and padding pairs cover the other terms in that decision.
+The overlapping-object fixture first opens with the embedded bytes
+unreferenced, then references those exact bytes as a second value.
+
+Several defensive branches need a disposition under the current
+public-open invariants. Object count cannot reach `MAX_OBJECTS` after
+nonoverlap, alignment, and the 64 MiB image bound are enforced.
+Successful unique-object reads consume at most the image bytes plus
+one 64-byte header per region, below the work limit of twice the image
+cap. Object end arithmetic cannot overflow after offset and aligned
+size have been bounded by that cap. On supported 64-bit targets,
+converting the stored u64 length to usize cannot fail.
+
+An already cached value crossing its new parent's start would overlap
+that parent, which has already passed range verification. Cached DATA
+always uses the selected descriptor as parent, so its previously
+verified end cannot exceed that same bound on reuse. These end checks
+lack feasible failing pairs on the stable public-open path. The
+forward-value guard also has downstream object-bound checks.
+Revisit these dispositions if reference direction, caching, alignment,
+image bounds, or supported pointer widths change.
+
+This batch records directed decision evidence. Deliberate guard mutation
+checks were not run for REC-V7 or TX-V2 in this batch. The full
+parser/count/resource inventory and compiler-measured coverage remain open.
+The library, durability, retention, schedules, transactions, and
+concurrency suites passed in debug and release with all features on
+arm64 macOS using rustc 1.99.1. Concurrent allocator/FFI additions
+changed the library test count between these runs, so this evidence
+records the suites rather than a fixed total. The schedule harness
+passed 10,000 AddressSanitizer executions with seed 1, alongside its
+stable replay tests and warnings-denied Clippy check.
+
+### MEM-V1. Independent configuration bounds
+
+The public `Database::with_limits` test
+`allocation_limits_reject_each_independent_invalid_configuration` uses
+one valid boundary configuration and changes exactly one input in each
+rejection case. All other conditions remain false.
+
+| Condition changed | Valid boundary | Invalid value | Result |
+|---|---|---|---|
+| Depth is zero | 64 | 0 | `Invalid` |
+| Depth exceeds maximum | 64 | 65 | `Invalid` |
+| Entries exceed maximum | 1,000,000 | 1,000,001 | `Invalid` |
+| Writes exceed maximum | 1,000,000 | 1,000,001 | `Invalid` |
+| Observations exceed maximum | 1,000,000 | 1,000,001 | `Invalid` |
+| Key/bytes size exceeds addressable slice | `isize::MAX` | `isize::MAX + 1` | `Invalid` |
+| Value size exceeds addressable slice | `isize::MAX` | `isize::MAX + 1` | `Invalid` |
+| Transaction size exceeds addressable slice | `isize::MAX` | `isize::MAX + 1` | `Invalid` |
+
+A second accepted configuration uses depth 1 and zero for the other
+limits. Configuration acceptance does not imply that every operation
+fits the selected budgets. Each of the eight rejection cases also caught
+its matching guard being replaced by `false` in a disposable source copy.
+
+### MEM-V2. Allocation budgets, reservation and ownership
+
+The allocator seam tests in `src/memory.rs` complement the existing
+public allocation-failure sweeps in `tests/allocation.rs`.
+
+| Decision | Paired observations |
+|---|---|
+| Reservation fits capacity | A vector containing one byte accepts three additional slots in capacity four with budget zero. A request for four fails with `OutOfMemory` and preserves the vector. |
+| Reservation arithmetic overflows | The same nonempty vector rejects `usize::MAX` extra slots with `Limit` before claiming allocation. |
+| Finite allocation budget | Budget one allows growth and leaves the next claim returning `OutOfMemory`. Unlimited mode permits repeated claims. |
+| Native vector reservation fails | An empty `Vec<u64>` rejects `isize::MAX` elements with `OutOfMemory`, even with unlimited injected budget, and stays empty. |
+| Zero-sized allocation/copy | Boxing `()` and copying an empty slice succeed with budget zero. Copying one byte fails. |
+| Ownership on failed allocation | Failed shared, boxed and raw allocations each destroy their input exactly once. |
+| Shared ownership | A clone consumes no allocation budget. Dropping one of two owners preserves the payload. Dropping the final owner destroys it once. |
+| Raw/boxed ownership transfer | A successfully allocated box and a raw allocation consumed once by `free_raw` each destroy their payload once. |
+
+The existing cross-thread test still checks final destruction after 8,000
+accesses, while the existing four public sweeps cover nested edits,
+transaction preparation, observations/overlays/scans, and collection
+publication under injected allocation failure.
+
+These cases establish manual decision evidence at these seams. They do
+not exercise a real global allocator returning null, the refcount abort
+threshold, or all atomic interleavings. The `copy` length guard above
+`isize::MAX` cannot receive an independently valid Rust slice, so it is a
+defensive bound under the slice contract. The raw allocator's nonzero
+layout assertion is a caller precondition. Its intentional failure and
+the refcount abort threshold remain candidates for subprocess tests.
+
+All three memory tests and five allocation tests passed in debug and
+release on arm64 macOS with all features and rustc 1.99.1. Eight deliberate
+configuration guard mutations were caught. Source blobs were
+`2e7e074c839cad80748b4f0a15cd888de7c883bf` for `src/memory.rs` and
+`b24ed6e61209a1ff2cc3988870925102d5921ed6` for `tests/allocation.rs`.
+
+### FFI-V1. Input, output and ownership boundaries
+
+The FFI unit tests call the exported C functions with valid allocated
+handles and buffers. The five new tests extend the existing allocation
+rollback, concurrent acquisition/release and close-quiescence tests.
+
+| Decision | Accepting control | Rejection or alternate outcome |
+|---|---|---|
+| Byte buffer is null AND capacity is nonzero | Non-null buffer at capacity 3, or null buffer at capacity 0 for empty bytes | Null buffer at capacity 3 returns `Invalid` |
+| Byte capacity is below required length | Three-byte value with capacity 3 copies `abc` | Capacities 0 and 2 return `Buffer`, report 3, and leave destination untouched |
+| Retained-ID buffer is null AND capacity is nonzero | Non-null buffer at capacity 1, or null buffer at capacity 0 with no retained IDs | Null buffer at capacity 1 returns `Invalid` and required count 0 |
+| Retained-ID capacity is below required count | One retained ID and capacity 1 copies ID 1 | Capacity 0 returns `Buffer` and required count 1 |
+| Required-size output is missing | Valid output receives size/count | Null output returns `Invalid` without changing the buffer |
+| Byte input length is zero | Null pointer with length 0 creates empty bytes | Null pointer with length 1 returns `Invalid` |
+| Input length exceeds byte limit | One valid input byte succeeds | Null pointer above the default 1 MiB limit returns `Limit` before forming a slice |
+| Value kind, bits and length are supported | Bytes with zero bits, integer with zero byte length | Bytes with nonzero bits, scalar with nonzero length, out-of-range kinds and invalid boolean bits return `Invalid` |
+| Snapshot owner matches database | Retaining through its owner succeeds | Retaining through another live database returns `ForeignStore`, resets ID to 0 |
+| Foreign handle count can increment | Clone with one source handle succeeds | Synthetic `usize::MAX` count returns `Limit`, keeps count and source intact, nulls clone output |
+| Scan index exists | Index 0 returns the sole key and a new value handle | Index 1 and `usize::MAX` return `Bounds`, zero required length, null value output and preserve key buffer |
+| Transaction validation mode is supported | Modes 0 and 1 begin and abort | Modes -1 and 2 return `Invalid` and null the output |
+| Transaction is active | Existing commit test succeeds after a rejected null output | Commit after abort returns `Closed` and zeros revision output |
+
+For both buffer conjunctions, the empty collection/value cases isolate
+each condition while keeping the result otherwise successful. The
+nonempty cases separately pin the sizing-query and exact-capacity
+behavior. Output-only sentinel pointers are overwritten before use and
+are never dereferenced. Null release is tested for all four handle kinds.
+The existing allocation test continues to verify rollback of the live
+handle count, and the concurrency test verifies busy close followed by
+successful close after the final release.
+
+This is a scoped manual decision audit. Invalid non-null pointers,
+misalignment, undersized backing allocations, output/input aliasing,
+double release and concurrent close violate the C caller contract.
+They are excluded from executable input pairs because exercising them
+can invoke undefined behavior. The handle-count exhaustion test sets an
+otherwise impractical counter state and restores its true count before
+release. Native path validation, platform dispatch, panic containment,
+every scalar output wrapper and complete exported-symbol coverage remain
+separate assurance work. No compiler-measured MC/DC percentage is claimed.
+
+All eight FFI tests passed with all features in debug and release on
+arm64 macOS with rustc 1.99.1. Eight deliberate mutations in a disposable
+copy were detected by test assertions. The mutations changed each buffer
+conjunction to OR, each capacity comparison to less-than-or-equal, each
+reported required size to zero, disabled the zero-length input shortcut,
+and forced owner equality to fail. Guard-removal mutations that could
+allow invalid pointer dereferences were excluded. The tested FFI source
+blob is `7fed0fce570ed937d571311cab20474b5c9e8dc3`.
+
+The combined library and allocation suites also passed with nightly
+AddressSanitizer on aarch64-apple-darwin. The standard library was not
+rebuilt with instrumentation. The all-feature, all-target workspace
+Clippy check passed with warnings denied.
 
 ### FOL-V1. Durable installation and progress
 

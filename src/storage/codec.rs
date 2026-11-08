@@ -917,6 +917,187 @@ mod tests {
         }
     }
 
+    fn check_metadata(
+        image: &[u8],
+        expected: Result<u64>,
+        case: &str,
+    ) -> Vec<crate::storage::IoEvent> {
+        use crate::storage::IoKind;
+
+        let disk = SimulatedDisk::from_image(image).unwrap();
+        let actual =
+            Database::open_on(disk.clone(), Limits::default()).map(|db| db.snapshot().revision());
+        assert_eq!(actual, expected, "{case}");
+        let trace = disk.trace().unwrap();
+        if expected.is_err() {
+            assert_eq!(disk.durable_image().unwrap(), image, "{case}");
+            assert!(
+                trace
+                    .iter()
+                    .all(|e| !matches!(e.kind, IoKind::Write | IoKind::Sync)),
+                "{case}"
+            );
+        }
+        trace
+    }
+
+    #[test]
+    fn recovery_checks_image_length_before_reading_metadata() {
+        struct Length(u64);
+        impl ByteStore for Length {
+            fn lock(&mut self) -> Result<()> {
+                Ok(())
+            }
+            fn unlock(&mut self) {}
+            fn length(&mut self) -> Result<u64> {
+                Ok(self.0)
+            }
+            fn read(&mut self, _: u64, _: &mut [u8]) -> Result<usize> {
+                panic!("length must be checked before reading")
+            }
+            fn write(&mut self, _: u64, _: &[u8]) -> Result<usize> {
+                unreachable!()
+            }
+            fn sync(&mut self) -> Result<()> {
+                unreachable!()
+            }
+        }
+        for length in [APPEND_START as u64 - 1, MAX_IMAGE_BYTES as u64 + 1] {
+            assert!(
+                matches!(
+                    Database::open_on(Length(length), Limits::default()),
+                    Err(Error::Corrupt)
+                ),
+                "{length}"
+            );
+        }
+        check_metadata(&fixture(), Ok(2), "supported length");
+    }
+
+    #[test]
+    fn recovery_rejects_each_invalid_header_field_before_reading_slots() {
+        let original = fixture();
+        check_metadata(&original, Ok(2), "valid header");
+        for (case, offset, repair, expected) in [
+            ("header magic", 0, true, Error::UnsupportedFormat),
+            ("header version", 8, true, Error::UnsupportedFormat),
+            ("header checksum", 64, false, Error::Corrupt),
+            ("header reserved word", 12, true, Error::Corrupt),
+            ("header region size", 16, true, Error::Corrupt),
+            ("header append start", 24, true, Error::Corrupt),
+            ("header image limit", 48, true, Error::Corrupt),
+            ("header object limit", 56, true, Error::Corrupt),
+            ("header padding", 72, true, Error::Corrupt),
+            ("zero file identity", 32, true, Error::Corrupt),
+        ] {
+            let mut image = original.clone();
+            if offset == 32 {
+                image[32..48].fill(0);
+            } else {
+                image[offset] ^= 1;
+            }
+            if repair {
+                resign(&mut image, 0, REGION, 64);
+            }
+            let trace = check_metadata(&image, Err(expected), case);
+            assert_eq!(
+                trace.last().unwrap().offset,
+                0,
+                "{case} must fail in the header"
+            );
+        }
+    }
+
+    #[test]
+    fn absent_or_torn_metadata_obeys_the_surviving_witness() {
+        let original = fixture();
+        for (case, torn) in [("zeroed region", false), ("bad checksum", true)] {
+            let clear = |image: &mut [u8], region| {
+                if torn {
+                    image[region * REGION + 64] ^= 1;
+                } else {
+                    image[region * REGION..(region + 1) * REGION].fill(0);
+                }
+            };
+            let mut image = original.clone();
+            clear(&mut image, 3);
+            check_metadata(&image, Ok(2), case); // Intact newest root.
+            clear(&mut image, 1);
+            check_metadata(&image, Ok(1), case); // Neither newest record validates.
+            image[3 * REGION..4 * REGION].copy_from_slice(&original[3 * REGION..4 * REGION]);
+            check_metadata(&image, Err(Error::Corrupt), case); // Newest witness still proves revision 2.
+        }
+    }
+
+    #[test]
+    fn checksummed_slot_and_witness_metadata_must_have_valid_fields() {
+        enum Change {
+            Byte(usize),
+            Parity,
+            EndPastLength,
+            UnalignedEnd,
+            BeforeAppend,
+            UnalignedDescriptor,
+            DescriptorEnd,
+        }
+        use Change::*;
+
+        let original = fixture();
+        for region in [1, 3] {
+            let offset = region * REGION;
+            check_metadata(&original, Ok(2), "valid metadata");
+            for (case, change) in [
+                ("metadata magic", Byte(0)),
+                ("metadata version", Byte(8)),
+                ("metadata index", Byte(12)),
+                ("metadata identity", Byte(16)),
+                ("metadata padding", Byte(72)),
+                ("revision parity", Parity),
+                ("predecessor", Byte(56)),
+                ("end past physical length", EndPastLength),
+                ("unaligned end", UnalignedEnd),
+                ("descriptor before append start", BeforeAppend),
+                ("unaligned descriptor", UnalignedDescriptor),
+                ("descriptor/end relation", DescriptorEnd),
+            ] {
+                let mut image = original.clone();
+                if region == 1 {
+                    // A structurally invalid newest slot must reject even
+                    // when no newest witness would prevent falling back.
+                    image[3 * REGION..4 * REGION].fill(0);
+                }
+                let bytes = &mut image[offset..offset + REGION];
+                let descriptor = u64_at(bytes, 40);
+                let end = u64_at(bytes, 48);
+                match change {
+                    Parity => {
+                        put64(bytes, 32, 3);
+                        put64(bytes, 56, 2);
+                    }
+                    EndPastLength => {
+                        put64(bytes, 40, end);
+                        put64(bytes, 48, end + REGION as u64);
+                    }
+                    UnalignedEnd => put64(bytes, 48, end - 1),
+                    BeforeAppend => {
+                        put64(bytes, 40, (APPEND_START - REGION) as u64);
+                        put64(bytes, 48, APPEND_START as u64);
+                    }
+                    UnalignedDescriptor => put64(bytes, 40, descriptor + 1),
+                    DescriptorEnd => put64(bytes, 48, end - REGION as u64),
+                    Byte(field) => bytes[field] ^= 1,
+                }
+                resign(&mut image, offset, REGION, 64);
+                let trace = check_metadata(&image, Err(Error::Corrupt), case);
+                assert_eq!(
+                    trace.last().unwrap().offset,
+                    offset as u64,
+                    "{case} must fail in its metadata region"
+                );
+            }
+        }
+    }
+
     fn check_newest_graph(
         image: &[u8],
         newest: u64,
@@ -1037,6 +1218,299 @@ mod tests {
         put64(&mut retained, old_flag + OBJECT_HEADER + 8, 2);
         resign(&mut retained, old_flag, size, 48);
         check_newest_graph(&retained, 4, Err(Error::Corrupt), "retained-only value");
+    }
+
+    #[test]
+    fn graph_traversal_checks_offsets_lengths_order_and_payload_shape() {
+        use crate::storage::IoKind;
+
+        let (disk, db) = fixture_store();
+        let mut edit = db.begin();
+        let list = db
+            .list()
+            .unwrap()
+            .list_push(&db.unsigned(8).unwrap())
+            .unwrap();
+        let map = db
+            .map()
+            .unwrap()
+            .map_set(b"a", &list)
+            .unwrap()
+            .map_set(b"b", &db.integer(9).unwrap())
+            .unwrap();
+        edit.put(db.collection_id(1), b"a", &map).unwrap();
+        assert_eq!(edit.commit(), Ok(3));
+        let clean = disk.durable_image().unwrap();
+        let descriptor = clean.len() - REGION;
+        let data = u64_at(&clean, descriptor + OBJECT_HEADER + 8) as usize;
+        let first_key = data + OBJECT_HEADER + 56;
+        let first_value_ref = first_key + 9;
+        let map = u64_at(&clean, first_value_ref) as usize;
+        let list = u64_at(&clean, map + OBJECT_HEADER + 25) as usize;
+        let leaf = u64_at(&clean, list + OBJECT_HEADER + 16) as usize;
+        check_newest_graph(&clean, 3, Ok(3), "valid traversal");
+
+        for (case, target, field, replacement, expected_reads) in [
+            (
+                "below append",
+                data,
+                first_value_ref,
+                (APPEND_START - REGION) as u64,
+                1,
+            ),
+            ("unaligned", data, first_value_ref, (map + 1) as u64, 0),
+            ("forward child", data, first_value_ref, data as u64, 2),
+            ("overflow object length", map, map + 16, u64::MAX, 1),
+            (
+                "overflow object alignment",
+                map,
+                map + 16,
+                u64::MAX - OBJECT_HEADER as u64,
+                1,
+            ),
+            (
+                "aligned object exceeds image cap",
+                map,
+                map + 16,
+                MAX_IMAGE_BYTES as u64,
+                1,
+            ),
+            (
+                "object crosses parent",
+                map,
+                map + 16,
+                (data - map) as u64,
+                1,
+            ),
+            ("future value born revision", map, map + 24, 4, 1),
+            ("unknown tag", map, map + OBJECT_HEADER, 8, 2),
+        ] {
+            let mut image = clean.clone();
+            let read_offset = if target == data {
+                replacement
+            } else {
+                map as u64
+            };
+            put64(&mut image, field, replacement);
+            resign(&mut image, target, REGION, 48);
+            let trace = check_newest_graph(&image, 3, Err(Error::Corrupt), case);
+            assert_eq!(
+                trace
+                    .iter()
+                    .filter(|e| e.kind == IoKind::Read && e.offset == read_offset)
+                    .count(),
+                expected_reads,
+                "{case}"
+            );
+        }
+
+        for (case, object, field, replacement) in [
+            ("duplicate record key", data, first_key, b'b'),
+            ("duplicate map key", map, map + OBJECT_HEADER + 24, b'b'),
+        ] {
+            let mut image = clean.clone();
+            image[field] = replacement;
+            resign(&mut image, object, REGION, 48);
+            check_newest_graph(&image, 3, Err(Error::Corrupt), case);
+        }
+        let mut image = clean.clone();
+        put64(&mut image, leaf + 16, 15);
+        resign(&mut image, leaf, REGION, 48);
+        check_newest_graph(&image, 3, Err(Error::Corrupt), "truncated scalar payload");
+        put64(&mut image, leaf + 16, 17);
+        resign(&mut image, leaf, REGION, 48);
+        check_newest_graph(&image, 3, Err(Error::Corrupt), "trailing scalar payload");
+
+        // The same graph fits depth 3. With depth 2 the leaf is never read.
+        for depth in [3, 2] {
+            let disk = SimulatedDisk::from_image(&clean).unwrap();
+            let limits = Limits {
+                max_depth: depth,
+                ..Limits::default()
+            };
+            let result = Database::open_on(disk.clone(), limits).map(|db| db.snapshot().revision());
+            let trace = disk.trace().unwrap();
+            let read_leaf = trace
+                .iter()
+                .any(|e| e.kind == IoKind::Read && e.offset == leaf as u64);
+            if depth == 3 {
+                assert_eq!(result, Ok(3));
+                assert!(read_leaf);
+            } else {
+                assert_eq!(result, Err(Error::Corrupt));
+                assert!(!read_leaf);
+                assert!(
+                    trace
+                        .iter()
+                        .all(|e| !matches!(e.kind, IoKind::Write | IoKind::Sync))
+                );
+                assert_eq!(disk.durable_image().unwrap(), clean);
+            }
+        }
+    }
+
+    #[test]
+    fn graph_rejects_overlapping_objects_even_when_both_are_checksummed() {
+        use crate::storage::IoKind;
+
+        let disk = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(disk.clone(), ID, Limits::default()).unwrap();
+        let collection = db.create_collection().unwrap();
+        let mut edit = db.begin();
+        edit.put(collection, b"a", &db.bytes(&vec![0; 2 * REGION]).unwrap())
+            .unwrap();
+        edit.put(collection, b"b", &db.integer(7).unwrap()).unwrap();
+        assert_eq!(edit.commit(), Ok(2));
+        let mut image = disk.durable_image().unwrap();
+        check_newest_graph(&image, 2, Ok(2), "adjacent values");
+        let descriptor = image.len() - REGION;
+        let data = u64_at(&image, descriptor + OBJECT_HEADER + 8) as usize;
+        let a = u64_at(&image, data + OBJECT_HEADER + 65) as usize;
+        let b_ref = data + OBJECT_HEADER + 90;
+        let b = u64_at(&image, b_ref) as usize;
+        let embedded = a + REGION;
+        image.copy_within(b..b + REGION, embedded);
+        resign(&mut image, a, 3 * REGION, 48);
+        check_newest_graph(&image, 2, Ok(2), "unreferenced bytes inside a value");
+        put64(&mut image, b_ref, embedded as u64);
+        resign(&mut image, data, REGION, 48);
+        let trace = check_newest_graph(
+            &image,
+            2,
+            Err(Error::Corrupt),
+            "reachable overlapping value",
+        );
+        assert_eq!(trace.last().unwrap().offset, embedded as u64);
+        assert_eq!(trace.last().unwrap().len, OBJECT_HEADER);
+        assert_eq!(trace.last().unwrap().kind, IoKind::Read);
+    }
+
+    #[test]
+    fn data_cache_accepts_sharing_and_rejects_inconsistent_aliases() {
+        use crate::storage::IoKind;
+
+        let (disk, db) = fixture_store();
+        let older = disk.durable_image().unwrap();
+        let old_root = older.len() - REGION;
+        let spare = u64_at(&older, old_root + OBJECT_HEADER + 8) as usize;
+        let mut edit = db.begin();
+        edit.put(db.collection_id(1), b"flag", &db.boolean(false).unwrap())
+            .unwrap();
+        assert_eq!(edit.commit(), Ok(3));
+        assert_eq!(db.retain_snapshot(&db.snapshot()), Ok(1));
+        let clean = disk.durable_image().unwrap();
+        let descriptor = clean.len() - REGION;
+        let payload = descriptor + OBJECT_HEADER;
+        let data = u64_at(&clean, payload + 8) as usize;
+        let reads = |trace: &[crate::storage::IoEvent], offset| {
+            trace
+                .iter()
+                .filter(|e| e.kind == IoKind::Read && e.offset == offset as u64)
+                .count()
+        };
+        let trace = check_newest_graph(&clean, 4, Ok(4), "same offset and revision");
+        assert_eq!(reads(&trace, data), 2, "one header and one full read");
+
+        let mut image = clean.clone();
+        put64(&mut image, payload + 64, 2);
+        resign(&mut image, descriptor, REGION, 48);
+        let trace = check_newest_graph(
+            &image,
+            4,
+            Err(Error::Corrupt),
+            "same offset, different revision",
+        );
+        assert_eq!(reads(&trace, data), 2);
+
+        // The current DATA references newer values than the spare can hold.
+        // Use a duplicate of the current directory with no collections so
+        // the copy is a valid DATA object on its own at the earlier offset.
+        image = clean;
+        image.copy_within(data..data + REGION, spare);
+        image[spare + OBJECT_HEADER + 16..spare + REGION].fill(0);
+        put64(&mut image, spare + 16, 24);
+        resign(&mut image, spare, REGION, 48);
+        put64(&mut image, payload + 56, spare as u64);
+        resign(&mut image, descriptor, REGION, 48);
+        let trace = check_newest_graph(
+            &image,
+            4,
+            Err(Error::Corrupt),
+            "different offset, same revision",
+        );
+        assert_eq!(reads(&trace, spare), 0);
+        put64(&mut image, spare + 24, 2);
+        put64(&mut image, spare + OBJECT_HEADER, 2);
+        resign(&mut image, spare, REGION, 48);
+        put64(&mut image, payload + 64, 2);
+        resign(&mut image, descriptor, REGION, 48);
+        let trace = check_newest_graph(&image, 4, Ok(4), "different offset and revision");
+        assert_eq!(reads(&trace, spare), 2);
+
+        put64(&mut image, spare + OBJECT_HEADER + 8, 3);
+        resign(&mut image, spare, REGION, 48);
+        let trace = check_newest_graph(
+            &image,
+            4,
+            Err(Error::Corrupt),
+            "retained next ID exceeds current",
+        );
+        assert_eq!(reads(&trace, spare), 2);
+    }
+
+    #[test]
+    fn graph_rejects_a_changed_header_on_full_object_read() {
+        struct Unstable {
+            disk: SimulatedDisk,
+            offset: u64,
+        }
+        impl ByteStore for Unstable {
+            fn lock(&mut self) -> Result<()> {
+                self.disk.lock()
+            }
+            fn unlock(&mut self) {
+                self.disk.unlock();
+            }
+            fn length(&mut self) -> Result<u64> {
+                self.disk.length()
+            }
+            fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
+                let n = self.disk.read(offset, out)?;
+                if offset == self.offset && n == REGION {
+                    // Change only the born revision to another valid revision.
+                    put64(out, 24, 1);
+                    resign(out, 0, REGION, 48);
+                }
+                Ok(n)
+            }
+            fn write(&mut self, _: u64, _: &[u8]) -> Result<usize> {
+                panic!("unstable graph reached recovery write")
+            }
+            fn sync(&mut self) -> Result<()> {
+                panic!("unstable graph reached recovery sync")
+            }
+        }
+
+        let mut image = fixture();
+        let (offset, _, _) = spans(&image)
+            .into_iter()
+            .find(|&(_, _, kind)| kind == VALUE)
+            .unwrap();
+        assert_eq!(u64_at(&image, offset + 24), 2);
+        image[3 * REGION..4 * REGION].fill(0);
+        check_newest_graph(&image, 2, Ok(2), "stable value header");
+        let disk = SimulatedDisk::from_image(&image).unwrap();
+        let unstable = Unstable {
+            disk: disk.clone(),
+            offset: offset as u64,
+        };
+        assert!(matches!(
+            Database::open_on(unstable, Limits::default()),
+            Err(Error::Corrupt)
+        ));
+        assert_eq!(disk.durable_image().unwrap(), image);
+        image[REGION..2 * REGION].fill(0);
+        check_newest_graph(&image, 1, Ok(1), "older root skips unstable value");
     }
 
     #[test]

@@ -344,6 +344,263 @@ export!(wdb_scan_value(scan: *const CScan, index: usize, out: *mut *mut CValue) 
 mod tests {
     use super::*;
     #[test]
+    fn byte_buffers_distinguish_null_capacity_and_required_length() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            for bytes in [b"".as_slice(), b"abc".as_slice()] {
+                let mut value = ptr::null_mut();
+                assert_eq!(
+                    wdb_value_make(database, 5, 0, bytes.as_ptr(), bytes.len(), &mut value),
+                    0
+                );
+                for (null_buffer, capacity) in
+                    [(true, 0), (true, 3), (false, 0), (false, 2), (false, 3)]
+                {
+                    let mut buffer = [0xa5; 3];
+                    let destination = if null_buffer {
+                        ptr::null_mut()
+                    } else {
+                        buffer.as_mut_ptr()
+                    };
+                    let mut required = usize::MAX;
+                    let expected = if null_buffer && capacity != 0 {
+                        Error::Invalid as i32
+                    } else if capacity < bytes.len() {
+                        Error::Buffer as i32
+                    } else {
+                        0
+                    };
+                    assert_eq!(
+                        wdb_value_bytes(value, destination, capacity, &mut required),
+                        expected
+                    );
+                    assert_eq!(required, bytes.len());
+                    if expected == 0 && !bytes.is_empty() {
+                        assert_eq!(&buffer, bytes);
+                    } else {
+                        assert_eq!(buffer, [0xa5; 3]);
+                    }
+                }
+                let mut untouched = [0xa5; 3];
+                assert_eq!(
+                    wdb_value_bytes(value, untouched.as_mut_ptr(), 3, ptr::null_mut()),
+                    Error::Invalid as i32
+                );
+                assert_eq!(untouched, [0xa5; 3]);
+                assert_eq!(wdb_value_release(value), 0);
+            }
+            let mut required = usize::MAX;
+            assert_eq!(
+                wdb_value_bytes(ptr::null(), ptr::null_mut(), 0, &mut required),
+                Error::Invalid as i32
+            );
+            assert_eq!(required, 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn input_length_kind_and_output_guards_preserve_handle_ownership() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            let byte = [7u8];
+            for (kind, bits, bytes, len, expected) in [
+                (5, 0, ptr::null(), 0, 0),
+                (5, 0, byte.as_ptr(), 1, 0),
+                (5, 0, ptr::null(), 1, Error::Invalid as i32),
+                (5, 0, ptr::null(), 1024 * 1024 + 1, Error::Limit as i32),
+                (5, 1, ptr::null(), 0, Error::Invalid as i32),
+                (2, 7, ptr::null(), 0, 0),
+                (2, 7, byte.as_ptr(), 1, Error::Invalid as i32),
+                (-1, 0, ptr::null(), 0, Error::Invalid as i32),
+                (8, 0, ptr::null(), 0, Error::Invalid as i32),
+                (1, 2, ptr::null(), 0, Error::Invalid as i32),
+            ] {
+                // The sentinel is output-only and is never dereferenced.
+                let mut value = ptr::dangling_mut();
+                assert_eq!(
+                    wdb_value_make(database, kind, bits, bytes, len, &mut value),
+                    expected
+                );
+                if expected == 0 {
+                    assert!(!value.is_null());
+                    assert_eq!(wdb_value_release(value), 0);
+                } else {
+                    assert!(value.is_null());
+                }
+                assert_eq!((*database).handles.load(Ordering::Acquire), 0);
+            }
+            assert_eq!(
+                wdb_value_make(database, 0, 0, ptr::null(), 0, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            let mut output = ptr::dangling_mut();
+            assert_eq!(
+                wdb_value_clone(ptr::null(), &mut output),
+                Error::Invalid as i32
+            );
+            assert!(output.is_null());
+            assert_eq!(wdb_value_release(ptr::null_mut()), 0);
+            assert_eq!(wdb_snapshot_release(ptr::null_mut()), 0);
+            assert_eq!(wdb_scan_release(ptr::null_mut()), 0);
+            assert_eq!(wdb_tx_release(ptr::null_mut()), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn retained_id_buffers_and_foreign_snapshots_preserve_outputs() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            let mut foreign = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            assert_eq!(wdb_open(&mut foreign), 0);
+            let mut snapshot = ptr::null_mut();
+            assert_eq!(wdb_snapshot_acquire(database, &mut snapshot), 0);
+            let mut id = u64::MAX;
+            assert_eq!(
+                wdb_snapshot_retain(foreign, snapshot, &mut id),
+                Error::ForeignStore as i32
+            );
+            assert_eq!(id, 0);
+            assert_eq!(
+                wdb_snapshot_retain(database, snapshot, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            for populated in [false, true] {
+                if populated {
+                    assert_eq!(wdb_snapshot_retain(database, snapshot, &mut id), 0);
+                    assert_eq!(id, 1);
+                }
+                for (null_buffer, capacity) in [(true, 0), (true, 1), (false, 0), (false, 1)] {
+                    let mut buffer = u64::MAX;
+                    let destination = if null_buffer {
+                        ptr::null_mut()
+                    } else {
+                        &mut buffer
+                    };
+                    let mut required = usize::MAX;
+                    let expected = if null_buffer && capacity != 0 {
+                        Error::Invalid as i32
+                    } else if populated && capacity == 0 {
+                        Error::Buffer as i32
+                    } else {
+                        0
+                    };
+                    assert_eq!(
+                        wdb_retained_ids(database, destination, capacity, &mut required),
+                        expected
+                    );
+                    assert_eq!(
+                        required,
+                        usize::from(populated && expected != Error::Invalid as i32)
+                    );
+                    assert_eq!(
+                        buffer,
+                        if populated && expected == 0 {
+                            1
+                        } else {
+                            u64::MAX
+                        }
+                    );
+                }
+            }
+            let mut buffer = u64::MAX;
+            assert_eq!(
+                wdb_retained_ids(database, &mut buffer, 1, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(buffer, u64::MAX);
+            assert_eq!(wdb_snapshot_release(snapshot), 0);
+            assert_eq!(wdb_close(foreign), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn handle_count_exhaustion_rejects_clone_without_losing_source() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            let mut value = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            assert_eq!(
+                wdb_value_make(database, 2, 7, ptr::null(), 0, &mut value),
+                0
+            );
+            // Construct only the otherwise impractical counter boundary.
+            (*database).handles.store(usize::MAX, Ordering::Relaxed);
+            let mut clone = ptr::dangling_mut();
+            assert_eq!(wdb_value_clone(value, &mut clone), Error::Limit as i32);
+            assert!(clone.is_null());
+            assert_eq!((*database).handles.load(Ordering::Relaxed), usize::MAX);
+            (*database).handles.store(1, Ordering::Relaxed);
+            assert_eq!(wdb_value_clone(value, &mut clone), 0);
+            assert_eq!(wdb_value_release(clone), 0);
+            let mut bits = 0;
+            assert_eq!(wdb_value_scalar(value, &mut bits), 0);
+            assert_eq!(bits, 7);
+            assert_eq!(wdb_value_release(value), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+    #[test]
+    fn scan_bounds_and_invalid_transaction_modes_reset_outputs() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            let mut map = ptr::null_mut();
+            let mut item = ptr::null_mut();
+            let mut populated = ptr::null_mut();
+            assert_eq!(wdb_value_make(database, 6, 0, ptr::null(), 0, &mut map), 0);
+            assert_eq!(wdb_value_make(database, 2, 7, ptr::null(), 0, &mut item), 0);
+            assert_eq!(wdb_map_set(map, b"k".as_ptr(), 1, item, &mut populated), 0);
+            let mut scan = ptr::null_mut();
+            assert_eq!(wdb_map_scan(populated, &mut scan), 0);
+            for index in [0, 1, usize::MAX] {
+                let mut key = [0xa5];
+                let mut required = usize::MAX;
+                let mut value = ptr::dangling_mut();
+                let expected = if index == 0 { 0 } else { Error::Bounds as i32 };
+                assert_eq!(
+                    wdb_scan_key(scan, index, key.as_mut_ptr(), 1, &mut required),
+                    expected
+                );
+                assert_eq!(wdb_scan_value(scan, index, &mut value), expected);
+                if index == 0 {
+                    assert_eq!(key, *b"k");
+                    assert_eq!(required, 1);
+                    assert_eq!(wdb_value_release(value), 0);
+                } else {
+                    assert_eq!(key, [0xa5]);
+                    assert_eq!(required, 0);
+                    assert!(value.is_null());
+                }
+            }
+            for mode in [-1, 0, 1, 2] {
+                let mut tx = ptr::dangling_mut();
+                let status = wdb_tx_begin(database, mode, &mut tx);
+                if (0..=1).contains(&mode) {
+                    assert_eq!(status, 0);
+                    assert_eq!(wdb_tx_abort(tx), 0);
+                    let mut revision = u64::MAX;
+                    assert_eq!(wdb_tx_commit(tx, &mut revision), Error::Closed as i32);
+                    assert_eq!(revision, 0);
+                    assert_eq!(wdb_tx_release(tx), 0);
+                } else {
+                    assert_eq!(status, Error::Invalid as i32);
+                    assert!(tx.is_null());
+                }
+            }
+            assert_eq!(wdb_scan_release(scan), 0);
+            for value in [map, item, populated] {
+                assert_eq!(wdb_value_release(value), 0);
+            }
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+    #[test]
     fn shared_foreign_handles_count_concurrent_acquisition_and_release() {
         unsafe {
             let mut database = ptr::null_mut();

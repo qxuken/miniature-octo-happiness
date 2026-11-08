@@ -288,6 +288,67 @@ fn collection_identity_and_unrelated_catalog_changes() {
 }
 
 #[test]
+fn record_and_collection_validation_distinguish_changes_and_removal() {
+    for (observation, change, conflict) in [
+        ("point", "other-record", false),
+        ("point", "same-record", true),
+        ("point", "delete-record", true),
+        ("point", "drop-collection", true),
+        ("scan", "other-collection", false),
+        ("scan", "other-record", true),
+        ("scan", "drop-collection", true),
+        ("absence", "other-collection", false),
+        ("absence", "other-record", true),
+        ("absence", "drop-collection", true),
+    ] {
+        let (db, c) = seeded();
+        let other = db.create_collection().unwrap();
+        let old = db.snapshot();
+        let mut draft = db.begin();
+        match observation {
+            "point" => assert_eq!(draft.get(c, b"a").unwrap().unwrap().as_i64(), Ok(0)),
+            "scan" => assert_eq!(draft.count(c), Ok(2)),
+            "absence" => assert_eq!(draft.get(c, b"missing"), Ok(None)),
+            _ => unreachable!(),
+        }
+        if change == "drop-collection" {
+            db.drop_collection(c).unwrap();
+        } else {
+            let mut edit = db.begin();
+            match change {
+                "other-collection" => edit.put(other, b"b", &db.integer(1).unwrap()).unwrap(),
+                "other-record" => edit.put(c, b"b", &db.integer(1).unwrap()).unwrap(),
+                "same-record" => edit.put(c, b"a", &db.integer(1).unwrap()).unwrap(),
+                "delete-record" => edit.delete(c, b"a").unwrap(),
+                _ => unreachable!(),
+            }
+            edit.commit().unwrap();
+        }
+        let before = db.snapshot();
+        let intervening = before.revision();
+        let rows = before.scan(c);
+        let expected = if conflict {
+            Err(Error::Conflict)
+        } else {
+            Ok(intervening + 1)
+        };
+        assert_eq!(draft.commit(), expected, "{observation}, {change}");
+        assert_eq!(
+            draft.state(),
+            if conflict {
+                TransactionState::Aborted
+            } else {
+                TransactionState::Committed
+            }
+        );
+        assert_eq!(draft.commit(), Err(Error::Closed));
+        assert_eq!(db.snapshot().revision(), intervening + u64::from(!conflict));
+        assert_eq!(db.snapshot().scan(c), rows);
+        assert_eq!(old.get(c, b"a").unwrap().unwrap().as_i64(), Ok(0));
+    }
+}
+
+#[test]
 fn final_assignments_can_replace_records_at_collection_limit() {
     let db = Database::with_limits(weekend_db::Limits {
         max_entries: 2,

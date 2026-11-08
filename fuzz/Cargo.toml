@@ -1,0 +1,43 @@
+[package]
+name = "weekend-db-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+weekend-db = { path = ".." }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "open_image_bytes"
+path = "fuzz_targets/open_image_bytes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "open_structured_image"
+path = "fuzz_targets/open_structured_image.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "commit_crash"
+path = "fuzz_targets/commit_crash.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "txn_schedule"
+path = "fuzz_targets/txn_schedule.rs"
+test = false
+doc = false
+bench = false
