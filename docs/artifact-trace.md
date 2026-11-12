@@ -111,3 +111,36 @@ mise exec rust@1.99.1 python@3.14.8 -- python tools/artifact-trace/run.py \
 ```
 
 Eight unit checks independently cover a hand-computed empty/missing-delete publication sequence, known conflict/terminal/history outcomes, malformed trace bounds, corrupted/extra/symlinked package rejection, manifest path escape rejection, preserving an existing output directory, rejecting a dangling final output symlink before any input/work, and exact cleanup argv restricted to matching UUID resources. The dangling-link control asserts the redirected target stays absent and the surrounding directory is unchanged. These complement the actual packaged-consumer executions; they do not replace them.
+
+## Compiler selector correction and fresh replay
+
+Review found that the runner's broad build-environment scrub also removed
+`RUSTUP_TOOLCHAIN`, discarding Mise's explicit compiler selection when `rustc`
+was a Rustup proxy. An actual `mise exec rust@1.99.0` control reproduced the
+old fallback to global Rust 1.99.1. The runner now preserves both
+`RUSTUP_HOME` and `RUSTUP_TOOLCHAIN`; the same control reports actual 1.99.0.
+The ninth unit check verifies selection survives while build flags, compiler
+wrappers, profile overrides and injected libraries remain removed. All nine
+checks pass normally and under Python `-O`.
+
+Fresh full optimized replays with the corrected runner passed Mac Rust/C/Odin
+and Linux ext4 Rust/C against the same exact-21e5d26 packages, trace and model.
+All five 59-line transcripts retain SHA-256
+`5997dbaa08eef5bc3c98e6bdcea55f991da09d8d8d2693e5b73f5c5045e295ff`.
+Both full replays used the requested and recorded Rust 1.99.1; the 1.99.0
+selector control is not a packaged-consumer qualification at that compiler.
+Earlier measurements also observed 1.99.1 and keep their original source
+scope rather than being relabeled under the corrected runner.
+
+Local evidence is `target/artifact-trace-selector-a56083c/`, including the
+two-version control, normal/optimized test logs, complete source/artifact
+bindings and fresh replay logs. Independent review rehashed all indexed files,
+confirmed relocated-library loader diagnostics, and verified exact UUID Linux
+container/volume absence after copyback. No package or engine changed.
+
+| Final record/source | SHA-256 |
+|---|---|
+| `mac/evidence.json` | `0f8c417e3d5f4b9feb01b359c52a3e6f0508f1001d2f59a73397cb1748f0c8d9` |
+| `linux/evidence.json` | `04ec52145ff538905221dd272f11b59278efcd13b3541e52c7e7b89a7f1e1840` |
+| `tools/artifact-trace/run.py` | `c4f3a28c34023f20561571abd5f561abf0267481327596a2a114f56b2457a782` |
+| `tools/artifact-trace/test_runner.py` | `4c9c79bb3221b3e9865c55ddf11567bcbb9d06127e5afaaa46f2535c665ba326` |

@@ -53,7 +53,7 @@ def verify(package):
 def clean_env(source):
     env=dict(os.environ)
     for key in list(env):
-        if key!='RUSTUP_HOME' and (key.startswith(('RUST','CARGO_BUILD_','CARGO_TARGET_','CARGO_PROFILE_')) or key in ['CARGO_ENCODED_RUSTFLAGS','LLVM_PROFILE_FILE','LD_PRELOAD','DYLD_INSERT_LIBRARIES','DYLD_LIBRARY_PATH','LD_LIBRARY_PATH','CARGO_HOME']):
+        if key not in ('RUSTUP_HOME', 'RUSTUP_TOOLCHAIN') and (key.startswith(('RUST','CARGO_BUILD_','CARGO_TARGET_','CARGO_PROFILE_')) or key in ['CARGO_ENCODED_RUSTFLAGS','LLVM_PROFILE_FILE','LD_PRELOAD','DYLD_INSERT_LIBRARIES','DYLD_LIBRARY_PATH','LD_LIBRARY_PATH','CARGO_HOME']):
             env.pop(key)
     env.update(CARGO_INCREMENTAL='0',CARGO_NET_OFFLINE='true',WEEKEND_DB_SOURCE_ID=source)
     return env

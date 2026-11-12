@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import model
 import run
 
@@ -36,6 +37,19 @@ class TraceContract(unittest.TestCase):
         self.assertEqual(lines[-1],'58 11 3 10 [00=m{6e:u9,76:l[b0009ff,u10]};07=m{6e:u7,76:l[b0007ff,u8]}] H=- R=- X=-')
 
 class PackageProvenance(unittest.TestCase):
+    def test_environment_preserves_toolchain_selection_but_removes_build_overrides(self):
+        with patch.dict(os.environ, {'RUSTUP_HOME':'/selected/toolchains',
+                                     'RUSTUP_TOOLCHAIN':'1.99.0',
+                                     'RUSTFLAGS':'bad', 'RUSTC_WRAPPER':'bad',
+                                     'CARGO_BUILD_RUSTFLAGS':'bad',
+                                     'CARGO_PROFILE_RELEASE_PANIC':'abort',
+                                     'LD_PRELOAD':'bad'}, clear=True):
+            env=run.clean_env('a'*40)
+        self.assertEqual(env, {'RUSTUP_HOME':'/selected/toolchains',
+                              'RUSTUP_TOOLCHAIN':'1.99.0',
+                              'CARGO_INCREMENTAL':'0','CARGO_NET_OFFLINE':'true',
+                              'WEEKEND_DB_SOURCE_ID':'a'*40})
+
     def test_cleanup_argv_is_limited_to_matching_uuid_pair(self):
         nonce='a'*32;container='weekend-trace-'+nonce;volume='weekend-trace-data-'+nonce
         self.assertEqual(run.cleanup_commands(container,volume),[
