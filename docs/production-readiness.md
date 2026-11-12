@@ -2,6 +2,9 @@
 
 The [execution status](roadmap-status.md) tracks the full scope including
 distributed features and remaining gates. Cargo packages stay private.
+The [acceptance audit](production-acceptance-audit.md) maps individual requirements
+to source-bound evidence and separates remaining local work from platform,
+device and owner decisions.
 
 The release scope includes the local embedded store, typed Rust, C/Odin,
 passive snapshot replication, fixed two-actor CRDT peers and the coordinator,

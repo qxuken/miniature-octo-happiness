@@ -118,3 +118,19 @@ and failed-provisioning records are preserved at
 `42d9c02ddd8bd149271016863f80af7b0ee258b47b69c4528980f6b6a5709b4b`.
 Independent review verified its hashes, configuration and pre-engine failure.
 These local ignored artifacts are not a permanent retention promise.
+
+## Completed Docker scratch cleanup
+
+After verifying the exported package manifests and sanitizer binaries on the
+host, five stopped `2490631` qualification containers and the two completed
+`2490631`/`21e5d26` scratch volumes were removed by exact identity. No running
+container or tool/runtime image was removed. All three immutable images and
+host-side evidence remain available; old in-container paths now describe the
+historical execution rather than retained live filesystems.
+
+The cleanup record is `target/docker-cleanup-20261113/index.json`. It records
+the selected identities, verified exported hashes, successful removal and
+absence checks. A separate `followup-inventory.json` records the three remaining
+image identities, zero containers/volumes and the host's later 48 GiB free-space
+sample. Free space can change independently of Docker. This is workspace
+maintenance, not additional engine qualification.

@@ -5050,3 +5050,66 @@ qualify a full Linux workspace TSan run. These finite diagnostic executions and
 private artifact checks have distinct scope; none establishes native Windows or
 physical-device power-loss behavior. The results, corrections and remaining
 gates are local, with no push, hosted CI execution or publication.
+
+
+### Production acceptance, package traces and operational progress
+
+The [requirement audit](docs/production-acceptance-audit.md) maps the roadmap's
+individual contracts to source-bound evidence and separates local engineering
+from native platform/device and owner decisions. The following tranche adds
+qualification tools and regression controls; engine/application runtime,
+publication barriers, byte/wire formats and the 2,561-record static source
+inventory are unchanged.
+
+Four [macro expansion guards](docs/macro-expansion-guards-032dadf.md) now have
+direct same-process accepted/rejected controls, warning-free condition outcomes
+and detected guard mutations. They complement existing downstream compiler
+rejections. They do not turn proc-macro child execution or generated code into
+a global MC/DC measurement.
+
+The [serialization scaling experiment](docs/serialization-scale.md) independently
+verifies complete current and retained bytes while measuring the existing
+VALUE/DATA lookup predicates in disposable instrumented copies. Distinct breadth
+128→512 multiplies VALUE comparisons by approximately sixteen; shared identities
+multiply them by approximately four. DATA counts remain 516 for full eight-epoch
+histories. The 2,048-distinct case admits seven epochs, rejects the eighth with
+unchanged state/file length, then completes all maintenance. The physical minimum
+for its next values exceeds remaining headroom. Actual clean operation timings
+and whole-lifecycle RSS are recorded separately from instrumentation; no index
+or claimed speedup was introduced. Any optimization must preserve emission order,
+fixed-identity bytes, allocation admission and failure atomicity.
+
+[Optimized artifact consumers](docs/artifact-trace.md) now interpret the same
+versioned binary trace against an independent contract model: native Rust/C/Odin
+on Mac and Rust/C on private Docker ext4. Every step compares actual statuses,
+publication revision, complete nested map/list/binary contents, current and held
+historical rows and retained IDs. Independent existing-record commits merge;
+stale point/scan/absence observations conflict and become terminal. Retained
+views survive reopen and remain alive after durable ID release. Root review
+strengthened no-overwrite admission, complete unchanged-buffer checks, reported
+length checks and valid-live-handle/nonzero error-output probes. The packages
+remain exact-21e5d26 artifacts/source payload, with separately stated feature
+profiles and no Windows or Linux Odin extension of evidence.
+
+The [private progress helper](docs/replica-progress.md) provides schema-v1 JSON
+around the existing snapshot CLI. A local inspected/captured revision and digest
+are distinct from a newly authenticated follower durable receipt. Same revision
+requires the same complete export digest; a newer receipt is labeled newer,
+without asserting that old retained roots remain selected. Failed exchanges keep
+remote progress unknown/unavailable; valid saved observations stay historical.
+Source identity, monotonic comparisons, strict bounded parsing and child cleanup
+have regression controls, including real lost-response/restart/refusal cases on
+Mac/Linux. The helper computes no commit-time lag or durability guarantee from
+its wall-clock timestamp. Core local commits still perform no network exchange.
+
+The unchanged native lifecycle driver passed [1,800-second Mac and Linux runs](docs/soak.md#extended-macos-and-linux-controls-at-7a9e661),
+with 124,224 and 676,992 writer commits respectively plus concurrent readers,
+retained roots and verified maintenance each round. The corrected observer checks
+exact revision/retention/progress arithmetic and source/binary stability. This is
+longer finite evidence for four small records, not production-scale longevity.
+Finally, the [minimum/compiler/dependency review](docs/local-baseline-ffdf506.md)
+passes complete Mac Rust/C/Odin checks at Rust 1.99.0 and clean advisory scans
+against an immutable 1,490-advisory snapshot. Actual quota tests could not start
+on the available kernel and remain unqualified. Native Windows, physical device
+failure, credential rotation/cutover, final candidate consolidation, remaining
+feasible decision pairs and declared service/support budgets remain open.

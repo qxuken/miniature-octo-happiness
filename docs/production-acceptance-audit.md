@@ -34,9 +34,9 @@ an unoffered expansion, not a defect to fix speculatively.
 |---|---|---|
 | F01 Isolation, observations and conflict rules | `src/engine.rs`; `tests/transactions.rs`, `tests/schedules.rs`; [engine ledger](decisions/engine.md) | Implemented/scoped evidence. Keep absence/scan/catalog/ABA pairs separately mapped; run exact consumer traces below. |
 | F02 Terminal transactions, snapshot lifetime, threading and lease contention | Engine/FFI ledgers, concurrent tests, native file tests | Per-handle unsafe contracts still apply. Native Windows and architecture-specific concurrency qualification remain; another profile's success does not close them. |
-| F03 `Io`/uncertain/recovery contracts and application retry IDs | Publication/recovery ledgers; [operations](operations.md); coordinator atomic durable receipts | Core contracts implemented. Local: replay the same uncertainty/reconciliation trace through delivered Rust/C/Odin surfaces, rather than only Rust-linked FFI calls. |
+| F03 `Io`/uncertain/recovery contracts and application retry IDs | Publication/recovery ledgers; [operations](operations.md); coordinator atomic durable receipts | Core contracts implemented. A [shared delivered-artifact trace](artifact-trace.md) now checks common transaction/history/terminal-state semantics through optimized Rust/C/Odin consumers. Native uncertain-I/O reconciliation and broader traces retain their separate obligations. |
 | F04 Read-only full verifier and selected-root authority | `storage::inspect_file`, admin `check`; `tests/inspection.rs`; [diagnostics](verification-diagnostics.md) | Implemented. Generic file checking does not automatically prove typed index correctness; use typed `check_indexes` explicitly. |
-| F05 Cheap health/headroom and actionable errors | `storage_space`, native diagnostic scope; errno categories; [native drills](native-fault-drills.md) | Real Linux ENOSPC/EACCES evidence exists at its frozen source. Actual quota exhaustion is not established by an enum/mapping test; local disposable quota fixture if kernel support permits. |
+| F05 Cheap health/headroom and actionable errors | `storage_space`, native diagnostic scope; errno categories; [native drills](native-fault-drills.md) | Real Linux ENOSPC/EACCES evidence exists at its frozen source. Actual quota exhaustion is not established by enum/mapping tests. A [private quota fixture attempt](local-baseline-ffdf506.md#actual-quota-capability-remains-unqualified) stopped before engine execution; the current Linuxkit kernel lacks required quota formats. A quota-capable native environment remains necessary. |
 | F06 Build/format identity and secret-safe output | `version`, ABI identity, release manifests; diagnostics omit record/path contents | Implemented. Local: validate service log/output redaction and structured error observability as a deployed workflow; do not claim arbitrary app logging is safe. |
 | F07 Verified backup/restore and new destination | `backup_file`/`restore_file`; independent CLI tests; typed `process_evolution`; [operations](operations.md) | Scoped state/history/index oracles exist. Owner sets recovery-time objective; repeated restore with actual workload is necessary for that objective. |
 | F08 Recovery point and identity after fork/restore | Selected leased revision is recovery point; identity preserved; [follower backup](follower-backup-restore.md), [CRDT recovery](crdt-operations.md) | Implemented explicit recipes. No zero-data-loss promise beyond preserved acknowledged state/available backup. Actor reset and writable copies require reviewed enrollment/routing changes. |
@@ -46,20 +46,20 @@ an unoffered expansion, not a defect to fix speculatively.
 | F12 Safe orphan deletion and authoritative image | Verified canonical replacement and selected follower manifest; namespace fuzz and maintenance tests | Implemented scoped checks. Hostile namespace mutation is outside trusted-directory contract; real device namespace durability remains separate. |
 | F13 API/ABI/disk/wire version policy | [release contract](release-contract.md), header, runtime identity, fixtures | Owner: stabilize chosen Rust/API/error/feature limits and support window. Pre-1 historical fixtures are not a blanket compatibility promise. |
 | F14 Upgrade/downgrade and original preservation | [storage compatibility](storage-compatibility-21e5d26.md), snapshot wire fixtures, typed retained migration tests | Local: add any *promised* profile/version direction not represented. Core wire interoperability is not mixed-version CLI TLS/ALPN interoperability. |
-| F15 Packaged optimized Rust/C/C++/Odin consumers and relocation | [exact-21 packages](local-qualification-21e5d26.md), source isolation and symbol checks | Mac/Linux source-bound evidence. Local: a shared deterministic stateful trace through exact packaged languages; Windows native consumers still a gate. |
-| F16 MSRV, loader, toolchain and support promises | Rust 1.99.1 qualification, pinned manifests/toolchain identities, private package instructions | Tested compiler is not independently established lowest MSRV. Owner declares minimum/support window; local build checks can enforce the declared minimum afterward. |
+| F15 Packaged optimized Rust/C/C++/Odin consumers and relocation | [exact-21 packages](local-qualification-21e5d26.md), source isolation and symbol checks | Mac/Linux source-bound evidence now includes a [59-step independent-model trace](artifact-trace.md): optimized Mac Rust/C/Odin and Linux ext4 Rust/C, exact relocated artifacts/source payload. Native Windows, Linux Odin and broader feature/error traces remain separately scoped. |
+| F16 MSRV, loader, toolchain and support promises | Rust 1.99.1 qualification, pinned manifests/toolchain identities, private package instructions | The [declared Rust 1.99 minimum](local-baseline-ffdf506.md#declared-minimum-compiler) now passes full Mac checks at 1.99.0 with unchanged locks. Other target/compiler combinations and owner support window remain open. |
 | F17 Worst-case heap/stack/disk/work/latency | Per-value/transaction/image/history caps, opt-in requested-core budget, [resource envelope](resource-envelope.md) | Local: combined/adversarial cases and encoder search work. No RSS/latency upper bound follows from the core budget or a requested worker-stack setting. |
 | F18 Decoder/DATA/encoder cache searches | Decoder indexing and recovery-scale example; the [serialization experiment](serialization-scale.md) now measures distinct/shared VALUE and eight-revision DATA searches, with complete maintenance oracles and RSS | Distinct breadth 128→512 gives approximately 16× comparisons; shared gives approximately 4×. DATA totals stay 516 for full histories. Local: separately reviewed VALUE-index experiment and 64-root history axis; owner sets acceptable latency/resource budgets. No optimization or overall speedup is inferred. |
 | F19 Fallible allocation, overflow, panic, unsafe and consumer builds | Memory/FFI ledgers, fault sweeps, Miri/Loom, abort subprocesses; [unsafe review](unsafe-review-2490631.md) | Scope remains source/ABI/config-specific. Candidate sanitizer work is separate; review downstream build flags and uninstrumented/native dependencies explicitly. |
 | F20 Filesystem/device/path/ACL threat model | Native adapters and operational docs; trusted config directories; Unix private keys; Windows external ACL provisioning | Platform/device: actual target filesystem/cache/ACL behavior. No race-proof hostile namespace or dishonest-flush guarantee. |
-| F21 License/security/dependencies/provenance | MIT OR Apache-2.0, notice inventory/std notices, [SECURITY](../SECURITY.md), package manifests | Owner accepts distribution terms, support response and exceptions. Local: fresh locked dependency review and final immutable candidate bundle; packaging eligibility is not production approval. |
+| F21 License/security/dependencies/provenance | MIT OR Apache-2.0, notice inventory/std notices, [SECURITY](../SECURITY.md), package manifests | Owner accepts distribution terms, support response and exceptions. A [fresh immutable-database dependency review](local-baseline-ffdf506.md#locked-dependency-review) passed all twelve checkpoint locks plus the later progress fixture. Final immutable candidate bundle/attribution and owner approval remain; packaging eligibility is not production approval. |
 | T01 Typed field IDs, missing/null/default/unknown semantics | Schema tests, typed models, `schema_index_migration` fuzz; [typed ledger](decisions/typed-runtime.md) | Implemented scoped evidence; generated code and changed model versions retain separate obligations. |
 | T02 Atomic indexes, consistency and rebuild | `Read::check_indexes`, `Write::rebuild_indexes`, duplicate/missing/orphan tests | Implemented. Raw mutations require application ownership and explicit repair; do not silently repair on normal open. |
 | T03 Bounded migration, resumable progress and retained restore | Explicit-ID batches with same-transaction progress receipt, process-evolution tests | Local: qualify a concrete app rollout/rollback plan across mixed-version readers/writers when promoted; no automatic distributed schema coordinator. |
 | R01 Enrollment/restart/reseed/authentication | `weekend-replicate`, shared TLS pin/ALPN/admission controls, [runbook](replication-operations.md) | Implemented for configured private endpoints. Local: coordinated credential replacement/revocation drill with old-pin rejection and unchanged/reopened state. |
 | R02 Bounded transfer/retry and lost reply | Absolute 30-second socket budget, retained same export within retry, reopen/poll reconciliation | File verification/flush can exceed socket deadline. Owner sets transfer envelope; restarted sender captures a new export, not transparent old-export replay. |
 | R03 Cleanup, manifest growth and rotation | Offline cleanup/compact commands and tests | Implemented Mac/Linux; Windows explicit unsupported manifest compaction and fresh-directory reseed. Native Windows execution remains. |
-| R04 Progress and lag diagnostics | `status`/`poll` report receipt/revision/digest; live server owns manifest lease | Local functional tooling gap: machine-readable capture/poll comparison with separate local/remote observations and lag/age, including unavailable/uncertain states. Revision difference is not elapsed-time lag. |
+| R04 Progress and lag diagnostics | `status`/`poll` report receipt/revision/digest; live server owns manifest lease | The [private JSON progress helper](replica-progress.md) now separates inspected capture and fresh follower receipt, exact/newer/behind/digest-conflict relations, unknown failures and historical prior state. Native Mac/Linux tests include lost response, reopen and refusal. No commit timestamp or time-lag guarantee exists; continuous monitoring/Windows remain unqualified. |
 | R05 Mixed-version and backup recovery | Core wire compatibility and verified follower restore/reseed cases | Local: supported CLI TLS/config upgrade and credential rotation cases. No automatic failover or promotion authority. |
 | C01 Lawful CRDT records and reserved row protection | `Record` laws documented, encode/decode preservation, actor checks; raw API bypass explicitly documented | Application must enforce exclusive reserved-row writes; do not label runtime checks a proof of arbitrary app merge laws. Local: reusable law-test helper for app records would improve adoption without adding consensus. |
 | C02 Causality/replay/resolution/bounds | Register event oracle, two-peer schedules, bounded frame/set/counter containers, repeated-sync no commits | Implemented finite models. Larger causal histories, forged-state shapes excluded from a harness and other policies need their own tests; no expansion by association. |
@@ -125,59 +125,55 @@ harness-level scope reference.
 | Gate from roadmap | Concrete evidence | Acceptance action |
 |---|---|---|
 | Fault-model publication | Storage/simulator contract, selected-root/witness semantics, [operations](operations.md) | Owner/platform: validate actual filesystem/device flush assumptions before power-loss promises. |
-| Allocation and I/O failure matrix | Simulator, corruption/fault sweeps, current/retained state oracles, [native drills](native-fault-drills.md) | Local: actual quota if feasible; systematic second-failure combinations where a reviewed disposition remains open. No blanket closure from one recovery test. |
+| Allocation and I/O failure matrix | Simulator, corruption/fault sweeps, current/retained state oracles, [native drills](native-fault-drills.md) | Platform: actual quota on a capable kernel, after the local provisioning limitation above; local systematic second-failure combinations where a reviewed disposition remains open. No blanket closure from one recovery test. |
 | Native platform/filesystem matrix | Exact-21 Mac and private Docker aarch64 Linux/ext4 full checks | Platform: current native Windows/NTFS and every other advertised ABI/filesystem. Container success is not x86 Linux or a deployed physical disk. |
 | Compatibility manifest and upgrade/rollback | [storage cases](storage-compatibility-21e5d26.md), logical/v2 fixtures, typed retained migration | Local: promised CLI/config directions; owner chooses supported versions. Historical pre-1 reader compatibility is not every future version. |
-| Binary delivery | [private artifact/source evidence](local-qualification-21e5d26.md), relocation, symbols and notices | Local: feature-isolated/combined candidate matrix plus shared consumer traces. Owner: final clean candidate, support matrix, retained evidence bundle and attribution review. |
-| Long-lived soak and reproducibility | Finite soak, accelerated month and cross-OS peer rounds; corrected launcher rejects incomplete round sequences and persists failures | Root is extending this separately. Require exact-state/resource checks and bounded cleanup; wall-clock longevity cannot be inferred from simulated calendar days. |
+| Binary delivery | [private artifact/source evidence](local-qualification-21e5d26.md), relocation, symbols and notices | Shared consumer traces are now recorded in their exact artifact scope. Local: final feature-isolated/combined candidate matrix. Owner: final clean candidate, support matrix, retained evidence bundle and attribution review. |
+| Long-lived soak and reproducibility | Finite soak, accelerated month and cross-OS peer rounds; corrected launcher rejects incomplete round sequences and persists failures | The [Mac/Linux 1,800-second runs](soak.md#extended-macos-and-linux-controls-at-7a9e661) now retain exact-state/resource checks and bounded cleanup; wall-clock longevity cannot be inferred from simulated calendar days. |
 | Performance/scale | [SQLite comparison](sqlite-baseline.md), resource latencies, monthly workload metrics | Owner sets application budgets. Local: credible sample counts, tail latency under concurrency/maintenance, RSS/disk/restore and follower-age diagnostics; small samples do not establish p99 guarantees. |
 | Support and release | Security owner/contact, private patch policy, unsafe review and scoped runbooks | Owner: supported versions, response goals, exceptions, incident/rollback drills. No production release is currently qualified merely because package tooling says candidate-eligible. |
 
-## Highest-impact local next work
+## Highest-impact remaining local work
 
-1. **Measure adversarial serialization work before changing it.** Add a bounded
-   driver with independent complete current/retained byte oracles, distinct tiny
-   objects versus maximally shared objects, multiple DATA revisions and breadth
-   sweeps. Record encoder node-identity and DATA-cache comparisons alongside
-   elapsed time, peak process RSS and copy/restore scratch-domain usage. Current
-   `Encoder::value`/`data` linearly search vectors; this motivates measurement,
-   not an unsupported claim of exploitable slowdown. If quadratic work is
-   reproduced within the accepted envelope, replace only that lookup with a
-   charged bounded index and rerun allocation/crash/retained-state tests.
-2. **Replay one independent operation trace across delivered APIs.** Generate a
-   small versioned trace/expected-state file containing nested values, absent
-   reads/scans, conflicting writes, retained reads, reopen and documented error
-   outputs. Have packaged Rust, compiled C and Odin consumers interpret the same
-   trace, without invoking Rust's private test helpers. Compare independent
-   digests/revisions and failure statuses after relocation. This closes a real
-   gap between rich Rust-linked models and fixed ABI smoke examples.
-3. **Qualify a coordinated credential change with real persistent peers.** Stop
+1. **Evaluate a VALUE identity index separately.** The serialization measurement
+   establishes quadratic VALUE lookup work and complete current/retained oracles.
+   A candidate must preserve emission order and exact fixed-identity simulator
+   bytes, qualify rebuilding from old caches, and repeat allocation/budget/crash
+   tests. Do not infer a required DATA index from only 516 comparisons at eight
+   revisions; measure the 64-root history axis separately. Owner budgets still
+   determine acceptable service latency and RSS.
+2. **Qualify coordinated credential change with real persistent peers.** Stop
    endpoints, replace configured leaves/pins in trusted private directories,
    restart with matching identities, and test old/one-sided/wrong pins plus
    interrupted operator cutover. Reopen data and compare exact revisions,
-   retained state and receipts; a rejected TLS attempt must not mutate storage.
-   Apply separately to snapshot and study ALPN profiles. No live reload, CA
-   service, automatic revocation or topology change need be invented.
-4. **Make replica progress operationally observable.** Add a small machine-readable
-   capture/poll status tool or stable CLI output carrying source identity,
-   captured local revision, exact digest, confirmed follower revision/digest,
-   observation timestamps and explicit unknown/error state. Test newer follower
-   acknowledgments, lost reply, restart and stale saved observation. Never call a
-   local export a follower acknowledgment, or a revision delta a time guarantee.
-5. **Resolve long-lived coordinator receipt policy before implementation.** The
-   tested permanent 1,024-slot cap is correct and intentionally rejects overflow.
-   For a continuous production coordinator this is an owner-visible operational
-   stop. First specify whether bounded sessions are enough. If not, define safe
-   request-ID epochs/archive and reconciliation of stale retries; silent eviction
-   is not an acceptable implementation shortcut.
+   retained state and receipts. Apply separately to snapshot and study ALPN
+   profiles. No live reload, CA service or topology change is implied.
+3. **Consolidate one final candidate bundle.** Existing results retain their
+   source, feature, compiler, artifact and filesystem scope. Final package,
+   source-consumer, sanitizer, mutation/corpus and workload evidence must be
+   reconciled against the chosen immutable candidate. The shared trace and
+   progress helper add evidence, without retroactively qualifying every profile.
+4. **Resolve continuous coordinator receipt policy before implementation.** The
+   tested permanent 1,024-slot cap intentionally rejects overflow. The owner
+   chooses whether bounded sessions suffice; otherwise specify safe request-ID
+   epochs/archive and reconciliation of stale retries. Silent eviction is not
+   an acceptable shortcut.
 
-The initial serialization measurement in item 1 is now recorded in
-[serialization-scale.md](serialization-scale.md); it narrows the remaining work
-to a separately reviewed VALUE-index candidate, a larger history axis and
-owner-selected performance acceptance. It does not justify DATA optimization.
+Native Windows execution, actual device power interruption, a quota-capable
+kernel, production workload budgets, support promises and distribution approval
+remain distinct platform/owner gates. They cannot be replaced by local models
+or more simulated calendar days. Remaining feasible decision pairs and broader
+workload/error traces stay visible in the module and fuzz rows above.
 
-The first four are local engineering/qualification opportunities. They should
-be sized against the selected release profile rather than made unconditional
-feature demands. Native Windows execution, actual device power interruption,
-production workload budgets, support promises and distribution authorization
-cannot be replaced by more local simulated tests.
+## Subsequent local evidence
+
+The shared optimized artifact trace and versioned progress helper now add
+cross-language state verification and separate capture/receipt observations
+in their documented finite scopes. The progress helper reports
+observation timestamps rather than inventing commit-time lag. The Mac/Linux
+1,800-second lifecycle runs extend wall-clock evidence for the four-record
+workload; they do not establish larger-cardinality or month-long uptime.
+Minimum-compiler and dependency snapshots are qualified separately. Credential
+cutover, candidate/platform/device qualification, further feasible decision
+pairs and declared service/support budgets remain open. This audit is updated
+with evidence; it is not a replacement for those acceptance gates.

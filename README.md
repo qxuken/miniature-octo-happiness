@@ -45,6 +45,10 @@ completed 1,431,321 runs across 22 targets. [Sanitizer checks](docs/sanitizer-qu
 cover Mac Rust ASan/TSan and calibrated C/Rust ASan on Mac/Linux. A [coverage audit](docs/historical-coverage-audit.md)
 withdraws incompatible historical workspace aggregates. Coverage now has explicit
 library and independent executable scopes; native Windows qualification remains open.
+The [acceptance audit](docs/production-acceptance-audit.md) maps remaining gates.
+New [optimized artifact traces](docs/artifact-trace.md) compare Rust/C/Odin to an
+independent model, and the [replica progress helper](docs/replica-progress.md)
+keeps inspected exports and follower durable receipts separate.
 
 The in-memory engine through milestone 5 implements immutable nested maps/lists,
 scalars/bytes, historical live snapshots, final put/delete overlays, and
