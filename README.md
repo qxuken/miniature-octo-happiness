@@ -36,6 +36,9 @@ including the CLI lifecycle and a renamed-dependency consumer.
 sketches, decisions, competitor comparison, reading references, milestones,
 and definitions of done. The [production readiness roadmap](docs/production-readiness.md)
 tracks release requirements, coverage, fuzzing, and operational gaps.
+Recent finite [resource qualification](docs/resource-envelope.md) exercises the
+existing depth/history/heap/image caps on macOS and Linux; its measured scope and
+remaining platform/device gates are explicit.
 
 The in-memory engine through milestone 5 implements immutable nested maps/lists,
 scalars/bytes, historical live snapshots, final put/delete overlays, and

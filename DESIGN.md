@@ -4947,3 +4947,40 @@ and synthetic events are retained locally without copying test keys into the
 proof index. This does not qualify a wall-clock month, arbitrary later app edits,
 the unexposed planned-topic field, device power loss or native Windows. The
 subsequent handshake seam has its own directed and native test evidence.
+
+### Native staging, maintenance exhaustion and resource qualification
+
+The [CRDT migration tests](docs/crdt-policy-migration.md) now acquire both old
+native writer leases and stage real files. Six process-kill boundaries reopen
+at exact empty/converted/partially retained states, while complete old current
+and retained records stay unchanged. Independent children verify every new file;
+fresh-identity retries converge without repeat commits. macOS/Linux serial and
+default debug/release runs pass after a child-output marker fix. Local leases
+do not provide distributed fencing or an operational routing journal.
+
+The [Linux native error drill](docs/native-fault-drills.md) extends actual bounded
+tmpfs ENOSPC beyond append to backup, restore and in-place compaction. All four
+failures report Io/Write/DiskFull errno 28; permission denial reports errno 13.
+Sources and an existing valid backup retain their bytes, partial copies do not
+verify, and freeing ballast permits fresh verified maintenance and reopening of
+current revision 4/row 18 plus retained revision 2/row 17. tmpfs verifies native
+error handling and process behavior, without claiming device durability.
+
+The [resource envelope](docs/resource-envelope.md) separates four bounded axes:
+64 retained depth-64 roots, actual near-exact 64 MiB requested-core saturation,
+an explicitly synthetic exact image boundary, and naturally filled reachable
+payload. The latter stores 72 distinct 896 KiB values (63 MiB), preserves eight
+retained prefixes and rejects the next append at 67,014,656 bytes. Full byte
+oracles survive warm reopening, backup, restore and compaction on macOS/APFS and
+Docker Linux/overlayfs. Draft release recovers admission; pin release and encoder
+cache reclamation across close/reopen are measured separately. RSS and the
+requested 1 MiB worker-stack result remain workload-specific observations.
+
+Finally, [coverage calibration](docs/coverage-calibration-96e105f.md) now separates
+branch-complete from independence-complete inputs for a three-condition decision,
+validates exact metric counts, and rejects unexpected source paths. Pinned
+library condition instrumentation measured 953/1,133 branch outcomes over 29
+files with 124 tests. Both tested compilers reject MC/DC instrumentation; the
+tool reports unsupported rather than substituting condition or branch data.
+These source-bound cases add evidence without closing native Windows, every
+adversarial combination, deployment SLOs or hardware power-loss qualification.
