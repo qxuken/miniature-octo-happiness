@@ -54,6 +54,11 @@ pub(super) fn run() -> AppResult<()> {
 struct Secret([u8; 64]);
 impl Secret {
     fn load(path: &Path) -> AppResult<Self> {
+        // Configuration lives in a trusted namespace. Reject special files
+        // before opening (notably blocking FIFOs), then recheck the handle.
+        if !std::fs::metadata(path)?.is_file() {
+            return Err("secret must be a regular file".into());
+        }
         let file = std::fs::File::open(path)?;
         let metadata = file.metadata()?;
         if !metadata.is_file() {

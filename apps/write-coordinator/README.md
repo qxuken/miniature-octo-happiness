@@ -87,6 +87,10 @@ For authenticated localhost clients, provision a secret file containing
 64 hexadecimal characters generated from 32 random bytes, optionally
 followed by one newline. On Unix, set mode 0600 and keep its parent
 directory private. Files granting group or other access are rejected.
+The secret must be a regular file; special files such as FIFOs are rejected
+before opening, and the opened handle is checked again. Keep the configuration
+namespace trusted: these checks do not protect against a hostile process racing
+to replace path components or redirect symlinks.
 On Windows, restrict the file's ACL to the intended user accounts before
 starting the service. The server and client read the secret once at
 startup. Rotate it by restarting both with a new file.

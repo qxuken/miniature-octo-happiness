@@ -333,3 +333,46 @@ fn command_line_dispatch_and_clean_client_exit() {
     client.stdin.take().unwrap().write_all(b"\nquit\n").unwrap();
     assert!(client.wait().unwrap().success());
 }
+
+#[cfg(unix)]
+#[test]
+fn secret_fifo_is_rejected_before_opening_database_or_waiting_for_input() {
+    let dir = Directory::new();
+    let secret = dir.0.join("secret-fifo");
+    assert!(
+        Command::new("mkfifo")
+            .arg(&secret)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let file = dir.0.join("untouched.db");
+    fs::write(&file, b"database must remain untouched").unwrap();
+    for args in [
+        vec![
+            "serve",
+            file.to_str().unwrap(),
+            "0",
+            "--secret-file",
+            secret.to_str().unwrap(),
+        ],
+        vec!["client", "0", "--secret-file", secret.to_str().unwrap()],
+    ] {
+        // Process::drop kills and reaps the child even if the deadline assertion
+        // fails. No FIFO writer is opened: a blocking File::open would hang.
+        let mut process = Process::start(&args);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let status = loop {
+            if let Some(status) = process.child.try_wait().unwrap() {
+                break status;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "secret FIFO blocked {args:?}"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert!(!status.success());
+        assert_eq!(fs::read(&file).unwrap(), b"database must remain untouched");
+    }
+}
