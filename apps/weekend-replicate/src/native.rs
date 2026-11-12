@@ -271,3 +271,6 @@ fn serve(mut follower: Follower, address: SocketAddr, tls: &Tls, maximum: usize)
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod pin_tests;

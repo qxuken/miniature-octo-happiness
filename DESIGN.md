@@ -4757,3 +4757,23 @@ loopback peers, exact fixture/binary/source hashes and results are bound by
 `target/snapshot-compatibility-reviewed/evidence.json`; deployment trust,
 certificate rotation, broader checkpoint/OS pairs and physical power loss remain
 outside this scoped proof.
+
+### Authenticated snapshot CLI decision audit
+
+The [snapshot CLI ledger](docs/decisions/snapshot-cli.md) classifies all 115
+explicit production records introduced at `315068f`; runtime code is unchanged.
+Together with the historical 2,415-record audit, the current inventory has 2,530
+dispositions across 50 files and 310 macro/derive blind spots. These are source
+dispositions, not a measured MC/DC percentage.
+
+New real TLS controls present valid alternate leaves signed by the configured
+trust anchor. Both endpoints reject them with the exact leaf-pin diagnostic,
+while exact peers install revision 2. Rejection leaves follower manifest bytes
+and directory contents unchanged, and reopening reports no durable progress.
+Additional controls cover CLI dispatch, permanent retry rejection and private
+credential modes. All 14 focused app tests passed macOS debug/release and Linux
+debug, with strict macOS Clippy. Windows-safe fixture reads include `b3761af`;
+this tranche does not claim a new Windows run. Pending-write-only and client
+partial-handshake independence, delegated OS/dependency failures and expanded
+macro coverage remain explicit residuals. Exact source/test hashes and the
+source-set digest are recorded in the ledger.

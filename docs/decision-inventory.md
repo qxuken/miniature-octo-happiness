@@ -167,3 +167,22 @@ FFI and derive code has supplemental evidence, not a compiler-expanded inventory
 The scanner itself still labels records unreviewed: manual dispositions reside
 in linked ledgers, not an automatic coverage import. These counts are an audit
 status, not MC/DC percentages or proof of every propagated failure.
+
+
+## Authenticated snapshot CLI audit after 315068f
+
+The current inventory adds **115** explicit records from the new app to the
+2,415-record audit checkpoint: **2,530 records across 50 files**, with **310**
+macro/derive blind spots and zero parse failures. Its source-set SHA-256 is
+`695f67c71b81665b725555ac682d84eaae2994272683d2a73672187d7ef098cf`.
+The full inventory is in `target/decision-inventory-snapshot-audit`.
+
+The [snapshot CLI ledger](decisions/snapshot-cli.md) binds original 315068f and
+current file hashes plus all 115 source spans. Runtime decisions are unchanged;
+new tests prove that valid certificate-chain trust cannot bypass exact leaf pins
+on either endpoint. It records 11 directed, 22 execution-only, 9 overlapping-syntax, 2 invariant
+and 71 delegated dispositions and preserves
+unfinished independence obligations for pending-write-only and client partial
+handshake conditions, along with delegated OS/library/storage residuals.
+A complete manual disposition map is not a complete MC/DC result. Focused macOS
+debug/release/Clippy and Linux debug evidence is scoped in the ledger.

@@ -24,14 +24,16 @@ Propagation evidence does not imply every possible callee error was injected.
 | CRDT | 121 | [CRDT](crdt.md) |
 | Inspection/logical/salvage | 186 | [operations](operations.md) |
 | Snapshot replication | 140 | [replication](replication.md) |
+| Authenticated snapshot CLI | 115 | [snapshot CLI](snapshot-cli.md) |
 | Typed runtime | 315 | [typed runtime](typed-runtime.md) |
 | Distributed apps | 205 | [distributed apps](distributed-apps.md) |
 | CLI/measurement/fault drivers | 246 | [command line](command-line.md) |
 
-All **2,415 explicit source records** have manual dispositions. This includes
+All **2,530 explicit source records** have manual dispositions: the 2,415-record
+audit checkpoint plus 115 authenticated snapshot CLI records. This includes
 delegated obligations, execution-only evidence, invariants and coupled syntax;
 it does not mean every condition has an independence pair. The inventory still
-reports 284 unexpanded macro/derive sites. FFI templates and generated Model,
+reports 310 unexpanded macro/derive sites across 50 files. FFI templates and generated Model,
 Record and Resolution behavior have supplemental mappings in their ledgers;
 these are not a complete compiler-expanded denominator.
 
@@ -39,3 +41,12 @@ these are not a complete compiler-expanded denominator.
 [manual ledger](../../DESIGN.md#mcdc-decision-ledger) retain separate scopes.
 Reconcile spans/hashes after edits. The [inventory](../decision-inventory.md)
 tracks configuration union, macro blind spots and residual source obligations.
+
+The [snapshot CLI audit](snapshot-cli.md) retains the production decisions from
+315068f and adds real chain-trusted/leaf-pin-mismatched TLS controls on both
+endpoints. Pending-write-only/client-partial-handshake independence and delegated
+OS/dependency errors remain explicit residuals. Fourteen focused app tests passed
+macOS debug/release and Linux debug; this does not extend platform results to
+unexecuted configurations or claim measured whole-app MC/DC.
+
+Current source-set SHA-256: `695f67c71b81665b725555ac682d84eaae2994272683d2a73672187d7ef098cf`.

@@ -367,3 +367,61 @@ mod partial_handshake_tests {
         });
     }
 }
+
+#[cfg(test)]
+impl Credentials {
+    pub(crate) fn anchor_and_signed_alternate() -> (Self, Self) {
+        let params = rcgen::CertificateParams::new(vec![SERVER_NAME.to_owned()]).unwrap();
+        let anchor_key = rcgen::KeyPair::generate().unwrap();
+        let anchor = params.self_signed(&anchor_key).unwrap();
+        let alternate_key = rcgen::KeyPair::generate().unwrap();
+        let alternate = rcgen::CertificateParams::new(vec![SERVER_NAME.to_owned()])
+            .unwrap()
+            .signed_by(
+                &alternate_key,
+                &rcgen::Issuer::from_params(&params, &anchor_key),
+            )
+            .unwrap();
+        (
+            Self {
+                cert: anchor.der().clone(),
+                key: PrivatePkcs8KeyDer::from(anchor_key.serialize_der()).into(),
+            },
+            Self {
+                cert: alternate.der().clone(),
+                key: PrivatePkcs8KeyDer::from(alternate_key.serialize_der()).into(),
+            },
+        )
+    }
+}
+
+#[cfg(test)]
+mod audit_admission_tests {
+    use super::*;
+    #[test]
+    fn self_pin_empty_file_and_public_private_mode_controls() {
+        let a = Credentials::generate().unwrap();
+        assert!(Tls::new(&a, a.certificate()).is_err());
+        let path =
+            std::env::temp_dir().join(format!("snapshot-credential-audit-{}", std::process::id()));
+        fs::create_dir(&path).unwrap();
+        assert!(bounded_file(&path, 64).is_err());
+        let file = path.join("value");
+        fs::write(&file, []).unwrap();
+        assert_eq!(
+            bounded_file(&file, 64).err().unwrap().to_string(),
+            "credential size outside bounds"
+        );
+        fs::write(&file, b"public").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
+            assert_eq!(bounded(&file, 64, false).unwrap(), b"public");
+            assert!(bounded(&file, 64, true).is_err());
+            fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
+            assert_eq!(bounded(&file, 64, true).unwrap(), b"public");
+        }
+        fs::remove_dir_all(path).unwrap();
+    }
+}

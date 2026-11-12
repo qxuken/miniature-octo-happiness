@@ -8,7 +8,7 @@ decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
-| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The [source audits](decisions/README.md) classify all 2,415 explicit records across 47 files at checkpoint 8556dc1, plus supplemental FFI/derive mappings. There are 284 macro blind spots; delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
+| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The [source audits](decisions/README.md) classify 2,530 explicit records across 50 files: the 2,415-record checkpoint at 8556dc1 plus 115 snapshot CLI records. There are 310 macro blind spots, plus supplemental FFI/derive mappings. Signed alternate TLS leaves are rejected by both exact-pin checks; pending-write-only/client-partial-handshake independence, delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
 | Fuzzing | Twenty-two targets and deterministic seeds exist; stable replay passed 25 tests. The frozen 4203e0a campaign completed 1,384,848 executions across 21 targets. The register target has a pre-fix 1,000-run ASan smoke campaign and a successful post-fix rerun (surviving summary lacks execution count). Longer campaigns across the current candidate remain. |
 | Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Verification stage/structure-start offsets implemented and fault-tested. |
 | Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore across processes and old retained schemas is tested. Deployment restore-time budgets remain. |
@@ -88,7 +88,9 @@ live-budget, source-audit, application/tree fuzz and packaging additions.
 ## Integrated audit checkpoint (2026-11-12)
 
 The [source inventory](decision-inventory.md) and [module ledgers](decisions/README.md)
-classify 2,415 records with explicit residuals. Generated Model::patch now has a
+classified 2,415 records at checkpoint 8556dc1 with explicit residuals. The later
+snapshot CLI audit adds 115 records without changing that historical scope.
+Generated Model::patch now has a
 direct type-ID acceptance/rejection test. The four focused register guard/oracle
 tests passed Miri; the bounded honest-history oracle enumerates 5,461 prefixes.
 The current 22-target corpus passed 25 stable replay tests. Historical frozen
