@@ -30,6 +30,13 @@ Rows stay open until evidence is recorded. Physical power-loss qualification
 needs the declared OS/filesystem/device stack. Configured CI and executed
 qualification are recorded separately.
 
+
+Exact `2490631` [local qualification](local-qualification-2490631.md) passed the
+listed macOS/Docker Linux, sanitizer, package, feature-profile, model and bounded
+fuzz gates. Windows linked 47 test executables but executed none; exact-head
+native Windows/NTFS and C/C++ package execution remain open. Hosted jobs were
+billing-blocked, and line/branch metrics are not measured MC/DC.
+
 ## Recorded combined execution
 
 The 2026-11-09 local worktree passed `python3 tools/check.py` in debug and

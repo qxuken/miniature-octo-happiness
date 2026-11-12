@@ -4832,3 +4832,16 @@ execution due to the GitHub account billing/spending-limit annotation. The exact
 archived checkpoint passed full local macOS `tools/check.py` and TSan, and fuzz
 run `43258936624` passed. This is not a hosted macOS pass; no workflow was changed.
 These checkpoint results are separate from the new maintenance tests.
+
+### Exact-head local qualification at 2490631
+
+The [local qualification report](docs/local-qualification-2490631.md) binds
+macOS and Docker Linux full checks, calibrated C/Rust ASan, Rust ASan/TSan,
+private package consumers, four release feature profiles, bounded atomic models,
+25 replay tests and 20,956 ASan fuzz executions to exact commit `2490631`.
+Measured line coverage was 13,702/14,136 and branch coverage 1,633/1,751 with
+explicit compiler, test-scope and exclusion limits; neither is measured MC/DC.
+Windows cross-linking produced 47 test executables and the release CLI, but no
+native Windows tests, NTFS lifecycle or C/C++ package execution occurred for this
+head. Hosted billing-blocked jobs executed no tests. Repository/crates remain
+private/unpublished; artifact eligibility is not a production-readiness claim.
