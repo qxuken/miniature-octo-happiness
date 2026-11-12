@@ -142,7 +142,7 @@ are application examples and directed tests, not compiler MC/DC or native
 power-loss qualification. Fixed roster size remains two; this does not qualify
 arbitrary schema conversion or arbitrary user-defined CRDT laws.
 
-## Local results and source binding
+## Initial in-memory/simulator results and source binding
 
 Five directed integration tests passed in debug and release on macOS 27.0.1
 arm64, rustc 1.99.1 (`58cf8f9c3`, LLVM 23.1.1). The example completed in both
@@ -180,3 +180,119 @@ Commands used offline/locked Cargo, `CARGO_INCREMENTAL=0`, and a private `/build
 target directory. Local evidence: `/tmp/crdt-migration-linux.json` and
 `/tmp/crdt-migration-linux.log`; these temporary paths are not a release artifact
 retention promise. This is Linux runtime execution, not cross-compilation.
+
+## Native files and independent processes
+
+The follow-up native fixture lives entirely in `tests/crdt_migration.rs`; it
+reuses the example's conversion and staging helpers. Its ignored `native_files::worker`
+test is a child-process entrypoint, invoked explicitly by the two ordinary
+parent tests. It is not an operational migration CLI. The in-memory example and
+five earlier tests remain unchanged in scope.
+
+A child creates two real old-generation files and retains both the default
+record and the fully reconciled record in each. The migration child opens both
+old files and holds their exclusive native writer leases throughout review and
+staging. Holding either old file open in the parent makes migration return
+`Busy` before creating the target directory. While the migration child is
+parked at every interruption point, both old files reject another writer open.
+Once it exits or is killed, the leases are released.
+
+Those leases establish local file quiescence, not a distributed stop lock. They
+cannot fence an old writer using a different backup, host or copied identity.
+Stopping all old endpoints and controlling routing remains the operator's task;
+matching payloads alone never establishes that condition.
+
+Successful staging closes both new files. Each destination is then opened and
+verified by a separate fresh child process, with the new enrollment, all five
+converted fields, and its retained imported root checked. Separate children also
+verify both old files: the entire default retained record and current/reconciled
+retained record are checked. The parent compares every encoded record and
+revision in the old current and retained roots against its pre-migration oracle.
+A final independent child opens both new stores and proves repeat sync makes no
+commit. Old history remains in the archived old files; conversion does not relabel
+old retained roots as new-generation events.
+
+Six deterministic process-kill points exercise native staging. The parent waits
+for an explicit flushed boundary marker, kills and reaps that child, and uses
+fresh child processes to inspect the durable destinations before discarding them:
+
+| Kill boundary | Expected destination state after reopening |
+|---|---|
+| Both old leases acquired | No staging directory |
+| First destination created | A empty at revision 0; B absent |
+| Both destinations created | A and B empty at revision 0 |
+| Migration staged and converged | A and B at revision 3, complete converted records, no retained roots |
+| First imported root retained | A at revision 4 with retained root 1 at revision 3; B at revision 3 without a retained root |
+| Both imported roots retained | Both at revision 4 with retained root 1 at revision 3 |
+
+Every cut preserves the complete old logical oracle. Each partial staging
+directory is removed only after the child exits and releases its leases. A retry
+uses a new target directory, logical collection, generation and actor roster;
+both destinations reopen independently, all fields/history are verified, and
+repeat sync makes no commit. Even a fully staged pair at the last cut is discarded
+when there is no operational cutover record. This intentionally avoids guessing
+whether an interrupted application switched its routing.
+
+The worker's parent has bounded marker/exit waits and kills/reaps children on
+assertion failure. Test-owned directories clean up on exit. These cuts occur
+between completed application steps, not inside every system call or durability
+barrier. They qualify process interruption on the tested native adapters; they
+do not simulate sudden hardware power loss. There is still no durable deployment
+journal, distributed routing coordinator or automatic actor replacement.
+
+### Native process qualification results
+
+On macOS 27.0.1 arm64 and Docker Linux 7.0.14-linuxkit aarch64, the complete
+migration integration suite passed in debug and release: **7 passed, 1 ignored**
+(the ignored entrypoint is exercised explicitly by the parent process tests).
+Strict targeted Clippy also passed for the integration test and example. Both
+platforms used rustc 1.99.1 (`58cf8f9c35b355199727627d07ae34a4e2846d67`, LLVM
+23.1.1). Commands, with `CARGO_INCREMENTAL=0` and separate target directories:
+
+```sh
+cargo test --offline --all-features --test crdt_migration
+cargo test --offline --all-features --test crdt_migration --release
+cargo clippy --offline --all-features --test crdt_migration --example crdt_policy_migration -- -D warnings
+```
+
+The native test source SHA-256 is
+`c91b172b2eca7d5fbfeb6a3525b22f47bd48fc81922a555ed76de75f9f272ddf`;
+the example and Cargo manifest retain the hashes in the initial evidence table.
+Linux executed an isolated archive of `96e105f80c189a2f9de12530518c4d834f2796ea`
+plus those exact three overlays. The base archive SHA-256 was
+`64b04352c995246b1f3f1a528f1d7a16539f67f53aa04a13031794a601892528`.
+The immutable container image was
+`sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08`.
+Temporary evidence is `/tmp/crdt-native-migration-linux.json`,
+`/tmp/crdt-native-migration-linux.log`, and the three macOS
+`/tmp/crdt-native-migration-{debug,release,clippy}.log` files; these are local
+records, not promised permanent release artifacts. No native Windows tests,
+sanitizer campaign, or device power-loss tests were run for this follow-up.
+
+### Serial test-harness regression
+
+Root review reproduced a fixture-only failure with `RUST_TEST_THREADS=1`:
+libtest prefixed the child test name on the same output line as the flushed
+migration marker, so the parent failed to recognize it and reported a disconnected
+marker channel. The child invocation now adds `--quiet` while retaining
+`--nocapture`, keeping marker lines independent of libtest scheduling. No engine
+or migration semantics changed.
+
+After this correction, the full integration suite passed on both macOS and
+isolated Docker Linux with default scheduling **and** `RUST_TEST_THREADS=1`,
+in debug and release: **7 passed, 1 ignored** in each of the eight runs.
+Strict targeted Clippy passed on both platforms. The toolchains, immutable Linux
+image, archived base and unchanged example/manifest hashes are the same as the
+native qualification above. Final test SHA-256: `a16a3ba5f29d1f83a36fe288311224f5c1d9baf0691b6abcd14c440482eaced7`.
+Linux source bindings and terminal exit 0 are recorded in
+`/tmp/crdt-native-serial-linux.json`; its log is
+`/tmp/crdt-native-serial-linux.log`. macOS logs are
+`/tmp/crdt-native-serial-{debug,release,clippy}.log` and
+`/tmp/crdt-native-default-{debug,release}.log`. The previous native hash records
+the initial parallel-only qualification; this corrected snapshot supersedes it.
+
+Root review independently reproduced the serial failure and reran the positive
+case after the fix. The final integration-test executable also cross-linked
+for Windows MSVC; no native Windows execution is implied. Current bindings,
+serial/default logs, red/fixed controls and cross-link evidence are retained in
+`target/local-qualification-crdt-native-migration/index.json`.

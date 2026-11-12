@@ -347,3 +347,391 @@ fn failed_staging_leaves_old_pair_usable_and_requires_discarding_partial_targets
     assert_eq!(left.read().unwrap(), right.read().unwrap());
     assert_eq!(revisions(&a, &b), old_revisions);
 }
+
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
+mod native_files {
+    use super::*;
+    use std::{
+        fs,
+        io::{BufRead, BufReader},
+        path::{Path, PathBuf},
+        process::{Child, Command, Stdio},
+        sync::{
+            atomic::{AtomicU64, Ordering},
+            mpsc::{self, Receiver},
+        },
+        time::{Duration, Instant},
+    };
+    use weekend_db::Result;
+
+    struct Directory(PathBuf);
+    impl Directory {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "crdt-migration-process-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+    impl Drop for Directory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    struct Process {
+        child: Child,
+        lines: Receiver<String>,
+    }
+    impl Process {
+        fn start(mode: &str, root: &Path, stage: &Path, attempt: u8, cut: &str) -> Self {
+            let mut child = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "native_files::worker",
+                    "--ignored",
+                    "--nocapture",
+                    "--quiet",
+                ])
+                .env("MIGRATION_MODE", mode)
+                .env("MIGRATION_ROOT", root)
+                .env("MIGRATION_STAGE", stage)
+                .env("MIGRATION_ATTEMPT", attempt.to_string())
+                .env("MIGRATION_CUT", cut)
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let stdout = child.stdout.take().unwrap();
+            let (send, lines) = mpsc::channel();
+            std::thread::spawn(move || {
+                for line in BufReader::new(stdout)
+                    .lines()
+                    .map_while(std::result::Result::ok)
+                {
+                    if send.send(line).is_err() {
+                        break;
+                    }
+                }
+            });
+            Self { child, lines }
+        }
+        fn marker(&self, expected: &str) {
+            let deadline = Instant::now() + Duration::from_secs(20);
+            loop {
+                let line = self
+                    .lines
+                    .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                    .expect("worker did not reach boundary");
+                if line.starts_with("MIGRATION ") {
+                    assert_eq!(line, expected);
+                    break;
+                }
+            }
+        }
+        fn wait(&mut self) -> std::process::ExitStatus {
+            let deadline = Instant::now() + Duration::from_secs(20);
+            loop {
+                if let Some(status) = self.child.try_wait().unwrap() {
+                    return status;
+                }
+                assert!(Instant::now() < deadline, "worker did not exit");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        fn done(mut self) {
+            self.marker("MIGRATION DONE");
+            assert!(self.wait().success());
+        }
+    }
+    impl Drop for Process {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+    }
+    fn policy(attempt: u8) -> Policy {
+        Policy {
+            collection: [10 + attempt; 16],
+            generation: 8 + u64::from(attempt),
+            actors: [[3 + 2 * attempt; 16], [4 + 2 * attempt; 16]],
+        }
+    }
+    fn old_path(root: &Path, index: usize) -> PathBuf {
+        root.join(format!("old-{index}.wdb"))
+    }
+    fn new_path(stage: &Path, index: usize) -> PathBuf {
+        stage.join(format!("new-{index}.wdb"))
+    }
+    fn mark_cut(name: &str) {
+        if std::env::var("MIGRATION_CUT").unwrap() == name {
+            println!("MIGRATION CUT {name}");
+            io::stdout().flush().unwrap();
+            loop {
+                std::thread::park();
+            }
+        }
+    }
+    fn assert_old(state: OldProgress) {
+        assert_eq!(state.practice_minutes.total(), 30);
+        assert_eq!(state.completed.iter().collect::<Vec<_>>(), [1, 3]);
+        assert_eq!(state.planned.iter().collect::<Vec<_>>(), [2, 4]);
+        assert_eq!(state.weekly_goal.values().collect::<Vec<_>>(), [90]);
+        assert_eq!(state.session_limit.values().collect::<Vec<_>>(), [20]);
+    }
+    fn verify_old(db: &Database, index: usize) -> OldProgress {
+        let replica =
+            Replica::<OldProgress>::open(db, db.collection_id(1), OLD, OLD.actors[index]).unwrap();
+        let state = replica.read().unwrap();
+        assert_old(state);
+        assert_eq!(db.retained_ids().unwrap(), [1, 2]);
+        assert_eq!(
+            replica.read_at(&db.retained_snapshot(1).unwrap()).unwrap(),
+            OldProgress::default()
+        );
+        assert_eq!(
+            replica.read_at(&db.retained_snapshot(2).unwrap()).unwrap(),
+            state
+        );
+        state
+    }
+    fn initialize(root: &Path) -> Result<()> {
+        let a = Database::create_file(old_path(root, 0), Limits::default())?;
+        let b = Database::create_file(old_path(root, 1), Limits::default())?;
+        let (left, right) = enroll_old(&a, &b);
+        a.retain_snapshot(&a.snapshot())?;
+        b.retain_snapshot(&b.snapshot())?;
+        left.update(|s, actor| {
+            s.practice_minutes.increment(actor, 20)?;
+            s.completed.insert(1)?;
+            s.planned.insert(2, actor)?;
+            s.weekly_goal.assign(actor, 60)?;
+            s.session_limit.assign(actor, 30)
+        })?;
+        right.update(|s, actor| {
+            s.practice_minutes.increment(actor, 10)?;
+            s.completed.insert(3)?;
+            s.planned.insert(4, actor)?;
+            s.weekly_goal.assign(actor, 90)?;
+            s.session_limit.assign(actor, 20)
+        })?;
+        converge(&left, &right)?;
+        a.retain_snapshot(&a.snapshot())?;
+        b.retain_snapshot(&b.snapshot())?;
+        verify_old(&a, 0);
+        verify_old(&b, 1);
+        Ok(())
+    }
+    fn stage(root: &Path, target: &Path, attempt: u8) -> Result<()> {
+        // Hold both native writer leases throughout read/review/staging. This
+        // prevents another native writer, not an independently running old peer.
+        let a = Database::open_file(old_path(root, 0), Limits::default())?;
+        let b = Database::open_file(old_path(root, 1), Limits::default())?;
+        let seed = review(verify_old(&a, 0), verify_old(&b, 1))?;
+        mark_cut("leased");
+        fs::create_dir(target).map_err(|_| Error::Io)?;
+        let x = Database::create_file(new_path(target, 0), Limits::default())?;
+        mark_cut("first_created");
+        let y = Database::create_file(new_path(target, 1), Limits::default())?;
+        mark_cut("both_created");
+        let (left, right) = stage_pair(&x, &y, OLD, policy(attempt), seed)?;
+        assert_eq!(left.read()?, right.read()?);
+        mark_cut("staged");
+        x.retain_snapshot(&x.snapshot())?;
+        mark_cut("first_pin");
+        y.retain_snapshot(&y.snapshot())?;
+        mark_cut("ready");
+        Ok(())
+    }
+    fn verify_new(stage: &Path, index: usize, attempt: u8, pinned: bool) -> Result<()> {
+        let p = policy(attempt);
+        let db = Database::open_file(new_path(stage, index), Limits::default())?;
+        let r = Replica::<ProgressV2>::open(&db, db.collection_id(1), p, p.actors[index])?;
+        let state = r.read()?;
+        assert_eq!(state.practice_seconds.total(), 1800);
+        assert_eq!(state.completed.iter().collect::<Vec<_>>(), [1, 3]);
+        assert_eq!(state.planned.iter().collect::<Vec<_>>(), [2, 4]);
+        assert_eq!(state.weekly_goal.values().collect::<Vec<_>>(), [90]);
+        assert_eq!(state.session_limit.values().collect::<Vec<_>>(), [20]);
+        assert_eq!(db.snapshot().revision(), if pinned { 4 } else { 3 });
+        if pinned {
+            assert_eq!(db.retained_snapshot(1)?.revision(), 3);
+            assert_eq!(db.retained_ids()?, [1]);
+            assert_eq!(r.read_at(&db.retained_snapshot(1)?)?, state);
+        } else {
+            assert!(db.retained_ids()?.is_empty());
+        }
+        assert!(matches!(
+            Replica::<ProgressV2>::open(&db, db.collection_id(1), p, OLD.actors[index]),
+            Err(Error::ForeignStore)
+        ));
+        Ok(())
+    }
+
+    // Fixture entrypoint in this integration-test executable. Parent children
+    // inherit a bounded wait/kill/reap guard. No public migration CLI is added.
+    #[test]
+    #[ignore = "invoked only by the bounded parent process tests"]
+    fn worker() {
+        let Ok(mode) = std::env::var("MIGRATION_MODE") else {
+            return;
+        };
+        let root = PathBuf::from(std::env::var_os("MIGRATION_ROOT").unwrap());
+        let target = PathBuf::from(std::env::var_os("MIGRATION_STAGE").unwrap());
+        let attempt = std::env::var("MIGRATION_ATTEMPT").unwrap().parse().unwrap();
+        match mode.as_str() {
+            "init" => initialize(&root).unwrap(),
+            "stage" => stage(&root, &target, attempt).unwrap(),
+            "busy" => assert_eq!(stage(&root, &target, attempt), Err(Error::Busy)),
+            "new0" => verify_new(&target, 0, attempt, true).unwrap(),
+            "new1" => verify_new(&target, 1, attempt, true).unwrap(),
+            "staged0" => verify_new(&target, 0, attempt, false).unwrap(),
+            "staged1" => verify_new(&target, 1, attempt, false).unwrap(),
+            "empty0" | "empty1" => {
+                let index = usize::from(mode == "empty1");
+                let db = Database::open_file(new_path(&target, index), Limits::default()).unwrap();
+                assert_eq!(db.snapshot().revision(), 0);
+                assert!(db.retained_ids().unwrap().is_empty());
+            }
+            "old0" | "old1" => {
+                let index = usize::from(mode == "old1");
+                let db = Database::open_file(old_path(&root, index), Limits::default()).unwrap();
+                verify_old(&db, index);
+            }
+            "repeat" => {
+                let x = Database::open_file(new_path(&target, 0), Limits::default()).unwrap();
+                let y = Database::open_file(new_path(&target, 1), Limits::default()).unwrap();
+                let p = policy(attempt);
+                let left =
+                    Replica::<ProgressV2>::open(&x, x.collection_id(1), p, p.actors[0]).unwrap();
+                let right =
+                    Replica::<ProgressV2>::open(&y, y.collection_id(1), p, p.actors[1]).unwrap();
+                let before = revisions(&x, &y);
+                converge(&left, &right).unwrap();
+                assert_eq!(before, revisions(&x, &y));
+            }
+            _ => panic!("unknown worker mode"),
+        }
+        println!("MIGRATION DONE");
+        io::stdout().flush().unwrap();
+    }
+
+    // Compare every encoded record and revision in the old current/retained
+    // roots, rather than relying on a digest or only on converted totals.
+    #[derive(Debug, PartialEq, Eq)]
+    struct OldImage {
+        revision: u64,
+        roots: Vec<(u64, Vec<u8>)>,
+    }
+    fn old_oracle(root: &Path) -> Vec<OldImage> {
+        (0..2)
+            .map(|index| {
+                let db = Database::open_file(old_path(root, index), Limits::default()).unwrap();
+                verify_old(&db, index);
+                let mut rows = vec![(db.snapshot().revision(), raw::<OldProgress>(&db))];
+                for id in db.retained_ids().unwrap() {
+                    let s = db.retained_snapshot(id).unwrap();
+                    rows.push((
+                        s.revision(),
+                        s.get(db.collection_id(1), OldProgress::<true>::KEY)
+                            .unwrap()
+                            .unwrap()
+                            .as_bytes()
+                            .unwrap()
+                            .to_vec(),
+                    ));
+                }
+                OldImage {
+                    revision: db.snapshot().revision(),
+                    roots: rows,
+                }
+            })
+            .collect()
+    }
+    fn run(mode: &str, root: &Path, target: &Path, attempt: u8) {
+        Process::start(mode, root, target, attempt, "").done();
+    }
+    fn verify_pair(root: &Path, target: &Path, attempt: u8) {
+        for mode in ["new0", "new1", "old0", "old1", "repeat"] {
+            run(mode, root, target, attempt);
+        }
+    }
+
+    #[test]
+    fn file_migration_requires_old_leases_and_reopens_each_destination_in_a_new_process() {
+        let dir = Directory::new();
+        let target = dir.0.join("stage");
+        run("init", &dir.0, &target, 0);
+        let before = old_oracle(&dir.0);
+        for index in 0..2 {
+            let held = Database::open_file(old_path(&dir.0, index), Limits::default()).unwrap();
+            run("busy", &dir.0, &target, 0);
+            assert!(!target.exists());
+            drop(held);
+        }
+        run("stage", &dir.0, &target, 0);
+        verify_pair(&dir.0, &target, 0);
+        assert_eq!(old_oracle(&dir.0), before);
+    }
+
+    #[test]
+    fn interrupted_native_staging_is_discarded_and_fresh_retry_preserves_old_history() {
+        let dir = Directory::new();
+        run("init", &dir.0, &dir.0.join("unused"), 0);
+        let before = old_oracle(&dir.0);
+        for (index, cut) in [
+            "leased",
+            "first_created",
+            "both_created",
+            "staged",
+            "first_pin",
+            "ready",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let attempt = 1 + index as u8 * 2;
+            let target = dir.0.join(format!("partial-{attempt}"));
+            let child = Process::start("stage", &dir.0, &target, attempt, cut);
+            // While parked, the worker still owns BOTH old-store leases.
+            child.marker(&format!("MIGRATION CUT {cut}"));
+            for old in 0..2 {
+                assert!(matches!(
+                    Database::open_file(old_path(&dir.0, old), Limits::default()),
+                    Err(Error::Busy)
+                ));
+            }
+            let mut child = child;
+            child.child.kill().unwrap();
+            assert!(!child.wait().success());
+            assert_eq!(old_oracle(&dir.0), before);
+            let checks: &[&str] = match cut {
+                "leased" => {
+                    assert!(!target.exists());
+                    &[]
+                }
+                "first_created" => {
+                    assert!(!new_path(&target, 1).exists());
+                    &["empty0"]
+                }
+                "both_created" => &["empty0", "empty1"],
+                "staged" => &["staged0", "staged1"],
+                "first_pin" => &["new0", "staged1"],
+                "ready" => &["new0", "new1"],
+                _ => unreachable!(),
+            };
+            for mode in checks {
+                run(mode, &dir.0, &target, attempt);
+            }
+            if target.exists() {
+                fs::remove_dir_all(&target).unwrap();
+            }
+            let retry = dir.0.join(format!("retry-{attempt}"));
+            run("stage", &dir.0, &retry, attempt + 1);
+            verify_pair(&dir.0, &retry, attempt + 1);
+            assert_eq!(old_oracle(&dir.0), before);
+        }
+    }
+}
