@@ -4777,3 +4777,30 @@ this tranche does not claim a new Windows run. Pending-write-only and client
 partial-handshake independence, delegated OS/dependency failures and expanded
 macro coverage remain explicit residuals. Exact source/test hashes and the
 source-set digest are recorded in the ledger.
+
+### Verified follower backup and explicit restored-stream reseed
+
+The [backup/restore runbook](docs/follower-backup-restore.md) and private harness
+qualified frozen `65d142e6ae85e477f0abb21e2ab04d67393db1f3` on native arm64 macOS
+with rustc 1.99.1 using its unchanged original Cargo.lock. Existing CLI mTLS
+commands installed a snapshot; closed status selected its authoritative image,
+whose independent SHA-256 matched the former receipt. Existing admin commands
+verified backup and restore into new paths. Full row oracles preserved current
+revision 4 and retained root 1 at revision 2. A new stream and new follower then
+installed/reopened a separately verified durable receipt. Both wrong-enrollment
+offline status and authenticated upload rejected with ForeignStore without
+changing old follower files; existing-destination restore rejected unchanged.
+The original primary and old follower artifacts remained byte-identical.
+Evidence is `target/follower-backup-restore-reviewed/evidence.json`.
+
+This is an explicit quiescent multi-command workflow, not atomic status-to-backup,
+automatic failover, primary fencing, recovery of unshipped commits, or a power-loss
+test. No abandoned inactive-slot sentinel was injected; selection followed the
+verified status rather than scanning candidate images. Application history/schema
+reconciliation and broader platform/fault qualification remain separate gates.
+
+Separately, checkpoint `b3761af` native Windows CI job `131310796175` passed the
+workspace, C/C++ consumers and private packaging. Ubuntu, C-ASan and fuzz jobs
+also passed. Hosted macOS matrix work was still pending at this observation;
+these CI results are not evidence for executing the new backup harness on Windows
+or for qualifying later untested changes.

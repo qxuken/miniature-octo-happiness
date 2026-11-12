@@ -316,3 +316,16 @@ version byte is changed to 255 without changing any follower-file bytes. This is
 not an upload-interruption test. The fixture authorizes its own private loopback
 peers; it does not qualify mixed-version CLI TLS, certificate rotation, revocation,
 or trust-policy changes. Exact builds, fixture hashes and scope are in the report.
+
+## Verified backup and fresh-stream restore
+
+The [follower backup/restore runbook](follower-backup-restore.md) selects the
+manifest-verified image while the service stays closed, verifies its former
+receipt, copies/restores to new paths, and seeds an explicitly new stream and
+follower directory. Frozen `65d142e` passed the native macOS CLI/admin procedure
+with current revision 4 and retained root 1 at revision 2. Wrong enrollment was
+rejected both by offline status and an authenticated upload; all old follower
+files and the original primary remained unchanged. Existing restore destinations
+were also rejected unchanged. This bounded test does not inject an abandoned
+inactive-slot sentinel, implement automatic failover/fencing, or qualify power
+loss. The runbook records exact builds, receipts and application-data oracles.
