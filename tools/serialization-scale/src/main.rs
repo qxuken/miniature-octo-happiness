@@ -1,6 +1,5 @@
 use std::{collections::BTreeSet, fs, path::Path, time::Instant};
 use weekend_db::{Database, Error, Limits, Snapshot, storage};
-const EPOCHS: u64 = 8;
 fn payload(epoch: u64) -> [u8; 16] {
     let mut bytes = [0x5a; 16];
     bytes[..8].copy_from_slice(&epoch.to_be_bytes());
@@ -49,14 +48,21 @@ fn measured<T>(phase: &str, operation: impl FnOnce() -> T) -> T {
 }
 fn main() {
     let args: Vec<_> = std::env::args().collect();
-    assert_eq!(args.len(), 4);
+    assert!([4, 5].contains(&args.len()));
+    let requested: u64 = args.get(4).map_or(8, |s| s.parse().unwrap());
+    let history = args.len() == 5;
     let shared = match args[1].as_str() {
         "shared" => true,
         "distinct" => false,
         _ => panic!("shape"),
     };
     let width: u64 = args[2].parse().unwrap();
-    assert!([128, 512, 2048].contains(&width));
+    if history {
+        assert_eq!(width, 8);
+        assert!([1, 8, 32, 64].contains(&requested));
+    } else {
+        assert!([128, 512, 2048].contains(&width));
+    }
     let directory = Path::new(&args[3]);
     fs::create_dir(directory).unwrap();
     let path = directory.join("source.wdb");
@@ -67,7 +73,7 @@ fn main() {
     let mut limit_headroom = 0;
     let mut limit_core_live = 0;
     let mut limit_core_peak = 0;
-    for epoch in 1..=EPOCHS {
+    for epoch in 1..=requested {
         let before_attempt = fs::metadata(&path).unwrap().len();
         let mut tx = db.begin();
         let value = db.bytes(&payload(epoch)).unwrap();
@@ -84,7 +90,7 @@ fn main() {
         match committed {
             Ok(revision) => assert_eq!(revision, 2 * epoch),
             Err(Error::Limit) => {
-                assert!(!shared && width == 2048 && epoch == 8 && epochs == 7);
+                assert!(!history && !shared && width == 2048 && epoch == 8 && epochs == 7);
                 assert!(
                     before_attempt + width * storage::REGION as u64
                         > storage::MAX_IMAGE_BYTES as u64
@@ -112,7 +118,7 @@ fn main() {
         if !shared && width == 2048 {
             (7, 8)
         } else {
-            (8, 0)
+            (requested, 0)
         }
     );
     drop(db);

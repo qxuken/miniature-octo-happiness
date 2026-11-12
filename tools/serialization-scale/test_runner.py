@@ -22,9 +22,9 @@ class Controls(unittest.TestCase):
 
     def test_build_overrides_removed_but_rustup_install_location_preserved(self):
         with patch.dict(os.environ, {'RUSTFLAGS':'bad','RUSTC_WRAPPER':'bad','CARGO_PROFILE_RELEASE_PANIC':'abort',
-                                     'CARGO_BUILD_RUSTFLAGS':'bad','RUSTUP_HOME':'/toolchain'}, clear=True):
+                                     'CARGO_BUILD_RUSTFLAGS':'bad','RUSTUP_HOME':'/toolchain','RUSTUP_TOOLCHAIN':'1.99.0'}, clear=True):
             env = scale.clean_env()
-        self.assertEqual(env, {'RUSTUP_HOME':'/toolchain', 'CARGO_INCREMENTAL':'0'})
+        self.assertEqual(env, {'RUSTUP_HOME':'/toolchain','RUSTUP_TOOLCHAIN':'1.99.0', 'CARGO_INCREMENTAL':'0'})
 
     def test_outcome_and_maintenance_oracle_rejects_early_limit_or_skipped_work(self):
         import copy
@@ -46,6 +46,47 @@ class Controls(unittest.TestCase):
         del missing[index:index+2]
         for invalid in [early, wrong_width, wrong_shape, missing, valid + [valid[-1]]]:
             with self.assertRaises(RuntimeError): scale.validate_events(invalid, 'distinct', 128)
+
+    def test_history_roots_require_complete_maintenance_and_exact_history(self):
+        import copy
+        for roots in [1, 8, 32, 64]:
+            phases = ['create'] + ['commit', 'retain', 'verify'] * roots + [
+                'reopen', 'verify-reopen', 'backup', 'restore', 'reopen-copy',
+                'verify-copy', 'reopen-copy', 'verify-copy', 'compact',
+                'reopen-compact', 'verify-compact']
+            events = []
+            for phase in phases:
+                events.extend([{'event':'start','phase':phase},
+                               {'event':'end','phase':phase,'ns':1}])
+            events.append({'event':'complete','verified':True,'width':8,
+                           'epochs':roots,'shared':True,'limited_at':0})
+            scale.validate_events(events, 'shared', 8, roots)
+            wrong = copy.deepcopy(events); wrong[-1]['epochs'] = roots - 1
+            limit = copy.deepcopy(events); limit[-1]['limited_at'] = roots
+            missing = copy.deepcopy(events)
+            i = next(i for i,e in enumerate(missing) if e.get('phase') == 'restore')
+            del missing[i:i+2]
+            short = events[:2] + events[8:]  # one complete commit/retain/verify omitted
+            for invalid in [wrong, limit, missing, short]:
+                with self.assertRaises(RuntimeError):
+                    scale.validate_events(invalid, 'shared', 8, roots)
+
+    def test_container_removal_failure_still_cleans_volume_and_checks_absence(self):
+        import subprocess
+        from types import SimpleNamespace
+        for volumes, expected in [('', True), ('owned-data\n', False)]:
+            effects = [subprocess.CalledProcessError(1, ['docker','rm']),
+                       SimpleNamespace(stdout=''), SimpleNamespace(stdout=''),
+                       SimpleNamespace(stdout=volumes)]
+            with patch.object(scale, 'command', side_effect=effects) as cmd:
+                result = scale.cleanup_docker('owned', 'owned-data')
+            self.assertEqual(cmd.call_args_list[1].args[0], ['docker','volume','rm','owned-data'])
+            self.assertEqual(result['container_absent'], True)
+            self.assertEqual(result['volume_absent'], expected)
+            self.assertEqual(result['attempts'][0]['ok'], False)
+            self.assertEqual(cmd.call_count, 4)
+        with patch.object(scale, 'command', side_effect=[None,None,OSError('daemon down')]):
+            with self.assertRaises(OSError): scale.cleanup_docker('owned','owned-data')
 
     def test_instrumentation_unique_exact_sites_and_reject_reapplication(self):
         with tempfile.TemporaryDirectory() as tmp:
