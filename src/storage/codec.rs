@@ -2123,4 +2123,212 @@ mod tests {
         assert_eq!(failure.verification, None);
         assert_eq!(source.durable_image().unwrap(), image);
     }
+    #[test]
+    fn alignment_and_cursor_boundaries_preserve_failed_take_position() {
+        assert_eq!(crc(&[]), 0);
+        for (n, expected) in [
+            (0, Ok(0)),
+            (1, Ok(REGION as u64)),
+            (REGION as u64, Ok(REGION as u64)),
+            (MAX_IMAGE_BYTES as u64, Ok(MAX_IMAGE_BYTES as u64)),
+            (MAX_IMAGE_BYTES as u64 + 1, Err(Error::Limit)),
+            (u64::MAX, Err(Error::Limit)),
+        ] {
+            assert_eq!(align(n), expected);
+        }
+        let mut c = Cursor::new(&[7, 8]);
+        assert_eq!(c.take(0), Ok(&[][..]));
+        assert_eq!(c.done(), Err(Error::Corrupt));
+        assert_eq!(c.take(1), Ok(&[7][..]));
+        for n in [usize::MAX, 2] {
+            assert_eq!(c.take(n), Err(Error::Corrupt));
+            assert_eq!(c.pos, 1);
+        }
+        assert_eq!(c.take(1), Ok(&[8][..]));
+        assert_eq!(c.done(), Ok(()));
+        for (n, expected) in [(3u64, Ok(3)), (4, Err(Error::Limit))] {
+            assert_eq!(Cursor::new(&n.to_le_bytes()).count(3), expected);
+        }
+        assert_eq!(Cursor::new(&[0; 7]).int(), Err(Error::Corrupt));
+        for (length, payload, expected) in [
+            (3u64, 3, Ok(&b"xxx"[..])),
+            (4, 4, Err(Error::Limit)),
+            (3, 2, Err(Error::Corrupt)),
+        ] {
+            let mut bytes = length.to_le_bytes().to_vec();
+            bytes.extend(vec![b'x'; payload]);
+            assert_eq!(Cursor::new(&bytes).key(3), expected);
+        }
+    }
+
+    #[test]
+    #[cfg(not(miri))]
+    fn writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let bytes = vec![0; MAX_IMAGE_BYTES + 1];
+        mem.fail_after(Some(0));
+        let mut writer = Writer::new(&mem);
+        assert_eq!(
+            writer.add(&bytes[..MAX_IMAGE_BYTES]),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(writer.add(&bytes), Err(Error::Limit));
+        assert!(writer.bytes.is_empty());
+        mem.fail_after(None);
+        let mut encoder = Encoder {
+            mem: &mem,
+            identity: ID,
+            revision: 0,
+            start: (MAX_IMAGE_BYTES - REGION) as u64,
+            bytes: ChargedVec::new(),
+            cache: ChargedVec::new(),
+            data_cache: ChargedVec::new(),
+        };
+        assert_eq!(
+            encoder.object(VALUE, &[0; 16]),
+            Ok(((MAX_IMAGE_BYTES - REGION) as u64, MAX_IMAGE_BYTES as u64))
+        );
+        let before = encoder.bytes.to_vec();
+        assert_eq!(encoder.object(VALUE, &[0; 16]), Err(Error::Limit));
+        assert_eq!(&*encoder.bytes, before);
+    }
+
+    #[test]
+    fn encoder_start_and_cached_collection_counter_have_independent_controls() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let head = Head {
+            revision: 0,
+            data_revision: 0,
+            collections: Map::new(),
+        };
+        let retention = Retention {
+            next_id: 1,
+            entries: ChargedVec::new(),
+        };
+        for start in [
+            APPEND_START as u64,
+            (APPEND_START - REGION) as u64,
+            APPEND_START as u64 + 1,
+        ] {
+            assert_eq!(
+                encode(&mem, &head, 1, ID, start, &[], &[], &retention).err(),
+                if start == APPEND_START as u64 {
+                    None
+                } else {
+                    Some(Error::Invalid)
+                }
+            );
+        }
+        let mut encoder = Encoder {
+            mem: &mem,
+            identity: ID,
+            revision: 0,
+            start: APPEND_START as u64,
+            bytes: ChargedVec::new(),
+            cache: ChargedVec::new(),
+            data_cache: ChargedVec::new(),
+        };
+        let offset = encoder.data(&head, 1).unwrap();
+        let before = encoder.bytes.to_vec();
+        assert_eq!(encoder.data(&head, 1), Ok(offset));
+        assert_eq!(encoder.data(&head, 2), Err(Error::Invalid));
+        assert_eq!(&*encoder.bytes, before);
+        assert_eq!(encoder.data_cache.len(), 1);
+    }
+
+    #[test]
+    fn all_value_kinds_roundtrip_and_noncanonical_scalars_reject() {
+        let disk = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(disk.clone(), ID, Limits::default()).unwrap();
+        let c = db.create_collection().unwrap();
+        let values = [
+            db.none().unwrap(),
+            db.boolean(false).unwrap(),
+            db.boolean(true).unwrap(),
+            db.integer(i64::MIN).unwrap(),
+            db.unsigned(u64::MAX).unwrap(),
+            db.float(f64::from_bits(0x7ff8_0000_0000_0042)).unwrap(),
+            db.float(-0.0).unwrap(),
+            db.bytes(b"").unwrap(),
+            db.map().unwrap(),
+            db.list().unwrap(),
+        ];
+        let mut tx = db.begin();
+        for (i, v) in values.iter().enumerate() {
+            tx.put(c, &[i as u8], v).unwrap();
+        }
+        tx.commit().unwrap();
+        drop(tx);
+        drop(db);
+        let image = disk.durable_image().unwrap();
+        let db = Database::open_on(disk, Limits::default()).unwrap();
+        let c = db.collection_id(c.as_u64());
+        let snapshot = db.snapshot();
+        for (i, expected) in values.iter().enumerate() {
+            let value = snapshot.get(c, &[i as u8]).unwrap().unwrap();
+            assert_eq!(value.kind(), expected.kind());
+            match value.kind() {
+                Kind::None => {}
+                Kind::Boolean => assert_eq!(value.as_bool(), expected.as_bool()),
+                Kind::Integer => assert_eq!(value.as_i64(), expected.as_i64()),
+                Kind::Unsigned => assert_eq!(value.as_u64(), expected.as_u64()),
+                Kind::Float => assert_eq!(
+                    value.as_f64().unwrap().to_bits(),
+                    expected.as_f64().unwrap().to_bits()
+                ),
+                Kind::Bytes | Kind::Map | Kind::List => assert_eq!(value.len(), Ok(0)),
+            }
+        }
+        for (offset, size, kind) in spans(&image) {
+            if kind == VALUE && u64_at(&image, offset + OBJECT_HEADER) <= 1 {
+                let mut corrupt = image.clone();
+                put64(&mut corrupt, offset + OBJECT_HEADER + 8, 2);
+                resign(&mut corrupt, offset, size, 48);
+                assert_eq!(rejected(&corrupt), Error::Corrupt);
+            }
+        }
+    }
+
+    #[test]
+    fn every_reachable_payload_prefix_rejects_without_writing_or_fallback() {
+        let (disk, db) = fixture_store();
+        db.retain_snapshot(&db.snapshot()).unwrap();
+        drop(db);
+        let original = disk.durable_image().unwrap();
+        let mem = Memory::new(Limits::default()).unwrap();
+        let mut reader = SimulatedDisk::from_image(&original).unwrap();
+        reader.lock().unwrap();
+        let recovered = recover(&mut reader, &mem).unwrap();
+        let mut offsets = recovered.cache.iter().map(|c| c.offset).collect::<Vec<_>>();
+        offsets.extend(recovered.data_cache.iter().map(|c| c.offset));
+        offsets.push(recovered.slot.descriptor);
+        offsets.sort_unstable();
+        offsets.dedup();
+        assert!(!recovered.retention.entries.is_empty());
+        for offset in offsets {
+            let offset = offset as usize;
+            let len = u64_at(&original, offset + 16) as usize;
+            assert_eq!(align((OBJECT_HEADER + len) as u64), Ok(REGION as u64));
+            for prefix in 0..len {
+                let mut image = original.clone();
+                // Do not let the newest witness independently forbid fallback.
+                let witness = (3 + (recovered.slot.revision & 1) as usize) * REGION;
+                image[witness..witness + REGION].fill(0);
+                put64(&mut image, offset + 16, prefix as u64);
+                image[offset + OBJECT_HEADER + prefix..offset + REGION].fill(0);
+                resign(&mut image, offset, REGION, 48);
+                let source = SimulatedDisk::from_image(&image).unwrap();
+                assert_eq!(
+                    Database::open_on(source.clone(), Limits::default()).err(),
+                    Some(Error::Corrupt),
+                    "offset {offset}, prefix {prefix}/{len}"
+                );
+                assert_eq!(source.durable_image().unwrap(), image);
+                assert!(source.trace().unwrap().iter().all(|e| !matches!(
+                    e.kind,
+                    crate::storage::IoKind::Write | crate::storage::IoKind::Sync
+                )));
+            }
+        }
+    }
 }

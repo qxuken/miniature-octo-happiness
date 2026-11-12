@@ -84,3 +84,40 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream
         }
     })
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn resolution_selection_and_attribute_locations_are_checked() {
+        for (source, message) in [
+            ("enum A {}", "structs only"),
+            ("struct A(u64);", "named fields"),
+            ("struct A;", "named fields"),
+            ("struct A {}", "mark a field"),
+            (
+                "#[resolution(crate=\"x\",crate=\"y\")] struct A { #[resolve] a:u64 }",
+                "duplicate crate",
+            ),
+            (
+                "#[resolution(crate=3)] struct A { #[resolve] a:u64 }",
+                "string literal",
+            ),
+            (
+                "struct A { #[resolution(crate=\"x\")] a:u64 }",
+                "on the struct",
+            ),
+            ("struct A { #[resolve()] a:u64 }", "expected #[resolve]"),
+            ("struct A { #[resolve=true] a:u64 }", "expected #[resolve]"),
+        ] {
+            let error = expand(syn::parse_str(source).unwrap()).unwrap_err();
+            assert!(error.to_string().contains(message), "{source}: {error}");
+        }
+        for source in [
+            "#[allow(dead_code)] struct A { #[resolve] a:u64, #[allow(dead_code)] b:u64 }",
+            "#[resolution(crate=\"crate::api\")] struct A<T> where T: Copy { #[resolve] a:T, #[resolve] b:T }",
+        ] {
+            syn::parse2::<syn::File>(expand(syn::parse_str(source).unwrap()).unwrap()).unwrap();
+        }
+    }
+}

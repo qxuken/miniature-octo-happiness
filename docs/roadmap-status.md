@@ -8,22 +8,22 @@ decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
-| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. Updated inventory records 2,408 explicit decisions plus 284 macro blind spots. Engine/schema/tree/value/storage/replacement/simulator audits classify 584 records plus scoped allocation pairs; other classifications and delegated obligations remain. |
-| Fuzzing | Twenty-one targets and deterministic seeds exist. Remaining inventory is in the roadmap. The 21-target 6266359 Linux ASan campaign passed 20,456 actual executions. Longer campaigns remain. |
+| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The [source audits](decisions/README.md) classify all 2,415 explicit records across 47 files, plus supplemental FFI/derive mappings. There are 284 macro blind spots; delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
+| Fuzzing | Twenty-two targets and deterministic seeds exist; stable replay passed 25 tests. The frozen 4203e0a campaign completed 1,384,848 executions across 21 targets. The register target has a pre-fix 1,000-run ASan smoke campaign and a successful post-fix rerun (surviving summary lacks execution count). Longer campaigns across the current candidate remain. |
 | Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Verification stage/structure-start offsets implemented and fault-tested. |
 | Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore across processes and old retained schemas is tested. Deployment restore-time budgets remain. |
 | Migration/salvage | Logical export/import format 1 implemented with frozen fixture. Explicit complete-root salvage is tested. Future-version conversion remains. |
 | Storage lifecycle | Compaction exists. Append headroom and near-cap recovery/compaction tests implemented. Indexed recovery measured near the cap. Cleanup policy and device qualification remain. |
-| Resources | Per-value/transaction limits exist. Opt-in aggregate core layout budget for pinned/draft allocations implemented and independently reviewed. Application/backend/RSS envelopes and sustained soak remain. |
-| Packaging | Runtime identity and private artifact checks added. Private identity/notice checks existed at a7dc343; later relocation testing exposed and fixed its temporary loader-path defect. Windows compiled consumers passed at 1ca5e5ab. Windows private packaging passed 6266359; macOS Odin relocation passed locally. Copied Rust source profile added; clean qualification pending. |
+| Resources | Per-value/transaction limits exist. Opt-in aggregate core layout budget for pinned/draft allocations implemented and independently reviewed. A 600-second macOS soak passed; application/backend/RSS envelopes and longer representative soaks remain. |
+| Packaging | Runtime identity and private artifact checks added. Private identity/notice checks existed at a7dc343; later relocation testing exposed and fixed its temporary loader-path defect. Windows compiled consumers passed at 1ca5e5ab. Windows private packaging passed 6266359; macOS Odin relocation passed locally. Clean 4203e0a source profile passed native and isolated Linux builds; registry inputs remain external. |
 | Compatibility | v2 format rejection exists. Archived v2 and logical-v1 fixtures exist. a7dc343 reads 1ca5e5ab files in tested pre1 cases. Broader version/feature qualification remains. |
-| Native matrix | macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu, ASan and TSan passed 6266359; simulated month also passed Linux ext4 server/macOS APFS client. New candidate/device qualification remains. |
-| Unsafe/concurrency | Thread/process/sanitizer tests exist. Bounded ownership/admission Loom models, negative controls, Miri and abort checks passed. C-side ASan passed locally with calibration; Linux job pending. Charged allocation/realloc paths independently reviewed and tested under Miri. Additional model workloads and full unsafe review remain. |
+| Native matrix | macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu, ASan and TSan passed 4203e0a; simulated month also passed Linux ext4 server/macOS APFS client. New candidate/device qualification remains. |
+| Unsafe/concurrency | Thread/process/sanitizer tests exist. Bounded ownership/admission Loom models, negative controls, Miri and abort checks passed. C-side ASan passed macOS and Linux with calibration at 4203e0a. Charged allocation/realloc paths independently reviewed and tested under Miri. Additional model workloads and full unsafe review remain. |
 | Typed Rust | Models/migrations/indexes exist. Verification/rebuild implemented and fault-tested. Explicit bounded migration with atomic progress tested. Mixed-version qualification remains. |
 | Snapshot replication | Verified snapshots and separate acknowledgment exist. Manifest bounds, cleanup, compaction and explicit reseed are tested. Authenticated deployment and mixed-version qualification remain. |
-| CRDT peers | Fixed two-actor TLS demo exists. Policy evolution, stale backup identity, reserved-row ownership and resource/soak gates remain. |
+| CRDT peers | Fixed two-actor TLS demo exists. Register admission now rejects unwitnessed retirement and incompatible cyclic histories, with bounded causal-event and frame oracles. Policy evolution, stale backup identity, reserved-row ownership and representative deployment/soak gates remain. |
 | Coordinator | Conditional writes, durable receipts and configured loopback authentication tested. Deployment qualification remains. |
-| Release operations | Support/security policy and provenance recorded; capped cross-OS month and restore passed. Sustained soak, deployment latency guarantees and final bundle remain. |
+| Release operations | Support/security policy and provenance recorded; capped cross-OS month and restore passed. A 600-second local soak passed; longer deployment soak, latency guarantees and final bundle remain. |
 
 The full acceptance inventory is in [production-readiness.md](production-readiness.md).
 Rows stay open until evidence is recorded. Physical power-loss qualification
@@ -42,8 +42,8 @@ thread tests. Snapshot manifest SHA-256 is
 The source tar SHA-256 is
 `a18d2956c8a632eba76194567f728b77633a5f6f63bc1987392f94fa889dc11a`.
 These runs precede subsequent distributed fuzz/coverage additions.
-They establish execution on those configurations. Windows native and
-device power-loss evidence remain outstanding.
+They establish execution on those configurations. Later checkpoints supply native Windows evidence below; physical-device
+power-loss qualification remains outstanding.
 
 The allocator null-result test passed natively and under Miri. It replaces
 only a thread-local allocation result and checks input destruction and
@@ -57,14 +57,16 @@ License identifiers and notices are being included in private artifacts.
 
 The owner selected a Linux server and macOS client with a simulated month
 of stored workload, and `sec@qxuken.dev` as security contact/release owner.
-The 30-day simulated workload passed on an actual Linux server/macOS client pair. Measurements and concrete ext4/APFS execution are recorded; sustained wall-clock
-soak and physical-device qualification remain open.
+The 30-day simulated workload passed on an actual Linux server/macOS client pair. Measurements and concrete ext4/APFS execution are recorded. The later macOS
+600-second soak adds finite wall-clock evidence; longer deployment soak and
+physical-device qualification remain open.
 
 Checkpoint `a7dc343` passed native macOS/Ubuntu, AddressSanitizer,
 ThreadSanitizer and coverage in GitHub Actions run `42525776563`. Windows
 Rust and ctypes passed; its compiled-consumer command incorrectly treated
 the import library as C/C++ source. The `/link` fix has a portable command
-regression and awaits a fresh native run. Private artifact creation from
+regression; native compiled consumers subsequently passed at 1ca5e5ab, and
+Windows private packaging passed at 6266359. Private artifact creation from
 that clean checkpoint passed runtime identity, C/C++, symbol and dependency
 notice checks. No registry publication was performed.
 
@@ -82,3 +84,23 @@ Checkpoint 83954e8 passed all native jobs, AddressSanitizer, ThreadSanitizer,
 coverage and Linux bounded fuzzing. The 17 fuzz targets completed 16,409 actual
 executions; one hit its configured time budget. This precedes the subsequent
 live-budget, source-audit, application/tree fuzz and packaging additions.
+
+## Integrated audit checkpoint (2026-11-12)
+
+The [source inventory](decision-inventory.md) and [module ledgers](decisions/README.md)
+classify 2,415 records with explicit residuals. Generated Model::patch now has a
+direct type-ID acceptance/rejection test. The four focused register guard/oracle
+tests passed Miri; the bounded honest-history oracle enumerates 5,461 prefixes.
+The current 22-target corpus passed 25 stable replay tests. Historical frozen
+4203e0a extended fuzzing completed 1,384,848 executions across 21 targets with
+100,000-run / 120-second per-target limits, seed 2; ten reached the run limit
+and eleven the time bound. The raw extended cache expired. DESIGN.md records
+the observed per-target counts, toolchain and limits. The register target
+passed 1,000 ASan runs before the guard fix; the post-fix rerun exited successfully
+but its surviving summary does not retain an independently recountable run count. Neither campaign qualifies later arbitrary edits.
+
+The [600-second macOS soak](soak.md) completed 924 rounds and 59,136 writer
+commits with concurrent readers, retained roots, reopening and compaction under
+a 16 MiB core budget. This adds finite wall-clock evidence, not production-scale
+or physical power-loss assurance. Native macOS/Ubuntu/Windows and sanitizer CI
+passed checkpoint 4203e0a; newly added tests/CRDT guards need fresh candidate CI.

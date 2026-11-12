@@ -180,3 +180,59 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn record_options_and_struct_shape_reject_ambiguity() {
+        for (options, message) in [
+            ("format=b\"12345678\",fields()", "record key"),
+            ("key=b\"a\",fields()", "record format"),
+            ("key=b\"a\",format=b\"12345678\"", "wire order"),
+        ] {
+            let source = format!("#[record({options})] struct A {{}}");
+            assert!(
+                expand(syn::parse_str(&source).unwrap())
+                    .unwrap_err()
+                    .to_string()
+                    .contains(message)
+            );
+        }
+        for (extra, message) in [
+            ("fields()", "duplicate fields"),
+            ("key=b\"b\"", "duplicate record option"),
+            ("format=b\"87654321\"", "duplicate record option"),
+            ("resolve=true,resolve=false", "duplicate record option"),
+            ("crate=\"x\",crate=\"y\"", "duplicate crate"),
+            ("unknown", "expected key"),
+            ("crate=3", "string literal"),
+        ] {
+            let source = format!(
+                "#[record(key=b\"a\",format=b\"12345678\",fields(),{extra})] struct A {{}}"
+            );
+            let error = expand(syn::parse_str(&source).unwrap()).unwrap_err();
+            assert!(error.to_string().contains(message), "{extra}: {error}");
+        }
+        for (item, message) in [
+            ("enum A {}", "structs only"),
+            ("struct A(u64);", "named fields"),
+            ("struct A;", "named fields"),
+            ("struct A { #[record(key=1)] a:u64 }", "on the struct"),
+        ] {
+            let source = format!("#[record(key=b\"a\",format=b\"12345678\",fields())] {item}");
+            assert!(
+                expand(syn::parse_str(&source).unwrap())
+                    .unwrap_err()
+                    .to_string()
+                    .contains(message)
+            );
+        }
+        for source in [
+            "#[allow(dead_code)] #[record(key=b\"a\",format=b\"12345678\",fields())] struct A {}",
+            "#[record(key=b\"a\",format=b\"12345678\",fields(b,a),resolve=FLAG,crate=\"crate::api\")] struct A<T> where T: Copy { a:T, b:T }",
+        ] {
+            syn::parse2::<syn::File>(expand(syn::parse_str(source).unwrap()).unwrap()).unwrap();
+        }
+    }
+}

@@ -102,3 +102,102 @@ pub(crate) fn edit(
     }
     replica.update(edit)
 }
+
+#[cfg(test)]
+mod decisions {
+    use super::*;
+    use std::cell::Cell;
+    #[test]
+    fn enrollment_commands_and_retry_budget() {
+        for (actor, id, good) in [
+            ("a", "11111111111111111111111111111111", true),
+            ("b", "abcdefABCDEFabcdefABCDEFabcdefAB", true),
+            ("c", "11111111111111111111111111111111", false),
+            ("a", "00000000000000000000000000000000", false),
+            ("a", "1", false),
+            ("a", "z1111111111111111111111111111111", false),
+        ] {
+            assert_eq!(
+                Enrollment::parse(OsStr::new(actor), OsStr::new(id)).is_ok(),
+                good
+            );
+        }
+        let db = Database::new().unwrap();
+        let e = Enrollment::new("a", [1; 16]).unwrap();
+        let r =
+            StudyReplica::enroll(&db, db.create_collection().unwrap(), e.policy, e.actor).unwrap();
+        let initial = db.snapshot().revision();
+        for command_line in [
+            "",
+            "what",
+            "practice -1",
+            "practice 0",
+            "edit 64 1 1 1",
+            "edit 1 0 1 1",
+            "edit 1 x 1 1",
+            "edit 1 1 x 1",
+            "edit 1 1 1 x",
+        ] {
+            assert!(
+                command(
+                    &command_line.split_whitespace().collect::<Vec<_>>(),
+                    &db,
+                    &r
+                )
+                .is_err()
+            );
+            assert_eq!(db.snapshot().revision(), initial);
+        }
+        assert_eq!(
+            command(&["practice", "5"], &db, &r).unwrap(),
+            format!("local {}", initial + 1)
+        );
+        assert!(
+            command(&["show"], &db, &r)
+                .unwrap()
+                .starts_with(&format!("state {} 5", initial + 1))
+        );
+        let calls = Cell::new(0);
+        assert_eq!(
+            edit(&r, |_, _| {
+                calls.set(calls.get() + 1);
+                Err(Error::Conflict)
+            }),
+            Err(Error::Conflict)
+        );
+        assert_eq!(calls.get(), 3);
+        for error in [Error::Limit, Error::OutcomeUnknown, Error::RecoveryRequired] {
+            calls.set(0);
+            assert_eq!(
+                edit(&r, |_, _| {
+                    calls.set(calls.get() + 1);
+                    Err(error)
+                }),
+                Err(error)
+            );
+            assert_eq!(calls.get(), 1);
+        }
+        calls.set(0);
+        let before = db.snapshot().revision();
+        assert_eq!(
+            edit(&r, |state, actor| {
+                calls.set(calls.get() + 1);
+                state.practice_minutes.increment(actor, 1)?;
+                if calls.get() == 1 {
+                    Err(Error::Conflict)
+                } else {
+                    Ok(())
+                }
+            }),
+            Ok(before + 1)
+        );
+        assert_eq!(calls.get(), 2);
+        assert_eq!(r.read().unwrap().practice_minutes.total(), 6);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_arguments_are_rejected() {
+        use std::os::unix::ffi::OsStrExt;
+        assert!(utf8(OsStr::from_bytes(&[255])).is_err());
+    }
+}

@@ -521,3 +521,87 @@ mod tests {
         drop(crate::Database::open_file(&cleanup.0, Limits::default()).unwrap());
     }
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn pathname_and_claimed_read_only_controls() {
+        for name in ["", ".", "..", "end/", "a\0b"] {
+            assert_eq!(Location::new(Path::new(name)).err(), Some(Error::Invalid));
+        }
+        let long = "x".repeat(1024 * 1024);
+        assert!(Location::new(Path::new(&long)).is_ok());
+        assert_eq!(
+            Location::new(Path::new(&(long + "x"))).err(),
+            Some(Error::Limit)
+        );
+        let path = std::env::temp_dir().join(format!(
+            "weekend-native-decisions-{}.db",
+            std::process::id()
+        ));
+        let mut file = FileStore::create(&path).unwrap();
+        assert_eq!(file.length(), Err(Error::Io));
+        file.lock().unwrap();
+        assert_eq!(file.lock(), Err(Error::Busy));
+        file.write(0, b"abc").unwrap();
+        file.sync().unwrap();
+        file.sync().unwrap();
+        file.unlock();
+        assert_eq!(file.length(), Err(Error::Io));
+        drop(file);
+        let mut file = FileStore::open_read_only(&path).unwrap();
+        file.lock().unwrap();
+        assert_eq!(file.length(), Ok(3));
+        let mut bytes = [0; 3];
+        assert_eq!(file.read(0, &mut bytes), Ok(3));
+        assert_eq!(&bytes, b"abc");
+        assert_eq!(file.write(0, b"x"), Err(Error::Io));
+        file.unlock();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(file.lock(), Err(Error::Busy));
+        assert_eq!(file.length(), Err(Error::Io));
+    }
+    #[test]
+    fn namespace_rechecks_distinguish_aliases_replacement_and_removal() {
+        let path =
+            std::env::temp_dir().join(format!("weekend-name-decisions-{}.db", std::process::id()));
+        let alias = path.with_extension("alias");
+        let store = FileStore::create(&path).unwrap();
+        let location = Location::new(&path).unwrap();
+        assert_eq!(location.matches(&store.file), Ok(()));
+        let absent = Location::new(&alias).unwrap();
+        assert_eq!(location.exchange(&absent), Err(Error::NotFound));
+        assert_eq!(absent.remove(), Err(Error::NotFound));
+        assert_eq!(location.matches(&store.file), Ok(()));
+        std::fs::hard_link(&path, &alias).unwrap();
+        assert_eq!(location.check_lease(&store.file), Ok(()));
+        assert_eq!(location.matches(&store.file), Err(Error::Invalid));
+        std::fs::remove_file(&alias).unwrap();
+        assert_eq!(location.matches(&store.file), Ok(()));
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(location.check_lease(&store.file), Err(Error::Busy));
+        assert_eq!(location.matches(&store.file), Err(Error::NotFound));
+        std::fs::write(&path, b"replacement").unwrap();
+        assert_eq!(location.check_lease(&store.file), Err(Error::Busy));
+        assert_eq!(location.matches(&store.file), Err(Error::Invalid));
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn interrupted_retry_can_finish_successfully_without_diagnostics() {
+        let mut calls = 0;
+        let result = super::super::diagnostics::capture(|| {
+            retry(NativeIoOperation::Read, || {
+                calls += 1;
+                if calls < 3 {
+                    Err(io::Error::from(io::ErrorKind::Interrupted))
+                } else {
+                    Ok(9)
+                }
+            })
+        });
+        assert_eq!(result, Ok(9));
+        assert_eq!(calls, 3);
+    }
+}

@@ -440,6 +440,70 @@ mod native {
             self.0.serve(channel)
         }
     }
+    #[cfg(test)]
+    mod decision_tests {
+        use super::*;
+        use crate::storage::{Fault, SimulatedDisk};
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        #[test]
+        fn native_admission_and_defensive_status_decisions() {
+            let root = std::env::temp_dir().join(format!(
+                "weekend-follower-decisions-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&root).unwrap();
+            let enrollment = Enrollment {
+                stream_id: [1; 16],
+                file_identity: [2; 16],
+            };
+            let limits = Limits::default();
+            let file = root.join("file");
+            fs::write(&file, b"sentinel").unwrap();
+            assert!(matches!(
+                Follower::create(&file, enrollment, limits),
+                Err(Error::Invalid)
+            ));
+            assert!(matches!(
+                Follower::create(&root, enrollment, limits),
+                Err(Error::AlreadyExists)
+            ));
+            assert_eq!(fs::read(&file).unwrap(), b"sentinel");
+            fs::remove_file(&file).unwrap();
+            let mut follower = Follower::create(&root, enrollment, limits).unwrap();
+            assert_eq!(follower.status().unwrap().durable_ack, None);
+            // Defensive status fixture only: private state injection is not a
+            // native image-installation or native syscall-failure experiment.
+            let installed = Installed {
+                slot: 0,
+                offer: Offer {
+                    revision: 7,
+                    length: crate::storage::APPEND_START as u64,
+                    digest: [8; 32],
+                },
+            };
+            follower.0.installed = Some((installed, Replica(Database::new().unwrap())));
+            assert_eq!(
+                follower.status().unwrap().durable_ack,
+                Some(installed.offer.ack(enrollment))
+            );
+            let disk = SimulatedDisk::new().unwrap();
+            let manifest = Database::create_on(disk.clone(), [1; 16], limits).unwrap();
+            disk.arm(0, Fault::Error);
+            assert_eq!(manifest.create_collection(), Err(Error::Io));
+            assert!(manifest.requires_recovery());
+            follower.0.manifest = manifest;
+            let status = follower.status().unwrap();
+            assert!(status.requires_recovery);
+            assert_eq!(status.durable_ack, None);
+            assert_eq!(status.selected_slot, Some(0));
+            assert_eq!(follower.progress(), Err(Error::RecoveryRequired));
+            assert!(follower.replica().is_some());
+            drop(follower);
+            fs::remove_dir_all(root).unwrap();
+        }
+    }
 }
 
 #[cfg(test)]

@@ -225,3 +225,143 @@ pub(super) fn copy_metadata(from: &File, to: &File, mem: &Memory) -> Result<()> 
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn native_error_mapping_preserves_raw_code_and_operation() {
+        for (code, expected) in [
+            (2, Error::NotFound),
+            (17, Error::AlreadyExists),
+            (11, Error::Busy),
+            (20, Error::Invalid),
+            (21, Error::Invalid),
+            (40, Error::Invalid),
+            (13, Error::Io),
+        ] {
+            let failure = diagnostics::capture::<()>(|| {
+                Err(os_error(
+                    NativeIoOperation::Open,
+                    io::Error::from_raw_os_error(code),
+                ))
+            })
+            .unwrap_err();
+            assert_eq!(failure.error, expected);
+            let native = failure.native.unwrap();
+            assert_eq!(native.raw_os_error, Some(code));
+            assert_eq!(native.operation, NativeIoOperation::Open);
+        }
+        assert_eq!(
+            os_error(
+                NativeIoOperation::Read,
+                io::Error::from(io::ErrorKind::Other)
+            ),
+            Error::Io
+        );
+    }
+}
+
+#[cfg(test)]
+mod blob_decisions {
+    use super::*;
+    #[test]
+    fn metadata_blob_bounds_exact_fill_and_short_callbacks() {
+        for size in [0, 3, 65536] {
+            let mem = Memory::new(crate::Limits::default()).unwrap();
+            let mut calls = 0;
+            let bytes = blob(&mem, |buffer, length| {
+                calls += 1;
+                if calls == 1 {
+                    assert!(buffer.is_null());
+                    assert_eq!(length, 0);
+                } else {
+                    assert_eq!(length, size);
+                    if size != 0 {
+                        unsafe {
+                            std::ptr::write_bytes(buffer.cast::<u8>(), 7, length);
+                        }
+                    }
+                }
+                size as isize
+            })
+            .unwrap();
+            assert_eq!(calls, 2);
+            assert_eq!(bytes, vec![7; size]);
+        }
+        let mem = Memory::new(crate::Limits::default()).unwrap();
+        mem.fail_after(Some(0));
+        let mut calls = 0;
+        assert_eq!(
+            blob(&mem, |_, _| {
+                calls += 1;
+                65537
+            }),
+            Err(Error::Limit)
+        );
+        assert_eq!(calls, 1);
+        assert_eq!(blob(&mem, |_, _| 65536), Err(Error::OutOfMemory));
+        mem.fail_after(None);
+        for result in [2, 4] {
+            let mut calls = 0;
+            assert_eq!(
+                blob(&mem, |_, _| {
+                    calls += 1;
+                    if calls == 1 { 3 } else { result }
+                }),
+                Err(Error::Io)
+            );
+            assert_eq!(calls, 2);
+        }
+    }
+
+    #[test]
+    fn metadata_blob_retries_interruption_and_reports_terminal_callback_error() {
+        unsafe extern "C" {
+            fn __errno_location() -> *mut c_int;
+        }
+        let mem = Memory::new(crate::Limits::default()).unwrap();
+        for fail_at in [0, 1] {
+            let mut calls = 0;
+            let failure = diagnostics::capture(|| {
+                blob(&mem, |_, _| {
+                    let at = calls;
+                    calls += 1;
+                    if at == fail_at {
+                        unsafe {
+                            *__errno_location() = 13;
+                        }
+                        -1
+                    } else {
+                        3
+                    }
+                })
+            })
+            .unwrap_err();
+            assert_eq!(failure.error, Error::Io);
+            assert_eq!(failure.native.unwrap().raw_os_error, Some(13));
+            assert_eq!(calls, fail_at + 1);
+        }
+        let mut calls = 0;
+        assert_eq!(
+            blob(&mem, |_, _| {
+                calls += 1;
+                if calls == 1 {
+                    unsafe {
+                        *__errno_location() = 4;
+                    }
+                    -1
+                } else {
+                    0
+                }
+            }),
+            Ok(vec![])
+        );
+        assert_eq!(calls, 3);
+        assert!(status(0).is_ok());
+        unsafe {
+            *__errno_location() = 13;
+        }
+        assert_eq!(status(-1).unwrap_err().raw_os_error(), Some(13));
+    }
+}

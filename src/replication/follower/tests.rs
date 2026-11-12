@@ -427,3 +427,147 @@ fn lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress() {
         Ok(Some(ack))
     );
 }
+
+#[test]
+fn installed_record_length_slot_and_offer_guards() {
+    let mut bytes = [0; 49];
+    bytes[9..17].copy_from_slice(&(crate::storage::APPEND_START as u64).to_le_bytes());
+    assert!(Installed::decode(&bytes).is_ok());
+    bytes[0] = 1;
+    assert!(Installed::decode(&bytes).is_ok());
+    bytes[0] = 2;
+    assert!(matches!(Installed::decode(&bytes), Err(Error::Corrupt)));
+    assert!(matches!(Installed::decode(&[]), Err(Error::Corrupt)));
+    bytes[0] = 0;
+    bytes[9..17].fill(0);
+    assert!(matches!(Installed::decode(&bytes), Err(Error::Corrupt)));
+}
+
+#[test]
+fn manifest_enrollment_and_missing_selected_image_reject_without_fallback() {
+    let enrollment = Enrollment {
+        stream_id: [1; 16],
+        file_identity: [2; 16],
+    };
+    let limits = Limits::default();
+    let make = || Database::create_on(MemoryStore::new().unwrap(), [1; 16], limits).unwrap();
+    assert!(matches!(
+        Receiver::open(make(), Slots::default(), enrollment, limits),
+        Err(Error::Corrupt)
+    ));
+    let db = make();
+    db.create_collection().unwrap();
+    assert!(matches!(
+        Receiver::open(db, Slots::default(), enrollment, limits),
+        Err(Error::Corrupt)
+    ));
+    let mut pair = enrollment.stream_id.to_vec();
+    pair.extend_from_slice(&enrollment.file_identity);
+    for (bytes, error) in [
+        (vec![0; 31], Some(Error::Corrupt)),
+        (pair.clone(), None),
+        (
+            {
+                let mut b = pair.clone();
+                b[0] ^= 1;
+                b
+            },
+            Some(Error::ForeignStore),
+        ),
+        (
+            {
+                let mut b = pair.clone();
+                b[16] ^= 1;
+                b
+            },
+            Some(Error::ForeignStore),
+        ),
+        (
+            {
+                let mut b = pair.clone();
+                b.resize(81, 0);
+                b[41..49].copy_from_slice(&(crate::storage::APPEND_START as u64).to_le_bytes());
+                b
+            },
+            Some(Error::Corrupt),
+        ),
+    ] {
+        let db = make();
+        let c = db.create_collection().unwrap();
+        let mut tx = db.begin();
+        tx.put(c, MANIFEST_KEY, &db.bytes(&bytes).unwrap()).unwrap();
+        tx.commit().unwrap();
+        drop(tx);
+        let result = Receiver::open(db, Slots::default(), enrollment, limits);
+        match error {
+            Some(e) => assert!(matches!(result,Err(actual) if actual==e)),
+            None => assert_eq!(result.unwrap().progress(), Ok(None)),
+        }
+    }
+    let db = make();
+    let c = db.create_collection().unwrap();
+    let mut tx = db.begin();
+    tx.put(c, MANIFEST_KEY, &db.unsigned(0).unwrap()).unwrap();
+    tx.commit().unwrap();
+    drop(tx);
+    assert!(matches!(
+        Receiver::open(db, Slots::default(), enrollment, limits),
+        Err(Error::Corrupt)
+    ));
+}
+#[test]
+fn nonempty_candidate_rejects_before_ready_and_preserves_old_revision() {
+    let mut fixture = Fixture::new();
+    let (mut receiver, manifest, slots, mut candidate) = fixture.start();
+    candidate.lock().unwrap();
+    candidate.write(0, &[1]).unwrap();
+    candidate.sync().unwrap();
+    candidate.unlock();
+    let mut exchange = Exchange::offer(&mut fixture.next);
+    assert_eq!(exchange.serve(&mut receiver), Err(Error::Corrupt));
+    assert_eq!(exchange.output.first(), Some(&7));
+    assert!(manifest.trace().unwrap().is_empty());
+    drop(receiver);
+    manifest.crash(Crash::DropAll).unwrap();
+    candidate.crash(Crash::DropAll).unwrap();
+    check(&fixture.reopen(&manifest, &slots), fixture.first_ack, 1);
+}
+
+#[test]
+fn manifest_and_image_open_preserve_non_not_found_errors() {
+    let enrollment = Enrollment {
+        stream_id: [1; 16],
+        file_identity: [2; 16],
+    };
+    let limits = Limits::default();
+    let manifest = Database::with_limits(Limits {
+        max_bytes: 0,
+        ..limits
+    })
+    .unwrap();
+    manifest.create_collection().unwrap();
+    assert!(matches!(
+        Receiver::open(manifest, Slots::default(), enrollment, limits),
+        Err(Error::Limit)
+    ));
+    struct Denied;
+    impl Images for Denied {
+        type Store = SimulatedDisk;
+        fn create(&mut self, _: u8) -> Result<Self::Store> {
+            Err(Error::Busy)
+        }
+        fn open(&mut self, _: u8) -> Result<Self::Store> {
+            Err(Error::Busy)
+        }
+    }
+    let fixture = Fixture::new();
+    let manifest = Database::open_on(
+        SimulatedDisk::from_image(&fixture.manifest).unwrap(),
+        limits,
+    )
+    .unwrap();
+    assert!(matches!(
+        Receiver::open(manifest, Denied, fixture.enrollment, limits),
+        Err(Error::Busy)
+    ));
+}

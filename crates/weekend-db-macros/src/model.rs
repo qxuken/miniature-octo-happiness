@@ -255,3 +255,82 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn metadata_and_field_options_have_rejected_and_valid_controls() {
+        for (source, message) in [
+            ("#[weekend(version=1)] struct A {}", "type_id"),
+            ("#[weekend(type_id=1)] struct A {}", "version"),
+            ("#[weekend(type_id=)] struct A {}", "unexpected end"),
+            (
+                "#[weekend(type_id=1,version=1)] struct A where u64: Copy {}",
+                "nongeneric",
+            ),
+            (
+                "#[weekend(type_id=1,version=1)] enum A { A }",
+                "structs only",
+            ),
+            ("#[weekend(type_id=1,version=1)] struct A;", "named fields"),
+            (
+                "#[weekend(type_id=18446744073709551616,version=1)] struct A {}",
+                "too large",
+            ),
+        ] {
+            let error = expand(syn::parse_str(source).unwrap()).unwrap_err();
+            assert!(error.to_string().contains(message), "{error}");
+        }
+        for (options, message) in [
+            ("version=2", "duplicate version"),
+            ("reserved(2,2)", "duplicate reserved"),
+            ("reserved(0)", "nonzero"),
+            ("crate=\"x\",crate=\"y\"", "duplicate crate"),
+            ("crate=\"not a path!\"", "unexpected token"),
+            ("unknown", "expected type_id"),
+        ] {
+            let source = format!("#[weekend(type_id=1,version=1,{options})] struct A {{}}");
+            let error = expand(syn::parse_str(&source).unwrap()).unwrap_err();
+            assert!(error.to_string().contains(message), "{options}: {error}");
+        }
+        for (options, message) in [
+            ("id=1", "duplicate field ID"),
+            ("unique,unique", "duplicate unique"),
+            ("default,default=3", "duplicate default"),
+            ("name=\"a\",name=\"b\"", "duplicate name"),
+            ("name=\"\"", "cannot be empty"),
+            ("wat", "expected id"),
+        ] {
+            let source = format!(
+                "#[weekend(type_id=1,version=1)] struct A {{ #[weekend(id=1,{options})] a:u64 }}"
+            );
+            let error = expand(syn::parse_str(&source).unwrap()).unwrap_err();
+            assert!(error.to_string().contains(message), "{options}: {error}");
+        }
+        for (fields, message) in [
+            (
+                "#[weekend(id=1,name=\"same\")] a:u64, #[weekend(id=2,name=\"same\")] b:u64",
+                "stored field name",
+            ),
+            (
+                "#[weekend(id=1)] a:u64, #[weekend(id=2)] A:u64",
+                "constant names collide",
+            ),
+        ] {
+            let source = format!("#[weekend(type_id=1,version=1)] struct A {{ {fields} }}");
+            assert!(
+                expand(syn::parse_str(&source).unwrap())
+                    .unwrap_err()
+                    .to_string()
+                    .contains(message)
+            );
+        }
+        for source in [
+            "#[allow(dead_code)] #[weekend(type_id=1,version=1,reserved())] struct A {}",
+            "#[weekend(type_id=1,version=2,reserved(9),crate=\"crate::typed\")] struct A { #[allow(dead_code)] #[weekend(id=1,unique,name=\"kind\")] r#type:String, #[weekend(id=2,default)] value:u64, #[weekend(id=3,default=7)] count:u64 }",
+        ] {
+            syn::parse2::<syn::File>(expand(syn::parse_str(source).unwrap()).unwrap()).unwrap();
+        }
+    }
+}

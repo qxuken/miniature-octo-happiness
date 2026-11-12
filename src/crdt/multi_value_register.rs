@@ -106,6 +106,14 @@ impl Record for MultiValueRegister {
             };
             *entry = Entry { sequence, value };
         }
+        // Assignment is the only operation that retires choices, and it always
+        // introduces a new visible dot. A finite compatible history therefore
+        // cannot have observed assignments without at least one maximal dot.
+        if state.0.iter().all(|entry| entry.value.is_none())
+            && state.0.iter().any(|entry| entry.sequence != 0)
+        {
+            return Err(Error::Corrupt);
+        }
         Ok(state)
     }
 
@@ -118,7 +126,16 @@ impl Record for MultiValueRegister {
         if incoming.0[actor].sequence > self.0[actor].sequence {
             return Err(Error::Conflict);
         }
-        for (local, remote) in self.0.into_iter().zip(incoming.0) {
+        for (index, (local, remote)) in self.0.into_iter().zip(incoming.0).enumerate() {
+            // A newly learned retirement must be witnessed by an assignment
+            // at the other actor that we have not yet observed. Otherwise its
+            // retirement would already be present: join never resurrects a dot.
+            let new_retirement = remote.value.is_none()
+                && (remote.sequence > local.sequence
+                    || (remote.sequence == local.sequence && local.value.is_some()));
+            if new_retirement && incoming.0[1 - index].sequence <= self.0[1 - index].sequence {
+                return Err(Error::Conflict);
+            }
             if local.sequence == remote.sequence
                 && let (Some(a), Some(b)) = (local.value, remote.value)
                 && a != b

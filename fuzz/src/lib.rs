@@ -112,3 +112,5 @@ mod adversarial;
 mod namespace;
 pub use adversarial::tree_adversarial_keys;
 pub use namespace::replacement_namespace;
+mod registers;
+pub use registers::register_causality;

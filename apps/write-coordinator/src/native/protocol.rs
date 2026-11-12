@@ -131,3 +131,95 @@ fn submit_identified(db: &Database, id: &str, expected: u64, value: u64) -> DbRe
     assert_eq!(tx.commit()?, acknowledged);
     Ok(format!("committed {acknowledged}"))
 }
+
+#[cfg(test)]
+mod decisions {
+    use super::*;
+    use weekend_db::{
+        Limits,
+        storage::{Fault, SimulatedDisk},
+    };
+    fn database() -> Database {
+        let db = Database::new().unwrap();
+        let c = db.create_collection().unwrap();
+        let mut t = db.begin();
+        t.put(c, KEY, &db.unsigned(0).unwrap()).unwrap();
+        t.commit().unwrap();
+        drop(t);
+        db
+    }
+    #[test]
+    fn authentication_and_line_bounds() {
+        let secret = [b'a'; 64];
+        let token = "a".repeat(64);
+        assert_eq!(
+            authorize(&secret, &format!("auth {token} get")),
+            Some("get")
+        );
+        for request in [
+            "get".to_owned(),
+            format!("auth {token}"),
+            "auth a get".to_owned(),
+            format!("auth {} get", "b".repeat(64)),
+        ] {
+            assert_eq!(authorize(&secret, &request), None);
+        }
+        for (bytes, expected) in [
+            (b"\n".to_vec(), true),
+            (b"get\n".to_vec(), true),
+            ([vec![b'a'; 255], vec![b'\n']].concat(), true),
+            ([vec![b'a'; 256], vec![b'\n']].concat(), false),
+            (b"get".to_vec(), false),
+            (vec![255, b'\n'], false),
+        ] {
+            assert_eq!(
+                read_line_from(&mut bytes.as_slice(), || Ok(())).is_ok(),
+                expected
+            );
+        }
+        let mut calls = 0;
+        let error = read_line_from(&mut &b"get\n"[..], || {
+            calls += 1;
+            Err(io::ErrorKind::TimedOut.into())
+        })
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(calls, 1);
+        struct Broken;
+        impl Read for Broken {
+            fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+                Err(io::ErrorKind::ConnectionReset.into())
+            }
+        }
+        assert_eq!(
+            read_line_from(&mut Broken, || Ok(())).unwrap_err().kind(),
+            io::ErrorKind::ConnectionReset
+        );
+    }
+    #[test]
+    fn request_identifier_and_recovery_admission() {
+        for id in ["a", "-", "_", &"x".repeat(32)] {
+            let db = database();
+            assert_eq!(submit_identified(&db, id, 2, 4).unwrap(), "committed 3");
+        }
+        for id in ["", &"x".repeat(33), "/"] {
+            let db = database();
+            assert_eq!(submit_identified(&db, id, 2, 4), Err(Error::Invalid));
+            assert_eq!(state(&db), Ok((2, 0)));
+        }
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(disk.clone(), [1; 16], Limits::default()).unwrap();
+        let c = db.create_collection().unwrap();
+        let mut t = db.begin();
+        t.put(c, KEY, &db.unsigned(0).unwrap()).unwrap();
+        t.commit().unwrap();
+        drop(t);
+        disk.arm(0, Fault::Error);
+        assert_eq!(handle(&mut db, "set-id uncertain 2 7"), Err(Error::Io));
+        assert_eq!(handle(&mut db, "get"), Err(Error::RecoveryRequired));
+        assert_eq!(
+            handle(&mut db, "set-id uncertain 2 7"),
+            Err(Error::RecoveryRequired)
+        );
+    }
+}

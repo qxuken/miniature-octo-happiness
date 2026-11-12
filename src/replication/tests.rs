@@ -184,3 +184,139 @@ fn primary_ship_accepts_newer_progress_only_before_uploading() {
         }
     }
 }
+
+#[test]
+fn enrollment_offer_and_wire_dispatch_boundaries() {
+    use std::io::Cursor;
+    let enrollment = Enrollment {
+        stream_id: [1; 16],
+        file_identity: [2; 16],
+    };
+    for (s, f, ok) in [(1, 2, true), (0, 2, false), (1, 0, false)] {
+        assert_eq!(
+            Enrollment {
+                stream_id: [s; 16],
+                file_identity: [f; 16]
+            }
+            .validate()
+            .is_ok(),
+            ok
+        );
+    }
+    for (length, ok) in [
+        (APPEND_START as u64 - 1, false),
+        (APPEND_START as u64, true),
+        (MAX_IMAGE_BYTES as u64, true),
+        (MAX_IMAGE_BYTES as u64 + 1, false),
+    ] {
+        assert_eq!(
+            Offer {
+                revision: 1,
+                length,
+                digest: [0; 32]
+            }
+            .validate()
+            .is_ok(),
+            ok
+        );
+    }
+    let mut request = Vec::new();
+    wire::request(&mut request, enrollment, None).unwrap();
+    assert!(
+        wire::read_request(&mut request.as_slice(), enrollment)
+            .unwrap()
+            .is_none()
+    );
+    for (at, error) in [
+        (0, Error::UnsupportedFormat),
+        (9, Error::ForeignStore),
+        (25, Error::ForeignStore),
+        (8, Error::Invalid),
+    ] {
+        let mut bad = request.clone();
+        bad[at] = 255;
+        assert!(matches!(wire::read_request(&mut bad.as_slice(),enrollment),Err(e) if e==error));
+    }
+    for end in [0, 40] {
+        assert!(matches!(
+            wire::read_request(&mut &request[..end], enrollment),
+            Err(Error::Io)
+        ));
+    }
+    for (error, expected) in [
+        (Error::UnsupportedFormat, Error::UnsupportedFormat),
+        (Error::ForeignStore, Error::ForeignStore),
+        (Error::Conflict, Error::Conflict),
+        (Error::Limit, Error::Limit),
+        (Error::Exhausted, Error::Limit),
+        (Error::Corrupt, Error::Corrupt),
+        (Error::OutcomeUnknown, Error::RecoveryRequired),
+        (Error::RecoveryRequired, Error::RecoveryRequired),
+        (Error::Invalid, Error::Invalid),
+        (Error::Io, Error::Io),
+    ] {
+        let mut bytes = Vec::new();
+        wire::reply(&mut bytes, Err(error)).unwrap();
+        assert!(matches!(wire::read_reply(&mut bytes.as_slice()),Err(e) if e==expected));
+    }
+    assert!(matches!(
+        wire::read_reply(&mut &[255][..]),
+        Err(Error::UnsupportedFormat)
+    ));
+    assert!(matches!(wire::read_reply(&mut &[2][..]), Err(Error::Io)));
+    assert!(wire::request(&mut Cursor::new(&mut [0; 0][..]), enrollment, None).is_err());
+}
+
+#[test]
+fn source_and_export_identity_revision_guards_are_independent() {
+    let (db, [_, mut export, _]) = exports();
+    let mut primary = Primary::new(&db, STREAM).unwrap();
+    assert!(primary.check_source(&db).is_ok());
+    primary.enrollment.file_identity[0] ^= 1;
+    assert_eq!(primary.check_source(&db), Err(Error::ForeignStore));
+    primary.enrollment.file_identity[0] ^= 1;
+    primary.verified_revision += 1;
+    assert_eq!(primary.check_source(&db), Err(Error::ForeignStore));
+    primary = Primary::new(&db, STREAM).unwrap();
+    let mut channel = Exchange::new([Reply::Installed(ack(&export))]);
+    export.enrollment.stream_id[0] ^= 1;
+    assert_eq!(
+        primary.ship(&mut export, &mut channel),
+        Err(Error::ForeignStore)
+    );
+    assert!(channel.sent.is_empty());
+    export.enrollment.stream_id[0] ^= 1;
+    primary.verified_revision = export.offer.revision - 1;
+    assert_eq!(
+        primary.ship(&mut export, &mut channel),
+        Err(Error::ForeignStore)
+    );
+    assert!(channel.sent.is_empty());
+    primary.verified_revision = export.offer.revision;
+    let expected = ack(&export);
+    assert_eq!(primary.ship(&mut export, &mut channel), Ok(expected));
+}
+
+#[test]
+fn visit_image_length_and_callback_errors_stop_before_more_chunks() {
+    let mut store = crate::storage::MemoryStore::new().unwrap();
+    store.lock().unwrap();
+    assert_eq!(
+        visit_image(&mut store, 1, |_| panic!("invalid length visited")),
+        Err(Error::Corrupt)
+    );
+    assert_eq!(
+        visit_image(&mut store, 0, |_| panic!("empty image visited")),
+        Ok(())
+    );
+    store.write(0, &vec![0; REGION * 2]).unwrap();
+    let mut calls = 0;
+    assert_eq!(
+        visit_image(&mut store, (REGION * 2) as u64, |_| {
+            calls += 1;
+            Err(Error::Invalid)
+        }),
+        Err(Error::Invalid)
+    );
+    assert_eq!(calls, 1);
+}

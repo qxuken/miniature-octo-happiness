@@ -16,6 +16,7 @@ seed inputs live under `seeds/`.
 | `retention_compact_crash` | Generated retained history followed by a fault at a compact-copy I/O. Acknowledged copies reopen completely. Any recoverable interrupted copy matches the full independent model, and the unchanged source remains writable with preserved retained-ID allocation. |
 | `ffi_ops` | Exported C calls through opaque valid handles. Generated create/clone/release/map edits check native Rust byte values, foreign-owner errors, buffer sizing and sentinels, and busy-close/final-close behavior. |
 | `crdt_frames` | Arbitrary or structured counter frames through receiver merge and sender acknowledgment validation. Invalid frames preserve state, valid merges match independent component totals, and repeated offers add no commit. |
+| `register_causality` | Two durable records containing manual, Max and Min registers. An independent causal-event history predicts compact dots, visible choices, exact revisions, replies, durable restart and repeat-sync stability. |
 | `crdt_schedule` | Two durable counter/set records with offline edits, delayed offers, lost replies and reopen. Independent integer components and membership bitsets predict every state and final convergence with no extra repeat-sync commits. |
 
 The raw image target compares revision metadata because it accepts
@@ -364,3 +365,53 @@ records completed_runs separately from requested budgets, rejects missing/zero
 completion reports, and checks source and permanent-seed hashes for changes.
 --build-directory selects an explicit build cache. Two runner regression tests
 and 100 real raw-image executions passed; longer campaigns remain.
+
+
+## Register causality and committed automatic resolution
+
+`register_causality` drives the public derived `Record`/`Resolution` API with
+one manual multi-value register, one `MaxRegister` and one `MinRegister` in each
+of two durable peers. Its independent oracle stores assignment events with
+actor sequence numbers and the full set of previously observed events. Merge
+unions known events; an assignment retires the events it observed. It does not
+call production register joins to derive expectations. A separate projection
+of this causal history predicts the documented compact dot encoding and the
+exact acknowledgment payload, including retired dots.
+
+Inputs contain up to 32 three-byte commands: offline assignment or reviewed
+choice, fresh delivery, delayed-offer capture/replay, reopen, or explicit local
+policy commit. Up to eight captured offers can be retried after later edits.
+The target checks both peers after every operation. A lost reply occurs after
+successful receiver publication; fresh lost-reply deliveries immediately reopen
+the receiver from `SimulatedDisk`. Final exchanges must converge in full encoded
+state, both automatic fields must have at most one distinct value, and further
+exchanges must add no commits. Both final states must survive reopening.
+Manual conflicts may legitimately remain unresolved.
+
+The revision oracle distinguishes automatic resolution within the receive
+commit from a separate explicit local update: changed receives publish exactly
+once, unchanged receives publish nothing, and successful explicit updates
+publish even if their callback changes no payload. Independent Max/Min policies
+may create concurrent dots with the same selected value. Those dots remain
+causally distinct while presenting one choice; a further sync must not create
+an endless sequence of resolution commits.
+
+Six seeds cover independent policy commits, divergent manual resolutions,
+equal values under distinct dots, retired-dot replay, lost replies/reopen and
+empty explicit policy updates. Stable replay also exercises 16 generated
+schedules. Values are bounded to 0–255, identities are fixed and authenticated
+by the caller, and all offers originate from real earlier peer states. This
+model excludes forged same-dot payloads, sequence exhaustion, TLS/identity
+verification, faults during publication and unknown commit outcomes. Existing
+frame, durability and authentication tests own those separate boundaries;
+a dropped response here does not simulate a failed commit barrier.
+
+On arm64 macOS, the new target completed 1,000 ASan executions with seed 1,
+a 96-byte input cap and a 40-second time limit (3 seconds of fuzz execution),
+with no findings. Nightly was `1.101.0-nightly (708c94ef0 2026-11-03)` and
+cargo-fuzz 0.13.2. All 18 stable replay tests and fuzz all-target warnings-denied
+Clippy passed. Evidence, logs and post-run source hashes are under
+`target/register-causality-evidence`. This used development source on checkpoint
+`4203e0a`, with concurrent unrelated FFI/test/doc edits, rather than an isolated
+release build. The run is bounded smoke evidence; it does not establish a
+coverage percentage, exhaustive causality exploration or a memory cap.

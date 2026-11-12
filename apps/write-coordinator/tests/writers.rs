@@ -292,3 +292,44 @@ fn configured_secret_authenticates_before_writes_and_receipt_lookup() {
     valid.send("get");
     assert_eq!(valid.receive(), "value 3 70");
 }
+
+#[test]
+fn command_line_dispatch_and_clean_client_exit() {
+    for args in [vec!["--help"], vec!["-h"]] {
+        assert!(
+            Command::new(BIN)
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    }
+    for args in [
+        vec![],
+        vec!["wrong"],
+        vec!["wrong", "0"],
+        vec!["wrong", "path", "0"],
+        vec!["wrong", "p", "0", "--secret-file", "s"],
+        vec!["serve", "p", "0", "--bad", "s"],
+        vec!["wrong", "0", "--secret-file", "s"],
+        vec!["client", "0", "--bad", "s"],
+    ] {
+        assert!(
+            !Command::new(BIN)
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    }
+    let mut client = Command::new(BIN)
+        .args(["client", "0"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    client.stdin.take().unwrap().write_all(b"\nquit\n").unwrap();
+    assert!(client.wait().unwrap().success());
+}

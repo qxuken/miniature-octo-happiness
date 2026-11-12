@@ -794,3 +794,169 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+
+    #[test]
+    fn scalar_arms_and_output_failures_preserve_valid_handles() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            for (kind, bits) in [
+                (0, 0),
+                (1, 1),
+                (2, u64::MAX),
+                (3, u64::MAX),
+                (4, f64::NAN.to_bits()),
+                (5, 0),
+                (6, 0),
+                (7, 0),
+            ] {
+                let mut value = ptr::null_mut();
+                assert_eq!(
+                    wdb_value_make(database, kind, bits, ptr::null(), 0, &mut value),
+                    0
+                );
+                let mut actual_kind = -9;
+                assert_eq!(wdb_value_kind(value, &mut actual_kind), 0);
+                assert_eq!(actual_kind, kind);
+                assert_eq!(
+                    wdb_value_kind(value, ptr::null_mut()),
+                    Error::Invalid as i32
+                );
+                let mut scalar = 99;
+                assert_eq!(
+                    wdb_value_scalar(value, &mut scalar),
+                    if kind <= 4 { 0 } else { Error::Type as i32 }
+                );
+                assert_eq!(scalar, if kind <= 4 { bits } else { 0 });
+                assert_eq!(
+                    wdb_value_scalar(value, ptr::null_mut()),
+                    Error::Invalid as i32
+                );
+                let mut len = 99;
+                assert_eq!(
+                    wdb_value_len(value, &mut len),
+                    if kind >= 5 { 0 } else { Error::Type as i32 }
+                );
+                assert_eq!(len, 0);
+                assert_eq!(wdb_value_len(value, ptr::null_mut()), Error::Invalid as i32);
+                assert_eq!(wdb_value_release(value), 0);
+            }
+            let mut kind = 99;
+            let mut bits = 99;
+            let mut len = 99;
+            assert_eq!(
+                wdb_value_kind(ptr::null(), &mut kind),
+                Error::Invalid as i32
+            );
+            assert_eq!(kind, -1);
+            assert_eq!(
+                wdb_value_scalar(ptr::null(), &mut bits),
+                Error::Invalid as i32
+            );
+            assert_eq!(bits, 0);
+            assert_eq!(wdb_value_len(ptr::null(), &mut len), Error::Invalid as i32);
+            assert_eq!(len, 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn null_inputs_and_scalar_outputs_do_not_publish_or_acquire_handles() {
+        unsafe {
+            let mut id = 99;
+            assert_eq!(
+                wdb_collection_create(ptr::null_mut(), &mut id),
+                Error::Invalid as i32
+            );
+            assert_eq!(id, 0);
+            let mut revision = 99;
+            assert_eq!(
+                wdb_tx_commit(ptr::null_mut(), &mut revision),
+                Error::Invalid as i32
+            );
+            assert_eq!(revision, 0);
+            assert_eq!(wdb_tx_abort(ptr::null_mut()), Error::Invalid as i32);
+            assert_eq!(wdb_close(ptr::null_mut()), Error::Invalid as i32);
+            let mut len = 99;
+            assert_eq!(wdb_scan_len(ptr::null(), &mut len), Error::Invalid as i32);
+            assert_eq!(len, 0);
+            assert_eq!(
+                wdb_snapshot_revision(ptr::null(), &mut revision),
+                Error::Invalid as i32
+            );
+            assert_eq!(revision, 0);
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            assert_eq!(
+                wdb_collection_create(database, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(wdb_collection_create(database, &mut id), 0);
+            let mut snapshot = ptr::null_mut();
+            assert_eq!(wdb_snapshot_acquire(database, &mut snapshot), 0);
+            assert_eq!(
+                wdb_snapshot_revision(snapshot, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(wdb_snapshot_revision(snapshot, &mut revision), 0);
+            assert_eq!(revision, 1);
+            let mut scan = ptr::null_mut();
+            assert_eq!(wdb_snapshot_scan(snapshot, id, &mut scan), 0);
+            assert_eq!(wdb_scan_len(scan, ptr::null_mut()), Error::Invalid as i32);
+            assert_eq!(wdb_scan_len(scan, &mut len), 0);
+            assert_eq!(len, 0);
+            assert_eq!(wdb_scan_release(scan), 0);
+            assert_eq!(wdb_snapshot_release(snapshot), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn compaction_output_guards_are_independent_before_path_validation() {
+        unsafe {
+            let mut before = 99;
+            let mut after = 99;
+            assert_eq!(
+                wdb_file_compact(ptr::null(), 0, ptr::null_mut(), &mut after),
+                Error::Invalid as i32
+            );
+            assert_eq!(after, 99);
+            assert_eq!(
+                wdb_file_compact(ptr::null(), 0, &mut before, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(before, 99);
+            let result = wdb_file_compact(ptr::null(), 0, &mut before, &mut after);
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            assert_eq!(result, Error::Invalid as i32);
+            #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+            assert_eq!(result, Error::UnsupportedPlatform as i32);
+            assert_eq!((before, after), (0, 0));
+            assert_eq!(
+                wdb_scan_key(ptr::null(), 0, ptr::null_mut(), 0, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    fn native_path_length_boundary_and_encoding_contract() {
+        let bytes = vec![b'x'; 1024 * 1024];
+        unsafe {
+            assert!(path(bytes.as_ptr(), bytes.len()).is_ok());
+            assert_eq!(
+                path(bytes.as_ptr(), bytes.len() + 1).err(),
+                Some(Error::Limit)
+            );
+            #[cfg(windows)]
+            assert_eq!(path([0xff].as_ptr(), 1).err(), Some(Error::Invalid));
+            #[cfg(not(windows))]
+            assert!(path([0xff].as_ptr(), 1).is_ok());
+        }
+    }
+}

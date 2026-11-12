@@ -37,3 +37,5 @@ is archived checkpoint 6266359, overlaid only with this runner and the corrected
 C memory consumer. The new CI job runs native Linux with the same fail-closed
 calibration. Its first result remains pending. This is bounded dynamic evidence,
 not proof of all unsafe paths, arbitrary C caller misuse, or race freedom.
+
+Checkpoint 4203e0a passed native Linux CI with Ubuntu Clang 21.1.8, Rust 1.102.0-nightly f5cedb83a (LLVM 23.1.5), x86_64 Linux 7.0.0-1019-azure and glibc 2.43. All four calibration cases and three consumers passed with leak detection enabled. Both atomic models and fail-required controls passed. Evidence: target/c-rust-ci-4203e0a; native run 42532732875 is fully green.

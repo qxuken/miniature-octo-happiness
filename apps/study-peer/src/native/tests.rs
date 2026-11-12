@@ -246,3 +246,33 @@ fn two_writers_recover_a_lost_ack() {
     assert_eq!(a.command("show"), "state 4 40 [90] [20] [1, 2]");
     assert_eq!(b.command("show"), "state 5 40 [90] [20] [1, 2]");
 }
+
+#[test]
+fn paused_peer_reports_idle_errors_and_quits_cleanly() {
+    let dir = Directory::new();
+    let (path, identity, _, enrollment) = config(&dir.0, "a");
+    Credentials::create(&identity).unwrap();
+    let (_, other, _, _) = config(&dir.0, "b");
+    Credentials::create(&other).unwrap();
+    initialize(&path, enrollment).unwrap();
+    let dynamic = "127.0.0.1:0".parse().unwrap();
+    let mut worker = Worker::start(&dir.0, "a", dynamic, dynamic, false);
+    worker.ready();
+    assert_eq!(worker.command("peer"), "peer 0 idle");
+    assert!(worker.command("unknown").starts_with("error "));
+    assert_eq!(worker.command("push off"), "push off");
+    worker.input.write_all(b"\nquit\n").unwrap();
+    worker.input.flush().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(6);
+    loop {
+        if let Some(status) = worker.child.try_wait().unwrap() {
+            assert!(status.success());
+            break;
+        }
+        if Instant::now() > deadline {
+            worker.kill();
+            panic!("paused peer failed to stop");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}

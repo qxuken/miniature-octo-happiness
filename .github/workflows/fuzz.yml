@@ -4,8 +4,15 @@ on:
     paths:
       - 'src/**'
       - 'crates/**'
+      - 'apps/**'
+      - 'examples/support/**'
+      - 'tests/support/**'
       - 'fuzz/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
       - 'tools/fuzz.py'
+      - 'tools/test_fuzz_runner.py'
       - '.github/workflows/fuzz.yml'
   pull_request:
   workflow_dispatch:
@@ -16,12 +23,15 @@ permissions:
 jobs:
   address:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.99.1 --profile minimal
       - run: rustup toolchain install nightly --profile minimal
       - run: cargo install cargo-fuzz --version 0.13.2 --locked
       - run: python3 tools/test_fuzz_runner.py
+      - name: Replay committed seeds and model regressions
+        run: cargo +1.99.1 test --locked --manifest-path fuzz/Cargo.toml --lib
       - name: Run all manifest targets
         env:
           FUZZ_RUNS: ${{ github.event_name == 'schedule' && '100000' || '1000' }}

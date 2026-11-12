@@ -206,3 +206,48 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod decisions {
+    use super::*;
+    use std::net::TcpListener;
+    #[test]
+    fn pin_admission_and_expired_absolute_deadline() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        assert!(Tls::new(&a, a.cert.clone()).is_err());
+        assert!(Tls::new(&a, vec![0; 4].into()).is_err());
+        let tls = Tls::new(&a, b.cert.clone()).unwrap();
+        assert!(tls.check_pin(None).is_err());
+        assert!(tls.check_pin(Some(&[])).is_err());
+        assert!(tls.check_pin(Some(std::slice::from_ref(&a.cert))).is_err());
+        assert!(tls.check_pin(Some(std::slice::from_ref(&b.cert))).is_ok());
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let socket = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (mut other, _) = listener.accept().unwrap();
+        let mut socket = DeadlineSocket::new(socket);
+        assert!(socket.remaining().unwrap() > Duration::ZERO);
+        other.write_all(&[42]).unwrap();
+        let mut b = [0];
+        assert_eq!(socket.read(&mut b).unwrap(), 1);
+        assert_eq!(b, [42]);
+        // Direct private deadline control; no claim that a native timeout elapsed.
+        socket.deadline = Instant::now() - Duration::from_millis(1);
+        assert_eq!(
+            socket.read(&mut b).unwrap_err().kind(),
+            io::ErrorKind::TimedOut
+        );
+        assert_eq!(
+            socket.write(&[1]).unwrap_err().kind(),
+            io::ErrorKind::TimedOut
+        );
+        // A stalled native peer cannot hold the handshake beyond the configured
+        // whole-session deadline. This uses the actual blocking TCP/TLS path.
+        let stalled = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (peer, _) = listener.accept().unwrap();
+        let start = Instant::now();
+        assert!(tls.accept(peer).is_err());
+        assert!(start.elapsed() < Duration::from_secs(10));
+        drop(stalled);
+    }
+}

@@ -59,3 +59,5 @@ as an originals-unavailable proof. The existing native C/C++ and optional Odin
 exact-artifact/relocation checks remain independent. The source consumer does
 not establish whole-library behavior, cross-version compatibility, or support
 for every target where Rust itself runs.
+
+Clean checkpoint 4203e0aab9b48ed371165adaca694400f38f84cc passed the combined --features crdt,replication --odin --rust-source --rust-source-isolated profile. Evidence: target/private-source-4203e0a/manifest.json. C/C++/Odin relocation, copied Rust source/runtime, Linux isolation, source identity and attribution inputs passed. Candidate eligibility covers these packaging gates, not the whole roadmap. No Cargo publication occurred.

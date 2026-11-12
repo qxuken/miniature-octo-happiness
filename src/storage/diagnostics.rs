@@ -447,3 +447,100 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+mod display_decisions {
+    use super::*;
+    #[test]
+    fn optional_context_and_failing_format_sinks_propagate_errors() {
+        struct Sink {
+            calls: usize,
+            fail: Option<usize>,
+            text: String,
+        }
+        impl std::fmt::Write for Sink {
+            fn write_str(&mut self, text: &str) -> std::fmt::Result {
+                let call = self.calls;
+                self.calls += 1;
+                if self.fail == Some(call) {
+                    return Err(std::fmt::Error);
+                }
+                self.text.push_str(text);
+                Ok(())
+            }
+        }
+        for native in [
+            None,
+            Some(NativeIoDiagnostic {
+                operation: NativeIoOperation::Read,
+                category: NativeIoCategory::Other,
+                raw_os_error: Some(5),
+            }),
+        ] {
+            for verification in [
+                None,
+                Some(VerificationDiagnostic {
+                    stage: VerificationStage::RootSelection,
+                    offset: None,
+                }),
+                Some(VerificationDiagnostic {
+                    stage: VerificationStage::Value,
+                    offset: Some(8192),
+                }),
+            ] {
+                let error = StorageFailure {
+                    error: Error::Corrupt,
+                    native,
+                    verification,
+                };
+                let mut sink = Sink {
+                    calls: 0,
+                    fail: None,
+                    text: String::new(),
+                };
+                assert_eq!(std::fmt::write(&mut sink, format_args!("{error}")), Ok(()));
+                assert_eq!(sink.text.contains("OS"), native.is_some());
+                assert_eq!(sink.text.contains("verification"), verification.is_some());
+                assert_eq!(
+                    sink.text.contains("structure offset 8192"),
+                    verification.is_some_and(|v| v.offset.is_some())
+                );
+                for fail in 0..sink.calls {
+                    let mut failed = Sink {
+                        calls: 0,
+                        fail: Some(fail),
+                        text: String::new(),
+                    };
+                    assert_eq!(
+                        std::fmt::write(&mut failed, format_args!("{error}")),
+                        Err(std::fmt::Error)
+                    );
+                    assert_eq!(failed.calls, fail + 1);
+                }
+            }
+        }
+    }
+    #[test]
+    fn inactive_capture_is_a_noop_and_other_category_is_retained() {
+        record(
+            NativeIoOperation::Read,
+            &io::Error::from(io::ErrorKind::Other),
+        );
+        assert_eq!(
+            verify::<()>(VerificationStage::Value, Some(1), || Err(Error::Corrupt)),
+            Err(Error::Corrupt)
+        );
+        clear_verification();
+        let result = capture::<()>(|| {
+            record(
+                NativeIoOperation::Sync,
+                &io::Error::from(io::ErrorKind::Other),
+            );
+            Err(Error::Io)
+        })
+        .unwrap_err();
+        assert_eq!(result.native.unwrap().category, NativeIoCategory::Other);
+        assert_eq!(result.verification, None);
+        assert_eq!(capture(|| Ok(7)), Ok(7));
+    }
+}

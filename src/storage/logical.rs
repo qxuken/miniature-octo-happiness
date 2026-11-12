@@ -450,3 +450,6 @@ pub fn import_logical_file(
     let image = decode(bytes, &mem)?;
     install(image, super::FileStore::create(path)?, &mem)
 }
+
+#[cfg(test)]
+mod decisions;

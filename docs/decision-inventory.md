@@ -154,11 +154,16 @@ hashes and unique decision IDs. Regenerate after code changes; these counts are 
 snapshot, not a permanent coverage assertion.
 
 
-After allocation accounting, extracted application parsers and verification
-diagnostics, the inventory contains 2,408 explicit records across 47 files and
-10 targets, with 284 macro/derive blind spots, 28 test exclusions and no parse
-failures. The recorded source-set hash is
-`c3bb8892b935eb14e6399d6a7e54a1dea0a110ed68a164cdf73bcae655b858d7`;
-output is `target/decision-inventory-current`. [Module audits](decisions/README.md)
-classify 584 of these explicit records, with scoped proofs and delegated gaps.
-This is an audit status, not a coverage percentage or an expanded FFI denominator.
+The integrated audit snapshot contains **2,415 explicit records across 47 files
+and 10 shipped targets**, with 284 macro/derive blind spots, 48 test exclusions
+and no parse/path failures. Source-set SHA-256 is
+`49f199c53ecc7ce7c646a4477415ef7b0ae8b1f0b82d005b74bd338091ae1597`.
+A fresh independent check verified all 47 full-file hashes and 5,647 recorded
+source/condition/exclusion/blind-spot ranges against actual bytes. Regeneration
+output was `/tmp/weekend-final-inventory`; this temporary path is not a release
+artifact retention promise. [Module audits](decisions/README.md) classify every
+explicit record, including delegated and execution-only dispositions. Generated
+FFI and derive code has supplemental evidence, not a compiler-expanded inventory.
+The scanner itself still labels records unreviewed: manual dispositions reside
+in linked ledgers, not an automatic coverage import. These counts are an audit
+status, not MC/DC percentages or proof of every propagated failure.

@@ -92,3 +92,39 @@ pub(super) fn copy_metadata(from: &File, to: &File, _mem: &Memory) -> Result<()>
         }
     })
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn native_error_mapping_preserves_raw_code_and_operation() {
+        for (code, expected) in [
+            (2, Error::NotFound),
+            (17, Error::AlreadyExists),
+            (35, Error::Busy),
+            (20, Error::Invalid),
+            (21, Error::Invalid),
+            (62, Error::Invalid),
+            (13, Error::Io),
+        ] {
+            let failure = diagnostics::capture::<()>(|| {
+                Err(os_error(
+                    NativeIoOperation::Open,
+                    io::Error::from_raw_os_error(code),
+                ))
+            })
+            .unwrap_err();
+            assert_eq!(failure.error, expected);
+            let native = failure.native.unwrap();
+            assert_eq!(native.raw_os_error, Some(code));
+            assert_eq!(native.operation, NativeIoOperation::Open);
+        }
+        assert_eq!(
+            os_error(
+                NativeIoOperation::Read,
+                io::Error::from(io::ErrorKind::Other)
+            ),
+            Error::Io
+        );
+    }
+}

@@ -240,3 +240,51 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod decisions {
+    use super::*;
+    #[test]
+    fn secret_file_and_loopback_address_admission() {
+        let root = std::env::temp_dir().join(format!(
+            "coordinator-secret-decisions-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("secret");
+        assert!(Secret::load(&root).is_err());
+        for (bytes, good) in [
+            (vec![b'a'; 64], true),
+            ([vec![b'A'; 64], vec![b'\n']].concat(), true),
+            (vec![b'a'; 63], false),
+            (vec![b'x'; 64], false),
+            ([vec![b'a'; 64], vec![b'\n', b'\n']].concat(), false),
+        ] {
+            std::fs::write(&path, bytes).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+            }
+            assert_eq!(Secret::load(&path).is_ok(), good);
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::write(&path, vec![b'a'; 64]).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+            assert!(Secret::load(&path).is_err());
+        }
+        assert_eq!(address(OsStr::new("0")).unwrap().ip(), Ipv4Addr::LOCALHOST);
+        assert_eq!(address(OsStr::new("65535")).unwrap().port(), 65535);
+        for port in ["65536", "-1", "nope"] {
+            assert!(address(OsStr::new(port)).is_err());
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt;
+            assert!(address(OsStr::from_bytes(&[255])).is_err());
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

@@ -1505,8 +1505,8 @@ error paths remain coverage gaps. The final post-metadata verification change
 also passes the nine-case compaction suite under both sanitizers. Default-feature and all-feature Clippy both
 pass without warnings. Warnings-denied cross-checks pass for Linux/Windows in
 debug and release and x86 macOS in debug; the x86 macOS release `cdylib` links.
-Native Linux/Windows runtime results remain pending CI, and Rosetta execution
-remains unavailable on this host.
+Native Linux/Windows runtime results were pending at this milestone; later
+checkpoint 4203e0a passed both. Rosetta execution remains unavailable on this host.
 
 **Benchmark policy and baseline.** `tools/benchmark.rs` is a dependency-free
 release binary, and `tools/benchmark.py` records three runs, raw CSV and
@@ -1723,7 +1723,8 @@ external consumers and standalone test files: **92.65% lines (4,894/5,282)** and
 **90.14% regions (8,848/9,816)**. This expanded denominator differs from the
 milestone-10 engine-only report; branch/MC/DC coverage is not claimed. Errors and
 less-common CLI paths remain gaps. Warnings-denied workspace checks compile for
-x86 Linux, Windows and macOS; native non-macOS execution remains pending CI.
+x86 Linux, Windows and macOS. Native non-macOS execution was pending at this
+milestone; later checkpoint 4203e0a passed Ubuntu and Windows.
 Fresh CI jobs fetch the pinned macro dependencies before the offline checks.
 
 Integration cases cover concurrent unique claims, schema/primary lookup conflict
@@ -4112,7 +4113,8 @@ last test-only boundary addition.
 
 User-facing operational documentation is docs/replication-operations.md.
 Transport authentication/deadline/backoff configuration remains application-owned.
-Native Linux/Windows qualification of these additions remains pending.
+Native Linux/Windows qualification was pending at this stage; subsequent
+checkpoint 4203e0a passed those native CI suites.
 
 ## Distributed fuzzing and codec enforcement
 
@@ -4568,7 +4570,8 @@ reads to succeed and deliberate heap overruns in each language to fail. Apple
 Clang 21's incompatible runtime failed; LLVM 23 passed all controls and consumers
 on macOS. The oversized C input now allocates its full stated length. Input and
 binary hashes are retained; changing sources rejects evidence. Native Linux CI
-is configured; its first result is pending. See docs/c-sanitizers.md.
+subsequently passed calibrated C/Rust ASan at checkpoint 4203e0a. See
+docs/c-sanitizers.md.
 
 A second Loom model copies allocation admission CAS, release and peak sampling.
 Three threads, preemption bound 2 and branch bound 1,000 check exact-cap admission,
@@ -4613,3 +4616,70 @@ The combined worktree passed python3 tools/check.py after these additions:
 workspace tests and consumers in debug/release, strict Clippy, Rust/C/Odin
 file/memory/thread examples and wgpu coexistence. This local macOS run precedes
 the next clean-source CI and source-package qualification.
+
+Checkpoint 4203e0a passed native macOS/Ubuntu/Windows, ASan/TSan, coverage, bounded fuzz and Linux C/Rust ASan. C calibration and both atomic models/negative controls passed on Linux. Clean private packaging with C/C++/Odin relocation, typed/CRDT Rust consumer and Linux isolated rebuild passed with complete attribution inputs. The later integrated audit and finite macOS soak are recorded below; longer deployment soak and device qualification remain. See docs/c-sanitizers.md and docs/rust-source-package.md.
+
+### Integrated source audit and bounded qualification (2026-11-12)
+
+The [module audit index](docs/decisions/README.md) now classifies all 2,415
+explicit source records in the [fresh inventory](docs/decision-inventory.md).
+All 47 file hashes and 5,647 recorded ranges were independently checked against
+source bytes. Dispositions include direct predicate pairs, execution-only
+checks, coupled syntax, invariant proofs and delegated failures. They are not
+2,415 independent MC/DC conditions or a compiler coverage percentage. The 284
+unexpanded macro/derive sites remain a separate denominator; supplemental FFI
+export and generated Model/Record/Resolution mappings document their evidence.
+The direct generated Model::patch type-ID control passes debug/release and
+strict Clippy, including unknown-field preservation and rejected-record identity.
+
+The corpus has 22 targets and stable replay passed 25 tests. Historical frozen
+4203e0a extended fuzzing ran all 21 then-existing targets with `--runs 100000
+--seconds 120 --seed 2`, default 2,048 MiB RSS limit and max_len 262144, on
+arm64 macOS using nightly 1.101.0 (708c94ef0), LLVM 23.1.5. All targets exited
+successfully, with 1,384,848 actual executions. Ten reached 100,000 runs; the
+other eleven reached their individual time bounds:
+
+| Target | Executions |
+|---|---:|
+| commit_crash | 53,690 |
+| image_and_ops | 44,207 |
+| retention_compact_crash | 30,559 |
+| crdt_schedule | 34,238 |
+| snapshot_install_schedule | 1,859 |
+| schema_index_migration | 5,540 |
+| derive_tokens | 60,809 |
+| backup_restore | 73,597 |
+| coordinator_protocol | 43,932 |
+| replacement_namespace | 29,974 |
+| tree_adversarial_keys | 6,443 |
+
+These are observed historical results, not a current-candidate campaign. The
+extended raw evidence cache has expired; the surviving local log records target
+exit statuses. The initial pre-fix register_causality target passed 1,000 ASan
+runs with seed 1 and max_len 96. A separate post-fix rerun exited successfully
+(`/tmp/register-fix-asan.log`); that surviving summary does not retain an actual
+execution count, so the agent-reported 2,000 executions are not independently
+recounted here. Its independent causal-event model complements
+the 5,461-prefix honest-schedule oracle and rejected forged-retirement frames.
+Four focused register tests passed Miri: `register_causal_event_oracle_accepts_bounded_honest_schedules`,
+`register_decode_and_same_dot_predicate_controls`,
+`register_forged_retirement_frames_never_publish_or_acknowledge`, and
+`register_rejects_empty_history_and_unwitnessed_retirements`. These tests support
+the new admission guards; they are not a proof for Byzantine or arbitrary
+application-defined CRDTs. See [CRDT audit](docs/decisions/crdt.md).
+
+The [macOS soak](docs/soak.md) used frozen engine 4203e0a for 600.402 seconds:
+924 rounds, 59,136 paired-key writer commits, 448,149 concurrent reader
+iterations and final revision 60,978. It verified retained roots, reopen and
+compaction under a 16 MiB core allocation budget. Recorded per-open allocation
+peaks were 50,288–51,248 bytes. This finite small-state workload does not replace
+long representative deployment, network or device power-loss qualification.
+The cross-OS simulated month remains separately scoped evidence.
+
+Checkpoint 4203e0a already passed native macOS/Ubuntu/Windows, ASan/TSan,
+coverage, bounded fuzz and calibrated Linux C/Rust ASan plus private packaging.
+Tests and the CRDT admission fix added after that checkpoint require their own
+candidate CI; existing baseline results are not attributed to the later
+source snapshot. The [qualification roadmap](docs/roadmap-status.md) preserves
+mixed-version, delegated error injection, expanded decision coverage, longer
+soaks, hardware durability and deployment-specific acceptance work.

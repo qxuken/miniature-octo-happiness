@@ -128,3 +128,34 @@ pub fn restore_file(
 ) -> Result<CompactionStats> {
     backup_file(backup, destination, limits)
 }
+
+#[cfg(test)]
+mod decisions {
+    use super::*;
+    use crate::{
+        Database,
+        storage::{IoKind, SimulatedDisk},
+    };
+    #[test]
+    fn empty_inspection_reports_no_retained_roots_and_no_source_writes() {
+        let disk = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(disk.clone(), [4; 16], Limits::default()).unwrap();
+        drop(db);
+        let original = disk.durable_image().unwrap();
+        let source = SimulatedDisk::from_image(&original).unwrap();
+        let info = inspect_on(source.clone(), Limits::default()).unwrap();
+        assert_eq!(info.revision, 0);
+        assert_eq!(info.data_revision, 0);
+        assert!(info.retained.is_empty());
+        assert!(info.witnessed);
+        assert_eq!(info.physical_bytes, original.len() as u64);
+        assert_eq!(source.durable_image().unwrap(), original);
+        assert!(
+            source
+                .trace()
+                .unwrap()
+                .iter()
+                .all(|e| !matches!(e.kind, IoKind::Write | IoKind::Sync))
+        );
+    }
+}

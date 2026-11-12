@@ -166,3 +166,10 @@ path = "fuzz_targets/tree_adversarial_keys.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "register_causality"
+path = "fuzz_targets/register_causality.rs"
+test = false
+doc = false
+bench = false

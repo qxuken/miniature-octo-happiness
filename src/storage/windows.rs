@@ -283,3 +283,75 @@ impl FileStore {
         super::diagnostics::capture(|| Self::open_read_only(path))
     }
 }
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn native_error_mapping_preserves_raw_code_and_operation() {
+        for (code, expected) in [
+            (2, Error::NotFound),
+            (3, Error::NotFound),
+            (32, Error::Busy),
+            (33, Error::Busy),
+            (80, Error::AlreadyExists),
+            (183, Error::AlreadyExists),
+            (123, Error::Invalid),
+            (267, Error::Invalid),
+            (5, Error::Io),
+        ] {
+            let failure = diagnostics::capture::<()>(|| {
+                Err(os_error(
+                    NativeIoOperation::Open,
+                    io::Error::from_raw_os_error(code),
+                ))
+            })
+            .unwrap_err();
+            assert_eq!(failure.error, expected);
+            let native = failure.native.unwrap();
+            assert_eq!(native.raw_os_error, Some(code));
+            assert_eq!(native.operation, NativeIoOperation::Open);
+        }
+        assert_eq!(
+            os_error(
+                NativeIoOperation::Read,
+                io::Error::from(io::ErrorKind::Other)
+            ),
+            Error::Io
+        );
+    }
+}
+
+#[cfg(test)]
+mod pathname_decisions {
+    use super::*;
+    #[test]
+    fn drive_prefix_and_early_path_guards() {
+        assert_eq!(drive(Path::new("relative.db")), Ok(None));
+        for path in [r"C:\file.db", r"\\?\C:\file.db"] {
+            assert_eq!(drive(Path::new(path)), Ok(Some(b'C')));
+        }
+        for path in [r"\\server\share\file.db", r"\\.\device"] {
+            assert_eq!(drive(Path::new(path)), Err(Error::UnsupportedPlatform));
+        }
+        for path in [
+            "",
+            "x ",
+            "x.",
+            "x/",
+            "x\\",
+            "x\0y",
+            "name:stream",
+            "x*y",
+            "x?y",
+            "x\u{1}y",
+        ] {
+            assert_eq!(
+                FileStore::open(path).err(),
+                Some(Error::Invalid),
+                "{path:?}"
+            );
+        }
+        assert_eq!(FileStore::open("x".repeat(32767)).err(), Some(Error::Limit));
+    }
+}

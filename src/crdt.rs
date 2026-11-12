@@ -177,7 +177,10 @@ pub struct MergeAck {
 /// the codec, and encoding must round-trip through decoding.
 ///
 /// A merge must be deterministic, associative, commutative, and idempotent,
-/// and must preserve validity. Validate actor-owned fields in `check_peer`
+/// for compatible states from the same enrolled history, and must preserve
+/// validity for those states. Individually decodable states need not have
+/// compatible causal histories; reject detectable incompatibilities in
+/// `check_peer` before merging them. Validate actor-owned fields in `check_peer`
 /// by checking that the incoming state cannot advance the given local actor.
 /// Compose these checks for every actor-owned field in the record. The replica
 /// also uses this check with the opposite actor to validate local edits.
@@ -555,3 +558,6 @@ impl<'db> Counter<'db> {
         self.0.serve_authenticated(channel)
     }
 }
+
+#[cfg(test)]
+mod decisions;
