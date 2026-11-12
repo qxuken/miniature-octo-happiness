@@ -225,6 +225,203 @@ fn durable_request_receipts_survive_lost_reply_restart_and_competing_requests() 
     ));
 }
 
+// Independently fixed by the public application contract, not the service's
+// private constant or receipt encoder/decoder.
+const DURABLE_RECEIPTS: usize = 1024;
+
+fn capacity_value(index: usize) -> u64 {
+    10_000 + index as u64 * 7
+}
+
+fn capacity_request(index: usize) -> String {
+    format!(
+        "set-id capacity_{index:04} {} {}",
+        index as u64 + 2,
+        capacity_value(index)
+    )
+}
+
+fn configured_service(path: &str, secret: &str) -> (Process, Process, String) {
+    let server = Process::start(&["serve", path, "0", "--secret-file", secret]);
+    let ready = server.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap().to_owned();
+    let client = Process::start(&["client", &port, "--secret-file", secret]);
+    (server, client, port)
+}
+
+fn verify_all_capacity_receipts(path: &std::path::Path) -> u64 {
+    use weekend_db::{Database, Limits};
+
+    let db = Database::open_file(path, Limits::default()).unwrap();
+    let snapshot = db.snapshot();
+    assert_eq!(snapshot.revision(), DURABLE_RECEIPTS as u64 + 2);
+    assert!(db.retained_ids().unwrap().is_empty());
+    assert!(!db.requires_recovery());
+    let rows = snapshot.scan(db.collection_id(1)).unwrap();
+    assert_eq!(rows.len(), DURABLE_RECEIPTS + 1);
+    let mut seen = [false; DURABLE_RECEIPTS];
+    let mut counter_seen = false;
+    for (key, value) in rows {
+        if key == b"counter" {
+            assert!(!counter_seen);
+            counter_seen = true;
+            assert_eq!(
+                value.as_u64().unwrap(),
+                capacity_value(DURABLE_RECEIPTS - 1)
+            );
+            continue;
+        }
+        let suffix = key.strip_prefix(b"receipt/capacity_").unwrap();
+        assert_eq!(suffix.len(), 4);
+        assert!(suffix.iter().all(u8::is_ascii_digit));
+        let index: usize = std::str::from_utf8(suffix).unwrap().parse().unwrap();
+        assert!(index < DURABLE_RECEIPTS && !seen[index]);
+        assert_eq!(key, format!("receipt/capacity_{index:04}").as_bytes());
+        seen[index] = true;
+        let bytes = value.as_bytes().unwrap();
+        assert_eq!(bytes.len(), 25);
+        assert_eq!(bytes[0], 1);
+        // Decode the public version-1 wire layout directly through raw core.
+        // No coordinator parser/receipt helper participates in this oracle.
+        assert_eq!(
+            u64::from_le_bytes(bytes[1..9].try_into().unwrap()),
+            index as u64 + 2
+        );
+        assert_eq!(
+            u64::from_le_bytes(bytes[9..17].try_into().unwrap()),
+            capacity_value(index)
+        );
+        assert_eq!(
+            u64::from_le_bytes(bytes[17..25].try_into().unwrap()),
+            index as u64 + 3
+        );
+    }
+    assert!(counter_seen && seen.into_iter().all(|found| found));
+    fs::metadata(path).unwrap().len()
+}
+
+fn full_service_replays_without_new_revision(client: &mut Process) {
+    let state = format!(
+        "value {} {}",
+        DURABLE_RECEIPTS + 2,
+        capacity_value(DURABLE_RECEIPTS - 1)
+    );
+    client.send("get");
+    assert_eq!(client.receive(), state);
+    client.send(&format!(
+        "set-id capacity_overflow {} 999999",
+        DURABLE_RECEIPTS + 2
+    ));
+    assert_eq!(client.receive(), "error Limit");
+    client.send("set-id capacity_0000 2 10001");
+    assert_eq!(client.receive(), "error Invalid");
+    client.send("set-id capacity_0000 3 10000");
+    assert_eq!(client.receive(), "error Invalid");
+    for index in 0..DURABLE_RECEIPTS {
+        client.send(&capacity_request(index));
+        assert_eq!(client.receive(), format!("committed {}", index + 3));
+    }
+    client.send("get");
+    assert_eq!(client.receive(), state);
+}
+
+#[test]
+fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
+    use std::net::{Shutdown, TcpStream};
+    use weekend_db::{Limits, storage};
+
+    let dir = Directory::new();
+    let file = dir.0.join("capacity.db");
+    let secret_file = dir.0.join("secret");
+    let token = "c".repeat(64);
+    fs::write(&secret_file, &token).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&secret_file, fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let path = file.to_str().unwrap();
+    let secret = secret_file.to_str().unwrap();
+    assert!(
+        Command::new(BIN)
+            .args(["init", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let (mut server, mut client, mut port) = configured_service(path, secret);
+    let mut lost_replies = 0;
+    let mut restarts = 0;
+    for index in 0..DURABLE_RECEIPTS {
+        let request = capacity_request(index);
+        if (index + 1) % 128 == 0 {
+            // A complete authenticated request is sent without reading a reply.
+            // Observe the committed state separately before interruption: this
+            // deliberately does not claim a kill during a publication barrier.
+            let mut lost = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+            lost.set_write_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            writeln!(lost, "auth {token} {request}").unwrap();
+            lost.shutdown(Shutdown::Write).unwrap();
+            drop(lost);
+            lost_replies += 1;
+            client.send("get");
+            assert_eq!(
+                client.receive(),
+                format!("value {} {}", index + 3, capacity_value(index))
+            );
+            drop(client);
+            server.stop();
+            (server, client, port) = configured_service(path, secret);
+            restarts += 1;
+            client.send(&request);
+            assert_eq!(client.receive(), format!("committed {}", index + 3));
+            // The very first receipt remains the original acknowledgment even
+            // after later writes and every post-commit restart.
+            client.send(&capacity_request(0));
+            assert_eq!(client.receive(), "committed 3");
+        } else {
+            client.send(&request);
+            assert_eq!(client.receive(), format!("committed {}", index + 3));
+        }
+    }
+    assert_eq!((lost_replies, restarts), (8, 8));
+    full_service_replays_without_new_revision(&mut client);
+    drop(client);
+    server.stop();
+    drop(server);
+    let before = verify_all_capacity_receipts(&file);
+    let backup = dir.0.join("capacity.backup.db");
+    let restored = dir.0.join("capacity.restored.db");
+    storage::backup_file(&file, &backup, Limits::default()).unwrap();
+    verify_all_capacity_receipts(&backup);
+    storage::restore_file(&backup, &restored, Limits::default()).unwrap();
+    verify_all_capacity_receipts(&restored);
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let stats = weekend_db::Database::compact_file(&file, Limits::default()).unwrap();
+        assert_eq!(stats.before_bytes, before);
+        assert!(stats.after_bytes < stats.before_bytes);
+        verify_all_capacity_receipts(&file);
+    }
+    // Both the compacted original and the restored copy remain full, preserve
+    // every original acknowledgment, and perform zero new publications.
+    for file in [&file, &restored] {
+        let image = fs::read(file).unwrap();
+        let (mut server, mut client, _) = configured_service(file.to_str().unwrap(), secret);
+        full_service_replays_without_new_revision(&mut client);
+        drop(client);
+        server.stop();
+        drop(server);
+        verify_all_capacity_receipts(file);
+        assert_eq!(fs::read(file).unwrap(), image);
+    }
+    println!(
+        "native receipt capacity: receipts=1024 revision=1026 lost_replies=8 post_commit_restarts=8 full_replay_passes=3 before_bytes={before} maintained_bytes={}",
+        fs::metadata(&file).unwrap().len()
+    );
+}
+
 #[test]
 fn configured_secret_authenticates_before_writes_and_receipt_lookup() {
     use std::{io::Read, net::TcpStream};
