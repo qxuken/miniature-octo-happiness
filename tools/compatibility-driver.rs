@@ -26,6 +26,7 @@ fn main() {
                 b"current"
             );
             let old = db.retained_snapshot(1).unwrap();
+            assert_eq!(db.retained_ids().unwrap(), vec![1]);
             assert_eq!(old.revision(), 2);
             assert_eq!(old.scan(c).unwrap().len(), 1);
             assert_eq!(old.get(c, b"key").unwrap().unwrap().as_i64(), Ok(11));
