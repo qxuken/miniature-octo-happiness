@@ -304,3 +304,15 @@ and the exact export digest
 Evidence: `target/independent-replication-qualification-rerun-a0aad9f9ff95/evidence.json`.
 This is bounded native/cross-OS functional evidence, not physical power-loss,
 mixed-version or long-duration network qualification.
+
+## Mixed-checkpoint core wire qualification
+
+The separate [dcd2402 ↔ 315068f report](snapshot-compatibility.md) records native
+macOS wire-v1 exchange in both directions, with each archived core built against
+its original locked dependencies. Durable revision 4, retained root 1 at revision
+2 and independently hashed export receipts survive reopen/retry while the primary
+has already committed revision 5. Both receivers reject a poll header whose
+version byte is changed to 255 without changing any follower-file bytes. This is
+not an upload-interruption test. The fixture authorizes its own private loopback
+peers; it does not qualify mixed-version CLI TLS, certificate rotation, revocation,
+or trust-policy changes. Exact builds, fixture hashes and scope are in the report.

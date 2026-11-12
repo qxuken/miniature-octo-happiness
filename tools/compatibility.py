@@ -21,11 +21,104 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def snapshot_profile(args):
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    revisions = {name: capture('git', 'rev-parse', '--verify', revision + '^{commit}')
+                 for name, revision in [('historical', args.historical), ('current', args.current)]}
+    fixture_bytes = (ROOT / 'tools/compatibility-snapshot.rs').read_bytes()
+    evidence = {'sources': revisions, 'fixture_sha256': hashlib.sha256(fixture_bytes).hexdigest(),
+                'runner_sha256': digest(Path(__file__)), 'toolchain': capture('rustc', '-Vv'),
+                'cargo': capture('cargo', '-V'), 'features': ['replication'],
+                'profile': 'debug', 'commands': [], 'builds': {}, 'results': {},
+                'scope': 'two frozen pre-1 checkpoints, caller-authorized private loopback; no TLS/rotation qualification'}
+    with tempfile.TemporaryDirectory(prefix='weekend-snapshot-compatibility-') as temp:
+        temp = Path(temp)
+        env = dict(os.environ, CARGO_INCREMENTAL='0', CARGO_TARGET_DIR=str(temp / 'target'))
+        env.pop('CARGO_BUILD_TARGET', None)
+        bins = {}
+        for name, revision in revisions.items():
+            source = temp / name
+            source.mkdir()
+            archive = subprocess.check_output(['git', 'archive', revision], cwd=ROOT)
+            with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+                tar.extractall(source, filter='data')
+            manifest = source / 'Cargo.toml'
+            manifest_hash = digest(manifest)
+            with manifest.open('a') as file:
+                file.write('\n[[example]]\nname="snapshot_compatibility"\npath="tools/compatibility-snapshot.rs"\nrequired-features=["replication"]\n')
+            (source / 'tools/compatibility-snapshot.rs').write_bytes(fixture_bytes)
+            lock = source / 'Cargo.lock'
+            lock_hash = digest(lock)
+            (output / (name + '-Cargo.lock')).write_bytes(lock.read_bytes())
+            command = ['cargo', 'build', '--offline', '--locked', '-p', 'weekend-db',
+                       '--example', 'snapshot_compatibility', '--features', 'replication',
+                       '--manifest-path', str(manifest)]
+            evidence['commands'].append(command)
+            with (output / (name + '-build.log')).open('w') as log:
+                subprocess.run(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT,
+                               check=True, timeout=180)
+            if digest(lock) != lock_hash:
+                raise RuntimeError('locked build changed historical lockfile')
+            built = temp / 'target/debug/examples' / ('snapshot_compatibility' + ('.exe' if os.name == 'nt' else ''))
+            binary = output / (name + ('-consumer.exe' if os.name == 'nt' else '-consumer'))
+            binary.write_bytes(built.read_bytes())
+            binary.chmod(0o700)
+            bins[name] = binary
+            evidence['builds'][name] = {'archive_sha256': hashlib.sha256(archive).hexdigest(),
+                'original_manifest_sha256': manifest_hash, 'overlaid_manifest_sha256': digest(manifest),
+                'original_lock_sha256': lock_hash, 'binary_sha256': digest(binary),
+                'replication_source_sha256': {str(p.relative_to(source)): digest(p)
+                                              for p in sorted((source / 'src/replication').rglob('*.rs'))}}
+        for sender, receiver in [('historical', 'current'), ('current', 'historical')]:
+            name = sender + '-to-' + receiver
+            directory = output / name
+            directory.mkdir()
+            children = []
+            logs = []
+            try:
+                for role, version in [('primary', sender), ('follower', receiver)]:
+                    command = [str(bins[version]), role, str(directory)]
+                    evidence['commands'].append(command)
+                    log = (directory / (role + '.log')).open('w')
+                    logs.append(log)
+                    children.append(subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT))
+                for child in children:
+                    if child.wait(timeout=90) != 0:
+                        raise RuntimeError(f'{name} consumer failed; inspect logs')
+            finally:
+                for child in children:
+                    if child.poll() is None:
+                        child.kill()
+                        child.wait()
+                for log in logs:
+                    log.close()
+            primary = json.loads((directory / 'primary.json').read_text())
+            follower = json.loads((directory / 'follower.json').read_text())
+            if primary != follower:
+                raise RuntimeError('sender/receiver receipts differ')
+            if primary['digest'] != digest(directory / 'export.wdb'):
+                raise RuntimeError('receipt digest differs from independently hashed export')
+            if primary['revision'] != 4 or primary['retained_revision'] != 2:
+                raise RuntimeError('unexpected current/retained revision')
+            evidence['results'][name] = dict(primary, independent_export_sha256=primary['digest'],
+                reopened=True, duplicate_ack_equal=True, unsupported_rejected_without_file_changes=True,
+                primary_advanced_locally_to=5)
+    evidence['verified'] = True
+    (output / 'evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
+    print(output / 'evidence.json')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--historical', default='a7dc343')
+    parser.add_argument('--historical', default=None)
+    parser.add_argument('--current', default='HEAD', help='snapshot profile committed endpoint')
+    parser.add_argument('--profile', choices=['storage', 'snapshot'], default='storage')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    args.historical = args.historical or ('dcd2402' if args.profile == 'snapshot' else 'a7dc343')
+    if args.profile == 'snapshot':
+        return snapshot_profile(args)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     historical = capture('git', 'rev-parse', '--verify', args.historical + '^{commit}')

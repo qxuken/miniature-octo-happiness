@@ -47,3 +47,14 @@ that archived fixture. These tests qualify only the named pre-1 checkpoints and
 covered values/operations; they are not a stable disk-format, Rust-API or release
 compatibility promise. New schema shapes, feature encodings and format changes
 need additional fixtures and reader/writer combinations.
+
+## Passive snapshot wire profile
+
+`--profile snapshot` separately qualifies two archived cores using their original
+unchanged Cargo.lock files and the same private example overlay. The bounded
+[dcd2402 ↔ 315068f qualification](../docs/snapshot-compatibility.md) passed both
+wire-v1 directions, exact export digest/receipt and retained-root reopen checks.
+Its negative case mutates a **poll request** version byte to 255 and verifies
+rejection without follower-file changes; it does not inject upload faults.
+See that report for the command, exact source/binary evidence and the distinction
+between caller-authorized loopback transport and the newer CLI's TLS deployment.

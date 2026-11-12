@@ -4738,3 +4738,22 @@ native Ubuntu/Windows, C ASan and Rust ASan. Hosted macOS, coverage and TSan job
 were cancelled because of
 runner capacity; cancellation is not a pass. Those checkpoint results do not
 include the new authenticated CLI.
+
+### Bounded mixed-checkpoint snapshot wire evidence
+
+The [private compatibility profile](docs/snapshot-compatibility.md) qualified
+`dcd2402adeb034f15a5293c52238524ace9c4070` and
+`315068fc38b99d8ec616fdb5a8ee81107b471534` in both primary/follower directions on
+native arm64 macOS with rustc 1.99.1. Frozen archives retained their original
+Cargo.lock files; only the shared example fixture and explicit manifest entry
+were overlaid. The production follower and replication module differ between
+these checkpoints. Both directions preserve exact durable revision 4, retained
+root 1 at revision 2, and receipts matching an independent SHA-256 of the export,
+including reopen and duplicate retry after the primary advances locally to 5.
+A poll header with its version byte mutated to 255 is rejected by both receivers
+without changing follower files. This negative check is not an upload fault,
+future-version negotiation or mixed-version TLS CLI test. Caller-authorized
+loopback peers, exact fixture/binary/source hashes and results are bound by
+`target/snapshot-compatibility-reviewed/evidence.json`; deployment trust,
+certificate rotation, broader checkpoint/OS pairs and physical power loss remain
+outside this scoped proof.
