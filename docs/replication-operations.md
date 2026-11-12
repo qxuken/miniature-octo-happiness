@@ -127,3 +127,180 @@ replay and cleanup across native follower reopen. It checks the exact
 selected revision, current value and retained value after every step.
 Storage power-loss and manifest-barrier faults remain covered by the
 simulator suite. These harnesses do not perform transport authentication.
+
+## Authenticated native CLI
+
+The private `weekend-replicate` package supplies one-primary/one-follower native
+snapshot transport. It uses rustls mutual TLS, an exact configured leaf
+certificate on each endpoint, and the separate ALPN `weekend-snapshot/1`.
+A completed TLS handshake with no pending handshake writes is required in
+addition to both checks before a
+channel reaches the core replication API: a parsed certificate and ALPN alone
+do not prove the peer sent Finished.
+Certificates identify the transport peers; the explicit stream/file enrollment
+binds that peer connection to one database lineage. The application has no
+certificate rotation, revocation, discovery or multi-tenant authorization service.
+All Cargo packages remain unpublished.
+
+Build with `cargo build --locked -p weekend-replicate --release`. The primary
+Linux server/macOS client deployment can use these commands on their respective
+hosts (substitute paths and addresses):
+
+```sh
+# Each host generates its own credentials; never copy key.der to the peer.
+weekend-replicate keygen /private/local-credentials
+# Exchange cert.der over a trusted administrative channel and verify its identity.
+# Place the remote certificate at /private/remote-cert.der.
+
+# Choose a fresh stream ID once, and persist it in deployment configuration.
+STREAM=$(openssl rand -hex 16)
+# Close the source writer briefly to acquire the required exclusive inspection lease.
+weekend-replicate describe /data/primary.wdb "$STREAM"
+# Output includes a directly copyable command:
+# weekend-replicate follower-init EMPTY_DIR STREAM_HEX FILE_IDENTITY_HEX
+
+# On the follower, create a private empty directory and paste the reported IDs.
+mkdir -m 700 /data/follower
+weekend-replicate follower-init /data/follower STREAM_HEX FILE_IDENTITY_HEX
+weekend-replicate serve /data/follower STREAM_HEX FILE_IDENTITY_HEX \
+  0.0.0.0:9443 /private/local-credentials /private/remote-cert.der
+
+# On the primary, acquire a quiescent snapshot, then release its file lease
+# before connecting. The original writer may resume during network transfer.
+weekend-replicate ship /data/primary.wdb STREAM_HEX /data/new-export.wdb \
+  192.0.2.10:9443 /private/local-credentials /private/remote-cert.der --attempts 3
+```
+
+`describe` uses read-only inspection and prints the current verified local
+revision, stream and file identity without stabilizing an unwitnessed root.
+`ship` opens/recover-verifies the primary, captures a verified immutable export,
+then drops the primary database before any network connection. The export has
+its own lease. The source writer must be closed for capture, but is not locked
+through the transfer. `ship` prints `local captured_revision=...` separately
+from `follower durable_revision=... stream=... digest=...`. Creating a local
+export is not evidence of follower installation. New local commits can advance
+beyond the captured revision while that image is in transit.
+
+Each client exchange starts one absolute 30-second socket-I/O budget before
+TCP connect; the same deadline covers TLS handshake and all protocol reads and
+writes. The server starts its budget when it accepts the socket. Successful
+partial progress does not renew the deadline. This requires roughly 2.2 MiB/s
+for a maximum 64 MiB image before overhead, and may reject a slower path.
+Local verification, filesystem reads and durable flushes are not interruptible
+by this socket deadline and may finish after it. A response can therefore time
+out after the image became durable. This is not a 30-second wall-clock bound on
+all local storage work.
+
+`serve` admits one active connection at a time. Optional `--max-exchanges N`
+exits after exactly N accepted connections, including failed authentication;
+this provides a deterministic test/service lifetime without fault-injection
+options. TLS/configuration is validated before binding a listener or opening
+the follower. The OS listen backlog is not an application queue/admission SLA.
+A stream of stalled connections can still deny service; deployment firewall,
+supervision and rate controls remain necessary. If a manifest needs recovery
+after an installation error, the service exits rather than continuing to expose
+an old acknowledgment. Restart `serve` to recover and verify the selected image.
+
+### Unconfirmed transfer, restart and retry
+
+The default is at most three attempts (`--attempts 1..3`) with 250 ms between
+attempts. They all retain the **same** in-memory Export and file lease, use
+fresh authenticated connections, and let the core reject inconsistent receipts.
+Configuration/protocol admission errors are not treated as successful progress.
+After an unconfirmed transfer, the CLI reports that follower outcome may be
+uncertain and directs the operator to poll, rather than infer rollback:
+
+```sh
+# Stop the follower service first: status is offline and takes its manifest lease.
+weekend-replicate status /data/follower STREAM_HEX FILE_IDENTITY_HEX
+# Restart serve, then poll from the primary (close its writer briefly for the lease).
+weekend-replicate poll /data/primary.wdb STREAM_HEX \
+  192.0.2.10:9443 /private/local-credentials /private/remote-cert.der
+```
+
+`status` cannot run while `serve` holds the follower manifest lease. Both
+`describe` and `poll` require the primary writer to release its exclusive lease
+briefly. `poll` reconstructs Primary from recovered local history and releases that file
+lease before connecting. It prints the verified local revision separately from
+the follower's exact durable revision/digest (or `follower empty`). A restart
+does not persist the sender's previous in-memory progress watermark. The
+follower's recovered manifest remains authoritative. A restored/forked primary
+requires new stream enrollment; do not reinterpret it as the old live writer.
+
+To confirm the exact old capture after restart, compare both the captured
+revision and the polled digest with the saved completed export:
+
+```sh
+shasum -a 256 /data/new-export.wdb
+# Linux alternative: sha256sum /data/new-export.wdb
+```
+
+A newer acknowledgment is newer progress, not proof that the exact old image
+(including its retained roots) remains selected. Preserve the old export for
+independent inspection when needed.
+
+Export files are create-new and are retained after exit, including failure.
+The CLI does not reopen an arbitrary saved file as an Export. After a primary
+process restart, poll first; if another shipment is needed, capture to a **new**
+export path. That is a newly captured image, not an automatic retry of the old
+file. Remove old export files only when no process holds them and your operational
+retention policy permits. A failed export can leave a partial file.
+
+### Credential handling and platform scope
+
+Configuration paths/directories are trusted and must not be mutated by hostile
+processes. Certificate/pin reads are capped at 64 KiB and PKCS#8 private keys at
+16 KiB. Empty, oversized and nonregular files are rejected; type is checked
+before opening to reject configured FIFOs without blocking, and rechecked on
+the opened handle. This does not defend a hostile namespace race between those
+checks. The opened Unix private-key handle must also have owner-only permissions before
+any key bytes are read; public certificates/pins need not be private. Credentials
+and key contents are never logged.
+
+Unix key generation creates a new 0700 directory and a create-new 0600 key.
+It refuses an existing directory rather than overwriting credentials. Interrupted
+generation may leave partial configuration for explicit cleanup. Native Windows
+transport is supported, but `keygen` fails closed: externally provision DER
+certificates (SAN `weekend-replicate`, suitable for client/server authentication)
+and PKCS#8 `key.der` in an ACL-protected directory. It does not fall back to
+potentially world-readable private-key creation. Protect follower/export
+directories using the host's access controls as well.
+
+### Transport test evidence
+
+On arm64 macOS, the initial CLI suite exercises real rustls/native-file transfer,
+wrong client and server identities, matching certificates with absent/wrong
+ALPN, authenticated enrollment mismatch, and a dropped terminal reply followed
+by reopen and same-export retry. Authentication failures return from the
+transport stage before calling core and leave the manifest byte-identical with
+no staging file. Captured revision 4 remains the shipped revision while the
+primary is reopened and advanced to 5. The follower reopens revision 4/value 2
+and retained revision 2/value 1, with the same digest and no manifest growth
+on duplicate retry. A real CLI process fixture enrolls, ships, restarts and
+polls using `--max-exchanges 1`. Deadline tests distinguish direct private-clock
+control from native socket progress. A fragmented real TLS exchange sends the
+correct certificate and ALPN but withholds Finished, and must still fail admission; credential tests check caps, FIFO rejection
+and Unix modes. These tests do not simulate physical power loss or expand the
+checkpoint 8556dc1 source-decision coverage denominator. New CLI source decisions
+and dependency/native fault obligations are separate from that audit.
+
+
+The initial arm64 macOS debug/release runs passed nine unit/native/TLS tests
+and one CLI process test per profile, plus strict all-target Clippy. Test logs
+are `/tmp/replicate-tests.log`, `/tmp/replicate-release.log` and
+`/tmp/replicate-clippy.log`. These initial local results do not claim Windows key-generation support.
+
+Independent qualification used the exact archived git tree
+`a0aad9f9ff95a2998ca623b654c452ae02658b6b`; application and test code remain
+byte-identical to that tree after these documentation updates. Native arm64
+macOS and aarch64 Linux on an ext4 Docker volume each passed nine app tests plus
+one CLI process test in debug and release. macOS also passed strict app Clippy
+and the full Rust/C/Odin workspace check. Optional Linux Clippy was unavailable
+in the pinned image. An authenticated macOS-to-Linux transfer installed follower
+revision 13 with retained root 1 at revision 11. After follower restart and
+primary advancement to revision 14, fresh TLS polling still reported revision 13
+and the exact export digest
+`70b916bc69f94a1cccac78417093ec238d8185a444543a4cb84d2a5d2b9733ea`.
+Evidence: `target/independent-replication-qualification-rerun-a0aad9f9ff95/evidence.json`.
+This is bounded native/cross-OS functional evidence, not physical power-loss,
+mixed-version or long-duration network qualification.

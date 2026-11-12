@@ -552,6 +552,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "weekend-replicate"
+version = "0.1.0"
+dependencies = [
+ "rcgen",
+ "rustls",
+ "weekend-db",
+]
+
+[[package]]
 name = "weekend-tasks"
 version = "0.1.0"
 dependencies = [

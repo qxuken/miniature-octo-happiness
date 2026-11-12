@@ -8,7 +8,7 @@ decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
-| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The [source audits](decisions/README.md) classify all 2,415 explicit records across 47 files, plus supplemental FFI/derive mappings. There are 284 macro blind spots; delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
+| Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The [source audits](decisions/README.md) classify all 2,415 explicit records across 47 files at checkpoint 8556dc1, plus supplemental FFI/derive mappings. There are 284 macro blind spots; delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
 | Fuzzing | Twenty-two targets and deterministic seeds exist; stable replay passed 25 tests. The frozen 4203e0a campaign completed 1,384,848 executions across 21 targets. The register target has a pre-fix 1,000-run ASan smoke campaign and a successful post-fix rerun (surviving summary lacks execution count). Longer campaigns across the current candidate remain. |
 | Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Verification stage/structure-start offsets implemented and fault-tested. |
 | Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore across processes and old retained schemas is tested. Deployment restore-time budgets remain. |
@@ -20,7 +20,7 @@ decision tests and first four fuzz targets.
 | Native matrix | macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu, ASan and TSan passed 4203e0a; simulated month also passed Linux ext4 server/macOS APFS client. New candidate/device qualification remains. |
 | Unsafe/concurrency | Thread/process/sanitizer tests exist. Bounded ownership/admission Loom models, negative controls, Miri and abort checks passed. C-side ASan passed macOS and Linux with calibration at 4203e0a. Charged allocation/realloc paths independently reviewed and tested under Miri. Additional model workloads and full unsafe review remain. |
 | Typed Rust | Models/migrations/indexes exist. Verification/rebuild implemented and fault-tested. Explicit bounded migration with atomic progress tested. Mixed-version qualification remains. |
-| Snapshot replication | Verified snapshots and separate acknowledgment exist. Manifest bounds, cleanup, compaction and explicit reseed are tested. Authenticated deployment and mixed-version qualification remain. |
+| Snapshot replication | Verified snapshots and separate acknowledgment exist. Manifest bounds, cleanup, compaction and explicit reseed are tested. The private [weekend-replicate CLI](replication-operations.md#authenticated-native-cli) adds exact-leaf mTLS, distinct ALPN, bounded socket deadlines and same-export retry. Exact tree `a0aad9f9ff95a2998ca623b654c452ae02658b6b` passed macOS and Linux/ext4 nine app plus one CLI test in debug/release, macOS strict Clippy/full Rust/C/Odin checks, and authenticated Mac→Linux ship/restart/poll: follower revision 13 retained root 1@11 and exact digest survived primary advancement to 14. Code remains byte-identical after documentation updates. Optional Linux Clippy was unavailable; broader deployment, mixed-version and physical power-loss qualification remain. |
 | CRDT peers | Fixed two-actor TLS demo exists. Register admission now rejects unwitnessed retirement and incompatible cyclic histories, with bounded causal-event and frame oracles. Policy evolution, stale backup identity, reserved-row ownership and representative deployment/soak gates remain. |
 | Coordinator | Conditional writes, durable receipts and configured loopback authentication tested. Deployment qualification remains. |
 | Release operations | Support/security policy and provenance recorded; capped cross-OS month and restore passed. A 600-second local soak passed; longer deployment soak, latency guarantees and final bundle remain. |
@@ -104,3 +104,11 @@ commits with concurrent readers, retained roots, reopening and compaction under
 a 16 MiB core budget. This adds finite wall-clock evidence, not production-scale
 or physical power-loss assurance. Native macOS/Ubuntu/Windows and sanitizer CI
 passed checkpoint 4203e0a; newly added tests/CRDT guards need fresh candidate CI.
+
+
+Audit checkpoint `8556dc1`: fuzz run `43248620063` passed all 22 targets
+with 21,031 actual executions. Engine checks run `43248619666` passed native
+Ubuntu/Windows, C ASan and Rust ASan.
+Hosted macOS, coverage and TSan jobs were cancelled due to runner capacity,
+not recorded as passes. This checkpoint excludes the new authenticated CLI;
+its independent exact-tree evidence is linked from the replication runbook.

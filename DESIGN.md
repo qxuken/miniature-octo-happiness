@@ -4683,3 +4683,58 @@ candidate CI; existing baseline results are not attributed to the later
 source snapshot. The [qualification roadmap](docs/roadmap-status.md) preserves
 mixed-version, delegated error injection, expanded decision coverage, longer
 soaks, hardware durability and deployment-specific acceptance work.
+
+
+### Authenticated snapshot CLI after checkpoint 8556dc1
+
+The private `weekend-replicate` application wraps the existing Primary/Follower
+protocol with exact-leaf mutual rustls TLS and separate `weekend-snapshot/1`
+ALPN. It requires a completed handshake with no pending handshake writes before
+passing the stream to core. Stream/file enrollment remains explicit. Capture
+holds the primary lease only through local export; the primary closes before
+network connection, and captured local revision is reported separately from
+follower durable revision/digest. Up to three bounded attempts retain the same
+immutable Export. Restart reconciliation polls recovered follower progress and
+can compare the saved export hash; restarting a send captures a new export path.
+
+Socket I/O uses one absolute 30-second deadline including client connect; local
+verification/flush can outlast it. Serial admission and optional finite accepted
+connection count keep the service lifecycle explicit. A poisoned manifest stops
+service until reopen. Credentials are bounded regular files in trusted
+configuration directories; Unix private keys require owner-only modes and
+keygen uses 0700/0600. Windows transport supports externally ACL-protected keys,
+while Windows keygen fails closed. The [operations runbook](docs/replication-operations.md#authenticated-native-cli)
+documents enrollment, offline status, retries, uncertainty and deployment limits.
+
+Initial native macOS debug/release evidence covers nine unit/native/TLS tests
+and one CLI process test: authorized installation, exact pin/ALPN checks,
+fragmented authenticated handshake without Finished, both enrollment mismatch
+fields, immutable revision 4/value 2 capture while primary advances to
+revision 5/value 3, retained revision 2/value 1, dropped reply/reopen/retry with
+unchanged digest/manifest, credential caps/FIFO/modes and deterministic service
+restart/poll. Strict all-target Clippy passed. This new application adds source
+obligations beyond the 2,415-record audit at 8556dc1; those audit totals and prior
+platform results are not silently extended to it. No core publication barrier,
+wire layout or Cargo publication policy changed.
+
+Independent qualification used the exact archived git tree
+`a0aad9f9ff95a2998ca623b654c452ae02658b6b`; application and test code remain
+byte-identical to that tree after these documentation updates. Native arm64
+macOS and aarch64 Linux on an ext4 Docker volume each passed nine app tests plus
+one CLI process test in debug and release. macOS also passed strict app Clippy
+and the full Rust/C/Odin workspace check. Optional Linux Clippy was unavailable
+in the pinned image. An authenticated macOS-to-Linux transfer installed follower
+revision 13 with retained root 1 at revision 11. After follower restart and
+primary advancement to revision 14, fresh TLS polling still reported revision 13
+and the exact export digest
+`70b916bc69f94a1cccac78417093ec238d8185a444543a4cb84d2a5d2b9733ea`.
+Evidence: `target/independent-replication-qualification-rerun-a0aad9f9ff95/evidence.json`.
+This is bounded native/cross-OS functional evidence, not physical power-loss,
+mixed-version or long-duration network qualification.
+
+Separately, audit checkpoint `8556dc1` passed 22 fuzz targets with 21,031 actual
+executions in fuzz run `43248620063`. Engine checks run `43248619666` passed
+native Ubuntu/Windows, C ASan and Rust ASan. Hosted macOS, coverage and TSan jobs
+were cancelled because of
+runner capacity; cancellation is not a pass. Those checkpoint results do not
+include the new authenticated CLI.

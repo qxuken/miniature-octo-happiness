@@ -1,7 +1,7 @@
 # weekend-db
 
 Licensed under MIT OR Apache-2.0. Cargo packages remain private.
-[Operations guide](docs/operations.md) · [Private release contract](docs/release-contract.md) · [Roadmap status](docs/roadmap-status.md)
+[Operations guide](docs/operations.md) · [Private release contract](docs/release-contract.md) · [Roadmap status](docs/roadmap-status.md) · [Authenticated snapshot CLI](docs/replication-operations.md#authenticated-native-cli)
 
 A weekend learning project: an embedded store for persistent nested values,
 explicitly retained snapshots, and conservative record-scoped transactions.
