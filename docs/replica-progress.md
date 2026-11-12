@@ -75,8 +75,10 @@ be interpreted as counts of missing application edits.
 
 ## Failures, retry and observation files
 
-The helper returns nonzero with an error observation on failed CLI execution,
-timeout, admission/parser error, incompatible capture or invalid prior state.
+Syntax and argument-admission errors use argparse diagnostics and a nonzero
+exit, without JSON. After argument admission, operational failures produce a
+nonzero exit with a JSON error observation: failed CLI execution, timeout,
+unexpected CLI output, incompatible capture or invalid prior state.
 A failed ship remains **unconfirmed**: the follower may already have durably
 installed the image. Local capture can be reported verified when completion
 was observed and the export can still be independently checked. If the overall
@@ -118,7 +120,7 @@ private Rust fixture were built offline with original locks. The fixture creates
 and independently verifies 32 KiB row contents, current revision and retained
 root 1 at revision 2. No production source or shipped fault hook was added.
 
-Twelve tests passed normally and under Python `-O` on both macOS arm64 and Linux
+Fourteen tests passed normally and under Python `-O` on both macOS arm64 and Linux
 aarch64. The real native fixture executes the actual TLS CLI and covers:
 
 1. Fresh authenticated poll reports an empty follower.
@@ -148,6 +150,10 @@ aarch64. The real native fixture executes the actual TLS CLI and covers:
    returns sanitized `parse_error`; decimal length is bounded before integer
    conversion. A 2,401-byte nested JSON input returns `prior_invalid`, including
    Python 3.11 recursion failure, rather than escaping the observation contract.
+   A table-driven schema control rejects numeric hashes/IDs/digests, zero
+   enrollment IDs and malformed secondary timestamps; a valid timestamp passes.
+   Zero file identity from unexpected describe output is rejected as sanitized
+   `parse_error` before setting enrollment or invoking poll.
 
 The Rust fixture passed strict Clippy. Mac used Mise Rust 1.99.1 and Python
 3.14.8; Linux used immutable image
@@ -158,14 +164,14 @@ initial Linux build lacked a `sha2` cache entry and stopped before test executio
 that failed attempt is retained separately. No dependency download or source
 workaround was used for the passing run. All UUID containers were removed.
 
-Final corrected evidence is in `target/replica-progress-parser/`: a fresh source
+Final corrected evidence is in `target/replica-progress-final/`: a fresh source
 binding, Mac/Linux commands, toolchain and binary hashes, build/test logs and
 hash index. Mac and Linux reused the unchanged exact-032 CLI/fixture binaries with hashes
 rechecked; only the Python helper/test overlays changed for this final run. The new helper/test overlays
 were frozen separately. Index SHA256:
-`669962f7e50e636acd879d3002f173b1ec5a725191c7f40d4ca9464ebc674f28`.
+`d943746de33a9d56a4a4679a1552fd1f18f4a7f5e40d5817ff101db4f56d3f92`.
 Helper SHA256:
-`96f84bb5ae7beae1007a6cbbf20654505babee574478f4ddda82236ec18fbf16`.
+`305b08ce9277530353408555c17eafddcf25e19e211254c663663e75da8ecf8c`.
 
 Earlier six-test evidence remains at `target/replica-progress-qualification/`
 under its original hashes. Review then found two wrapper defects: stdout was
@@ -177,8 +183,14 @@ creation/registration exceptions could occur outside child cleanup. The selector
 is now created before spawning, with registration inside the kill/reap guard;
 the ten-test runs retained at `target/replica-progress-cleanup/` qualify that
 fix. Independent review then found excessive decimal conversion and JSON
-recursion exceptions; the final twelve-test runs qualify those narrow parser
-fixes. No earlier result is relabeled.
+recursion exceptions; the twelve-test runs retained at
+`target/replica-progress-parser/` qualify those parser fixes. Final strict-schema
+review required actual JSON strings for hashes/IDs/digests, nonzero enrollment
+IDs and the same UTC grammar for secondary timestamps; the thirteen-test
+runs remain at `target/replica-progress-schema/`. The final fourteen-test runs
+also verify that a zero identity in unexpected describe output becomes a
+sanitized `parse_error` observation before polling. Valid emitted records are
+unchanged. No earlier result is relabeled.
 
 These are finite native loopback tests, not cross-host transport, credential
 rotation, hardware power-loss, continuous monitoring or native Windows proof.

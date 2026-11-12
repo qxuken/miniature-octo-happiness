@@ -30,17 +30,20 @@ def revision(text):
         raise Rejected('parse_error')
     return int(text)
 
+def validate_timestamp(value):
+    if not isinstance(value,str) or not re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z',value):
+        raise Rejected('prior_invalid')
+    try: datetime.fromisoformat(value.replace('Z','+00:00'))
+    except ValueError: raise Rejected('prior_invalid') from None
+
 def validate(record):
     if not isinstance(record,dict) or set(record)!=TOP or record['schema']!='weekend-replica-progress' or type(record['version']) is not int or record['version']!=1:
         raise Rejected('prior_invalid')
-    if record['action'] not in ['ship','poll'] or record['error'] not in ERRORS or (record['cli_sha256'] is not None and not re.fullmatch(HEX32,str(record['cli_sha256']))):
+    if record['action'] not in ['ship','poll'] or record['error'] not in ERRORS or (record['cli_sha256'] is not None and (not isinstance(record['cli_sha256'],str) or not re.fullmatch(HEX32,record['cli_sha256']))):
         raise Rejected('prior_invalid')
-    if not isinstance(record['observed_at'],str) or not re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z',record['observed_at']):
-        raise Rejected('prior_invalid')
-    try: datetime.fromisoformat(record['observed_at'].replace('Z','+00:00'))
-    except ValueError: raise Rejected('prior_invalid') from None
+    validate_timestamp(record['observed_at'])
     e=record['enrollment']
-    if not isinstance(e,dict) or set(e)!={'stream','file_identity'} or not re.fullmatch(HEX16,str(e['stream'])) or (e['file_identity'] is not None and not re.fullmatch(HEX16,str(e['file_identity']))):
+    if not isinstance(e,dict) or set(e)!={'stream','file_identity'} or (not isinstance(e['stream'],str) or not re.fullmatch(HEX16,e['stream']) or e['stream']=='0'*32) or (e['file_identity'] is not None and (not isinstance(e['file_identity'],str) or not re.fullmatch(HEX16,e['file_identity']) or e['file_identity']=='0'*32)):
         raise Rejected('prior_invalid')
     for name,states in [('local',{'verified','unknown'}),('capture',{'verified','none','unknown'}),('follower',{'durable','empty','unknown','unavailable','error'})]:
         entry=record[name]; keys={'state','revision'} | (set() if name=='local' else {'digest'})
@@ -49,12 +52,12 @@ def validate(record):
         present=entry['state'] in ['verified','durable']
         if present:
             if type(entry['revision']) is not int or not 0<=entry['revision']<=U64: raise Rejected('prior_invalid')
-            if name!='local' and not re.fullmatch(HEX32,str(entry['digest'])): raise Rejected('prior_invalid')
+            if name!='local' and (not isinstance(entry['digest'],str) or not re.fullmatch(HEX32,entry['digest'])): raise Rejected('prior_invalid')
         elif entry['revision'] is not None or (name!='local' and entry['digest'] is not None): raise Rejected('prior_invalid')
     if record['relation'] not in ['exact_capture','newer_than_capture','behind_capture','digest_conflict','no_capture','unknown']: raise Rejected('prior_invalid')
     prior=record['prior']
     if not isinstance(prior,dict) or set(prior)!={'state','observed_at'} or prior['state'] not in ['none','consistent','superseded','historical_only','rejected']: raise Rejected('prior_invalid')
-    if prior['observed_at'] is not None and not isinstance(prior['observed_at'],str): raise Rejected('prior_invalid')
+    if prior['observed_at'] is not None: validate_timestamp(prior['observed_at'])
     local,cap,ack=record['local'],record['capture'],record['follower']
     if any(x['state'] in ['verified','durable'] for x in [local,cap,ack]) and e['file_identity'] is None:
         raise Rejected('prior_invalid')
@@ -127,7 +130,7 @@ def describe(binary,path,stream,deadline):
     if status: raise Rejected('cli_failure')
     if len(lines)!=2: raise Rejected('parse_error')
     m=re.fullmatch(r'local verified_revision=(\d+) stream=('+HEX16+r') file_identity=('+HEX16+r')',lines[0])
-    if not m or m[2]!=stream or lines[1]!=f'weekend-replicate follower-init EMPTY_DIR {stream} {m[3]}': raise Rejected('parse_error')
+    if not m or m[2]!=stream or m[3]=='0'*32 or lines[1]!=f'weekend-replicate follower-init EMPTY_DIR {stream} {m[3]}': raise Rejected('parse_error')
     return revision(m[1]),m[3]
 
 def capture(binary,path,stream,file,deadline):

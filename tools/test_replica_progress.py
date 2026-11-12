@@ -52,6 +52,36 @@ class Contracts(unittest.TestCase):
         for line in ['follower durable_revision=01 stream='+STREAM+' digest='+'33'*32,'follower empty garbage']:
             with self.assertRaises(progress.Rejected):progress.receipt(line,STREAM)
 
+    def test_zero_file_identity_in_describe_is_sanitized_before_poll(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            binary=Path(tmp)/'bin';binary.write_bytes(b'fixture')
+            args=SimpleNamespace(binary=binary,ship=None,poll=True,stream=STREAM,source=Path(tmp)/'db',peer='127.0.0.1:1',credentials=Path(tmp)/'secret',pin=Path(tmp)/'pin',capture=None,previous=None,timeout=3,attempts=1)
+            lines=['local verified_revision=3 stream='+STREAM+' file_identity='+('0'*32),
+                   'weekend-replicate follower-init EMPTY_DIR '+STREAM+' '+('0'*32)]
+            with patch.object(progress,'invoke',return_value=(0,lines)) as invoke:
+                result=progress.observe(args)
+                self.assertEqual(invoke.call_count,1)
+                self.assertEqual(invoke.call_args.args[1][0],'describe')
+            self.assertEqual(result['error'],'parse_error')
+            self.assertIsNone(result['enrollment']['file_identity'])
+            self.assertIsNone(result['follower']['revision'])
+            progress.validate(json.loads(json.dumps(result)))
+
+    def test_saved_field_types_nonzero_ids_and_secondary_timestamp(self):
+        cases=[(('cli_sha256',),int('1'*64)), (('enrollment','stream'),int('1'*32)),
+               (('enrollment','file_identity'),int('2'*32)), (('capture','digest'),int('3'*64)),
+               (('follower','digest'),int('3'*64)), (('prior','observed_at'),'yesterday'),
+               (('prior','observed_at'),'2026-99-13T00:00:00.000000Z'),
+               (('enrollment','stream'),'0'*32), (('enrollment','file_identity'),'0'*32)]
+        for path,value in cases:
+            with self.subTest(path=path,value=value):
+                record=sample();parent=record
+                for key in path[:-1]:parent=parent[key]
+                parent[path[-1]]=value
+                with self.assertRaisesRegex(progress.Rejected,'prior_invalid'):progress.validate(record)
+        valid=sample();valid['prior']={'state':'consistent','observed_at':valid['observed_at']}
+        progress.validate(valid)
+
     def test_oversized_revision_in_actual_observe_parse_is_sanitized(self):
         with tempfile.TemporaryDirectory() as tmp:
             binary=Path(tmp)/'bin';binary.write_bytes(b'fixture')
