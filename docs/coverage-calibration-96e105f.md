@@ -58,7 +58,10 @@ fail the run, rather than silently enlarging the claimed scope.
 
 Historical `target/qualification-2490631-coverage-{line,branch}/export.json`
 were inspected independently: each contains 51 files, none under `/rustc/` or
-`/library/std/`. Their recorded totals need no contamination correction.
+`/library/std/`. That inspection established absence of this specific path leak;
+it did not validate profile compatibility. The later
+[diagnostic audit](historical-coverage-audit.md) withdraws both historical
+aggregates because LLVM rejected mappings. Their raw totals remain unchanged.
 
 The final condition run used an isolated checkout of
 `96e105f80c189a2f9de12530518c4d834f2796ea` plus only the coverage changes. All

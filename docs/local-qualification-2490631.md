@@ -6,6 +6,9 @@ are local evidence, not a reinterpretation of those hosted results. Repository
 visibility and all `publish = false` manifests remain unchanged. No crate or
 release artifact was published. Private packaging eligibility means its specific
 packaging gates passed, not that the library is production-ready.
+The later [coverage audit](historical-coverage-audit.md) withdraws this report's
+aggregate coverage claims; its independently scoped functional and sanitizer
+results remain recorded below.
 
 Core proof records are preserved locally in the SHA-256-indexed bundle
 `target/local-qualification-2490631/index.json`.

@@ -4987,3 +4987,66 @@ files with 124 tests. Both tested compilers reject MC/DC instrumentation; the
 tool reports unsupported rather than substituting condition or branch data.
 These source-bound cases add evidence without closing native Windows, every
 adversarial combination, deployment SLOs or hardware power-loss qualification.
+
+### Frozen local qualification and corrected coverage attribution
+
+Exact [21e5d26](docs/local-qualification-21e5d26.md) passed full macOS and Docker
+Linux/ext4 checks, private relocated C/C++/Odin consumers where available, and
+copied Rust-source consumers without the original checkout mounted. Independent
+hash checks matched 652 Mac and 47 Linux package artifacts plus both 568-file
+source manifests. The [extended ASan fuzz campaign](docs/fuzz-qualification-21e5d26.md)
+completed all 22 targets with 1,431,321 actual executions; stable corpus replay
+passed 25 tests. Bounds, compiler identity and source/seed/lock hashes remain
+part of those finite results.
+
+The coverage review found that LLVM can exit zero while rejecting incompatible
+function/profile mappings. The driver now rejects warnings. Retained-object
+replay and original logs invalidate the earlier 2490631 and 1ca5e5a workspace
+aggregates; their raw totals remain preserved, explicitly unqualified. Exact-21
+stable line and nightly condition aggregates also reject. The configured future
+job explicitly selects the core engine library: its local 124-test line run
+used one object with empty LLVM diagnostics. The
+[separate-executable companion](docs/coverage-executables.md) preserves clean
+parent-only views, empty scopes and unqualified child/build profiles. It does
+not combine them into a project percentage. Compiler MC/DC remains unavailable;
+manual decision pairs and mutations retain their own scope.
+
+The [typed follow-up](docs/typed-decision-gaps-21e5d26.md) adds six public guard
+controls for terminal Writes, duplicate primary IDs, absent deletes, unique
+claim ownership, nonfresh initialization and format-marker admission. Eighteen
+tests pass Mac/Linux debug/release, and six body-preserving mutations are caught.
+Clean same-object condition reports observe both outcomes, including the same
+callback instantiation for a poisoned Write. Current and retained primary/index
+oracles and simulated image comparisons establish the effects independently of
+branch counts. Production runtime source and the static inventory denominator
+are unchanged.
+
+The [compatibility runner](docs/storage-compatibility-21e5d26.md) now freezes both
+requested commits with original locks, rejects dangling output symlinks and
+checks image preservation even under Python -O. Both a7dc343 and 21e5d26 write
+files read by both endpoints on Mac/Linux, preserving current revision 4 and
+retained revision 2. Snapshot dcd2402 ↔ 21e5d26 passes native Mac loopback with
+independently verified receipt digests, reopened retry acknowledgments and
+byte-preserving unsupported poll rejection. This is separate from TLS upgrade
+or broad schema compatibility qualification.
+
+The coordinator's native capacity scenario fills all 1,024 receipt slots with
+original commit revisions, exercises eight lost-reply/restart episodes, rejects
+new requests at capacity and mismatched retries, and replays all receipts after
+backup/restore and Mac/Linux compaction. No receipt is silently evicted. These
+local tests leave native Windows/NTFS execution and broader deployment gates
+open. Local commit and follower durable acknowledgments remain separate;
+no protocol, publication barrier or engine runtime behavior changed in this batch.
+
+
+[Fresh sanitizer checks](docs/sanitizer-qualification-21e5d26.md) also use the
+unchanged exact-21e5d26 checkout. Mac workspace Rust ASan and TSan each passed
+405 reported tests with rebuilt instrumented standard library. Calibrated shared
+C/Rust ASan passed memory, thread and native-file consumers on both Mac and
+Docker Linux, detecting both intentional C and Rust overflow controls on each.
+Linux uses its recorded independent compiler/shared runtime and enables leak
+detection; Mac does not claim LeakSanitizer. The Linux consumer profile does not
+qualify a full Linux workspace TSan run. These finite diagnostic executions and
+private artifact checks have distinct scope; none establishes native Windows or
+physical-device power-loss behavior. The results, corrections and remaining
+gates are local, with no push, hosted CI execution or publication.

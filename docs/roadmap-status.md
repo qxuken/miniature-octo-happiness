@@ -9,22 +9,22 @@ decision tests and first four fuzz targets.
 | Gate | Progress and remaining evidence |
 |---|---|
 | Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The [source audits](decisions/README.md) classify 2,561 explicit records across 51 files, including shared TLS separately for each binary profile. There are 316 macro blind spots, plus supplemental FFI/derive mappings. Signed alternate leaves are rejected by both exact-pin checks. Directed [handshake pairs](tls-handshake-decisions.md) now establish unfinished-handshake/pending-write independence at both endpoints; four guard omissions are detected. Delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
-| Fuzzing | Twenty-two targets and deterministic seeds exist; stable replay passed 25 tests. The frozen 4203e0a campaign completed 1,384,848 executions across 21 targets. The register target has a pre-fix 1,000-run ASan smoke campaign and a successful post-fix rerun (surviving summary lacks execution count). Longer campaigns across the current candidate remain. |
+| Fuzzing | All 22 targets passed the [exact-21e5d26 extended ASan campaign](fuzz-qualification-21e5d26.md), totaling 1,431,321 actual executions under per-target 100,000-run/120-second bounds, including 31,034 register-causality executions. Independent stable replay passed 25 tests; source, both locks and 242 seeds were verified. This supersedes the limited post-fix register count evidence for this checkpoint. Longer campaigns and broader oracles remain. |
 | Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Verification stage/structure-start offsets implemented and fault-tested. |
 | Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore across processes and old retained schemas is tested. Deployment restore-time budgets remain. |
 | Migration/salvage | Logical export/import format 1 implemented with frozen fixture. Explicit complete-root salvage is tested. Future-version conversion remains. |
 | Storage lifecycle | Compaction exists. Append headroom and near-cap recovery/compaction tests implemented. Indexed recovery measured near the cap. Cleanup policy and device qualification remain. |
 | Resources | Per-value/transaction limits and opt-in aggregate core layout admission exist. A [four-axis native qualification](resource-envelope.md) passed macOS/APFS and Docker Linux/overlayfs: 64 depth-64 retained roots, near-exact 64 MiB core saturation/recovered draft admission, the synthetic exact image boundary, and a naturally full image with 63 MiB reachable payload. A requested 1 MiB worker stack completed its bounded parser/value workload. RSS is measured separately, not capped by core accounting. Combined/adversarial envelopes, longer representative load and native Windows remain. |
-| Packaging | Runtime identity and private artifact checks added. Private identity/notice checks existed at a7dc343; later relocation testing exposed and fixed its temporary loader-path defect. Windows compiled consumers passed at 1ca5e5ab. Windows private packaging passed 6266359; macOS Odin relocation passed locally. Clean 4203e0a source profile passed native and isolated Linux builds; registry inputs remain external. |
-| Compatibility | v2 format rejection exists. Archived v2 and logical-v1 fixtures exist. a7dc343 reads 1ca5e5ab files in tested pre1 cases. Broader version/feature qualification remains. |
-| Native matrix | macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu, ASan and TSan passed 4203e0a; simulated month also passed Linux ext4 server/macOS APFS client. Separately, `b3761af` Windows job `131310796175` passed workspace/C/C++/private packaging; Ubuntu, C-ASan and fuzz passed. Hosted macOS matrix was still pending at this observation. These checkpoint results do not qualify the new backup harness on Windows. New candidate/device qualification remains. |
-| Unsafe/concurrency | Thread/process/sanitizer tests exist. Bounded ownership/admission Loom models, negative controls, Miri and abort checks passed. C-side ASan passed macOS and Linux with calibration at 4203e0a and 2490631. A fresh independent [core unsafe-boundary review](unsafe-review-2490631.md) found no actionable defect under the documented FFI and quiescence contracts; 13 focused Miri tests passed. The review covers the named source files, not dependencies or every target ABI. Additional model workloads, native Windows and x86 Linux qualification remain. |
+| Packaging | [Exact 21e5d26](local-qualification-21e5d26.md) private Mac/Linux artifacts and copied-source Rust consumers passed, including relocation and independent hash checks. Runtime identity and private artifact checks added. Private identity/notice checks existed at a7dc343; later relocation testing exposed and fixed its temporary loader-path defect. Windows compiled consumers passed at 1ca5e5ab. Windows private packaging passed 6266359; macOS Odin relocation passed locally. Clean 4203e0a source profile passed native and isolated Linux builds; registry inputs remain external. |
+| Compatibility | Archived v2 and logical-v1 fixtures exist. [Frozen a7dc343 ↔ 21e5d26 storage cases](storage-compatibility-21e5d26.md) passed both writers/readers on macOS/APFS and Docker Linux/overlayfs with original locks, native build identity, retained roots and byte-preserving unsupported rejection. The runner now honors --current, rejects dangling outputs and retains checks under Python -O. Snapshot dcd2402 ↔ 21e5d26 passed native Mac loopback with separate receipts and unchanged follower bytes on bad poll version. Broader shapes, features, mixed-version TLS/typed migration and Windows remain. |
+| Native matrix | [Exact 21e5d26](local-qualification-21e5d26.md) full Mac and private Docker Linux/ext4 checks passed locally; current native Windows remains unexecuted. Earlier macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu, ASan and TSan passed 4203e0a; simulated month also passed Linux ext4 server/macOS APFS client. Separately, `b3761af` Windows job `131310796175` passed workspace/C/C++/private packaging; Ubuntu, C-ASan and fuzz passed. Hosted macOS matrix was still pending at this observation. These checkpoint results do not qualify the new backup harness on Windows. New candidate/device qualification remains. |
+| Unsafe/concurrency | [Fresh exact-21e5d26 sanitizer checks](sanitizer-qualification-21e5d26.md) passed Mac workspace Rust ASan/TSan and calibrated shared-runtime C/Rust ASan on Mac and Docker Linux. Thread/process/sanitizer tests exist. Bounded ownership/admission Loom models, negative controls, Miri and abort checks passed. C-side ASan passed macOS and Linux with calibration at 4203e0a and 2490631. A fresh independent [core unsafe-boundary review](unsafe-review-2490631.md) found no actionable defect under the documented FFI and quiescence contracts; 13 focused Miri tests passed. The review covers the named source files, not dependencies or every target ABI. Additional model workloads, native Windows and x86 Linux qualification remain. |
 | Typed Rust | Models/migrations/indexes exist. Verification/rebuild implemented and fault-tested. Explicit bounded migration with atomic progress tested. Mixed-version qualification remains. |
 | Snapshot replication | Verified snapshots and separate acknowledgment exist. Manifest bounds, cleanup, compaction and explicit reseed are tested. Offline CLI cleanup and macOS/Linux manifest compaction now preserve the exact receipt and retained graph; Windows compaction rejects before opening files and uses explicit fresh-directory reseeding. The 14 focused app tests passed macOS debug/release and Linux debug, with macOS strict Clippy; local Windows cross-compilation was blocked by missing SDK headers. The private [weekend-replicate CLI](replication-operations.md#authenticated-native-cli) adds exact-leaf mTLS, distinct ALPN, bounded socket deadlines and same-export retry. Exact tree `a0aad9f9ff95a2998ca623b654c452ae02658b6b` passed macOS and Linux/ext4 nine app plus one CLI test in debug/release, macOS strict Clippy/full Rust/C/Odin checks, and authenticated Mac→Linux ship/restart/poll: follower revision 13 retained root 1@11 and exact digest survived primary advancement to 14. That historical qualification predates subsequent audit tests and maintenance commands. Optional Linux Clippy was unavailable. Separate native macOS [dcd2402 ↔ 315068f core wire-v1 qualification](snapshot-compatibility.md) passed both directions using original locked dependencies: durable 4/retained 2, independent export digest, reopen/retry, and mutated v255 **poll header** rejection with follower files unchanged. This does not qualify upload faults or mixed-version CLI TLS/trust rotation. Frozen `65d142e` also passed the native macOS [verified follower backup/restore and fresh-stream reseed](follower-backup-restore.md): current 4/retained 2, exact former/new receipts, wrong-enrollment status and authenticated-upload rejection, and all original files unchanged. This requires maintained quiescence and does not implement automatic fencing/failover. Broader deployment, checkpoint/OS combinations and physical power-loss qualification remain. |
 | CRDT peers | Fixed two-actor TLS demo exists. Register admission rejects unwitnessed retirement and incompatible cyclic histories, with bounded causal-event/frame oracles. The [explicit migration example](crdt-policy-migration.md) qualifies reviewed schema/policy conversion, fresh identities, stale-backup recovery and repeat sync. Native macOS/Linux process tests now verify both old writer leases, six staging interruptions, independent destination reopening and complete old current/retained preservation. Serial/default debug/release pass after correcting a child-output fixture bug. Raw reserved-row ownership, distributed quiescence/routing, operational cutover and broader policy/deployment qualification remain application gates. |
 | Performance | A [matched durable-history SQLite baseline](sqlite-baseline.md) passed full current/retained byte oracles across 192 data commits, 12 separate pins and 96 warm-cache reopens per engine on macOS APFS, including verified backup/restore/compaction. Three finite small-state rounds are a baseline, not representative scale, service budgets, stack/RSS bounds or other-platform performance qualification. |
 | Authenticated peer workload | Frozen ed8f9f9 passed [30 real CLI offline/sync rounds](study-peer-soak.md) between macOS/APFS and Docker Linux/ext4 with exact pins. All six paired post-acknowledgment SIGKILL restarts preserved exact local revisions and displayed values; repeated covering exchanges added no commits after convergence. The final Python-O launcher and independent review passed. This is a bounded accelerated scenario, not a wall-clock month, long-duration soak, new-candidate or native Windows qualification. |
-| Coordinator | Conditional writes, durable receipts and configured loopback authentication tested. Deployment qualification remains. |
+| Coordinator | Conditional writes, durable receipts and configured loopback authentication tested. The [native capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) fills all 1,024 receipts, retries lost replies and restarts, rejects overflow/changed payloads, verifies backup/restore and Mac/Linux compaction, and preserves original acknowledgment revisions. Native Windows and broader deployment qualification remain. |
 | Release operations | Support/security policy and provenance recorded; capped cross-OS month and restore passed. A 600-second local soak passed; longer deployment soak, latency guarantees and final bundle remain. |
 
 The full acceptance inventory is in [production-readiness.md](production-readiness.md).
@@ -163,8 +163,10 @@ library-only condition-mode run passed 124 tests and measured 953/1,133 branch
 outcomes across 29 repository files. MC/DC instrumentation is rejected by both
 tested compiler builds and is explicitly unsupported, not inferred from branch
 results or LLVM's zero-denominator column. Existing manual pairs retain their
-own source/condition scope. Historical 2490631 totals were checked and need no
-remapped-sysroot correction.
+own source/condition scope. The initial historical 2490631 check established
+only absence of remapped-sysroot leakage. The later
+[diagnostic audit](historical-coverage-audit.md) found incompatible mappings and
+withdraws both aggregates; those earlier raw totals are not qualified coverage.
 
 Whole-workspace strict Clippy and formatting passed after this integration;
 the resource driver also passed standalone formatting/Clippy and six normal and
@@ -172,3 +174,60 @@ optimized Python controls. All proof remains tied to the reports' source
 checkpoints/overlays. Native Windows execution, combined/adversarial limit cases,
 declared deployment budgets, longer soak and real device power-loss gates remain
 open. Nothing was pushed or published.
+
+
+## Local candidate and assurance corrections (2026-11-13)
+
+Exact [21e5d26 qualification](local-qualification-21e5d26.md) passed complete
+macOS and Docker Linux/ext4 checks, private relocated artifact consumers and
+copied Rust-source isolation. The 652 Mac and 47 Linux packaged artifacts were
+independently rehashed against their package manifests; both 568-file source
+inventories matched the frozen commit. No crate or repository was published, no remote branch was updated,
+and hosted CI was not run.
+
+Coverage investigation identified an assurance defect: successful LLVM exit
+status hid profile/mapping mismatches. The corrected driver rejects those
+warnings and preserves diagnostics. Historical workspace aggregates at 1ca5e5a
+and 2490631 are withdrawn; exact-21e5d26 stable line and nightly condition
+aggregates also reject. The explicitly labeled core-library line command passed
+124 tests with one executable and no LLVM warnings. The configured future job
+uses that scope; full-workspace functional checks remain separate. The
+[separate-executable companion](coverage-executables.md) produced 36 clean
+independent parent reports in its expanded run, while twelve empty test/source
+scopes and all children/build profiles stayed unqualified. These percentages
+cannot be pooled into a workspace score. Compiler MC/DC remains unsupported.
+
+The [fresh sanitizer qualification](sanitizer-qualification-21e5d26.md) uses
+unchanged exact-21e5d26 sources. Mac workspace ASan and TSan each passed 405
+reported tests with rebuilt instrumented standard library. Calibrated shared
+C/Rust ASan passed memory, threaded and native-file consumers on Mac and Docker
+Linux; both deliberate language-specific controls were detected on both platforms.
+This Linux result is the C/Rust consumer profile, not a full Linux workspace
+TSan run. Source, compiler, runtime, consumer and log hashes bind each result.
+
+Six [typed guards](typed-decision-gaps-21e5d26.md) now have direct public-API
+controls: poisoned Write, duplicate primary ID, absent deletion, corrupt unique
+claim ownership, nonfresh initialization and exact format-marker admission.
+Eighteen tests pass Mac/Linux debug and release; six isolated guard mutations
+are detected. Warning-free same-object condition reports show both outcomes,
+including the same closure instantiation for the poisoned Write. The source
+ledger remains 2,561 records/51 files/316 macro blind spots; these outcomes
+refine dispositions without changing production source or its denominator.
+
+Native Windows/NTFS remains a release gate: current Rust/process tests,
+compiled C/C++/Odin consumers and private artifact relocation, authenticated
+replication/follower maintenance, migration interruptions, receipt capacity,
+credential ACL provisioning and resource workloads need actual execution.
+MSVC cross-linking establishes build compatibility only. Physical power-loss
+qualification, combined/adversarial bounds, deployment latency/restore budgets
+and longer representative soak also remain open.
+
+The root review preserved 37 compact local proof records at
+`target/local-assurance-review-21e5d26/index.json`, SHA-256
+`721c111fa60798d31ea5fc1badf6ce0d4feec9910d593da535cb66c65c777a01`.
+Copies retain exact original hashes, separate source/overlay identities and
+explicit coverage supersessions; no private credentials or binaries were copied.
+Package manifests, sanitizer artifacts and full coverage mappings remain in
+their separately recorded local directories. These ignored artifacts are not
+a permanent retention or release promise. Final workspace formatting, strict
+all-feature/all-target Clippy and whitespace checks passed after source freeze.

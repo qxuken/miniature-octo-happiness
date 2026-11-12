@@ -39,6 +39,12 @@ tracks release requirements, coverage, fuzzing, and operational gaps.
 Recent finite [resource qualification](docs/resource-envelope.md) exercises the
 existing depth/history/heap/image caps on macOS and Linux; its measured scope and
 remaining platform/device gates are explicit.
+The latest [local qualification](docs/local-qualification-21e5d26.md) records
+private macOS/Linux package checks; [extended ASan fuzzing](docs/fuzz-qualification-21e5d26.md)
+completed 1,431,321 runs across 22 targets. [Sanitizer checks](docs/sanitizer-qualification-21e5d26.md)
+cover Mac Rust ASan/TSan and calibrated C/Rust ASan on Mac/Linux. A [coverage audit](docs/historical-coverage-audit.md)
+withdraws incompatible historical workspace aggregates. Coverage now has explicit
+library and independent executable scopes; native Windows qualification remains open.
 
 The in-memory engine through milestone 5 implements immutable nested maps/lists,
 scalars/bytes, historical live snapshots, final put/delete overlays, and
