@@ -157,7 +157,8 @@ fn untrusted_leaf_and_wrong_or_absent_alpn_never_reach_core() {
         let dir = Directory::new();
         let path = source(&dir);
         let mut prepared = prepare(&path, [1; 16], &dir.0.join("export")).unwrap();
-        let mut f = follower(&dir, enrollment_of(&prepared));
+        let e = enrollment_of(&prepared);
+        let f = follower(&dir, e);
         let mut client = match mode {
             0 => Tls::new(&unknown, b.certificate()).unwrap(),
             1 => Tls::new(&a, unknown.certificate()).unwrap(),
@@ -169,18 +170,24 @@ fn untrusted_leaf_and_wrong_or_absent_alpn_never_reach_core() {
         if mode == 3 {
             client.test_alpn(vec![b"other-protocol".to_vec()]);
         }
+        // Native Windows leases deny external reads while the follower is open.
+        drop(f);
         let manifest = fs::read(dir.0.join("follower/replica-manifest.wdb")).unwrap();
+        let mut f = Follower::open(dir.0.join("follower"), e, Limits::default()).unwrap();
         let (sent, served) = exchange(&mut f, &server, |address| {
             ship(&mut prepared, &client, address, 1)
         });
         assert!(sent.is_err());
         assert!(matches!(served, Err(SessionError::Authentication(_))));
         assert_eq!(f.progress().unwrap(), None);
+        drop(f);
         assert_eq!(
             fs::read(dir.0.join("follower/replica-manifest.wdb")).unwrap(),
             manifest
         );
         assert_eq!(fs::read_dir(dir.0.join("follower")).unwrap().count(), 1);
+        let reopened = Follower::open(dir.0.join("follower"), e, Limits::default()).unwrap();
+        assert_eq!(reopened.progress().unwrap(), None);
     }
 }
 #[test]
@@ -195,9 +202,12 @@ fn authenticated_enrollment_mismatch_preserves_follower() {
         } else {
             e.file_identity[0] ^= 1;
         }
-        let mut f = follower(&dir, e);
+        let f = follower(&dir, e);
         let (client, server) = pair();
+        // Native Windows leases deny external reads while the follower is open.
+        drop(f);
         let manifest = fs::read(dir.0.join("follower/replica-manifest.wdb")).unwrap();
+        let mut f = Follower::open(dir.0.join("follower"), e, Limits::default()).unwrap();
         let (sent, served) = exchange(&mut f, &server, |address| {
             ship(&mut prepared, &client, address, 1)
         });
@@ -212,11 +222,14 @@ fn authenticated_enrollment_mismatch_preserves_follower() {
             Some(&Error::ForeignStore)
         );
         assert_eq!(f.progress().unwrap(), None);
+        drop(f);
         assert_eq!(
             fs::read(dir.0.join("follower/replica-manifest.wdb")).unwrap(),
             manifest
         );
         assert_eq!(fs::read_dir(dir.0.join("follower")).unwrap().count(), 1);
+        let reopened = Follower::open(dir.0.join("follower"), e, Limits::default()).unwrap();
+        assert_eq!(reopened.progress().unwrap(), None);
     }
 }
 
