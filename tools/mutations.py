@@ -88,6 +88,27 @@ for endpoint, occurrence in [('client', 1), ('server', 2)]:
             'handshake_decision_tests', '--bins', occurrence=occurrence,
             matches=2, package='study-peer')
 
+# Public typed-runtime regressions exercise otherwise missed terminal/ownership
+# outcomes, including a caught panic before the underlying transaction aborts.
+add('typed-failed-write-admission', 'crates/weekend-db-typed/src/store.rs',
+    'if self.failed {', 'if false {', 'runtime_decisions', '--test',
+    package='weekend-db-typed')
+add('typed-duplicate-primary', 'crates/weekend-db-typed/src/store.rs',
+    'if w.tx.get(table.records, &id_key(id)?)?.is_some() {', 'if false {',
+    'runtime_decisions', '--test', package='weekend-db-typed')
+add('typed-absent-delete-result', 'crates/weekend-db-typed/src/store.rs',
+    'return Ok(false);', 'return Ok(true);', 'runtime_decisions', '--test',
+    occurrence=2, matches=2, package='weekend-db-typed')
+add('typed-delete-claim-ownership', 'crates/weekend-db-typed/src/store.rs',
+    'if self.tx.get(indexes, &key)?.and_then(|v| v.as_u64().ok()) != Some(id) {',
+    'if false {', 'runtime_decisions', '--test', package='weekend-db-typed')
+add('typed-initialize-nonfresh', 'crates/weekend-db-typed/src/store.rs',
+    'if db.snapshot().revision() != 0 {', 'if false {',
+    'catalog_admission', '--test', package='weekend-db-typed')
+add('typed-open-format-marker', 'crates/weekend-db-typed/src/store.rs',
+    '!= Some(1)', '== Some(1)', 'catalog_admission', '--test',
+    package='weekend-db-typed')
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

@@ -14,6 +14,247 @@ struct Row {
 }
 
 #[test]
+fn caught_callback_panic_closes_the_write_before_another_callback() -> Result<()> {
+    use std::{
+        cell::Cell,
+        panic::{AssertUnwindSafe, catch_unwind},
+    };
+    let mut store = Store::memory()?;
+    let table = store.table::<Row>("rows")?;
+    store.write(|w| {
+        w.insert(&table, 1, &Row { slug: "a".into() })?;
+        w.insert(&table, 2, &Row { slug: "b".into() })
+    })?;
+    let panicked = Cell::new(false);
+    let resumed = Cell::new(false);
+    let followup = |_: &mut Row| -> Result<()> {
+        resumed.set(true);
+        Ok(())
+    };
+    // Reuse the same closure type/value for the clean and terminal cases, so
+    // both outcomes also occur within the same checked() instantiation.
+    store.write(|w| w.update(&table, 2, followup))?;
+    assert!(resumed.replace(false));
+    let retained = store.checkpoint()?;
+    let revision = store.database().snapshot().revision();
+    let result = store.write(|w| {
+        w.update(&table, 1, |row| {
+            row.slug = "staged".into();
+            Ok(())
+        })?;
+        assert!(
+            catch_unwind(AssertUnwindSafe(|| w.update(&table, 2, |_| {
+                panicked.set(true);
+                panic!("intentional callback failure");
+            })))
+            .is_err()
+        );
+        assert_eq!(
+            w.update(&table, 2, followup),
+            Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+        );
+        Ok(())
+    });
+    assert_eq!(
+        result,
+        Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+    );
+    assert!(panicked.get());
+    assert!(!resumed.get());
+    assert_eq!(store.database().snapshot().revision(), revision);
+    for (id, slug) in [(1, "a"), (2, "b")] {
+        assert_eq!(
+            store.read(|r| Ok(r.get(&table, id)?.unwrap().slug.clone()))?,
+            slug
+        );
+        assert_eq!(
+            store.read(|r| Ok(r.find(&table, Row::SLUG, slug)?.unwrap().id()))?,
+            id
+        );
+        assert_eq!(
+            store.read_retained(retained, |r| Ok(r.get(&table, id)?.unwrap().slug.clone()))?,
+            slug
+        );
+    }
+    assert!(
+        store
+            .read(|r| r.find(&table, Row::SLUG, "staged"))?
+            .is_none()
+    );
+    assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
+    // The failed Write is terminal; a fresh Write on the same Store still works.
+    store.write(|w| {
+        w.insert(
+            &table,
+            3,
+            &Row {
+                slug: "fresh".into(),
+            },
+        )
+    })?;
+    Ok(())
+}
+
+#[test]
+fn duplicate_primary_insert_aborts_prior_work_without_changing_unique_claims() -> Result<()> {
+    let mut store = Store::memory()?;
+    let table = store.table::<Row>("rows")?;
+    store.write(|w| w.insert(&table, 1, &Row { slug: "a".into() }))?;
+    let retained = store.checkpoint()?;
+    let revision = store.database().snapshot().revision();
+    let result = store.write(|w| {
+        w.insert(
+            &table,
+            2,
+            &Row {
+                slug: "staged".into(),
+            },
+        )?;
+        assert_eq!(
+            w.insert(
+                &table,
+                1,
+                &Row {
+                    slug: "replacement".into()
+                }
+            ),
+            Err(Error::Engine(
+                weekend_db_typed::engine::Error::AlreadyExists
+            ))
+        );
+        Ok(())
+    });
+    assert_eq!(
+        result,
+        Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+    );
+    assert_eq!(store.database().snapshot().revision(), revision);
+    assert_eq!(
+        store.read(|r| Ok(r.get(&table, 1)?.unwrap().slug.clone()))?,
+        "a"
+    );
+    assert!(store.read(|r| r.get(&table, 2))?.is_none());
+    for slug in ["replacement", "staged"] {
+        assert!(store.read(|r| r.find(&table, Row::SLUG, slug))?.is_none());
+    }
+    assert_eq!(
+        store.read(|r| Ok(r.find(&table, Row::SLUG, "a")?.unwrap().id()))?,
+        1
+    );
+    assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
+    assert_eq!(
+        store.read_retained(retained, |r| Ok(r.get(&table, 1)?.unwrap().slug.clone()))?,
+        "a"
+    );
+    Ok(())
+}
+
+#[test]
+fn deleting_an_absent_primary_leaves_existing_unique_entries_alone() -> Result<()> {
+    let mut store = Store::memory()?;
+    let table = store.table::<Row>("rows")?;
+    store.write(|w| w.insert(&table, 1, &Row { slug: "a".into() }))?;
+    let retained = store.checkpoint()?;
+    let primary = store.database().snapshot().scan(table.collection())?;
+    let indexes = store
+        .database()
+        .snapshot()
+        .scan(store.database().collection_id(3))?;
+    store.write(|w| {
+        assert!(!w.delete(&table, 999)?);
+        assert_eq!(w.find(&table, Row::SLUG, "a")?.unwrap().id(), 1);
+        Ok(())
+    })?;
+    assert_eq!(
+        store.database().snapshot().scan(table.collection())?,
+        primary
+    );
+    assert_eq!(
+        store
+            .database()
+            .snapshot()
+            .scan(store.database().collection_id(3))?,
+        indexes
+    );
+    // Positive deletion is the other outcome of primary-presence admission.
+    assert!(store.write(|w| w.delete(&table, 1))?);
+    assert!(store.read(|r| r.get(&table, 1))?.is_none());
+    assert!(store.read(|r| r.find(&table, Row::SLUG, "a"))?.is_none());
+    assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
+    assert_eq!(
+        store.read_retained(retained, |r| Ok(r
+            .find(&table, Row::SLUG, "a")?
+            .unwrap()
+            .id()))?,
+        1
+    );
+    Ok(())
+}
+
+#[test]
+fn deleting_with_a_missing_wrong_or_malformed_claim_aborts_the_entire_draft() -> Result<()> {
+    for corruption in 0..3 {
+        let mut store = Store::memory()?;
+        let table = store.table::<Row>("rows")?;
+        store.write(|w| {
+            w.insert(&table, 1, &Row { slug: "a".into() })?;
+            w.insert(&table, 2, &Row { slug: "b".into() })
+        })?;
+        let retained = store.checkpoint()?;
+        let db = store.database();
+        let indexes = db.collection_id(3);
+        // Explicit index wire fixture, independent of the runtime key encoder.
+        let mut key = table.collection().as_u64().to_le_bytes().to_vec();
+        key.extend_from_slice(&1u64.to_le_bytes());
+        key.push(Kind::Bytes as u8);
+        key.extend_from_slice(b"a");
+        let mut tx = db.begin();
+        match corruption {
+            0 => tx.delete(indexes, &key)?,
+            1 => tx.put(indexes, &key, &db.unsigned(999)?)?,
+            _ => tx.put(indexes, &key, &db.bytes(b"invalid owner kind")?)?,
+        }
+        tx.commit()?;
+        drop(tx);
+        let before = db.snapshot();
+        let records_before = before.scan(table.collection())?;
+        let indexes_before = before.scan(indexes)?;
+        let result = store.write(|w| {
+            w.insert(
+                &table,
+                3,
+                &Row {
+                    slug: "staged".into(),
+                },
+            )?;
+            assert_eq!(w.delete(&table, 1), Err(Error::IndexInconsistent));
+            Ok(())
+        });
+        assert_eq!(
+            result,
+            Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+        );
+        assert_eq!(db.snapshot().revision(), before.revision());
+        assert_eq!(db.snapshot().scan(table.collection())?, records_before);
+        assert_eq!(db.snapshot().scan(indexes)?, indexes_before);
+        assert!(store.read(|r| r.get(&table, 3))?.is_none());
+        assert!(
+            store
+                .read(|r| r.find(&table, Row::SLUG, "staged"))?
+                .is_none()
+        );
+        assert!(!store.read(|r| r.check_indexes(&table))?.is_consistent());
+        store.read_retained(retained, |r| {
+            assert_eq!(r.find(&table, Row::SLUG, "a")?.unwrap().id(), 1);
+            assert_eq!(r.find(&table, Row::SLUG, "b")?.unwrap().id(), 2);
+            assert!(r.check_indexes(&table)?.is_consistent());
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+#[test]
 fn catalog_identity_unique_and_name_guards_have_independent_controls() -> Result<()> {
     for name in ["".to_owned(), "x".repeat(128), "x".repeat(129)] {
         let mut store = Store::memory()?;

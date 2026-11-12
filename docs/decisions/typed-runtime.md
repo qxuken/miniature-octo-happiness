@@ -128,8 +128,8 @@ schema validation delegate to [schema.md](schema.md), value/tree and transaction
 ledgers. Standard-library allocator failure for application-facing buffers,
 and independent controls for every remaining E-only guard are not closed by this
 audit. The two initially identified feasible gaps (Display dispatch and info
-identity independence) are now covered by the focused tests above. No mutation run or compiler-instrumented
-coverage result is claimed. The source appendix deliberately retains these
+identity independence) are now covered by the focused tests above. That historical audit did not include a mutation run or compiler-instrumented
+coverage result; the subsequent T6 qualification below adds scoped evidence. The source appendix deliberately retains these
 limits rather than assigning 315 records a blanket MC/DC pass.
 
 ## Source record appendix
@@ -237,14 +237,14 @@ controls above; E retains the narrower execution claim.
 | store.rs:214:72 [5896–5897] | try_propagation / `create_file` | D | T1/T4/T5 |
 | store.rs:218:73 [6118–6119] | try_propagation / `open_file` | D | T1/T4/T5 |
 | store.rs:224:59 [6363–6364] | try_propagation / `compact_file` | D | T1/T4/T5 |
-| store.rs:230:9 [6659–6661] | if / `initialize` | E | T1/T4/T5 |
+| store.rs:230:9 [6659–6661] | if / `initialize` | P | T6 |
 | store.rs:233:9 [6759–6762] | for_iteration / `initialize` | E | T1/T4/T5 |
 | store.rs:234:13 [6795–6797] | if / `initialize` | I | T1/T4/T5 |
 | store.rs:234:38 [6820–6821] | try_propagation / `initialize` | D | T1/T4/T5 |
 | store.rs:239:60 [7012–7013] | try_propagation / `initialize` | D | T1/T4/T5 |
 | store.rs:239:62 [7014–7015] | try_propagation / `initialize` | D | T1/T4/T5 |
 | store.rs:240:20 [7036–7037] | try_propagation / `initialize` | D | T1/T4/T5 |
-| store.rs:247:13 [7201–7203] | if / `from_database` | E | T1/T4/T5 |
+| store.rs:247:13 [7201–7203] | if / `from_database` | P | T6 |
 | store.rs:255:13 [7453–7456] | for_iteration / `from_database` | E | T1/T4/T5 |
 | store.rs:256:46 [7516–7517] | try_propagation / `from_database` | D | T1/T4/T5 |
 | store.rs:269:43 [7920–7921] | try_propagation / `compact_to` | D | T1/T4/T5 |
@@ -368,7 +368,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:601:5 [19887–19889] | if / `find` | P | T3/T5 |
 | store.rs:601:51 [19933–19934] | try_propagation / `find` | D | T3/T5 |
 | store.rs:609:62 [20265–20266] | try_propagation / `check_indexes` | D | T3/T5 |
-| store.rs:628:9 [20970–20972] | if / `checked` | E | T3/T4/T5 |
+| store.rs:628:9 [20970–20972] | if / `checked` | P | T6 |
 | store.rs:632:9 [21149–21154] | match / `checked` | E | T3/T4/T5 |
 | store.rs:638:17 [21306–21308] | if / `checked` | E | T3/T4/T5 |
 | store.rs:646:67 [21626–21627] | try_propagation / `check_indexes` | D | T3/T4/T5 |
@@ -382,7 +382,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:670:71 [22726–22727] | try_propagation / `rebuild_indexes` | D | T3/T4/T5 |
 | store.rs:692:56 [23573–23574] | try_propagation / `insert` | D | T3/T4/T5 |
 | store.rs:693:13 [23588–23590] | if / `insert` | E | T3/T4/T5 |
-| store.rs:696:13 [23702–23704] | if / `insert` | E | T3/T4/T5 |
+| store.rs:696:13 [23702–23704] | if / `insert` | P | T6 |
 | store.rs:696:51 [23740–23741] | try_propagation / `insert` | D | T3/T4/T5 |
 | store.rs:696:53 [23742–23743] | try_propagation / `insert` | D | T3/T4/T5 |
 | store.rs:704:14 [24023–24024] | try_propagation / `insert` | D | T3/T4/T5 |
@@ -446,19 +446,19 @@ controls above; E retains the narrower execution claim.
 | store.rs:880:72 [30579–30580] | try_propagation / `put_raw` | D | T3/T4/T5 |
 | store.rs:883:57 [30662–30663] | try_propagation / `put_raw` | D | T3/T4/T5 |
 | store.rs:887:29 [30813–30814] | try_propagation / `remove_raw` | D | T3/T4/T5 |
-| store.rs:888:9 [30824–30827] | let_else / `remove_raw` | P | T3/T4/T5 |
+| store.rs:888:9 [30824–30827] | let_else / `remove_raw` | P | T6 |
 | store.rs:888:57 [30872–30873] | try_propagation / `remove_raw` | D | T3/T4/T5 |
 | store.rs:891:9 [30930–30933] | for_iteration / `remove_raw` | E | T3/T4/T5 |
 | store.rs:891:71 [30992–30993] | try_propagation / `remove_raw` | D | T3/T4/T5 |
 | store.rs:891:73 [30994–30995] | try_propagation / `remove_raw` | D | T3/T4/T5 |
-| store.rs:893:13 [31068–31070] | if / `remove_raw` | P | T3/T4/T5 |
+| store.rs:893:13 [31068–31070] | if / `remove_raw` | P | T6 |
 | store.rs:893:42 [31097–31098] | try_propagation / `remove_raw` | D | T3/T4/T5 |
 | store.rs:896:42 [31252–31253] | try_propagation / `remove_raw` | D | T3/T4/T5 |
 | store.rs:898:44 [31308–31309] | try_propagation / `remove_raw` | D | T3/T4/T5 |
 
 ## Results and source binding
 
-Disposition counts: C 21, D 195, E 57, I 2, P 40. All 315 source records are listed.
+Disposition counts: C 21, D 195, E 53, I 2, P 44. All 315 source records are listed.
 
 Debug and release each passed 26 existing model tests, two process-evolution
 tests, and six doctests (one documentation example ignored). All eleven new directed
@@ -483,6 +483,59 @@ CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=target/typed-decisions cargo clippy --offli
 | `crates/weekend-db-typed/src/codec.rs` | `7725f08e3d1df5180cf839899c929e9d6219c92e7352d17e2758ef3f1fe127aa` |
 | `crates/weekend-db-typed/src/lib.rs` | `e6a706a0b017b605cdde1d660f5e2c36504a61239500acb8b18f3d1fca98345d` |
 | `crates/weekend-db-typed/src/store.rs` | `2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa` |
-| `crates/weekend-db-typed/tests/runtime_decisions.rs` | `8ebe5e5490c2e3ebb54ec2c186b96e6dbeae38674f4d75870679302f3c885e8e` |
+| `crates/weekend-db-typed/tests/runtime_decisions.rs` | `81adbbd3942b414f9ad080348e866ac6bc94031e2ca0ffd01528069f2f0fcba5` |
+| `crates/weekend-db-typed/tests/catalog_admission.rs` | `d309488423e6705daefc196e657419dcb51ce7497dd0858263d5d0a297ff1088` |
 | `crates/weekend-db-typed/tests/models.rs` | `6802b09817f9524d222735080a1c01bb927bfb8619ccdf0d94dc7db1dee3b8d8` |
 | `crates/weekend-db-typed/tests/process_evolution.rs` | `19a9580ae28deaf01f1161e40b9afbaf958dfc610170d01b1a020f1f0a1640a2` |
+
+
+## T6: directly observed terminal, primary, delete and admission guards
+
+The six [source outcome pairs](../typed-decision-gaps-21e5d26.md) add public-API
+controls at unchanged production store.rs lines 230, 247, 628, 696, 888 and 893.
+The earlier appendix mapped the delete guards to related CRUD tests; these new
+controls execute the delete-specific outcomes directly. Four E-only records
+now have P dispositions; no production source, span or AST denominator changed.
+
+- A clean write invokes a copied follow-up closure; the same closure is refused
+  after a caught callback panic. Its side effect stays absent, earlier staged
+  primary/index work rolls back, current revision and retained views stay intact,
+  and a fresh Write remains usable. The same checked() instantiation records
+  true/false 1/1, rather than pooling unrelated generic instantiations.
+- Inserting an existing primary ID with a different unique value returns
+  AlreadyExists; ignoring that error still discards earlier work. Original
+  ownership survives and no replacement/staged index entry appears.
+- Deleting an absent primary returns false without changing primary/index rows;
+  a present correctly indexed row supplies the successful deletion control.
+- Missing, wrong-owner and malformed unique claims each return IndexInconsistent
+  on deletion. Earlier draft work is discarded, current corrupt rows remain
+  unchanged, and the healthy retained primary/index view still resolves both rows.
+- Initialization accepts a fresh revision-zero database and rejects nonfresh
+  input without changing its durable image. Removing that early guard is caught
+  even when the later collection-ID check returns the same error after mutation.
+- Typed open requires the exact unsigned format marker 1. Absent catalog/marker,
+  unsigned 0/2 and wrong-kind bytes return NotInitialized; every case preserves
+  its complete simulated durable image.
+
+Stable macOS and isolated Docker Linux each passed 16 runtime tests plus two
+catalog admission tests in debug/release. Strict targeted Clippy passed. The
+matching dated-nightly, same-object condition reports are warning-free and
+record both outcomes for each selected source guard; their precise counts and
+source/feature boundaries are in the linked report. These are direct predicate
+pairs, not compiler-measured MC/DC or a validated global coverage percentage.
+
+Six isolated production mutations were detected after positive baselines:
+failed-Write admission removal, existing-primary admission removal, false-to-true
+absent-delete result, delete ownership-guard removal, nonfresh initialization
+admission removal, and format-marker comparison inversion. Each leaves guard
+bodies otherwise intact. They do not mutate pointers or ownership machinery.
+Reproduce with a fresh output directory:
+
+```sh
+CARGO_INCREMENTAL=0 mise exec rust@1.99.1 python@3.14.8 -- python tools/mutations.py --case typed- --output target/new-typed-mutations
+```
+
+The four runtime mutations are bound in
+`target/typed-guard-mutation-proof-final/evidence.json`; the two admission cases
+are in `target/typed-catalog-mutation-proof/evidence.json`. Standard allocator,
+I/O propagation and remaining E/generated-code obligations remain unchanged.
