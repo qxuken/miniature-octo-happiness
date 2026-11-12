@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
-EXCLUSIONS = r'/(tests|examples|tools)/|/\.rustup/|/\.cargo/registry/'
+EXCLUSIONS = r'/(tests|examples|tools)/|/\.rustup/|/\.cargo/registry/|^/rustc/'
 
 
 def output(*args, env=None):
@@ -25,6 +25,59 @@ def source_hashes(scope):
                  or Path(name).name in ('Cargo.toml', 'Cargo.lock'))}
 
 
+def metric_counts(totals, metric):
+    """Reject absent, malformed and impossible denominators instead of guessing."""
+    value = totals.get(metric)
+    if not isinstance(value, dict):
+        raise RuntimeError(f'Missing requested metric: {metric}')
+    count, covered = value.get('count'), value.get('covered')
+    if type(count) is not int or type(covered) is not int or not 0 <= covered <= count:
+        raise RuntimeError(f'Invalid counts for metric: {metric}')
+    if count == 0:
+        raise RuntimeError(f'Requested metric has a zero denominator: {metric}')
+    return count, covered
+
+
+def export_totals(exported):
+    data = json.loads(exported).get('data')
+    if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], dict) or not isinstance(data[0].get('totals'), dict):
+        raise RuntimeError('Expected one merged coverage export with totals')
+    return data[0]['totals']
+
+
+def coverage_files(exported, scope):
+    files = json.loads(exported)['data'][0].get('files')
+    if not isinstance(files, list) or not files:
+        raise RuntimeError('Coverage export contains no measured source files')
+    prefixes = ('src', 'crates') if scope == 'library' else ('src', 'crates', 'apps')
+    names = []
+    for file in files:
+        name = file.get('filename') if isinstance(file, dict) else None
+        if not isinstance(name, str) or not any(Path(name).resolve().is_relative_to(ROOT / prefix) for prefix in prefixes):
+            raise RuntimeError(f'Coverage includes source outside requested repository scope: {name}')
+        names.append(name)
+    return names
+
+
+def validate_calibration(totals, mode, case):
+    expected_branches = 2 if case == 'partial' else 6
+    if metric_counts(totals, 'branches') != (6, expected_branches):
+        raise RuntimeError('Calibration did not measure the expected six branch outcomes')
+    if mode == 'mcdc':
+        expected = {'partial': 0, 'branch-complete': 2, 'complete': 3}[case]
+        if metric_counts(totals, 'mcdc') != (3, expected):
+            raise RuntimeError('Calibration did not measure the expected independent condition effects')
+
+
+def ensure_stable(evidence, scope):
+    evidence['source_stable'] = (source_hashes(scope) == evidence['source_files_sha256']
+        and hashlib.sha256((ROOT / 'tools/coverage-fixture.rs').read_bytes()).hexdigest()
+        == evidence['fixture_sha256']
+        and hashlib.sha256(Path(__file__).read_bytes()).hexdigest() == evidence['runner_sha256'])
+    if not evidence['source_stable']:
+        raise RuntimeError('Source changed during coverage measurement')
+
+
 def calibrate(rustc, flags, cov, profdata, dest, mode, env):
     directory = dest / 'calibration'
     directory.mkdir(parents=True, exist_ok=True)
@@ -32,7 +85,7 @@ def calibrate(rustc, flags, cov, profdata, dest, mode, env):
     subprocess.run([*rustc, *flags, str(ROOT / 'tools/coverage-fixture.rs'), '-o', str(binary)],
                    cwd=ROOT, env=env, check=True)
     evidence = {}
-    for case in ['partial', 'complete']:
+    for case in ['partial', 'branch-complete', 'complete']:
         raw = directory / (case + '.profraw')
         raw.unlink(missing_ok=True)
         profile = directory / (case + '.profdata')
@@ -40,14 +93,8 @@ def calibrate(rustc, flags, cov, profdata, dest, mode, env):
         subprocess.run([str(profdata), 'merge', '-sparse', str(raw), '-o', str(profile)], check=True)
         exported = output(cov, 'export', binary, f'-instr-profile={profile}')
         (directory / (case + '.json')).write_text(exported)
-        totals = json.loads(exported)['data'][0]['totals']
-        branches = totals['branches']
-        if branches['count'] != 4 or branches['covered'] != (2 if case == 'partial' else 4):
-            raise RuntimeError('Calibration did not measure the expected four branch outcomes')
-        if mode == 'mcdc':
-            mcdc = totals.get('mcdc', {})
-            if mcdc.get('count') != 2 or (mcdc.get('covered') == 2) != (case == 'complete'):
-                raise RuntimeError('Calibration did not measure independent effects for both conditions')
+        totals = export_totals(exported)
+        validate_calibration(totals, mode, case)
         evidence[case] = totals
     return evidence
 
@@ -76,7 +123,9 @@ def main():
                 'features': 'all', 'source': output('git', 'rev-parse', 'HEAD').strip(),
                 'dirty': bool(output('git', 'status', '--porcelain').strip()),
                 'exclusions': EXCLUSIONS, 'status': 'incomplete',
-                'source_files_sha256': source_hashes(args.scope), 'commands': []}
+                'source_files_sha256': source_hashes(args.scope),
+                'fixture_sha256': hashlib.sha256((ROOT / 'tools/coverage-fixture.rs').read_bytes()).hexdigest(),
+                'runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), 'commands': []}
     manifest = dest / 'evidence.json'
     try:
         # Fail before testing if rustc rejects the requested metric. LLVM alone
@@ -99,15 +148,16 @@ def main():
         env = os.environ.copy()
         evidence['replaced_flag_variables'] = [name for name in ['RUSTFLAGS', 'RUSTDOCFLAGS', 'CARGO_ENCODED_RUSTFLAGS'] if name in env]
         env.pop('CARGO_ENCODED_RUSTFLAGS', None)
-        env.update({'CARGO_TARGET_DIR': str(dest), 'RUSTFLAGS': ' '.join(flags),
+        env.update({'CARGO_INCREMENTAL': '0', 'CARGO_TARGET_DIR': str(dest), 'RUSTFLAGS': ' '.join(flags),
                     'RUSTDOCFLAGS': ' '.join(flags), 'LLVM_PROFILE_FILE': str(profiles / '%p-%m.profraw')})
         if args.mode != 'line':
             evidence['calibration'] = calibrate(rustc, flags, cov, profdata, dest, args.mode, env)
         if args.fixture_only:
+            ensure_stable(evidence, args.scope)
             evidence['status'] = 'calibrated'
             return
         scope = ['--workspace'] if args.scope == 'workspace' else ['-p', 'weekend-db', '--lib']
-        command = [*cargo, 'test', '--offline', *scope, '--all-features']
+        command = [*cargo, 'test', '--offline', '--locked', *scope, '--all-features']
         evidence['commands'].append(command + ['--no-run', '--message-format=json'])
         artifacts = output(*evidence['commands'][-1], env=env)
         objects = sorted({item['executable'] for line in artifacts.splitlines()
@@ -130,15 +180,13 @@ def main():
         (dest / 'report.txt').write_text(report)
         exported = output(cov, 'export', *objects_args)
         (dest / 'export.json').write_text(exported)
-        evidence['totals'] = json.loads(exported)['data'][0]['totals']
+        evidence['totals'] = export_totals(exported)
+        evidence['measured_files'] = coverage_files(exported, args.scope)
         evidence['objects'] = objects
-        metric = 'mcdc' if args.mode == 'mcdc' else 'branches'
-        if args.mode != 'line' and evidence['totals'][metric]['count'] == 0:
-            raise RuntimeError('Requested metric has a zero denominator')
+        metric = 'mcdc' if args.mode == 'mcdc' else 'lines' if args.mode == 'line' else 'branches'
+        metric_counts(evidence['totals'], metric)
         subprocess.run([str(cov), 'show', *objects_args, *show_args, '-format=html', f'-output-dir={dest / "html"}'], cwd=ROOT, check=True)
-        evidence['source_stable'] = source_hashes(args.scope) == evidence['source_files_sha256']
-        if not evidence['source_stable']:
-            raise RuntimeError('Source changed during coverage measurement')
+        ensure_stable(evidence, args.scope)
         evidence['status'] = 'measured'
         print(report)
         print(f'Metric {args.mode}, scope {args.scope}, all features. Evidence and HTML in {dest}')
