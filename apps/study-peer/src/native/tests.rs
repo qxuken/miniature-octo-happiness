@@ -1,5 +1,6 @@
 use super::*;
 use std::{
+    fs,
     io::{BufReader, Read},
     path::PathBuf,
     process::{Child, ChildStdin, Command, Stdio},
@@ -17,7 +18,12 @@ impl Directory {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("study-peer-{}-{nonce}", std::process::id()));
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let sequence = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "study-peer-{}-{nonce}-{sequence}",
+            std::process::id()
+        ));
         fs::create_dir(&path).unwrap();
         Self(path)
     }
@@ -208,7 +214,7 @@ fn two_writers_recover_a_lost_ack() {
     let dir = Directory::new();
     for actor in ["a", "b"] {
         let (path, identity, _, enrollment) = config(&dir.0, actor);
-        Credentials::create(&identity).unwrap();
+        Credentials::generate().unwrap().write_fixture(&identity);
         initialize(&path, enrollment).unwrap();
     }
     let dynamic = "127.0.0.1:0".parse().unwrap();
@@ -251,9 +257,9 @@ fn two_writers_recover_a_lost_ack() {
 fn paused_peer_reports_idle_errors_and_quits_cleanly() {
     let dir = Directory::new();
     let (path, identity, _, enrollment) = config(&dir.0, "a");
-    Credentials::create(&identity).unwrap();
+    Credentials::generate().unwrap().write_fixture(&identity);
     let (_, other, _, _) = config(&dir.0, "b");
-    Credentials::create(&other).unwrap();
+    Credentials::generate().unwrap().write_fixture(&other);
     initialize(&path, enrollment).unwrap();
     let dynamic = "127.0.0.1:0".parse().unwrap();
     let mut worker = Worker::start(&dir.0, "a", dynamic, dynamic, false);

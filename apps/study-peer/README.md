@@ -40,3 +40,24 @@ acknowledgment covered the offered state and reported 35 practice minutes
 on the remote peer. `push off` pauses future outgoing attempts while the
 listener stays available. Use `quit` to stop and repeat `run` to reopen the
 existing file. By default, outgoing sync starts on launch.
+
+## TLS admission and coordinated upgrades
+
+Upgrade both study peers together: the hardened CLI requires `study-progress/1`
+ALPN, so older binaries without ALPN are rejected. Snapshot uses the distinct
+`weekend-snapshot/1` protocol. Enrollment, on-disk encodings, merge rules and
+application wire messages are unchanged; no CRDT migration is required.
+
+Both apps compile one private TLS implementation with fixed profiles. Study
+retains SAN `study-peer` and a three-second absolute exchange budget, now including
+TCP connect. Before application admission, the handshake must finish, pending
+writes must drain, and the exact configured leaf pin and ALPN must match. Disk
+work is outside the socket deadline; local and remote acknowledgments stay separate.
+
+Credentials are trusted local configuration: prevent concurrent untrusted edits.
+Certificates/pins must be regular, nonempty and at most 64 KiB; PKCS#8 keys at
+most 16 KiB. Opened Unix keys must have no group/other permission bits. Keygen
+creates a 0700 directory and 0600 key. Windows keygen fails closed: provision
+cert.der/key.der externally with a private ACL. The CLI does not verify Windows
+ACLs or provide race-proof hostile-directory traversal. Credentials are validated
+before database open/listen. See [shared TLS evidence](../../docs/shared-app-tls.md).

@@ -4845,3 +4845,26 @@ Windows cross-linking produced 47 test executables and the release CLI, but no
 native Windows tests, NTFS lifecycle or C/C++ package execution occurred for this
 head. Hosted billing-blocked jobs executed no tests. Repository/crates remain
 private/unpublished; artifact eligibility is not a production-readiness claim.
+
+### Shared private CLI TLS hardening
+
+Study and snapshot CLIs now compile one private TLS module with fixed per-app
+profiles. Study retains SAN `study-peer` and three seconds including TCP connect,
+requires `study-progress/1`, and now checks handshake completion/write drainage,
+exact leaf pins and bounded regular credentials with private Unix key modes.
+Credential validation precedes database open/listen; Windows keygen requires
+external ACL provisioning. Both study peers must upgrade together because old
+CLIs lack ALPN. On-disk records, application wire encodings and local/remote
+acknowledgment semantics are unchanged. Snapshot preserves its existing profile.
+
+Independent TCP controls reproduced old study acceptance before Finished and
+without protocol ALPN. Shared regressions cover both profiles, signed alternate
+leaves under trusted anchors, partial Finished, missing/other-app ALPN and
+credential caps/FIFO/modes. macOS and Docker Linux debug/release each passed 33
+focused tests plus strict Clippy. Mise-pinned Windows tooling cross-linked five
+test executables; no native Windows execution is claimed. See
+[shared TLS evidence](docs/shared-app-tls.md) for source scope and residuals.
+The current inventory has 2,557 dispositions across 51 files and 316 macro blind
+spots, including 44 shared TLS records separately for each binary profile and
+the coordinator's two pre-open credential admission records. This is not a
+compiler-measured MC/DC closure; historical 2490631 results remain source-bound.

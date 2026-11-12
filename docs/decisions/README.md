@@ -26,14 +26,15 @@ Propagation evidence does not imply every possible callee error was injected.
 | Snapshot replication | 140 | [replication](replication.md) |
 | Authenticated snapshot CLI | 125 | [snapshot CLI](snapshot-cli.md) |
 | Typed runtime | 315 | [typed runtime](typed-runtime.md) |
-| Distributed apps | 205 | [distributed apps](distributed-apps.md) |
+| Distributed apps | 222 | [distributed apps](distributed-apps.md) |
 | CLI/measurement/fault drivers | 246 | [command line](command-line.md) |
 
-All **2,540 explicit source records** have manual dispositions: the 2,415-record
-audit checkpoint plus 125 authenticated snapshot CLI records. This includes
+All **2,557 explicit source records** have manual dispositions: the 2,415-record
+audit checkpoint plus 125 authenticated snapshot CLI records and 17 records
+from shared study TLS hardening/coordinator pre-open credential admission. This includes
 delegated obligations, execution-only evidence, invariants and coupled syntax;
 it does not mean every condition has an independence pair. The inventory still
-reports 314 unexpanded macro/derive sites across 50 files. FFI templates and generated Model,
+reports 316 unexpanded macro/derive sites across 51 files. FFI templates and generated Model,
 Record and Resolution behavior have supplemental mappings in their ledgers;
 these are not a complete compiler-expanded denominator.
 
@@ -49,4 +50,10 @@ OS/dependency errors remain explicit residuals. Fourteen focused app tests passe
 macOS debug/release and Linux debug; this does not extend platform results to
 unexecuted configurations or claim measured whole-app MC/DC.
 
-Current source-set SHA-256: `133bdb4a94e46015da5aac537daaf358a28fb9b862d3a1bcea5319fb6da8b8d7`.
+Current source-set SHA-256: `e656b7667508b2ab60acc92dc5c1c35ffb9328ef45c254cdfd9dcb0168cf7595`.
+
+Shared TLS contributes 44 records under each binary target, with the target
+shown in both app ledgers. The common path/hash does not collapse those two
+profile scopes. Current Mac/Linux tests and Windows cross-link results are
+qualified in [shared TLS evidence](../shared-app-tls.md); earlier platform
+results remain tied to their original checkpoints.

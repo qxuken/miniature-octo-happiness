@@ -198,3 +198,16 @@ blind spots, zero parse failures. Source-set SHA-256:
 The inventory is in `target/decision-inventory-maintenance`; prior counts above
 are historical. Wrapper tests reuse native core maintenance, without extending
 its durability claims or treating delegated errors as independent conditions.
+
+## Shared private TLS and coordinator pre-open admission
+
+Current inventory: **2,557 records, 51 files, 316 macro/derive blind spots**, zero
+parse failures. Snapshot remains 125 records; distributed apps now have 222.
+Shared `apps/support/pinned_tls.rs` contributes 44 records for study and 44 for
+snapshot, each with its own target identity; the stable per-profile constants
+are not decision records. Coordinator adds pre-open file-type admission and
+metadata propagation. Current source-set SHA-256: `e656b7667508b2ab60acc92dc5c1c35ffb9328ef45c254cdfd9dcb0168cf7595`.
+Output: `target/decision-inventory-shared-tls`. All spans/hashes are rebound in
+the app ledgers; delegated failures, hostile-path races, handshake independence
+residuals and unexpanded macros remain explicit. These are dispositions, not
+compiler-measured MC/DC or a claim that earlier 2490631 evidence covers new code.

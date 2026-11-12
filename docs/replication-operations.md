@@ -355,3 +355,8 @@ files and the original primary remained unchanged. Existing restore destinations
 were also rejected unchanged. This bounded test does not inject an abandoned
 inactive-slot sentinel, implement automatic failover/fencing, or qualify power
 loss. The runbook records exact builds, receipts and application-data oracles.
+
+Snapshot and study now compile the same private [TLS implementation](shared-app-tls.md)
+under distinct profiles. Snapshot retains its SAN, ALPN, deadline and exact-pin
+semantics. Study requires coordinated CLI upgrades for its new required ALPN;
+snapshot wire version and acknowledgment rules are unchanged.

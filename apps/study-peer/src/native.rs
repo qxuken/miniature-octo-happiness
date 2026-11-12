@@ -9,7 +9,6 @@ mod tls;
 mod study;
 
 use std::{
-    fs,
     io::{self, BufRead, Write},
     net::{SocketAddr, TcpListener},
     path::Path,
@@ -20,7 +19,7 @@ use std::{
     thread,
     time::Duration,
 };
-use tls::{Credentials, Incoming, Tls};
+use tls::{Credentials, Incoming, Tls, bounded_file};
 use weekend_db::{Database, Error, Limits};
 
 type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -62,14 +61,15 @@ pub fn main() -> AppResult<()> {
             options @ ..,
         ] if command == "run" && (options.is_empty() || options == ["--no-push"]) => {
             let enrollment = Enrollment::parse(actor, id)?;
+            let tls = Tls::new(
+                &Credentials::load(Path::new(credentials))?,
+                bounded_file(Path::new(pin), 65536)?.into(),
+            )?;
             let db = Database::open_file(path, Limits::default())?;
             let network = Network {
                 listener: TcpListener::bind(utf8(listen)?.parse::<SocketAddr>()?)?,
                 peer: utf8(peer)?.parse()?,
-                tls: Tls::new(
-                    &Credentials::load(Path::new(credentials))?,
-                    fs::read(pin)?.into(),
-                )?,
+                tls,
             };
             run(&db, enrollment, network, options.is_empty(), |stream| {
                 stream
