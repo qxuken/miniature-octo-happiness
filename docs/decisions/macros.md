@@ -341,3 +341,23 @@ Independent expanded output was inspected from the installed nightly; syntax
 inventory completed with zero parse failures. No production implementation edit,
 new long fuzz campaign, new mutation run, or whole-project readiness claim is made.
 The generated fixture source SHA-256 is `ef6e20402ab96be325f1ed46758270595a9d197de4ee7951af44868fcef57ec3`.
+
+## Direct expansion attribution follow-up (032dadf)
+
+The [direct expansion guard report](../macro-expansion-guards-032dadf.md) adds
+`tests/expansion_guards.rs` without changing any production source hash or AST
+inventory span. Its four exact-diagnostic pairs cover Model's duplicate type ID
+(`model.rs:31`) and Resolution's struct-level marker, unknown option and duplicate
+field marker (`resolution.rs:9`, `:14`, `:59`). All four already had downstream
+compile-fail controls; the new harness makes both outcomes attributable to the
+same directly instrumented expansion functions, addressing the zero outcomes in
+the separate macro unit-executable view without mislabeling them globally untested.
+
+Seven harness/module tests pass debug/release on macOS and Linux, strict targeted
+Clippy passes, and the downstream diagnostic suite remains passing. Four
+body-preserving guard mutations each compile and fail the corresponding test.
+Warning-free same-object condition profiles show true/false counts 1/29, 1/6,
+1/5 and 1/7 respectively. Imported `tests/../src` paths require the dedicated
+report's explicit module/span attribution; no project or crate percentage, nor
+compiler MC/DC result, is inferred. Source hashes and exact commands/evidence
+are bound in the linked report.
