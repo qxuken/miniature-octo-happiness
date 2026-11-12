@@ -4888,3 +4888,62 @@ The rebound inventory has 2,561 dispositions across 51 files and 316 macro blind
 spots; two added caller-propagation records per target remain delegated.
 These directed pairs close the specified handshake residuals, without claiming
 compiler-measured whole-application MC/DC or physical power-loss qualification.
+
+### Explicit CRDT history migration and stale-backup recovery
+
+The [migration example](docs/crdt-policy-migration.md) converts StudyProgress
+practice minutes to seconds and changes the weekly-goal policy from maximum
+to minimum under an explicit new wire marker, collection identity, generation
+and actor roster. It first reconciles the frozen old pair, preserves reviewed
+visible values and seeds their counter aggregate exactly once. Old retained
+state stays intact; staging is explicitly non-atomic across stores.
+
+Five directed cases pass debug/release on macOS and isolated Docker Linux,
+along with the example and strict Clippy. They cover changed-policy convergence,
+obsolete identity/wire rejection without writes, conversion bounds, allocation
+failure leaving partial staging, and recovery from a stale durable image through
+fresh identities. Reopening destinations and repeat sync preserve stable revisions.
+The test also cross-links for Windows; no Windows execution occurred. Restoring
+an old actor cannot detect every rollback locally or reconstruct events absent
+from all available copies. Native-file cutover and authenticated identity routing
+remain operational responsibilities.
+
+### Matched SQLite durability/history baseline
+
+The [private baseline](docs/sqlite-baseline.md) compares the same current map and
+four independently persisted historical maps through commit, reopen, backup,
+restore and compaction. SQLite stores version rows and retained epoch metadata;
+weekend-db uses native retained roots. Both retain obsolete physical history
+until explicit reclamation. The report distinguishes SQLite WAL/FULL/fullfsync
+configuration, deferred pager reads and backup layout from native publication,
+eager recovery and compact copies.
+
+Three alternating-order APFS rounds against frozen core 2490631 pass complete
+byte/epoch/ID oracles: 192 data commits, 12 separate pins and 96 reopens per engine.
+Observed commit p50/p95/p99 were 9.055/10.071/10.986 ms for weekend-db and
+2.988/3.918/3.992 ms for the linked SQLite 3.53.1. Raw WAL/SHM sizes and separate
+checkpoint costs remain in the evidence. A canonical-key normalization gap in
+the Python oracle was independently reproduced and fixed; five tests and a
+separate cross-engine smoke pass under Python optimization. This is a finite
+small-state baseline, not a capacity, latency or power-loss guarantee. Larger
+workloads, memory/stack envelopes and declared deployment budgets remain open.
+
+### Authenticated peer workload across macOS and Linux
+
+The [private CLI launcher](docs/study-peer-soak.md) now checks 30 offline-edit/sync
+episodes through the actual release binaries on macOS/APFS and Docker Linux/ext4.
+Local revision replies and peer acknowledgment totals are checked separately.
+An independent model predicts the counter, completed lessons and both resolved
+fields; after convergence two further covering exchanges must preserve revisions.
+Six paired post-acknowledgment process/container SIGKILL restarts reopen exact
+values and revisions. Frozen app checkpoint ed8f9f9 finished at revision 65 on
+both peers with 1,395 minutes, goal 230, limit 10 and lessons 2 through 61.
+
+Independent review corrected stale-ack acceptance, partial-startup tracking and
+cleanup handling before the final run. The final launcher passes under Python
+optimization, has bounded subprocess probes, rejects existing/symlink outputs
+before external work and verifies its UUID Docker resources are absent. Evidence
+and synthetic events are retained locally without copying test keys into the
+proof index. This does not qualify a wall-clock month, arbitrary later app edits,
+the unexposed planned-topic field, device power loss or native Windows. The
+subsequent handshake seam has its own directed and native test evidence.

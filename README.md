@@ -86,6 +86,13 @@ The [StudyProgress peer demo](apps/study-peer/README.md) runs two writable
 files in separate processes. Each accepts local edits while disconnected
 and exchanges mergeable state in the background with one configured peer.
 The demo reports local commit revisions separately from peer acknowledgments.
+The [explicit policy/schema migration example](docs/crdt-policy-migration.md)
+reconciles and retires an old pair, converts reviewed values, and enrolls fresh
+identities. It also demonstrates recovery from a stale backup without resuming
+the retired actor's history.
+An [authenticated macOS/Linux qualification](docs/study-peer-soak.md) exercises
+offline edits, automatic resolution, repeat sync and post-acknowledgment restarts
+through the actual CLI binaries.
 
 The [write coordinator demo](apps/write-coordinator/README.md) lets two
 client processes edit one record in a single file. It uses ordinary
@@ -115,8 +122,10 @@ abort the entire draft on error so partial primary/index changes cannot commit.
 
 `cargo build --release` produces `target/release/libweekend_db.dylib` on macOS.
 Foreign consumers use [include/weekend_db.h](include/weekend_db.h); the examples
-arrange the loader search path with rpath. Shipping a relocatable bundle remains
-future work. The CI matrix runs native checks on macOS, Linux, and Windows.
+arrange the loader search path with rpath. Private relocation-tested bundles are
+described in the [release contract](docs/release-contract.md); nothing is published
+to Cargo. The CI matrix defines native checks on macOS, Linux, and Windows;
+executed results and current local-only checks are in the roadmap status.
 `tools/check.py` loads each shared library through its C ABI. File factories
 support macOS, Linux (x86_64/aarch64), and Windows on local fixed NTFS.
 Native Rust consumers use this crate directly. Run `cargo clean` to remove
