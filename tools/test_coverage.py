@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -76,6 +77,29 @@ class CoverageOracles(unittest.TestCase):
                 coverage.coverage_files(exported(name), 'library')
         with self.assertRaises(RuntimeError):
             coverage.coverage_files(json.dumps({'data': [{'files': []}]}), 'workspace')
+
+    def test_llvm_success_with_mapping_warning_is_degraded_not_measured(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dest = Path(directory)
+            for message in ['warning: 628 functions have mismatched data\n', '\x1b[0;31mwarning: profile data may be out of date\n']:
+                result = subprocess.CompletedProcess(['llvm-cov'], 0, 'untrusted report', message)
+                evidence = {'status': 'incomplete'}
+                with patch.object(coverage.subprocess, 'run', return_value=result), self.assertRaises(RuntimeError):
+                    coverage.checked_llvm(['llvm-cov'], evidence, 'report', dest)
+                self.assertEqual(evidence['status'], 'degraded')
+                self.assertEqual(evidence['llvm_diagnostics'][0]['stderr'], message)
+                self.assertEqual((dest / 'report.rejected.stdout').read_text(), 'untrusted report')
+            for code in [0, 1]:
+                result = subprocess.CompletedProcess(['llvm-cov'], code, 'report', '')
+                evidence = {'status': 'incomplete'}
+                with patch.object(coverage.subprocess, 'run', return_value=result):
+                    if code:
+                        with self.assertRaises(subprocess.CalledProcessError):
+                            coverage.checked_llvm(['llvm-cov'], evidence, 'report', dest)
+                        self.assertEqual(evidence['status'], 'failed')
+                    else:
+                        self.assertEqual(coverage.checked_llvm(['llvm-cov'], evidence, 'report', dest), 'report')
+                        self.assertEqual(evidence['status'], 'incomplete')
 
     def test_fixture_only_and_library_scope_bind_fixture_and_runner(self):
         with tempfile.TemporaryDirectory() as directory:

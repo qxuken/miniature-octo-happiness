@@ -78,14 +78,21 @@ sanitizer builds are diagnostic configurations, not the release binaries.
 
 ## Coverage: metric and exclusions
 
+**Aggregate qualification withdrawn on 2026-11-13.** The
+[retained-object audit](historical-coverage-audit.md) reproduces 1,046 line-mode
+and 660 branch-mode mapping mismatches. LLVM returned zero while rejecting
+mappings; the previous driver incorrectly accepted that as measured coverage.
+The table preserves historical printed totals, not valid coverage percentages.
+Functional, sanitizer and artifact checks retain their independently stated scope.
+
 Both runs executed the all-feature workspace test suite. Reports exclude paths
 under tests/examples/tools, Rust toolchains and registry dependencies. This does
 not remove inline unit-test code in production source files from instrumentation,
 or turn the report into a production-only semantic decision denominator. Platform
 cfgs, macro expansion, monomorphization and compiler version affect the measured
-set. The report is useful for finding gaps; it does not prove every behavior.
+set. These mismatched aggregates cannot establish a trustworthy gap inventory.
 
-| Measurement | Covered / total | Percentage |
+| Historical raw output (unqualified) | Covered / total | Printed percentage |
 |---|---:|---:|
 | Stable line coverage | 13,702 / 14,136 lines | 96.93% |
 | Stable region coverage | 25,517 / 26,960 regions | 94.65% |

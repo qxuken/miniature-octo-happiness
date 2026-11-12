@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -13,6 +14,25 @@ EXCLUSIONS = r'/(tests|examples|tools)/|/\.rustup/|/\.cargo/registry/|^/rustc/'
 
 def output(*args, env=None):
     return subprocess.check_output([str(a) for a in args], cwd=ROOT, env=env, text=True)
+
+
+def checked_llvm(command, evidence, stage, dest):
+    """A successful exit alone does not mean LLVM accepted every mapping."""
+    command = [str(arg) for arg in command]
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+    evidence.setdefault('llvm_diagnostics', []).append({
+        'stage': stage, 'command': command, 'returncode': result.returncode,
+        'stderr': result.stderr,
+    })
+    if result.returncode or re.search(r'warning:', result.stderr, re.IGNORECASE):
+        # Retain rejected output for diagnosis, never as qualified measurements.
+        (dest / (stage + '.rejected.stdout')).write_text(result.stdout)
+        (dest / (stage + '.rejected.stderr')).write_text(result.stderr)
+        evidence['status'] = 'degraded' if result.returncode == 0 else 'failed'
+        if result.returncode:
+            result.check_returncode()
+        raise RuntimeError(f'LLVM emitted coverage diagnostics during {stage}; measurement rejected')
+    return result.stdout
 
 
 def source_hashes(scope):
@@ -78,7 +98,7 @@ def ensure_stable(evidence, scope):
         raise RuntimeError('Source changed during coverage measurement')
 
 
-def calibrate(rustc, flags, cov, profdata, dest, mode, env):
+def calibrate(rustc, flags, cov, profdata, dest, mode, env, run_evidence):
     directory = dest / 'calibration'
     directory.mkdir(parents=True, exist_ok=True)
     binary = directory / ('fixture.exe' if os.name == 'nt' else 'fixture')
@@ -91,7 +111,8 @@ def calibrate(rustc, flags, cov, profdata, dest, mode, env):
         profile = directory / (case + '.profdata')
         subprocess.run([str(binary), case], env={**env, 'LLVM_PROFILE_FILE': str(raw)}, check=True)
         subprocess.run([str(profdata), 'merge', '-sparse', str(raw), '-o', str(profile)], check=True)
-        exported = output(cov, 'export', binary, f'-instr-profile={profile}')
+        exported = checked_llvm([cov, 'export', binary, f'-instr-profile={profile}'],
+                                run_evidence, 'calibration-' + case, directory)
         (directory / (case + '.json')).write_text(exported)
         totals = export_totals(exported)
         validate_calibration(totals, mode, case)
@@ -151,7 +172,7 @@ def main():
         env.update({'CARGO_INCREMENTAL': '0', 'CARGO_TARGET_DIR': str(dest), 'RUSTFLAGS': ' '.join(flags),
                     'RUSTDOCFLAGS': ' '.join(flags), 'LLVM_PROFILE_FILE': str(profiles / '%p-%m.profraw')})
         if args.mode != 'line':
-            evidence['calibration'] = calibrate(rustc, flags, cov, profdata, dest, args.mode, env)
+            evidence['calibration'] = calibrate(rustc, flags, cov, profdata, dest, args.mode, env, evidence)
         if args.fixture_only:
             ensure_stable(evidence, args.scope)
             evidence['status'] = 'calibrated'
@@ -176,16 +197,16 @@ def main():
         if args.mode == 'mcdc':
             report_args += ['--show-mcdc-summary']
             show_args += ['--show-mcdc']
-        report = output(cov, 'report', *objects_args, *report_args)
+        report = checked_llvm([cov, 'report', *objects_args, *report_args], evidence, 'report', dest)
         (dest / 'report.txt').write_text(report)
-        exported = output(cov, 'export', *objects_args)
+        exported = checked_llvm([cov, 'export', *objects_args], evidence, 'export', dest)
         (dest / 'export.json').write_text(exported)
         evidence['totals'] = export_totals(exported)
         evidence['measured_files'] = coverage_files(exported, args.scope)
         evidence['objects'] = objects
         metric = 'mcdc' if args.mode == 'mcdc' else 'lines' if args.mode == 'line' else 'branches'
         metric_counts(evidence['totals'], metric)
-        subprocess.run([str(cov), 'show', *objects_args, *show_args, '-format=html', f'-output-dir={dest / "html"}'], cwd=ROOT, check=True)
+        checked_llvm([cov, 'show', *objects_args, *show_args, '-format=html', f'-output-dir={dest / "html"}'], evidence, 'html', dest)
         ensure_stable(evidence, args.scope)
         evidence['status'] = 'measured'
         print(report)

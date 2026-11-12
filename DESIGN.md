@@ -4390,11 +4390,12 @@ existing ledger entries do not claim decision coverage. Four fixture tests, stri
 Clippy, deterministic replay and independent range/hash verification passed.
 See docs/decision-inventory.md for scope and remaining classification work.
 
-Compiler condition instrumentation on clean 1ca5e5ab measured 1,179/1,545 branch
-outcomes across the all-feature workspace tests after calibration, with stable
-source hashes. This 76.31% result has a different denominator from the earlier
-library-only run. Compiler coverage, source inventory and manual MC/DC pairs
-remain separate evidence. Macro diagnostic builds need their own compiler
+Compiler condition instrumentation on 1ca5e5ab printed 1,179/1,545 branch
+outcomes after calibration and passing functional tests. The later
+[historical audit](docs/historical-coverage-audit.md) found 451 mapping mismatches
+in its original log: this aggregate is withdrawn as qualified coverage. Source
+stability did not establish compatible profile mappings. Compiler coverage,
+source inventory and manual MC/DC pairs remain separate evidence. Macro diagnostic builds need their own compiler
 environment; sanitizer qualification remains gated on the corrected CI harness.
 
 
@@ -4839,8 +4840,10 @@ The [local qualification report](docs/local-qualification-2490631.md) binds
 macOS and Docker Linux full checks, calibrated C/Rust ASan, Rust ASan/TSan,
 private package consumers, four release feature profiles, bounded atomic models,
 25 replay tests and 20,956 ASan fuzz executions to exact commit `2490631`.
-Measured line coverage was 13,702/14,136 and branch coverage 1,633/1,751 with
-explicit compiler, test-scope and exclusion limits; neither is measured MC/DC.
+Its printed line total 13,702/14,136 and branch total 1,633/1,751 are now
+**unqualified raw output**: retained-object replay reproduces 1,046 and 660
+LLVM mapping mismatches respectively. The [audit](docs/historical-coverage-audit.md)
+withdraws those aggregate claims without changing functional/sanitizer evidence.
 Windows cross-linking produced 47 test executables and the release CLI, but no
 native Windows tests, NTFS lifecycle or C/C++ package execution occurred for this
 head. Hosted billing-blocked jobs executed no tests. Repository/crates remain

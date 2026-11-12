@@ -1,7 +1,11 @@
 # Compiler coverage evidence
 
-`tools/coverage.py` preserves its default workspace line/region report
-and adds explicit branch, condition, and MC/DC requests. Each run writes
+`tools/coverage.py` offers workspace or engine-library line/region reports
+and explicit branch, condition, and MC/DC requests. LLVM mapping warnings
+reject a measurement even when LLVM exits zero. The ordinary configured job
+now explicitly selects the core engine library; it does not measure the entire
+workspace. See the [historical aggregate audit](historical-coverage-audit.md)
+and [separate executable reports](coverage-executables.md). Each run writes
 `evidence.json` with compiler/LLVM identity, flags, features, scope,
 source hashes, exclusions, test artifacts, calibration, and totals.
 The matching toolchain's `llvm-tools-preview` is required.
@@ -23,14 +27,14 @@ for line mode or `target/coverage-MODE` for the other modes. `--output`
 selects another directory. Existing raw profiles in that run directory
 are removed before collecting new counters.
 
-Every branch/condition/MC/DC run first compiles the two-condition
-`a && b` calibration fixture. The partial run executes only `(true,true)`.
-The complete run additionally executes `(true,false)` and `(false,true)`.
-The driver is excluded from instrumentation, leaving exactly four
-branch outcomes. Partial coverage must report two covered outcomes,
-and complete coverage must report all four. MC/DC additionally requires
-two instrumented conditions with independent-effect evidence in the
-complete run. Unsupported instrumentation and zero denominators fail
+Every branch/condition/MC/DC run first compiles the three-condition
+`(a && b) || c` calibration fixture. The partial case covers exactly 2/6
+branch outcomes. The branch-complete case covers 6/6 but has independent
+effects for only two conditions; the complete case covers 6/6 and supplies
+all three independent effects. Only the decision is instrumented. A future
+MC/DC mode must distinguish those last two cases, requiring 2/3 versus 3/3
+conditions respectively. The [calibration report](coverage-calibration-96e105f.md)
+records exact inputs and compiler behavior. Unsupported instrumentation and zero denominators fail
 the requested mode. Source changes in the selected workspace scope
 also reject the result.
 
@@ -40,9 +44,10 @@ branch conditions. These counts do not establish MC/DC independence.
 The available modes and their scope are documented by the compiler.
 [Rust coverage options](https://doc.rust-lang.org/unstable-book/compiler-flags/coverage-options.html)
 
-On the tested `rustc 1.101.0-nightly (708c94ef0 2026-11-03)` with LLVM
-23.1.5 on aarch64-apple-darwin, both branch and condition calibration
-reported 2/4 outcomes for partial input and 4/4 for complete input.
+The original two-condition fixture on `rustc 1.101.0-nightly
+(708c94ef0 2026-11-03)`, LLVM 23.1.5, aarch64-apple-darwin reported
+2/4 partial and 4/4 complete branch outcomes. The current three-condition
+fixture adds the stronger independence distinction above.
 The compiler rejected `-Z coverage-options=mcdc`, accepting only block,
 branch, and condition. The MC/DC request therefore exits unsuccessfully
 and records `status = unsupported`. LLVM's available MC/DC report column
@@ -71,14 +76,18 @@ tests described above. The existing line mode also completed a library
 run using the active stable toolchain, with its evidence stored in
 `target/coverage-line-check`.
 
-A full all-feature workspace condition run at clean source `1ca5e5ab` passed
-calibration and tests on the same nightly/arm64 macOS configuration. It covered
+**Withdrawn aggregate:** a full all-feature workspace condition run at source
+`1ca5e5ab` passed calibration and functional tests, but its original log contains
+451 LLVM mapping mismatches. It printed
 1,179 of 1,545 instrumented branch outcomes (76.31%), 8,969 of 10,025 lines
 (89.47%), and 11,279 of 13,214 regions (85.36%). Evidence and per-file mappings
-are in `target/coverage-workspace-1ca5e5a`. The run used an isolated worktree
-and verified stable source hashes. This expands execution to integration and
-workspace tests, with the same path exclusions and in-source unit-test inclusion
-noted above. Platform-disabled code and unexpanded/unused code are not a measured
-denominator. It is not an MC/DC independence measurement. The independent
+were originally in `target/coverage-workspace-1ca5e5a`; those artifacts expired,
+while the original diagnostic log is preserved by the audit. The run used an
+isolated worktree and verified stable source hashes. Its executed functional
+scope included integration and workspace tests, with the path exclusions above.
+Those printed totals are not qualified coverage; source stability alone did
+not validate compatible profile mappings. The [historical audit](historical-coverage-audit.md)
+withdraws this and both 2490631 aggregate claims. Functional tests and independently
+scoped evidence keep their own status. The independent
 [source inventory](decision-inventory.md) makes additional source obligations
 and macro blind spots visible.
