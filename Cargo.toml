@@ -43,3 +43,7 @@ required-features = ["crdt"]
 
 [profile.release]
 overflow-checks = true
+
+[[example]]
+name = "crdt_policy_migration"
+required-features = ["crdt"]

@@ -67,6 +67,13 @@ silently re-enroll a stale writer or support actor replacement in place.
 Physical backup and logical export preserve the old identities and do
 not perform this migration.
 
+The [policy/schema migration example](crdt-policy-migration.md) now supplies an
+executable reference workflow: reconcile and freeze the old pair, review visible
+state, seed a converted aggregate once into a fresh roster, reopen and verify
+both destinations, then change application routing. A stale-backup scenario uses
+the surviving peer's remembered events without resuming the retired writer.
+Cross-store staging and operational cutover remain application responsibilities.
+
 Changing a field's wire layout or resolution semantics requires an
 explicit record format marker and policy-generation decision shared by
 both peers. Mixed generations conflict before writing. A new generation
