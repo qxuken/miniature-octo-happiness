@@ -138,3 +138,11 @@ does not establish cross-host deployment correctness, routing atomicity,
 credential expiry/renewal scheduling, physical power-loss behavior, or a native
 Windows rotation gate. Source commit and follower durability acknowledgments
 remain separate throughout.
+
+A separate compiled mutation confirms the cleanup regression's sensitivity:
+moving guard construction back before the fallible directory creation compiles,
+then the existing-entry test fails at runtime because its sentinel was deleted.
+The unmodified control passes. This is test-harness mutation evidence, not
+compiler-measured core MC/DC. Original cutover proofs were not overwritten.
+Record: `target/credential-directory-mutation-a56083c/evidence.json`, SHA-256
+`71bdb45d092b1753b7d3019cd6b65099ae8c1a685dd5b0015f17fbe3532fc357`.

@@ -2,9 +2,11 @@
 
 This is a requirement-by-requirement acceptance review of
 [production-readiness.md](production-readiness.md), not a new qualification run.
-Reviewed source HEAD: `032dadf591b0a0ded4894898e8208283c50425fb`; the working
-copy also contains the explicitly source-bound qualification reports cited
-below. No engine changes or executions were made for this audit. An old passing
+Initial audit source HEAD: `032dadf591b0a0ded4894898e8208283c50425fb`; the
+subsequent requirement review includes qualification work through
+`a8e81222d37fc1b9fbfdc33ba8ed7451280a97df`, with each report retaining its named
+source/profile. These qualification tranches change tests/tools, not engine
+or application runtime. An old passing
 run supports its recorded source/profile only. Neither a source disposition nor
 an error-path test elsewhere closes an untested `E`, platform `cfg`, dependency,
 macro expansion or operating-system behavior by association.
@@ -47,23 +49,23 @@ an unoffered expansion, not a defect to fix speculatively.
 | F13 API/ABI/disk/wire version policy | [release contract](release-contract.md), header, runtime identity, fixtures | Owner: stabilize chosen Rust/API/error/feature limits and support window. Pre-1 historical fixtures are not a blanket compatibility promise. |
 | F14 Upgrade/downgrade and original preservation | [storage compatibility](storage-compatibility-21e5d26.md), snapshot wire fixtures, typed retained migration tests | Local: add any *promised* profile/version direction not represented. Core wire interoperability is not mixed-version CLI TLS/ALPN interoperability. |
 | F15 Packaged optimized Rust/C/C++/Odin consumers and relocation | [exact-21 packages](local-qualification-21e5d26.md), source isolation and symbol checks | Mac/Linux source-bound evidence now includes a [59-step independent-model trace](artifact-trace.md): optimized Mac Rust/C/Odin and Linux ext4 Rust/C, exact relocated artifacts/source payload. Native Windows, Linux Odin and broader feature/error traces remain separately scoped. |
-| F16 MSRV, loader, toolchain and support promises | Rust 1.99.1 qualification, pinned manifests/toolchain identities, private package instructions | The [declared Rust 1.99 minimum](local-baseline-ffdf506.md#declared-minimum-compiler) now passes full Mac checks at 1.99.0 with unchanged locks. Other target/compiler combinations and owner support window remain open. |
+| F16 MSRV, loader, toolchain and support promises | Rust 1.99.1 qualification, pinned manifests/toolchain identities, private package instructions | The declared Rust 1.99 minimum passes full [Mac](local-baseline-ffdf506.md#declared-minimum-compiler) and [Linux ext4](local-toolchains-a56083c.md) checks at 1.99.0 with unchanged locks. The latter predates the new cutover tests. Windows/other target combinations and owner support window remain open. |
 | F17 Worst-case heap/stack/disk/work/latency | Per-value/transaction/image/history caps, opt-in requested-core budget, [resource envelope](resource-envelope.md) | Local: combined/adversarial cases and encoder search work. No RSS/latency upper bound follows from the core budget or a requested worker-stack setting. |
-| F18 Decoder/DATA/encoder cache searches | Decoder indexing and recovery-scale example; the [serialization experiment](serialization-scale.md) now measures distinct/shared VALUE and eight-revision DATA searches, with complete maintenance oracles and RSS | Distinct breadth 128→512 gives approximately 16× comparisons; shared gives approximately 4×. DATA totals stay 516 for full histories. Local: separately reviewed VALUE-index experiment and 64-root history axis; owner sets acceptable latency/resource budgets. No optimization or overall speedup is inferred. |
+| F18 Decoder/DATA/encoder cache searches | Decoder indexing, recovery scale, [breadth](serialization-scale.md) and [64-root history](serialization-history-scale.md) experiments with full current/retained/maintenance oracles | Distinct VALUE search is quadratic. DATA comparisons rise from 516 at eight roots to 108,036 at 64 in the bounded history lifecycle; accumulated publication work is cubic in history length, each lookup linear. Local: separately reviewed charged-index experiment and compound near-cap profiles. Owner sets acceptable budgets; no optimization or speedup is inferred. |
 | F19 Fallible allocation, overflow, panic, unsafe and consumer builds | Memory/FFI ledgers, fault sweeps, Miri/Loom, abort subprocesses; [unsafe review](unsafe-review-2490631.md) | Scope remains source/ABI/config-specific. Candidate sanitizer work is separate; review downstream build flags and uninstrumented/native dependencies explicitly. |
 | F20 Filesystem/device/path/ACL threat model | Native adapters and operational docs; trusted config directories; Unix private keys; Windows external ACL provisioning | Platform/device: actual target filesystem/cache/ACL behavior. No race-proof hostile namespace or dishonest-flush guarantee. |
 | F21 License/security/dependencies/provenance | MIT OR Apache-2.0, notice inventory/std notices, [SECURITY](../SECURITY.md), package manifests | Owner accepts distribution terms, support response and exceptions. A [fresh immutable-database dependency review](local-baseline-ffdf506.md#locked-dependency-review) passed all twelve checkpoint locks plus the later progress fixture. Final immutable candidate bundle/attribution and owner approval remain; packaging eligibility is not production approval. |
 | T01 Typed field IDs, missing/null/default/unknown semantics | Schema tests, typed models, `schema_index_migration` fuzz; [typed ledger](decisions/typed-runtime.md) | Implemented scoped evidence; generated code and changed model versions retain separate obligations. |
 | T02 Atomic indexes, consistency and rebuild | `Read::check_indexes`, `Write::rebuild_indexes`, duplicate/missing/orphan tests | Implemented. Raw mutations require application ownership and explicit repair; do not silently repair on normal open. |
 | T03 Bounded migration, resumable progress and retained restore | Explicit-ID batches with same-transaction progress receipt, process-evolution tests | Local: qualify a concrete app rollout/rollback plan across mixed-version readers/writers when promoted; no automatic distributed schema coordinator. |
-| R01 Enrollment/restart/reseed/authentication | `weekend-replicate`, shared TLS pin/ALPN/admission controls, [runbook](replication-operations.md) | Implemented for configured private endpoints. Local: coordinated credential replacement/revocation drill with old-pin rejection and unchanged/reopened state. |
+| R01 Enrollment/restart/reseed/authentication | `weekend-replicate`, shared TLS admission, [runbook](replication-operations.md), [native credential cutover](snapshot-credential-cutover.md) | Mac/Linux stopped-endpoint leaf/pin changes now test reachable stale-pin/client rejection, interrupted startup, exact reopened receipt and retained bytes, and valid retry. Local capture remains separate from follower durability. Live reload, torn config writes and general revocation/distribution are outside this drill; Windows remains open. |
 | R02 Bounded transfer/retry and lost reply | Absolute 30-second socket budget, retained same export within retry, reopen/poll reconciliation | File verification/flush can exceed socket deadline. Owner sets transfer envelope; restarted sender captures a new export, not transparent old-export replay. |
 | R03 Cleanup, manifest growth and rotation | Offline cleanup/compact commands and tests | Implemented Mac/Linux; Windows explicit unsupported manifest compaction and fresh-directory reseed. Native Windows execution remains. |
 | R04 Progress and lag diagnostics | `status`/`poll` report receipt/revision/digest; live server owns manifest lease | The [private JSON progress helper](replica-progress.md) now separates inspected capture and fresh follower receipt, exact/newer/behind/digest-conflict relations, unknown failures and historical prior state. Native Mac/Linux tests include lost response, reopen and refusal. No commit timestamp or time-lag guarantee exists; continuous monitoring/Windows remain unqualified. |
-| R05 Mixed-version and backup recovery | Core wire compatibility and verified follower restore/reseed cases | Local: supported CLI TLS/config upgrade and credential rotation cases. No automatic failover or promotion authority. |
+| R05 Mixed-version and backup recovery | Core wire compatibility, verified follower restore/reseed and native credential cutover | Local: supported mixed-version CLI/TLS/config upgrade directions. Credential replacement does not qualify binary/protocol upgrade. No automatic failover or promotion authority. |
 | C01 Lawful CRDT records and reserved row protection | `Record` laws documented, encode/decode preservation, actor checks; raw API bypass explicitly documented | Application must enforce exclusive reserved-row writes; do not label runtime checks a proof of arbitrary app merge laws. Local: reusable law-test helper for app records would improve adoption without adding consensus. |
 | C02 Causality/replay/resolution/bounds | Register event oracle, two-peer schedules, bounded frame/set/counter containers, repeated-sync no commits | Implemented finite models. Larger causal histories, forged-state shapes excluded from a harness and other policies need their own tests; no expansion by association. |
-| C03 Evolution, actor replacement and stale backup | [policy migration](crdt-policy-migration.md) has fresh identities, staging interruption and retained-state tests | Routing/quiescence/reconciliation are application responsibilities. Local: operational cutover rehearsal with stale old binary/credential attempts, not a silent in-place actor reset. |
+| C03 Evolution, actor replacement and stale backup | [policy migration](crdt-policy-migration.md), plus [persistent credential cutover](study-credential-cutover.md) with offline edits, stale credential rejection and full current/retained convergence | Fixed-roster credential replacement is qualified on Mac/Linux, including interruption after an acknowledged local commit and no extra repeat-sync commit. Actor/roster migration and stale old binary routing remain distinct application qualification; credential rotation does not reset actors. |
 | C04 Membership/gossip/cross-record constraints | No offered dynamic membership/discovery/atomic distributed constraints | Outside profile. Do not introduce coordinator/CRDT abstractions solely to tick a roadmap row. |
 | W01 Coordinator auth, authorization, admission/backpressure | Loopback/optional shared secret, bounded line/frame, serial handling, native lease | Local-only trust boundary explicit. Remote TLS and per-principal authorization are missing only if owner promotes a remote coordinator. Public unauthenticated service is not supported. |
 | W02 Preconditions, durable receipts, restart/lost reply | Atomic record+receipt; [capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) | Finite 1,024 receipt limit is real: no eviction/expiry. Owner decides bounded-session acceptability; if continuous service is required, design safe epoch/archive/reconciliation before adding reclamation. |
@@ -76,7 +78,8 @@ with 316 macro blind spots. This is a classification denominator, not 2,561
 proved MC/DC decisions. See [inventory](decision-inventory.md),
 [ledger index](decisions/README.md), [coverage correction](historical-coverage-audit.md)
 and [per-executable coverage](coverage-executables.md). The compiler configurations
-actually probed reject MC/DC instrumentation. Condition outcomes, manual pairs,
+actually probed, including [dated 2026-11-12](local-toolchains-a56083c.md), reject
+MC/DC instrumentation. Condition outcomes, manual pairs,
 mutations and compiler line/branch data remain distinct evidence.
 
 | Roadmap module requirement | Existing source/test ledger | Acceptance still open |
@@ -91,7 +94,7 @@ mutations and compiler line/branch data remain distinct evidence.
 | FFI/header/public exports | FFI ledger, ABI manifest checks, valid-handle fuzz, native consumers | Caller UB stays outside acceptance; exact packaged differential traces and unsupported-target paths need their own evidence. |
 | Schema/typed runtime | Schema/typed ledgers; six additional public guards and mutations | Same-instantiation poisoned-write pair is qualified; do not generalize its counts to other monomorphizations or schemas. |
 | Derives | Pure expansion seam, negative compilation, renamed consumers, token fuzz; [four direct expansion pairs](macro-expansion-guards-032dadf.md) now have same-process outcomes and mutation sensitivity | Earlier four zero unit-view outcomes already had downstream diagnostic tests. Direct attribution is now qualified; generated code, `?`, compiler-host execution and other explicit blind spots keep their own scope. |
-| Snapshot replication | Wire/follower and CLI ledgers; native TLS cases | Wire checks, local durability barriers and remote acknowledgement are distinct. CLI upgrade/rotation and deployment admission are not closed by decoder tests. |
+| Snapshot replication | Wire/follower and CLI ledgers; native TLS and stopped-endpoint cutover cases | Wire checks, local durability barriers and remote acknowledgement are distinct. CLI binary upgrade and deployment admission are not closed by decoder or credential tests. |
 | CRDT core/containers | CRDT ledger and register causality/event oracle | Arbitrary application merge laws and roster changes are not proved by shipped-container convergence. |
 | Apps/examples/tools | Distributed/snapshot ledgers, package consumers, independent tool controls | Tool decisions are not all part of the core source denominator. Parent-only coverage deliberately excludes spawned-app coverage; keep it separate. |
 
@@ -139,15 +142,15 @@ harness-level scope reference.
    establishes quadratic VALUE lookup work and complete current/retained oracles.
    A candidate must preserve emission order and exact fixed-identity simulator
    bytes, qualify rebuilding from old caches, and repeat allocation/budget/crash
-   tests. Do not infer a required DATA index from only 516 comparisons at eight
-   revisions; measure the 64-root history axis separately. Owner budgets still
+   tests. The 64-root DATA measurement now exposes its separate history cost;
+   include that axis when comparing candidate designs. Owner budgets still
    determine acceptable service latency and RSS.
-2. **Qualify coordinated credential change with real persistent peers.** Stop
-   endpoints, replace configured leaves/pins in trusted private directories,
-   restart with matching identities, and test old/one-sided/wrong pins plus
-   interrupted operator cutover. Reopen data and compare exact revisions,
-   retained state and receipts. Apply separately to snapshot and study ALPN
-   profiles. No live reload, CA service or topology change is implied.
+2. **Extend promised mixed-version and delivered-API behavior.** Credential
+   cutover is now exercised independently for snapshot and study profiles.
+   Supported CLI/TLS/config upgrades, broader whole-database-validation traces,
+   and native uncertain-I/O reconciliation through delivered language surfaces
+   retain separate obligations. Keep binary, credential and actor-generation
+   transitions explicit rather than crediting one drill to all three.
 3. **Consolidate one final candidate bundle.** Existing results retain their
    source, feature, compiler, artifact and filesystem scope. Final package,
    source-consumer, sanitizer, mutation/corpus and workload evidence must be
@@ -173,7 +176,8 @@ in their documented finite scopes. The progress helper reports
 observation timestamps rather than inventing commit-time lag. The Mac/Linux
 1,800-second lifecycle runs extend wall-clock evidence for the four-record
 workload; they do not establish larger-cardinality or month-long uptime.
-Minimum-compiler and dependency snapshots are qualified separately. Credential
-cutover, candidate/platform/device qualification, further feasible decision
+Minimum-compiler and dependency snapshots are qualified separately. Stopped
+credential cutovers now pass their named Mac/Linux profiles; mixed-version
+binary upgrades, candidate/platform/device qualification, further feasible decision
 pairs and declared service/support budgets remain open. This audit is updated
 with evidence; it is not a replacement for those acceptance gates.

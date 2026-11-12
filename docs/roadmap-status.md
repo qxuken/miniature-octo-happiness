@@ -8,6 +8,7 @@ decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
+| Credential cutover | Stopped-endpoint [snapshot](snapshot-credential-cutover.md) and [StudyProgress](study-credential-cutover.md) leaf/pin replacement pass native Mac/Linux debug/release. Stale identities reject, interrupted offline state and retained roots survive, and successful retry/repeat sync preserve acknowledgment boundaries. This is fixed-roster operator cutover, not live reload, actor migration or binary upgrade. |
 | Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The [source audits](decisions/README.md) classify 2,561 explicit records across 51 files, including shared TLS separately for each binary profile. There are 316 macro blind spots, plus supplemental FFI/derive mappings. Signed alternate leaves are rejected by both exact-pin checks. Directed [handshake pairs](tls-handshake-decisions.md) now establish unfinished-handshake/pending-write independence at both endpoints; four guard omissions are detected. Delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
 | Fuzzing | All 22 targets passed the [exact-21e5d26 extended ASan campaign](fuzz-qualification-21e5d26.md), totaling 1,431,321 actual executions under per-target 100,000-run/120-second bounds, including 31,034 register-causality executions. Independent stable replay passed 25 tests; source, both locks and 242 seeds were verified. This supersedes the limited post-fix register count evidence for this checkpoint. Longer campaigns and broader oracles remain. |
 | Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Verification stage/structure-start offsets implemented and fault-tested. |
@@ -22,10 +23,10 @@ decision tests and first four fuzz targets.
 | Typed Rust | Models/migrations/indexes exist. Verification/rebuild implemented and fault-tested. Explicit bounded migration with atomic progress tested. Mixed-version qualification remains. |
 | Snapshot replication | Verified snapshots and separate acknowledgment exist. Manifest bounds, cleanup, compaction and explicit reseed are tested. Offline CLI cleanup and macOS/Linux manifest compaction now preserve the exact receipt and retained graph; Windows compaction rejects before opening files and uses explicit fresh-directory reseeding. The 14 focused app tests passed macOS debug/release and Linux debug, with macOS strict Clippy; local Windows cross-compilation was blocked by missing SDK headers. The private [weekend-replicate CLI](replication-operations.md#authenticated-native-cli) adds exact-leaf mTLS, distinct ALPN, bounded socket deadlines and same-export retry. Exact tree `a0aad9f9ff95a2998ca623b654c452ae02658b6b` passed macOS and Linux/ext4 nine app plus one CLI test in debug/release, macOS strict Clippy/full Rust/C/Odin checks, and authenticated Mac→Linux ship/restart/poll: follower revision 13 retained root 1@11 and exact digest survived primary advancement to 14. That historical qualification predates subsequent audit tests and maintenance commands. Optional Linux Clippy was unavailable. Separate native macOS [dcd2402 ↔ 315068f core wire-v1 qualification](snapshot-compatibility.md) passed both directions using original locked dependencies: durable 4/retained 2, independent export digest, reopen/retry, and mutated v255 **poll header** rejection with follower files unchanged. This does not qualify upload faults or mixed-version CLI TLS/trust rotation. Frozen `65d142e` also passed the native macOS [verified follower backup/restore and fresh-stream reseed](follower-backup-restore.md): current 4/retained 2, exact former/new receipts, wrong-enrollment status and authenticated-upload rejection, and all original files unchanged. This requires maintained quiescence and does not implement automatic fencing/failover. Broader deployment, checkpoint/OS combinations and physical power-loss qualification remain. |
 | CRDT peers | Fixed two-actor TLS demo exists. Register admission rejects unwitnessed retirement and incompatible cyclic histories, with bounded causal-event/frame oracles. The [explicit migration example](crdt-policy-migration.md) qualifies reviewed schema/policy conversion, fresh identities, stale-backup recovery and repeat sync. Native macOS/Linux process tests now verify both old writer leases, six staging interruptions, independent destination reopening and complete old current/retained preservation. Serial/default debug/release pass after correcting a child-output fixture bug. Raw reserved-row ownership, distributed quiescence/routing, operational cutover and broader policy/deployment qualification remain application gates. |
-| Performance | [Serialization scaling](serialization-scale.md) now records paired clean/instrumented Mac/Linux state and maintenance oracles, actual VALUE/DATA comparisons and whole-lifecycle sampled RSS. VALUE identity search is quadratic in distinct nodes; DATA costs remain small in the eight-history profile. No optimization or general latency bound is claimed. A [matched durable-history SQLite baseline](sqlite-baseline.md) passed full current/retained byte oracles across 192 data commits, 12 separate pins and 96 warm-cache reopens per engine on macOS APFS, including verified backup/restore/compaction. Three finite small-state rounds are a baseline, not representative scale, service budgets, stack/RSS bounds or other-platform performance qualification. |
+| Performance | [Serialization scaling](serialization-scale.md) now records paired clean/instrumented Mac/Linux state and maintenance oracles, actual VALUE/DATA comparisons and whole-lifecycle sampled RSS. VALUE identity search is quadratic in distinct nodes; the [64-root history axis](serialization-history-scale.md) extends DATA measurements to 108,036 comparisons across the lifecycle. No optimization or general latency bound is claimed. A [matched durable-history SQLite baseline](sqlite-baseline.md) passed full current/retained byte oracles across 192 data commits, 12 separate pins and 96 warm-cache reopens per engine on macOS APFS, including verified backup/restore/compaction. Three finite small-state rounds are a baseline, not representative scale, service budgets, stack/RSS bounds or other-platform performance qualification. |
 | Authenticated peer workload | Frozen ed8f9f9 passed [30 real CLI offline/sync rounds](study-peer-soak.md) between macOS/APFS and Docker Linux/ext4 with exact pins. All six paired post-acknowledgment SIGKILL restarts preserved exact local revisions and displayed values; repeated covering exchanges added no commits after convergence. The final Python-O launcher and independent review passed. This is a bounded accelerated scenario, not a wall-clock month, long-duration soak, new-candidate or native Windows qualification. |
 | Coordinator | Conditional writes, durable receipts and configured loopback authentication tested. The [native capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) fills all 1,024 receipts, retries lost replies and restarts, rejects overflow/changed payloads, verifies backup/restore and Mac/Linux compaction, and preserves original acknowledgment revisions. Native Windows and broader deployment qualification remain. |
-| Release operations | [Minimum-compiler/dependency review](local-baseline-ffdf506.md) passed full Mac checks at declared Rust 1.99.0 and all twelve checkpoint locks plus the new progress fixture against 1,490 frozen advisories. Quota provisioning stopped before engine execution on the available kernel. Support/security policy and provenance recorded; capped cross-OS month and restore passed. [1,800-second Mac/Linux soaks](soak.md#extended-macos-and-linux-controls-at-7a9e661) passed the tiny-record lifecycle workload; longer deployment soak, latency guarantees and final bundle remain. |
+| Release operations | [Minimum-compiler/dependency review](local-baseline-ffdf506.md) passed full Mac checks at declared Rust 1.99.0 and all twelve checkpoint locks plus the new progress fixture against 1,490 frozen advisories. [Linux ext4 minimum-compiler checks](local-toolchains-a56083c.md) also pass at 1.99.0. Quota provisioning stopped before engine execution on the available kernel. Support/security policy and provenance recorded; capped cross-OS month and restore passed. [1,800-second Mac/Linux soaks](soak.md#extended-macos-and-linux-controls-at-7a9e661) passed the tiny-record lifecycle workload; longer deployment soak, latency guarantees and final bundle remain. |
 
 The full acceptance inventory is in [production-readiness.md](production-readiness.md).
 Rows stay open until evidence is recorded. Physical power-loss qualification
@@ -252,7 +253,7 @@ byte through reopen, backup, restore and compaction. Its required new VALUE
 regions exceed physical headroom independently of the observed error. The strict
 launcher validates the full phase sequence; early limits or omitted maintenance
 cannot qualify. Whole-process sampled RSS and clean phase timings remain finite
-observations; index design and 64-root scaling are separate work.
+observations; index design remains separate; the later history-axis report below extends to 64 roots.
 
 The [shared artifact trace](artifact-trace.md) now exercises optimized source
 Rust, C and Odin consumers on Mac, and Rust/C on a private Linux ext4 volume.
@@ -286,8 +287,8 @@ The [baseline review](local-baseline-ffdf506.md) separately verifies the declare
 minimum compiler and immutable advisory scan. Actual EDQUOT remains untested:
 the attempted quota fixture could not mount before any engine operation, and
 the available kernel lacks the relevant quota formats. Native Windows, device
-failure, credential cutover, further feasible decision pairs, final candidate
-consolidation and owner service/support budgets remain open. All changes and
+failure, further feasible decision pairs, final candidate consolidation and owner
+service/support budgets remain open; stopped credential cutover is recorded below. All changes and
 proof are local; repository and crates remain private, with no push/publication.
 
 A compact local review index at
@@ -296,3 +297,47 @@ selected evidence indices and three independent reviews. Original artifacts
 retain their source/platform scopes; this is not a final release bundle.
 Completed Docker scratch containers/volumes were removed only after checking
 the exported evidence. Host artifacts and all three tool/runtime images remain.
+
+## Stopped credential cutover and maximum retained-history axis
+
+New [snapshot](snapshot-credential-cutover.md) and
+[StudyProgress](study-credential-cutover.md) process tests pass Mac/Linux debug,
+release and strict targeted Clippy from frozen a56083c plus their separate test
+overlays. Reachable stale credential/pin attempts reject, an interrupted cutover
+preserves acknowledged state, and coordinated fresh credentials succeed. Snapshot
+local capture 4 remains distinct from follower receipt 3 until a valid upload;
+full retained rows, export digests and unchanged poll/reopen manifests are checked.
+Study peers preserve offline edits and both retained records, converge complete
+causal state, and add no commit during repeat sync. These drills do not qualify
+torn configuration writes, live reload, actor migration or binary upgrades.
+
+The [history axis](serialization-history-scale.md) passes 32 paired processes
+across Mac/Linux at 1/8/32/64 roots. DATA comparisons reach 108,036 at 64 roots,
+matching independent arithmetic; complete current/retained bytes survive reopen,
+backup, restore and compact. No production optimization follows from these small
+finite timings. Six controls include cleanup failure and requested compiler
+selection; review fixes were rerun under frozen v3 sources.
+
+[Linux Rust 1.99.0](local-toolchains-a56083c.md) now passes the complete existing
+Rust/C checker on ext4, complementing the Mac minimum check. It covers exact
+a56083c before the new test overlays. The dated 2026-11-12 compiler still rejects
+MC/DC instrumentation. The [artifact trace selector correction](artifact-trace.md#compiler-selector-correction-and-fresh-replay)
+also passes nine controls and fresh optimized Mac Rust/C/Odin and Linux Rust/C
+replays, all five transcripts unchanged. Prior proofs retain their original
+compiler/source scope. All steps remain local/private; native Windows, device
+and quota-capable execution, broader mixed-version/decision cases, final
+candidate consolidation and owner service/support choices remain open.
+
+Root integration review at a8e8122 additionally passes workspace formatting,
+strict all-feature/all-target Clippy and all-feature debug workspace tests on
+Mac Rust 1.99.1. The 57 successful summaries report 422 tests, including doctests;
+these are not a coverage denominator. All 165 selected tracked code/Cargo inputs
+stay unchanged. The current combined debug run complements the separate native
+debug/release cutover qualifications; it is not a new packaged release matrix.
+Proof: `target/roadmap-cutover-review-a8e8122/{evidence.json,summary.json}`.
+
+The compact local index `target/local-assurance-review-a8e8122/index.json`
+preserves eighteen selected proof/review records and checks all nineteen
+package manifests remain private. It retains the distinct source/compiler
+scopes; this is not the final release bundle. Runtime production sources remain
+unchanged from 21e5d26, and no remote or registry action occurred.

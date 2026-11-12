@@ -5111,5 +5111,49 @@ Finally, the [minimum/compiler/dependency review](docs/local-baseline-ffdf506.md
 passes complete Mac Rust/C/Odin checks at Rust 1.99.0 and clean advisory scans
 against an immutable 1,490-advisory snapshot. Actual quota tests could not start
 on the available kernel and remain unqualified. Native Windows, physical device
-failure, credential rotation/cutover, final candidate consolidation, remaining
-feasible decision pairs and declared service/support budgets remain open.
+failure, final candidate consolidation, remaining feasible decision pairs and
+declared service/support budgets remain open; credential cutover follows below.
+
+### Credential cutover, retained-history work and compiler qualification
+
+The existing fixed-pin transport supports an operator-controlled stopped-endpoint
+credential change. New native process tests qualify the workflow separately for
+[snapshot replication](docs/snapshot-credential-cutover.md) and
+[StudyProgress peers](docs/study-credential-cutover.md) on Mac/Linux. They change
+no application runtime, enrollment, actor roster, wire format or publication
+barrier. Configuration replacement occurs while endpoints are stopped; there is
+no live reload, transactional credential-file update or automatic revocation.
+
+The snapshot case verifies complete current/retained rows and independently
+hashes exports. Source revision 4 can be locally committed/captured while the
+follower still durably reports revision 3. Reachable old-leaf/wrong-pin failures,
+including a rejected upload, never produce a follower receipt or change its
+selected image/manifest. Killing the newly configured endpoint before exchange
+preserves revision 3; a valid retry installs 4. Repeated/restarted polling leaves
+receipt, image and manifest unchanged. Review also fixed a test cleanup guard
+that could acquire ownership before directory creation succeeded; a sentinel
+regression proves failed admission preserves existing contents.
+
+The study case preserves acknowledged offline edits across mixed old/new
+credentials and a killed process. Coordinated new credentials converge to
+53 minutes, goal 80, limit 20 and lessons `[1,2,3,4]`; complete causal records and
+both retained historical records agree with their oracles. Stale configuration
+is rejected by live fresh endpoints, and repeat covering exchanges add no
+commits. This combined configuration test is not independent MC/DC evidence for
+each TLS condition or a qualification of actor-generation migration.
+
+The [history-axis experiment](docs/serialization-history-scale.md) now measures
+1/8/32/64 retained roots with complete state and maintenance checks on Mac/Linux.
+DATA comparisons are 12/516/16,132/108,036. Accumulated work across growing
+history is cubic; each lookup remains linear. Distinct VALUE searches retain
+their separate quadratic cost. No index or claimed speedup was introduced.
+Review fixed owned-volume cleanup and preserved Mise's Rustup selector in both
+qualification launchers. Fresh history and packaged trace runs bind those fixes.
+
+The [Linux minimum-compiler check](docs/local-toolchains-a56083c.md) passes the
+full existing Rust/C checker at Rust 1.99.0 against exact a56083c source, with
+unchanged locks and explicit ext4 execution. It predates these new test overlays.
+A newer pinned nightly, 2026-11-12, still rejects MC/DC instrumentation before
+fixture compilation; no coverage percentage follows from that probe. Native
+Windows/device/quota evidence, remaining feasible decision pairs, mixed-version
+binary upgrades, final candidate consolidation and owner budgets remain open.

@@ -171,3 +171,8 @@ format fixtures. DATA indexing needs a separate rationale or history-scaling
 measurement; its low count here is not evidence that it must change. No optimizer,
 new public production API, durability barrier or file-format change is included
 in this experiment.
+
+The later [history-axis experiment](serialization-history-scale.md) supplies
+that separate DATA measurement through 64 retained roots, including complete
+current/retained and maintenance oracles. Its 108,036 lifecycle comparisons
+at 64 roots expose history cost; no production index or speedup is inferred.

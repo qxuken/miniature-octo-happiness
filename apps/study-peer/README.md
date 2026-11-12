@@ -61,3 +61,8 @@ creates a 0700 directory and 0600 key. Windows keygen fails closed: provision
 cert.der/key.der externally with a private ACL. The CLI does not verify Windows
 ACLs or provide race-proof hostile-directory traversal. Credentials are validated
 before database open/listen. See [shared TLS evidence](../../docs/shared-app-tls.md).
+
+The [persistent credential cutover guide](../../docs/study-credential-cutover.md)
+tests stopped-endpoint leaf/pin replacement on Mac/Linux, preserved offline
+commits and retained roots, stale-credential rejection, and full-record
+convergence without extra repeat-sync commits. Actor identities stay fixed.

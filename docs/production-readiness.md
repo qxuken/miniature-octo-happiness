@@ -5,6 +5,10 @@ distributed features and remaining gates. Cargo packages stay private.
 The [acceptance audit](production-acceptance-audit.md) maps individual requirements
 to source-bound evidence and separates remaining local work from platform,
 device and owner decisions.
+Recent local evidence includes [stopped credential cutovers](snapshot-credential-cutover.md),
+[persistent CRDT peers](study-credential-cutover.md), the
+[64-root serialization axis](serialization-history-scale.md) and
+[Linux minimum-compiler checks](local-toolchains-a56083c.md).
 
 The release scope includes the local embedded store, typed Rust, C/Odin,
 passive snapshot replication, fixed two-actor CRDT peers and the coordinator,

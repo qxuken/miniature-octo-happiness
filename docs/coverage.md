@@ -55,6 +55,10 @@ has a zero denominator under condition instrumentation. Rust's project
 notes record the previous implementation's removal and the ongoing
 reimplementation goal. [Rust MC/DC project goal](https://goals.rust-lang.org/2026/mcdc-coverage-support.html)
 
+The later [dated 2026-11-12 capability probe](local-toolchains-a56083c.md#dated-nightly-still-rejects-mcdc-instrumentation)
+also rejects the actual MC/DC flag before fixture compilation. Its unsupported
+result is separate from measured branch/condition data.
+
 Reports exclude paths under `tests`, `examples`, `tools`, the Rust
 sysroot, and Cargo registry sources. Unit tests located inside `src`
 remain in the measured files. Generic instantiations, proc-macro

@@ -132,6 +132,9 @@ Complete transport authentication before passing a channel to
 verify the configured peer certificate or trusted identity and bind that
 peer to the expected Enrollment in application configuration. The embedding
 application owns certificate rotation, revocation and endpoint configuration.
+The [stopped-endpoint cutover guide](snapshot-credential-cutover.md) gives the
+tested native Mac/Linux leaf/pin replacement procedure, including partial
+configuration rejection, interruption, retained history and receipt checks.
 Enrollment IDs and snapshot digests support consistency checks inside the
 protocol. Authorization comes from the authenticated transport and that
 configuration binding.
