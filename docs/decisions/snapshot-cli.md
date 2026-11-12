@@ -1,8 +1,8 @@
 # Authenticated snapshot CLI source decision audit
 
 The application initially audited at `315068f` had 115 explicit production AST
-records. Offline maintenance adds 10 records: the current **125 records** comprise
-main 1, native 80 and shared TLS 44 under the snapshot target. The original audit added four tests; the maintenance
+records. Offline maintenance adds 10 records: the current **127 records** comprise
+main 1, native 80 and shared TLS 46 under the snapshot target. The original audit added four tests; the maintenance
 tranche extends the native CLI process fixture. Exact baseline/current hashes and every source
 span are below. The Windows lease-safe fixture correction at `b3761af` is
 included in final test evidence; manifest bytes are inspected only after closing
@@ -163,7 +163,7 @@ in the operations runbook. No new runtime defect was reproduced by this audit.
 | `apps/weekend-replicate/src/native.rs` | `acf91c9a1cd1a72c2822c1c0c52435158c08dc23209ae3f6912c20e24e4dc56e` | `21a20d764825b5eaa081838c9d12af67d63746b72a93e8beaebb999ab2ac666b` |
 | `apps/weekend-replicate/src/tls.rs` | `97e38a825d7c1046cf64a83ffd3c3ef502d73204b22b9e63cb38927e7d116852` | `4235b303681b2111f4397fbe1d36de813009fd75bc3a078b03e4ffa0fbad6215` |
 
-Disposition totals: C=9, D=79, E=24, I=2, P=11.
+Disposition totals: C=9, D=81, E=20, I=2, P=15.
 
 Spans are one-based line:column; byte offsets are end-exclusive.
 
@@ -183,36 +183,38 @@ Spans are one-based line:column; byte offsets are end-exclusive.
 | D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:78:78–78:79 | 2703..2704 | try_propagation | new | S6 |
 | D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:81:79–81:80 | 2882..2883 | try_propagation | new | S6 |
 | D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:96:67–96:68 | 3375..3376 | try_propagation | connect | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:104:53–104:54 | 3644..3645 | try_propagation | client_session | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:105:71–105:72 | 3717..3718 | try_propagation | client_session | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:106:37–106:38 | 3756..3757 | try_propagation | client_session | S6 |
-| E | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:109:9–109:11 | 3933..3935 | if | client_session | S6 |
-| C | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:109:12–109:53 | 3936..3977 | short_circuit_or | client_session | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:112:48–112:49 | 4096..4097 | try_propagation | client_session | S6 |
-| E | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:113:9–113:11 | 4107..4109 | if | client_session | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:120:38–120:39 | 4361..4362 | try_propagation | accept | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:125:65–125:66 | 4574..4575 | try_propagation | server_session | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:126:37–126:38 | 4613..4614 | try_propagation | server_session | S6 |
-| E | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:129:9–129:11 | 4790..4792 | if | server_session | S6 |
-| C | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:129:12–129:53 | 4793..4834 | short_circuit_or | server_session | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:132:48–132:49 | 4953..4954 | try_propagation | server_session | S6 |
-| E | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:133:9–133:11 | 4964..4966 | if | server_session | S6 |
-| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:140:9–140:11 | 5194..5196 | if | check_pin | S6 |
-| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:163:9–163:11 | 5774..5776 | if | remaining | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:173:59–173:60 | 6060..6061 | try_propagation | read | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:173:62–173:63 | 6063..6064 | try_propagation | read | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:180:60–180:61 | 6255..6256 | try_propagation | write | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:180:63–180:64 | 6258..6259 | try_propagation | write | S6 |
-| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:195:5–195:7 | 6725..6727 | if | bounded | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:195:27–195:28 | 6747..6748 | try_propagation | bounded | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:198:36–198:37 | 6866..6867 | try_propagation | bounded | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:199:35–199:36 | 6903..6904 | try_propagation | bounded | S6 |
-| I | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:200:5–200:7 | 6910..6912 | if | bounded | S6 |
-| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:206:9–206:11 | 7083..7085 | if | bounded | S6 |
-| C | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:206:12–206:65 | 7086..7139 | short_circuit_and | bounded | S6 |
-| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:213:56–213:57 | 7367..7368 | try_propagation | bounded | S6 |
-| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:214:5–214:7 | 7374..7376 | if | bounded | S6 |
-| C | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:214:8–214:47 | 7377..7416 | short_circuit_or | bounded | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:104:53–104:54 | 3644..3645 | try_propagation | client_session | S7 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:105:71–105:72 | 3717..3718 | try_propagation | client_session | S7 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:106:53–106:54 | 3772..3773 | try_propagation | client_session | S7 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:115:32–115:33 | 3997..3998 | try_propagation | client_handshake | S7 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:118:9–118:11 | 4174..4176 | if | client_handshake | S7 |
+| C | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:118:12–118:53 | 4177..4218 | short_circuit_or | client_handshake | S7 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:121:48–121:49 | 4337..4338 | try_propagation | client_handshake | S7 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:122:9–122:11 | 4348..4350 | if | client_handshake | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:129:38–129:39 | 4575..4576 | try_propagation | accept | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:134:65–134:66 | 4788..4789 | try_propagation | server_session | S7 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:135:53–135:54 | 4843..4844 | try_propagation | server_session | S7 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:144:32–144:33 | 5068..5069 | try_propagation | server_handshake | S7 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:147:9–147:11 | 5245..5247 | if | server_handshake | S7 |
+| C | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:147:12–147:53 | 5248..5289 | short_circuit_or | server_handshake | S7 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:150:48–150:49 | 5408..5409 | try_propagation | server_handshake | S7 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:151:9–151:11 | 5419..5421 | if | server_handshake | S6 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:158:9–158:11 | 5622..5624 | if | check_pin | S6 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:181:9–181:11 | 6202..6204 | if | remaining | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:191:59–191:60 | 6488..6489 | try_propagation | read | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:191:62–191:63 | 6491..6492 | try_propagation | read | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:198:60–198:61 | 6683..6684 | try_propagation | write | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:198:63–198:64 | 6686..6687 | try_propagation | write | S6 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:213:5–213:7 | 7153..7155 | if | bounded | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:213:27–213:28 | 7175..7176 | try_propagation | bounded | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:216:36–216:37 | 7294..7295 | try_propagation | bounded | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:217:35–217:36 | 7331..7332 | try_propagation | bounded | S6 |
+| I | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:218:5–218:7 | 7338..7340 | if | bounded | S6 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:224:9–224:11 | 7511..7513 | if | bounded | S6 |
+| C | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:224:12–224:65 | 7514..7567 | short_circuit_and | bounded | S6 |
+| D | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:231:56–231:57 | 7795..7796 | try_propagation | bounded | S6 |
+| P | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:232:5–232:7 | 7802..7804 | if | bounded | S6 |
+| C | weekend-replicate::weekend-replicate | apps/support/pinned_tls.rs:232:8–232:47 | 7805..7844 | short_circuit_or | bounded | S6 |
 | E | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/main.rs:5:5–5:10 | 180..185 | match | main | S1 |
 | D | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:33:20–33:21 | 1593..1594 | try_propagation | identity | S1 |
 | P | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:34:5–34:7 | 1600..1602 | if | identity | S1 |
@@ -328,7 +330,7 @@ Windows SDK headers; it is not a Rust compilation or runtime pass. Logs:
 `/tmp/maintenance-{debug,release,clippy,linux,windows}.log`. These results cover
 new wrapper behavior, not a new crash/power-loss campaign.
 
-Current shared source SHA-256: `apps/support/pinned_tls.rs` = `ebb0d4e90c1cfbf3e7bac61e9e3177f84b5ae778ab0807558861821d6ccb94b8`.
+Current shared source SHA-256: `apps/support/pinned_tls.rs` = `dcf734724390f67032e97525b222e8be983b67f58beeddf6fe9de05765afa942`.
 
 ## S6: shared TLS binding and current qualification
 
@@ -336,8 +338,8 @@ The fixed profile compiles `apps/support/pinned_tls.rs` in this binary. The
 44 shared records are inventoried separately for each target, not collapsed into
 one coverage denominator. See [shared TLS evidence](../shared-app-tls.md) for
 real partial-Finished, exact signed-leaf pin, required ALPN, file caps/FIFO/modes,
-and absolute deadline controls. Pending-write-only and client partial-flight
-independence remain open; cryptographic/OS errors remain delegated. Existing
+and absolute deadline controls. This historical tranche left pending-write-only and client partial-flight
+independence open; the new decision pairs below close them; cryptographic/OS errors remain delegated. Existing
 manual dispositions are rebound to current spans; this is not measured MC/DC.
 
 Mac debug/release and strict Clippy, and isolated aarch64 Docker Linux
@@ -355,3 +357,16 @@ Current test bindings (shared module tests are bound by its full-file hash):
 | `apps/weekend-replicate/src/native/pin_tests.rs` | `713487422c3e0343a25730eb8681b75d37fda6d2031e9d17921791b732ed35bc` |
 | `apps/weekend-replicate/tests/cli.rs` | `4a975a9d859ff6beafbbdeb7c59eea396fcbc6319a0ac503dbd0acfa08d178d9` |
 | `apps/weekend-replicate/tests/audit_cli.rs` | `48e2b3cb7a742a7dfc4b24a7e51499cb3a4ae6e74ee050127a99a076089ee3bd` |
+
+## S7: completed and drained handshake admission
+
+[Directed H/W pairs](../tls-handshake-decisions.md) independently vary the real
+rustls handshaking and pending-output predicates at both endpoints. Exact pin
+and ALPN remain valid; all failing cases reach the production guard after
+complete_io returns Ok. The overlapping OR syntax is C; each guard is P.
+Private session-to-handshake propagation is D: the tests do not inject every
+OS/dependency failure at each caller. Two added propagation records per target
+bring shared TLS to 46 records, snapshot to 127 and distributed apps to 224.
+Mac and isolated Docker Linux debug/release each passed 35 focused tests, plus
+strict Clippy. No native Windows or whole-application MC/DC claim is added.
+Current source-set SHA-256: `4c204b338de0482b6264325666ac7d987b39cdf277ac0106e4b7cc9fcaae0e5a`.

@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parent.parent
 CASES = []
 
 
-def add(name, file, old, new, test, target='--lib', occurrence=1, matches=None):
-    CASES.append(dict(name=name, file=file, old=old, new=new, test=test, target=target, occurrence=occurrence, matches=matches))
+def add(name, file, old, new, test, target='--lib', occurrence=1, matches=None, package='weekend-db'):
+    CASES.append(dict(name=name, file=file, old=old, new=new, test=test, target=target, occurrence=occurrence, matches=matches, package=package))
 
 
 for field, condition in [
@@ -75,6 +75,20 @@ add('tree-leaf-key', 'src/tree.rs', '.find(|(k, _)| k.as_slice() == key)',
     '.find(|_| true)', 'tree::tests::map_capacity')
 
 
+# Both matches lie in production handshake admission, before the first test
+# module. Each real-rustls test exercises both endpoints; mutate one operand at
+# one endpoint only. The existing baseline rejects empty test selections.
+for endpoint, occurrence in [('client', 1), ('server', 2)]:
+    for operand, replacement in [
+        ('handshaking', 'if tls.wants_write() {'),
+        ('pending-write', 'if tls.is_handshaking() {'),
+    ]:
+        add('tls-' + endpoint + '-' + operand, 'apps/support/pinned_tls.rs',
+            'if tls.is_handshaking() || tls.wants_write() {', replacement,
+            'handshake_decision_tests', '--bins', occurrence=occurrence,
+            matches=2, package='study-peer')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--case', action='append', help='Name prefix, repeatable, default all')
@@ -104,7 +118,7 @@ def main():
     results = []
     baselines = set()
     for case in selected:
-        command = ['cargo', 'test', '--offline', '--locked', '-p', 'weekend-db', '--all-features', case['target'], case['test']]
+        command = ['cargo', 'test', '--offline', '--locked', '-p', case['package'], '--all-features', case['target'], case['test']]
         baseline = tuple(command)
         if baseline not in baselines:
             run = subprocess.run(command, cwd=checkout, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120)

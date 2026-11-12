@@ -1,5 +1,9 @@
 # Shared private application TLS
 
+This report records the hardening checkpoint `ed8f9f9`. The subsequent private
+handshake seam, decision pairs and current source binding are documented in
+[TLS handshake admission](tls-handshake-decisions.md).
+
 `apps/support/pinned_tls.rs` is compiled under fixed profile bindings in both
 study-peer and weekend-replicate. No public crate or database transport API was
 added. Study binds SAN `study-peer`, ALPN `study-progress/1`, and a three-second

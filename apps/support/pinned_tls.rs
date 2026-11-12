@@ -103,7 +103,16 @@ impl Tls {
     ) -> AppResult<StreamOwned<ClientConnection, DeadlineSocket>> {
         let name = ServerName::try_from(SERVER_NAME)?;
         let mut tls = ClientConnection::new(self.client.clone(), name)?;
-        tls.complete_io(&mut socket)?;
+        self.client_handshake(&mut tls, &mut socket)?;
+        Ok(StreamOwned::new(tls, socket))
+    }
+
+    fn client_handshake<T: Read + Write>(
+        &self,
+        tls: &mut ClientConnection,
+        socket: &mut T,
+    ) -> AppResult<()> {
+        tls.complete_io(socket)?;
         // complete_io may return Ok after partial progress followed by WouldBlock.
         // A parsed certificate/ALPN alone is not proof of a completed handshake.
         if tls.is_handshaking() || tls.wants_write() {
@@ -113,7 +122,7 @@ impl Tls {
         if tls.alpn_protocol() != Some(ALPN) {
             return Err(ALPN_ERROR.into());
         }
-        Ok(StreamOwned::new(tls, socket))
+        Ok(())
     }
 
     pub(crate) fn accept(&self, socket: TcpStream) -> AppResult<Incoming> {
@@ -123,7 +132,16 @@ impl Tls {
 
     fn server_session(&self, mut socket: DeadlineSocket) -> AppResult<Incoming> {
         let mut tls = ServerConnection::new(self.server.clone())?;
-        tls.complete_io(&mut socket)?;
+        self.server_handshake(&mut tls, &mut socket)?;
+        Ok(StreamOwned::new(tls, socket))
+    }
+
+    fn server_handshake<T: Read + Write>(
+        &self,
+        tls: &mut ServerConnection,
+        socket: &mut T,
+    ) -> AppResult<()> {
+        tls.complete_io(socket)?;
         // complete_io may return Ok after partial progress followed by WouldBlock.
         // A parsed certificate/ALPN alone is not proof of a completed handshake.
         if tls.is_handshaking() || tls.wants_write() {
@@ -133,7 +151,7 @@ impl Tls {
         if tls.alpn_protocol() != Some(ALPN) {
             return Err(ALPN_ERROR.into());
         }
-        Ok(StreamOwned::new(tls, socket))
+        Ok(())
     }
 
     fn check_pin(&self, chain: Option<&[CertificateDer<'_>]>) -> AppResult<()> {
@@ -616,5 +634,175 @@ mod credential_boundary_tests {
             assert!(Credentials::load(&path).is_err());
         }
         fs::remove_dir_all(&path).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod handshake_decision_tests {
+    use super::*;
+    use std::{collections::VecDeque, io::Cursor};
+
+    #[derive(Clone, Copy)]
+    enum Fault {
+        None,
+        WithholdFinished,
+        BlockFinalWrite,
+    }
+
+    // A deterministic duplex transport, not a replacement TLS implementation.
+    // Its remote endpoint processes the actual bytes with rustls. Faults only
+    // withhold a final TLS record or return WouldBlock at a write boundary.
+    struct PeerTransport {
+        peer: rustls::Connection,
+        incoming: VecDeque<u8>,
+        local_is_client: bool,
+        fault: Fault,
+        sent_peer_flight: bool,
+        fault_hit: bool,
+    }
+
+    impl Read for PeerTransport {
+        fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+            if out.is_empty() {
+                return Ok(0);
+            }
+            if self.incoming.is_empty() {
+                let mut flight = Vec::new();
+                while self.peer.wants_write() {
+                    self.peer.write_tls(&mut flight)?;
+                }
+                if !flight.is_empty() {
+                    let final_flight = self.local_is_client || !self.peer.is_handshaking();
+                    if matches!(self.fault, Fault::WithholdFinished) && final_flight {
+                        let mut offsets = Vec::new();
+                        let mut at = 0;
+                        while at < flight.len() {
+                            offsets.push(at);
+                            at += 5 + usize::from(u16::from_be_bytes([
+                                flight[at + 3],
+                                flight[at + 4],
+                            ]));
+                        }
+                        assert_eq!(at, flight.len());
+                        assert!(offsets.len() > 1);
+                        flight.truncate(*offsets.last().unwrap());
+                        self.fault_hit = true;
+                    }
+                    self.sent_peer_flight = true;
+                    self.incoming.extend(flight);
+                }
+            }
+            if self.incoming.is_empty() {
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+            let n = out.len().min(self.incoming.len());
+            for byte in &mut out[..n] {
+                *byte = self.incoming.pop_front().unwrap();
+            }
+            Ok(n)
+        }
+    }
+
+    impl Write for PeerTransport {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            let final_write = if self.local_is_client {
+                self.sent_peer_flight
+            } else {
+                !self.peer.is_handshaking()
+            };
+            if matches!(self.fault, Fault::BlockFinalWrite) && final_write {
+                self.fault_hit = true;
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+            let mut input = Cursor::new(bytes);
+            while input.position() < bytes.len() as u64 {
+                self.peer.read_tls(&mut input)?;
+                self.peer.process_new_packets().map_err(io::Error::other)?;
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn both_endpoints_reject_independent_unfinished_and_pending_write_states() {
+        for local_is_client in [true, false] {
+            for fault in [Fault::None, Fault::WithholdFinished, Fault::BlockFinalWrite] {
+                let a = Credentials::generate().unwrap();
+                let b = Credentials::generate().unwrap();
+                let mut client = Tls::new(&a, b.certificate()).unwrap();
+                let mut server = Tls::new(&b, a.certificate()).unwrap();
+                Arc::make_mut(&mut client.client).max_fragment_size = Some(64);
+                Arc::make_mut(&mut server.server).max_fragment_size = Some(64);
+                let mut client_conn = ClientConnection::new(
+                    client.client.clone(),
+                    ServerName::try_from(SERVER_NAME).unwrap(),
+                )
+                .unwrap();
+                let mut server_conn = ServerConnection::new(server.server.clone()).unwrap();
+                let peer = if local_is_client {
+                    rustls::Connection::Server(
+                        ServerConnection::new(server.server.clone()).unwrap(),
+                    )
+                } else {
+                    rustls::Connection::Client(
+                        ClientConnection::new(
+                            client.client.clone(),
+                            ServerName::try_from(SERVER_NAME).unwrap(),
+                        )
+                        .unwrap(),
+                    )
+                };
+                let mut io = PeerTransport {
+                    peer,
+                    incoming: VecDeque::new(),
+                    local_is_client,
+                    fault,
+                    sent_peer_flight: false,
+                    fault_hit: false,
+                };
+                let (result, handshaking, pending, pin, alpn) = if local_is_client {
+                    let result = client.client_handshake(&mut client_conn, &mut io);
+                    (
+                        result,
+                        client_conn.is_handshaking(),
+                        client_conn.wants_write(),
+                        client.check_pin(client_conn.peer_certificates()),
+                        client_conn.alpn_protocol(),
+                    )
+                } else {
+                    let result = server.server_handshake(&mut server_conn, &mut io);
+                    (
+                        result,
+                        server_conn.is_handshaking(),
+                        server_conn.wants_write(),
+                        server.check_pin(server_conn.peer_certificates()),
+                        server_conn.alpn_protocol(),
+                    )
+                };
+                assert!(pin.is_ok());
+                assert_eq!(alpn, Some(ALPN));
+                let expected = match fault {
+                    Fault::None => (false, false),
+                    Fault::WithholdFinished => (true, false),
+                    Fault::BlockFinalWrite => (false, true),
+                };
+                assert_eq!((handshaking, pending), expected, "client={local_is_client}");
+                if matches!(fault, Fault::None) {
+                    assert!(result.is_ok());
+                    assert!(!io.fault_hit);
+                } else {
+                    assert!(io.fault_hit);
+                    // This exact error is produced only after complete_io Ok,
+                    // by the same admission guard called by native sessions.
+                    assert_eq!(
+                        result.err().unwrap().to_string(),
+                        "TLS handshake incomplete"
+                    );
+                }
+            }
+        }
     }
 }

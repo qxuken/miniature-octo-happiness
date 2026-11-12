@@ -1,6 +1,6 @@
 # Distributed application source decision audit
 
-This audit classifies **222** explicit production AST records in the two
+This audit classifies **224** explicit production AST records in the two
 application entrypoints, native loops, protocols, shared TLS module (study target) and shared
 StudyProgress support. These are demonstration applications, not a general
 production coordination or replication service. Nine new tests exercise
@@ -146,7 +146,7 @@ tranche; the separate CRDT invariant finding is addressed by its owner.
 | `apps/write-coordinator/src/native/protocol.rs` | `544c5e161108c0c15d4c588ff2673b31d95ee12dcc318b615dccf864e573a858` |
 | `examples/support/study.rs` | `d2a119e71a0863fa16ab2da04a8254e8fee9c6584448f2810edf80996522226d` |
 
-Classification totals: C=22, D=131, E=34, I=3, P=32.
+Classification totals: C=22, D=133, E=30, I=3, P=36.
 
 Spans are one-based line:column; byte offsets are end-exclusive.
 
@@ -236,36 +236,38 @@ Spans are one-based line:column; byte offsets are end-exclusive.
 | D | study-peer::study-peer | apps/support/pinned_tls.rs:78:78–78:79 | 2703..2704 | try_propagation | new | A6 |
 | D | study-peer::study-peer | apps/support/pinned_tls.rs:81:79–81:80 | 2882..2883 | try_propagation | new | A6 |
 | D | study-peer::study-peer | apps/support/pinned_tls.rs:96:67–96:68 | 3375..3376 | try_propagation | connect | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:104:53–104:54 | 3644..3645 | try_propagation | client_session | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:105:71–105:72 | 3717..3718 | try_propagation | client_session | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:106:37–106:38 | 3756..3757 | try_propagation | client_session | A6 |
-| E | study-peer::study-peer | apps/support/pinned_tls.rs:109:9–109:11 | 3933..3935 | if | client_session | A6 |
-| C | study-peer::study-peer | apps/support/pinned_tls.rs:109:12–109:53 | 3936..3977 | short_circuit_or | client_session | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:112:48–112:49 | 4096..4097 | try_propagation | client_session | A6 |
-| E | study-peer::study-peer | apps/support/pinned_tls.rs:113:9–113:11 | 4107..4109 | if | client_session | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:120:38–120:39 | 4361..4362 | try_propagation | accept | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:125:65–125:66 | 4574..4575 | try_propagation | server_session | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:126:37–126:38 | 4613..4614 | try_propagation | server_session | A6 |
-| E | study-peer::study-peer | apps/support/pinned_tls.rs:129:9–129:11 | 4790..4792 | if | server_session | A6 |
-| C | study-peer::study-peer | apps/support/pinned_tls.rs:129:12–129:53 | 4793..4834 | short_circuit_or | server_session | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:132:48–132:49 | 4953..4954 | try_propagation | server_session | A6 |
-| E | study-peer::study-peer | apps/support/pinned_tls.rs:133:9–133:11 | 4964..4966 | if | server_session | A6 |
-| P | study-peer::study-peer | apps/support/pinned_tls.rs:140:9–140:11 | 5194..5196 | if | check_pin | A6 |
-| P | study-peer::study-peer | apps/support/pinned_tls.rs:163:9–163:11 | 5774..5776 | if | remaining | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:173:59–173:60 | 6060..6061 | try_propagation | read | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:173:62–173:63 | 6063..6064 | try_propagation | read | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:180:60–180:61 | 6255..6256 | try_propagation | write | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:180:63–180:64 | 6258..6259 | try_propagation | write | A6 |
-| P | study-peer::study-peer | apps/support/pinned_tls.rs:195:5–195:7 | 6725..6727 | if | bounded | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:195:27–195:28 | 6747..6748 | try_propagation | bounded | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:198:36–198:37 | 6866..6867 | try_propagation | bounded | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:199:35–199:36 | 6903..6904 | try_propagation | bounded | A6 |
-| I | study-peer::study-peer | apps/support/pinned_tls.rs:200:5–200:7 | 6910..6912 | if | bounded | A6 |
-| P | study-peer::study-peer | apps/support/pinned_tls.rs:206:9–206:11 | 7083..7085 | if | bounded | A6 |
-| C | study-peer::study-peer | apps/support/pinned_tls.rs:206:12–206:65 | 7086..7139 | short_circuit_and | bounded | A6 |
-| D | study-peer::study-peer | apps/support/pinned_tls.rs:213:56–213:57 | 7367..7368 | try_propagation | bounded | A6 |
-| P | study-peer::study-peer | apps/support/pinned_tls.rs:214:5–214:7 | 7374..7376 | if | bounded | A6 |
-| C | study-peer::study-peer | apps/support/pinned_tls.rs:214:8–214:47 | 7377..7416 | short_circuit_or | bounded | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:104:53–104:54 | 3644..3645 | try_propagation | client_session | A7 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:105:71–105:72 | 3717..3718 | try_propagation | client_session | A7 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:106:53–106:54 | 3772..3773 | try_propagation | client_session | A7 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:115:32–115:33 | 3997..3998 | try_propagation | client_handshake | A7 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:118:9–118:11 | 4174..4176 | if | client_handshake | A7 |
+| C | study-peer::study-peer | apps/support/pinned_tls.rs:118:12–118:53 | 4177..4218 | short_circuit_or | client_handshake | A7 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:121:48–121:49 | 4337..4338 | try_propagation | client_handshake | A7 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:122:9–122:11 | 4348..4350 | if | client_handshake | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:129:38–129:39 | 4575..4576 | try_propagation | accept | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:134:65–134:66 | 4788..4789 | try_propagation | server_session | A7 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:135:53–135:54 | 4843..4844 | try_propagation | server_session | A7 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:144:32–144:33 | 5068..5069 | try_propagation | server_handshake | A7 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:147:9–147:11 | 5245..5247 | if | server_handshake | A7 |
+| C | study-peer::study-peer | apps/support/pinned_tls.rs:147:12–147:53 | 5248..5289 | short_circuit_or | server_handshake | A7 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:150:48–150:49 | 5408..5409 | try_propagation | server_handshake | A7 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:151:9–151:11 | 5419..5421 | if | server_handshake | A6 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:158:9–158:11 | 5622..5624 | if | check_pin | A6 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:181:9–181:11 | 6202..6204 | if | remaining | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:191:59–191:60 | 6488..6489 | try_propagation | read | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:191:62–191:63 | 6491..6492 | try_propagation | read | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:198:60–198:61 | 6683..6684 | try_propagation | write | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:198:63–198:64 | 6686..6687 | try_propagation | write | A6 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:213:5–213:7 | 7153..7155 | if | bounded | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:213:27–213:28 | 7175..7176 | try_propagation | bounded | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:216:36–216:37 | 7294..7295 | try_propagation | bounded | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:217:35–217:36 | 7331..7332 | try_propagation | bounded | A6 |
+| I | study-peer::study-peer | apps/support/pinned_tls.rs:218:5–218:7 | 7338..7340 | if | bounded | A6 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:224:9–224:11 | 7511..7513 | if | bounded | A6 |
+| C | study-peer::study-peer | apps/support/pinned_tls.rs:224:12–224:65 | 7514..7567 | short_circuit_and | bounded | A6 |
+| D | study-peer::study-peer | apps/support/pinned_tls.rs:231:56–231:57 | 7795..7796 | try_propagation | bounded | A6 |
+| P | study-peer::study-peer | apps/support/pinned_tls.rs:232:5–232:7 | 7802..7804 | if | bounded | A6 |
+| C | study-peer::study-peer | apps/support/pinned_tls.rs:232:8–232:47 | 7805..7844 | short_circuit_or | bounded | A6 |
 | P | study-peer::study-peer | examples/support/study.rs:34:9–34:11 | 1012..1014 | if | resolve_goal | A1 |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/main.rs:7:5–7:10 | 262..267 | match | main | A4 |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native.rs:29:5–29:10 | 946..951 | match | run | A4 |
@@ -387,7 +389,7 @@ warnings`, passed. Logs: `/tmp/apps-decision-{debug,release,clippy}.log`.
 The local source hashes above bind the ledger; this is not a frozen-release or
 Windows-execution claim. No unsafe or runtime application changes were made.
 
-Current shared source SHA-256: `apps/support/pinned_tls.rs` = `ebb0d4e90c1cfbf3e7bac61e9e3177f84b5ae778ab0807558861821d6ccb94b8`.
+Current shared source SHA-256: `apps/support/pinned_tls.rs` = `dcf734724390f67032e97525b222e8be983b67f58beeddf6fe9de05765afa942`.
 
 ## A6: shared TLS binding and current qualification
 
@@ -395,8 +397,8 @@ The fixed profile compiles `apps/support/pinned_tls.rs` in this binary. The
 44 shared records are inventoried separately for each target, not collapsed into
 one coverage denominator. See [shared TLS evidence](../shared-app-tls.md) for
 real partial-Finished, exact signed-leaf pin, required ALPN, file caps/FIFO/modes,
-and absolute deadline controls. Pending-write-only and client partial-flight
-independence remain open; cryptographic/OS errors remain delegated. Existing
+and absolute deadline controls. This historical tranche left pending-write-only and client partial-flight
+independence open; the new decision pairs below close them; cryptographic/OS errors remain delegated. Existing
 manual dispositions are rebound to current spans; this is not measured MC/DC.
 
 Mac debug/release and strict Clippy, and isolated aarch64 Docker Linux
@@ -427,3 +429,16 @@ Coordinator FIFO extension qualification passed 5 unit and 5 integration tests
 in both debug/release on macOS and Linux, plus strict macOS Clippy. This is
 separate from the 33 study/snapshot tests above. The opened-handle type guard
 remains a scoped invariant residual, not an exercised native namespace race.
+
+## A7: completed and drained handshake admission
+
+[Directed H/W pairs](../tls-handshake-decisions.md) independently vary the real
+rustls handshaking and pending-output predicates at both endpoints. Exact pin
+and ALPN remain valid; all failing cases reach the production guard after
+complete_io returns Ok. The overlapping OR syntax is C; each guard is P.
+Private session-to-handshake propagation is D: the tests do not inject every
+OS/dependency failure at each caller. Two added propagation records per target
+bring shared TLS to 46 records, snapshot to 127 and distributed apps to 224.
+Mac and isolated Docker Linux debug/release each passed 35 focused tests, plus
+strict Clippy. No native Windows or whole-application MC/DC claim is added.
+Current source-set SHA-256: `4c204b338de0482b6264325666ac7d987b39cdf277ac0106e4b7cc9fcaae0e5a`.

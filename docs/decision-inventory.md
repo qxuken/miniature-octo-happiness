@@ -211,3 +211,17 @@ Output: `target/decision-inventory-shared-tls`. All spans/hashes are rebound in
 the app ledgers; delegated failures, hostile-path races, handshake independence
 residuals and unexpanded macros remain explicit. These are dispositions, not
 compiler-measured MC/DC or a claim that earlier 2490631 evidence covers new code.
+
+## Directed TLS handshake admission
+
+The current inventory has **2,561 records, 51 files, 316 macro/derive blind
+spots**, zero parse failures. The private session-to-handshake seam adds two
+propagation records per binary profile; shared TLS now contributes 46 per target,
+snapshot 127 and distributed apps 224. Both H/W operands of each handshake
+admission guard have [directed independence pairs](tls-handshake-decisions.md)
+and detected guard-removal mutations. New propagation records remain delegated;
+the report does not expand that evidence into arbitrary dependency failures.
+Source-set SHA-256: `4c204b338de0482b6264325666ac7d987b39cdf277ac0106e4b7cc9fcaae0e5a`.
+Output: `target/decision-inventory-handshake-pairs`. Examples and isolated
+qualification drivers are outside this library/binary AST inventory; their
+directed tests are reported separately.

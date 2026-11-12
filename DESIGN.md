@@ -4868,3 +4868,23 @@ The current inventory has 2,557 dispositions across 51 files and 316 macro blind
 spots, including 44 shared TLS records separately for each binary profile and
 the coordinator's two pre-open credential admission records. This is not a
 compiler-measured MC/DC closure; historical 2490631 results remain source-bound.
+
+### TLS handshake admission independence
+
+The private shared TLS implementation now exposes a private generic I/O seam
+around its existing handshake/admission sequence. A genuine rustls opposite
+endpoint and deterministic transport faults establish H/W states `(false,false)`,
+`(true,false)` and `(false,true)` for both client and server guards, while exact
+leaf pin and ALPN remain valid. Thus each operand independently decides whether
+an otherwise authenticated session is admitted. Native DeadlineSocket handling,
+absolute budgets and local/follower acknowledgment semantics are unchanged.
+
+Both binary profiles passed 35 focused tests in each debug/release run on macOS
+and isolated Docker Linux, plus strict Clippy. Four isolated guard-removal
+mutations are detected through the repository mutation runner. The two app
+profiles' five Windows executables cross-link;
+no Windows tests execute locally. See [the directed pairs](docs/tls-handshake-decisions.md).
+The rebound inventory has 2,561 dispositions across 51 files and 316 macro blind
+spots; two added caller-propagation records per target remain delegated.
+These directed pairs close the specified handshake residuals, without claiming
+compiler-measured whole-application MC/DC or physical power-loss qualification.
