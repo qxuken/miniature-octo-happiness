@@ -77,3 +77,14 @@ append before root publication, not root/witness barrier errors or delayed
 writeback. Quotas, physical device failures, ext4/XFS/APFS/NTFS exhaustion,
 network filesystems, and real power interruption remain separate qualification
 work. Simulator fault tests continue to cover uncertain publication outcomes.
+
+
+## Quota capability check
+
+A later [local baseline review](local-baseline-ffdf506.md#actual-quota-capability-remains-unqualified)
+tried provisioning an isolated quota-enabled ext4 loop-file fixture. The mount
+failed before quota control or engine execution. The available Linuxkit kernel
+has generic quota control but lacks QFMT_V1/QFMT_V2, XFS quota and tmpfs quota
+configuration. Actual EDQUOT qualification therefore remains open for a
+quota-capable kernel/filesystem. Existing ENOSPC and synthetic quota-category
+tests retain their original scope; neither is recorded as a native quota pass.

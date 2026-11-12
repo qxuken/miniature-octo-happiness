@@ -139,3 +139,41 @@ for this short case, not a long-duration or different-platform soak.
 mise exec python@3.14.8 -- python tools/test_soak.py
 mise exec python@3.14.8 -- python -O tools/test_soak.py
 ```
+
+
+## Extended macOS and Linux controls at 7a9e661
+
+The corrected committed launcher and unchanged Rust workload also passed a full
+1,800-second requested macOS/APFS run at exact
+`7a9e6611eaee911ae7477149cbcafaada8a65e47`. It completed 1,941 rounds,
+124,224 paired-key writer commits and 1,982,416 reader observations in
+1,800.433 seconds of Rust time (1,800.872 seconds observed). Final revision was
+128,100, with eight retained roots. Every round performed the complete native
+current/retained, compact/reopen and backup/restore oracle.
+
+Independent post-run review checked every round, exact publication arithmetic,
+all 583 archived source hashes and complete log hashes. Maximum recorded live
+core bytes were 22,720 and core peak 51,248. Sampled process RSS peaked at
+4,032 KiB. Pre-compaction/compacted lengths stayed within 917,504/122,880 bytes.
+These are finite tiny-record workload observations, not generic resource caps,
+throughput comparisons or absence-of-leak proof. Concurrent development work
+also used the same host.
+
+Evidence: `target/soak-7a9e661-mac-1800/evidence.json`, SHA-256
+`fb48cbcab5be8660e8372d8282cacc02389df14508e9f01d6c3acf436dc31f7b`;
+full JSONL SHA-256
+`8cfd669174ddcf61786a987b710f2ac670a201814eb129d0df6ff66345479f83`.
+The adjacent independent-verification.json records all observed maxima and
+counter/source checks. Source/tool stability and terminal exit zero passed;
+stderr was empty. Mise Rust 1.99.1 and Python 3.14.8 were used on macOS 27.0.1
+arm64. This run was not shortened by the 100,000-round limit.
+
+A separate [Linux ext4 1,800-second run](soak-linux-7a9e661.md) used the same
+unchanged archived Rust driver and shared observer, completing 10,578 rounds,
+676,992 writer commits and 5,813,826 reader observations. Its build, temporary
+files and native databases were on a private Docker ext4 volume. The Linux
+profile explicitly uses host-safe extraction rather than running the top-level
+archive launcher under the container's older Python. Both records preserve
+their own tool, filesystem and resource boundaries. Neither qualifies Windows,
+physical-device power loss, network replication, larger cardinality or a month
+of wall-clock production operation.
