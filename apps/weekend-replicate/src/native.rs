@@ -19,6 +19,8 @@ pub(crate) type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync
 const USAGE:&str="weekend-replicate keygen <new-credentials-dir>
 weekend-replicate describe <source-db> <stream-hex>
 weekend-replicate follower-init <empty-dir> <stream-hex> <file-identity-hex>
+weekend-replicate cleanup-inactive <follower-dir> <stream-hex> <file-identity-hex>
+weekend-replicate compact-manifest <follower-dir> <stream-hex> <file-identity-hex>
 weekend-replicate status <follower-dir> <stream-hex> <file-identity-hex>
 weekend-replicate serve <follower-dir> <stream-hex> <file-identity-hex> <listen-ip:port> <credentials-dir> <peer-cert.der> [--max-exchanges N]
 weekend-replicate ship <source-db> <stream-hex> <new-export-file> <peer-ip:port> <credentials-dir> <peer-cert.der> [--attempts N]
@@ -122,6 +124,36 @@ pub(crate) fn main() -> AppResult<()> {
                 s.requires_recovery, s.manifest_bytes, s.maintenance_required, s.selected_slot
             );
             Ok(())
+        }
+        [c, dir, stream, file] if c == "cleanup-inactive" => {
+            let mut f = Follower::open(dir, enrollment(stream, file)?, Limits::default())?;
+            let removed = f.cleanup_inactive()?;
+            println!("maintenance removed_inactive={removed}");
+            println!("{}", ack_line(f.progress()?));
+            Ok(())
+        }
+        [c, dir, stream, file] if c == "compact-manifest" => {
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            {
+                let f = Follower::open(dir, enrollment(stream, file)?, Limits::default())?;
+                let before = f.status()?.manifest_bytes;
+                let f = f.compact_manifest()?;
+                let after = f.status()?;
+                println!(
+                    "maintenance manifest_before={before} manifest_after={} maintenance_required={}",
+                    after.manifest_bytes, after.maintenance_required
+                );
+                println!("{}", ack_line(after.durable_ack));
+                Ok(())
+            }
+            #[cfg(windows)]
+            {
+                let _ = (dir, stream, file);
+                Err(
+                    "compact-manifest unsupported on Windows; reseed a fresh follower directory"
+                        .into(),
+                )
+            }
         }
         [
             c,

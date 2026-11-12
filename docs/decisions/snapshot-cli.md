@@ -1,8 +1,9 @@
 # Authenticated snapshot CLI source decision audit
 
-The application added at `315068f` contains **115 explicit production AST
-records**: main 1, native 70 and TLS 44. This audit keeps that production source
-unchanged and adds four tests. Exact baseline/current hashes and every source
+The application initially audited at `315068f` had 115 explicit production AST
+records. Offline maintenance adds 10 records: the current **125 records** comprise
+main 1, native 80 and TLS 44. The original audit added four tests; the maintenance
+tranche extends the native CLI process fixture. Exact baseline/current hashes and every source
 span are below. The Windows lease-safe fixture correction at `b3761af` is
 included in final test evidence; manifest bytes are inspected only after closing
 the follower. No core protocol, durability barrier or acknowledgment changes.
@@ -118,101 +119,137 @@ semantics. Process credential fixtures are isolated and never logged. Directory
 creation, disk-full key writing, permission-setting failure and hostile namespace
 mutation are not silently included in successful provisioning coverage.
 
+## S5: offline maintenance commands
+
+The native CLI fixture invokes both commands as independent processes with no
+open follower handles. Wrong enrollment returns exact `ForeignStore` without
+changing the manifest, selected image or abandoned staging file. Cleanup removes
+only the inactive reserved image, preserves an unrelated entry and selected bytes,
+and a repeat reports zero removals. Reported follower acknowledgment remains the
+exact revision 4/digest captured by the transfer. Selected slot is explicitly 0.
+
+On macOS/Linux the test extends the manifest to its admission ceiling, observes
+maintenance-required, compacts and reopens below the ceiling with maintenance
+cleared. Current revision 4/value 2 and retained root 1 at revision 2/value 1
+remain readable. Windows instead rejects compact-manifest before opening any
+path; the cfg-gated fixture checks its exact diagnostic and unchanged manifest.
+That branch is source-reviewed but was not executed in this local tranche.
+
+The two new dispatch guards are E: positive/negative command controls do not
+constitute complete pattern/arity MC/DC. The eight `?` records are D: native
+reopen, enrollment validation, verification, deletion and atomic replacement
+failures remain delegated to existing core suites. No syscall failure or crash
+is synthesized at the wrapper. No core wire/barrier changes or fallback were
+introduced. Maintenance output and follower durability remain separate lines;
+cleanup does not promise durable namespace deletion. Compaction consumes its
+handle and may lose a competing lease race; after an error reopen before serving.
+
 ## Inventory and functional limits
 
-The three production files have the same decision kinds, byte spans and condition
-hashes as 315068f; new code is cfg(test) only. The scanner excludes test modules,
+The original 115 production decisions retain their dispositions; offline
+maintenance adds two dispatch guards and eight delegated error propagations.
+Current source spans/hashes below supersede the original positions. The scanner excludes test modules,
 uses a union of platform branches and does not expand formatting/raw macros,
-derives, iterator combinators or dependency code. The app adds 115 records to the
+derives, iterator combinators or dependency code. The app adds 125 records to the
 2,415-record audit checkpoint, not a compiler-expanded denominator. Statement
 execution, dependency error propagation and generated formatting are not full
 MC/DC. Local configuration trust, fixed peer/enrollment, finite retries, serial
 admission, certificate lifecycle and explicit restart/reseed remain as documented
 in the operations runbook. No new runtime defect was reproduced by this audit.
 
-| Production source | SHA-256 at 315068f | Current full-file SHA-256 (test-only additions) |
+| Production source | SHA-256 at 315068f | Current full-file SHA-256 |
 |---|---|---|
 | `apps/weekend-replicate/src/main.rs` | `50e2b99c9900f03ff4f0847485156542f9bf5dbb4a500a47612f2e38355d5c41` | `50e2b99c9900f03ff4f0847485156542f9bf5dbb4a500a47612f2e38355d5c41` |
-| `apps/weekend-replicate/src/native.rs` | `acf91c9a1cd1a72c2822c1c0c52435158c08dc23209ae3f6912c20e24e4dc56e` | `9c4510f36f5c09a1f6b4775dd3ac71da2d4717c38bd3bd3fb1cce628cbcd9390` |
+| `apps/weekend-replicate/src/native.rs` | `acf91c9a1cd1a72c2822c1c0c52435158c08dc23209ae3f6912c20e24e4dc56e` | `21a20d764825b5eaa081838c9d12af67d63746b72a93e8beaebb999ab2ac666b` |
 | `apps/weekend-replicate/src/tls.rs` | `97e38a825d7c1046cf64a83ffd3c3ef502d73204b22b9e63cb38927e7d116852` | `ad6e3bd1e822b9d8317004c528c8a83973153919fcad9eb16ddccfd30e871e7e` |
 
-Disposition totals: C=9, D=71, E=22, I=2, P=11.
+Disposition totals: C=9, D=79, E=24, I=2, P=11.
 
 Spans are one-based line:column; byte offsets are end-exclusive.
 
 | Status | Source span | Bytes | AST kind | Owner | Scope |
 |---|---|---|---|---|---|
 | E | apps/weekend-replicate/src/main.rs:5:5–5:10 | 180..185 | match | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:31:20–31:21 | 1427..1428 | try_propagation | identity | S1 |
-| P | apps/weekend-replicate/src/native.rs:32:5–32:7 | 1434..1436 | if | identity | S1 |
-| C | apps/weekend-replicate/src/native.rs:32:8–32:66 | 1437..1495 | short_circuit_or | identity | S1 |
-| I | apps/weekend-replicate/src/native.rs:35:41–35:42 | 1613..1614 | try_propagation | identity | S1 |
-| P | apps/weekend-replicate/src/native.rs:36:5–36:7 | 1634..1636 | if | identity | S1 |
-| D | apps/weekend-replicate/src/native.rs:43:36–43:37 | 1853..1854 | try_propagation | enrollment | S1 |
-| D | apps/weekend-replicate/src/native.rs:44:38–44:39 | 1893..1894 | try_propagation | enrollment | S1 |
-| E | apps/weekend-replicate/src/native.rs:51:5–51:10 | 2048..2053 | match | ack_line | S1 |
-| D | apps/weekend-replicate/src/native.rs:63:43–63:44 | 2409..2410 | try_propagation | transport | S1 |
-| D | apps/weekend-replicate/src/native.rs:64:44–64:45 | 2455..2456 | try_propagation | transport | S1 |
-| E | apps/weekend-replicate/src/native.rs:73:5–73:10 | 2601..2606 | match | option | S1 |
-| P | apps/weekend-replicate/src/native.rs:75:26–75:38 | 2666..2678 | match_guard | option | S1 |
-| D | apps/weekend-replicate/src/native.rs:76:32–76:33 | 2715..2716 | try_propagation | option | S1 |
-| D | apps/weekend-replicate/src/native.rs:76:50–76:51 | 2733..2734 | try_propagation | option | S1 |
-| P | apps/weekend-replicate/src/native.rs:77:13–77:15 | 2748..2750 | if | option | S1 |
-| C | apps/weekend-replicate/src/native.rs:77:16–77:37 | 2751..2772 | short_circuit_or | option | S1 |
-| E | apps/weekend-replicate/src/native.rs:88:5–88:10 | 3040..3045 | match | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:89:16–89:42 | 3079..3105 | match_guard | main | S1 |
-| C | apps/weekend-replicate/src/native.rs:89:16–89:42 | 3079..3105 | short_circuit_or | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:93:21–93:34 | 3193..3206 | match_guard | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:94:32–94:47 | 3278..3293 | match_guard | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:95:42–95:43 | 3340..3341 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:96:84–96:85 | 3426..3427 | try_propagation | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:110:35–110:55 | 3869..3889 | match_guard | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:111:45–111:46 | 3939..3940 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:112:64–112:65 | 4005..4006 | try_propagation | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:116:35–116:48 | 4124..4137 | match_guard | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:117:65–117:66 | 4207..4208 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:117:86–117:87 | 4228..4229 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:118:31–118:32 | 4261..4262 | try_propagation | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:135:14–135:26 | 4768..4780 | match_guard | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:136:45–136:46 | 4830..4831 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:137:40–137:41 | 4872..4873 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:137:49–137:50 | 4881..4882 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:138:81–138:82 | 4964..4965 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:139:50–139:51 | 5016..5017 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:140:69–140:70 | 5087..5088 | try_propagation | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:152:14–152:25 | 5335..5346 | match_guard | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:153:42–153:43 | 5393..5394 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:154:40–154:41 | 5435..5436 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:154:49–154:50 | 5444..5445 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:155:63–155:64 | 5509..5510 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:156:50–156:51 | 5561..5562 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:157:81–157:82 | 5644..5645 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:164:33–164:34 | 5920..5921 | try_propagation | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:165:13–165:18 | 5935..5940 | match | main | S1 |
-| E | apps/weekend-replicate/src/native.rs:170:59–170:70 | 6388..6399 | match_guard | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:171:42–171:43 | 6446..6447 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:172:40–172:41 | 6488..6489 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:172:49–172:50 | 6497..6498 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:173:50–173:51 | 6549..6550 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:174:68–174:69 | 6619..6620 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:176:56–176:57 | 6730..6731 | try_propagation | main | S1 |
-| D | apps/weekend-replicate/src/native.rs:191:64–191:65 | 7193..7194 | try_propagation | prepare | S1 |
-| D | apps/weekend-replicate/src/native.rs:192:48–192:49 | 7243..7244 | try_propagation | prepare | S1 |
-| D | apps/weekend-replicate/src/native.rs:193:59–193:60 | 7304..7305 | try_propagation | prepare | S1 |
-| E | apps/weekend-replicate/src/native.rs:208:5–208:8 | 7569..7572 | for_iteration | ship | S1 |
-| D | apps/weekend-replicate/src/native.rs:211:88–211:89 | 7740..7741 | try_propagation | ship | S1 |
-| E | apps/weekend-replicate/src/native.rs:212:9–212:14 | 7753..7758 | match | ship | S1 |
-| P | apps/weekend-replicate/src/native.rs:227:17–227:19 | 8362..8364 | if | ship | S1 |
-| C | apps/weekend-replicate/src/native.rs:227:20–227:56 | 8365..8401 | short_circuit_or | ship | S1 |
-| E | apps/weekend-replicate/src/native.rs:247:9–247:14 | 9019..9024 | match | fmt | S1 |
-| D | apps/weekend-replicate/src/native.rs:255:75–255:76 | 9415..9416 | try_propagation | serve_one | S1 |
-| D | apps/weekend-replicate/src/native.rs:261:46–261:47 | 9660..9661 | try_propagation | serve | S1 |
-| D | apps/weekend-replicate/src/native.rs:263:25–263:26 | 9737..9738 | try_propagation | serve | S1 |
-| E | apps/weekend-replicate/src/native.rs:264:5–264:8 | 9744..9747 | for_iteration | serve | S1 |
-| D | apps/weekend-replicate/src/native.rs:265:30–265:31 | 9825..9826 | try_propagation | serve | S1 |
-| E | apps/weekend-replicate/src/native.rs:266:9–266:11 | 9836..9838 | if | serve | S1 |
-| C | apps/weekend-replicate/src/native.rs:266:12–266:15 | 9839..9842 | pattern_test | serve | S1 |
-| D | apps/weekend-replicate/src/native.rs:270:28–270:29 | 10054..10055 | try_propagation | serve | S1 |
+| D | apps/weekend-replicate/src/native.rs:33:20–33:21 | 1593..1594 | try_propagation | identity | S1 |
+| P | apps/weekend-replicate/src/native.rs:34:5–34:7 | 1600..1602 | if | identity | S1 |
+| C | apps/weekend-replicate/src/native.rs:34:8–34:66 | 1603..1661 | short_circuit_or | identity | S1 |
+| I | apps/weekend-replicate/src/native.rs:37:41–37:42 | 1779..1780 | try_propagation | identity | S1 |
+| P | apps/weekend-replicate/src/native.rs:38:5–38:7 | 1800..1802 | if | identity | S1 |
+| D | apps/weekend-replicate/src/native.rs:45:36–45:37 | 2019..2020 | try_propagation | enrollment | S1 |
+| D | apps/weekend-replicate/src/native.rs:46:38–46:39 | 2059..2060 | try_propagation | enrollment | S1 |
+| E | apps/weekend-replicate/src/native.rs:53:5–53:10 | 2214..2219 | match | ack_line | S1 |
+| D | apps/weekend-replicate/src/native.rs:65:43–65:44 | 2575..2576 | try_propagation | transport | S1 |
+| D | apps/weekend-replicate/src/native.rs:66:44–66:45 | 2621..2622 | try_propagation | transport | S1 |
+| E | apps/weekend-replicate/src/native.rs:75:5–75:10 | 2767..2772 | match | option | S1 |
+| P | apps/weekend-replicate/src/native.rs:77:26–77:38 | 2832..2844 | match_guard | option | S1 |
+| D | apps/weekend-replicate/src/native.rs:78:32–78:33 | 2881..2882 | try_propagation | option | S1 |
+| D | apps/weekend-replicate/src/native.rs:78:50–78:51 | 2899..2900 | try_propagation | option | S1 |
+| P | apps/weekend-replicate/src/native.rs:79:13–79:15 | 2914..2916 | if | option | S1 |
+| C | apps/weekend-replicate/src/native.rs:79:16–79:37 | 2917..2938 | short_circuit_or | option | S1 |
+| E | apps/weekend-replicate/src/native.rs:90:5–90:10 | 3206..3211 | match | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:91:16–91:42 | 3245..3271 | match_guard | main | S1 |
+| C | apps/weekend-replicate/src/native.rs:91:16–91:42 | 3245..3271 | short_circuit_or | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:95:21–95:34 | 3359..3372 | match_guard | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:96:32–96:47 | 3444..3459 | match_guard | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:97:42–97:43 | 3506..3507 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:98:84–98:85 | 3592..3593 | try_propagation | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:112:35–112:55 | 4035..4055 | match_guard | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:113:45–113:46 | 4105..4106 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:114:64–114:65 | 4171..4172 | try_propagation | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:118:35–118:48 | 4290..4303 | match_guard | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:119:65–119:66 | 4373..4374 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:119:86–119:87 | 4394..4395 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:120:31–120:32 | 4427..4428 | try_propagation | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:128:35–128:58 | 4786..4809 | match_guard | main | S5 |
+| D | apps/weekend-replicate/src/native.rs:129:69–129:70 | 4883..4884 | try_propagation | main | S5 |
+| D | apps/weekend-replicate/src/native.rs:129:90–129:91 | 4904..4905 | try_propagation | main | S5 |
+| D | apps/weekend-replicate/src/native.rs:130:47–130:48 | 4953..4954 | try_propagation | main | S5 |
+| E | apps/weekend-replicate/src/native.rs:135:35–135:58 | 5136..5159 | match_guard | main | S5 |
+| D | apps/weekend-replicate/src/native.rs:138:69–138:70 | 5313..5314 | try_propagation | main | S5 |
+| D | apps/weekend-replicate/src/native.rs:138:90–138:91 | 5334..5335 | try_propagation | main | S5 |
+| D | apps/weekend-replicate/src/native.rs:139:40–139:41 | 5376..5377 | try_propagation | main | S5 |
+| D | apps/weekend-replicate/src/native.rs:140:45–140:46 | 5438..5439 | try_propagation | main | S5 |
+| D | apps/weekend-replicate/src/native.rs:141:39–141:40 | 5479..5480 | try_propagation | main | S5 |
+| E | apps/weekend-replicate/src/native.rs:167:14–167:26 | 6258..6270 | match_guard | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:168:45–168:46 | 6320..6321 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:169:40–169:41 | 6362..6363 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:169:49–169:50 | 6371..6372 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:170:81–170:82 | 6454..6455 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:171:50–171:51 | 6506..6507 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:172:69–172:70 | 6577..6578 | try_propagation | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:184:14–184:25 | 6825..6836 | match_guard | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:185:42–185:43 | 6883..6884 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:186:40–186:41 | 6925..6926 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:186:49–186:50 | 6934..6935 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:187:63–187:64 | 6999..7000 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:188:50–188:51 | 7051..7052 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:189:81–189:82 | 7134..7135 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:196:33–196:34 | 7410..7411 | try_propagation | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:197:13–197:18 | 7425..7430 | match | main | S1 |
+| E | apps/weekend-replicate/src/native.rs:202:59–202:70 | 7878..7889 | match_guard | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:203:42–203:43 | 7936..7937 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:204:40–204:41 | 7978..7979 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:204:49–204:50 | 7987..7988 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:205:50–205:51 | 8039..8040 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:206:68–206:69 | 8109..8110 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:208:56–208:57 | 8220..8221 | try_propagation | main | S1 |
+| D | apps/weekend-replicate/src/native.rs:223:64–223:65 | 8683..8684 | try_propagation | prepare | S1 |
+| D | apps/weekend-replicate/src/native.rs:224:48–224:49 | 8733..8734 | try_propagation | prepare | S1 |
+| D | apps/weekend-replicate/src/native.rs:225:59–225:60 | 8794..8795 | try_propagation | prepare | S1 |
+| E | apps/weekend-replicate/src/native.rs:240:5–240:8 | 9059..9062 | for_iteration | ship | S1 |
+| D | apps/weekend-replicate/src/native.rs:243:88–243:89 | 9230..9231 | try_propagation | ship | S1 |
+| E | apps/weekend-replicate/src/native.rs:244:9–244:14 | 9243..9248 | match | ship | S1 |
+| P | apps/weekend-replicate/src/native.rs:259:17–259:19 | 9852..9854 | if | ship | S1 |
+| C | apps/weekend-replicate/src/native.rs:259:20–259:56 | 9855..9891 | short_circuit_or | ship | S1 |
+| E | apps/weekend-replicate/src/native.rs:279:9–279:14 | 10509..10514 | match | fmt | S1 |
+| D | apps/weekend-replicate/src/native.rs:287:75–287:76 | 10905..10906 | try_propagation | serve_one | S1 |
+| D | apps/weekend-replicate/src/native.rs:293:46–293:47 | 11150..11151 | try_propagation | serve | S1 |
+| D | apps/weekend-replicate/src/native.rs:295:25–295:26 | 11227..11228 | try_propagation | serve | S1 |
+| E | apps/weekend-replicate/src/native.rs:296:5–296:8 | 11234..11237 | for_iteration | serve | S1 |
+| D | apps/weekend-replicate/src/native.rs:297:30–297:31 | 11315..11316 | try_propagation | serve | S1 |
+| E | apps/weekend-replicate/src/native.rs:298:9–298:11 | 11326..11328 | if | serve | S1 |
+| C | apps/weekend-replicate/src/native.rs:298:12–298:15 | 11329..11332 | pattern_test | serve | S1 |
+| D | apps/weekend-replicate/src/native.rs:302:28–302:29 | 11544..11545 | try_propagation | serve | S1 |
 | D | apps/weekend-replicate/src/tls.rs:29:73–29:74 | 878..879 | try_propagation | generate | S4 |
 | D | apps/weekend-replicate/src/tls.rs:38:37–38:38 | 1143..1144 | try_propagation | create | S4 |
 | D | apps/weekend-replicate/src/tls.rs:41:54–41:55 | 1309..1310 | try_propagation | create | S4 |
@@ -265,7 +302,7 @@ Spans are one-based line:column; byte offsets are end-exclusive.
 | `apps/weekend-replicate/src/native/pin_tests.rs` | `713487422c3e0343a25730eb8681b75d37fda6d2031e9d17921791b732ed35bc` |
 | `apps/weekend-replicate/src/native/tests.rs` | `23ea109bba8ee38c6550b71c39494b7b95929bbf5fd9f564ad8570b05079fb86` |
 | `apps/weekend-replicate/tests/audit_cli.rs` | `48e2b3cb7a742a7dfc4b24a7e51499cb3a4ae6e74ee050127a99a076089ee3bd` |
-| `apps/weekend-replicate/tests/cli.rs` | `b3933aa7ba266d7d28b2fe9001eb6f94f757828fbc72a29a4dec956055d3f95c` |
+| `apps/weekend-replicate/tests/cli.rs` | `4a975a9d859ff6beafbbdeb7c59eea396fcbc6319a0ac503dbd0acfa08d178d9` |
 
 macOS arm64 debug and release passed 12 unit/native/TLS tests plus two CLI
 integration tests; strict all-target Clippy passed. The targeted aarch64 Linux
@@ -281,5 +318,12 @@ Logs: `/tmp/snapshot-cli-audit-{debug,release,clippy}.log`,
 these checks. No mutation campaign, sanitizer campaign, physical power-loss or
 whole-project measured MC/DC result is claimed.
 
-Fresh inventory source-set SHA-256: `695f67c71b81665b725555ac682d84eaae2994272683d2a73672187d7ef098cf`
-(2,530 records, 50 files, 310 blind spots,zero parse failures).
+Fresh inventory source-set SHA-256: `133bdb4a94e46015da5aac537daaf358a28fb9b862d3a1bcea5319fb6da8b8d7`
+(2,540 records, 50 files, 314 blind spots, zero parse failures).
+
+Maintenance validation: the same 14 focused tests passed native macOS debug and
+release plus strict all-target Clippy, and isolated aarch64 Linux debug. Windows
+MSVC cross-check was attempted but blocked in ring's C compilation by missing
+Windows SDK headers; it is not a Rust compilation or runtime pass. Logs:
+`/tmp/maintenance-{debug,release,clippy,linux,windows}.log`. These results cover
+new wrapper behavior, not a new crash/power-loss campaign.

@@ -4804,3 +4804,31 @@ workspace, C/C++ consumers and private packaging. Ubuntu, C-ASan and fuzz jobs
 also passed. Hosted macOS matrix work was still pending at this observation;
 these CI results are not evidence for executing the new backup harness on Windows
 or for qualifying later untested changes.
+
+### Offline passive follower maintenance CLI
+
+`weekend-replicate cleanup-inactive` and `compact-manifest` now expose the
+existing verified Follower operations during an offline maintenance window.
+They preserve authoritative selection, verify enrollment, and report maintenance
+separately from the follower durable acknowledgment. macOS/Linux compaction
+consumes/reopens the handle through existing safe replacement; Windows rejects
+before opening files and requires explicit fresh-directory reseeding. No core
+protocol, publication barrier, automatic fallback or forced cleanup was added.
+
+The native CLI fixture stages an abandoned inactive file, checks exact wrong-
+enrollment rejection without mutation, preserves unrelated entries and selected
+bytes, and verifies cleanup idempotence. On macOS/Linux it inflates an abandoned
+manifest tail to the admission ceiling, compacts below it, and reopens exact
+revision 4/value 2 and retained root 1 at revision 2/value 1 with the same digest.
+All 14 app tests passed macOS debug/release and Linux debug; strict macOS Clippy
+passed. Windows cross-compilation stopped in ring because Windows SDK headers
+were unavailable, so the Windows branch is source-reviewed only in this tranche.
+The app ledger now maps 125 records; the global source inventory has 2,540
+dispositions across 50 files and 314 macro/derive blind spots, not measured MC/DC.
+
+Before this extension, checkpoint `939d683` Engine run `43258936460` attempt 2
+passed every executed job. Native macOS job `131350167575` stopped before runner
+execution due to the GitHub account billing/spending-limit annotation. The exact
+archived checkpoint passed full local macOS `tools/check.py` and TSan, and fuzz
+run `43258936624` passed. This is not a hosted macOS pass; no workflow was changed.
+These checkpoint results are separate from the new maintenance tests.

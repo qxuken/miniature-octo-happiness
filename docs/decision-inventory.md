@@ -186,3 +186,15 @@ unfinished independence obligations for pending-write-only and client partial
 handshake conditions, along with delegated OS/library/storage residuals.
 A complete manual disposition map is not a complete MC/DC result. Focused macOS
 debug/release/Clippy and Linux debug evidence is scoped in the ledger.
+
+## Offline snapshot maintenance extension
+
+The two CLI commands add 10 source records: two dispatch guards and eight
+error propagations. The [app ledger](decisions/snapshot-cli.md) now maps all
+125 records (11 directed, 24 execution-only, 9 overlapping, 2 invariant and
+79 delegated). Global inventory: 2,540 records, 50 files, 314 macro/derive
+blind spots, zero parse failures. Source-set SHA-256:
+`133bdb4a94e46015da5aac537daaf358a28fb9b862d3a1bcea5319fb6da8b8d7`.
+The inventory is in `target/decision-inventory-maintenance`; prior counts above
+are historical. Wrapper tests reuse native core maintenance, without extending
+its durability claims or treating delegated errors as independent conditions.

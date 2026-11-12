@@ -50,6 +50,32 @@ The admission limit bounds additional growth under normal library use.
 It does not shrink historical manifests automatically or limit files
 modified outside the private-directory contract.
 
+### Offline CLI maintenance
+
+Stop `serve` and other users of the follower directory first. Use the original
+configured enrollment from `describe`; these commands acquire the manifest lease:
+
+```sh
+weekend-replicate cleanup-inactive FOLLOWER_DIR STREAM_HEX FILE_IDENTITY_HEX
+weekend-replicate compact-manifest FOLLOWER_DIR STREAM_HEX FILE_IDENTITY_HEX
+weekend-replicate status FOLLOWER_DIR STREAM_HEX FILE_IDENTITY_HEX
+```
+
+`cleanup-inactive` prints `maintenance removed_inactive=N` separately from the
+verified follower durability line. It is safe to repeat after reopening; removal
+is not a durable namespace-deletion acknowledgment. `compact-manifest` is available
+on macOS/Linux and reports before/after manifest bytes and maintenance-required,
+then the verified durable receipt. It consumes/reopens the follower internally;
+a lease competitor or I/O error can interrupt maintenance. After any error, keep
+serving stopped, reopen with `status`, verify the authoritative receipt and retry
+maintenance only after recovery succeeds. Never select another image as fallback.
+
+On Windows `compact-manifest` returns an explicit unsupported diagnostic before
+opening or modifying any path. Follow [explicit reseeding](#explicit-reseeding)
+into a fresh directory, verify its receipt, and only then change the service's
+directory while maintaining quiescence. This command does not delete the old
+follower or automate a cutover. Cleanup remains available on Windows.
+
 ## Interrupted staging and cleanup
 
 `cleanup_inactive()` requires a recovered manifest and verifies the

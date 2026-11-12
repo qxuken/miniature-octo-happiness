@@ -197,4 +197,109 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     assert!(!rejected.status.success());
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("option outside bounds"));
     assert!(!forbidden_export.exists());
+    // Offline maintenance: all process/file leases are closed before raw reads.
+    let follower_path = Path::new(follower);
+    let manifest = follower_path.join("replica-manifest.wdb");
+    assert!(status.contains("selected_slot=Some(0)"));
+    let selected = follower_path.join("replica-0.wdb");
+    let inactive = follower_path.join("replica-1.wdb");
+    let selected_bytes = fs::read(&selected).unwrap();
+    fs::write(&inactive, b"abandoned incomplete image").unwrap();
+    fs::write(follower_path.join("operator-note"), b"keep").unwrap();
+    let before = fs::read(&manifest).unwrap();
+    for command in ["cleanup-inactive", "compact-manifest"] {
+        let rejected = Command::new(BIN)
+            .args([
+                command,
+                follower,
+                "22222222222222222222222222222222",
+                identity,
+            ])
+            .output()
+            .unwrap();
+        assert!(!rejected.status.success());
+        let expected = if cfg!(windows) && command == "compact-manifest" {
+            "compact-manifest unsupported on Windows; reseed a fresh follower directory"
+        } else {
+            "ForeignStore"
+        };
+        assert_eq!(
+            String::from_utf8(rejected.stderr).unwrap().trim_end(),
+            expected
+        );
+        assert_eq!(fs::read(&manifest).unwrap(), before);
+        assert_eq!(fs::read(&inactive).unwrap(), b"abandoned incomplete image");
+        assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    }
+    let cleaned = run(&["cleanup-inactive", follower, stream, identity]);
+    assert!(cleaned.contains("maintenance removed_inactive=1"));
+    assert!(cleaned.lines().any(|line| line == ack));
+    assert!(!inactive.exists());
+    assert!(run(&["cleanup-inactive", follower, stream, identity]).contains("removed_inactive=0"));
+    assert_eq!(
+        fs::read(follower_path.join("operator-note")).unwrap(),
+        b"keep"
+    );
+    assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        use weekend_db::replication::MANIFEST_LIMIT_BYTES;
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&manifest)
+            .unwrap()
+            .set_len(MANIFEST_LIMIT_BYTES)
+            .unwrap();
+        assert!(run(&["status", follower, stream, identity]).contains("maintenance_required=true"));
+        let compacted = run(&["compact-manifest", follower, stream, identity]);
+        assert!(compacted.contains("maintenance_required=false"));
+        assert!(compacted.lines().any(|line| line == ack));
+        assert!(fs::metadata(&manifest).unwrap().len() < MANIFEST_LIMIT_BYTES);
+    }
+    #[cfg(windows)]
+    {
+        let before = fs::read(&manifest).unwrap();
+        let rejected = Command::new(BIN)
+            .args(["compact-manifest", follower, stream, identity])
+            .output()
+            .unwrap();
+        assert!(!rejected.status.success());
+        assert!(String::from_utf8_lossy(&rejected.stderr).contains("unsupported on Windows"));
+        assert_eq!(fs::read(&manifest).unwrap(), before);
+    }
+    assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    assert!(
+        run(&["status", follower, stream, identity])
+            .lines()
+            .any(|line| line == ack)
+    );
+    let parse_id = |s: &str| u128::from_str_radix(s, 16).unwrap().to_be_bytes();
+    let f = weekend_db::replication::Follower::open(
+        follower,
+        weekend_db::replication::Enrollment {
+            stream_id: parse_id(stream),
+            file_identity: parse_id(identity),
+        },
+        Limits::default(),
+    )
+    .unwrap();
+    let replica = f.replica().unwrap();
+    let c = replica.collection_id(1);
+    assert_eq!(replica.snapshot().revision(), 4);
+    assert_eq!(replica.retained_ids().unwrap(), [1]);
+    assert_eq!(replica.retained_snapshot(1).unwrap().revision(), 2);
+    assert_eq!(
+        replica.snapshot().get(c, b"key").unwrap().unwrap().as_u64(),
+        Ok(2)
+    );
+    assert_eq!(
+        replica
+            .retained_snapshot(1)
+            .unwrap()
+            .get(c, b"key")
+            .unwrap()
+            .unwrap()
+            .as_u64(),
+        Ok(1)
+    );
 }
