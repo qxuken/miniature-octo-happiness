@@ -382,6 +382,11 @@ two-process fault-result schemas. Formatting and whitespace checks pass.
 four final gate indices and the nineteen private package-manifest checks.
 This compact checkpoint preserves distinct evidence scopes rather than creating
 a unified release bundle or coverage denominator.
-Continuous helper-control wiring remains a local gap: the native CI workflow
-currently invokes three older helper scripts, rather than this complete set.
-No hosted execution was attempted; the manual checks above retain their scope.
+The [continuous helper runner](helper-controls.md) closes that local wiring gap:
+all nineteen suites run in separate normal/`-O` workers, with exact test IDs,
+explicit skips, source stability and bounded process/output cleanup. Frozen
+Mac/Linux runs each pass 268 tests plus four registered skips across 38 workers;
+seventeen runner controls include the detached-child/grandchild regressions found
+during review. The workflow now schedules the same Mise-pinned command on both
+POSIX platforms. These local results do not imply hosted execution of the new
+job, native Windows helper portability or a new native-engine qualification.

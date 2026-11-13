@@ -5216,3 +5216,21 @@ copy and the platform-specific replacement API are unchanged. Targeted Clippy
 checks pass for macOS, Windows MSVC and Linux GNU targets locally; the macOS
 stub exits with status 1 as intended. Cross-checks do not replace the pending
 hosted native Windows execution.
+
+### Continuous helper controls
+
+The [helper/oracle runner](docs/helper-controls.md) now covers all nineteen
+registered Python suites in isolated normal and `-O` workers, with exact test-ID
+accounting, explicit optional skips, input-stability checks and bounded output
+and runtime. Review found and fixed detached-child and orphaned-grandchild
+cleanup gaps; actual process controls verify them, including failed inspection
+and malformed journals. This trusted-suite watchdog is not a hostile process
+sandbox.
+
+Frozen Mac arm64 and Docker Linux aarch64/ext4 runs each pass 38 workers,
+268 tests and four registered skips (272 reported). Copied Linux evidence is
+rehashed and its owned container/volume are confirmed absent. The workflow
+schedules the same command with Mise-pinned Python 3.14.8 on Mac/Linux; hosted
+execution remains its own gate. Native Windows retains the existing portable
+helper checks. No engine/application runtime, durability barrier or follower
+acknowledgment changed, and no Cargo publication occurred.
