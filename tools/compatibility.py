@@ -67,12 +67,13 @@ def child_env():
 
 
 def stop(child):
-    if child.poll() is None:
-        try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        child.wait(timeout=5)
+    # Every caller owns a child started with start_new_session=True. Descendants
+    # can outlive an already-exited leader, so its status must not gate killpg.
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    child.wait(timeout=5)
 
 
 def run(command, output, evidence, label, *, cwd=ROOT, env=None, timeout=30):

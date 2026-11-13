@@ -5,6 +5,8 @@ import importlib.util
 import io
 import json
 import os
+import signal
+import time
 from pathlib import Path
 import subprocess
 import sys
@@ -140,6 +142,39 @@ elif mode=={fault!r}: path.write_bytes(path.read_bytes()+b'control-mutation')
                 self.assertEqual(evidence['builds'][role]['original_lock_sha256'], hashlib.sha256(contents).hexdigest())
                 self.assertEqual(evidence['builds'][role]['runtime_identity']['source_id'], revision)
             self.assertEqual(len(calls), 4)
+
+    def test_early_exited_leader_does_not_leave_running_descendant(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            marker = output / 'descendant.pid'
+            program = (
+                "import subprocess,sys; from pathlib import Path; "
+                "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
+                "Path(sys.argv[1]).write_text(str(child.pid)); sys.exit(2)"
+            )
+            descendant = None
+            try:
+                with self.assertRaises(RuntimeError):
+                    runner.run([sys.executable, '-c', program, marker], output,
+                               {'commands': []}, 'early-exit', timeout=5)
+                descendant = int(marker.read_text())
+                deadline = time.monotonic() + 3
+                while True:
+                    state = subprocess.run(['ps', '-o', 'stat=', '-p', str(descendant)],
+                                           capture_output=True, text=True, timeout=2)
+                    # An orphan zombie has stopped executing; its new parent owns reaping.
+                    if not state.stdout.strip() or state.stdout.strip().startswith('Z'):
+                        break
+                    self.assertLess(time.monotonic(), deadline, 'descendant still running')
+                    time.sleep(.02)
+            finally:
+                if descendant is None and marker.exists():
+                    descendant = int(marker.read_text())
+                if descendant is not None:
+                    try:
+                        os.kill(descendant, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
     def test_consumer_timeout_kills_and_reaps_process_group(self):
         with tempfile.TemporaryDirectory() as temp:
