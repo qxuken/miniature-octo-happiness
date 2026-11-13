@@ -5204,3 +5204,15 @@ paths; fixed helpers and fresh Mac/Linux runs preserve the prior evidence
 without relabeling it. Engine/application runtime, durability barriers and
 separate follower acknowledgments are unchanged. Remaining platform/device,
 feasible-decision, promised-transition and final-candidate gates stay explicit.
+
+### Hosted platform checks resumed
+
+After the repository became public, the native Windows job for `4370b46`
+reached all-target Clippy and found that the Linux tmpfs fault example compiled
+its Linux-only in-place compaction calls on Windows. The example now gates its
+complete drill to Linux and exits with an explicit unsupported-platform message
+elsewhere. This preserves the existing Linux runner contract; Windows compact
+copy and the platform-specific replacement API are unchanged. Targeted Clippy
+checks pass for macOS, Windows MSVC and Linux GNU targets locally; the macOS
+stub exits with status 1 as intended. Cross-checks do not replace the pending
+hosted native Windows execution.
