@@ -382,3 +382,6 @@ two-process fault-result schemas. Formatting and whitespace checks pass.
 four final gate indices and the nineteen private package-manifest checks.
 This compact checkpoint preserves distinct evidence scopes rather than creating
 a unified release bundle or coverage denominator.
+Continuous helper-control wiring remains a local gap: the native CI workflow
+currently invokes three older helper scripts, rather than this complete set.
+No hosted execution was attempted; the manual checks above retain their scope.

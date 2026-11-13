@@ -121,7 +121,7 @@ harness-level scope reference.
 | Snapshot frames/install | Structured frames and manifest/image faults | Authentication/TLS/native transfer timing belongs to separate suites. |
 | CRDT frames/schedules/registers | Fixed two-actor model plus independent register dots/events and policy commits | Excluded forged histories/exhaustion shapes require directed tests; larger rosters not offered. |
 | Coordinator/peer transport | Exact production parsers, bounded deterministic transport seams | Not a general TLS/network-fault fuzzer; authenticated native tests and operational credential changes remain separate. |
-| Sanitizer/Miri/Loom/corpus infrastructure | Calibration, saved seeds, deterministic replay, bounded atomic models, native thread tests | Candidate/platform-specific runs and lasting artifact retention are separate gates. ASan without rebuilt std does not instrument all code; Miri/models do not prove native syscalls. |
+| Sanitizer/Miri/Loom/corpus infrastructure | Calibration, saved seeds, deterministic replay, bounded atomic models, native thread tests | Local: wire the complete Python helper/oracle control set into repeatable local/CI entry points; the native workflow currently lists only three helper scripts. Manual source-bound runs do not establish continuous execution. Candidate/platform runs and lasting retention remain separate. ASan without rebuilt std does not instrument all code; Miri/models do not prove native syscalls. |
 
 ## Crash, platform and delivery gates
 
