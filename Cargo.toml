@@ -47,3 +47,7 @@ overflow-checks = true
 [[example]]
 name = "crdt_policy_migration"
 required-features = ["crdt"]
+
+[[example]]
+name = "native_quota"
+path = "tools/quota/fixture.rs"

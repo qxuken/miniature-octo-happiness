@@ -76,6 +76,58 @@ jobs:
           name: helper-controls-${{ runner.os }}-${{ runner.arch }}
           if-no-files-found: warn
           path: target/helper-controls/
+  linux-quota:
+    name: Native Linux quota exhaustion and recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned controller Python with Mise
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          version: 2026.11.6
+          install_args: python@3.14.8
+      - name: Install filesystem quota tools and record their versions
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends quota e2fsprogs util-linux
+          mkdir -p target/quota-host
+          uname -a > target/quota-host/kernel.txt
+          dpkg-query -W quota e2fsprogs util-linux > target/quota-host/packages.txt
+          cat /etc/os-release > target/quota-host/os-release.txt
+      - name: Check controller rejection and cleanup controls without privileges
+        run: |
+          mise exec python@3.14.8 -- python tools/quota/test_runner.py
+          mise exec python@3.14.8 -- python -O tools/quota/test_runner.py
+      - name: Build the native core-only quota fixture
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo +1.99.1 fetch --locked
+          cargo +1.99.1 build --offline --locked --release --example native_quota --target-dir target/quota-build
+          rustc +1.99.1 -Vv > target/quota-host/rustc.txt
+          sha256sum target/quota-build/release/examples/native_quota > target/quota-host/fixture.sha256
+      - name: Calibrate actual EDQUOT and verify commit failure, reopening and retry
+        run: |
+          quota_python="$(mise exec python@3.14.8 -- python -c 'import sys; print(sys.executable)')"
+          sudo "$quota_python" tools/quota/run.py --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-quota"
+      - name: Transfer private evidence ownership for upload
+        if: always()
+        run: |
+          if test -d target/native-quota; then
+            sudo chown -R --reference=. target/native-quota
+          fi
+      - name: Save native quota evidence (no image or registry publication)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-quota-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/native-quota/
+            target/quota-host/
+            target/quota-build/release/examples/native_quota
   sanitizers:
     runs-on: macos-latest
     timeout-minutes: ${{ matrix.kind == 'thread' && 40 || 20 }}

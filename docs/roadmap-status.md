@@ -415,3 +415,12 @@ stable source. Branch/MC/DC denominators are unmeasured; no withdrawn pooled
 percentage is restored. Physical durability, actual quota, remaining feasible
 decision pairs, complete advertised feature/ABI profiles, final immutable
 candidate and owner service/support choices remain open. Crates remain private.
+
+## Native quota gate machinery
+
+The [Linux quota controller and fixture](native-quota.md) are implemented and
+wired into a dedicated Ubuntu 24.04 job. Local checks include twelve normal/`-O`
+controls and Linux ext4 semantic/fresh-process/no-quota negative controls. The
+complete helper runner now covers twenty suites, forty workers, 292 passes and
+four registered skips per run. Actual EDQUOT qualification is still pending the
+hosted execution; the F05 quota gate is not closed by these local results.

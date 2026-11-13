@@ -5260,3 +5260,19 @@ physical device/quota, all feature/ABI combinations, remaining decision pairs or
 final-candidate/support acceptance. Durability barriers, engine/application
 runtime and separate follower durable acknowledgments remain unchanged; crates
 remain unpublished.
+
+### Native Linux quota qualification
+
+The [quota gate](docs/native-quota.md) adds a separate private ext4 loop-file
+controller, capability calibration and source-bound Rust fixture. It requires
+real Linux `EDQUOT`, complete current/retained data checks, terminal and
+recovery-required behavior, a fresh-process reopen while full, and a successful
+retry after releasing owned ballast. Privilege dropping, exact mount/backing
+identity and independently verified cleanup are part of qualification.
+
+Twelve controller controls pass normally and under `-O`; the complete helper
+entry point now passes forty workers with 292 passes and four registered skips.
+Linux Docker semantic controls verify complete reopen/retry data and reject a
+false quota pass when space is available. Actual hosted EDQUOT remains pending
+until the new Ubuntu job executes. No engine runtime, durability barrier or
+follower acknowledgment semantics changed; Cargo publication remains disabled.
