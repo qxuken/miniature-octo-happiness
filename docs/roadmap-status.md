@@ -452,3 +452,17 @@ MC/DC/device qualification. The API status snapshot is preserved in
 `9fe9b542238b147773ef5df9356eaf6b5ecbf123a8482d3675327630db3e6669`.
 Remaining release-candidate, device, broader failure-profile and owner gates
 remain open. Crates remain unpublished.
+
+## Windows delivered trace prepared for native testing
+
+The [Windows C/C++ handoff](windows-artifact-trace.md) now includes an executable
+runner, exact reference package/manifest/DLL pins, native-agent commands and
+acceptance criteria. It reuses the existing 134-cell model/common consumer,
+checks process-local DLL path/hash/identity before and after execution, and adds
+compatibility, input-rejection and loader-mismatch controls in both languages.
+
+Local controls and cross-compilation pass; the complete helper runner now has
+21 suites, 42 workers, 316 passes and four registered skips. Native MSVC and
+Windows execution are explicitly pending. The existing Windows smoke/relocation
+qualification is not relabeled as a full-state trace pass. No new automatic
+native trace CI gate or production runtime change is introduced by this handoff.

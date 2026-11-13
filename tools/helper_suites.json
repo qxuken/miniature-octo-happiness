@@ -6,6 +6,10 @@
       "allowed_skips": []
     },
     {
+      "path": "artifact-trace/test_windows_trace.py",
+      "allowed_skips": []
+    },
+    {
       "path": "delivered-faults/test_runner.py",
       "allowed_skips": []
     },

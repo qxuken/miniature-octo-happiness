@@ -5294,3 +5294,22 @@ all complete successfully. Fuzz seed/model replay and all manifest targets also
 pass. This closes the pending CI integration work; the detailed quota and
 package artifact audits keep their original source scopes. Green CI does not
 close remaining MC/DC, physical-device, broader-profile or final release gates.
+
+### Windows delivered C/C++ trace handoff
+
+The [Windows handoff](docs/windows-artifact-trace.md) prepares a native x64 MSVC
+runner around the unchanged common C consumer and independent 134-cell oracle.
+It compiles both optimized C11 and C++17 with assertions enabled, links only the
+delivered import library/header, and checks exact transcripts on local fixed
+NTFS. Process-local before/after loader proofs bind the actual DLL path, CNG
+SHA-256, source, ABI, format, feature bits and PID to a manifest-pinned package.
+Compatibility/input rejection and deliberately wrong hash/path/source controls
+run for each language. Owned Windows jobs bound process trees and output.
+
+Twelve portable controls pass normally and under `-O`; the helper registry now
+has 42 workers with 316 passes and four registered skips. Windows GNU C/C++
+cross-compilation and admission of an existing audited Windows package pass.
+These are preparation results. Native MSVC builds and DLL execution remain
+pending the Windows agent, so F15's full Windows trace is not yet qualified.
+The handoff includes pinned artifact identities, commands and acceptance criteria.
+No engine runtime or publication semantics changed; no crates are published.
