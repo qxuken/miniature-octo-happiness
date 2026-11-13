@@ -482,3 +482,27 @@ verifies full current/retained state. There is no new mutation score or compiler
 MC/DC claim. Fresh inventory reports 2,571 total production records and 317
 macro blind spots with no parse failures. Old source locations/dispositions
 remain historical; this follow-up is the named evidence for the changed lookup.
+
+## DATA revision index follow-up
+
+The [DATA index report](../serialization-data-index.md) qualifies the later
+sorted revision index without relabeling the earlier source-location table.
+
+| Decision / algorithm | Evidence / disposition |
+|---|---|
+| `reserve`: above object bound | Maximum-sized table admission versus `MAX_OBJECTS+1` rejection; rejection precedes the zero-allocation allowance and size rounding |
+| `reserve`: requested entries above current length | Empty/no allocation versus first reserve and growth; reuse within existing rounded capacity succeeds under zero allocation allowance |
+| delegated charged reserve outcomes | Initial and growth OOM preserve prior order/live charge; exact initial one-slot and two-slot growth budgets distinguish Limit/success, including old/new overlap; drop returns charge to zero |
+| sort / lower bound / equality | Unsorted cache, duplicate revision with different counters, empty cache, absent/present revisions, gaps, zero and u64 maximum; test-build encoder results checked against the original linear first match |
+| insertion order / cache indices | Front/middle/end insertions and capacity growth, with cache remaining in original order. Rebuild sorts `(revision, original position)` to keep first-match behavior. Lower bound and slice rotation are delegated standard-library algorithms, not claims of full coverage of std internals |
+| cached next-collection validation | Existing encoder counter success/Invalid control is unchanged. Duplicate test selects the first original counter; the new index cannot substitute a later entry |
+| arithmetic and lifetime bounds | At most 16,384 entries; rounded capacity/subtraction and cache length plus one fit supported 64-bit sizes. No new pointers or unsafe ownership. All indexed cache entries remain live and cache indices do not move when index order rotates |
+| preparation errors and durability | Existing all-allocation commit/copy sweeps, budget, crash/recovery and retained-root tests pass in Mac/Linux debug/release. No index allocation occurs after publication begins |
+
+New 64-root golden history exercises metadata reuse, nonconsecutive revisions,
+reopening, release, backup/compaction and subsequent append/retain. Seventeen
+exact baseline image comparisons and the independent full-state scaling oracle
+pass. Two index controls pass pinned Miri; seven instrumentation/launcher
+controls pass normally and under optimized Python. Fresh inventory is 2,577
+records with 318 macro blind spots and no parse failures. This is source-bound
+guard/algorithm evidence, not a new mutation score or compiler MC/DC percentage.

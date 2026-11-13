@@ -101,4 +101,21 @@ class Controls(unittest.TestCase):
             self.assertIn('Ordering::Relaxed); old.value.same_node(value)',text)
             with self.assertRaises(RuntimeError): scale.instrument(root)
 
+    def test_instrumentation_accepts_legacy_data_and_rejects_ambiguous_or_missing_sites(self):
+        legacy = '.find(|r| r.revision == head.data_revision)'
+        indexed = 'fn compare(a: u64, b: u64) -> std::cmp::Ordering {\n        a.cmp(&b)\n    }'
+        for site in [legacy, indexed, '', legacy + indexed, indexed + indexed]:
+            with self.subTest(site=site), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); (root/'src/storage').mkdir(parents=True)
+                (root/'src/storage/codec.rs').write_text('old.value.same_node(value)\n' + site)
+                (root/'src/storage/mod.rs').write_text('')
+                if site in [legacy, indexed]:
+                    scale.instrument(root)
+                    text = (root/'src/storage/codec.rs').read_text()
+                    self.assertEqual(text.count('SERIAL_DATA.fetch_add('), 1)
+                    self.assertEqual(text.count('SERIAL_VALUE.fetch_add('), 1)
+                    with self.assertRaises(RuntimeError): scale.instrument(root)
+                else:
+                    with self.assertRaises(RuntimeError): scale.instrument(root)
+
 if __name__=='__main__': unittest.main()

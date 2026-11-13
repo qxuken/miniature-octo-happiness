@@ -212,6 +212,57 @@ pub(crate) struct DataEntry {
     pub next_collection: u64,
     pub offset: u64,
 }
+/// Encoder-only revision order, separate from DATA emission/cache order.
+/// Rebuilt from arbitrary input cache order; ties keep the original first hit.
+struct DataIndex {
+    order: ChargedVec<usize>,
+}
+impl DataIndex {
+    fn new() -> Self {
+        Self {
+            order: ChargedVec::new(),
+        }
+    }
+    fn compare(a: u64, b: u64) -> std::cmp::Ordering {
+        a.cmp(&b)
+    }
+    fn from_cache(mem: &Memory, cache: &[DataEntry]) -> Result<Self> {
+        let mut index = Self::new();
+        index.reserve(mem, cache.len())?;
+        index.order.extend(0..cache.len());
+        index.order.sort_unstable_by(|a, b| {
+            Self::compare(cache[*a].revision, cache[*b].revision).then(a.cmp(b))
+        });
+        Ok(index)
+    }
+    fn position(&self, revision: u64, cache: &[DataEntry]) -> usize {
+        self.order
+            .partition_point(|i| Self::compare(cache[*i].revision, revision).is_lt())
+    }
+    fn get(&self, revision: u64, cache: &[DataEntry]) -> Option<usize> {
+        self.order
+            .get(self.position(revision, cache))
+            .copied()
+            .filter(|i| Self::compare(cache[*i].revision, revision).is_eq())
+    }
+    fn reserve(&mut self, mem: &Memory, entries: usize) -> Result<()> {
+        if entries > MAX_OBJECTS {
+            return Err(Error::Limit);
+        }
+        if entries > self.order.len() {
+            // Geometric charged capacity, with no allocation when already large
+            // enough. The object bound makes rounding/subtraction safe.
+            let extra = entries.next_power_of_two() - self.order.len();
+            mem.reserve(&mut self.order, extra)?;
+        }
+        Ok(())
+    }
+    fn insert(&mut self, revision: u64, cache: &[DataEntry], index: usize) {
+        let position = self.position(revision, cache);
+        self.order.push(index);
+        self.order[position..].rotate_right(1);
+    }
+}
 pub(crate) struct Candidate {
     pub start: u64,
     pub bytes: ChargedVec<u8>,
@@ -261,6 +312,7 @@ struct Encoder<'a> {
     cache: ChargedVec<CacheEntry>,
     value_index: ValueIndex,
     data_cache: ChargedVec<DataEntry>,
+    data_index: DataIndex,
 }
 impl Encoder<'_> {
     fn object(&mut self, kind: u32, payload: &[u8]) -> Result<(u64, u64)> {
@@ -350,11 +402,16 @@ impl Encoder<'_> {
         Ok(offset)
     }
     fn data(&mut self, head: &Head, next_collection: u64) -> Result<u64> {
-        if let Some(old) = self
-            .data_cache
-            .iter()
-            .find(|r| r.revision == head.data_revision)
-        {
+        let cached = self.data_index.get(head.data_revision, &self.data_cache);
+        #[cfg(test)]
+        assert_eq!(
+            cached,
+            self.data_cache
+                .iter()
+                .position(|entry| entry.revision == head.data_revision)
+        );
+        if let Some(index) = cached {
+            let old = &self.data_cache[index];
             if old.next_collection != next_collection {
                 return Err(Error::Invalid);
             }
@@ -393,7 +450,11 @@ impl Encoder<'_> {
         let offset = self
             .object_born(DATA, &payload.bytes, head.data_revision)?
             .0;
+        self.data_index
+            .reserve(self.mem, self.data_cache.len() + 1)?;
         self.mem.reserve(&mut self.data_cache, 1)?;
+        self.data_index
+            .insert(head.data_revision, &self.data_cache, self.data_cache.len());
         self.data_cache.push(DataEntry {
             revision: head.data_revision,
             next_collection,
@@ -424,6 +485,7 @@ pub(crate) fn encode(
     let mut data_cache = ChargedVec::new();
     mem.reserve(&mut data_cache, old_data.len())?;
     data_cache.extend(old_data.iter().cloned());
+    let data_index = DataIndex::from_cache(mem, &data_cache)?;
     let mut encoder = Encoder {
         mem,
         identity,
@@ -433,6 +495,7 @@ pub(crate) fn encode(
         cache,
         value_index,
         data_cache,
+        data_index,
     };
     let data_ref = encoder.data(head, next_collection)?;
     let mut commit = Writer::new(mem);
@@ -949,6 +1012,236 @@ mod tests {
     use super::*;
     use crate::{Database, Limits, storage::SimulatedDisk};
     const ID: [u8; 16] = *b"codec-test-00001";
+    #[test]
+    fn data_index_rebuild_insert_and_first_match_preserve_cache_order() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let mut cache: Vec<_> = [100, 0, u64::MAX, 40, 100]
+            .into_iter()
+            .enumerate()
+            .map(|(i, revision)| DataEntry {
+                revision,
+                next_collection: i as u64 + 1,
+                offset: i as u64,
+            })
+            .collect();
+        let mut index = DataIndex::from_cache(&mem, &cache).unwrap();
+        assert_eq!(&*index.order, &[1, 3, 0, 4, 2]);
+        for revision in [0, 1, 40, 41, 100, 101, u64::MAX] {
+            assert_eq!(
+                index.get(revision, &cache),
+                cache.iter().position(|entry| entry.revision == revision)
+            );
+        }
+        // A duplicate revision selects its first original entry, even when
+        // its counter differs from the later entry. Rebuild never sorts cache.
+        assert_eq!(cache[index.get(100, &cache).unwrap()].next_collection, 1);
+        assert_eq!(
+            cache.iter().map(|entry| entry.revision).collect::<Vec<_>>(),
+            [100, 0, u64::MAX, 40, 100]
+        );
+        let live = mem.public_usage().live_bytes;
+        let order = index.order.to_vec();
+        mem.fail_after(Some(0));
+        index.reserve(&mem, 6).unwrap(); // existing eight-slot capacity
+        assert_eq!(index.reserve(&mem, 9), Err(Error::OutOfMemory));
+        assert_eq!(&*index.order, order);
+        assert_eq!(mem.public_usage().live_bytes, live);
+        assert!(matches!(
+            DataIndex::from_cache(&mem, &cache),
+            Err(Error::OutOfMemory)
+        ));
+        assert_eq!(mem.public_usage().live_bytes, live);
+        mem.fail_after(None);
+        for revision in [1, 55, u64::MAX - 1] {
+            index.reserve(&mem, cache.len() + 1).unwrap();
+            index.insert(revision, &cache, cache.len());
+            cache.push(DataEntry {
+                revision,
+                next_collection: 1,
+                offset: cache.len() as u64,
+            });
+            assert_eq!(index.get(revision, &cache), Some(cache.len() - 1));
+        }
+        let mut index = DataIndex::new();
+        let mut cache = Vec::new();
+        for revision in [50, 0, 100, 25, u64::MAX] {
+            assert_eq!(index.get(revision, &cache), None);
+            index.reserve(&mem, cache.len() + 1).unwrap();
+            index.insert(revision, &cache, cache.len());
+            cache.push(DataEntry {
+                revision,
+                next_collection: 1,
+                offset: cache.len() as u64,
+            });
+        }
+        assert_eq!(&*index.order, &[1, 3, 0, 2, 4]);
+        for (i, entry) in cache.iter().enumerate() {
+            assert_eq!(index.get(entry.revision, &cache), Some(i));
+        }
+    }
+
+    #[test]
+    fn data_index_budget_and_object_bound_precede_allocation() {
+        let slot = std::mem::size_of::<usize>();
+        for cap in [slot - 1, slot] {
+            let mem = Memory::new(Limits {
+                max_live_bytes: cap,
+                ..Limits::default()
+            })
+            .unwrap();
+            let mut index = DataIndex::from_cache(&mem, &[]).unwrap();
+            assert_eq!(mem.public_usage().live_bytes, 0);
+            assert_eq!(
+                index.reserve(&mem, 1),
+                if cap == slot {
+                    Ok(())
+                } else {
+                    Err(Error::Limit)
+                }
+            );
+            mem.fail_after(Some(0));
+            assert_eq!(index.reserve(&mem, MAX_OBJECTS + 1), Err(Error::Limit));
+            drop(index);
+            assert_eq!(mem.public_usage().live_bytes, 0);
+        }
+        for cap in [3 * slot - 1, 3 * slot] {
+            let mem = Memory::new(Limits {
+                max_live_bytes: cap,
+                ..Limits::default()
+            })
+            .unwrap();
+            let mut index = DataIndex::new();
+            index.reserve(&mem, 1).unwrap();
+            index.order.push(0);
+            assert_eq!(
+                index.reserve(&mem, 2),
+                if cap == 3 * slot {
+                    Ok(())
+                } else {
+                    Err(Error::Limit)
+                }
+            );
+            assert_eq!(&*index.order, &[0]);
+            assert_eq!(
+                mem.public_usage().live_bytes,
+                if cap == 3 * slot { 2 * slot } else { slot }
+            );
+            drop(index);
+            assert_eq!(mem.public_usage().live_bytes, 0);
+        }
+        let mem = Memory::new(Limits::default()).unwrap();
+        let mut index = DataIndex::new();
+        index.reserve(&mem, MAX_OBJECTS).unwrap();
+        assert_eq!(mem.public_usage().live_bytes, MAX_OBJECTS * slot);
+        assert_eq!(index.reserve(&mem, MAX_OBJECTS + 1), Err(Error::Limit));
+    }
+    #[test]
+    fn serialization_data_golden_history() {
+        // Capture these bytes with the linear DATA encoder before changing it.
+        let output = std::env::var_os("WDB_DATA_IMAGES").map(std::path::PathBuf::from);
+        if let Some(path) = &output {
+            std::fs::create_dir(path).unwrap();
+        }
+        let mut captures = Vec::new();
+        let mut capture = |disk: &SimulatedDisk| {
+            let image = disk.durable_image().unwrap();
+            if let Some(path) = &output {
+                std::fs::write(path.join(format!("{}.wdb", captures.len())), &image).unwrap();
+            }
+            captures.push((image.len(), crc(&image)));
+        };
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db =
+            Database::create_on(disk.clone(), *b"codec-data-00001", Limits::default()).unwrap();
+        let collection = db.create_collection().unwrap().as_u64();
+        let mut revisions = Vec::new();
+        for epoch in 1..=64u64 {
+            let mut tx = db.begin();
+            tx.put(
+                db.collection_id(collection),
+                b"row",
+                &db.unsigned(epoch).unwrap(),
+            )
+            .unwrap();
+            let mut revision = tx.commit().unwrap();
+            drop(tx);
+            if epoch % 3 == 0 {
+                // A metadata-only publication shares DATA despite a new head.
+                revision = db.begin().commit().unwrap();
+            }
+            revisions.push(revision);
+            assert_eq!(db.retain_snapshot(&db.snapshot()).unwrap(), epoch);
+            if epoch % 8 == 0 {
+                drop(db);
+                db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+            }
+            if epoch % 16 == 0 {
+                capture(&disk);
+            }
+        }
+        for (i, revision) in revisions.iter().enumerate() {
+            let view = db.retained_snapshot(i as u64 + 1).unwrap();
+            assert_eq!(view.revision(), *revision);
+            assert_eq!(
+                view.get(db.collection_id(collection), b"row")
+                    .unwrap()
+                    .unwrap()
+                    .as_u64(),
+                Ok(i as u64 + 1)
+            );
+        }
+        for id in [1, 32, 64] {
+            db.release_retained(id).unwrap();
+        }
+        capture(&disk);
+        let backup = SimulatedDisk::new().unwrap();
+        // Backups own a new verification budget, and encode current before
+        // retained roots: sorting must not change that original wire order.
+        drop(db);
+        super::super::backup_on(disk.clone(), backup.clone(), Limits::default()).unwrap();
+        capture(&backup);
+        let mut db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+        let compact = SimulatedDisk::new().unwrap();
+        db.compact_to(compact.clone()).unwrap();
+        assert_eq!(
+            backup.durable_image().unwrap(),
+            compact.durable_image().unwrap()
+        );
+        let reopened = Database::open_on(compact.clone(), Limits::default()).unwrap();
+        let mut tx = reopened.begin();
+        tx.put(
+            reopened.collection_id(collection),
+            b"new",
+            &reopened.unsigned(65).unwrap(),
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        drop(tx);
+        assert_eq!(reopened.retain_snapshot(&reopened.snapshot()).unwrap(), 65);
+        for id in reopened.retained_ids().unwrap() {
+            let view = reopened.retained_snapshot(id).unwrap();
+            assert_eq!(
+                view.get(reopened.collection_id(collection), b"row")
+                    .unwrap()
+                    .unwrap()
+                    .as_u64(),
+                Ok(if id == 65 { 64 } else { id })
+            );
+        }
+        capture(&compact);
+        assert_eq!(
+            captures,
+            [
+                (319488, 18344531734244846753),
+                (602112, 8454422879921928127),
+                (888832, 15111149358676933575),
+                (1171456, 12993989903033458364),
+                (1183744, 12825919318030204998),
+                (532480, 2049205749265809771),
+                (548864, 5850840686714030802),
+            ]
+        );
+    }
     #[test]
     fn value_index_collisions_wrap_growth_and_first_identity_match() {
         let mem = Memory::new(Limits::default()).unwrap();
@@ -2449,6 +2742,7 @@ mod tests {
             cache: ChargedVec::new(),
             value_index: ValueIndex::new(),
             data_cache: ChargedVec::new(),
+            data_index: DataIndex::new(),
         };
         assert_eq!(
             encoder.object(VALUE, &[0; 16]),
@@ -2494,6 +2788,7 @@ mod tests {
             cache: ChargedVec::new(),
             value_index: ValueIndex::new(),
             data_cache: ChargedVec::new(),
+            data_index: DataIndex::new(),
         };
         let offset = encoder.data(&head, 1).unwrap();
         let before = encoder.bytes.to_vec();

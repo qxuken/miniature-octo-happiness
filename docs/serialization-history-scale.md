@@ -147,3 +147,10 @@ The subsequent [charged VALUE index](serialization-identity-index.md) is now
 implemented and qualified separately. It preserves exact baseline bytes and
 reruns both axes, allocation/budget/crash and retained-root checks. This report
 continues to describe the original linear encoder and its original evidence.
+
+
+The subsequent [DATA revision index](serialization-data-index.md) preserves
+emission order and exact bytes while reducing the 64-root DATA comparison count
+from 108,036 to 39,837, including index rebuild/sort/search. Small histories have
+more comparisons. The original linear-search measurements above remain bound
+to their historical source; they are not measurements of the new encoder.

@@ -7,7 +7,8 @@ subsequent requirement review includes qualification work through
 `e20ceceebd6f8ba1ec0da89a7514f93d6ffd706b`, with each report retaining its named
 source/profile. These qualification tranches change tests/tools, not engine
 or application runtime. The later [VALUE identity index](serialization-identity-index.md)
-changes encoder lookup and has its own source-bound qualification. An old passing
+and [DATA revision index](serialization-data-index.md) change encoder lookup
+and have their own source-bound qualification. An old passing
 run supports its recorded source/profile only. Neither a source disposition nor
 an error-path test elsewhere closes an untested `E`, platform `cfg`, dependency,
 macro expansion or operating-system behavior by association.
@@ -58,7 +59,7 @@ an unoffered expansion, not a defect to fix speculatively.
 | F15 Packaged optimized Rust/C/C++/Odin consumers and relocation | [exact-21 packages](local-qualification-21e5d26.md), source isolation and symbol checks; [hosted combined-feature packages](hosted-qualification-cd7cdfe.md) on Mac/Linux/Windows; [native Windows trace results](windows-artifact-trace.md#native-results-2026-11-13) passed | The [134-cell v2 trace](artifact-trace-validation-modes.md) exercises both validation modes, empty and retained-metadata publications through optimized Mac Rust/C/Odin and Linux ext4 Rust/C. Original v1 bytes/oracle remain preserved. Clean harness 80eb0c2 now passes all twenty native optimized C11/C++17 cases on Windows 11 x64/fixed NTFS against pinned DLL source 7a490e5ce24910d5d8ec96abe0fb9d218ea9e870: exact transcripts, process-local before/after identity, ten no-database rejections and complete owned-job cleanup. MSVC 14.51.36231/SDK 10.0.26100.0/Python 3.14.8 and historical evidence hashes are recorded in the result report. The owner subsequently cleaned the Windows worktree; raw proofs are unavailable for review/retention here, so repeat this gate for the final candidate. Preparation checks remain distinct. Linux Odin, packaged Rust source, broader feature/error/platform cases and hosted evidence retention retain their scope. |
 | F16 MSRV, loader, toolchain and support promises | Rust 1.99.1 qualification, pinned manifests/toolchain identities, private package instructions | The declared Rust 1.99 minimum passes full [Mac](local-baseline-ffdf506.md#declared-minimum-compiler) and [Linux ext4](local-toolchains-a56083c.md) checks at 1.99.0 with unchanged locks. The latter predates the new cutover tests. Windows/other target combinations and owner support window remain open. |
 | F17 Worst-case heap/stack/disk/work/latency | Per-value/transaction/image/history caps, opt-in requested-core budget, [resource envelope](resource-envelope.md) | Local: combined/adversarial cases and encoder search work. No RSS/latency upper bound follows from the core budget or a requested worker-stack setting. |
-| F18 Decoder/DATA/encoder cache searches | Decoder indexing, recovery scale, [breadth](serialization-scale.md) and [64-root history](serialization-history-scale.md) experiments with full current/retained/maintenance oracles | The [charged VALUE identity index](serialization-identity-index.md) preserves ten exact baseline images on Mac/Linux and reduces the largest measured comparison count from 440,169,243 to 147,132, including rebuild/growth. Expected lookup is constant; collision worst case remains linear. DATA searches are unchanged: 108,036 lifecycle comparisons at 64 roots, accumulated publication work cubic in history length. Local: DATA indexing evaluation, compound near-cap profiles and final candidate/platform reruns. Owner sets acceptable latency/RSS budgets; no universal speedup is inferred. |
+| F18 Decoder/DATA/encoder cache searches | Decoder indexing, recovery scale, [breadth](serialization-scale.md) and [64-root history](serialization-history-scale.md) experiments with full current/retained/maintenance oracles | The [VALUE index](serialization-identity-index.md) replaces identity scans; the subsequent [DATA revision index](serialization-data-index.md) replaces revision scans with binary lookup over separately sorted cache positions. Seventeen exact baseline images pass on Mac/Linux. DATA comparisons at 64 retained roots fall from 108,036 to 39,837 including sorting/searches; small histories use more comparisons. Cache cloning, index rebuild/sort, out-of-order insertion and exact-capacity cache-vector growth remain work. Local: compound near-cap/concurrent profiles, charged vector-growth evaluation and final candidate/platform reruns. Owner sets acceptable latency/RSS budgets; no universal speedup is inferred. |
 | F19 Fallible allocation, overflow, panic, unsafe and consumer builds | Memory/FFI ledgers, fault sweeps, Miri/Loom, abort subprocesses; [unsafe review](unsafe-review-2490631.md) | Scope remains source/ABI/config-specific. Candidate sanitizer work is separate; review downstream build flags and uninstrumented/native dependencies explicitly. |
 | F20 Filesystem/device/path/ACL threat model | Native adapters and operational docs; trusted config directories; Unix private keys; Windows external ACL provisioning | Platform/device: actual target filesystem/cache/ACL behavior. No race-proof hostile namespace or dishonest-flush guarantee. |
 | F21 License/security/dependencies/provenance | MIT OR Apache-2.0, notice inventory/std notices, [SECURITY](../SECURITY.md), package manifests | Owner accepts distribution terms, support response and exceptions. A [fresh immutable-database dependency review](local-baseline-ffdf506.md#locked-dependency-review) passed all twelve checkpoint locks plus the later progress fixture. Final immutable candidate bundle/attribution and owner approval remain; packaging eligibility is not production approval. |
@@ -82,8 +83,9 @@ an unoffered expansion, not a defect to fix speculatively.
 
 The historical inventory classifies 2,561 explicit source records in 51 files,
 with 316 macro blind spots. The index follow-up regenerates 2,571 records with
-317 blind spots and no parse failures; changed lookup controls are recorded in
-the [codec follow-up](decisions/codec.md#value-identity-index-follow-up). These
+317 blind spots; the DATA follow-up now has 2,577 records with 318 blind spots
+and no parse failures. Changed lookup controls are recorded in the
+[codec follow-ups](decisions/codec.md#data-revision-index-follow-up). These
 are source-record counts, not numbers of proved MC/DC decisions. See [inventory](decision-inventory.md),
 [ledger index](decisions/README.md), [coverage correction](historical-coverage-audit.md)
 and [per-executable coverage](coverage-executables.md). The compiler configurations
@@ -147,14 +149,14 @@ harness-level scope reference.
 
 ## Highest-impact remaining local work
 
-1. **Continue resource scaling after the VALUE index.** The
-   [charged index](serialization-identity-index.md) now passes exact-byte,
-   allocation/budget/crash and retained-state qualification on Mac/Linux.
-   DATA revision lookup remains linear, with cubic accumulated comparisons
-   across growing retained histories. Evaluate that separately, plus combined
-   near-cap/concurrent workloads and remaining cache-vector growth costs.
-   Owner budgets still determine acceptable latency and RSS; current finite
-   measurements do not establish service limits.
+1. **Qualify compound resource workloads and remaining copy costs.** Both
+   [VALUE](serialization-identity-index.md) and [DATA](serialization-data-index.md)
+   indexes now pass exact-byte, allocation/budget/crash and retained-state
+   qualification on Mac/Linux. Evaluate combined near-cap/concurrent drafts,
+   index rebuilds and exact-capacity cache/byte-vector growth; preserve charged
+   allocation and original bytes in any further change. Owner budgets still
+   determine acceptable latency and RSS. Small-history comparison overhead and
+   unmeasured latency distributions remain explicit.
 2. **Qualify remaining delivered failure profiles and transitions.** Named
    binary/credential upgrades and both transaction validation modes now have
    native evidence. Exact-package Linux C additionally exercises uncertain-I/O

@@ -154,3 +154,9 @@ mise exec rust@1.99.1 -- cargo test --offline --locked --manifest-path fuzz/Carg
 mise exec rust@1.99.1 python@3.14.8 -- python tools/serialization-scale/run.py --revision HEAD --output target/index-breadth-fresh
 mise exec rust@1.99.1 python@3.14.8 -- python tools/serialization-scale/run.py --revision HEAD --axis history --output target/index-history-fresh
 ```
+
+
+The subsequent [DATA revision index](serialization-data-index.md) now addresses
+that separate revision-search cost with binary lookup over sorted cache indices.
+It preserves this report's ten golden images plus seven new history images;
+this report continues to describe the VALUE tranche and its original scope.

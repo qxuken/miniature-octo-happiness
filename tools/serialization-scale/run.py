@@ -37,9 +37,19 @@ def clean_env():
 def instrument(root):
     path = root / 'src/storage/codec.rs'
     text = path.read_text()
+    if 'SERIAL_VALUE.fetch_add(' in text or 'SERIAL_DATA.fetch_add(' in text:
+        raise RuntimeError('instrumentation already applied')
+    data_sites = [
+        ('.find(|r| r.revision == head.data_revision)', '.find(|r| { SERIAL_DATA.fetch_add(1, std::sync::atomic::Ordering::Relaxed); r.revision == head.data_revision })'),
+        ('fn compare(a: u64, b: u64) -> std::cmp::Ordering {\n        a.cmp(&b)\n    }',
+         'fn compare(a: u64, b: u64) -> std::cmp::Ordering {\n        SERIAL_DATA.fetch_add(1, std::sync::atomic::Ordering::Relaxed);\n        a.cmp(&b)\n    }'),
+    ]
+    matching = [site for site in data_sites if site[0] in text]
+    if len(matching) != 1:
+        raise RuntimeError('expected exactly one linear or indexed DATA comparison site')
     replacements = [
         ('old.value.same_node(value)', '{ SERIAL_VALUE.fetch_add(1, std::sync::atomic::Ordering::Relaxed); old.value.same_node(value) }'),
-        ('.find(|r| r.revision == head.data_revision)', '.find(|r| { SERIAL_DATA.fetch_add(1, std::sync::atomic::Ordering::Relaxed); r.revision == head.data_revision })'),
+        matching[0],
     ]
     for old, new in replacements:
         if text.count(old) != 1:

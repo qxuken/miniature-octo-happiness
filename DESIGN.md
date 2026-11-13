@@ -5374,3 +5374,36 @@ budget controls pass pinned Miri. The report records timings, source hashes,
 evidence and limitations. This runtime change needs fresh Windows/final-candidate
 qualification; the earlier delivered DLL's pass remains source-bound. Cargo
 publication remains disabled.
+
+### Charged serialization DATA revision index
+
+The [DATA index qualification](docs/serialization-data-index.md) replaces the
+encoder's linear revision scan with binary lookup in a charged vector of cache
+positions sorted by `(data revision, original cache position)`. The DATA cache
+and traversal keep their existing order, including current-before-retained
+serialization and recovery-built caches. Revision ties preserve the original
+first match, and cached next-collection validation remains mandatory. New DATA
+objects still append to the original cache; only index positions move.
+
+The index is rebuilt on each encode and dropped before publication. Lookup
+uses O(log H) comparisons; initial sorting is O(H log H) worst case and inserting
+an out-of-order revision can move O(H) positions. No new unsafe code or persisted
+representation is introduced. Fallible geometric capacity uses the existing
+live budget; a 16,384-entry maximum is 131,072 requested bytes on 64-bit targets,
+with 196,608 bytes charged at largest old/new growth overlap. Preparation may
+reach an existing tight budget earlier, with prior acknowledged state preserved.
+Durability barriers, terminal/retry behavior and separate follower durable
+acknowledgment remain unchanged.
+
+Seventeen fixed-identity images match the baseline exactly on Mac and Linux,
+including a new 64-root history with metadata reuse, nonconsecutive revisions,
+reopen, releases, backup/compaction and later append/retain. Full allocation,
+budget, crash/recovery and retained-root suites pass in both debug/release;
+directed initial/growth failure, budget, boundary and cache-order controls pass
+pinned Miri. The independent scaling oracle passes unchanged accepted histories,
+file sizes and cap outcomes. DATA comparisons at 64 roots fall from 108,036 to
+39,837 including sorting/searches, while one/eight-root cases perform more
+comparisons. The result does not establish a latency SLO. Cache cloning, vector
+growth, compound resource profiles and final native/candidate qualification
+remain work. Source hashes and local evidence are recorded in the report;
+all crates remain unpublished.
