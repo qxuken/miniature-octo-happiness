@@ -5214,8 +5214,8 @@ complete drill to Linux and exits with an explicit unsupported-platform message
 elsewhere. This preserves the existing Linux runner contract; Windows compact
 copy and the platform-specific replacement API are unchanged. Targeted Clippy
 checks pass for macOS, Windows MSVC and Linux GNU targets locally; the macOS
-stub exits with status 1 as intended. Cross-checks do not replace the pending
-hosted native Windows execution.
+stub exits with status 1 as intended. Those cross-checks supply compile evidence;
+the subsequent hosted gate supplies actual native Windows execution.
 
 ### Continuous helper controls
 
@@ -5230,7 +5230,33 @@ sandbox.
 Frozen Mac arm64 and Docker Linux aarch64/ext4 runs each pass 38 workers,
 268 tests and four registered skips (272 reported). Copied Linux evidence is
 rehashed and its owned container/volume are confirmed absent. The workflow
-schedules the same command with Mise-pinned Python 3.14.8 on Mac/Linux; hosted
-execution remains its own gate. Native Windows retains the existing portable
+schedules the same command with Mise-pinned Python 3.14.8 on Mac/Linux; its
+separately recorded hosted executions now pass. Native Windows retains the existing portable
 helper checks. No engine/application runtime, durability barrier or follower
 acknowledgment changed, and no Cargo publication occurred.
+
+### Hosted native qualification
+
+The [cd7cdfe hosted gate](docs/hosted-qualification-cd7cdfe.md) now passes the
+native Mac arm64, Linux x86_64 and Windows MSVC x86_64 jobs. Debug/release Rust,
+shared-library consumers, compiled Windows C/C++ clients and combined-feature
+package relocation all execute. Downloaded package digests and all payloads are
+verified against their manifests; source checks account explicitly for Windows
+checkout line endings. Odin and packaged Rust source consumers keep their
+separate earlier qualification scope.
+
+Hosted helper controls, all 22 bounded fuzz targets, calibrated Linux C/Rust
+ASan, atomic models, Rust ASan and the complete PR TSan workspace run pass.
+Core-library line/region coverage has clean LLVM diagnostics; branch and MC/DC
+remain unmeasured in that report. A duplicate TSan run exhausted its 20-minute
+budget near the final receipt test, while another completed the unchanged
+workload. The workflow now allows TSan 40 minutes, emits uncaptured capacity
+progress and avoids duplicate feature-branch engine matrices. No workloads or
+assertions were removed. A runner-capacity cancellation is tracked separately
+and retried rather than treated as executed sanitizer evidence.
+
+These results close the previously unexecuted native Windows CI profile, not
+physical device/quota, all feature/ABI combinations, remaining decision pairs or
+final-candidate/support acceptance. Durability barriers, engine/application
+runtime and separate follower durable acknowledgments remain unchanged; crates
+remain unpublished.

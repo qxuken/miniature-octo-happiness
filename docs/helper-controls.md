@@ -84,5 +84,6 @@ Local proof: `target/helper-automation-4370b46/index.json`, SHA-256
 The directory name preserves the starting checkpoint; its source binding names
 `d43e542fc6279512180d47c958bdbc3d8f1b6e78` and every overlay hash. The index
 rehashes 281 artifacts. These are helper-control results, not MC/DC percentages,
-new native-engine qualification or a consolidated release candidate. Hosted
-execution of the new job remains separate from these local results.
+new native-engine qualification or a consolidated release candidate. The
+separate [hosted Mac/Linux jobs](hosted-qualification-cd7cdfe.md) now pass against
+committed `cd7cdfe`; their evidence retains its own source and host identities.

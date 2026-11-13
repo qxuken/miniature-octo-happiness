@@ -1,5 +1,9 @@
 name: Engine checks
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -74,7 +78,7 @@ jobs:
           path: target/helper-controls/
   sanitizers:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.kind == 'thread' && 40 || 20 }}
     strategy:
       fail-fast: false
       matrix:

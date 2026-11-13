@@ -388,5 +388,30 @@ explicit skips, source stability and bounded process/output cleanup. Frozen
 Mac/Linux runs each pass 268 tests plus four registered skips across 38 workers;
 seventeen runner controls include the detached-child/grandchild regressions found
 during review. The workflow now schedules the same Mise-pinned command on both
-POSIX platforms. These local results do not imply hosted execution of the new
-job, native Windows helper portability or a new native-engine qualification.
+POSIX platforms. Their [hosted executions](hosted-qualification-cd7cdfe.md) now
+pass separately; the local results retain their own scope. Native Windows
+helper portability is not inferred.
+
+## Hosted native platform execution
+
+The [cd7cdfe gate](hosted-qualification-cd7cdfe.md) passes actual native Mac arm64,
+Linux x86_64 and Windows MSVC x86_64 checks, including compiled Windows C/C++
+clients and package relocation. All six native package manifests/payloads are
+checked, with raw Windows hashes and checkout line-ending conversion recorded
+explicitly. The previously unexecuted native Windows profile now has scoped
+evidence. Packaged Rust source, Odin and broader delivered state/error traces
+retain their separate profiles.
+
+All 22 fuzz targets, hosted helper controls, Linux C/Rust ASan/atomic models,
+Rust ASan and a complete PR TSan run pass. The duplicate push TSan run timed out
+near the final capacity test; it receives no passing credit. Measured complete
+and incomplete runs support increasing only TSan's budget to 40 minutes, keeping
+all 1,024 receipts, restarts, replays and maintenance checks and adding uncaptured
+phase progress. PR/main-push/manual engine triggers avoid duplicate feature-branch
+matrices. Runner-capacity cancellation and its scoped retry remain explicit.
+
+The library-only line/region coverage report has clean LLVM diagnostics and
+stable source. Branch/MC/DC denominators are unmeasured; no withdrawn pooled
+percentage is restored. Physical durability, actual quota, remaining feasible
+decision pairs, complete advertised feature/ABI profiles, final immutable
+candidate and owner service/support choices remain open. Crates remain private.

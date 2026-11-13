@@ -350,6 +350,9 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
             .success()
     );
     let (mut server, mut client, mut port) = configured_service(path, secret);
+    // Direct stderr bypasses libtest's per-test capture so CI interruption
+    // preserves the last completed phase without reducing this full-cap test.
+    writeln!(std::io::stderr(), "receipt capacity: filling 1024 receipts").unwrap();
     let mut lost_replies = 0;
     let mut restarts = 0;
     for index in 0..DURABLE_RECEIPTS {
@@ -380,17 +383,34 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
             // after later writes and every post-commit restart.
             client.send(&capacity_request(0));
             assert_eq!(client.receive(), "committed 3");
+            writeln!(
+                std::io::stderr(),
+                "receipt capacity: committed {}/{}; restarted and replayed",
+                index + 1,
+                DURABLE_RECEIPTS
+            )
+            .unwrap();
         } else {
             client.send(&request);
             assert_eq!(client.receive(), format!("committed {}", index + 3));
         }
     }
     assert_eq!((lost_replies, restarts), (8, 8));
+    writeln!(
+        std::io::stderr(),
+        "receipt capacity: checking full-service replay"
+    )
+    .unwrap();
     full_service_replays_without_new_revision(&mut client);
     drop(client);
     server.stop();
     drop(server);
     let before = verify_all_capacity_receipts(&file);
+    writeln!(
+        std::io::stderr(),
+        "receipt capacity: verifying backup and restore"
+    )
+    .unwrap();
     let backup = dir.0.join("capacity.backup.db");
     let restored = dir.0.join("capacity.restored.db");
     storage::backup_file(&file, &backup, Limits::default()).unwrap();
@@ -399,6 +419,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
     verify_all_capacity_receipts(&restored);
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
+        writeln!(std::io::stderr(), "receipt capacity: verifying compaction").unwrap();
         let stats = weekend_db::Database::compact_file(&file, Limits::default()).unwrap();
         assert_eq!(stats.before_bytes, before);
         assert!(stats.after_bytes < stats.before_bytes);
@@ -407,6 +428,11 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
     // Both the compacted original and the restored copy remain full, preserve
     // every original acknowledgment, and perform zero new publications.
     for file in [&file, &restored] {
+        writeln!(
+            std::io::stderr(),
+            "receipt capacity: checking maintained replay"
+        )
+        .unwrap();
         let image = fs::read(file).unwrap();
         let (mut server, mut client, _) = configured_service(file.to_str().unwrap(), secret);
         full_service_replays_without_new_revision(&mut client);
@@ -416,6 +442,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
         verify_all_capacity_receipts(file);
         assert_eq!(fs::read(file).unwrap(), image);
     }
+    writeln!(std::io::stderr(), "receipt capacity: all phases verified").unwrap();
     println!(
         "native receipt capacity: receipts=1024 revision=1026 lost_replies=8 post_commit_restarts=8 full_replay_passes=3 before_bytes={before} maintained_bytes={}",
         fs::metadata(&file).unwrap().len()
