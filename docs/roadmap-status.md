@@ -466,3 +466,28 @@ Local controls and cross-compilation pass; the complete helper runner now has
 Windows execution are explicitly pending. The existing Windows smoke/relocation
 qualification is not relabeled as a full-state trace pass. No new automatic
 native trace CI gate or production runtime change is introduced by this handoff.
+
+## Native Windows delivered trace completed
+
+The [native result record](windows-artifact-trace.md#native-results-2026-11-13)
+qualifies clean harness `80eb0c2` with the exact pinned reference DLL source
+`7a490e5ce24910d5d8ec96abe0fb9d218ea9e870`. All twenty C11/C++17 cases pass
+on native Windows 11 Pro build 26300, fixed local C: NTFS, x64 MSVC toolset
+14.51.36231 (compiler 19.51.36247.0), SDK 10.0.26100.0 and Mise Python 3.14.8.
+Twelve controls pass normally and under `-O`. Assertions remain enabled in both
+optimized builds; the delivered header/import library and unchanged oracle
+are used. No engine or harness fix was required.
+
+Every successful transcript matches exactly, loader proofs bind actual
+path/hash/source/ABI/format/features/PID before and after execution, and every
+rejection exits 3 without a database. All 23 command trees are cleaned up;
+package and harness hashes remain stable. Evidence and its complete hash
+inventory are retained locally at
+`C:\Users\21asg\AppData\Local\weekend-trace-80eb0c2-20261113\result-initial`;
+`evidence.json` SHA-256 is
+`ceab27169583071ffa533a4987b6e54af8d47b6898ec7c4d148469cea46f175e`.
+This closes the named F15 Windows full-state trace profile, independently of
+earlier preparation checks. Other feature/ABI/platform profiles, device and
+failure-injection qualification, final candidate and owner gates remain open.
+Evidence is local, and no automatic Windows trace CI gate is added. No crates
+are published.

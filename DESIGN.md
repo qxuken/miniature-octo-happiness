@@ -5313,3 +5313,25 @@ These are preparation results. Native MSVC builds and DLL execution remain
 pending the Windows agent, so F15's full Windows trace is not yet qualified.
 The handoff includes pinned artifact identities, commands and acceptance criteria.
 No engine runtime or publication semantics changed; no crates are published.
+
+### Native Windows delivered trace qualification
+
+The [source-bound native results](docs/windows-artifact-trace.md#native-results-2026-11-13)
+now pass all twenty executions from clean harness `80eb0c2` against the unchanged
+reference DLL source `7a490e5ce24910d5d8ec96abe0fb9d218ea9e870`. Native Windows
+11 Pro build 26300 on fixed local NTFS used x64 MSVC toolset 14.51.36231,
+compiler 19.51.36247.0, SDK 10.0.26100.0 and Mise Python 3.14.8. Separate
+optimized C11/C++17 builds retain assertions and use the delivered header/import
+library. Five exact-oracle successes and five expected no-database rejections
+pass per language; all twelve controls also pass normally and under `-O`.
+
+Before/after process-local proofs bind relocated DLL path/hash, actual source,
+ABI 1, format 2, features 3 and PID. All 23 owned jobs reach zero active
+processes; package and harness hashes remain stable. Local evidence is at
+`C:\Users\21asg\AppData\Local\weekend-trace-80eb0c2-20261113\result-initial`,
+with `evidence.json` SHA-256
+`ceab27169583071ffa533a4987b6e54af8d47b6898ec7c4d148469cea46f175e`.
+The linked report records full package pins, results, audit and limitations.
+No native fixes were necessary. This closes the named F15 Windows finite trace
+gate; broader API/MC/DC, failure injection, device durability, other platform
+profiles, hosted evidence retention and final release gates remain separate.

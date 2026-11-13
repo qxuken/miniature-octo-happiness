@@ -1,6 +1,8 @@
 # Windows C/C++ delivered-artifact trace handoff
 
-Status: **runner and handoff prepared; native MSVC execution is pending**.
+Status: **native x64 Windows/MSVC qualification passed at harness `80eb0c2`**.
+The original preparation record and commands below are retained; see the actual
+source-bound [native results](#native-results-2026-11-13) at the end.
 This is the next F15 qualification batch. The existing model, 134 cells,
 expected transcript and common C consumer remain unchanged. No engine or public
 API changes are required. This gate is not enabled as an automatic Windows CI
@@ -146,7 +148,7 @@ Suggested task to paste to the Windows agent:
 > and remaining limitations; update progress, commit and push verified fixes.
 > Keep Cargo packages unpublished.
 
-## Preparation results and remaining gate
+## Preparation results before native qualification
 
 Twelve new controls pass locally normally and under `-O`, including manifest
 tampering, Windows path aliases, wrong loader attestations, output admission and
@@ -159,11 +161,105 @@ does not establish MSVC compilation, Job Object behavior or native DLL execution
 Trace and expected transcript SHA-256 remain respectively
 `4ad2fe8534dc73bd3032f1dcc41220f5bf919482c1f7df0a0a8716c4c40812c8` and
 `0075c8251dae1a0b2f1fd6d4ef152da3c581a947abd8edebad7f4f33aa74cef3`.
-The original model/common consumer are untouched. F15's Windows full-state
-trace remains open until the native agent supplies passing evidence. This
+The original model/common consumer are untouched. At handoff, F15's Windows
+full-state trace remained open pending the native evidence recorded below. This
 finite gate makes no power-loss, injected-I/O, full-API or MC/DC claim.
 
 API references: [loaded module filename](https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamew),
 [Windows CNG hashing](https://learn.microsoft.com/en-us/windows/win32/seccng/creating-a-hash-with-cng),
 [native architecture query](https://learn.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process2),
 [MSVC C/C++ language selection](https://learn.microsoft.com/en-us/cpp/build/reference/tc-tp-tc-tp-specify-source-file-type).
+
+## Native results, 2026-11-13
+
+The clean detached checkout was `80eb0c2e6c54acf5cc525a8d48f5f96a49498465`.
+All twelve controls passed normally and under Python `-O`, followed by all
+twenty native cases on the first attempt. No harness, engine, model, common
+consumer or oracle change was needed. These results qualify the delivered
+library source below, separately from the newer harness source.
+
+Environment: Microsoft Windows 11 Pro 10.0.26300, native AMD64 (process machine
+0, native machine 0x8664); Visual Studio 18 Community, x64 MSVC toolset
+14.51.36231, cl.exe file version 19.51.36247.0; Windows SDK 10.0.26100.0;
+Mise Python 3.14.8, MSC v.1944, 64-bit AMD64. Data and evidence reside on fixed
+local C: NTFS (drive type 3, volume serial 3189219544). Compiler environment
+discovery succeeded without an existing developer shell.
+
+| Case | C11 exit / result | C++17 exit / result |
+|---|---|---|
+| Full 134-cell v2 | 0 / exact oracle | 0 / exact oracle |
+| Original v1 (`legacy-v1`) | 0 / exact oracle | 0 / exact oracle |
+| Legacy v1 BEGIN | 0 / exact oracle | 0 / exact oracle |
+| WholeDatabase conflict | 0 / exact oracle | 0 / exact oracle |
+| WholeDatabase success | 0 / exact oracle | 0 / exact oracle |
+| Invalid validation mode | 3 / rejected | 3 / rejected |
+| Unknown trace version | 3 / rejected | 3 / rejected |
+| Wrong DLL SHA-256 | 3 / rejected | 3 / rejected |
+| Wrong loaded DLL path | 3 / rejected | 3 / rejected |
+| Wrong embedded source ID | 3 / rejected | 3 / rejected |
+
+Both separate builds used `/O2 /UNDEBUG /MD /W4 /WX`, with `/TC /std:c11`
+and `/TP /std:c++17` respectively. Include logs identify the relocated delivered
+`weekend_db.h`; linker commands identify its delivered `weekend_db.dll.lib`.
+All ten successful stdout files match the independent oracle byte-for-byte.
+All ten rejections have empty stdout and create no database or after proof;
+loader identity rejections also create no before proof. Invalid-mode and
+unknown-version cases have valid before proofs.
+
+Every successful before/after proof identifies its actual PID, ABI 1, format 2,
+features 3 (`crdt,replication`), source
+`7a490e5ce24910d5d8ec96abe0fb9d218ea9e870`, and exact private DLL at
+`C:\Users\21asg\AppData\Local\weekend-trace-80eb0c2-20261113\result-initial\c\weekend_db.dll`
+or the corresponding `cpp` path. Process-local CNG SHA-256 is
+`7d9034b54d6144044da48a8fde12346a33a7102d900042ad1a72c925d74a14f7`.
+The manifest hash is
+`25c668346fe270631689dfb30b59fcb7cca4ae2a54981fe96e7c923346bd6d0d`.
+The downloaded original ZIP was independently hashed to
+`7d60778d68ed75c03dcc079a0eec7bea29f4660e31625a698391472719410ba4`,
+matching the API digest; every extracted ZIP payload matches the input package.
+The DLL was never rebuilt or substituted.
+
+Evidence root:
+`C:\Users\21asg\AppData\Local\weekend-trace-80eb0c2-20261113`.
+`result-initial/evidence.json` SHA-256:
+`ceab27169583071ffa533a4987b6e54af8d47b6898ec7c4d148469cea46f175e`.
+Its inventory contains 175 payload hashes, independently rechecked. The root
+also retains the raw ZIP, original package, both control logs, native log,
+independent audit scripts and `independent-audit.json` (SHA-256
+`84bc38e476826a5502f456e826fa41f93b385872d0203867b713114400500f8f`).
+The complete evidence root is also archived at
+`C:\Users\21asg\AppData\Local\weekend-trace-80eb0c2-20261113-evidence.zip`
+(1,697,183 bytes), SHA-256
+`1ba2d2b2efc2f28a74fcb17bf5a67fbc0f2e7dd0f021972061681cb322d22e5b`;
+the archive CRC check passes.
+Both executables, compiler logs, actual/expected transcripts, databases and
+loader proofs remain in the result directory. This evidence is local storage;
+no hosted retention or automatic CI trace gate is established.
+
+Original and relocated package verification passes before/after execution.
+All five harness source hashes remain identical to the tested commit:
+
+| Source | SHA-256 |
+|---|---|
+| `model.py` | `ef1b085fb879d47b8919a21f09b8619bdfab37e84cb83fe5f43c4b6954cd3f82` |
+| `consumer.c` | `00bcd0f17c32bde3df2c0894743db83e45bbbe520a93ff6f9d8b5c0df8de3eab` |
+| `windows_consumer.c` | `4ffa5f4fe0dd104641b2cf8bf8b8815ab87698b82a6ee6b58b76c97ca767e64f` |
+| `windows.py` | `abb2f4a3a069ca0d5cfbc71adbeaaa27da6c0fbc9218115488f938792a9eca5c` |
+| `tools/windows_consumers.py` | `079fd7fe75e3207571ebdcb213b0f6806b879da2bd3cab625c016dc5c315b295` |
+
+Trace and full stdout hashes remain the unchanged pins in the preparation
+section. All 23 command records (environment discovery, two compilations,
+twenty executions) confirm cleanup: owned jobs were terminated and their active
+process counts reached zero before handle closure. No owned children remain.
+A supplemental post-run PID-only audit initially flagged unrelated Windows
+processes reusing exited test PIDs; creation times after evidence completion
+resolved this false alarm. Its initial script is preserved as
+`independent-audit-initial.py`; the corrected audit retains creation-time
+observations in `post-run-process-check.json`. No native failure directory was
+discarded and no native retry was required.
+
+This closes F15's named Windows x64 delivered C/C++ finite trace gate for this
+exact package. It does not establish Windows 10, other SDK/toolset versions,
+other architectures/filesystems/features, long paths/8.3 aliases, full API or
+MC/DC coverage, injected I/O faults, physical power-loss durability, a final
+release candidate or an owner support window. Crates remain unpublished.
