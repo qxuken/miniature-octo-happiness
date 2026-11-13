@@ -4,12 +4,18 @@ This is a requirement-by-requirement acceptance review of
 [production-readiness.md](production-readiness.md), not a new qualification run.
 Initial audit source HEAD: `032dadf591b0a0ded4894898e8208283c50425fb`; the
 subsequent requirement review includes qualification work through
-`5e665f1b0e32b65ec9f8aec16ced089a34353165`, with each report retaining its named
+`e20ceceebd6f8ba1ec0da89a7514f93d6ffd706b`, with each report retaining its named
 source/profile. These qualification tranches change tests/tools, not engine
 or application runtime. An old passing
 run supports its recorded source/profile only. Neither a source disposition nor
 an error-path test elsewhere closes an untested `E`, platform `cfg`, dependency,
 macro expansion or operating-system behavior by association.
+
+The [completed quota integration checkpoint](roadmap-status.md#completed-quota-integration-checkpoint)
+verifies all ten engine jobs and bounded fuzzing green at PR head `e20cece`.
+That job/step-status review complements the detailed artifact and data oracles
+recorded in this audit; it does not re-audit their payloads or close the remaining
+release gates.
 
 **Disposition vocabulary:** **Implemented/scoped evidence** means the capability
 and named tests exist, not that every release gate passed. **Local** means useful

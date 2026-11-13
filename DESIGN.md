@@ -5283,3 +5283,14 @@ and full row oracles are independently rechecked. This qualifies native append
 EDQUOT/recovery for that profile, not maintenance quota failures or physical
 power loss. No engine runtime, durability barrier or follower acknowledgment
 semantics changed; Cargo publication remains disabled.
+
+### Quota integration CI completed
+
+The [completed integration checkpoint](docs/roadmap-status.md#completed-quota-integration-checkpoint)
+at PR head `e20cece` passes all ten engine jobs and bounded fuzzing. Native
+Mac/Linux/Windows, compiled Windows C/C++ consumers, both helper platforms,
+Linux quota recovery, Rust/C ASan, Rust TSan, atomic models and library coverage
+all complete successfully. Fuzz seed/model replay and all manifest targets also
+pass. This closes the pending CI integration work; the detailed quota and
+package artifact audits keep their original source scopes. Green CI does not
+close remaining MC/DC, physical-device, broader-profile or final release gates.

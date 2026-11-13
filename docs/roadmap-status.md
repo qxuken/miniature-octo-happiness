@@ -430,3 +430,25 @@ artifact digest and all 56 evidence payloads are rechecked; mount and loop
 absence are proven. This closes the named F05 native append quota profile.
 Other quota failure phases/filesystems and physical power-loss assumptions
 remain separate obligations. No crates are published.
+
+## Completed quota integration checkpoint
+
+PR head `e20ceceebd6f8ba1ec0da89a7514f93d6ffd706b` has completed green
+[Engine checks](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43484984404)
+and [bounded fuzzing](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43484984417).
+All ten engine jobs passed: native Mac/Linux/Windows checks and packages,
+Mac/Linux helper controls, native Linux quota recovery, Rust ASan/TSan,
+Linux C/Rust ASan with atomic models, and core-library coverage. Fuzz helper
+controls, committed-seed/model replay and all manifest targets also passed.
+The Windows native job executed its compiled C/C++ consumers; that conditional
+step is intentionally skipped on Mac/Linux. No other engine steps were skipped.
+
+This closes the pending full-CI integration check for the quota work. The
+source-bound detailed quota artifact audit remains at `5e665f1`, and earlier
+package/coverage audits retain their named revisions. This update verifies job
+and step outcomes rather than claiming a new artifact-payload audit or complete
+MC/DC/device qualification. The API status snapshot is preserved in
+`target/ci-progress-e20cece/index.json`, SHA-256
+`9fe9b542238b147773ef5df9356eaf6b5ecbf123a8482d3675327630db3e6669`.
+Remaining release-candidate, device, broader failure-profile and owner gates
+remain open. Crates remain unpublished.
