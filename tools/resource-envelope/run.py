@@ -80,7 +80,7 @@ def check_rows(rows):
     require(natural["file_bytes"] > 64 * 1024 * 1024 * 0.9, "reachable image below 90%")
 
 
-def observe(binary, data, report, deadline_seconds=180):
+def observe(binary, data, report, deadline_seconds=180, *, checker=check_rows, arguments=()):
     data, report = Path(data), Path(report)
     if os.path.lexists(data) or os.path.lexists(report):
         raise ValueError("observer outputs must be new")
@@ -94,10 +94,13 @@ def observe(binary, data, report, deadline_seconds=180):
     started = time.monotonic()
     samples = []
     with out.open("x") as stdout, err.open("x") as stderr:
-        child = subprocess.Popen([str(binary), str(data)], stdout=stdout, stderr=stderr, start_new_session=True)
+        child = subprocess.Popen([str(binary), str(data), *map(str, arguments)], stdout=stdout, stderr=stderr, start_new_session=True)
         failure = None
         try:
-            while child.poll() is None:
+            # Observe exit without reaping: reserve the leader PID until its
+            # group is retired, so PID reuse cannot target an unrelated group.
+            while os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is None:
+                require(out.stat().st_size < 8 * 1024 * 1024 and err.stat().st_size < 8 * 1024 * 1024, "resource driver output limit")
                 if time.monotonic() - started > deadline_seconds:
                     raise TimeoutError("resource driver exceeded 180-second deadline")
                 if sys.platform == "linux":
@@ -117,22 +120,36 @@ def observe(binary, data, report, deadline_seconds=180):
             failure = f"{type(error).__name__}: {error}"
         finally:
             group_killed = False
-            if child.poll() is None or failure is not None:
+            # A completed leader may leave descendants behind. Always retire
+            # the owned process group, including on a nominally successful exit.
+            try:
                 try:
                     os.killpg(child.pid, signal.SIGKILL)
                     group_killed = True
                 except ProcessLookupError:
                     pass
-            child.wait(timeout=5)
+                except PermissionError:
+                    # This macOS kernel reports EPERM for a zombie-only group.
+                    # Ignore it only after proving the owned leader has exited
+                    # and a bounded process-table query finds no live members.
+                    require(os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None, "cannot retire live leader")
+                    groups = subprocess.run(["ps", "-axo", "pgid=,stat="], capture_output=True, text=True, timeout=5)
+                    require(groups.returncode == 0 and len(groups.stdout) <= 8 * 1024 * 1024, "cannot verify retired group")
+                    members = [line.split() for line in groups.stdout.splitlines()]
+                    require(all(len(row) == 2 for row in members), "invalid process group inventory")
+                    require(not any(int(group) == child.pid and not state.startswith("Z") for group, state in members), "owned group remains live")
+            finally:
+                child.wait(timeout=5)
             evidence.update(returncode=child.returncode, elapsed_seconds=time.monotonic() - started,
                             rss_samples_kib=samples, rss_sample_count=len(samples),
                             sampled_peak_rss_kib=max(samples, default=0),
                             process_group=child.pid, process_group_killed=group_killed)
             try:
+                require(out.stat().st_size < 8 * 1024 * 1024 and err.stat().st_size < 8 * 1024 * 1024, "resource driver output limit")
                 rows = [json.loads(line) for line in out.read_text().splitlines()]
                 evidence["rows"] = rows
                 if child.returncode == 0 and failure is None:
-                    check_rows(rows)
+                    checker(rows)
                     require(bool(samples), "no RSS samples")
                     evidence["passed"] = True
                 elif failure is None:

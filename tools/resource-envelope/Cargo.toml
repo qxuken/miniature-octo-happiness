@@ -10,5 +10,13 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 weekend-db = { path = "../.." }
 
+[features]
+compound = ["weekend-db/fault-injection"]
+
+[[bin]]
+name = "weekend-compound-resource"
+path = "src/compound.rs"
+required-features = ["compound"]
+
 [profile.release]
 overflow-checks = true

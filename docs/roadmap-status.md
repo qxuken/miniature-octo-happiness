@@ -15,7 +15,7 @@ decision tests and first four fuzz targets.
 | Backup/restore | Verified create-new copy, retained roots and process restore tested. Typed restore across processes and old retained schemas is tested. Deployment restore-time budgets remain. |
 | Migration/salvage | Logical export/import format 1 implemented with frozen fixture. Explicit complete-root salvage is tested. Future-version conversion remains. |
 | Storage lifecycle | Compaction exists. Append headroom and near-cap recovery/compaction tests implemented. Indexed recovery measured near the cap. Cleanup policy and device qualification remain. |
-| Resources | Per-value/transaction limits and opt-in aggregate core layout admission exist. A [four-axis native qualification](resource-envelope.md) passed macOS/APFS and Docker Linux/overlayfs: 64 depth-64 retained roots, near-exact 64 MiB core saturation/recovered draft admission, the synthetic exact image boundary, and a naturally full image with 63 MiB reachable payload. A requested 1 MiB worker stack completed its bounded parser/value workload. RSS is measured separately, not capped by core accounting. Combined/adversarial envelopes, longer representative load and native Windows remain. |
+| Resources | Per-value/transaction limits and opt-in aggregate core layout admission exist. A [four-axis native qualification](resource-envelope.md) passed macOS/APFS and Docker Linux/overlayfs: 64 depth-64 retained roots, near-exact 64 MiB core saturation/recovered draft admission, the synthetic exact image boundary, and a naturally full image with 63 MiB reachable payload. A requested 1 MiB worker stack completed its bounded parser/value workload. RSS is measured separately, not capped by core accounting. The later [compound profile](compound-resource-envelope.md) combines large payloads, 64 depth-64 roots, eight held drafts, 96 MiB saturation and 98.58% image occupancy, with contention/RSS and directed recovery on Mac/Linux. Other feasible combinations, longer load and native Windows remain. |
 | Packaging | [V2 cross-language traces](artifact-trace-validation-modes.md) now compare both validation modes through exact relocated Mac Rust/C/Odin and Linux ext4 Rust/C against one independent 134-cell oracle, preserving v1 bytes. [Exact 21e5d26](local-qualification-21e5d26.md) private Mac/Linux artifacts and copied-source Rust consumers passed, including relocation and independent hash checks. Runtime identity and private artifact checks added. Private identity/notice checks existed at a7dc343; later relocation testing exposed and fixed its temporary loader-path defect. Windows compiled consumers passed at 1ca5e5ab. Windows private packaging passed 6266359; macOS Odin relocation passed locally. Clean 4203e0a source profile passed native and isolated Linux builds; registry inputs remain external. |
 | Compatibility | Actual [snapshot](snapshot-cli-upgrade.md) and [study](study-cli-upgrade.md) release CLI upgrade pairs now pass their separate Mac/Linux profiles. Archived v2 and logical-v1 fixtures exist. [Frozen a7dc343 ↔ 21e5d26 storage cases](storage-compatibility-21e5d26.md) passed both writers/readers on macOS/APFS and Docker Linux/overlayfs with original locks, native build identity, retained roots and byte-preserving unsupported rejection. The runner now honors --current, rejects dangling outputs and retains checks under Python -O. Snapshot dcd2402 ↔ 21e5d26 passed native Mac loopback with separate receipts and unchanged follower bytes on bad poll version. Additional shapes, promised version pairs/typed migrations and Windows remain. |
 | Native matrix | [Exact 21e5d26](local-qualification-21e5d26.md) full Mac and private Docker Linux/ext4 checks passed locally; current native Windows remains unexecuted. Earlier macOS and Docker aarch64 Linux executed locally. Native Windows/macOS/Ubuntu, ASan and TSan passed 4203e0a; simulated month also passed Linux ext4 server/macOS APFS client. Separately, `b3761af` Windows job `131310796175` passed workspace/C/C++/private packaging; Ubuntu, C-ASan and fuzz passed. Hosted macOS matrix was still pending at this observation. These checkpoint results do not qualify the new backup harness on Windows. New candidate/device qualification remains. |
@@ -566,3 +566,48 @@ cache-cloning/vector-growth costs, feasible decision/failure-profile gates, and
 one immutable candidate's complete platform/artifact matrix. This runtime change
 still needs native Windows/candidate qualification. The historical Windows pass
 and unavailable proof ZIP remain recorded without claiming a new DLL test.
+
+## Compound near-cap drafts, readers and recovery qualified
+
+The [compound profile](compound-resource-envelope.md) qualifies exact engine
+c583ca7 using a private frozen Rust/Python harness on Mac arm64/APFS and Docker
+Linux aarch64/ext4. It combines 48 large values and all 64 distinct depth-64
+retained roots. Physical image occupancy is 94.48% before concurrency and
+98.58% after 32 successful commits by eight writer threads, with two concurrent
+readers checking current/pinned values. Eight additional held drafts plus real
+fillers saturate a 96 MiB requested-core domain; failed publication is terminal,
+preserves revision/bytes, and dropping pending work restores the exact baseline
+charge. Peak admission remains 107 bytes below the cap. A naturally oversized
+candidate rejects without changing the image.
+
+Complete current/retained byte oracles pass after budget failures, fresh-process
+reopen and quiescent backup/restore/compaction. A 96 MiB copy budget rejects
+before destination writes; 256 MiB succeeds. This is a tested budget pair, not
+a minimum copy-memory formula. Native lifecycle RSS, fresh-inspector RSS and
+simulator RSS are measured in separate processes; allocation domains and RSS
+are explicitly distinct. The report records finite commit/reader samples and
+single reopen/copy latencies without converting them into deployment SLOs.
+
+Eight directed failures retain two more drafts and over 90% core pressure.
+Allocation/append or dropped-root failures reopen 212; surviving root/witness
+or an acknowledged commit reopen 213. Retry/later commit survives another
+crash/reopen as 213/214, with all 64 retained roots intact. These faults model
+persistence; native fresh-process reopen does not establish device power loss.
+
+Targeted existing library/allocation/budget/durability/compaction/headroom/
+retention/concurrency tests pass 183 per Mac debug/release profile. Five new
+Python controls are wired into the continuous helper registry, now 44 workers,
+328 passes and four registered skips. Focused controls also pass Linux normally
+and under optimized Python. Review fixed exact-output-limit handling and
+retiring descendants while keeping the leader PID reserved through cleanup;
+final v4 platform runs bind those fixes. Strict driver Clippy/formatting and
+source/binary/copied-proof hash checks pass. Owned Docker containers/volumes
+and runtime groups are verified retired. Production sources and durability/
+follower acknowledgment semantics are unchanged; all 19 Cargo packages remain
+unpublished.
+
+This closes one combined finite profile. Next remain cache-copy/vector-growth
+costs, additional feasible near-cap shapes and longer schedules, systematic
+compound/recovery/maintenance faults, delivered/network/native Windows profiles,
+owner budgets and one immutable candidate. Earlier Windows results retain their
+original source and unavailable-proof status; no new Windows pass is inferred.

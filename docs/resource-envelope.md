@@ -229,3 +229,10 @@ oracles and cache-versus-draft reclamation semantics. It also identified the
 sampler supervision gap corrected before the final runs. Source-bound manifests
 and independent-review/control logs are preserved in
 `target/local-qualification-resource-envelope/index.json`.
+
+The later [compound profile](compound-resource-envelope.md) combines large
+reachable data, all 64 depth-64 roots, near-exact core saturation, concurrent
+drafts/writers/readers and directed publication recovery on exact c583ca7.
+It records separate native/simulator RSS and copy budgets on Mac/APFS and
+Docker Linux/ext4. This report preserves its original four independent cases
+and source; neither result is a general process-memory or latency ceiling.

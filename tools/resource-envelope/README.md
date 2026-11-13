@@ -32,3 +32,32 @@ and independent Python byte-oracle checks are recorded. Core requested layouts,
 sampled RSS, file lengths and requested worker stack are separate quantities.
 See [the qualification report](../../docs/resource-envelope.md) for actual results
 and exclusions. No publication or remote service is used.
+
+## Compound workload (macOS/Linux)
+
+```sh
+mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/compound.py \
+  --revision c583ca7 --output target/compound-new
+mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/compound.py \
+  --revision c583ca7 --output target/compound-linux-new \
+  --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
+mise exec python@3.14.8 -- python tools/resource-envelope/test_compound.py
+mise exec python@3.14.8 -- python -O tools/resource-envelope/test_compound.py
+```
+
+The source archive plus explicit harness overlays builds the optional private
+`weekend-compound-resource` binary with `compound` / engine fault injection.
+The fixed profile combines 48 large values, 64 depth-64 retained roots, eight
+held drafts plus live-budget saturation, eight writers/four rounds and two
+readers. Natural image-limit rejection, copy budget failure/retry, a separate
+fresh inspector and eight directed crash/recovery cases verify complete state.
+Native and simulator RSS use separate worker processes; each observer has a
+180-second deadline, bounded output admission and owned-group retirement. Docker
+uses a private ext4 volume, no network, two CPUs, 2 GiB and 256 PIDs, with a
+600-second outer deadline, partial evidence copy and checked cleanup. It requires
+the named preinstalled image. Each output must be fresh, with an existing parent.
+
+The [compound report](../../docs/compound-resource-envelope.md) records exact
+memory/latency observations, budget domains, provenance and remaining scope.
+These finite samples do not establish deployment SLOs or physical power-loss
+durability. Crates remain unpublished.

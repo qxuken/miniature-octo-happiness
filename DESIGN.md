@@ -5407,3 +5407,39 @@ comparisons. The result does not establish a latency SLO. Cache cloning, vector
 growth, compound resource profiles and final native/candidate qualification
 remain work. Source hashes and local evidence are recorded in the report;
 all crates remain unpublished.
+
+### Compound near-cap concurrency and recovery qualification
+
+The [compound resource report](docs/compound-resource-envelope.md) now combines
+large reachable data, all 64 depth-64 retained roots, eight held drafts and
+near-exact 96 MiB core admission. Current/pinned byte oracles run throughout.
+Budget rejection returns terminal Failed/Closed without publication or recovery
+poisoning, and dropping pending values/drafts restores the exact prior live
+charge. Eight writers complete 32 disjoint commits while two readers check
+current/pinned records. Physical image occupancy grows from 94.48% to 98.58%;
+a further naturally oversized candidate rejects with unchanged state/length.
+
+Fresh-process reopen preserves the graph. Quiescent copy fails under a 96 MiB
+copy-domain budget before destination writes and succeeds at 256 MiB; backup,
+restore and compacted copies preserve all roots. Memory layout accounting,
+sampled/point RSS, hidden copy domains and allocator retention are reported
+separately. Thirty-two commit and 256 reader/oracle samples plus single
+reopen/copy observations are finite measurements, not service guarantees.
+
+With two more drafts held and over 90% core pressure, eight simulator cases
+distinguish preparation OOM, append persistence, dropped/surviving root,
+witness uncertainty and acknowledged success. Reopen returns exact revision
+212 or 213, then a later acknowledged commit survives a second crash/reopen
+as 213 or 214. All 64 retained roots and complete current values are checked.
+The fault policies are modeled; native reopen is not physical power-loss proof.
+
+Final v4 runs bind source c583ca7 and explicit private harness overlays on Mac
+APFS and Docker Linux/ext4. Existing targeted regressions pass debug/release,
+new supervision/oracle controls pass normally and with Python optimization,
+and the helper registry records 328 passes plus four registered skips. The
+observer bounds logs and process waits and retires owned groups before reaping
+their leader, including the measured macOS zombie-only group behavior. No
+production code, publication barrier, format or separate follower durability
+acknowledgment changes. Remaining resource combinations, longer/compound fault
+matrices, Windows/device/candidate qualification and owner budgets stay open.
+Cargo publication remains disabled.

@@ -18,6 +18,10 @@
       "allowed_skips": []
     },
     {
+      "path": "resource-envelope/test_compound.py",
+      "allowed_skips": []
+    },
+    {
       "path": "resource-envelope/test_runner.py",
       "allowed_skips": [
         "helper_suite.RunnerTests.test_frozen_positive_and_corrupted_oracle_controls"
