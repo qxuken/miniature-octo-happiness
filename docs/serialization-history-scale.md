@@ -142,3 +142,8 @@ checks both; an actual Mise 1.99.0 invocation through `clean_env` reports
 on both platforms. Earlier history measurements also observed 1.99.1, so their
 counts remain valid in that stated compiler scope, but their launchers did not
 reliably honor other requested selectors.
+
+The subsequent [charged VALUE index](serialization-identity-index.md) is now
+implemented and qualified separately. It preserves exact baseline bytes and
+reruns both axes, allocation/budget/crash and retained-root checks. This report
+continues to describe the original linear encoder and its original evidence.

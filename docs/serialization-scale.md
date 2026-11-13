@@ -176,3 +176,8 @@ The later [history-axis experiment](serialization-history-scale.md) supplies
 that separate DATA measurement through 64 retained roots, including complete
 current/retained and maintenance oracles. Its 108,036 lifecycle comparisons
 at 64 roots expose history cost; no production index or speedup is inferred.
+
+The subsequent [charged VALUE index](serialization-identity-index.md) is now
+implemented and qualified separately. It preserves exact baseline bytes and
+reruns both axes, allocation/budget/crash and retained-root checks. This report
+continues to describe the original linear encoder and its original evidence.

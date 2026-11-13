@@ -121,6 +121,11 @@ impl<T> Shared<T> {
     pub(crate) fn ptr_eq(&self, other: &Self) -> bool {
         self.ptr == other.ptr
     }
+    // Address-only identity: never converted back into a pointer. A live Shared
+    // owner must outlive any index entry using this key.
+    pub(crate) fn identity(&self) -> usize {
+        self.ptr.as_ptr().addr()
+    }
 }
 impl<T> Clone for Shared<T> {
     fn clone(&self) -> Self {

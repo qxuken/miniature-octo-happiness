@@ -50,6 +50,9 @@ impl Value {
     pub(crate) fn same_node(&self, other: &Self) -> bool {
         self.node.ptr_eq(&other.node)
     }
+    pub(crate) fn node_identity(&self) -> usize {
+        self.node.identity()
+    }
     pub(crate) fn from_map(mem: &Memory, map: Map<Value>) -> Result<Self> {
         let mut depth = 1;
         let mut weight = 16usize;

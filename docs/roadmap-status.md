@@ -491,3 +491,41 @@ earlier preparation checks. Other feature/ABI/platform profiles, device and
 failure-injection qualification, final candidate and owner gates remain open.
 Evidence is local, and no automatic Windows trace CI gate is added. No crates
 are published.
+
+## VALUE identity index implemented and qualified locally
+
+The [serialization index report](serialization-identity-index.md) records the
+production change from linear VALUE identity search to a bounded, charged,
+temporary hash index. Emission-order caches remain authoritative; rebuilding
+from recovered caches, equal-content distinct nodes and shared descendants
+preserve their original offsets and bytes. Ten fixed-identity images match the
+linear baseline byte-for-byte on both Mac and Linux, including retained roots,
+reopen, backup, compaction and a subsequent append. No disk/wire/public API or
+durability barrier changes; follower durable acknowledgment remains separate.
+
+Both breadth/history axes pass independent complete-state checks in 56 paired
+processes. The largest distinct case drops from 440,169,243 to 147,132 identity
+comparisons including index rebuild/growth, with unchanged accepted history,
+file sizes and cap rejection. DATA comparison counts remain unchanged through
+64 retained roots; its accumulated history cost remains open. Four sequential
+clean runs show modest commit-time improvement and broadly overlapping
+maintenance costs, not a latency distribution or general speedup guarantee.
+
+All-feature core tests pass Mac debug/release (299 per profile) and Linux
+aarch64/ext4 Docker debug/release (303 per profile), each with one parent-invoked
+helper intentionally ignored. These runs include allocation/budget sweeps,
+crash publication/recovery, retained roots and compaction. New collision,
+wraparound, cache rebuild, OOM rollback and budget controls also pass Miri.
+All 25 fuzz replays, strict workspace Clippy, formatting and six launcher
+controls in normal/optimized Python pass. Fresh inventory has 2,571 source
+records / 317 macro blind spots and no parse failures; the codec follow-up keeps
+the old disposition table's historical scope. All 19 Cargo packages remain
+unpublished. Source hashes and local evidence hashes are recorded in the report.
+
+Next: evaluate remaining DATA/cache-vector work and compound resource profiles,
+continue feasible decision/failure-profile qualification, then reconcile one
+immutable candidate's full platform/artifact matrix. Native Windows has not
+executed this new runtime change. The owner cleaned its earlier worktree:
+the twenty-case exact-DLL pass remains a recorded historical result, but its raw
+proof ZIP is unavailable here. Repeat and retain that gate for the final
+candidate; do not claim surviving proof storage from the old paths.

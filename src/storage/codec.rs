@@ -141,6 +141,71 @@ pub(crate) struct CacheEntry {
     pub offset: u64,
     pub end: u64,
 }
+/// Encoder-only, half-full open-addressed index into the emission-order cache.
+/// Entries own no pointers: the cache's Value clones keep every identity alive.
+/// Rebuilt on each encode, including from recovery's differently ordered cache.
+/// Hash/slot order never controls serialization. Zero is empty, n+1 indexes n.
+struct ValueIndex {
+    slots: ChargedVec<usize>,
+}
+impl ValueIndex {
+    fn new() -> Self {
+        Self {
+            slots: ChargedVec::new(),
+        }
+    }
+    fn bucket(identity: usize, slots: usize) -> usize {
+        // Mix allocator alignment and high address bits before masking. Only
+        // integer arithmetic: no pointer reconstruction or unsafe dereference.
+        let mut hash = identity as u64;
+        hash = (hash ^ (hash >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+        hash = (hash ^ (hash >> 27)).wrapping_mul(0x94d049bb133111eb);
+        ((hash ^ (hash >> 31)) as usize) & (slots - 1)
+    }
+    fn position(&self, value: &Value, cache: &[CacheEntry]) -> usize {
+        let mut slot = Self::bucket(value.node_identity(), self.slots.len());
+        while self.slots[slot] != 0 {
+            let old = &cache[self.slots[slot] - 1];
+            if old.value.same_node(value) {
+                break;
+            }
+            slot = (slot + 1) & (self.slots.len() - 1);
+        }
+        slot
+    }
+    fn get(&self, value: &Value, cache: &[CacheEntry]) -> Option<usize> {
+        if self.slots.is_empty() {
+            return None;
+        }
+        self.slots[self.position(value, cache)].checked_sub(1)
+    }
+    fn reserve(&mut self, mem: &Memory, cache: &[CacheEntry], entries: usize) -> Result<()> {
+        if entries > MAX_OBJECTS {
+            return Err(Error::Limit);
+        }
+        if entries <= self.slots.len() / 2 {
+            return Ok(());
+        }
+        let size = (entries * 2).next_power_of_two().max(8);
+        let mut next = Self::new();
+        mem.reserve(&mut next.slots, size)?;
+        next.slots.resize(size, 0);
+        for (i, old) in cache.iter().enumerate() {
+            let slot = next.position(&old.value, cache);
+            // Preserve the original first-match rule even for redundant input
+            // cache entries; normal encoder/recovery caches are unique.
+            if next.slots[slot] == 0 {
+                next.slots[slot] = i + 1;
+            }
+        }
+        *self = next;
+        Ok(())
+    }
+    fn insert(&mut self, value: &Value, cache: &[CacheEntry], index: usize) {
+        let slot = self.position(value, cache);
+        self.slots[slot] = index + 1;
+    }
+}
 #[derive(Clone)]
 pub(crate) struct DataEntry {
     pub revision: u64,
@@ -194,6 +259,7 @@ struct Encoder<'a> {
     start: u64,
     bytes: ChargedVec<u8>,
     cache: ChargedVec<CacheEntry>,
+    value_index: ValueIndex,
     data_cache: ChargedVec<DataEntry>,
 }
 impl Encoder<'_> {
@@ -230,8 +296,16 @@ impl Encoder<'_> {
         Ok((offset, end))
     }
     fn value(&mut self, value: &Value) -> Result<u64> {
-        if let Some(old) = self.cache.iter().find(|old| old.value.same_node(value)) {
-            return Ok(old.offset);
+        let cached = self.value_index.get(value, &self.cache);
+        #[cfg(test)]
+        assert_eq!(
+            cached,
+            self.cache
+                .iter()
+                .position(|entry| entry.value.same_node(value))
+        );
+        if let Some(index) = cached {
+            return Ok(self.cache[index].offset);
         }
         if self.cache.len() >= MAX_OBJECTS {
             return Err(Error::Limit);
@@ -263,7 +337,11 @@ impl Encoder<'_> {
             }
         }
         let (offset, end) = self.object(VALUE, &payload.bytes)?;
+        self.value_index
+            .reserve(self.mem, &self.cache, self.cache.len() + 1)?;
         self.mem.reserve(&mut self.cache, 1)?;
+        self.value_index
+            .insert(value, &self.cache, self.cache.len());
         self.cache.push(CacheEntry {
             value: value.clone(),
             offset,
@@ -341,6 +419,8 @@ pub(crate) fn encode(
     let mut cache = ChargedVec::new();
     mem.reserve(&mut cache, old_cache.len())?;
     cache.extend(old_cache.iter().cloned());
+    let mut value_index = ValueIndex::new();
+    value_index.reserve(mem, &cache, cache.len())?;
     let mut data_cache = ChargedVec::new();
     mem.reserve(&mut data_cache, old_data.len())?;
     data_cache.extend(old_data.iter().cloned());
@@ -351,6 +431,7 @@ pub(crate) fn encode(
         start,
         bytes: ChargedVec::new(),
         cache,
+        value_index,
         data_cache,
     };
     let data_ref = encoder.data(head, next_collection)?;
@@ -868,6 +949,190 @@ mod tests {
     use super::*;
     use crate::{Database, Limits, storage::SimulatedDisk};
     const ID: [u8; 16] = *b"codec-test-00001";
+    #[test]
+    fn value_index_collisions_wrap_growth_and_first_identity_match() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let mut values = Vec::new();
+        let mut selected = Vec::new();
+        // Keep all rejected allocations alive too: allocator address reuse must
+        // not turn this directed collision control into repeated identities.
+        for _ in 0..4096 {
+            let value = Value::bytes_new(&mem, b"equal bytes").unwrap();
+            if ValueIndex::bucket(value.node_identity(), 8) == 7 {
+                selected.push(value.clone());
+            }
+            values.push(value);
+            if selected.len() == 4 {
+                break;
+            }
+        }
+        assert_eq!(selected.len(), 4);
+        let mut cache = Vec::new();
+        let mut index = ValueIndex::new();
+        index.reserve(&mem, &cache, 4).unwrap();
+        for value in &selected {
+            assert_eq!(index.get(value, &cache), None);
+            index.insert(value, &cache, cache.len());
+            cache.push(CacheEntry {
+                value: value.clone(),
+                offset: cache.len() as u64,
+                end: 0,
+            });
+        }
+        // All four collide at the last bucket, wrapping through slots 0..2.
+        assert_eq!(&*index.slots, &[2, 3, 4, 0, 0, 0, 0, 1]);
+        for (i, value) in selected.iter().enumerate() {
+            assert_eq!(index.get(&value.clone(), &cache), Some(i));
+        }
+        let distinct = Value::bytes_new(&mem, b"equal bytes").unwrap();
+        assert_eq!(index.get(&distinct, &cache), None);
+        let before = mem.public_usage().live_bytes;
+        let slots = index.slots.to_vec();
+        mem.fail_after(Some(0));
+        assert_eq!(index.reserve(&mem, &cache, 5), Err(Error::OutOfMemory));
+        assert_eq!(&*index.slots, slots);
+        assert_eq!(mem.public_usage().live_bytes, before);
+        mem.fail_after(None);
+        // Rebuild accepts arbitrary cache order and preserves first match.
+        cache.reverse();
+        cache.push(cache[0].clone());
+        index.reserve(&mem, &cache, cache.len()).unwrap();
+        for value in selected {
+            assert_eq!(
+                index.get(&value, &cache),
+                cache.iter().position(|entry| entry.value.same_node(&value))
+            );
+        }
+    }
+
+    #[test]
+    fn value_index_budget_is_charged_reclaimed_and_bounds_precede_allocation() {
+        for cap in [63, 64] {
+            let mem = Memory::new(Limits {
+                max_live_bytes: cap,
+                ..Limits::default()
+            })
+            .unwrap();
+            let mut index = ValueIndex::new();
+            index.reserve(&mem, &[], 0).unwrap();
+            assert_eq!(mem.public_usage().live_bytes, 0);
+            assert_eq!(
+                index.reserve(&mem, &[], 4),
+                if cap == 64 { Ok(()) } else { Err(Error::Limit) }
+            );
+            assert_eq!(
+                mem.public_usage().live_bytes,
+                if cap == 64 { 64 } else { 0 }
+            );
+            assert_eq!(index.reserve(&mem, &[], 5), Err(Error::Limit));
+            mem.fail_after(Some(0));
+            assert_eq!(index.reserve(&mem, &[], MAX_OBJECTS + 1), Err(Error::Limit));
+            drop(index);
+            assert_eq!(mem.public_usage().live_bytes, 0);
+        }
+    }
+    #[test]
+    fn serialization_identity_golden_lifecycle() {
+        // Fixed identity and operation order: captured with the original linear
+        // encoder. An optional fresh output directory supports byte-for-byte
+        // baseline/candidate comparison in addition to these fingerprints.
+        let output = std::env::var_os("WDB_IDENTITY_IMAGES").map(std::path::PathBuf::from);
+        if let Some(path) = &output {
+            std::fs::create_dir(path).unwrap();
+        }
+        let mut captures = Vec::new();
+        let mut capture = |disk: &SimulatedDisk| {
+            let image = disk.durable_image().unwrap();
+            if let Some(path) = &output {
+                std::fs::write(path.join(format!("{}.wdb", captures.len())), &image).unwrap();
+            }
+            captures.push((image.len(), crc(&image)));
+        };
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(disk.clone(), ID, Limits::default()).unwrap();
+        let collection = db.create_collection().unwrap().as_u64();
+        capture(&disk);
+        for epoch in 0..3u8 {
+            let c = db.collection_id(collection);
+            let leaf = db.bytes(&[epoch, 0, 255]).unwrap();
+            let shared = db
+                .list()
+                .unwrap()
+                .list_push(&leaf)
+                .unwrap()
+                .list_push(&db.float(f64::from_bits(0x7ff8_0000_0000_0042)).unwrap())
+                .unwrap();
+            let mut tx = db.begin();
+            for key in 0..12u8 {
+                // Equal bytes with distinct identities must remain distinct;
+                // shared descendants must reuse their original offsets.
+                let row = db
+                    .map()
+                    .unwrap()
+                    .map_set(b"shared", &shared)
+                    .unwrap()
+                    .map_set(b"distinct", &db.bytes(&[epoch, 0, 255]).unwrap())
+                    .unwrap();
+                tx.put(c, &[key], &row).unwrap();
+            }
+            tx.commit().unwrap();
+            drop(tx);
+            capture(&disk);
+            db.retain_snapshot(&db.snapshot()).unwrap();
+            capture(&disk);
+            drop(db);
+            db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+        }
+        for id in 1..=3 {
+            assert_eq!(
+                db.retained_snapshot(id)
+                    .unwrap()
+                    .scan(db.collection_id(collection))
+                    .unwrap()
+                    .len(),
+                12
+            );
+        }
+        drop(db);
+        let backup = SimulatedDisk::new().unwrap();
+        super::super::backup_on(disk.clone(), backup.clone(), Limits::default()).unwrap();
+        capture(&backup);
+        let mut db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+        let compact = SimulatedDisk::new().unwrap();
+        db.compact_to(compact.clone()).unwrap();
+        capture(&compact);
+        assert_eq!(
+            backup.durable_image().unwrap(),
+            compact.durable_image().unwrap()
+        );
+        let reopened = Database::open_on(compact.clone(), Limits::default()).unwrap();
+        let mut tx = reopened.begin();
+        let existing = reopened
+            .retained_snapshot(1)
+            .unwrap()
+            .get(reopened.collection_id(collection), &[0])
+            .unwrap()
+            .unwrap();
+        tx.put(reopened.collection_id(collection), b"reused", &existing)
+            .unwrap();
+        tx.commit().unwrap();
+        capture(&compact);
+        assert_eq!(
+            captures,
+            [
+                (36864, 17874777462570792639),
+                (155648, 12627800862391569603),
+                (159744, 3171630150855272638),
+                (278528, 2818319004123656995),
+                (282624, 17840750070174291155),
+                (401408, 390611552297599236),
+                (405504, 12736892190795234075),
+                (368640, 5816780006189258397),
+                (368640, 5816780006189258397),
+                (376832, 14514754463903583136),
+            ]
+        );
+    }
     #[test]
     fn compaction_preserves_shared_value_identity_across_historical_roots() {
         let mut db =
@@ -2182,6 +2447,7 @@ mod tests {
             start: (MAX_IMAGE_BYTES - REGION) as u64,
             bytes: ChargedVec::new(),
             cache: ChargedVec::new(),
+            value_index: ValueIndex::new(),
             data_cache: ChargedVec::new(),
         };
         assert_eq!(
@@ -2226,6 +2492,7 @@ mod tests {
             start: APPEND_START as u64,
             bytes: ChargedVec::new(),
             cache: ChargedVec::new(),
+            value_index: ValueIndex::new(),
             data_cache: ChargedVec::new(),
         };
         let offset = encoder.data(&head, 1).unwrap();

@@ -5,7 +5,9 @@ The source inventory identifies **253 production AST records** in
 four pattern tests, three matches and two AND records. Every record is mapped
 below. Nested syntax is not an independent-condition denominator; this is not a
 compiler MC/DC percentage or a claim that malformed images are exhaustively tested.
-No production codec behavior changed in this tranche.
+No production codec behavior changed in that inventory tranche. The later
+[identity-index follow-up](#value-identity-index-follow-up) changes encoding
+lookup and retains this historical table's source scope.
 
 P = directed predicate/arm controls; C = overlapping syntax; E = execution or
 error propagation evidence, not every callee outcome at every site; I = invariant
@@ -457,3 +459,26 @@ No production edit, new mutation run, 32-bit execution, compiler MC/DC percentag
 or native hardware power-loss assurance is claimed. Prior REC-V1..7 mutation and
 fuzz evidence is reused at its documented scope. The inventory completed without
 parse failures; this tranche adds the five named tests and this source audit.
+
+## VALUE identity index follow-up
+
+The [production index qualification](../serialization-identity-index.md) adds
+these source-level controls without relabeling the historical 253-record table:
+
+| Decision | Directed evidence / disposition |
+|---|---|
+| `get`: empty/nonempty table | Initial empty lookup versus first insertion and clone hit; all test-build encoder lookups compared with the original linear search |
+| `position`: empty/occupied bucket, same/different identity | Four directed last-bucket collisions wrap through slots 0..2, successful hits and a distinct allocation with equal bytes; growth and rebuild preserve lookup results |
+| `reserve`: above `MAX_OBJECTS` | `MAX_OBJECTS+1` returns Limit before a zero allocation allowance is consulted; public images hit their region cap before a full maximum cache plus metadata can be emitted |
+| `reserve`: entries within half capacity versus growth | Empty reserve, four entries in eight slots and fifth-entry rebuild; collision test also reverses cache order and adds a duplicate |
+| `reserve`: new-table allocation failure | Growth OOM preserves old slots and exact live charge; 63/64-byte admission pair exercises Limit versus success for an eight-slot table on 64-bit targets; dropping the table returns charge to zero |
+| rebuild: empty/populated cache and first/duplicate identity | Empty-cache budget test, reversed cache, duplicate first-match test; golden lifecycle appends after reopening a decoder-built cache |
+| table size, mask, probe termination and index bounds | Invariants: cache entries bounded by `MAX_OBJECTS`, slots power-of-two and at least twice admitted entries, no deletion; every occupied slot refers to a live cache-owned Value. Multiplication/next-power arithmetic cannot overflow at that bound on supported 64-bit targets |
+| delegated reserve/object/cache failures | Existing all-allocation commit/copy sweeps and crash/budget suites pass in Mac/Linux debug/release. Added table uses the already-tested `ChargedVec` allocator, not a new unsafe allocator |
+
+Two index controls also pass Miri. Golden fingerprints and ten exact baseline
+image comparisons cover emission order/sharing; the independent scaling driver
+verifies full current/retained state. There is no new mutation score or compiler
+MC/DC claim. Fresh inventory reports 2,571 total production records and 317
+macro blind spots with no parse failures. Old source locations/dispositions
+remain historical; this follow-up is the named evidence for the changed lookup.

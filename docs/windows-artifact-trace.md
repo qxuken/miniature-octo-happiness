@@ -219,25 +219,27 @@ The downloaded original ZIP was independently hashed to
 matching the API digest; every extracted ZIP payload matches the input package.
 The DLL was never rebuilt or substituted.
 
-Evidence root:
+Evidence root at execution time:
 `C:\Users\21asg\AppData\Local\weekend-trace-80eb0c2-20261113`.
 `result-initial/evidence.json` SHA-256:
 `ceab27169583071ffa533a4987b6e54af8d47b6898ec7c4d148469cea46f175e`.
-Its inventory contains 175 payload hashes, independently rechecked. The root
-also retains the raw ZIP, original package, both control logs, native log,
+Its inventory contained 175 payload hashes, independently rechecked by the
+Windows agent. The root also retained the raw ZIP, original package, both
+control logs, native log,
 independent audit scripts and `independent-audit.json` (SHA-256
 `84bc38e476826a5502f456e826fa41f93b385872d0203867b713114400500f8f`).
-The complete evidence root is also archived at
+The complete evidence root was also archived at
 `C:\Users\21asg\AppData\Local\weekend-trace-80eb0c2-20261113-evidence.zip`
 (1,697,183 bytes), SHA-256
 `1ba2d2b2efc2f28a74fcb17bf5a67fbc0f2e7dd0f021972061681cb322d22e5b`;
-the archive CRC check passes.
+the archive CRC check passed at execution time.
 Both executables, compiler logs, actual/expected transcripts, databases and
-loader proofs remain in the result directory. This evidence is local storage;
-no hosted retention or automatic CI trace gate is established.
+loader proofs were present in the result directory at execution time. No
+hosted retention or automatic CI trace gate was established. See the subsequent
+cleanup note below; those raw proofs are no longer available for review here.
 
 Original and relocated package verification passes before/after execution.
-All five harness source hashes remain identical to the tested commit:
+All five harness source hashes were identical to the tested commit:
 
 | Source | SHA-256 |
 |---|---|
@@ -250,11 +252,11 @@ All five harness source hashes remain identical to the tested commit:
 Trace and full stdout hashes remain the unchanged pins in the preparation
 section. All 23 command records (environment discovery, two compilations,
 twenty executions) confirm cleanup: owned jobs were terminated and their active
-process counts reached zero before handle closure. No owned children remain.
+process counts reached zero before handle closure. No owned children remained.
 A supplemental post-run PID-only audit initially flagged unrelated Windows
 processes reusing exited test PIDs; creation times after evidence completion
 resolved this false alarm. Its initial script is preserved as
-`independent-audit-initial.py`; the corrected audit retains creation-time
+`independent-audit-initial.py`; the corrected audit recorded creation-time
 observations in `post-run-process-check.json`. No native failure directory was
 discarded and no native retry was required.
 
@@ -263,3 +265,15 @@ exact package. It does not establish Windows 10, other SDK/toolset versions,
 other architectures/filesystems/features, long paths/8.3 aliases, full API or
 MC/DC coverage, injected I/O faults, physical power-loss durability, a final
 release candidate or an owner support window. Crates remain unpublished.
+
+## Evidence availability after cleanup, 2026-11-14
+
+The owner reports cleaning the Windows worktree after the agent completed.
+Keep the twenty-case pass and its source/package/environment/hash report as a
+historical result. The raw proof ZIP was not transferred for retention and is
+unavailable for independent payload review here; the paths and hashes above
+are historical identifiers, not a claim that those files remain accessible.
+No rerun is requested for this checkpoint. Repeat the native gate and retain
+its full evidence when qualifying a later immutable candidate, including the
+new serialization identity index. The previous delivered DLL does not qualify
+that subsequent runtime change.

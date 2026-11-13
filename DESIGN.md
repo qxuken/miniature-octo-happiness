@@ -5335,3 +5335,42 @@ The linked report records full package pins, results, audit and limitations.
 No native fixes were necessary. This closes the named F15 Windows finite trace
 gate; broader API/MC/DC, failure injection, device durability, other platform
 profiles, hosted evidence retention and final release gates remain separate.
+
+The owner subsequently cleaned the Windows worktree. That twenty-case pass
+remains a historical result; its raw proof ZIP is unavailable here. Paths and
+hashes in the report identify the original run, not currently retained evidence.
+Repeat and retain the native gate for the final immutable candidate.
+
+### Charged serialization VALUE identity index
+
+The [index qualification](docs/serialization-identity-index.md) replaces encoder
+VALUE linear search with a temporary half-full, power-of-two hash index of
+cache positions. Mixed allocation addresses select buckets; `same_node`
+confirms identity. The cache retains the Value owners, first-match semantics
+and emission order. Integer addresses are never converted back to pointers.
+Equal-content distinct nodes remain separate objects. Every encode rebuilds
+the index from its existing cache, including recovery-built caches, and drops
+it before publication. The disk representation, public API and format versions
+are unchanged.
+
+All table allocations are charged and fallible through `Memory::reserve`.
+The existing 16,384-object bound limits the 64-bit table to 262,144 bytes;
+largest old/new growth overlap is 393,216 bytes. Preparation may hit an existing
+tight budget earlier. Allocation failure abandons the candidate before I/O,
+preserving prior acknowledged state and normal terminal/retry semantics.
+Publication barriers and separate follower durability acknowledgments remain
+unchanged. Expected lookup work is constant; collision worst cases remain
+bounded linear probes. DATA revision search and cache-vector growth remain
+separate scaling work.
+
+Ten fixed-identity lifecycle images match the original linear encoder exactly
+on Mac and Linux, including retained/recovered cache reuse and maintenance.
+Both scaling axes preserve complete independently checked current/retained
+state, file sizes and physical-cap outcomes. The largest distinct workload
+drops from 440,169,243 to 147,132 identity comparisons, including rebuild/growth;
+DATA counts are unchanged. Debug/release allocation, budget, crash/recovery,
+retention and compaction tests pass on Mac and Docker Linux ext4; collision and
+budget controls pass pinned Miri. The report records timings, source hashes,
+evidence and limitations. This runtime change needs fresh Windows/final-candidate
+qualification; the earlier delivered DLL's pass remains source-bound. Cargo
+publication remains disabled.
