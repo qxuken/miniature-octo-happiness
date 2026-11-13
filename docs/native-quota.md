@@ -87,9 +87,41 @@ and its owned container and volume are absent. Proof:
 `target/quota-development-844c429-v2/evidence.json`. Formatting, workflow lint and
 targeted Clippy checks pass. These checks do not establish actual EDQUOT.
 
-Hosted quota execution is pending at this checkpoint. The earlier Linuxkit
-quota provisioning limitation remains historical evidence; neither synthetic
-quota errors nor ENOSPC are credited as an actual quota pass. This gate covers
-native append exhaustion/recovery only, not physical power loss, quota failures
+The [hosted quota job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43484032226/job/132087623169)
+passes for head `5e665f1b0e32b65ec9f8aec16ced089a34353165`. Its actual checkout
+is PR merge `22fa29e0426dfad990ab302d542f8d4bcb63ac3b`; all 636 source hashes
+match the pushed head's Git archive. The fixture uses Rust 1.99.1, core features
+zero, Ubuntu 24.04 x86_64 and kernel `7.0.0-1017-azure`. Recorded package versions
+are e2fsprogs `1.47.0-2.4~exp1ubuntu4.1`, quota `4.06-1build6` and util-linux
+`2.39.3-9ubuntu6.6`.
+
+Both calibration and engine ballast observe errno 122 after 4,128,768 bytes,
+below the independent 8 MiB ceiling. Engine exhaustion leaves 49,758,208 bytes
+available globally. The same UID's 4 KiB fsynced control succeeds after ballast
+removal. Five distinct fixture processes report these complete-state outcomes:
+
+| Phase | Current revision | Retained revision | Commit result | Requires recovery |
+|---|---:|---:|---|---|
+| Seed | 3 | 2 | Success | No |
+| Quota failure | 3 | 2 | `Io`, `Quota`, OS 122, `Write` | Yes |
+| Fresh reopen while full | 3 | 2 | Success | No |
+| Retry after freeing ballast | 4 | 2 | Success | No |
+| Fresh reopen after retry | 4 | 2 | Success | No |
+
+The failing transaction reports `Closed` on reuse; a fresh staged transaction is
+blocked with `RecoveryRequired`. Complete current/retained rows match the
+independent oracle in every phase. Cleanup has no errors and independently
+proves both mount and loop associations absent.
+
+The downloaded artifact's SHA-256 matches GitHub's API digest
+`7f387ff3d02bb26489a323a57f5a2a19ddb70c7e1ae7fe1c79e2290bebfb7a6b`.
+Root review rechecks all 56 evidence payload hashes, the uploaded fixture binary,
+source/tool bindings, privileges, command outputs, full rows and cleanup.
+Local proof: `target/native-quota-5e665f1/index.json`, SHA-256
+`2bec1ac25e442b7e379178555a13a42a0c221614e7032967e642958edd7ca253`.
+
+The earlier Linuxkit quota provisioning limitation remains historical evidence;
+synthetic quota errors and ENOSPC retain their separate scopes. This closes the
+named native append quota/recovery gate, not physical power loss, quota failures
 during maintenance, other filesystems or other operating systems. Engine
 publication barriers and separate follower durable acknowledgments are unchanged.

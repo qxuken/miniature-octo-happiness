@@ -5273,6 +5273,13 @@ identity and independently verified cleanup are part of qualification.
 Twelve controller controls pass normally and under `-O`; the complete helper
 entry point now passes forty workers with 292 passes and four registered skips.
 Linux Docker semantic controls verify complete reopen/retry data and reject a
-false quota pass when space is available. Actual hosted EDQUOT remains pending
-until the new Ubuntu job executes. No engine runtime, durability barrier or
-follower acknowledgment semantics changed; Cargo publication remains disabled.
+false quota pass when space is available. The hosted Ubuntu 24.04/ext4 job now
+observes actual errno 122 with over 47 MiB still available globally. Commit
+failure preserves current revision 3 and retained revision 2; a fresh process
+reopens that state while full. Freeing ballast allows one retry to 4, and another
+fresh process verifies complete current and retained rows. Both owned mount and
+loop associations are absent after cleanup. Downloaded proof, source/tool hashes
+and full row oracles are independently rechecked. This qualifies native append
+EDQUOT/recovery for that profile, not maintenance quota failures or physical
+power loss. No engine runtime, durability barrier or follower acknowledgment
+semantics changed; Cargo publication remains disabled.

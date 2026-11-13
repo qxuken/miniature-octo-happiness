@@ -88,3 +88,7 @@ has generic quota control but lacks QFMT_V1/QFMT_V2, XFS quota and tmpfs quota
 configuration. Actual EDQUOT qualification therefore remains open for a
 quota-capable kernel/filesystem. Existing ENOSPC and synthetic quota-category
 tests retain their original scope; neither is recorded as a native quota pass.
+The later [hosted Ubuntu ext4 quota gate](native-quota.md) now observes actual
+EDQUOT, verifies fresh-process current/retained recovery and successful retry,
+and proves owned mount/loop cleanup. It qualifies that separate native append
+profile without changing the earlier Linuxkit result.

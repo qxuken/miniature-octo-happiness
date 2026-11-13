@@ -416,11 +416,17 @@ percentage is restored. Physical durability, actual quota, remaining feasible
 decision pairs, complete advertised feature/ABI profiles, final immutable
 candidate and owner service/support choices remain open. Crates remain private.
 
-## Native quota gate machinery
+## Native Linux quota exhaustion and recovery
 
 The [Linux quota controller and fixture](native-quota.md) are implemented and
 wired into a dedicated Ubuntu 24.04 job. Local checks include twelve normal/`-O`
 controls and Linux ext4 semantic/fresh-process/no-quota negative controls. The
 complete helper runner now covers twenty suites, forty workers, 292 passes and
-four registered skips per run. Actual EDQUOT qualification is still pending the
-hosted execution; the F05 quota gate is not closed by these local results.
+four registered skips per run. The hosted job now passes at `5e665f1`: actual
+errno 122 is distinct from global disk exhaustion, current/retained revisions
+3/2 survive failure and fresh reopen while full, and retry/reopen reaches 4/2
+after freeing ballast. Complete row bytes, source/tool identities, uploaded
+artifact digest and all 56 evidence payloads are rechecked; mount and loop
+absence are proven. This closes the named F05 native append quota profile.
+Other quota failure phases/filesystems and physical power-loss assumptions
+remain separate obligations. No crates are published.

@@ -4,7 +4,7 @@ This is a requirement-by-requirement acceptance review of
 [production-readiness.md](production-readiness.md), not a new qualification run.
 Initial audit source HEAD: `032dadf591b0a0ded4894898e8208283c50425fb`; the
 subsequent requirement review includes qualification work through
-`cd7cdfebc215ef0f3819abf7b3adeb8175156232`, with each report retaining its named
+`5e665f1b0e32b65ec9f8aec16ced089a34353165`, with each report retaining its named
 source/profile. These qualification tranches change tests/tools, not engine
 or application runtime. An old passing
 run supports its recorded source/profile only. Neither a source disposition nor
@@ -38,7 +38,7 @@ an unoffered expansion, not a defect to fix speculatively.
 | F02 Terminal transactions, snapshot lifetime, threading and lease contention | Engine/FFI ledgers, concurrent tests, native file tests; [hosted native matrix](hosted-qualification-cd7cdfe.md) including Windows | Per-handle unsafe contracts still apply. The named native CI profile now executes Windows; additional architecture/schedule/decision obligations are not closed by that passing matrix. |
 | F03 `Io`/uncertain/recovery contracts and application retry IDs | Publication/recovery ledgers; [operations](operations.md); coordinator receipts; [delivered C fault recovery](delivered-c-faults.md) | Linux exact-package C checks IO/uncertainty, cleared outputs, terminal/recovery-required transactions and fresh-process request-ID reconciliation with full retained data. EIO is interposed; real ENOSPC is tmpfs-only. Other delivered language/platform fault profiles and physical failures remain separate obligations. |
 | F04 Read-only full verifier and selected-root authority | `storage::inspect_file`, admin `check`; `tests/inspection.rs`; [diagnostics](verification-diagnostics.md) | Implemented. Generic file checking does not automatically prove typed index correctness; use typed `check_indexes` explicitly. |
-| F05 Cheap health/headroom and actionable errors | `storage_space`, native diagnostic scope; errno categories; [native drills](native-fault-drills.md); [isolated Linux quota gate](native-quota.md) | Real Linux ENOSPC/EACCES evidence exists at its frozen source. The quota controller/fixture and local controls are implemented, but actual hosted EDQUOT remains pending. The earlier Linuxkit provisioning failure and synthetic mapping tests are not credited as a quota pass. |
+| F05 Cheap health/headroom and actionable errors | `storage_space`, native diagnostic scope; errno categories; [native drills](native-fault-drills.md); [actual Linux EDQUOT/recovery gate](native-quota.md) | Ubuntu 24.04/ext4 append exhaustion now reports real OS 122/Quota/Write with global space available, preserves current/retained 3/2 through fresh reopen while full, and retries/reopens to 4/2. Full bytes, source/artifact hashes and cleanup are verified. Maintenance quota failures and other filesystem/OS profiles remain separate; older Linuxkit/synthetic results retain their scope. |
 | F06 Build/format identity and secret-safe output | `version`, ABI identity, release manifests; diagnostics omit record/path contents | Implemented. Local: validate service log/output redaction and structured error observability as a deployed workflow; do not claim arbitrary app logging is safe. |
 | F07 Verified backup/restore and new destination | `backup_file`/`restore_file`; independent CLI tests; typed `process_evolution`; [operations](operations.md) | Scoped state/history/index oracles exist. Owner sets recovery-time objective; repeated restore with actual workload is necessary for that objective. |
 | F08 Recovery point and identity after fork/restore | Selected leased revision is recovery point; identity preserved; [follower backup](follower-backup-restore.md), [CRDT recovery](crdt-operations.md) | Implemented explicit recipes. No zero-data-loss promise beyond preserved acknowledged state/available backup. Actor reset and writable copies require reviewed enrollment/routing changes. |
@@ -128,7 +128,7 @@ harness-level scope reference.
 | Gate from roadmap | Concrete evidence | Acceptance action |
 |---|---|---|
 | Fault-model publication | Storage/simulator contract, selected-root/witness semantics, [operations](operations.md) | Owner/platform: validate actual filesystem/device flush assumptions before power-loss promises. |
-| Allocation and I/O failure matrix | Simulator, corruption/fault sweeps, current/retained state oracles, [native drills](native-fault-drills.md) | Platform: actual quota on a capable kernel, after the local provisioning limitation above; local systematic second-failure combinations where a reviewed disposition remains open. No blanket closure from one recovery test. |
+| Allocation and I/O failure matrix | Simulator, corruption/fault sweeps, current/retained state oracles, [native drills](native-fault-drills.md), [actual Linux append EDQUOT](native-quota.md) | The named native quota append/recovery profile now passes. Other failure phases/platforms and systematic second-failure combinations with open dispositions require their own evidence. No blanket closure follows from one recovery test. |
 | Native platform/filesystem matrix | Exact-21 Mac/Docker aarch64 Linux ext4 checks plus [cd7cdfe hosted Mac arm64, Linux x86_64 and Windows MSVC x86_64](hosted-qualification-cd7cdfe.md) | Actual Windows and x86 Linux execution now exists for the named profiles. Other advertised ABI/filesystem/feature combinations and final candidate consolidation remain; neither hosted nor container success proves a deployed physical device's flush behavior. |
 | Compatibility manifest and upgrade/rollback | [storage cases](storage-compatibility-21e5d26.md), logical/v2 fixtures, typed retained migration | Local: promised CLI/config directions; owner chooses supported versions. Historical pre-1 reader compatibility is not every future version. |
 | Binary delivery | [private artifact/source evidence](local-qualification-21e5d26.md), relocation, symbols and notices | Shared consumer traces are now recorded in their exact artifact scope. Local: final feature-isolated/combined candidate matrix. Owner: final clean candidate, support matrix, retained evidence bundle and attribution review. |
@@ -162,10 +162,11 @@ harness-level scope reference.
    epochs/archive and reconciliation of stale retries. Silent eviction is not
    an acceptable shortcut.
 
-Native Windows execution, actual device power interruption, a quota-capable
-kernel, production workload budgets, support promises and distribution approval
-remain distinct platform/owner gates. They cannot be replaced by local models
-or more simulated calendar days. Remaining feasible decision pairs and broader
+The named hosted Windows and Linux append-quota profiles now have actual
+execution evidence. Additional native profiles, actual device power interruption,
+production workload budgets, support promises and distribution approval remain
+distinct platform/owner gates. They cannot be replaced by local models or more
+simulated calendar days. Remaining feasible decision pairs and broader
 workload/error traces stay visible in the module and fuzz rows above.
 
 ## Subsequent local evidence
