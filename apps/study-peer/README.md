@@ -66,3 +66,9 @@ The [persistent credential cutover guide](../../docs/study-credential-cutover.md
 tests stopped-endpoint leaf/pin replacement on Mac/Linux, preserved offline
 commits and retained roots, stale-credential rejection, and full-record
 convergence without extra repeat-sync commits. Actor identities stay fixed.
+
+The [actual pre-ALPN binary-upgrade gate](../../docs/study-cli-upgrade.md)
+separately tests coordinated executable upgrades. Mixed old/new peers reject
+sync without losing acknowledged offline edits; matching new peers reopen the
+same files and converge with both retained records intact. Credentials stay
+fixed during that test.

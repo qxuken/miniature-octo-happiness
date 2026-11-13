@@ -2,6 +2,11 @@
 
 `tools/artifact-trace/run.py` supplies a finite F03/F15 semantic qualification: native Rust, C and Odin interpret one versioned binary operation trace and each transcript must equal an independent Python contract model. It never publishes, pushes, commits, or invokes remote CI. All inputs and database paths are synthetic and private.
 
+This report preserves the v1 59-cell results. The current default is the
+[v2 134-cell validation-mode trace](artifact-trace-validation-modes.md), which
+also accepts unchanged v1 bytes. Use tool sources from a8e8122 to repeat this
+v1 gate; the commands below run v2 when used with the current checkout.
+
 ## Verified scope
 
 The local 2026-11-13 runs used packages identifying source commit `21e5d2638c24c6254ced35d0077c55bb30a287b2`:

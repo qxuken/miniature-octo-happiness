@@ -5155,5 +5155,52 @@ full existing Rust/C checker at Rust 1.99.0 against exact a56083c source, with
 unchanged locks and explicit ext4 execution. It predates these new test overlays.
 A newer pinned nightly, 2026-11-12, still rejects MC/DC instrumentation before
 fixture compilation; no coverage percentage follows from that probe. Native
-Windows/device/quota evidence, remaining feasible decision pairs, mixed-version
-binary upgrades, final candidate consolidation and owner budgets remain open.
+Windows/device/quota evidence, remaining feasible decision pairs, additional
+promised binary transitions, final candidate consolidation and owner budgets remain open.
+
+### Actual CLI upgrades and delivered error recovery
+
+The [snapshot CLI upgrade gate](docs/snapshot-cli-upgrade.md) builds unmodified
+315068f and 365daf6 release binaries from separate archives and original locks.
+Mac/Linux execute both sender directions, persisted follower reopening and
+failed-transfer/retry controls. Complete selected image bytes, independent
+export digests, receipts and retained rows agree. A local capture at revision 4
+does not become a follower acknowledgment while that follower remains at 3.
+Both versions use the same snapshot ALPN; this pair supplies no ALPN-mismatch
+result or compatibility promise for newer maintenance commands.
+
+The separate [study binary-upgrade gate](docs/study-cli-upgrade.md) uses the
+actual pre-ALPN fb80989 and current 365daf6 binaries with unchanged credentials,
+model, policy and roster. Mixed versions reject exchange while retaining each
+acknowledged offline edit. Coordinated new peers reopen the same files and
+converge complete causal records to 36 minutes, goal 80, limit 20 and lessons
+`[1,2,3,4]`. Both original retained records survive; restart and repeat exchange
+add no commits. This is an availability boundary, not a schema/actor migration.
+
+The [v2 delivered trace](docs/artifact-trace-validation-modes.md) now explicitly
+compares Records and WholeDatabase validation in 134 cells through optimized
+Mac Rust/C/Odin and Linux Rust/C. Independent-record edits, empty transactions
+and retain/release publications distinguish the two modes. Full current and
+historical values, terminal states and exact revisions match the independent
+model. V1 bytes and its 59-line oracle remain unchanged; malformed v2 modes and
+unknown versions reject before database creation. Fourteen unit controls and
+thirty additional executions bind the five actual consumer binaries. These
+still use the exact private 21e5d26 packages, not a new release candidate.
+
+The [delivered C fault drill](docs/delivered-c-faults.md) additionally checks the
+packaged Linux library's IO/OutcomeUnknown outputs, terminal transactions and
+recovery-required writes. A fresh process without the injector verifies every
+current/retained byte and reconciles an atomic request marker before retry.
+Early append/root-write failures reopen revision 3; root/witness-sync errors
+reopen 4 in this running-kernel experiment. All retries finish at 4 with old
+retained revision 2. Interposed EIO is separate from actual kernel ENOSPC on a
+bounded private tmpfs, and neither establishes device power-loss behavior.
+
+Independent review also found assurance-tool defects: an exited leader could
+leave a running descendant, one controller trusted copied artifacts without
+rehashing/cross-binding sources, and a wrapper could skip volume cleanup after
+container removal failed. Directed negative controls catch these
+paths; fixed helpers and fresh Mac/Linux runs preserve the prior evidence
+without relabeling it. Engine/application runtime, durability barriers and
+separate follower acknowledgments are unchanged. Remaining platform/device,
+feasible-decision, promised-transition and final-candidate gates stay explicit.

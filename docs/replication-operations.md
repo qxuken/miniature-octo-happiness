@@ -363,3 +363,9 @@ Snapshot and study now compile the same private [TLS implementation](shared-app-
 under distinct profiles. Snapshot retains its SAN, ALPN, deadline and exact-pin
 semantics. Study requires coordinated CLI upgrades for its new required ALPN;
 snapshot wire version and acknowledgment rules are unchanged.
+
+The [actual mixed-version snapshot CLI gate](snapshot-cli-upgrade.md) qualifies
+315068f/365daf6 release binaries in both sender directions on Mac/Linux,
+including persisted enrollment, retained data, failed transfer/retry and exact
+durable receipts. This named pre-1 pair does not establish compatibility for
+other versions or the newer maintenance commands.
