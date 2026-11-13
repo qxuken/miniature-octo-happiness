@@ -61,10 +61,16 @@ static wdb_value *make(wdb_database *db,uint32_t n) {
 }
 static uint32_t read32(FILE *f) {uint8_t b[4];assert(fread(b,1,4,f)==4);return (uint32_t)b[0]|((uint32_t)b[1]<<8)|((uint32_t)b[2]<<16)|((uint32_t)b[3]<<24);}
 int main(int argc,char **argv) {
-    assert(argc==4);FILE *f=fopen(argv[1],"rb");assert(f);char magic[8];assert(fread(magic,1,8,f)==8 && !memcmp(magic,"WDBTRC1\n",8));
+    assert(argc==4);FILE *f=fopen(argv[1],"rb");assert(f);char magic[8];assert(fread(magic,1,8,f)==8);
+    int version=!memcmp(magic,"WDBTRC1\n",8)?1:2;assert(version==1 || !memcmp(magic,"WDBTRC2\n",8));
     uint32_t count=read32(f);assert(count<=256);uint32_t cells[256][4];
     for(uint32_t i=0;i<count;i++)for(int j=0;j<4;j++)cells[i][j]=read32(f);
     assert(fgetc(f)==EOF);assert(!fclose(f));
+    for(uint32_t i=0;i<count;i++) {
+        uint32_t op=cells[i][0],slot=cells[i][1],k=cells[i][2],n=cells[i][3];
+        assert(op>=1&&op<=13&&slot<4&&k<=255&&n<=254);
+        if(version==2&&op==1) { assert(n<=1); }
+    }
     uint8_t identity[256];size_t required;OK(wdb_source_id(identity,sizeof identity,&required));assert(required==strlen(argv[3])&&!memcmp(identity,argv[3],required));
     assert(wdb_abi_version()==WDB_ABI_VERSION && wdb_format_version()==WDB_FORMAT_VERSION);
     wdb_database *db;size_t pathlen=strlen(argv[2]);const uint8_t *path=(const uint8_t *)argv[2];
@@ -75,7 +81,7 @@ int main(int argc,char **argv) {
         assert(op>=1&&op<=13&&slot<4&&k<=255&&n<=254);uint8_t key=(uint8_t)k;
         int status=0;uint64_t result=UINT64_C(0xdeadbeefcafebabe);wdb_value *got=NULL;wdb_scan *got_scan=NULL;
         switch(op) {
-        case 1: assert(!tx[slot]);status=wdb_tx_begin(db,WDB_RECORDS,&tx[slot]);break;
+        case 1: assert(!tx[slot]);status=wdb_tx_begin(db,version==2&&n==1?WDB_WHOLE_DATABASE:WDB_RECORDS,&tx[slot]);break;
         case 2: {assert(tx[slot]);wdb_value *v=make(db,n);status=wdb_tx_put(tx[slot],collection,&key,1,v);OK(wdb_value_release(v));break;}
         case 3: {
             assert(tx[slot]);wdb_value *probe=NULL;

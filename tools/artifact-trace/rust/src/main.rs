@@ -1,4 +1,4 @@
-use weekend_db::{Database, Error, Kind, Limits, Rows, Snapshot, Value};
+use weekend_db::{Database, Error, Kind, Limits, Rows, Snapshot, Validation, Value};
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -51,7 +51,7 @@ fn make(db: &Database, n: u32) -> Value {
         .map_set(b"v", &list)
         .unwrap()
 }
-fn segment(db: &Database, cells: &[[u32; 4]], start: usize) -> usize {
+fn segment(db: &Database, cells: &[[u32; 4]], start: usize, version: u32) -> usize {
     let collection = db.collection_id(1);
     let mut txs: [_; 4] = std::array::from_fn(|_| None);
     let mut held: Option<Snapshot<'_>> = None;
@@ -67,7 +67,11 @@ fn segment(db: &Database, cells: &[[u32; 4]], start: usize) -> usize {
         let action: Result<(), Error> = match op {
             1 => {
                 assert!(txs[slot].is_none());
-                txs[slot] = Some(db.begin());
+                txs[slot] = Some(db.begin_with_validation(if version == 2 && n == 1 {
+                    Validation::WholeDatabase
+                } else {
+                    Validation::Records
+                }));
                 Ok(())
             }
             2 => txs[slot]
@@ -156,7 +160,11 @@ fn main() {
     assert_eq!(weekend_db::version::SOURCE_ID, args[3]);
     let bytes = std::fs::read(&args[1]).unwrap();
     assert!(bytes.len() >= 12 && bytes.len() <= 4108);
-    assert_eq!(&bytes[..8], b"WDBTRC1\n");
+    let version = match &bytes[..8] {
+        b"WDBTRC1\n" => 1,
+        b"WDBTRC2\n" => 2,
+        _ => panic!("unsupported trace version"),
+    };
     let count = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
     assert!(count <= 256);
     assert_eq!(bytes.len(), 12 + 16 * count);
@@ -168,12 +176,15 @@ fn main() {
         .collect::<Vec<[u32; 4]>>();
     for [op, slot, k, n] in &cells {
         assert!((1..=13).contains(op) && *slot < 4 && *k <= 255 && *n <= 254);
+        if version == 2 && *op == 1 {
+            assert!(*n <= 1, "invalid BEGIN validation mode");
+        }
     }
     let mut db = Database::create_file(&args[2], Limits::default()).unwrap();
     db.create_collection().unwrap();
     let mut pos = 0;
     while pos < cells.len() {
-        pos = segment(&db, &cells, pos);
+        pos = segment(&db, &cells, pos, version);
         if pos < cells.len() {
             drop(db);
             db = Database::open_file(&args[2], Limits::default()).unwrap();

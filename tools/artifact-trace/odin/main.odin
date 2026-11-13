@@ -87,8 +87,16 @@ main :: proc() {
     assert(len(os.args)==4)
     bytes,err := os.read_entire_file(os.args[1],context.allocator)
     assert(err==nil);defer delete(bytes)
-    assert(len(bytes)>=12 && len(bytes)<=4108 && string(bytes[:8])=="WDBTRC1\n")
+    assert(len(bytes)>=12 && len(bytes)<=4108)
+    version:=2
+    if string(bytes[:8])=="WDBTRC1\n" {version=1} else {assert(string(bytes[:8])=="WDBTRC2\n")}
     count:=int(read32(bytes[8:12]));assert(count<=256 && len(bytes)==12+16*count)
+    for i in 0..<count {
+        cell:=bytes[12+i*16:12+(i+1)*16]
+        op,slot,k,n:=read32(cell),read32(cell[4:]),read32(cell[8:]),read32(cell[12:])
+        assert(op>=1 && op<=13 && slot<4 && k<=255 && n<=254)
+        if version==2 && op==1 {assert(n<=1)}
+    }
     identity: [256]u8
     required: c.size_t
     ok(db.wdb_source_id(raw_data(identity[:]),256,&required));assert(string(identity[:int(required)])==os.args[3])
@@ -110,7 +118,11 @@ main :: proc() {
         got: db.Value
         got_scan: db.Scan
         switch op {
-        case 1: assert(tx[slot]==nil);status=db.wdb_tx_begin(database,db.WDB_RECORDS,&tx[slot])
+        case 1:
+            assert(tx[slot]==nil)
+            validation: i32 = db.WDB_RECORDS
+            if version==2 && n==1 {validation=db.WDB_WHOLE_DATABASE}
+            status=db.wdb_tx_begin(database,validation,&tx[slot])
         case 2:
             assert(tx[slot]!=nil);v:=make_value(database,n)
             status=db.wdb_tx_put(tx[slot],collection,raw_data(key[:]),1,v);ok(db.wdb_value_release(v))
