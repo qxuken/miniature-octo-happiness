@@ -536,3 +536,32 @@ core-package tests; it does not qualify distributed deployment timing or
 exhaustively inject every new compound allocation site. New AST inventory is
 2,584 records/51 files with 318 macro blind spots and no parse failures;
 source records are not a compiler MC/DC percentage.
+
+## Immutable cache sharing follow-up
+
+Engine `910e490` stores VALUE entries/hash slots and DATA entries/sorted positions
+in separately shared, immutable charged caches. Unchanged encodes borrow them;
+first append privately forks the affected cache. Index copies preserve entry
+positions and first-match behavior. Recovery builds indexes once before native
+open stabilization I/O. Candidate cache/header allocation still precedes writes;
+publication installs handles after the unchanged append/root/witness barriers.
+Codec source SHA-256:
+`b70efb9a9186d9b1cbd4e0262fd84d0b5cb3253e384dd012bcf947372fd97397`.
+The [comparison](../serialization-cache-sharing.md) retains source-bound results.
+
+| Changed decision / delegated work | Mapping and scope |
+|---|---|
+| Cache initialization from old handles versus empty | Metadata/DATA-only/new-value candidates and fresh create/copy; both `encode` option matches preserve immutable old owners |
+| Borrowed versus Owned in `make_mut` | `cache_forks_preserve_indexes_first_match_and_rollback_every_allocation` exercises first fork, entry-copy failure and index-copy failure. Multi-value/golden fixtures and new-value candidate sweep exercise later Owned appends; the fork closure is only evaluated for Borrowed |
+| Borrowed versus Owned in `finish` | Shared identity succeeds with allocation disabled. Each private cache needs two vector allocations and a shared header; failures at all three allowances preserve old lookup state and restore exact live charge |
+| Post-`make_mut` Borrowed arm | Invariant: the preceding Borrowed case either returns an error or assigns Owned; an already Owned case remains Owned. The `unreachable!` macro is a new AST macro blind spot, not an unchecked public-input path or a compiler coverage claim |
+| VALUE/DATA fork `?` sites | Two cache tests and existing all-candidate/copy allocation sweeps cover delegated vector/header failures and old cache preservation. Copying hash slots does not rehash or reconstruct pointers; entry clones keep every indexed node alive |
+| DATA insertion last absent / greater / not greater | Existing direct index tests cover empty, increasing, front/middle/end and u64-boundary insertion. Reversed/duplicate first-match input and golden retained history cover sorted-position preservation. Equal revisions retain lower-bound behavior; public encoding reuses an existing equal revision before insertion |
+| Native open index/header `?` sites | Existing recovery/copy allocation sweeps and native/process/crash suites pass. Raw selected-graph verification remains authoritative; failure while preparing indexes rejects the open before stabilization I/O and never falls back |
+
+Two new cache tests and the completed growth pair pass Miri. Existing exact-byte,
+budget, crash, retained-root and separate follower-ack tests pass Mac/Linux.
+Fresh inventory: 2,604 records/51 files, 319 macro blind spots, zero parse
+failures. Historical tables keep their original spans/hashes; these mappings
+are supplemental directed/delegated/invariant evidence, not a new compiler
+MC/DC score or an exhaustive distributed/device qualification.

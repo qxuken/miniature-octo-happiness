@@ -96,6 +96,10 @@
     {
       "path": "test_windows_consumers.py",
       "allowed_skips": []
+    },
+    {
+      "path": "resource-envelope/test_cache_probe.py",
+      "allowed_skips": []
     }
   ]
 }

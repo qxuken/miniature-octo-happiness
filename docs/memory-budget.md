@@ -69,3 +69,13 @@ reservation returns `Limit`, a smaller exact reservation may succeed, while
 old tight budget insufficient. The [growth comparison](serialization-buffer-growth.md)
 measures this tradeoff and separate copy-domain peaks; it does not change the
 accounting boundary or establish a process RSS limit.
+
+Serialization caches now retain their lookup indexes inside immutable shared
+owners. Unchanged candidates reuse those owners; a first append privately forks
+only the affected cache, preserving the old owner's full capacity on failure.
+Cache/index copies and the new shared header are fallible and charged before
+publication I/O. Native open constructs the encoder indexes once after graph
+verification and before stabilization. The [cache-sharing comparison](serialization-cache-sharing.md)
+records about 129 KiB more reopened core usage in the compound fixture, reduced
+publication clone/rebuild work and increased cold-open work. Old exact budget
+thresholds are not guaranteed unchanged.

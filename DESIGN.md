@@ -5474,3 +5474,37 @@ spots and no parse failures; new guard mappings and residuals are recorded in
 the memory/codec ledgers. Native Windows/current delivered artifacts, remaining
 cache clone/rebuild/sort costs, broader compound failures and owner budgets
 remain separate work. All 19 Cargo packages remain unpublished.
+
+## Shared serialization caches and index reuse (2026-11-14)
+
+The [cache-sharing report](docs/serialization-cache-sharing.md) compares engine
+36592ee with 910e490 using the compound Mac/Linux workload. VALUE entries plus
+their identity index and DATA entries plus sorted positions each have immutable,
+charged shared ownership. The encoder borrows until a first append forks that
+cache, preserving entry order and copying index positions. Metadata-only
+publications reuse both owners; DATA changes with reused Values keep the VALUE
+owner. New cache headers are allocated before backend writes. A failed fork or
+header allocation leaves acknowledged caches and their capacities untouched;
+success installs handles after the existing append/root/witness barriers.
+Local commit and follower durability acknowledgments remain separate.
+
+Native open builds indexes once before stabilization I/O. This retains about
+129 KiB more core memory in the compound fixture and increases cold-open work.
+Native VALUE clones decrease 411,664 → 269,672, rebuild entry visits
+444,476 → 62,132 and DATA sort input 14,898 → 454, while index-slot copying
+becomes new work. Timings/RSS and repeated-recovery regressions are documented;
+no universal throughput or memory speedup is inferred. All 17 exact images and
+the complete current/retained byte oracles remain unchanged. The same eight
+compound crash/retry outcomes reopen 212/213 and later 213/214.
+
+Two new cache regressions verify shared identity, separate DATA/Value forking,
+index/first-match preservation and every candidate allocation's rollback. The
+remaining geometric-growth guard pair now covers exact-sized Limit without
+retry and rounded Limit with exact fallback. These tests pass Miri, alongside
+Mac/Linux debug/release, allocation/budget, publication/recovery, native process
+interruption, retained-root and follower-ack checks. New source inventory has
+2,604 records/51 files, 319 macro blind spots and zero parse failures; supplemental
+ledgers retain explicit delegation/invariants instead of a compiler MC/DC score.
+Further affected-cache copying, broader resource shapes, interrupted maintenance,
+second failures during recovery and final native/artifact qualification remain.
+All 19 Cargo manifests retain publish=false; crates remain unpublished.

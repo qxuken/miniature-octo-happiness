@@ -71,3 +71,12 @@ source-set `ee50dc010383ada1855bcca7110cd174f589be069d14a80bbb6e0830b5c2cc19`.
 These updates do not overwrite the historical module denominators or claim
 compiler-measured MC/DC. The memory follow-up records the remaining exact-size
 Limit-arm independence control explicitly.
+
+At the [shared-cache checkpoint](../serialization-cache-sharing.md), fresh
+inventory is 2,604 records/51 files, 319 macro blind spots and zero parse failures;
+source-set `24c4480a6262993afda6859156a7698c9956670bad920dbcfb54333b94e91957`.
+The [codec follow-up](codec.md#immutable-cache-sharing-follow-up) maps immutable
+ownership, index copies, append decisions and open-time failures. The previously
+remaining [exact-size Limit arm](memory.md#growth-equality-limit-pair-closed) now
+has its manual independence pair. Historical denominators and compiler MC/DC
+obligations remain separate.

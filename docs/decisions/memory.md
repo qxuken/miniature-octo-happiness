@@ -171,3 +171,28 @@ sweeps pass. No unsafe allocator code changed. The optional growth wrapper
 introduces no new allocation mechanism; delegated allocator outcomes and
 standard-library arithmetic retain their separate scopes. This is a source
 mapping and directed validation, not measured compiler MC/DC.
+
+## Growth equality Limit pair closed
+
+At `910e490`, the existing
+`geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity` test
+adds the previously missing `Err(Limit)` / `capacity == needed` control.
+The production helper is unchanged; the prior residual above is now closed.
+Memory source SHA-256:
+`d357b4b549b6573eb18479be8f245f1a774d76af50c42414e3517515fdeb47a8`.
+
+Both cases begin with four initialized bytes/capacity four, cap nine and zero
+remaining allocation claims. The rounded allocation first fails admission with
+`Limit` in both cases:
+
+| Needed | Rounded capacity | `capacity != needed` | Selected outcome |
+|---:|---:|---|---|
+| 8 | 8 | false | Propagate Limit; no retry, old live/peak 4/4 and bytes preserved |
+| 5 | 8 | true | Retry exact five, admit to peak nine, injected allocation returns OutOfMemory; old live remains four |
+
+The second case already existed; enabling its allocation claim then succeeds
+with exact capacity five. The new false-arm case also verifies unchanged bytes,
+capacity, allocation allowance and full reclamation. Native debug/release,
+Miri nightly-2026-11-12 and Linux debug/release execute the pair. This closes
+the named manual guard pair, without claiming compiler-measured MC/DC or
+exhaustive standard-library/allocator control flow.

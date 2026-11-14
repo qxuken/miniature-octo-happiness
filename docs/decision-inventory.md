@@ -236,3 +236,15 @@ and two net Writer records have [memory](decisions/memory.md#charged-geometric-g
 and [codec](decisions/codec.md#buffer-growth-follow-up) mappings. Historical audit
 tables and compiler MC/DC obligations retain their original scopes. The AST
 output still labels records unreviewed; manual mappings are a separate artifact.
+
+## Shared-cache checkpoint
+
+Engine `910e490` default inventory reports **2,604 records / 51 files**, 319 macro
+blind spots and no parse failures. Source-set SHA-256:
+`24c4480a6262993afda6859156a7698c9956670bad920dbcfb54333b94e91957`.
+Output is `target/cache-qualification/inventory`. Supplemental
+[codec](decisions/codec.md#immutable-cache-sharing-follow-up) mappings cover cache
+ownership/index reuse and new open-time propagation; the
+[growth equality pair](decisions/memory.md#growth-equality-limit-pair-closed)
+is now closed. The added `unreachable!` site has an explicit post-conversion
+invariant. No compiler-expanded denominator or MC/DC percentage is claimed.

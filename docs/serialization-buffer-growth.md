@@ -204,3 +204,9 @@ candidate's full platform/artifact matrix. Earlier Windows results retain their
 original source/unavailable-proof status; this change needs native Windows
 qualification. All **19** package manifests retain `publish = false`;
 no crates are published.
+
+The subsequent [cache-sharing qualification](serialization-cache-sharing.md)
+measures and changes entry-cloning/index-rebuild policy while keeping these
+serialized bytes. It also closes the previously remaining exact-capacity Limit
+manual pair. Figures above retain their original source scope; later retained
+indexes add live core memory and cold-open work.

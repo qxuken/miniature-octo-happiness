@@ -81,3 +81,17 @@ opt-level 3 and overflow checks, then pass source path, fresh destination,
 `limit` or `ok`, and the full runtime source ID. Inspect a successful target
 using that run's exact compound binary in a new process; do not infer retained
 content from successful return or file size alone. No package is published.
+
+## Shared-cache and index work
+
+The [cache-sharing report](../../docs/serialization-cache-sharing.md) compares
+36592ee and 910e490 on the same compound workload. `cache_probe.py` accepts the
+same source/reference/revision/fresh-output arguments as the growth probe,
+validates complete clean profiles and source hashes, and compiles a disposable
+instrumented copy. It counts cloned entries, copied index positions, rebuilt/
+sorted entries, DATA comparisons/shifts and charged allocation/domain work.
+It must reproduce clean logical/live-byte/file-size records. Its latency/RSS
+must be excluded from production comparisons. `test_cache_probe.py` tests both
+patch surfaces and malformed/regressing reports normally/optimized in the
+continuous helper registry; actual archived old/new Rust is compiled separately
+in the qualification runs. No artifacts or crates are published.
