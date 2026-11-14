@@ -5508,3 +5508,36 @@ ledgers retain explicit delegation/invariants instead of a compiler MC/DC score.
 Further affected-cache copying, broader resource shapes, interrupted maintenance,
 second failures during recovery and final native/artifact qualification remain.
 All 19 Cargo manifests retain publish=false; crates remain unpublished.
+
+## Near-cap maintenance interruption and repeated recovery (2026-11-14)
+
+The [new drill](docs/near-cap-interruption-recovery.md) freezes `3136017` and
+reuses the 98.58%-full compound image with 64 retained depth-64 roots. Production
+engine bytes, allocation policy, publication barriers and separate follower
+acknowledgment do not change. Fifty-two native SIGKILL cases per Mac/Linux
+platform cover action edges, every source/target sync and sampled middle/last
+large I/O. Before exchange, canonical bytes match the original; afterward they
+match the compacted control. Fresh processes verify full current/retained data,
+then compaction retries with any interrupted scratch name still present. Only
+verified private test directories are retired; automatic orphan removal and
+physical power-loss durability are not inferred.
+
+A 108-case near-cap matrix per platform crosses six initial publication states,
+nine recovery failures and two crash-persistence policies, then fails another
+open before successful recovery on the actual medium. An independent medium
+calibrates that further witness-sync failure. A visible but nondurable 213 root
+can reopen 212 if recovery and crash both drop its pending root; once its root
+is durable, all further failures preserve 213. An acknowledged 213 never falls
+below that floor. Trace prefixes and complete current/all-retained byte oracles
+pass, with a later acknowledged retry surviving another crash and fresh-process
+reopen as 213/214. Forty MiB core admission rejection returns Limit/no handle;
+I/O failures return Io/no handle and release the lease for subsequent attempts.
+
+A normal 42-case durability regression reuses the existing independent model
+and barriers. Core debug/release pass 308 tests per Mac profile and 312 per
+Linux profile, including that regression. Private-driver/core strict Clippy,
+formatting and complete helper controls pass; final counts and copied proof
+hashes are in the report. No new production AST denominator or compiler MC/DC
+score is claimed. Longer shapes/schedules, maintenance quota/device failures,
+all-offset faults, delivered/native Windows and final-candidate qualification
+remain. All 19 Cargo manifests stay unpublished.

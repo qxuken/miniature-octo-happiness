@@ -412,3 +412,30 @@ _Static_assert(RENAME_EXCHANGE == 2 && EWOULDBLOCK == 11 && EAGAIN == 11 && ELOO
 #endif
 int main(void) { puts("native constants and ABI widths verified"); }
 ```
+
+## Near-cap maintenance and repeated recovery
+
+Checkpoint `3136017` adds private resource drills and one normal durability
+regression, with no production adapter or publication-code changes. The
+[qualification report](../near-cap-interruption-recovery.md) binds Mac/APFS and
+Docker Linux/ext4 source/binary identities. Its 52 native kills per OS cover all
+source/target syncs and metadata/namespace action edges plus sampled large I/O.
+Current and all 64 retained graphs pass after interruption and after retry in
+fresh processes. The returned-error small-image adapter tests remain separate;
+a killed process returns no API error classification.
+
+The 108-case near-cap recovery matrix crosses six initial commit outcomes,
+nine failing opens and two external crash policies. It then fails another
+witness sync without exposing a successful handle on the actual medium between
+failed opens. Only a nondurable visible 213 root can fall to 212 when neither
+stabilization nor the crash policy persists it. Durable/acknowledged 213 never
+falls back. Trace-prefix equality, repeated lease acquisition, full retained
+bytes and later acknowledged 213/214 reopening are checked. A small 42-case
+regression reuses the normal model/barrier helpers for continuous execution.
+
+This is directed composed I/O/core-budget evidence, not new source MC/DC pairs,
+all-prefix/all-allocation exhaustion or device power loss. The existing source
+audits and delegated native/ABI obligations retain their prior scope. Windows
+in-place compaction is not qualified by these Unix hook runs; its fresh-copy
+operational path remains separate. Local and follower durable acknowledgments
+are unchanged.

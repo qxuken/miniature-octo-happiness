@@ -679,3 +679,36 @@ candidate. Affected-cache forks/cold-open work and additional shapes remain
 measured optimization opportunities, guided by owner latency/memory budgets.
 Historical Windows results remain source-bound; this runtime still needs native
 Windows qualification.
+
+## Interrupted near-cap maintenance and repeated recovery qualified
+
+The [new finite matrix](near-cap-interruption-recovery.md) at `3136017` passes
+Mac arm64/APFS and Docker Linux aarch64/ext4. Fifty-two native SIGKILL cases per
+OS cover every source/target durability barrier, metadata/namespace edges and
+sampled large I/O. Each canonical image equals the original or compacted control,
+then passes a fresh-process complete current/all-64-retained-root oracle. Retry
+with scratch names still present succeeds and passes another fresh checker.
+Original bytes remain unchanged; only private test directories are retired.
+Kernel/device power loss and automatic production orphan cleanup remain separate.
+
+Each platform also passes 108 near-cap recovery cases: six prior commit states
+× nine failing opens × two crash policies. Another witness-sync failure follows
+without a successful handle on the actual medium between failed opens. Only a
+visible nondurable root can fall from 213 to 212; a durable/acknowledged 213 is
+preserved. Full current/retained values, lease release and later acknowledged
+213/214 fresh-process reopening pass. A 40 MiB core limit rejects without a
+handle; publication barriers and follower-durable acknowledgment stay unchanged.
+
+A 42-case smaller regression runs in the regular durability target. Mac core
+profiles pass 308 tests each, Linux 312 each, with strict core/private-driver
+Clippy and formatting. New helper controls validate complete matrices, source
+identity, numeric/Boolean types, kill/exchange positions, calibration and cleanup;
+the continuous registry includes them. The report records final evidence hashes
+and exact platform scopes. No production code/format or AST denominator changes.
+All 19 packages remain unpublished.
+
+Next: additional shapes and longer schedules; maintenance ENOSPC/quota/device
+failures and broader torn/all-offset recovery sequences; remaining delivered,
+network and native Windows profiles; one immutable candidate's complete
+artifact/sanitizer/fuzz/compatibility matrix and owner service budgets. These
+finite results advance composed failures without closing those distinct gates.

@@ -209,3 +209,10 @@ reruns this same compound workload on fe4d057 and 742079c, preserving exact
 lifecycle/history bytes and all roots/recovery outcomes. It measures allocator
 work and copy-domain peaks alongside clean latency/RSS, including the charged
 cache-slack tradeoff. Figures above remain the original c583ca7 checkpoint.
+
+The [near-cap interruption/recovery follow-up](near-cap-interruption-recovery.md)
+reuses this fixture for 52 native maintenance kills and 108 repeated-recovery
+cases per Mac/Linux platform. It verifies complete current/retained bytes and
+later successful retry in fresh processes. Every source/target sync is covered;
+large I/O is sampled. Earlier eight pressure cases, new composed failures and
+namespace/device persistence assumptions retain their separate scopes.

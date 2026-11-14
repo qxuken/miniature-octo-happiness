@@ -47,3 +47,22 @@ and 10 `compaction` tests (76 tests per profile). Strict Clippy for the library
 and new integration target passed. The source inventory completed with zero
 parse failures. This run does not add Windows, Linux, 32-bit, or physical
 power-loss evidence; it does not claim mutation or compiler MC/DC measurement.
+
+## Near-cap native interruption follow-up
+
+The [near-cap drill](../near-cap-interruption-recovery.md) at `3136017` leaves
+this two-record production orchestration unchanged. Fifty-two native SIGKILL
+cases on each of Mac/APFS and Docker Linux/ext4 cover before/after edges around
+all source/target syncs, metadata and namespace actions, with first/middle/last
+sampling for large source reads and target reads/writes. The cut set includes
+all three target append/root/witness syncs. This is sampled native execution,
+not every byte offset, an interruption inside a syscall or compiler MC/DC.
+
+Each canonical image matches either the full near-cap original or the compacted
+control byte-for-byte, then passes a fresh-process current/all-64-retained-root
+oracle. Retry while interrupted scratch names remain succeeds and passes another
+fresh checker. Only the test's private directory is retired afterward; automatic
+production orphan cleanup is not inferred. The original source remains unchanged.
+The earlier durable/flushed/volatile namespace model remains separate evidence:
+SIGKILL does not model losing device/page-cache state or prove filesystem/device
+persistence assumptions. Production source/token hashes above remain valid.

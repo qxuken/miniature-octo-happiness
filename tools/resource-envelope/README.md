@@ -95,3 +95,25 @@ must be excluded from production comparisons. `test_cache_probe.py` tests both
 patch surfaces and malformed/regressing reports normally/optimized in the
 continuous helper registry; actual archived old/new Rust is compiled separately
 in the qualification runs. No artifacts or crates are published.
+
+## Interrupted maintenance and repeated recovery
+
+`resilience.py --revision COMMIT --output FRESH` archives and builds the compound
+binary, runs the existing profiles, then adds 52 native maintenance SIGKILLs and
+108 repeated-recovery scenarios. Add the immutable `--docker-image` above for
+Linux/ext4. `--worker SOURCE OUTPUT REVISION` is the container entry point.
+See the [matrix and results](../../docs/near-cap-interruption-recovery.md).
+
+The native cut set covers all source/target syncs and metadata/namespace action
+edges; large reads/writes use first/middle/last samples. Each kill is followed by
+a fresh checker and a successful retry/fresh checker. Recovery covers six initial
+states, nine failed opens and two crash policies, then another failed open with
+no intervening handle on the real medium. Current/all-retained byte oracles and
+source identity are checked. Private case files are retired only after checks;
+this is not a production cleanup API or device power-loss qualification.
+
+`test_resilience.py` runs complete synthetic matrices and rejects missing or
+mutated phases, source IDs/types, bytes/revisions, kill/exchange/calibration and
+cleanup records normally and under optimized Python in the helper registry.
+Per-worker deadlines/output bounds and owned-process-group retirement are
+inherited; Docker has a 1,200-second overall deadline. No crates are published.
