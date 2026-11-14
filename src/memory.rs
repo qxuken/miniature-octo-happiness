@@ -192,7 +192,7 @@ impl Drop for Allocation {
 }
 
 /// Internal capacity with exact requested allocation layout. No method exposes
-/// a mutable Vec or grows implicitly; callers must use Memory::reserve first.
+/// a mutable Vec or grows implicitly; callers must reserve through Memory first.
 pub(crate) struct ChargedVec<T> {
     vec: Vec<T>,
     charge: Option<Charge>,
@@ -234,6 +234,26 @@ impl<T> ChargedVec<T> {
         std::mem::forget(std::mem::replace(&mut self.vec, new));
         self.charge = Some(charge); // release old charge only after successful realloc
         Ok(())
+    }
+    /// Bounded power-of-two growth for append-heavy scratch/cache buffers.
+    /// Keep the exact allocator/accounting path, and fall back to exact size
+    /// only when speculative slack is rejected by the live/layout limit.
+    fn reserve_geometric(&mut self, mem: &Memory, extra: usize, maximum: usize) -> Result<()> {
+        let needed = self.vec.len().checked_add(extra).ok_or(Error::Limit)?;
+        if needed > maximum {
+            return Err(Error::Limit);
+        }
+        if needed <= self.vec.capacity() {
+            return Ok(());
+        }
+        let capacity = needed
+            .checked_next_power_of_two()
+            .unwrap_or(maximum)
+            .min(maximum);
+        match self.reserve(mem, capacity - self.vec.len()) {
+            Err(Error::Limit) if capacity != needed => self.reserve(mem, extra),
+            result => result,
+        }
     }
     pub(crate) fn as_slice(&self) -> &[T] {
         &self.vec
@@ -429,6 +449,14 @@ impl Memory {
     }
     pub(crate) fn reserve<T>(&self, vec: &mut ChargedVec<T>, extra: usize) -> Result<()> {
         vec.reserve(self, extra)
+    }
+    pub(crate) fn reserve_geometric<T>(
+        &self,
+        vec: &mut ChargedVec<T>,
+        extra: usize,
+        maximum: usize,
+    ) -> Result<()> {
+        vec.reserve_geometric(self, extra, maximum)
     }
     pub(crate) fn copy(&self, bytes: &[u8]) -> Result<ChargedVec<u8>> {
         let mut vec = ChargedVec::new();
@@ -667,6 +695,114 @@ mod live_budget_tests {
             ..Limits::default()
         })
         .unwrap()
+    }
+    #[test]
+    fn geometric_growth_is_bounded_and_uses_logarithmic_allocation_claims() {
+        let mem = memory(16384);
+        let mut bytes = ChargedVec::new();
+        // Capacities 1,2,4,..4096 need thirteen claims, rather than 4096.
+        mem.fail_after(Some(13));
+        for i in 0..4096 {
+            mem.reserve_geometric(&mut bytes, 1, 4096).unwrap();
+            bytes.push((i % 251) as u8);
+        }
+        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+        assert_eq!(bytes.vec.capacity(), 4096);
+        assert_eq!(mem.usage(), (4096, 6144));
+        for (i, b) in bytes.iter().enumerate() {
+            assert_eq!(*b, (i % 251) as u8);
+        }
+        assert_eq!(
+            mem.reserve_geometric(&mut bytes, 1, 4096),
+            Err(Error::Limit)
+        );
+        assert_eq!(
+            mem.reserve_geometric(&mut bytes, usize::MAX, usize::MAX),
+            Err(Error::Limit)
+        );
+        drop(bytes);
+        assert_eq!(mem.usage().0, 0);
+        mem.fail_after(None);
+        let mut bytes = mem.copy(&[1, 2, 3]).unwrap();
+        mem.reserve_geometric(&mut bytes, 3, 6).unwrap();
+        assert_eq!(bytes.vec.capacity(), 6); // clamp a non-power-of-two maximum
+        assert_eq!(&*bytes, &[1, 2, 3]);
+        mem.fail_after(Some(0));
+        mem.reserve_geometric(&mut bytes, 3, 6).unwrap(); // spare capacity, no claim
+        assert_eq!(mem.reserve_geometric(&mut bytes, 4, 6), Err(Error::Limit));
+        let mut zst = ChargedVec::<()>::new();
+        mem.reserve_geometric(&mut zst, 8, 8).unwrap();
+        zst.resize(8, ());
+        assert_eq!(mem.reserve_geometric(&mut zst, 1, 8), Err(Error::Limit));
+        let mut empty = ChargedVec::<u8>::new();
+        mem.reserve_geometric(&mut empty, 0, 0).unwrap();
+        assert_eq!(mem.reserve_geometric(&mut empty, 1, 0), Err(Error::Limit));
+        // Generic overflow/layout guards precede allocation, even though codec
+        // callers' 64 MiB/16,384-entry bounds cannot approach these sizes.
+        assert_eq!(
+            mem.reserve_geometric(&mut empty, usize::MAX / 2 + 2, usize::MAX),
+            Err(Error::Limit)
+        );
+    }
+
+    #[test]
+    fn geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity() {
+        for cap in [8, 9, 12] {
+            let mem = memory(cap);
+            let mut bytes = ChargedVec::<u8>::new();
+            mem.reserve_geometric(&mut bytes, 3, 16).unwrap();
+            bytes.extend_from_slice(&[1, 2, 3]);
+            assert_eq!(mem.usage(), (4, 4));
+            let result = mem.reserve_geometric(&mut bytes, 2, 16);
+            assert_eq!(result, if cap == 8 { Err(Error::Limit) } else { Ok(()) });
+            assert_eq!(&*bytes, &[1, 2, 3]);
+            assert_eq!(
+                bytes.vec.capacity(),
+                match cap {
+                    8 => 4,
+                    9 => 5,
+                    _ => 8,
+                }
+            );
+            assert_eq!(
+                mem.usage(),
+                match cap {
+                    8 => (4, 4),
+                    9 => (5, 9),
+                    _ => (8, 12),
+                }
+            );
+            drop(bytes);
+            assert_eq!(mem.usage().0, 0);
+        }
+        // Rounding fails admission, exact admission succeeds, then its injected
+        // allocation failure must propagate without changing the original Vec.
+        let mem = memory(9);
+        let mut bytes = mem.copy(&[1, 2, 3, 4]).unwrap();
+        mem.fail_after(Some(0));
+        assert_eq!(
+            mem.reserve_geometric(&mut bytes, 1, 16),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(&*bytes, &[1, 2, 3, 4]);
+        assert_eq!(mem.usage(), (4, 9));
+        mem.fail_after(None);
+        mem.reserve_geometric(&mut bytes, 1, 16).unwrap();
+        assert_eq!(bytes.vec.capacity(), 5);
+        // A real allocator-null result on the rounded request must not be
+        // hidden by retrying the smaller request after OutOfMemory.
+        let mem = memory(32);
+        let mut bytes = mem.copy(&[7; 4]).unwrap();
+        FAIL_SYSTEM_ALLOCATION.with(|fail| fail.set(true));
+        assert_eq!(
+            mem.reserve_geometric(&mut bytes, 1, 16),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(&*bytes, &[7; 4]);
+        assert_eq!(bytes.vec.capacity(), 4);
+        assert_eq!(mem.usage(), (4, 12));
+        mem.reserve_geometric(&mut bytes, 1, 16).unwrap();
+        assert_eq!(bytes.vec.capacity(), 8);
     }
     #[test]
     fn growth_reserves_both_buffers_and_rolls_back_failures() {

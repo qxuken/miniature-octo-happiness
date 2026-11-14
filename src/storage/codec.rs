@@ -291,7 +291,8 @@ impl<'a> Writer<'a> {
         {
             return Err(Error::Limit);
         }
-        self.mem.reserve(&mut self.bytes, bytes.len())?;
+        self.mem
+            .reserve_geometric(&mut self.bytes, bytes.len(), MAX_IMAGE_BYTES)?;
         self.bytes.extend_from_slice(bytes);
         Ok(())
     }
@@ -332,7 +333,8 @@ impl Encoder<'_> {
             .checked_add(size as u64)
             .filter(|n| *n <= MAX_IMAGE_BYTES as u64)
             .ok_or(Error::Limit)?;
-        self.mem.reserve(&mut self.bytes, size)?;
+        self.mem
+            .reserve_geometric(&mut self.bytes, size, MAX_IMAGE_BYTES - self.start as usize)?;
         let old = self.bytes.len();
         self.bytes.resize(old + size, 0);
         let bytes = &mut self.bytes[old..];
@@ -391,7 +393,8 @@ impl Encoder<'_> {
         let (offset, end) = self.object(VALUE, &payload.bytes)?;
         self.value_index
             .reserve(self.mem, &self.cache, self.cache.len() + 1)?;
-        self.mem.reserve(&mut self.cache, 1)?;
+        self.mem
+            .reserve_geometric(&mut self.cache, 1, MAX_OBJECTS)?;
         self.value_index
             .insert(value, &self.cache, self.cache.len());
         self.cache.push(CacheEntry {
@@ -452,7 +455,8 @@ impl Encoder<'_> {
             .0;
         self.data_index
             .reserve(self.mem, self.data_cache.len() + 1)?;
-        self.mem.reserve(&mut self.data_cache, 1)?;
+        self.mem
+            .reserve_geometric(&mut self.data_cache, 1, MAX_OBJECTS)?;
         self.data_index
             .insert(head.data_revision, &self.data_cache, self.data_cache.len());
         self.data_cache.push(DataEntry {
@@ -478,12 +482,12 @@ pub(crate) fn encode(
         return Err(Error::Invalid);
     }
     let mut cache = ChargedVec::new();
-    mem.reserve(&mut cache, old_cache.len())?;
+    mem.reserve_geometric(&mut cache, old_cache.len(), MAX_OBJECTS)?;
     cache.extend(old_cache.iter().cloned());
     let mut value_index = ValueIndex::new();
     value_index.reserve(mem, &cache, cache.len())?;
     let mut data_cache = ChargedVec::new();
-    mem.reserve(&mut data_cache, old_data.len())?;
+    mem.reserve_geometric(&mut data_cache, old_data.len(), MAX_OBJECTS)?;
     data_cache.extend(old_data.iter().cloned());
     let data_index = DataIndex::from_cache(mem, &data_cache)?;
     let mut encoder = Encoder {
@@ -740,7 +744,8 @@ impl Reader<'_> {
             _ => return Err(Error::Corrupt),
         };
         cursor.done()?;
-        self.mem.reserve(&mut self.cache, 1)?;
+        self.mem
+            .reserve_geometric(&mut self.cache, 1, MAX_OBJECTS)?;
         self.regions[(offset / REGION as u64) as usize] = self.cache.len() + 2;
         self.cache.push(CacheEntry {
             value: value.clone(),
@@ -832,7 +837,8 @@ impl Reader<'_> {
             )?;
         }
         cursor.done()?;
-        self.mem.reserve(&mut self.data_cache, 1)?;
+        self.mem
+            .reserve_geometric(&mut self.data_cache, 1, MAX_OBJECTS)?;
         self.data_cache.push(DecodedData {
             entry: DataEntry {
                 revision,
