@@ -775,6 +775,20 @@ mod live_budget_tests {
             drop(bytes);
             assert_eq!(mem.usage().0, 0);
         }
+        // Hold Error::Limit fixed while toggling capacity != needed: with
+        // needed=8, rounding is already exact, so no fallback/claim is allowed.
+        // Compare cap=9 below at needed=5: rounded Limit falls back to exact 5.
+        let mem = memory(9);
+        let mut bytes = mem.copy(&[1, 2, 3, 4]).unwrap();
+        mem.fail_after(Some(0));
+        assert_eq!(mem.reserve_geometric(&mut bytes, 4, 16), Err(Error::Limit));
+        assert_eq!(&*bytes, &[1, 2, 3, 4]);
+        assert_eq!(bytes.vec.capacity(), 4);
+        assert_eq!(mem.usage(), (4, 4));
+        // Admission failed before allocation; the disabled claim is intact.
+        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+        drop(bytes);
+        assert_eq!(mem.usage().0, 0);
         // Rounding fails admission, exact admission succeeds, then its injected
         // allocation failure must propagate without changing the original Vec.
         let mem = memory(9);

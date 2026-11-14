@@ -1,7 +1,6 @@
 //! Experimental byte storage, publication protocol, and power-loss simulator.
 //! Native file adapters preserve the modeled ordering; hardware assumptions
 //! remain conditional and are documented in DESIGN.md.
-use crate::memory::ChargedVec;
 mod codec;
 pub(crate) mod diagnostics;
 pub use diagnostics::capture as with_native_diagnostics;
@@ -63,7 +62,7 @@ use crate::{
     engine::{Head, Retention},
     memory::{Memory, Shared},
 };
-use codec::{CacheEntry, DataEntry, Slot};
+use codec::{DataCache, Slot, ValueCache};
 
 pub const REGION: usize = 4096;
 pub const APPEND_START: usize = 5 * REGION;
@@ -108,8 +107,8 @@ pub(crate) struct Storage {
     identity: [u8; 16],
     revision: u64,
     end: u64,
-    data_cache: ChargedVec<DataEntry>,
-    cache: ChargedVec<CacheEntry>,
+    data_cache: Option<Shared<DataCache>>,
+    cache: Option<Shared<ValueCache>>,
     poisoned: bool,
 }
 impl Drop for Storage {
@@ -192,8 +191,8 @@ impl Storage {
             identity: [0; 16],
             revision: 0,
             end: 0,
-            data_cache: ChargedVec::new(),
-            cache: ChargedVec::new(),
+            data_cache: None,
+            cache: None,
             poisoned: false,
         })
     }
@@ -220,8 +219,8 @@ impl Storage {
             next_collection,
             identity,
             APPEND_START as u64,
-            &[],
-            &[],
+            None,
+            None,
             retention,
         )?;
         let header = codec::header(identity);
@@ -239,6 +238,10 @@ impl Storage {
     ) -> Result<(Self, Shared<Head>, u64, Retention)> {
         let mut storage = Self::locked(backend, mem)?;
         let recovered = codec::recover(&mut *storage.backend, mem)?;
+        // Build indexes once, before stabilization I/O; recovered entry order
+        // remains authoritative. Subsequent candidates reuse or privately fork.
+        let cache = mem.shared(ValueCache::from_entries(mem, recovered.cache)?)?;
+        let data_cache = mem.shared(DataCache::from_entries(mem, recovered.data_cache)?)?;
         // Reopening in the same process can see a complete but unsynced root
         // through volatile/page-cache bytes. Stabilize the verified generation,
         // then witness it before exposing that recovered head to the caller.
@@ -253,8 +256,8 @@ impl Storage {
         storage.identity = recovered.identity;
         storage.revision = recovered.slot.revision;
         storage.end = recovered.slot.end;
-        storage.data_cache = recovered.data_cache;
-        storage.cache = recovered.cache;
+        storage.data_cache = Some(data_cache);
+        storage.cache = Some(cache);
         Ok((
             storage,
             recovered.head,
@@ -301,8 +304,8 @@ impl Storage {
             next_collection,
             self.identity,
             start,
-            &self.cache,
-            &self.data_cache,
+            self.cache.as_ref(),
+            self.data_cache.as_ref(),
             retention,
         )?;
         self.publish(candidate, head.revision)
@@ -333,8 +336,8 @@ impl Storage {
         .inspect_err(|_| self.poisoned = true)?;
         self.revision = revision;
         self.end = candidate.end;
-        self.data_cache = candidate.data_cache;
-        self.cache = candidate.cache;
+        self.data_cache = Some(candidate.data_cache);
+        self.cache = Some(candidate.cache);
         Ok(())
     }
 }

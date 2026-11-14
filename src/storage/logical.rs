@@ -408,8 +408,8 @@ fn decode(bytes: &[u8], mem: &Memory) -> Result<Image> {
         image.next,
         image.identity,
         super::APPEND_START as u64,
-        &[],
-        &[],
+        None,
+        None,
         &image.retention,
     )?;
     Ok(image)

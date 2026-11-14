@@ -143,7 +143,7 @@ pub(crate) struct CacheEntry {
 }
 /// Encoder-only, half-full open-addressed index into the emission-order cache.
 /// Entries own no pointers: the cache's Value clones keep every identity alive.
-/// Rebuilt on each encode, including from recovery's differently ordered cache.
+/// Built from recovered cache order, then copied only when that cache forks.
 /// Hash/slot order never controls serialization. Zero is empty, n+1 indexes n.
 struct ValueIndex {
     slots: ChargedVec<usize>,
@@ -213,7 +213,7 @@ pub(crate) struct DataEntry {
     pub offset: u64,
 }
 /// Encoder-only revision order, separate from DATA emission/cache order.
-/// Rebuilt from arbitrary input cache order; ties keep the original first hit.
+/// Built once from arbitrary recovered cache order; forks copy the sorted order.
 struct DataIndex {
     order: ChargedVec<usize>,
 }
@@ -258,18 +258,116 @@ impl DataIndex {
         Ok(())
     }
     fn insert(&mut self, revision: u64, cache: &[DataEntry], index: usize) {
+        if self
+            .order
+            .last()
+            .is_none_or(|i| Self::compare(cache[*i].revision, revision).is_lt())
+        {
+            self.order.push(index);
+            return;
+        }
         let position = self.position(revision, cache);
         self.order.push(index);
         self.order[position..].rotate_right(1);
     }
 }
+// Cache entries and their indexes share one immutable lifetime. Forks keep
+// entry order and index positions, so copying an index needs no rehash/sort.
+pub(crate) struct ValueCache {
+    entries: ChargedVec<CacheEntry>,
+    index: ValueIndex,
+}
+impl ValueCache {
+    fn new() -> Self {
+        Self {
+            entries: ChargedVec::new(),
+            index: ValueIndex::new(),
+        }
+    }
+    pub(super) fn from_entries(mem: &Memory, entries: ChargedVec<CacheEntry>) -> Result<Self> {
+        let mut index = ValueIndex::new();
+        index.reserve(mem, &entries, entries.len())?;
+        Ok(Self { entries, index })
+    }
+    fn fork(&self, mem: &Memory) -> Result<Self> {
+        let entries = fork_vec(mem, &self.entries, MAX_OBJECTS)?;
+        let slots = fork_vec(mem, &self.index.slots, 2 * MAX_OBJECTS)?;
+        Ok(Self {
+            entries,
+            index: ValueIndex { slots },
+        })
+    }
+}
+pub(crate) struct DataCache {
+    entries: ChargedVec<DataEntry>,
+    index: DataIndex,
+}
+impl DataCache {
+    fn new() -> Self {
+        Self {
+            entries: ChargedVec::new(),
+            index: DataIndex::new(),
+        }
+    }
+    pub(super) fn from_entries(mem: &Memory, entries: ChargedVec<DataEntry>) -> Result<Self> {
+        let index = DataIndex::from_cache(mem, &entries)?;
+        Ok(Self { entries, index })
+    }
+    fn fork(&self, mem: &Memory) -> Result<Self> {
+        let entries = fork_vec(mem, &self.entries, MAX_OBJECTS)?;
+        let order = fork_vec(mem, &self.index.order, MAX_OBJECTS)?;
+        Ok(Self {
+            entries,
+            index: DataIndex { order },
+        })
+    }
+}
+fn fork_vec<T: Clone>(mem: &Memory, old: &[T], maximum: usize) -> Result<ChargedVec<T>> {
+    let mut next = ChargedVec::new();
+    mem.reserve_geometric(&mut next, old.len(), maximum)?;
+    next.extend(old.iter().cloned());
+    Ok(next)
+}
+// Borrow the acknowledged cache until an actual append requires a private fork.
+// All allocations (including the shared header) precede publication I/O.
+enum CacheState<'a, T> {
+    Borrowed(&'a Shared<T>),
+    Owned(T),
+}
+impl<T> std::ops::Deref for CacheState<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        match self {
+            Self::Borrowed(old) => old,
+            Self::Owned(cache) => cache,
+        }
+    }
+}
+impl<T> CacheState<'_, T> {
+    fn make_mut(&mut self, fork: impl FnOnce(&T) -> Result<T>) -> Result<&mut T> {
+        if let Self::Borrowed(old) = self {
+            *self = Self::Owned(fork(old)?);
+        }
+        match self {
+            Self::Owned(cache) => Ok(cache),
+            Self::Borrowed(_) => unreachable!(),
+        }
+    }
+    fn finish(self, mem: &Memory) -> Result<Shared<T>> {
+        match self {
+            Self::Borrowed(old) => Ok(old.clone()),
+            Self::Owned(cache) => mem.shared(cache),
+        }
+    }
+}
+
 pub(crate) struct Candidate {
     pub start: u64,
     pub bytes: ChargedVec<u8>,
     pub descriptor: u64,
     pub end: u64,
-    pub cache: ChargedVec<CacheEntry>,
-    pub data_cache: ChargedVec<DataEntry>,
+    pub cache: Shared<ValueCache>,
+    pub data_cache: Shared<DataCache>,
 }
 struct Writer<'a> {
     mem: &'a Memory,
@@ -317,10 +415,8 @@ struct Encoder<'a> {
     revision: u64,
     start: u64,
     bytes: ChargedVec<u8>,
-    cache: ChargedVec<CacheEntry>,
-    value_index: ValueIndex,
-    data_cache: ChargedVec<DataEntry>,
-    data_index: DataIndex,
+    cache: CacheState<'a, ValueCache>,
+    data_cache: CacheState<'a, DataCache>,
 }
 impl Encoder<'_> {
     fn object(&mut self, kind: u32, payload: &[u8]) -> Result<(u64, u64)> {
@@ -357,18 +453,19 @@ impl Encoder<'_> {
         Ok((offset, end))
     }
     fn value(&mut self, value: &Value) -> Result<u64> {
-        let cached = self.value_index.get(value, &self.cache);
+        let cached = self.cache.index.get(value, &self.cache.entries);
         #[cfg(test)]
         assert_eq!(
             cached,
             self.cache
+                .entries
                 .iter()
                 .position(|entry| entry.value.same_node(value))
         );
         if let Some(index) = cached {
-            return Ok(self.cache[index].offset);
+            return Ok(self.cache.entries[index].offset);
         }
-        if self.cache.len() >= MAX_OBJECTS {
+        if self.cache.entries.len() >= MAX_OBJECTS {
             return Err(Error::Limit);
         }
         let mut payload = Writer::new(self.mem);
@@ -398,13 +495,16 @@ impl Encoder<'_> {
             }
         }
         let (offset, end) = self.object(VALUE, &payload.bytes)?;
-        self.value_index
-            .reserve(self.mem, &self.cache, self.cache.len() + 1)?;
+        let cache = self.cache.make_mut(|old| old.fork(self.mem))?;
+        cache
+            .index
+            .reserve(self.mem, &cache.entries, cache.entries.len() + 1)?;
         self.mem
-            .reserve_geometric(&mut self.cache, 1, MAX_OBJECTS)?;
-        self.value_index
-            .insert(value, &self.cache, self.cache.len());
-        self.cache.push(CacheEntry {
+            .reserve_geometric(&mut cache.entries, 1, MAX_OBJECTS)?;
+        cache
+            .index
+            .insert(value, &cache.entries, cache.entries.len());
+        cache.entries.push(CacheEntry {
             value: value.clone(),
             offset,
             end,
@@ -412,16 +512,20 @@ impl Encoder<'_> {
         Ok(offset)
     }
     fn data(&mut self, head: &Head, next_collection: u64) -> Result<u64> {
-        let cached = self.data_index.get(head.data_revision, &self.data_cache);
+        let cached = self
+            .data_cache
+            .index
+            .get(head.data_revision, &self.data_cache.entries);
         #[cfg(test)]
         assert_eq!(
             cached,
             self.data_cache
+                .entries
                 .iter()
                 .position(|entry| entry.revision == head.data_revision)
         );
         if let Some(index) = cached {
-            let old = &self.data_cache[index];
+            let old = &self.data_cache.entries[index];
             if old.next_collection != next_collection {
                 return Err(Error::Invalid);
             }
@@ -460,13 +564,14 @@ impl Encoder<'_> {
         let offset = self
             .object_born(DATA, &payload.bytes, head.data_revision)?
             .0;
-        self.data_index
-            .reserve(self.mem, self.data_cache.len() + 1)?;
+        let cache = self.data_cache.make_mut(|old| old.fork(self.mem))?;
+        cache.index.reserve(self.mem, cache.entries.len() + 1)?;
         self.mem
-            .reserve_geometric(&mut self.data_cache, 1, MAX_OBJECTS)?;
-        self.data_index
-            .insert(head.data_revision, &self.data_cache, self.data_cache.len());
-        self.data_cache.push(DataEntry {
+            .reserve_geometric(&mut cache.entries, 1, MAX_OBJECTS)?;
+        cache
+            .index
+            .insert(head.data_revision, &cache.entries, cache.entries.len());
+        cache.entries.push(DataEntry {
             revision: head.data_revision,
             next_collection,
             offset,
@@ -481,22 +586,21 @@ pub(crate) fn encode(
     next_collection: u64,
     identity: [u8; 16],
     start: u64,
-    old_cache: &[CacheEntry],
-    old_data: &[DataEntry],
+    old_cache: Option<&Shared<ValueCache>>,
+    old_data: Option<&Shared<DataCache>>,
     retention: &Retention,
 ) -> Result<Candidate> {
     if start < APPEND_START as u64 || !start.is_multiple_of(REGION as u64) {
         return Err(Error::Invalid);
     }
-    let mut cache = ChargedVec::new();
-    mem.reserve_geometric(&mut cache, old_cache.len(), MAX_OBJECTS)?;
-    cache.extend(old_cache.iter().cloned());
-    let mut value_index = ValueIndex::new();
-    value_index.reserve(mem, &cache, cache.len())?;
-    let mut data_cache = ChargedVec::new();
-    mem.reserve_geometric(&mut data_cache, old_data.len(), MAX_OBJECTS)?;
-    data_cache.extend(old_data.iter().cloned());
-    let data_index = DataIndex::from_cache(mem, &data_cache)?;
+    let cache = match old_cache {
+        Some(old) => CacheState::Borrowed(old),
+        None => CacheState::Owned(ValueCache::new()),
+    };
+    let data_cache = match old_data {
+        Some(old) => CacheState::Borrowed(old),
+        None => CacheState::Owned(DataCache::new()),
+    };
     let mut encoder = Encoder {
         mem,
         identity,
@@ -504,9 +608,7 @@ pub(crate) fn encode(
         start,
         bytes: ChargedVec::new(),
         cache,
-        value_index,
         data_cache,
-        data_index,
     };
     let data_ref = encoder.data(head, next_collection)?;
     let mut commit = Writer::new(mem);
@@ -528,8 +630,8 @@ pub(crate) fn encode(
         bytes: encoder.bytes,
         descriptor,
         end,
-        cache: encoder.cache,
-        data_cache: encoder.data_cache,
+        cache: encoder.cache.finish(mem)?,
+        data_cache: encoder.data_cache.finish(mem)?,
     })
 }
 
@@ -1025,6 +1127,214 @@ mod tests {
     use super::*;
     use crate::{Database, Limits, storage::SimulatedDisk};
     const ID: [u8; 16] = *b"codec-test-00001";
+    #[test]
+    fn cache_forks_preserve_indexes_first_match_and_rollback_every_allocation() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let mut entries = ChargedVec::new();
+        mem.reserve(&mut entries, 20).unwrap();
+        for i in 0..20 {
+            entries.push(CacheEntry {
+                value: Value::bytes_new(&mem, &[i]).unwrap(),
+                offset: i as u64,
+                end: i as u64 + 1,
+            });
+        }
+        let values = mem
+            .shared(ValueCache::from_entries(&mem, entries).unwrap())
+            .unwrap();
+        let data_entries = [100, 0, u64::MAX, 40, 100]
+            .into_iter()
+            .enumerate()
+            .map(|(i, revision)| DataEntry {
+                revision,
+                next_collection: i as u64 + 1,
+                offset: i as u64,
+            })
+            .collect::<Vec<_>>();
+        let data = mem
+            .shared(
+                DataCache::from_entries(&mem, fork_vec(&mem, &data_entries, MAX_OBJECTS).unwrap())
+                    .unwrap(),
+            )
+            .unwrap();
+        let baseline = mem.usage().0;
+        mem.fail_after(Some(0));
+        assert!(
+            CacheState::Borrowed(&values)
+                .finish(&mem)
+                .unwrap()
+                .ptr_eq(&values)
+        );
+        assert!(
+            CacheState::Borrowed(&data)
+                .finish(&mem)
+                .unwrap()
+                .ptr_eq(&data)
+        );
+        assert_eq!(mem.usage().0, baseline);
+        // Each fork needs two vector allocations, then one shared header.
+        for allowance in 0..=3 {
+            mem.fail_after(Some(allowance));
+            let result = (|| {
+                let mut state = CacheState::Borrowed(&values);
+                state.make_mut(|old| old.fork(&mem))?;
+                state.finish(&mem)
+            })();
+            if allowance < 3 {
+                assert!(matches!(result, Err(Error::OutOfMemory)));
+            } else {
+                let next = result.as_ref().unwrap();
+                assert!(!next.ptr_eq(&values));
+                assert_eq!(&*next.index.slots, &*values.index.slots);
+                for (i, old) in values.entries.iter().enumerate() {
+                    assert!(next.entries[i].value.same_node(&old.value));
+                    assert_eq!(next.index.get(&old.value, &next.entries), Some(i));
+                }
+            }
+            drop(result);
+            assert_eq!(mem.usage().0, baseline);
+            mem.fail_after(Some(allowance));
+            let result = (|| {
+                let mut state = CacheState::Borrowed(&data);
+                state.make_mut(|old| old.fork(&mem))?;
+                state.finish(&mem)
+            })();
+            if allowance < 3 {
+                assert!(matches!(result, Err(Error::OutOfMemory)));
+            } else {
+                let next = result.as_ref().unwrap();
+                assert_eq!(&*next.index.order, &*data.index.order);
+                assert_eq!(next.index.get(100, &next.entries), Some(0));
+                assert_eq!(next.entries[0].next_collection, 1);
+            }
+            drop(result);
+            assert_eq!(mem.usage().0, baseline);
+            assert_eq!(data.index.get(100, &data.entries), Some(0));
+        }
+    }
+
+    #[test]
+    fn candidates_share_unchanged_caches_fork_only_appended_data_and_fail_atomically() {
+        use crate::engine::{Collection, Record};
+        let mem = Memory::new(Limits::default()).unwrap();
+        let value = Value::bytes_new(&mem, b"old").unwrap();
+        let records = Map::new()
+            .set(&mem, b"row", Record { revision: 1, value })
+            .unwrap();
+        let collections = Map::new()
+            .set(
+                &mem,
+                &1u64.to_le_bytes(),
+                Collection {
+                    revision: 1,
+                    records,
+                },
+            )
+            .unwrap();
+        let mut head = Head {
+            revision: 1,
+            data_revision: 1,
+            collections,
+        };
+        let retention = Retention {
+            next_id: 1,
+            entries: ChargedVec::new(),
+        };
+        let first = encode(
+            &mem,
+            &head,
+            2,
+            ID,
+            APPEND_START as u64,
+            None,
+            None,
+            &retention,
+        )
+        .unwrap();
+        head.revision = 2;
+        let metadata = encode(
+            &mem,
+            &head,
+            2,
+            ID,
+            first.end,
+            Some(&first.cache),
+            Some(&first.data_cache),
+            &retention,
+        )
+        .unwrap();
+        assert!(metadata.cache.ptr_eq(&first.cache));
+        assert!(metadata.data_cache.ptr_eq(&first.data_cache));
+        head.revision = 3;
+        head.data_revision = 3;
+        let data_only = encode(
+            &mem,
+            &head,
+            2,
+            ID,
+            metadata.end,
+            Some(&metadata.cache),
+            Some(&metadata.data_cache),
+            &retention,
+        )
+        .unwrap();
+        assert!(data_only.cache.ptr_eq(&metadata.cache));
+        assert!(!data_only.data_cache.ptr_eq(&metadata.data_cache));
+        assert_eq!(first.data_cache.entries.len(), 1);
+        assert_eq!(data_only.data_cache.entries.len(), 2);
+        let value = Value::bytes_new(&mem, b"new").unwrap();
+        let records = Map::new()
+            .set(&mem, b"row", Record { revision: 4, value })
+            .unwrap();
+        head.collections = Map::new()
+            .set(
+                &mem,
+                &1u64.to_le_bytes(),
+                Collection {
+                    revision: 4,
+                    records,
+                },
+            )
+            .unwrap();
+        head.revision = 4;
+        head.data_revision = 4;
+        let before = mem.usage().0;
+        let mut failures = 0;
+        for allowance in 0..100 {
+            mem.fail_after(Some(allowance));
+            let result = encode(
+                &mem,
+                &head,
+                2,
+                ID,
+                data_only.end,
+                Some(&data_only.cache),
+                Some(&data_only.data_cache),
+                &retention,
+            );
+            let success = result.is_ok();
+            if !success {
+                assert!(matches!(result, Err(Error::OutOfMemory)));
+                failures += 1;
+            } else {
+                let next = result.as_ref().unwrap();
+                assert!(!next.cache.ptr_eq(&data_only.cache));
+                assert!(!next.data_cache.ptr_eq(&data_only.data_cache));
+                assert_eq!(next.cache.entries.len(), 2);
+                assert_eq!(next.data_cache.entries.len(), 3);
+            }
+            drop(result);
+            assert_eq!(mem.usage().0, before);
+            assert_eq!(data_only.cache.entries.len(), 1);
+            assert_eq!(data_only.cache.entries[0].value.as_bytes().unwrap(), b"old");
+            assert_eq!(data_only.data_cache.entries.len(), 2);
+            if success {
+                break;
+            }
+        }
+        assert!(failures > 3 && failures < 99);
+    }
+
     #[test]
     fn writer_bulk_appends_reserve_known_size_and_small_fields_reuse_capacity() {
         let mem = Memory::new(Limits {
@@ -2774,10 +3084,8 @@ mod tests {
             revision: 0,
             start: (MAX_IMAGE_BYTES - REGION) as u64,
             bytes: ChargedVec::new(),
-            cache: ChargedVec::new(),
-            value_index: ValueIndex::new(),
-            data_cache: ChargedVec::new(),
-            data_index: DataIndex::new(),
+            cache: CacheState::Owned(ValueCache::new()),
+            data_cache: CacheState::Owned(DataCache::new()),
         };
         assert_eq!(
             encoder.object(VALUE, &[0; 16]),
@@ -2806,7 +3114,7 @@ mod tests {
             APPEND_START as u64 + 1,
         ] {
             assert_eq!(
-                encode(&mem, &head, 1, ID, start, &[], &[], &retention).err(),
+                encode(&mem, &head, 1, ID, start, None, None, &retention).err(),
                 if start == APPEND_START as u64 {
                     None
                 } else {
@@ -2820,17 +3128,15 @@ mod tests {
             revision: 0,
             start: APPEND_START as u64,
             bytes: ChargedVec::new(),
-            cache: ChargedVec::new(),
-            value_index: ValueIndex::new(),
-            data_cache: ChargedVec::new(),
-            data_index: DataIndex::new(),
+            cache: CacheState::Owned(ValueCache::new()),
+            data_cache: CacheState::Owned(DataCache::new()),
         };
         let offset = encoder.data(&head, 1).unwrap();
         let before = encoder.bytes.to_vec();
         assert_eq!(encoder.data(&head, 1), Ok(offset));
         assert_eq!(encoder.data(&head, 2), Err(Error::Invalid));
         assert_eq!(&*encoder.bytes, before);
-        assert_eq!(encoder.data_cache.len(), 1);
+        assert_eq!(encoder.data_cache.entries.len(), 1);
     }
 
     #[test]
