@@ -291,8 +291,15 @@ impl<'a> Writer<'a> {
         {
             return Err(Error::Limit);
         }
-        self.mem
-            .reserve_geometric(&mut self.bytes, bytes.len(), MAX_IMAGE_BYTES)?;
+        if bytes.len() > self.bytes.len() {
+            // A dominating bulk append already more than doubles logical
+            // length. Reserve its known size exactly, avoiding unused large
+            // payload capacity; incremental field assembly grows geometrically.
+            self.mem.reserve(&mut self.bytes, bytes.len())?;
+        } else {
+            self.mem
+                .reserve_geometric(&mut self.bytes, bytes.len(), MAX_IMAGE_BYTES)?;
+        }
         self.bytes.extend_from_slice(bytes);
         Ok(())
     }
@@ -1018,6 +1025,28 @@ mod tests {
     use super::*;
     use crate::{Database, Limits, storage::SimulatedDisk};
     const ID: [u8; 16] = *b"codec-test-00001";
+    #[test]
+    fn writer_bulk_appends_reserve_known_size_and_small_fields_reuse_capacity() {
+        let mem = Memory::new(Limits {
+            max_live_bytes: 100,
+            ..Limits::default()
+        })
+        .unwrap();
+        let mut writer = Writer::new(&mem);
+        writer.add(&[7; 17]).unwrap();
+        assert_eq!(mem.usage(), (17, 17));
+        writer.add(&[8; 18]).unwrap();
+        assert_eq!(mem.usage(), (35, 52));
+        writer.add(&[9]).unwrap();
+        assert_eq!(mem.usage(), (64, 99));
+        mem.fail_after(Some(0));
+        writer.add(&[10]).unwrap();
+        assert_eq!(&writer.bytes[..17], &[7; 17]);
+        assert_eq!(&writer.bytes[17..35], &[8; 18]);
+        assert_eq!(&writer.bytes[35..], &[9, 10]);
+        drop(writer);
+        assert_eq!(mem.usage().0, 0);
+    }
     #[test]
     fn data_index_rebuild_insert_and_first_match_preserve_cache_order() {
         let mem = Memory::new(Limits::default()).unwrap();
