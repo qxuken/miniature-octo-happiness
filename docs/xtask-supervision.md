@@ -213,3 +213,22 @@ reviewed in local `target/ci-quota-inventory/review.json`, SHA-256
 The first local end-to-end fixture exposed its oversized sparse-file truncation
 under the inherited ceiling; replacing only that mocked provisioning operation
 with a small inode fixes the test without relaxing the real file-size bound.
+
+## TSan cancellation-fixture setup (2026-11-15)
+
+Hosted run 43650789499 reaches the xtask cancellation control after the product
+TSan tests and fails its ten-second readiness limit. The same focused nightly
+TSan command reproduces locally. A tiny source archive alone does not fix it:
+provenance still hashes the instrumented runner before launching the fake Docker
+CLI. Temporary phase timing measures 13.794 seconds for a 32,375,608-byte local
+instrumented executable, already exceeding the entire setup allowance.
+
+The fixture now uses explicit minimal Git/Docker shell programs instead of
+archiving the checkout or starting Python. Setup gets a finite sixty-second
+allowance for instrumented provenance. The independent fifteen-second
+cancellation/retirement bound, failed outcome, owned-resource absence checks and
+all production deadlines stay unchanged. Real archive/engine identity continues
+through the separate native fault drill. Temporary timing instrumentation is
+removed after diagnosis; child stderr is retained by the fixture for useful
+failure messages. This is a test setup budget correction, not a race waiver or
+an exclusion of xtask from sanitizer coverage.

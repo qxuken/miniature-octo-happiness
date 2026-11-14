@@ -879,3 +879,14 @@ stability, all worker retirements and owned Docker container/volume absence are
 verified. Local review index SHA-256 is
 `5912160693a98ed58610ac4867032bb6ef939f70421953f9b70a6c5c602a1ec8`;
 its evidence stays under ignored `target/ci-quota-inventory/`.
+
+The quota fix `95206ed` passes hosted native Linux quota and maintenance EDQUOT,
+plus native Mac/Linux/Windows, helper, coverage, fuzz and address-sanitizer jobs.
+Its remaining TSan failure is the xtask cancellation fixture's ten-second setup
+allowance, reproduced locally. Instrumented runner hashing alone takes 13.794 s
+for a 32,375,608-byte local binary. An explicit minimal Git/Docker fixture removes
+checkout-growth and Python startup from the control; a finite sixty-second setup
+allowance covers provenance, while the fifteen-second cancellation/cleanup bound
+and production deadlines stay intact. All five supervisor integration controls
+pass with nightly TSan and instrumented std in 18.65 s. No product TSan exclusion
+or race waiver is added; details are in the supervisor report.

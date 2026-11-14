@@ -173,20 +173,48 @@ fn fault_campaign_cancellation_still_runs_absence_checks() {
     fs::create_dir(&bin).unwrap();
     let marker = owned.0.join("running");
     let ledger = owned.0.join("docker-commands");
-    let python = std::env::var("WEEKEND_PYTHON").unwrap_or_else(|_| "python3".into());
-    let resolved = Command::new(&python)
-        .args(["-c", "import sys;print(sys.executable)"])
-        .output()
-        .unwrap();
-    let python = String::from_utf8(resolved.stdout).unwrap();
-    let script = format!(
-        "#!{}\nimport sys,time\nfrom pathlib import Path\na=sys.argv[1:]\nwith Path({:?}).open('a')as f:f.write(' '.join(a)+'\\n')\nif a[:2]==['image','inspect']:print('sha256:'+'a'*64)\nif a and a[0]=='run':\n Path({:?}).write_text('running')\n time.sleep(30)\n",
-        python.trim(),
-        ledger.to_str().unwrap(),
-        marker.to_str().unwrap()
-    );
-    fs::write(bin.join("docker"), script).unwrap();
-    fs::set_permissions(bin.join("docker"), fs::Permissions::from_mode(0o700)).unwrap();
+    // The cancellation property needs a live owned Docker CLI, not an archive
+    // of the entire checkout. Keep setup finite under instrumented SHA/IO and
+    // independent of repository growth; real archive binding has its own drill.
+    let tree = owned.0.join("fixture-source");
+    fs::create_dir_all(tree.join("examples")).unwrap();
+    fs::write(
+        tree.join("examples/native_faults.rs"),
+        b"explicit test overlay",
+    )
+    .unwrap();
+    let scripts = [
+        (
+            "git",
+            format!(
+                r#"#!/bin/sh
+set -eu
+case "$1" in
+rev-parse) printf '%s\n' '{}' ;;
+archive) test "$2" = --output; tar -cf "$3" -C "$XTASK_TEST_SOURCE" examples ;;
+*) exit 91 ;;
+esac
+"#,
+                "a".repeat(40)
+            ),
+        ),
+        (
+            "docker",
+            format!(
+                r#"#!/bin/sh
+set -eu
+printf '%s\n' "$*" >> "$XTASK_TEST_LEDGER"
+if [ "$1" = image ]; then printf '%s\n' 'sha256:{}'; fi
+if [ "$1" = run ]; then : > "$XTASK_TEST_READY"; exec sleep 30; fi
+"#,
+                "a".repeat(64)
+            ),
+        ),
+    ];
+    for (name, script) in scripts {
+        fs::write(bin.join(name), script).unwrap();
+        fs::set_permissions(bin.join(name), fs::Permissions::from_mode(0o700)).unwrap();
+    }
     let path = std::env::join_paths(
         std::iter::once(bin).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
     )
@@ -198,11 +226,17 @@ fn fault_campaign_cancellation_still_runs_absence_checks() {
         .arg("--output")
         .arg(&output)
         .env("PATH", path)
+        .env("XTASK_TEST_SOURCE", &tree)
+        .env("XTASK_TEST_LEDGER", &ledger)
+        .env("XTASK_TEST_READY", &marker)
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(fs::File::create(owned.0.join("campaign.stderr")).unwrap())
         .spawn()
         .unwrap();
-    let end = Instant::now() + Duration::from_secs(10);
+    // Provenance hashes the instrumented executable: 32 MiB takes ~14 s
+    // under TSan. This allowance covers setup only; cancellation below must
+    // still retire the worker and complete absence checks within 15 seconds.
+    let end = Instant::now() + Duration::from_secs(60);
     while !marker.exists() {
         if child.try_wait().unwrap().is_some() {
             panic!("fault campaign exited before fixture");
@@ -210,7 +244,10 @@ fn fault_campaign_cancellation_still_runs_absence_checks() {
         if Instant::now() >= end {
             child.kill().unwrap();
             child.wait().unwrap();
-            panic!("fault fixture deadline");
+            panic!(
+                "fault fixture setup deadline: {}",
+                fs::read_to_string(owned.0.join("campaign.stderr")).unwrap()
+            );
         }
         thread::sleep(Duration::from_millis(10));
     }
