@@ -63,3 +63,11 @@ unfinished handshakes and pending output at both endpoints, with real rustls
 states and exact pin/ALPN checks. Four guard omissions are detected by the
 repository mutation runner. These directed pairs are separate from compiler
 MC/DC measurement.
+
+The [charged-growth checkpoint](../serialization-buffer-growth.md) adds five
+memory AST records and two net codec Writer records, mapped in their follow-ups.
+Fresh inventory: 2,584 records/51 files, 318 macro blind spots, no parse failures;
+source-set `ee50dc010383ada1855bcca7110cd174f589be069d14a80bbb6e0830b5c2cc19`.
+These updates do not overwrite the historical module denominators or claim
+compiler-measured MC/DC. The memory follow-up records the remaining exact-size
+Limit-arm independence control explicitly.

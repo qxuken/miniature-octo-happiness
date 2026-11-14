@@ -61,3 +61,11 @@ fresh transaction after releasing pinned allocations. I/O failures retain their
 existing `Io`/`OutcomeUnknown` and recovery requirements. A cap too small to
 verify a durable graph prevents opening it; it never authorizes partial recovery
 or fallback to an older graph.
+
+Codec append buffers now select bounded geometric capacities; large known
+Writer chunks remain exact. Unused capacity counts as live charge. If a rounded
+reservation returns `Limit`, a smaller exact reservation may succeed, while
+`OutOfMemory` is returned directly. Previously retained slack can still make an
+old tight budget insufficient. The [growth comparison](serialization-buffer-growth.md)
+measures this tradeoff and separate copy-domain peaks; it does not change the
+accounting boundary or establish a process RSS limit.

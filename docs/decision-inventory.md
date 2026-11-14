@@ -225,3 +225,14 @@ Source-set SHA-256: `4c204b338de0482b6264325666ac7d987b39cdf277ac0106e4b7cc9fcaa
 Output: `target/decision-inventory-handshake-pairs`. Examples and isolated
 qualification drivers are outside this library/binary AST inventory; their
 directed tests are reported separately.
+
+## Charged serialization growth checkpoint
+
+At engine `742079c`, a fresh default inventory reports **2,584 records across
+51 files**, 318 macro/conditional blind spots and zero parse failures. Source-set
+SHA-256: `ee50dc010383ada1855bcca7110cd174f589be069d14a80bbb6e0830b5c2cc19`.
+Output: `target/growth-qualification/inventory-tuned`. Five added memory records
+and two net Writer records have [memory](decisions/memory.md#charged-geometric-growth-follow-up)
+and [codec](decisions/codec.md#buffer-growth-follow-up) mappings. Historical audit
+tables and compiler MC/DC obligations retain their original scopes. The AST
+output still labels records unreviewed; manual mappings are a separate artifact.

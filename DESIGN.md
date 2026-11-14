@@ -5443,3 +5443,34 @@ production code, publication barrier, format or separate follower durability
 acknowledgment changes. Remaining resource combinations, longer/compound fault
 matrices, Windows/device/candidate qualification and owner budgets stay open.
 Cargo publication remains disabled.
+
+## Charged cache and byte-vector growth (2026-11-14)
+
+The [buffer-growth report](docs/serialization-buffer-growth.md) compares exact
+baseline fe4d057 with final engine 742079c on macOS/APFS and Docker Linux/ext4.
+Append-heavy codec buffers use bounded power-of-two charged capacity, with an
+exact-size retry only after `Limit`; `OutOfMemory` stays observable. Large known
+Writer payloads reserve exactly. Old and new buffers, including slack, remain
+charged during growth. No unsafe path, serialized byte order, format, maximum,
+publication barrier or separate follower-durability acknowledgment changes.
+
+All 17 lifecycle/history images remain byte-for-byte identical on both OSes.
+The compound fixture preserves all 64 deep roots, eight held drafts, 96 MiB
+admission, 32 contended commits, two readers and eight pressure/crash/retry cases.
+Measured native ChargedVec grow calls fall 423,138 → 231,839; copy-domain peak
+falls 174,858,038 → 150,179,254 bytes. Clean exact-rlib backup now succeeds at
+160 MiB where the baseline returns Limit, with an unchanged source and full
+fresh-process retained-root verification. Reopened live cache capacity costs
+128,768 bytes initially and 128,000 after contention. Latency/RSS samples have
+mixed outcomes; the report records the slower Mac repeat and separates
+instrumented allocator work from clean timings.
+
+Core-package debug/release pass 305 tests per Mac profile and 309 per Linux
+profile, with one parent-invoked helper ignored in each. Three growth tests pass
+Miri, all 25 deterministic fuzz replays pass, and the helper registry passes
+330 tests plus four registered skips across 46 workers. Strict Clippy/format
+checks pass. Source inventory is 2,584 records/51 files with 318 macro blind
+spots and no parse failures; new guard mappings and residuals are recorded in
+the memory/codec ledgers. Native Windows/current delivered artifacts, remaining
+cache clone/rebuild/sort costs, broader compound failures and owner budgets
+remain separate work. All 19 Cargo packages remain unpublished.

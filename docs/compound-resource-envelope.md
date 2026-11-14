@@ -203,3 +203,9 @@ near-cap maintenance, delivered/network/Windows profiles, cache-copy growth,
 owner latency/RSS budgets and deployment device assumptions. Physical power
 loss and Linux server x86_64 qualification are not inferred from this Docker
 aarch64 run. The [roadmap](production-acceptance-audit.md) retains those gates.
+
+The subsequent [buffer-growth comparison](serialization-buffer-growth.md)
+reruns this same compound workload on fe4d057 and 742079c, preserving exact
+lifecycle/history bytes and all roots/recovery outcomes. It measures allocator
+work and copy-domain peaks alongside clean latency/RSS, including the charged
+cache-slack tradeoff. Figures above remain the original c583ca7 checkpoint.

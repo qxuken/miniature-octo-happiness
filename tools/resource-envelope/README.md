@@ -61,3 +61,23 @@ The [compound report](../../docs/compound-resource-envelope.md) records exact
 memory/latency observations, budget domains, provenance and remaining scope.
 These finite samples do not establish deployment SLOs or physical power-loss
 durability. Crates remain unpublished.
+
+## Charged buffer-growth comparison
+
+The [growth report](../../docs/serialization-buffer-growth.md) binds before/after
+compound runs, exact-byte fixtures, clean latency/RSS and a separate disposable
+allocation probe. `growth_probe.py --source SOURCE --reference RUN/evidence.json
+--revision FULL_SHA --output FRESH` copies a frozen source, instruments successful
+ChargedVec growth and domain destruction, then verifies phase/state/live-byte/
+file-size records against the clean reference. Its timings/RSS must not be used
+as production measurements. `test_growth_probe.py` controls unique patch sites
+and strict parser/reference failures and runs normally/optimized in the helper
+registry. Full clean profiles and source hashes are validated before comparison;
+a verified flag alone cannot admit truncated evidence.
+
+`growth_copy.rs` is an independent 160 MiB-budget public-API consumer. Compile
+against each compound run's exact rlib with its pinned rustc, edition 2024,
+opt-level 3 and overflow checks, then pass source path, fresh destination,
+`limit` or `ok`, and the full runtime source ID. Inspect a successful target
+using that run's exact compound binary in a new process; do not infer retained
+content from successful return or file size alone. No package is published.

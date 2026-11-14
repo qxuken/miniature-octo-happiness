@@ -18,6 +18,10 @@
       "allowed_skips": []
     },
     {
+      "path": "resource-envelope/test_growth_probe.py",
+      "allowed_skips": []
+    },
+    {
       "path": "resource-envelope/test_compound.py",
       "allowed_skips": []
     },

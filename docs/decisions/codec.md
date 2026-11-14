@@ -506,3 +506,33 @@ pass. Two index controls pass pinned Miri; seven instrumentation/launcher
 controls pass normally and under optimized Python. Fresh inventory is 2,577
 records with 318 macro blind spots and no parse failures. This is source-bound
 guard/algorithm evidence, not a new mutation score or compiler MC/DC percentage.
+
+## Buffer growth follow-up
+
+Candidate `742079c` changes reservation policy while preserving the exact
+17 baseline lifecycle/history images on Mac/Linux. Source SHA-256:
+`fc5aded243d9859d5b97f65c5506a200448d335ccdf2e290d91bb27781c4a7fb`.
+The historical source table and earlier index follow-ups keep their scope.
+
+Writer `add` adds one predicate, `bytes.len() > self.bytes.len()`, and one net
+additional propagation record. The new
+`writer_bulk_appends_reserve_known_size_and_small_fields_reuse_capacity` test
+appends 17 then 18 bulk bytes using exact live capacities 17/35, then one byte
+using rounded capacity 64. Peak is 99 (35+64), all bytes survive, and another
+append reuses capacity with allocation disabled. Drop returns live charge to
+zero. It passes debug/release and Miri. Existing Writer length/maximum guards
+remain mapped above; generic reserve/admission/null controls are delegated to
+the [memory follow-up](memory.md#charged-geometric-growth-follow-up).
+
+Encoder aggregate bytes and VALUE/DATA cache growth, decoder cache appends and
+initial encoder cache copies now use the bounded charged helper. Known-size
+final decoder DATA projection stays exact. These sites replace their existing
+`?` callees; existing all-allocation candidate/copy sweeps, budget failure and
+native/simulated recovery tests rerun against the new policy. Cache order,
+sharing, checksums, padding, graph verification, authoritative root selection
+and barriers are unchanged. The [compound comparison](../serialization-buffer-growth.md)
+checks all roots and separate follower acknowledgment through the existing
+core-package tests; it does not qualify distributed deployment timing or
+exhaustively inject every new compound allocation site. New AST inventory is
+2,584 records/51 files with 318 macro blind spots and no parse failures;
+source records are not a compiler MC/DC percentage.

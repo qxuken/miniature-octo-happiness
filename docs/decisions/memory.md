@@ -147,3 +147,27 @@ only the appended FFI test module is new Rust source. Existing Miri, sanitizer,
 Loom and mutation results cited above are prior evidence, not newly rerun claims.
 This tranche does not claim Windows execution, exhaustive native failures,
 new mutations, compiler MC/DC percentages or completed project assurance.
+
+## Charged geometric growth follow-up
+
+Candidate `742079c` adds five production AST records in
+`ChargedVec::reserve_geometric` (lines 242–254); the historical table above
+retains its original source scope. Memory source SHA-256:
+`05bc77b72292497b4d2ac9157e10b5d203407d08925ed9681b99aa816e371890`.
+See the [growth qualification](../serialization-buffer-growth.md) for the
+source-bound inventory, allocation work, exact bytes and platform runs.
+
+| Guard / delegated operation | Evidence and limit of the claim |
+|---|---|
+| Checked length addition / `needed > maximum` | `geometric_growth_is_bounded_and_uses_logarithmic_allocation_claims` exercises ordinary appends, length overflow, exact bound, above-bound and zero maximum before allocation |
+| `needed <= capacity` | Thirteen successful claims build 4,096 bytes with exact contents; spare-capacity and zero-sized appends succeed with the next claim disabled; growth uses the existing allocator |
+| Next power / clamp / layout | Power-of-two capacities and a non-power maximum of six are checked; huge generic request exercises checked-power overflow and delegated layout rejection. Codec's 64 MiB / 16,384-entry maxima cannot approach integer/layout overflow on supported 64-bit targets |
+| `Err(Limit)` with a smaller exact capacity | `geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity`: caps 8/9/12 give both attempts rejected / exact capacity 5 / rounded capacity 8; old/new peak and preserved bytes are checked |
+| Other result / no smaller capacity | Successful rounds and injected/system-null `OutOfMemory` propagate without fallback, retaining the old allocation; exact retry can also fail allocation. When rounded capacity equals needed, retrying would repeat the identical request; a separate `Err(Limit)` equality-arm independence control remains to be added before claiming complete MC/DC for this helper |
+
+Both tests pass native debug/release and Miri. Existing allocator ownership,
+null result, admission concurrency, unwinding, all-candidate and copy failure
+sweeps pass. No unsafe allocator code changed. The optional growth wrapper
+introduces no new allocation mechanism; delegated allocator outcomes and
+standard-library arithmetic retain their separate scopes. This is a source
+mapping and directed validation, not measured compiler MC/DC.
