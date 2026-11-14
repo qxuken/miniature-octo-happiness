@@ -93,57 +93,62 @@ def observe(binary, data, report, deadline_seconds=180, *, checker=check_rows, a
         json.dump(evidence, stream)
     started = time.monotonic()
     samples = []
-    with out.open("x") as stdout, err.open("x") as stderr:
-        child = subprocess.Popen([str(binary), str(data), *map(str, arguments)], stdout=stdout, stderr=stderr, start_new_session=True)
-        failure = None
-        try:
-            # Observe exit without reaping: reserve the leader PID until its
-            # group is retired, so PID reuse cannot target an unrelated group.
-            while os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is None:
-                require(out.stat().st_size < 8 * 1024 * 1024 and err.stat().st_size < 8 * 1024 * 1024, "resource driver output limit")
-                if time.monotonic() - started > deadline_seconds:
-                    raise TimeoutError("resource driver exceeded 180-second deadline")
-                if sys.platform == "linux":
-                    try:
-                        status = Path(f"/proc/{child.pid}/status").read_text()
-                        sample = next(line for line in status.splitlines() if line.startswith("VmRSS:"))
-                        samples.append(int(sample.split()[1]))
-                    except (FileNotFoundError, StopIteration):
-                        pass
-                else:
-                    output = subprocess.run(["ps", "-o", "rss=", "-p", str(child.pid)],
-                                            capture_output=True, text=True, timeout=5)
-                    if output.stdout.strip():
-                        samples.append(int(output.stdout.strip()))
-                time.sleep(0.05)
-        except Exception as error:
-            failure = f"{type(error).__name__}: {error}"
-        finally:
-            group_killed = False
-            # A completed leader may leave descendants behind. Always retire
-            # the owned process group, including on a nominally successful exit.
+    child = None
+    failure = None
+    evidence["cleanup_failure"] = None
+    try:
+        with out.open("x") as stdout, err.open("x") as stderr:
+            child = subprocess.Popen([str(binary), str(data), *map(str, arguments)], stdout=stdout, stderr=stderr, start_new_session=True)
             try:
-                try:
-                    os.killpg(child.pid, signal.SIGKILL)
-                    group_killed = True
-                except ProcessLookupError:
-                    pass
-                except PermissionError:
-                    # This macOS kernel reports EPERM for a zombie-only group.
-                    # Ignore it only after proving the owned leader has exited
-                    # and a bounded process-table query finds no live members.
-                    require(os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None, "cannot retire live leader")
-                    groups = subprocess.run(["ps", "-axo", "pgid=,stat="], capture_output=True, text=True, timeout=5)
-                    require(groups.returncode == 0 and len(groups.stdout) <= 8 * 1024 * 1024, "cannot verify retired group")
-                    members = [line.split() for line in groups.stdout.splitlines()]
-                    require(all(len(row) == 2 for row in members), "invalid process group inventory")
-                    require(not any(int(group) == child.pid and not state.startswith("Z") for group, state in members), "owned group remains live")
+                # Observe exit without reaping: reserve the leader PID until its
+                # group is retired, so PID reuse cannot target an unrelated group.
+                while os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is None:
+                    require(out.stat().st_size < 8 * 1024 * 1024 and err.stat().st_size < 8 * 1024 * 1024, "resource driver output limit")
+                    if time.monotonic() - started > deadline_seconds:
+                        raise TimeoutError("resource driver exceeded 180-second deadline")
+                    if sys.platform == "linux":
+                        try:
+                            status = Path(f"/proc/{child.pid}/status").read_text()
+                            sample = next(line for line in status.splitlines() if line.startswith("VmRSS:"))
+                            samples.append(int(sample.split()[1]))
+                        except (FileNotFoundError, StopIteration):
+                            pass
+                    else:
+                        output = subprocess.run(["ps", "-o", "rss=", "-p", str(child.pid)],
+                                                capture_output=True, text=True, timeout=5)
+                        if output.stdout.strip():
+                            samples.append(int(output.stdout.strip()))
+                    time.sleep(0.05)
+            except Exception as error:
+                failure = f"{type(error).__name__}: {error}"
             finally:
-                child.wait(timeout=5)
-            evidence.update(returncode=child.returncode, elapsed_seconds=time.monotonic() - started,
-                            rss_samples_kib=samples, rss_sample_count=len(samples),
-                            sampled_peak_rss_kib=max(samples, default=0),
-                            process_group=child.pid, process_group_killed=group_killed)
+                group_killed = False
+                # A completed leader may leave descendants behind. Always retire
+                # the owned process group, including on a nominally successful exit.
+                try:
+                    try:
+                        try:
+                            os.killpg(child.pid, signal.SIGKILL)
+                            group_killed = True
+                        except ProcessLookupError:
+                            pass
+                        except PermissionError:
+                            # This macOS kernel reports EPERM for a zombie-only group.
+                            # Ignore it only after proving the owned leader has exited
+                            # and a bounded process-table query finds no live members.
+                            require(os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None, "cannot retire live leader")
+                            groups = subprocess.run(["ps", "-axo", "pgid=,stat="], capture_output=True, text=True, timeout=5)
+                            require(groups.returncode == 0 and len(groups.stdout) <= 8 * 1024 * 1024, "cannot verify retired group")
+                            members = [line.split() for line in groups.stdout.splitlines()]
+                            require(all(len(row) == 2 for row in members), "invalid process group inventory")
+                            require(not any(int(group) == child.pid and not state.startswith("Z") for group, state in members), "owned group remains live")
+                    finally:
+                        child.wait(timeout=5)
+                except BaseException as error:
+                    evidence["cleanup_failure"] = f"{type(error).__name__}: {error}"
+                    raise
+                finally:
+                    evidence.update(process_group=child.pid, process_group_killed=group_killed)
             try:
                 require(out.stat().st_size < 8 * 1024 * 1024 and err.stat().st_size < 8 * 1024 * 1024, "resource driver output limit")
                 rows = [json.loads(line) for line in out.read_text().splitlines()]
@@ -155,9 +160,20 @@ def observe(binary, data, report, deadline_seconds=180, *, checker=check_rows, a
                 elif failure is None:
                     failure = f"driver exit {child.returncode}"
             except Exception as error:
-                failure = f"{type(error).__name__}: {error}"
-            evidence["failure"] = failure
-            report.write_text(json.dumps(evidence, indent=2) + "\n")
+                if failure is None:
+                    failure = f"{type(error).__name__}: {error}"
+    except BaseException as error:
+        # Cleanup/startup/cancellation errors must not leave only the initial
+        # marker. Keep an earlier observation error as well as the cleanup error.
+        if failure is None:
+            failure = f"{type(error).__name__}: {error}"
+        raise
+    finally:
+        evidence.update(failure=failure, returncode=child.returncode if child is not None else None,
+                        elapsed_seconds=time.monotonic() - started,
+                        rss_samples_kib=samples, rss_sample_count=len(samples),
+                        sampled_peak_rss_kib=max(samples, default=0))
+        report.write_text(json.dumps(evidence, indent=2) + "\n")
     require(evidence["passed"], "resource driver failed; inspect logs")
     return evidence
 

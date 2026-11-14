@@ -134,6 +134,14 @@ referenced worker directories retain the failures. This diagnostic improvement
 does not claim to fix the underlying intermittent observer issue. The hosted
 Mac/Linux helper jobs pass independently at the frozen checkpoint.
 
+The subsequent [observer finalization fix](helper-observer-finalization.md)
+reproduces and fixes the missing-terminal-report mechanism with deterministic
+cleanup-probe failures. It retains failed cleanup as a qualification failure,
+adds startup/wait/cancellation and composed-error regressions, and passes the
+complete Mac/Linux helper registries. That follow-up preserves the qualification
+and evidence above at their original source; it does not reconstruct the lost
+historical assertion or diagnose a kernel fault.
+
 ## Reproduction
 
 Local Docker, with the pinned image already available:

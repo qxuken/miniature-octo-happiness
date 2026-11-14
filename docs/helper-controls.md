@@ -87,3 +87,15 @@ rehashes 281 artifacts. These are helper-control results, not MC/DC percentages,
 new native-engine qualification or a consolidated release candidate. The
 separate [hosted Mac/Linux jobs](hosted-qualification-cd7cdfe.md) now pass against
 committed `cd7cdfe`; their evidence retains its own source and host identities.
+
+## Observer terminal-report regression
+
+The [observer fix](helper-observer-finalization.md) reproduces an incomplete
+report when cleanup's process-table proof raises before the final write. An
+outer finalizer now saves startup, cleanup, wait and cancellation failures;
+earlier observation errors and cleanup errors are recorded separately. Cleanup
+proofs remain mandatory and errors still reject qualification. Five added tests
+reject the old observer in both Python modes. The final complete Mac/Linux
+registries each pass 354 controls and four registered skips across 52 workers;
+300 additional output-limit iterations pass. Source/evidence bindings and the
+limits of the historical intermittent reproduction are recorded in the report.

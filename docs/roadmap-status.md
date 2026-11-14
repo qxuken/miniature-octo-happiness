@@ -750,3 +750,26 @@ schedules and broader torn/all-offset recovery; remaining delivered/network and
 native Windows profiles; one immutable candidate's full artifact/sanitizer/fuzz/
 compatibility matrix and owner service budgets. Finite kernel-error results do
 not establish physical power-loss durability or automatic orphan collection.
+
+## Incomplete helper observer reports fixed
+
+The [observer finalization fix](helper-observer-finalization.md) reproduces the
+missing `failure` field deterministically: a failing cleanup process-table proof
+used to jump past the terminal report write. An outer finalizer now records
+startup, cleanup, wait and cancellation errors before they propagate, preserving
+an earlier observation error separately from cleanup failure. Failed cleanup
+still rejects qualification; group ownership, reaping, output/time bounds and
+EPERM proof requirements are unchanged. The output-limit test again requires
+the actual terminal report and successful cleanup.
+
+Five new controls reject the old observer in normal/optimized Python and pass
+against the fix. Full Mac arm64 and Docker Linux aarch64 registries each pass
+354 controls plus four registered optional skips (358 tests, 52 workers), with
+Mise-pinned Python 3.14.8, unchanged input hashes and verified process cleanup.
+An additional 300 real output-limit iterations pass; copied Linux payload hashes
+and private container/volume absence are reviewed. The spontaneous historical
+trigger did not recur; the report distinguishes that unknown trigger from the
+reproduced and fixed finalization defect. No production engine, format,
+publication/follower-ack contract or Rust decision denominator changes.
+All 19 Cargo manifests remain unpublished. The maintenance/failure/candidate
+roadmap above continues; this closes the incomplete-report helper defect.

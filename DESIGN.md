@@ -5573,3 +5573,18 @@ debug/release profile. No production engine, format, durability barrier or
 separate follower-durable acknowledgment changes. Copy-phase exhaustion closes
 this finite gate; other phases/filesystems, device power loss and remaining
 candidate/platform qualification remain. All 19 packages stay unpublished.
+
+## Helper observer terminal reports (2026-11-14)
+
+The [helper regression](docs/helper-observer-finalization.md) reproduces report
+loss when cleanup raises before the final write. The observer now finalizes
+terminal metadata across startup, cleanup, wait and cancellation errors, while
+preserving separate observation/cleanup failures. Cleanup proofs, ownership and
+reaping requirements remain mandatory; failed cleanup cannot qualify a run.
+Five new controls reject the old observer in both Python modes. Complete Mac
+and Docker Linux helper registries each pass 354 controls plus four registered
+skips across 52 workers, with another 300 real output-limit iterations passing.
+The report distinguishes the proven finalization defect from the unrecorded
+historical intermittent trigger. Engine code, serialization, durability barriers,
+follower acknowledgment and production MC/DC scope are unchanged; all 19 Cargo
+packages remain unpublished.
