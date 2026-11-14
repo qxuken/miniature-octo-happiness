@@ -117,3 +117,15 @@ mutated phases, source IDs/types, bytes/revisions, kill/exchange/calibration and
 cleanup records normally and under optimized Python in the helper registry.
 Per-worker deadlines/output bounds and owned-process-group retirement are
 inherited; Docker has a 1,200-second overall deadline. No crates are published.
+
+## Maintenance space exhaustion
+
+`../quota/enospc.py --revision COMMIT --output FRESH` archives this private
+compound driver and runs backup/restore/compact against an isolated 256 MiB
+Docker tmpfs. `../quota/run.py --maintenance` uses a quota-capable Linux host
+and an exact-source binary for the separate 256 MiB UID quota/ext4 profile.
+Both require partial-copy kernel errors, full current/all-64-retained oracles
+while full, retry after freeing owned ballast, and fresh-process reopening of a
+later commit. Exact commands, privilege/cleanup bounds, source/artifact hashes
+and qualification limits are in [the report](../../docs/maintenance-space-exhaustion.md).
+The original append quota mode remains unchanged; no crates are published.

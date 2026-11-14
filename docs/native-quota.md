@@ -125,3 +125,14 @@ synthetic quota errors and ENOSPC retain their separate scopes. This closes the
 named native append quota/recovery gate, not physical power loss, quota failures
 during maintenance, other filesystems or other operating systems. Engine
 publication barriers and separate follower durable acknowledgments are unchanged.
+
+## Near-cap maintenance extension
+
+The subsequent [maintenance qualification](maintenance-space-exhaustion.md)
+closes the separate copy-phase backup/restore/compaction EDQUOT gate at
+`74fd4e8`, with a 256 MiB user quota on its own 512 MiB ext4 image. It verifies
+all 64 retained roots and current 212 while full, partial-output rejection,
+retry after freeing ballast and a later acknowledged 213 reopening. Actual
+EDQUOT occurs with ample global space. The existing append profile above is
+unchanged and passes again in the same hosted job. Other maintenance error
+phases, filesystems and physical power loss retain their separate obligations.

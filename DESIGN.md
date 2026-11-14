@@ -5541,3 +5541,35 @@ hashes are in the report. No new production AST denominator or compiler MC/DC
 score is claimed. Longer shapes/schedules, maintenance quota/device failures,
 all-offset faults, delivered/native Windows and final-candidate qualification
 remain. All 19 Cargo manifests stay unpublished.
+
+## Near-cap maintenance space exhaustion (2026-11-14)
+
+The [space-exhaustion qualification](docs/maintenance-space-exhaustion.md) at
+`74fd4e8` reuses the 98.58%-full source at revision 212 with all 64 depth-64
+retained roots. Backup, restore and in-place compaction each encounter actual
+kernel ENOSPC on a private 256 MiB Docker tmpfs and EDQUOT on hosted Ubuntu
+ext4 with a 256 MiB UID quota. The quota filesystem retains more than 16 MiB
+free/available, distinguishing EDQUOT from device fullness. Every engine/probe
+process runs under the same unprivileged UID with empty groups/capabilities.
+
+After exhaustion the controller releases exactly 8 MiB of owned ballast so
+copying makes observable progress before Io/Write failure. Partial outputs are
+8,388,608 bytes for ENOSPC and 8,392,704 for EDQUOT. Original source and good
+backup remain byte-identical; fresh processes reopen both while full and verify
+every current/retained value. Removing ballast permits a same-UID fsynced write
+and successful maintenance retry. Partial images reject inspection; existing
+backup/restore destinations reject overwrite, while compaction retries with the
+old scratch present. Retry output exactly matches the good backup, then passes
+fresh-process oracles. Only the test's owned outputs are explicitly retired.
+
+Maintenance preserves revision 212. A subsequent acknowledged commit reopens
+as 213 with all retained roots unchanged; the backup remains 212. Each profile
+uses 32 distinct fixture processes and 30 validated phase records, including an
+ample-space negative control that rejects unexpected success and independently
+verifies that actual output. Exact source trees, binary and evidence hashes,
+privileges and mount/loop/container/volume cleanup are reviewed in the report.
+Hosted quota and local ENOSPC pass; 34 targeted Mac regressions pass in each
+debug/release profile. No production engine, format, durability barrier or
+separate follower-durable acknowledgment changes. Copy-phase exhaustion closes
+this finite gate; other phases/filesystems, device power loss and remaining
+candidate/platform qualification remain. All 19 packages stay unpublished.

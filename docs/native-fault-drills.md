@@ -92,3 +92,12 @@ The later [hosted Ubuntu ext4 quota gate](native-quota.md) now observes actual
 EDQUOT, verifies fresh-process current/retained recovery and successful retry,
 and proves owned mount/loop cleanup. It qualifies that separate native append
 profile without changing the earlier Linuxkit result.
+
+## Near-cap maintenance extension
+
+The later [space-exhaustion drill](maintenance-space-exhaustion.md) adds actual
+tmpfs ENOSPC during backup, restore and compaction of a 98.58%-full image, with
+complete current/all-64-retained checks while full and successful retry after
+freeing owned ballast. A separate hosted ext4 gate observes actual EDQUOT for
+the same operations. This advances those finite copy-phase profiles; tmpfs
+still supplies no physical durability evidence, and other error phases remain.

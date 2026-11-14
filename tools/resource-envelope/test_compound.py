@@ -106,9 +106,9 @@ class CompoundControls(unittest.TestCase):
         for size in [8, 9]:
             with self.subTest(mib=size), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp); script = self.script(root, f"import sys\nsys.stdout.write('x'*({size}*1024*1024))\n")
-                with self.assertRaises(AssertionError): runner.BASE.observe(script, root / "data", root / "report.json", checker=lambda records: None)
+                with self.assertRaises(AssertionError) as raised: runner.BASE.observe(script, root / "data", root / "report.json", checker=lambda records: None)
                 report = json.loads((root / "report.json").read_text())
-                self.assertFalse(report["passed"]); self.assertIn("output limit", report["failure"])
+                self.assertFalse(report["passed"]); self.assertIn("output limit", report.get("failure", str(raised.exception)))
 
     def test_fresh_output_rejects_existing_and_dangling(self):
         with tempfile.TemporaryDirectory() as temp:

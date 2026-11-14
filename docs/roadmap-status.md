@@ -712,3 +712,41 @@ failures and broader torn/all-offset recovery sequences; remaining delivered,
 network and native Windows profiles; one immutable candidate's complete
 artifact/sanitizer/fuzz/compatibility matrix and owner service budgets. These
 finite results advance composed failures without closing those distinct gates.
+
+## Near-cap maintenance ENOSPC and quota recovery qualified
+
+The [new space-exhaustion drill](maintenance-space-exhaustion.md) freezes
+`74fd4e8`. Backup, restore and in-place compaction pass actual Linux tmpfs
+ENOSPC and hosted Ubuntu ext4 EDQUOT with the existing 98.58%-full image and
+all 64 depth-64 retained roots. Quota exhaustion occurs with ample global space.
+Each failure produces an incomplete copy, preserves source/backup bytes, and
+permits fresh-process full current/retained verification while still full.
+
+After freeing owned ballast, same-UID write/fsync succeeds and all three
+maintenance operations retry successfully. Partial images reject; backup and
+restore refuse existing destinations; compaction retries with its partial
+scratch present. Successful output matches the good backup exactly. Maintenance
+keeps revision 212; a later acknowledged commit reopens 213 with all retained
+roots unchanged. Both profiles have 32 distinct fixture processes, negative
+controls and proven cleanup. Exact uploaded quota binary, artifact digest,
+source-tree equivalence and all copied payload hashes pass root review.
+
+The original append-quota gate passes again, as do 34 targeted Mac regressions
+per debug/release profile, new/legacy quota controls in both Python modes,
+strict private-driver Clippy, formatting and workflow lint. No production
+engine/format/AST or follower-ack contract changes. All 19 packages remain
+unpublished. This closes the named near-cap copy-phase ENOSPC/EDQUOT gate.
+
+The final complete helper run passes 344 controls plus four registered skips
+across 52 workers. Two earlier local attempts failed in the existing compound
+output-limit helper with an incomplete observer report. Diagnostics now retain
+the original assertion instead of masking it with KeyError; the intermittent
+cause still needs reproduction. Full results and failed-attempt paths are in
+the report; CI helper checks pass separately on Mac/Linux at the checkpoint.
+
+Next: other maintenance error phases (including delayed writeback and namespace
+operations), device and other filesystem/OS profiles; additional shapes/longer
+schedules and broader torn/all-offset recovery; remaining delivered/network and
+native Windows profiles; one immutable candidate's full artifact/sanitizer/fuzz/
+compatibility matrix and owner service budgets. Finite kernel-error results do
+not establish physical power-loss durability or automatic orphan collection.
