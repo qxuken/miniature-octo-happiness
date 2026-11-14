@@ -181,3 +181,35 @@ Resource profile proofs retain their own staged-tool hashes; the later probe
 retirement and compatibility-import fixes are covered by the final Rust/helper
 reruns. Evidence is scoped to those recorded inputs, not an immutable release
 candidate or a device power-loss qualification.
+
+## Hosted quota inventory regression
+
+Hosted run [43649630373](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43649630373)
+against `61df2be` fails native EDQUOT qualification at its final tool-stability
+check. The migration adds `supervision.py` to the initial inventory but omits it
+from both independently written final inventories. Stable inputs therefore fail
+in both native-commit and maintenance quota paths. This is a controller defect;
+the gate remains fail-closed, and the failure does not qualify the engine run.
+
+`qualification_tools` now constructs the inventory once for all three call sites.
+A regression runs each complete `main` path with OS provisioning mocked at its
+boundaries: unchanged tools qualify, while changing `supervision.py` still rejects
+and preserves failed evidence plus the cleanup result. Both unchanged cases first
+fail with the exact hosted `qualification tools changed` error. The fixture keeps
+its backing inode small so it also runs under the helper's inherited file-size
+ceiling. It performs no privileged mounts, quota changes or large allocations.
+
+The quota controls now contain 13 tests, alongside three maintenance controls;
+normal/optimized interpreter modes retain timeout, output, cleanup and independent
+state oracles. Hosted EDQUOT remains the native filesystem verification for this
+fix; unprivileged regression results do not substitute for that platform gate.
+
+The corrected full helper registries pass **354 checks plus four registered
+skips across 52 workers** on both Mac arm64 and Docker Linux aarch64 with pinned
+Python 3.14.8. Quota's 13 and maintenance's three controls pass normally and
+optimized. Source/binary stability and worker/container/volume retirement are
+reviewed in local `target/ci-quota-inventory/review.json`, SHA-256
+`5912160693a98ed58610ac4867032bb6ef939f70421953f9b70a6c5c602a1ec8`.
+The first local end-to-end fixture exposed its oversized sparse-file truncation
+under the inherited ceiling; replacing only that mocked provisioning operation
+with a small inode fixes the test without relaxing the real file-size bound.

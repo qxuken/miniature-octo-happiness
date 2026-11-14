@@ -857,3 +857,25 @@ and production/candidate qualification are not inferred from these tooling check
 Final local proof-review index SHA-256:
 `9b05901a864a22d429a53c128b967f95cf649430bdab79776b0afc830bf9bcfb`.
 All 20 manifests remain unpublished; no crates.io operation is performed.
+
+## Hosted quota controller inventory fix (2026-11-15)
+
+CI on `61df2be` exposes a false tool-stability rejection: `supervision.py` is in
+the pre-run inventory but absent from both post-run inventories. One shared
+inventory function now feeds all three checks. A regression reaches the end of
+both native and maintenance `main` paths with mocked OS provisioning, accepts
+stable tools, and requires an actual supervision-file mutation to fail closed
+with cleanup evidence. Both positive cases fail against the previous code with
+the hosted error. The inherited helper file-size limit remains enforced; no
+privileged provisioning is performed by the control. See the
+[diagnosis and scope](xtask-supervision.md#hosted-quota-inventory-regression).
+Engine bytes, durability barriers, follower acknowledgment and crate privacy
+remain unchanged. Native hosted EDQUOT validation remains required after pushing
+this fix.
+
+Both local full helper registries pass **354 checks + four registered skips,
+52 workers** on Mac arm64 and Docker Linux aarch64 (Python 3.14.8). Source
+stability, all worker retirements and owned Docker container/volume absence are
+verified. Local review index SHA-256 is
+`5912160693a98ed58610ac4867032bb6ef939f70421953f9b70a6c5c602a1ec8`;
+its evidence stays under ignored `target/ci-quota-inventory/`.

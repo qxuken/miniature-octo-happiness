@@ -33,6 +33,12 @@ def require(ok, message):
 
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def qualification_tools(maintenance=False):
+    names=['run.py','probe.py','test_runner.py','fixture.rs',*(['maintenance.py']if maintenance else[])]
+    hashes={name:sha(HERE/name) for name in names}
+    for name in ['compatibility.py','supervision.py']:hashes[name]=sha(ROOT/'tools'/name)
+    return hashes
+
 def same(actual, expected):
     if type(actual) is not type(expected): return False
     if isinstance(expected, dict):
@@ -209,8 +215,7 @@ def main(argv=None):
         require(args.fixture.is_absolute() and args.fixture.is_file() and not args.fixture.is_symlink() and args.fixture.stat().st_size<=64*1024*1024,'absolute bounded regular fixture required')
         evidence['source_binding']=source_binding(args.source)
         evidence['fixture_sha256']=sha(args.fixture)
-        tools={name:sha(HERE/name) for name in ['run.py','probe.py','test_runner.py','fixture.rs',*(['maintenance.py']if args.maintenance else[])]}
-        tools['compatibility.py']=sha(ROOT/'tools/compatibility.py');tools['supervision.py']=sha(ROOT/'tools/supervision.py');evidence['tools_sha256']=tools
+        tools=qualification_tools(args.maintenance);evidence['tools_sha256']=tools
         tool_hashes={}
         for name in ['losetup','mkfs.ext4','mount','findmnt','setquota','setpriv','umount','uname']:
             found=shutil.which(name)
@@ -285,8 +290,7 @@ def main(argv=None):
             require(all(sha(Path(row['path']))==row['sha256'] for row in tool_hashes.values()),'privileged executable changed')
             require(sha(Path(evidence['controller_python']['path']))==evidence['controller_python']['sha256'],'controller Python changed')
             require(sha(guest_python)==evidence['guest_python']['sha256'],'guest Python changed')
-            current={name:sha(HERE/name) for name in ['run.py','probe.py','test_runner.py','fixture.rs','maintenance.py']}
-            current['compatibility.py']=sha(ROOT/'tools/compatibility.py');require(current==tools,'qualification tools changed')
+            require(qualification_tools(args.maintenance)==tools,'qualification tools changed')
             require(sha(probe)==tools['probe.py'],'guest probe changed')
             evidence.update(status='qualified',verified=True)
             return 0
@@ -307,8 +311,7 @@ def main(argv=None):
         require(all(sha(Path(row['path']))==row['sha256'] for row in tool_hashes.values()),'privileged executable changed')
         require(sha(Path(evidence['controller_python']['path']))==evidence['controller_python']['sha256'],'controller Python changed')
         require(sha(guest_python)==evidence['guest_python']['sha256'],'guest Python changed')
-        current={name:sha(HERE/name) for name in ['run.py','probe.py','test_runner.py','fixture.rs']}
-        current['compatibility.py']=sha(ROOT/'tools/compatibility.py');require(current==tools,'qualification tools changed')
+        require(qualification_tools(args.maintenance)==tools,'qualification tools changed')
         evidence.update(results=results,status='qualified',verified=True)
     except Unsupported as error:
         evidence.update(status='unsupported',failure=str(error))

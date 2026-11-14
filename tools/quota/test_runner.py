@@ -1,13 +1,15 @@
 """No privileged provisioning: bounded children, temporary records and mocked tools."""
 import copy
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import run
 
 class QuotaControls(unittest.TestCase):
@@ -100,6 +102,69 @@ class QuotaControls(unittest.TestCase):
                     else:
                         with self.assertRaises(run.Unsupported):run.main(argv)
                 evidence=json.loads((out/'evidence.json').read_text());self.assertFalse(evidence['verified']);self.assertEqual(evidence['status'],'unsupported')
+
+    def test_completed_quota_paths_recheck_the_same_tool_inventory(self):
+        # Exercise main through its final admission gate without provisioning a
+        # filesystem. Actual OS effects are replaced at invoke/cleanup boundaries;
+        # tool hashes, fixture validation, final evidence and both branches are real.
+        for maintenance,changed in [(False,False),(True,False),(False,True),(True,True)]:
+            with self.subTest(maintenance=maintenance,changed=changed),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary).resolve();here=root/'tools/quota';here.mkdir(parents=True)
+                for name in ['run.py','probe.py','test_runner.py','fixture.rs','maintenance.py']:
+                    (here/name).write_text('stable '+name)
+                for name in ['compatibility.py','supervision.py']:(root/'tools'/name).write_text('stable '+name)
+                fixture=root/'fixture';fixture.write_bytes(b'fixture')
+                executable=root/'executable';executable.write_bytes(b'trusted OS tool')
+                scratch=root/('weekend-quota-'+'a'*32+'-owned');scratch.mkdir()
+                output=root/'out';counter=0
+                def mutate():
+                    if changed:(root/'tools/supervision.py').write_text('changed during qualification')
+                def invoke(argv,logs,evidence,label,**kwargs):
+                    nonlocal counter
+                    counter+=1;args=list(map(str,argv));evidence['commands'].append({'exit':0})
+                    if '--version'in args:return 'Python 3.14.8'
+                    if '--find'in args:return '/dev/loop7'
+                    if '--list'in args:return json.dumps({'loopdevices':[{'name':'/dev/loop7','back-file':str(scratch/'image.ext4')}]})
+                    if '--mountpoint'in args:return json.dumps({'filesystems':[{'target':str(scratch/'mount'),'source':'/dev/loop7','fstype':'ext4'}]})
+                    if str(scratch/'probe.py')in args:
+                        mode=args[args.index(str(scratch/'probe.py'))+1]
+                        row=self.probe_row();row.update(mode=mode,removed=True,fsynced_bytes=4096)
+                        return json.dumps(row)
+                    if str(scratch/'fixture')in args:
+                        index=args.index(str(scratch/'fixture'));stage=args[index+1]
+                        revision=int(args[index+3])if stage=='inspect'else 4 if stage=='retry'else 3
+                        row=self.fixture_row(stage,revision);row['pid']=counter
+                        if stage=='inspect'and revision==4:mutate()
+                        if stage=='fail':row.update(commit_error=14,native_category='Quota',native_raw_code=122,native_operation='Write',terminal_error=11,recovery_required=True,blocked_write_error=16)
+                        return json.dumps(row)
+                    return ''
+                def exercise(*args):mutate();return []
+                module=SimpleNamespace(exercise=exercise)
+                fdopen=run.os.fdopen
+                @contextmanager
+                def small_image(fd,mode):
+                    # The helper worker's inherited file ceiling stays intact;
+                    # provisioning is mocked and needs only an inode to bind.
+                    with fdopen(fd,mode) as file:
+                        yield SimpleNamespace(truncate=lambda size:file.truncate(4096))
+                spec=SimpleNamespace(loader=MagicMock())
+                with patch.object(run,'ROOT',root),patch.object(run,'HERE',here), \
+                     patch.object(run.sys,'platform','linux'),patch.object(run.os,'geteuid',return_value=0), \
+                     patch.object(run.os,'chown'),patch.object(run.os,'fdopen',side_effect=small_image), \
+                     patch.object(run.pwd,'getpwuid',side_effect=KeyError), \
+                     patch.object(run,'source_binding',return_value={}),patch.object(run.shutil,'which',return_value=str(executable)), \
+                     patch.object(run.tempfile,'mkdtemp',return_value=str(scratch)),patch.object(run,'invoke',side_effect=invoke), \
+                     patch.object(run,'cleanup_owned',return_value={'verified':True}) as cleanup, \
+                     patch('importlib.util.spec_from_file_location',return_value=spec),patch('importlib.util.module_from_spec',return_value=module):
+                    args=['--fixture',str(fixture),'--source','a'*40,'--output',str(output)]+(['--maintenance']if maintenance else[])
+                    if changed:
+                        with self.assertRaisesRegex(ValueError,'qualification tools changed'):run.main(args)
+                    else:self.assertEqual(run.main(args),0)
+                evidence=json.loads((output/'evidence.json').read_text())
+                self.assertEqual(evidence['verified'],not changed)
+                self.assertEqual(evidence['status'],'failed'if changed else'qualified')
+                self.assertIn('supervision.py',evidence['tools_sha256']);self.assertTrue(evidence['cleanup']['verified'])
+                cleanup.assert_called_once()
 
     def cleanup_fixture(self, root):
         scratch=root/('weekend-quota-'+'a'*32+'-owned');scratch.mkdir();image=scratch/'image.ext4';image.write_bytes(b'');point=scratch/'mount';point.mkdir();info=image.stat()
