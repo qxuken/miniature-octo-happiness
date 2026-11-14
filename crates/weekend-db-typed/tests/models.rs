@@ -1045,3 +1045,559 @@ fn stale_default_index_cannot_resolve_a_physically_missing_field() -> Result<()>
     ));
     Ok(())
 }
+
+fn corrupt_index_key(records: u64, slug: &[u8]) -> Vec<u8> {
+    let mut key = records.to_le_bytes().to_vec();
+    key.extend_from_slice(&1u64.to_le_bytes());
+    key.push(engine::Kind::Bytes as u8);
+    key.extend_from_slice(slug);
+    key
+}
+
+#[test]
+fn index_check_and_rebuild_preserve_primary_unknown_fields_and_retained_state() -> Result<()> {
+    let bytes = MemoryStore::new()?;
+    let mut store = Store::create_on(bytes.clone(), [91; 16], engine::Limits::default())?;
+    let table = store.table::<OldTask>("tasks")?;
+    let other = store.table::<OldTask>("other")?;
+    store.write(|w| {
+        w.insert(&table, 1, &old("one"))?;
+        w.insert(&table, 2, &old("two"))?;
+        w.insert(&other, 1, &old("other"))
+    })?;
+    assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
+    let db = store.database();
+    let raw = store.read(|r| {
+        Ok(r.get(&table, 1)?
+            .unwrap()
+            .record()
+            .set(99, &db.bytes(b"future")?)?)
+    })?;
+    let indexes = db.collection_id(3);
+    let one = corrupt_index_key(table.collection().as_u64(), b"one");
+    let two = corrupt_index_key(table.collection().as_u64(), b"two");
+    let orphan = corrupt_index_key(table.collection().as_u64(), b"orphan");
+    let mut tx = db.begin();
+    tx.put(table.collection(), &1u64.to_le_bytes(), raw.as_value())?;
+    tx.delete(indexes, &one)?;
+    tx.put(indexes, &two, &db.bytes(b"wrong owner type")?)?;
+    tx.put(indexes, &orphan, &db.unsigned(99)?)?;
+    tx.commit()?;
+    drop(tx);
+    let before = db.snapshot().scan(table.collection())?;
+    let retained = store.checkpoint()?;
+    let report = store.read(|r| r.check_indexes(&table))?;
+    assert_eq!(
+        (
+            report.records,
+            report.expected_entries,
+            report.stored_entries
+        ),
+        (2, 2, 2)
+    );
+    assert_eq!(
+        (report.missing, report.orphaned, report.mismatched),
+        (1, 1, 1)
+    );
+    assert_eq!(store.write(|w| w.rebuild_indexes(&table))?, report);
+    assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
+    assert!(store.read(|r| r.check_indexes(&other))?.is_consistent());
+    assert_eq!(db.snapshot().scan(table.collection())?, before);
+    assert_eq!(
+        store.read_retained(retained, |r| r.check_indexes(&table))?,
+        report
+    );
+    drop(store);
+    let mut store = Store::open_on(bytes, engine::Limits::default())?;
+    let table = store.table::<OldTask>("tasks")?;
+    assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
+    assert_eq!(
+        store.read(|r| Ok(r.find(&table, OldTask::SLUG, "one")?.unwrap().id()))?,
+        1
+    );
+    Ok(())
+}
+
+#[test]
+fn rebuild_skips_missing_default_fields_and_rejects_duplicate_claims_atomically() -> Result<()> {
+    let mut store = Store::memory()?;
+    let defaults = store.table::<UniqueDefaultV1>("defaults")?;
+    store.write(|w| {
+        w.insert(
+            &defaults,
+            1,
+            &UniqueDefaultV1 {
+                value: Presence::Missing,
+            },
+        )
+    })?;
+    let db = store.database();
+    let indexes = db.collection_id(3);
+    let mut tx = db.begin();
+    tx.put(
+        indexes,
+        &corrupt_index_key(defaults.collection().as_u64(), b"old-default"),
+        &db.unsigned(1)?,
+    )?;
+    tx.commit()?;
+    drop(tx);
+    let report = store.write(|w| w.rebuild_indexes(&defaults))?;
+    assert_eq!((report.expected_entries, report.orphaned), (0, 1));
+    assert!(
+        store
+            .read(|r| r.find(
+                &defaults,
+                UniqueDefaultV1::VALUE,
+                &Presence::Value("old-default".into())
+            ))?
+            .is_none()
+    );
+    let table = store.table::<OldTask>("tasks")?;
+    store.write(|w| w.insert(&table, 1, &old("same")))?;
+    let db = store.database();
+    let raw = store.read(|r| Ok(r.get(&table, 1)?.unwrap().record().as_value().clone()))?;
+    let mut tx = db.begin();
+    tx.put(table.collection(), &2u64.to_le_bytes(), &raw)?;
+    tx.commit()?;
+    drop(tx);
+    let before = db.snapshot();
+    assert_eq!(
+        store.read(|r| r.check_indexes(&table)),
+        Err(Error::UniqueViolation(1))
+    );
+    assert_eq!(
+        store.write(|w| w.rebuild_indexes(&table)),
+        Err(Error::UniqueViolation(1))
+    );
+    assert_eq!(db.snapshot().revision(), before.revision());
+    assert_eq!(
+        db.snapshot().scan(db.collection_id(3))?,
+        before.scan(db.collection_id(3))?
+    );
+    Ok(())
+}
+
+#[test]
+fn rebuilding_conflicts_with_primary_or_index_changes_and_aborts_caught_errors() -> Result<()> {
+    for edit_primary in [false, true] {
+        let mut store = Store::memory()?;
+        let table = store.table::<OldTask>("tasks")?;
+        store.write(|w| w.insert(&table, 1, &old("one")))?;
+        let db = store.database();
+        let indexes = db.collection_id(3);
+        let key = corrupt_index_key(table.collection().as_u64(), b"one");
+        let mut tx = db.begin();
+        tx.delete(indexes, &key)?;
+        tx.commit()?;
+        drop(tx);
+        let result = store.write(|w| {
+            assert_eq!(w.rebuild_indexes(&table)?.missing, 1);
+            let mut concurrent = db.begin();
+            if edit_primary {
+                let raw = db
+                    .snapshot()
+                    .get(table.collection(), &1u64.to_le_bytes())?
+                    .unwrap();
+                concurrent.put(table.collection(), &1u64.to_le_bytes(), &raw)?;
+            } else {
+                concurrent.put(
+                    indexes,
+                    &corrupt_index_key(table.collection().as_u64(), b"orphan"),
+                    &db.unsigned(7)?,
+                )?;
+            }
+            concurrent.commit()?;
+            Ok(())
+        });
+        assert_eq!(result, Err(Error::Engine(engine::Error::Conflict)));
+        assert_eq!(db.snapshot().get(indexes, &key)?, None);
+    }
+    let mut store = Store::memory()?;
+    let table = store.table::<OldTask>("tasks")?;
+    store.write(|w| w.insert(&table, 1, &old("one")))?;
+    let db = store.database();
+    let mut tx = db.begin();
+    tx.put(table.collection(), &2u64.to_le_bytes(), &db.none()?)?;
+    tx.commit()?;
+    drop(tx);
+    let before = db.snapshot().revision();
+    assert_eq!(
+        store.write(|w| {
+            assert!(w.rebuild_indexes(&table).is_err());
+            Ok(())
+        }),
+        Err(Error::Engine(engine::Error::Closed))
+    );
+    assert_eq!(db.snapshot().revision(), before);
+    Ok(())
+}
+
+#[cfg(feature = "fault-injection")]
+#[test]
+fn failed_rebuild_allocations_preserve_every_index_and_primary_row() -> Result<()> {
+    let mut succeeded = false;
+    for budget in 0..1024 {
+        let mut store = Store::memory()?;
+        let table = store.table::<OldTask>("tasks")?;
+        store.write(|w| {
+            w.insert(&table, 1, &old("one"))?;
+            w.insert(&table, 2, &old("two"))
+        })?;
+        let db = store.database();
+        let indexes = db.collection_id(3);
+        let mut tx = db.begin();
+        tx.delete(
+            indexes,
+            &corrupt_index_key(table.collection().as_u64(), b"one"),
+        )?;
+        tx.put(
+            indexes,
+            &corrupt_index_key(table.collection().as_u64(), b"orphan"),
+            &db.unsigned(99)?,
+        )?;
+        tx.commit()?;
+        drop(tx);
+        let before = db.snapshot();
+        db.fail_allocations_after(Some(budget));
+        let result = store.write(|w| w.rebuild_indexes(&table));
+        db.fail_allocations_after(None);
+        assert_eq!(
+            db.snapshot().scan(table.collection())?,
+            before.scan(table.collection())?
+        );
+        if result.is_ok() {
+            assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
+            succeeded = true;
+            break;
+        }
+        assert_eq!(
+            result,
+            Err(Error::Engine(engine::Error::OutOfMemory)),
+            "budget={budget}"
+        );
+        assert_eq!(db.snapshot().revision(), before.revision());
+        assert_eq!(db.snapshot().scan(indexes)?, before.scan(indexes)?);
+    }
+    assert!(succeeded);
+    Ok(())
+}
+
+#[test]
+fn interrupted_index_rebuild_reopens_complete_old_or_repaired_indexes() -> Result<()> {
+    use engine::storage::{Crash, Fault, SimulatedDisk};
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [92; 16], engine::Limits::default())?;
+    let table = store.table::<OldTask>("tasks")?;
+    store.write(|w| w.insert(&table, 1, &old("one")))?;
+    let db = store.database();
+    let mut tx = db.begin();
+    tx.delete(
+        db.collection_id(3),
+        &corrupt_index_key(table.collection().as_u64(), b"one"),
+    )?;
+    tx.put(
+        db.collection_id(3),
+        &corrupt_index_key(table.collection().as_u64(), b"orphan"),
+        &db.unsigned(99)?,
+    )?;
+    tx.commit()?;
+    drop(tx);
+    let retained = store.checkpoint()?;
+    let old = store.read(|r| r.check_indexes(&table))?;
+    let revision = store.database().snapshot().revision();
+    let image = disk.durable_image()?;
+    disk.arm(usize::MAX, Fault::Error);
+    store.write(|w| w.rebuild_indexes(&table))?;
+    let steps = disk.trace()?.len();
+    let repaired = store.read(|r| r.check_indexes(&table))?;
+    assert!(repaired.is_consistent());
+    drop(store);
+    for step in 0..steps {
+        for crash in [Crash::DropAll, Crash::PersistAll] {
+            let disk = SimulatedDisk::from_image(&image)?;
+            let mut store = Store::open_on(disk.clone(), engine::Limits::default())?;
+            let table = store.table::<OldTask>("tasks")?;
+            disk.arm(step, Fault::Error);
+            assert!(matches!(
+                store.write(|w| w.rebuild_indexes(&table)),
+                Err(Error::Engine(
+                    engine::Error::Io | engine::Error::OutcomeUnknown
+                ))
+            ));
+            assert_eq!(store.read(|r| r.check_indexes(&table))?, old);
+            drop(store);
+            disk.crash(crash)?;
+            let mut store = Store::open_on(disk, engine::Limits::default())?;
+            let table = store.table::<OldTask>("tasks")?;
+            let reopened = store.database().snapshot().revision();
+            assert!(reopened == revision || reopened == revision + 1);
+            assert_eq!(
+                store.read(|r| r.check_indexes(&table))?,
+                if reopened == revision { old } else { repaired }
+            );
+            assert_eq!(
+                store.read_retained(retained, |r| r.check_indexes(&table))?,
+                old
+            );
+        }
+    }
+    Ok(())
+}
+
+#[derive(Model)]
+#[weekend(type_id = 901, version = 1)]
+struct MigrationProgress {
+    #[weekend(id = 1)]
+    completed: u64,
+}
+
+#[test]
+fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history() -> Result<()> {
+    use engine::storage::{Crash, SimulatedDisk};
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [93; 16], engine::Limits::default())?;
+    let legacy = store.table::<OldTask>("tasks")?;
+    let progress = store.table::<MigrationProgress>("progress")?;
+    store.write(|w| {
+        for id in 1..=3 {
+            w.insert(&legacy, id, &old(&format!("task-{id}")))?;
+        }
+        w.insert(&progress, 1, &MigrationProgress { completed: 0 })
+    })?;
+    let db = store.database();
+    let raw = store.read(|r| {
+        Ok(r.get(&legacy, 1)?
+            .unwrap()
+            .record()
+            .set(99, &db.bytes(b"future")?)?)
+    })?;
+    let mut tx = db.begin();
+    tx.put(legacy.collection(), &1u64.to_le_bytes(), raw.as_value())?;
+    tx.commit()?;
+    drop(tx);
+    let checkpoint = store.checkpoint()?;
+    let tasks = store.table::<Task>("tasks")?;
+    let mut called = Vec::new();
+    assert_eq!(
+        store.write(|w| {
+            let count = w.migrate_ids(&tasks, &[2, 1], |id, _, task| {
+                called.push(id);
+                task.priority = id as u8;
+                Ok(())
+            })?;
+            w.update(&progress, 1, |p| {
+                p.completed = 2;
+                Ok(())
+            })?;
+            Ok(count)
+        })?,
+        2
+    );
+    assert_eq!(called, [2, 1]);
+    assert_eq!(store.read(|r| Ok(r.get(&tasks, 3)?.unwrap().version()))?, 1);
+    assert!(store.read(|r| r.check_indexes(&tasks))?.is_consistent());
+    drop(store);
+    disk.crash(Crash::DropAll)?;
+    let mut store = Store::open_on(disk, engine::Limits::default())?;
+    let tasks = store.table::<Task>("tasks")?;
+    let progress = store.table::<MigrationProgress>("progress")?;
+    assert_eq!(
+        store.read(|r| Ok(r.get(&progress, 1)?.unwrap().completed))?,
+        2
+    );
+    let mut called = Vec::new();
+    assert_eq!(
+        store.write(|w| {
+            let count = w.migrate_ids(&tasks, &[1, 2, 3], |id, _, task| {
+                called.push(id);
+                task.priority = 9;
+                Ok(())
+            })?;
+            w.update(&progress, 1, |p| {
+                p.completed = 3;
+                Ok(())
+            })?;
+            Ok(count)
+        })?,
+        1
+    );
+    assert_eq!(called, [3]);
+    store.read(|r| {
+        assert_eq!(
+            r.get(&tasks, 1)?
+                .unwrap()
+                .record()
+                .field(99)?
+                .unwrap()
+                .as_bytes()?,
+            b"future"
+        );
+        assert_eq!(r.find(&tasks, Task::SLUG, "task-3")?.unwrap().priority, 9);
+        assert!(r.check_indexes(&tasks)?.is_consistent());
+        Ok(())
+    })?;
+    assert_eq!(
+        store.read_retained(checkpoint, |r| Ok(r.get(&tasks, 1)?.unwrap().version()))?,
+        1
+    );
+    Ok(())
+}
+
+#[test]
+fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -> Result<()> {
+    let mut store = Store::memory()?;
+    let legacy = store.table::<OldTask>("tasks")?;
+    let progress = store.table::<MigrationProgress>("progress")?;
+    store.write(|w| {
+        w.insert(&legacy, 1, &old("one"))?;
+        w.insert(&legacy, 2, &old("two"))?;
+        w.insert(&progress, 1, &MigrationProgress { completed: 0 })
+    })?;
+    let tasks = store.table::<Task>("tasks")?;
+    for ids in [
+        vec![1, 1],
+        vec![0],
+        vec![1; store.database().limits().max_writes + 1],
+    ] {
+        let before = store.database().snapshot().revision();
+        let expected = if ids.len() > store.database().limits().max_writes {
+            Error::Engine(engine::Error::Limit)
+        } else {
+            Error::InvalidId
+        };
+        let mut calls = 0;
+        assert_eq!(
+            store.write(|w| w.migrate_ids(&tasks, &ids, |_, _, _| {
+                calls += 1;
+                Ok(())
+            })),
+            Err(expected)
+        );
+        assert_eq!(calls, 0);
+        assert_eq!(store.database().snapshot().revision(), before);
+    }
+    for (ids, fail_callback, collide, error) in [
+        (vec![1, 2], true, false, Error::InvalidId),
+        (vec![1, 2], false, true, Error::UniqueViolation(1)),
+        (
+            vec![1, 99],
+            false,
+            false,
+            Error::Engine(engine::Error::NotFound),
+        ),
+    ] {
+        let before = store.database().snapshot().revision();
+        assert_eq!(
+            store.write(|w| {
+                w.update(&progress, 1, |p| {
+                    p.completed = 9;
+                    Ok(())
+                })?;
+                w.migrate_ids(&tasks, &ids, |id, _, task| {
+                    task.slug = if collide {
+                        "new-1".into()
+                    } else {
+                        format!("new-{id}")
+                    };
+                    if fail_callback && id == 2 {
+                        return Err(Error::InvalidId);
+                    }
+                    Ok(())
+                })
+            }),
+            Err(error)
+        );
+        assert_eq!(store.database().snapshot().revision(), before);
+        assert_eq!(
+            store.read(|r| Ok(r.get(&progress, 1)?.unwrap().completed))?,
+            0
+        );
+        store.read(|r| {
+            assert_eq!(r.get(&tasks, 1)?.unwrap().version(), 1);
+            assert!(r.find(&tasks, Task::SLUG, "new-1")?.is_none());
+            assert!(r.find(&tasks, Task::SLUG, "one")?.is_some());
+            Ok(())
+        })?;
+    }
+    assert_eq!(
+        store.write(|w| w.migrate_ids(&tasks, &[], |_, _, _| panic!("empty batch")))?,
+        0
+    );
+    Ok(())
+}
+
+#[test]
+fn migration_batches_conflict_on_selected_rows_and_allow_unrelated_existing_edits() -> Result<()> {
+    use std::{sync::Barrier, thread};
+    for changed_id in [1, 2] {
+        let mut store = Store::memory()?;
+        let legacy = store.table::<OldTask>("tasks")?;
+        store.write(|w| {
+            w.insert(&legacy, 1, &old("one"))?;
+            w.insert(&legacy, 2, &old("two"))
+        })?;
+        let tasks = store.table::<Task>("tasks")?;
+        let ready = Barrier::new(2);
+        let changed = Barrier::new(2);
+        let result = thread::scope(|scope| {
+            let worker = scope.spawn(|| {
+                store.write(|w| {
+                    w.migrate_ids(&tasks, &[1], |_, _, task| {
+                        ready.wait();
+                        changed.wait();
+                        task.priority = 7;
+                        Ok(())
+                    })
+                })
+            });
+            ready.wait();
+            store
+                .write(|w| {
+                    w.update(&legacy, changed_id, |task| {
+                        task.title = "concurrent".into();
+                        Ok(())
+                    })
+                })
+                .unwrap();
+            changed.wait();
+            worker.join().unwrap()
+        });
+        assert_eq!(
+            result,
+            if changed_id == 1 {
+                Err(Error::Engine(engine::Error::Conflict))
+            } else {
+                Ok(1)
+            }
+        );
+        assert_eq!(
+            store.read(|r| Ok(r.get(&tasks, changed_id)?.unwrap().title.clone()))?,
+            "concurrent"
+        );
+        assert_eq!(
+            store.read(|r| Ok(r.get(&tasks, 1)?.unwrap().version()))?,
+            if changed_id == 1 { 1 } else { 2 }
+        );
+        assert!(store.read(|r| r.check_indexes(&tasks))?.is_consistent());
+    }
+    Ok(())
+}
+
+#[test]
+fn migration_batches_check_observation_limit_before_callbacks() -> Result<()> {
+    let limits = engine::Limits {
+        max_observations: 16,
+        ..engine::Limits::default()
+    };
+    let mut store = Store::initialize(engine::Database::with_limits(limits)?)?;
+    let _legacy = store.table::<OldTask>("tasks")?;
+    let tasks = store.table::<Task>("tasks")?;
+    let ids: Vec<_> = (1..=17).collect();
+    let before = store.database().snapshot().revision();
+    assert_eq!(
+        store.write(|w| w.migrate_ids(&tasks, &ids, |_, _, _| panic!("oversized batch"))),
+        Err(Error::Engine(engine::Error::Limit))
+    );
+    assert_eq!(store.database().snapshot().revision(), before);
+    Ok(())
+}

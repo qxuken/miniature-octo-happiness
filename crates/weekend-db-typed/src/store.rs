@@ -93,6 +93,21 @@ pub struct Write<'a> {
     tx: Transaction<'a>,
     failed: bool,
 }
+/// Index consistency for one table at one snapshot or transaction view.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct IndexReport {
+    pub records: usize,
+    pub expected_entries: usize,
+    pub stored_entries: usize,
+    pub missing: usize,
+    pub orphaned: usize,
+    pub mismatched: usize,
+}
+impl IndexReport {
+    pub fn is_consistent(self) -> bool {
+        self.missing == 0 && self.orphaned == 0 && self.mismatched == 0
+    }
+}
 trait View: ReadView {
     fn scan_records(&mut self, c: CollectionId) -> engine::Result<engine::Rows>;
 }
@@ -194,11 +209,11 @@ impl Store {
     ) -> Result<Self> {
         Self::from_database(Database::open_on(backend, limits)?)
     }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn create_file(path: impl AsRef<std::path::Path>) -> Result<Self> {
         Self::initialize(Database::create_file(path, Limits::default())?)
     }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn open_file(path: impl AsRef<std::path::Path>) -> Result<Self> {
         Self::from_database(Database::open_file(path, Limits::default())?)
     }
@@ -461,6 +476,89 @@ fn index_key(records: u64, field: u64, value: &Value) -> Result<Option<Vec<u8>>>
     key.extend_from_slice(&bytes);
     Ok(Some(key))
 }
+fn record_keys<T: Model>(
+    store: &Store,
+    view: &mut impl View,
+    entry: &Entry,
+    raw: &Record,
+) -> Result<Vec<(u64, Vec<u8>)>> {
+    if raw.type_id() != T::TYPE_ID {
+        return Err(Error::TypeMismatch);
+    }
+    let schema = Schema::load(view, store.db.collection_id(2), T::TYPE_ID, raw.version())?;
+    schema.validate(raw)?;
+    let mut keys = Vec::new();
+    reserve(&mut keys, entry.unique.len())?;
+    for id in &entry.unique {
+        if let Some(value) = raw.field(*id)?
+            && let Some(key) = index_key(entry.records, *id, &value)?
+        {
+            keys.push((*id, key));
+        }
+    }
+    Ok(keys)
+}
+struct IndexState {
+    report: IndexReport,
+    expected: Vec<(Vec<u8>, u64)>,
+    stored: engine::Rows,
+}
+fn index_state<T: Model>(
+    store: &Store,
+    view: &mut impl View,
+    table: &Table<T>,
+) -> Result<IndexState> {
+    let entry = info(store, view, table)?;
+    let records = view.scan_records(table.records)?;
+    let mut expected = Vec::new();
+    for (key, value) in &records {
+        let id = row_id(key)?;
+        let raw = Record::from_value(value.clone())?;
+        for (_, key) in record_keys::<T>(store, view, &entry, &raw)? {
+            expected
+                .try_reserve(1)
+                .map_err(|_| Error::Engine(engine::Error::OutOfMemory))?;
+            expected.push((key, id));
+        }
+    }
+    expected.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    for pair in expected.windows(2) {
+        if pair[0].0 == pair[1].0 {
+            // Keys were produced by index_key above, including the field ID.
+            let field = u64::from_le_bytes(pair[0].0[8..16].try_into().unwrap());
+            return Err(Error::UniqueViolation(field));
+        }
+    }
+    let mut stored = view.scan_records(store.db.collection_id(3))?;
+    stored.retain(|(key, _)| key.starts_with(&entry.records.to_le_bytes()));
+    stored.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    let mut report = IndexReport {
+        records: records.len(),
+        expected_entries: expected.len(),
+        stored_entries: stored.len(),
+        ..IndexReport::default()
+    };
+    for (key, id) in &expected {
+        match stored.binary_search_by(|(candidate, _)| candidate.cmp(key)) {
+            Err(_) => report.missing += 1,
+            Ok(index) if stored[index].1.as_u64().ok() != Some(*id) => report.mismatched += 1,
+            Ok(_) => {}
+        }
+    }
+    report.orphaned = stored
+        .iter()
+        .filter(|(key, _)| {
+            expected
+                .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                .is_err()
+        })
+        .count();
+    Ok(IndexState {
+        report,
+        expected,
+        stored,
+    })
+}
 fn find<T: Model, V: FieldValue, Q: LookupValue<V> + ?Sized>(
     store: &Store,
     view: &mut impl View,
@@ -506,6 +604,10 @@ fn find<T: Model, V: FieldValue, Q: LookupValue<V> + ?Sized>(
     Ok(Some(doc))
 }
 impl Read<'_> {
+    /// Compare this table's primary records with its stored unique indexes.
+    pub fn check_indexes<T: Model>(&mut self, table: &Table<T>) -> Result<IndexReport> {
+        Ok(index_state(self.store, &mut self.snapshot, table)?.report)
+    }
     pub fn get<T: Model>(&mut self, table: &Table<T>, id: u64) -> Result<Option<Document<T>>> {
         get(self.store, &mut self.snapshot, table, id)
     }
@@ -539,6 +641,37 @@ impl Write<'_> {
                 Err(e)
             }
         }
+    }
+    pub fn check_indexes<T: Model>(&mut self, table: &Table<T>) -> Result<IndexReport> {
+        self.checked(|w| Ok(index_state(w.store, &mut w.tx, table)?.report))
+    }
+    /// Repair this table's index rows atomically. Returns the pre-repair report.
+    /// Primary records are validated and never rewritten.
+    pub fn rebuild_indexes<T: Model>(&mut self, table: &Table<T>) -> Result<IndexReport> {
+        self.checked(|w| {
+            let state = index_state(w.store, &mut w.tx, table)?;
+            let indexes = w.store.db.collection_id(3);
+            for (key, _) in &state.stored {
+                if state
+                    .expected
+                    .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                    .is_err()
+                {
+                    w.tx.delete(indexes, key)?;
+                }
+            }
+            for (key, id) in &state.expected {
+                let existing = state
+                    .stored
+                    .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                    .ok()
+                    .and_then(|index| state.stored[index].1.as_u64().ok());
+                if existing != Some(*id) {
+                    w.tx.put(indexes, key, &w.store.db.unsigned(*id)?)?;
+                }
+            }
+            Ok(state.report)
+        })
     }
     pub fn get<T: Model>(&mut self, table: &Table<T>, id: u64) -> Result<Option<Document<T>>> {
         self.checked(|w| get(w.store, &mut w.tx, table, id))
@@ -616,44 +749,90 @@ impl Write<'_> {
             )?;
             let mut count = 0;
             for (key, value) in w.tx.scan(table.records)? {
-                let mut doc = decode::<T>(w.store, &mut w.tx, row_id(&key)?, value)?;
-                if doc.version() > T::VERSION {
-                    return Err(Error::UnsupportedVersion);
-                }
-                if doc.version() == T::VERSION {
-                    continue;
-                }
-                convert(&doc.raw, &mut doc.value)?;
-                let raw = doc
-                    .value
-                    .patch(&w.store.db, &doc.raw.with_schema(&w.store.db, &target)?)?;
-                w.put_raw(table, &entry, doc.id, raw)?;
-                count += 1;
+                count += usize::from(w.migrate_record(
+                    table,
+                    &entry,
+                    &target,
+                    (row_id(&key)?, value),
+                    &mut convert,
+                )?);
             }
             Ok(count)
         })
     }
-    fn keys<T: Model>(&mut self, entry: &Entry, raw: &Record) -> Result<Vec<(u64, Vec<u8>)>> {
-        if raw.type_id() != T::TYPE_ID {
-            return Err(Error::TypeMismatch);
-        }
-        let schema = Schema::load(
-            &mut self.tx,
-            self.store.db.collection_id(2),
-            T::TYPE_ID,
-            raw.version(),
-        )?;
-        schema.validate(raw)?;
-        let mut keys = Vec::new();
-        reserve(&mut keys, entry.unique.len())?;
-        for id in &entry.unique {
-            if let Some(value) = raw.field(*id)?
-                && let Some(key) = index_key(entry.records, *id, &value)?
-            {
-                keys.push((*id, key));
+    /// Migrate explicit primary IDs in input order, returning the number changed.
+    /// Zero, duplicate, missing, or oversized inputs abort the whole closure.
+    /// Already-current records skip conversion. Progress rows may be updated
+    /// through this same Write so they commit atomically with the batch.
+    pub fn migrate_ids<T: Model>(
+        &mut self,
+        table: &Table<T>,
+        ids: &[u64],
+        mut convert: impl FnMut(u64, &Record, &mut T) -> Result<()>,
+    ) -> Result<usize> {
+        self.checked(|w| {
+            let limits = w.store.db.limits();
+            if ids.len() > limits.max_writes || ids.len() > limits.max_observations {
+                return Err(Error::Engine(engine::Error::Limit));
             }
+            let mut sorted = Vec::new();
+            reserve(&mut sorted, ids.len())?;
+            sorted.extend_from_slice(ids);
+            sorted.sort_unstable();
+            if sorted.first() == Some(&0) || sorted.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(Error::InvalidId);
+            }
+            let entry = info(w.store, &mut w.tx, table)?;
+            if entry.version != T::VERSION {
+                return Err(Error::UnsupportedVersion);
+            }
+            let target = Schema::load(
+                &mut w.tx,
+                w.store.db.collection_id(2),
+                T::TYPE_ID,
+                T::VERSION,
+            )?;
+            let mut count = 0;
+            for &id in ids {
+                let value =
+                    w.tx.get(table.records, &id_key(id)?)?
+                        .ok_or(Error::Engine(engine::Error::NotFound))?;
+                count += usize::from(w.migrate_record(
+                    table,
+                    &entry,
+                    &target,
+                    (id, value),
+                    &mut |raw, model| convert(id, raw, model),
+                )?);
+            }
+            Ok(count)
+        })
+    }
+    fn migrate_record<T: Model>(
+        &mut self,
+        table: &Table<T>,
+        entry: &Entry,
+        target: &Schema,
+        (id, value): (u64, Value),
+        convert: &mut impl FnMut(&Record, &mut T) -> Result<()>,
+    ) -> Result<bool> {
+        let mut doc = decode::<T>(self.store, &mut self.tx, id, value)?;
+        if doc.version() > T::VERSION {
+            return Err(Error::UnsupportedVersion);
         }
-        Ok(keys)
+        if doc.version() == T::VERSION {
+            return Ok(false);
+        }
+        convert(&doc.raw, &mut doc.value)?;
+        let raw = doc.value.patch(
+            &self.store.db,
+            &doc.raw.with_schema(&self.store.db, target)?,
+        )?;
+        self.put_raw(table, entry, doc.id, raw)?;
+        Ok(true)
+    }
+    fn keys<T: Model>(&mut self, entry: &Entry, raw: &Record) -> Result<Vec<(u64, Vec<u8>)>> {
+        record_keys::<T>(self.store, &mut self.tx, entry, raw)
     }
     fn put_raw<T: Model>(
         &mut self,

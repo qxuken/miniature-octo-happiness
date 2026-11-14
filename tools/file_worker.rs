@@ -1,5 +1,5 @@
 //! Test-only process-interruption helper; built with fault-injection.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 mod platform {
     use std::{
         io::{self, Write},
@@ -81,6 +81,7 @@ mod platform {
         let path = Path::new(&args[1]);
         let operation = &args[2];
         let phase = &args[3];
+        #[cfg(not(windows))]
         if operation == "compact" {
             use weekend_db::storage::{CompactionStep as S, compact_file_with_hook};
             let events = Arc::new(Mutex::new(Vec::new()));
@@ -203,11 +204,11 @@ mod platform {
         Ok(())
     }
 }
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 fn main() -> weekend_db::Result<()> {
     platform::run()
 }
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 fn main() {
-    panic!("file-worker requires macOS or Linux");
+    panic!("file-worker requires macOS, Linux, or Windows");
 }

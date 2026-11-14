@@ -4,27 +4,50 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 publish = false
+license = "MIT OR Apache-2.0"
 
 [workspace]
-members = ["crates/weekend-db-typed", "crates/weekend-db-macros", "apps/weekend-tasks"]
+members = ["crates/weekend-db-typed", "crates/weekend-db-macros", "apps/weekend-tasks", "apps/study-peer", "apps/write-coordinator", "apps/weekend-replicate"]
 default-members = [".", "crates/weekend-db-typed", "crates/weekend-db-macros", "apps/weekend-tasks"]
 resolver = "3"
-exclude = ["probe/rust"]
+exclude = ["probe/rust", "fuzz", "tools/atomic-model"]
 
 [lib]
 crate-type = ["rlib", "cdylib"]
 
 [features]
+crdt = ["dep:weekend-db-macros"]
 fault-injection = []
+replication = ["dep:sha2"]
+
+[dependencies]
+sha2 = { version = "0.10.9", default-features = false, optional = true }
+weekend-db-macros = { path = "crates/weekend-db-macros", optional = true }
 
 [[bin]]
 name = "benchmark"
 path = "tools/benchmark.rs"
 
 [[bin]]
+name = "weekend-admin"
+path = "tools/admin.rs"
+
+[[bin]]
 name = "file-worker"
 path = "tools/file_worker.rs"
 required-features = ["fault-injection"]
 
+[[example]]
+name = "study_progress"
+required-features = ["crdt"]
+
 [profile.release]
 overflow-checks = true
+
+[[example]]
+name = "crdt_policy_migration"
+required-features = ["crdt"]
+
+[[example]]
+name = "native_quota"
+path = "tools/quota/fixture.rs"

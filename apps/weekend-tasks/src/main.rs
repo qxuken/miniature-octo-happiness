@@ -24,12 +24,12 @@ const HELP: &str = "weekend-tasks [--db PATH] COMMAND
   compact                      Compact the closed database (macOS/Linux)
   demo                         Run the portable in-memory demo
 
-Default path: tasks.wdb. File storage is currently available on macOS and Linux.";
+Default path: tasks.wdb. File storage supports macOS, Linux, and Windows NTFS.";
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 fn fail(message: &str) -> Box<dyn std::error::Error> {
     std::io::Error::new(std::io::ErrorKind::InvalidInput, message).into()
 }
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 fn open(path: &Path, create: bool) -> Result<Store> {
     Ok(if create {
         Store::create_file(path)?
@@ -37,10 +37,10 @@ fn open(path: &Path, create: bool) -> Result<Store> {
         Store::open_file(path)?
     })
 }
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 fn open(_path: &Path, _create: bool) -> Result<Store> {
     Err(fail(
-        "File storage requires macOS or Linux; run `weekend-tasks demo` on this platform.",
+        "File storage requires macOS, Linux, or Windows NTFS. Run `weekend-tasks demo` here.",
     ))
 }
 fn print_task(task: &Document<Task>) {

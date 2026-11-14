@@ -84,8 +84,8 @@ impl SimulatedDisk {
         }
         let mem = Memory::new(Limits::default())?;
         let disk = mem.shared(Mutex::new(Disk {
-            volatile: mem.copy(image)?,
-            durable: mem.copy(image)?,
+            volatile: mem.copy_external(image)?,
+            durable: mem.copy_external(image)?,
             pending: Vec::new(),
             events: Vec::new(),
             fault: None,
@@ -113,18 +113,18 @@ impl SimulatedDisk {
     pub fn trace(&self) -> Result<Vec<IoEvent>> {
         let disk = self.disk.lock().unwrap();
         let mut out = Vec::new();
-        self.mem.reserve(&mut out, disk.events.len())?;
+        self.mem.reserve_external(&mut out, disk.events.len())?;
         out.extend_from_slice(&disk.events);
         Ok(out)
     }
     pub fn durable_image(&self) -> Result<Vec<u8>> {
-        self.mem.copy(&self.disk.lock().unwrap().durable)
+        self.mem.copy_external(&self.disk.lock().unwrap().durable)
     }
     pub fn crash(&self, policy: Crash) -> Result<()> {
         let mut disk = self.disk.lock().unwrap();
         let epoch = disk.epoch.checked_add(1).ok_or(Error::Exhausted)?;
         let durable = survive(&self.mem, &disk, policy)?;
-        let volatile = self.mem.copy(&durable)?;
+        let volatile = self.mem.copy_external(&durable)?;
         disk.durable = durable;
         disk.volatile = volatile;
         disk.pending.clear();
@@ -152,7 +152,7 @@ impl SimulatedDisk {
             if disk.events.len() >= 262_144 {
                 return Err(Error::Limit);
             }
-            self.mem.reserve(&mut disk.events, 1)?;
+            self.mem.reserve_external(&mut disk.events, 1)?;
             disk.events.push(event);
         }
         let step = disk.steps;
@@ -175,14 +175,14 @@ fn range(offset: u64, len: usize) -> Result<(usize, usize)> {
 fn apply(mem: &Memory, image: &mut Vec<u8>, offset: usize, bytes: &[u8]) -> Result<()> {
     let (_, end) = range(offset as u64, bytes.len())?;
     if end > image.len() {
-        mem.reserve(image, end - image.len())?;
+        mem.reserve_external(image, end - image.len())?;
         image.resize(end, 0);
     }
     image[offset..end].copy_from_slice(bytes);
     Ok(())
 }
 fn survive(mem: &Memory, disk: &Disk, policy: Crash) -> Result<Vec<u8>> {
-    let mut image = mem.copy(&disk.durable)?;
+    let mut image = mem.copy_external(&disk.durable)?;
     match policy {
         Crash::DropAll => {}
         Crash::PersistAll => {
@@ -262,9 +262,6 @@ impl ByteStore for SimulatedDisk {
         let (start, _) = range(offset, requested)?;
         let n = requested.min(disk.volatile.len().saturating_sub(start));
         if n != 0 {
-            if disk.pending.len() >= 2 * MAX_IMAGE_BYTES / super::REGION {
-                return Err(Error::Limit);
-            }
             out[..n].copy_from_slice(&disk.volatile[start..start + n]);
         }
         Ok(n)
@@ -287,14 +284,17 @@ impl ByteStore for SimulatedDisk {
         };
         let (start, end) = range(offset, n)?;
         if n != 0 {
-            let copy = self.mem.copy(&bytes[..n])?;
-            self.mem.reserve(&mut disk.pending, 1)?;
+            if disk.pending.len() >= 2 * MAX_IMAGE_BYTES / super::REGION {
+                return Err(Error::Limit);
+            }
+            let copy = self.mem.copy_external(&bytes[..n])?;
+            self.mem.reserve_external(&mut disk.pending, 1)?;
             let extra = end.saturating_sub(disk.volatile.len());
-            self.mem.reserve(&mut disk.volatile, extra)?;
+            self.mem.reserve_external(&mut disk.volatile, extra)?;
             // Reserve the possible immediate durable tear before changing either image.
             if durable {
                 let extra = end.saturating_sub(disk.durable.len());
-                self.mem.reserve(&mut disk.durable, extra)?;
+                self.mem.reserve_external(&mut disk.durable, extra)?;
             }
             apply(&self.mem, &mut disk.volatile, start, &copy)?;
             if durable {
@@ -319,7 +319,7 @@ impl ByteStore for SimulatedDisk {
         )?;
         match fault {
             None => {
-                let durable = self.mem.copy(&disk.volatile)?;
+                let durable = self.mem.copy_external(&disk.volatile)?;
                 disk.durable = durable;
                 disk.pending.clear();
                 Ok(())
@@ -362,5 +362,80 @@ impl ByteStore for MemoryStore {
     }
     fn sync(&mut self) -> Result<()> {
         self.0.sync()
+    }
+}
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+
+    #[test]
+    fn epoch_and_event_counters_accept_last_step_then_fail_without_wrap() {
+        let mut disk = SimulatedDisk::new().unwrap();
+        disk.disk.lock().unwrap().epoch = u64::MAX - 1;
+        disk.lock().unwrap();
+        disk.crash(Crash::DropAll).unwrap();
+        assert_eq!(disk.disk.lock().unwrap().epoch, u64::MAX);
+        disk.lock().unwrap();
+        disk.write(0, &[9]).unwrap();
+        assert_eq!(disk.crash(Crash::PersistAll), Err(Error::Exhausted));
+        assert_eq!(disk.length(), Ok(1));
+        assert!(disk.durable_image().unwrap().is_empty());
+        {
+            let mut state = disk.disk.lock().unwrap();
+            state.record = false;
+            state.events.clear();
+            state.steps = usize::MAX - 1;
+        }
+        assert_eq!(disk.length(), Ok(1));
+        assert_eq!(disk.length(), Err(Error::Exhausted));
+        assert_eq!(disk.disk.lock().unwrap().steps, usize::MAX);
+        disk.disk.lock().unwrap().steps = 0;
+        disk.sync().unwrap();
+        assert_eq!(disk.durable_image().unwrap(), [9]);
+    }
+
+    #[test]
+    fn event_capacity_and_recording_controls_preserve_step_order() {
+        let mut disk = SimulatedDisk::new().unwrap();
+        disk.lock().unwrap();
+        {
+            let mut state = disk.disk.lock().unwrap();
+            state.events.resize(
+                262_143,
+                IoEvent {
+                    kind: IoKind::Length,
+                    offset: 0,
+                    len: 0,
+                },
+            );
+            state.steps = 262_143;
+        }
+        assert_eq!(disk.length(), Ok(0));
+        assert_eq!(disk.length(), Err(Error::Limit));
+        assert_eq!(disk.disk.lock().unwrap().steps, 262_144);
+        assert_eq!(disk.disk.lock().unwrap().events.len(), 262_144);
+        // Turning tracing off is the actual MemoryStore policy: I/O continues
+        // even with a full trace buffer, and does not append another event.
+        disk.disk.lock().unwrap().record = false;
+        assert_eq!(disk.length(), Ok(0));
+        assert_eq!(disk.disk.lock().unwrap().steps, 262_145);
+        assert_eq!(disk.disk.lock().unwrap().events.len(), 262_144);
+        let mut memory = MemoryStore::new().unwrap();
+        memory.lock().unwrap();
+        memory.write(0, &[1]).unwrap();
+        assert!(memory.0.disk.lock().unwrap().events.is_empty());
+    }
+
+    #[test]
+    fn synthetic_range_addition_and_extent_guards_are_distinct() {
+        assert_eq!(
+            range(MAX_IMAGE_BYTES as u64, 0),
+            Ok((MAX_IMAGE_BYTES, MAX_IMAGE_BYTES))
+        );
+        assert_eq!(range(MAX_IMAGE_BYTES as u64, 1), Err(Error::Limit));
+        assert_eq!(range(usize::MAX as u64, 1), Err(Error::Limit));
+        #[cfg(target_pointer_width = "32")]
+        assert_eq!(range(u64::from(u32::MAX) + 1, 0), Err(Error::Limit));
     }
 }

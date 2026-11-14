@@ -1,0 +1,12 @@
+[package]
+name = "study-peer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[target.'cfg(any(target_os = "macos", target_os = "linux", windows))'.dependencies]
+rcgen = { version = "0.14.10", default-features = false, features = ["ring"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std"] }
+weekend-db = { path = "../..", features = ["crdt"] }

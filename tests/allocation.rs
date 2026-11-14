@@ -1,5 +1,74 @@
 #![cfg(feature = "fault-injection")]
-use weekend_db::{Database, Error, TransactionState};
+use weekend_db::{Database, Error, Limits, TransactionState};
+
+#[test]
+fn allocation_limits_reject_each_independent_invalid_configuration() {
+    let valid = Limits {
+        max_live_bytes: usize::MAX,
+        max_depth: 64,
+        max_entries: 1_000_000,
+        max_writes: 1_000_000,
+        max_observations: 1_000_000,
+        max_bytes: isize::MAX as usize,
+        max_value_bytes: isize::MAX as usize,
+        max_transaction_bytes: isize::MAX as usize,
+    };
+    assert!(Database::with_limits(valid).is_ok());
+    for invalid in [
+        Limits {
+            max_depth: 0,
+            ..valid
+        },
+        Limits {
+            max_depth: 65,
+            ..valid
+        },
+        Limits {
+            max_entries: 1_000_001,
+            ..valid
+        },
+        Limits {
+            max_writes: 1_000_001,
+            ..valid
+        },
+        Limits {
+            max_observations: 1_000_001,
+            ..valid
+        },
+        Limits {
+            max_bytes: isize::MAX as usize + 1,
+            ..valid
+        },
+        Limits {
+            max_value_bytes: isize::MAX as usize + 1,
+            ..valid
+        },
+        Limits {
+            max_transaction_bytes: isize::MAX as usize + 1,
+            ..valid
+        },
+    ] {
+        assert!(
+            matches!(Database::with_limits(invalid), Err(Error::Invalid)),
+            "{invalid:?}"
+        );
+    }
+    // Zero collection/key budgets are legal configuration values. They need
+    // not permit every application operation.
+    assert!(
+        Database::with_limits(Limits {
+            max_live_bytes: usize::MAX,
+            max_depth: 1,
+            max_entries: 0,
+            max_writes: 0,
+            max_observations: 0,
+            max_bytes: 0,
+            max_value_bytes: 0,
+            max_transaction_bytes: 0,
+        })
+        .is_ok()
+    );
+}
 
 #[test]
 fn every_nested_edit_allocation_can_fail_without_changing_inputs() {

@@ -132,9 +132,8 @@ export!(wdb_open(out: *mut *mut CDatabase) {
     *out = mem.raw(CDatabase { db: database, handles: AtomicUsize::new(0) })?;
     Ok(())
 });
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 unsafe fn path<'a>(bytes: *const u8, len: usize) -> Result<&'a std::path::Path> {
-    use std::os::unix::ffi::OsStrExt;
     if bytes.is_null() || len == 0 {
         return Err(Error::Invalid);
     }
@@ -145,17 +144,24 @@ unsafe fn path<'a>(bytes: *const u8, len: usize) -> Result<&'a std::path::Path> 
     if bytes.contains(&0) {
         return Err(Error::Invalid);
     }
-    Ok(std::path::Path::new(std::ffi::OsStr::from_bytes(bytes)))
+    #[cfg(windows)]
+    let name = std::str::from_utf8(bytes).map_err(|_| Error::Invalid)?;
+    #[cfg(not(windows))]
+    let name = {
+        use std::os::unix::ffi::OsStrExt;
+        std::ffi::OsStr::from_bytes(bytes)
+    };
+    Ok(std::path::Path::new(name))
 }
 macro_rules! file_factory {
     ($name:ident,$method:ident)=>{export!($name(bytes:*const u8,len:usize,out:*mut *mut CDatabase) {
         output(out)?;
-        #[cfg(any(target_os="macos",target_os="linux"))]
+        #[cfg(any(target_os="macos",target_os="linux",windows))]
         {
             let database=Database::$method(path(bytes,len)?,crate::Limits::default())?;
             let mem=database.mem.clone();*out=mem.raw(CDatabase {db:database,handles:AtomicUsize::new(0)})?;Ok(())
         }
-        #[cfg(not(any(target_os="macos",target_os="linux")))]
+        #[cfg(not(any(target_os="macos",target_os="linux",windows)))]
         {let _=(bytes,len);Err(Error::UnsupportedPlatform)}
     });};
 }
@@ -334,9 +340,375 @@ export!(wdb_scan_value(scan: *const CScan, index: usize, out: *mut *mut CValue) 
     make_handle(scan.owner, value.clone(), out)
 });
 
+#[unsafe(no_mangle)]
+pub extern "C" fn wdb_abi_version() -> u32 {
+    crate::version::ABI_VERSION
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn wdb_format_version() -> u32 {
+    crate::version::FORMAT_VERSION
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn wdb_features() -> u32 {
+    crate::version::FEATURES
+}
+export!(wdb_package_version(buffer: *mut u8, capacity: usize, required: *mut usize) {
+    copy_bytes(crate::version::PACKAGE_VERSION.as_bytes(), buffer, capacity, required)
+});
+export!(wdb_source_id(buffer: *mut u8, capacity: usize, required: *mut usize) {
+    copy_bytes(crate::version::SOURCE_ID.as_bytes(), buffer, capacity, required)
+});
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn exported_commit_contains_adapter_panic_and_requires_recovery() {
+        use crate::storage::{ByteStore, SimulatedDisk};
+        use std::sync::{Arc, atomic::AtomicBool};
+
+        struct PanickingStore {
+            disk: SimulatedDisk,
+            armed: Arc<AtomicBool>,
+        }
+        impl ByteStore for PanickingStore {
+            fn lock(&mut self) -> Result<()> {
+                self.disk.lock()
+            }
+            fn unlock(&mut self) {
+                self.disk.unlock();
+            }
+            fn length(&mut self) -> Result<u64> {
+                self.disk.length()
+            }
+            fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
+                self.disk.read(offset, out)
+            }
+            fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
+                self.disk.write(offset, bytes)
+            }
+            fn sync(&mut self) -> Result<()> {
+                self.disk.sync()?;
+                assert!(
+                    !self.armed.swap(false, Ordering::Relaxed),
+                    "intentional sync panic"
+                );
+                Ok(())
+            }
+        }
+        let disk = SimulatedDisk::new().unwrap();
+        let armed = Arc::new(AtomicBool::new(false));
+        let db = Database::create_on(
+            PanickingStore {
+                disk: disk.clone(),
+                armed: armed.clone(),
+            },
+            *b"ffi-panic-test01",
+            crate::Limits::default(),
+        )
+        .unwrap();
+        let mem = db.mem.clone();
+        let owner = mem
+            .raw(CDatabase {
+                db,
+                handles: AtomicUsize::new(0),
+            })
+            .unwrap();
+        unsafe {
+            let mut tx = ptr::null_mut();
+            assert_eq!(wdb_tx_begin(owner, 0, &mut tx), 0);
+            armed.store(true, Ordering::Relaxed);
+            let mut revision = u64::MAX;
+            assert_eq!(wdb_tx_commit(tx, &mut revision), Error::Panic as i32);
+            assert_eq!(revision, 0);
+            assert_eq!(
+                wdb_tx_commit(tx, &mut revision),
+                Error::RecoveryRequired as i32
+            );
+            assert_eq!(revision, 0);
+            assert_eq!(wdb_tx_release(tx), 0);
+            assert_eq!(wdb_close(owner), 0);
+        }
+        let reopened = Database::open_on(disk, crate::Limits::default()).unwrap();
+        assert_eq!(reopened.snapshot().revision(), 0);
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    #[test]
+    fn file_path_null_length_and_nul_guards_reset_output() {
+        unsafe {
+            for (bytes, len, expected) in [
+                (ptr::null(), 1, Error::Invalid),
+                (b"x".as_ptr(), 0, Error::Invalid),
+                (b"x".as_ptr(), 1024 * 1024 + 1, Error::Limit),
+                (b"x\0y".as_ptr(), 3, Error::Invalid),
+            ] {
+                let mut database = ptr::dangling_mut();
+                assert_eq!(wdb_file_open(bytes, len, &mut database), expected as i32);
+                assert!(database.is_null());
+            }
+            // A valid byte span reaches path conversion without dereferencing
+            // any output pointer or touching the filesystem.
+            assert_eq!(path(b"x".as_ptr(), 1).unwrap(), std::path::Path::new("x"));
+        }
+    }
+    #[test]
+    fn byte_buffers_distinguish_null_capacity_and_required_length() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            for bytes in [b"".as_slice(), b"abc".as_slice()] {
+                let mut value = ptr::null_mut();
+                assert_eq!(
+                    wdb_value_make(database, 5, 0, bytes.as_ptr(), bytes.len(), &mut value),
+                    0
+                );
+                for (null_buffer, capacity) in
+                    [(true, 0), (true, 3), (false, 0), (false, 2), (false, 3)]
+                {
+                    let mut buffer = [0xa5; 3];
+                    let destination = if null_buffer {
+                        ptr::null_mut()
+                    } else {
+                        buffer.as_mut_ptr()
+                    };
+                    let mut required = usize::MAX;
+                    let expected = if null_buffer && capacity != 0 {
+                        Error::Invalid as i32
+                    } else if capacity < bytes.len() {
+                        Error::Buffer as i32
+                    } else {
+                        0
+                    };
+                    assert_eq!(
+                        wdb_value_bytes(value, destination, capacity, &mut required),
+                        expected
+                    );
+                    assert_eq!(required, bytes.len());
+                    if expected == 0 && !bytes.is_empty() {
+                        assert_eq!(&buffer, bytes);
+                    } else {
+                        assert_eq!(buffer, [0xa5; 3]);
+                    }
+                }
+                let mut untouched = [0xa5; 3];
+                assert_eq!(
+                    wdb_value_bytes(value, untouched.as_mut_ptr(), 3, ptr::null_mut()),
+                    Error::Invalid as i32
+                );
+                assert_eq!(untouched, [0xa5; 3]);
+                assert_eq!(wdb_value_release(value), 0);
+            }
+            let mut required = usize::MAX;
+            assert_eq!(
+                wdb_value_bytes(ptr::null(), ptr::null_mut(), 0, &mut required),
+                Error::Invalid as i32
+            );
+            assert_eq!(required, 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn input_length_kind_and_output_guards_preserve_handle_ownership() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            let byte = [7u8];
+            for (kind, bits, bytes, len, expected) in [
+                (5, 0, ptr::null(), 0, 0),
+                (5, 0, byte.as_ptr(), 1, 0),
+                (5, 0, ptr::null(), 1, Error::Invalid as i32),
+                (5, 0, ptr::null(), 1024 * 1024 + 1, Error::Limit as i32),
+                (5, 1, ptr::null(), 0, Error::Invalid as i32),
+                (2, 7, ptr::null(), 0, 0),
+                (2, 7, byte.as_ptr(), 1, Error::Invalid as i32),
+                (-1, 0, ptr::null(), 0, Error::Invalid as i32),
+                (8, 0, ptr::null(), 0, Error::Invalid as i32),
+                (1, 2, ptr::null(), 0, Error::Invalid as i32),
+            ] {
+                // The sentinel is output-only and is never dereferenced.
+                let mut value = ptr::dangling_mut();
+                assert_eq!(
+                    wdb_value_make(database, kind, bits, bytes, len, &mut value),
+                    expected
+                );
+                if expected == 0 {
+                    assert!(!value.is_null());
+                    assert_eq!(wdb_value_release(value), 0);
+                } else {
+                    assert!(value.is_null());
+                }
+                assert_eq!((*database).handles.load(Ordering::Acquire), 0);
+            }
+            assert_eq!(
+                wdb_value_make(database, 0, 0, ptr::null(), 0, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            let mut output = ptr::dangling_mut();
+            assert_eq!(
+                wdb_value_clone(ptr::null(), &mut output),
+                Error::Invalid as i32
+            );
+            assert!(output.is_null());
+            assert_eq!(wdb_value_release(ptr::null_mut()), 0);
+            assert_eq!(wdb_snapshot_release(ptr::null_mut()), 0);
+            assert_eq!(wdb_scan_release(ptr::null_mut()), 0);
+            assert_eq!(wdb_tx_release(ptr::null_mut()), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn retained_id_buffers_and_foreign_snapshots_preserve_outputs() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            let mut foreign = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            assert_eq!(wdb_open(&mut foreign), 0);
+            let mut snapshot = ptr::null_mut();
+            assert_eq!(wdb_snapshot_acquire(database, &mut snapshot), 0);
+            let mut id = u64::MAX;
+            assert_eq!(
+                wdb_snapshot_retain(foreign, snapshot, &mut id),
+                Error::ForeignStore as i32
+            );
+            assert_eq!(id, 0);
+            assert_eq!(
+                wdb_snapshot_retain(database, snapshot, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            for populated in [false, true] {
+                if populated {
+                    assert_eq!(wdb_snapshot_retain(database, snapshot, &mut id), 0);
+                    assert_eq!(id, 1);
+                }
+                for (null_buffer, capacity) in [(true, 0), (true, 1), (false, 0), (false, 1)] {
+                    let mut buffer = u64::MAX;
+                    let destination = if null_buffer {
+                        ptr::null_mut()
+                    } else {
+                        &mut buffer
+                    };
+                    let mut required = usize::MAX;
+                    let expected = if null_buffer && capacity != 0 {
+                        Error::Invalid as i32
+                    } else if populated && capacity == 0 {
+                        Error::Buffer as i32
+                    } else {
+                        0
+                    };
+                    assert_eq!(
+                        wdb_retained_ids(database, destination, capacity, &mut required),
+                        expected
+                    );
+                    assert_eq!(
+                        required,
+                        usize::from(populated && expected != Error::Invalid as i32)
+                    );
+                    assert_eq!(
+                        buffer,
+                        if populated && expected == 0 {
+                            1
+                        } else {
+                            u64::MAX
+                        }
+                    );
+                }
+            }
+            let mut buffer = u64::MAX;
+            assert_eq!(
+                wdb_retained_ids(database, &mut buffer, 1, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(buffer, u64::MAX);
+            assert_eq!(wdb_snapshot_release(snapshot), 0);
+            assert_eq!(wdb_close(foreign), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn handle_count_exhaustion_rejects_clone_without_losing_source() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            let mut value = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            assert_eq!(
+                wdb_value_make(database, 2, 7, ptr::null(), 0, &mut value),
+                0
+            );
+            // Construct only the otherwise impractical counter boundary.
+            (*database).handles.store(usize::MAX, Ordering::Relaxed);
+            let mut clone = ptr::dangling_mut();
+            assert_eq!(wdb_value_clone(value, &mut clone), Error::Limit as i32);
+            assert!(clone.is_null());
+            assert_eq!((*database).handles.load(Ordering::Relaxed), usize::MAX);
+            (*database).handles.store(1, Ordering::Relaxed);
+            assert_eq!(wdb_value_clone(value, &mut clone), 0);
+            assert_eq!(wdb_value_release(clone), 0);
+            let mut bits = 0;
+            assert_eq!(wdb_value_scalar(value, &mut bits), 0);
+            assert_eq!(bits, 7);
+            assert_eq!(wdb_value_release(value), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+    #[test]
+    fn scan_bounds_and_invalid_transaction_modes_reset_outputs() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            let mut map = ptr::null_mut();
+            let mut item = ptr::null_mut();
+            let mut populated = ptr::null_mut();
+            assert_eq!(wdb_value_make(database, 6, 0, ptr::null(), 0, &mut map), 0);
+            assert_eq!(wdb_value_make(database, 2, 7, ptr::null(), 0, &mut item), 0);
+            assert_eq!(wdb_map_set(map, b"k".as_ptr(), 1, item, &mut populated), 0);
+            let mut scan = ptr::null_mut();
+            assert_eq!(wdb_map_scan(populated, &mut scan), 0);
+            for index in [0, 1, usize::MAX] {
+                let mut key = [0xa5];
+                let mut required = usize::MAX;
+                let mut value = ptr::dangling_mut();
+                let expected = if index == 0 { 0 } else { Error::Bounds as i32 };
+                assert_eq!(
+                    wdb_scan_key(scan, index, key.as_mut_ptr(), 1, &mut required),
+                    expected
+                );
+                assert_eq!(wdb_scan_value(scan, index, &mut value), expected);
+                if index == 0 {
+                    assert_eq!(key, *b"k");
+                    assert_eq!(required, 1);
+                    assert_eq!(wdb_value_release(value), 0);
+                } else {
+                    assert_eq!(key, [0xa5]);
+                    assert_eq!(required, 0);
+                    assert!(value.is_null());
+                }
+            }
+            for mode in [-1, 0, 1, 2] {
+                let mut tx = ptr::dangling_mut();
+                let status = wdb_tx_begin(database, mode, &mut tx);
+                if (0..=1).contains(&mode) {
+                    assert_eq!(status, 0);
+                    assert_eq!(wdb_tx_abort(tx), 0);
+                    let mut revision = u64::MAX;
+                    assert_eq!(wdb_tx_commit(tx, &mut revision), Error::Closed as i32);
+                    assert_eq!(revision, 0);
+                    assert_eq!(wdb_tx_release(tx), 0);
+                } else {
+                    assert_eq!(status, Error::Invalid as i32);
+                    assert!(tx.is_null());
+                }
+            }
+            assert_eq!(wdb_scan_release(scan), 0);
+            for value in [map, item, populated] {
+                assert_eq!(wdb_value_release(value), 0);
+            }
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
     #[test]
     fn shared_foreign_handles_count_concurrent_acquisition_and_release() {
         unsafe {
@@ -419,6 +791,172 @@ mod tests {
             assert_eq!(revision, 1);
             assert_eq!(wdb_tx_release(tx), 0);
             assert_eq!(wdb_close(database), 0);
+        }
+    }
+}
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+
+    #[test]
+    fn scalar_arms_and_output_failures_preserve_valid_handles() {
+        unsafe {
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            for (kind, bits) in [
+                (0, 0),
+                (1, 1),
+                (2, u64::MAX),
+                (3, u64::MAX),
+                (4, f64::NAN.to_bits()),
+                (5, 0),
+                (6, 0),
+                (7, 0),
+            ] {
+                let mut value = ptr::null_mut();
+                assert_eq!(
+                    wdb_value_make(database, kind, bits, ptr::null(), 0, &mut value),
+                    0
+                );
+                let mut actual_kind = -9;
+                assert_eq!(wdb_value_kind(value, &mut actual_kind), 0);
+                assert_eq!(actual_kind, kind);
+                assert_eq!(
+                    wdb_value_kind(value, ptr::null_mut()),
+                    Error::Invalid as i32
+                );
+                let mut scalar = 99;
+                assert_eq!(
+                    wdb_value_scalar(value, &mut scalar),
+                    if kind <= 4 { 0 } else { Error::Type as i32 }
+                );
+                assert_eq!(scalar, if kind <= 4 { bits } else { 0 });
+                assert_eq!(
+                    wdb_value_scalar(value, ptr::null_mut()),
+                    Error::Invalid as i32
+                );
+                let mut len = 99;
+                assert_eq!(
+                    wdb_value_len(value, &mut len),
+                    if kind >= 5 { 0 } else { Error::Type as i32 }
+                );
+                assert_eq!(len, 0);
+                assert_eq!(wdb_value_len(value, ptr::null_mut()), Error::Invalid as i32);
+                assert_eq!(wdb_value_release(value), 0);
+            }
+            let mut kind = 99;
+            let mut bits = 99;
+            let mut len = 99;
+            assert_eq!(
+                wdb_value_kind(ptr::null(), &mut kind),
+                Error::Invalid as i32
+            );
+            assert_eq!(kind, -1);
+            assert_eq!(
+                wdb_value_scalar(ptr::null(), &mut bits),
+                Error::Invalid as i32
+            );
+            assert_eq!(bits, 0);
+            assert_eq!(wdb_value_len(ptr::null(), &mut len), Error::Invalid as i32);
+            assert_eq!(len, 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn null_inputs_and_scalar_outputs_do_not_publish_or_acquire_handles() {
+        unsafe {
+            let mut id = 99;
+            assert_eq!(
+                wdb_collection_create(ptr::null_mut(), &mut id),
+                Error::Invalid as i32
+            );
+            assert_eq!(id, 0);
+            let mut revision = 99;
+            assert_eq!(
+                wdb_tx_commit(ptr::null_mut(), &mut revision),
+                Error::Invalid as i32
+            );
+            assert_eq!(revision, 0);
+            assert_eq!(wdb_tx_abort(ptr::null_mut()), Error::Invalid as i32);
+            assert_eq!(wdb_close(ptr::null_mut()), Error::Invalid as i32);
+            let mut len = 99;
+            assert_eq!(wdb_scan_len(ptr::null(), &mut len), Error::Invalid as i32);
+            assert_eq!(len, 0);
+            assert_eq!(
+                wdb_snapshot_revision(ptr::null(), &mut revision),
+                Error::Invalid as i32
+            );
+            assert_eq!(revision, 0);
+            let mut database = ptr::null_mut();
+            assert_eq!(wdb_open(&mut database), 0);
+            assert_eq!(
+                wdb_collection_create(database, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(wdb_collection_create(database, &mut id), 0);
+            let mut snapshot = ptr::null_mut();
+            assert_eq!(wdb_snapshot_acquire(database, &mut snapshot), 0);
+            assert_eq!(
+                wdb_snapshot_revision(snapshot, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(wdb_snapshot_revision(snapshot, &mut revision), 0);
+            assert_eq!(revision, 1);
+            let mut scan = ptr::null_mut();
+            assert_eq!(wdb_snapshot_scan(snapshot, id, &mut scan), 0);
+            assert_eq!(wdb_scan_len(scan, ptr::null_mut()), Error::Invalid as i32);
+            assert_eq!(wdb_scan_len(scan, &mut len), 0);
+            assert_eq!(len, 0);
+            assert_eq!(wdb_scan_release(scan), 0);
+            assert_eq!(wdb_snapshot_release(snapshot), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn compaction_output_guards_are_independent_before_path_validation() {
+        unsafe {
+            let mut before = 99;
+            let mut after = 99;
+            assert_eq!(
+                wdb_file_compact(ptr::null(), 0, ptr::null_mut(), &mut after),
+                Error::Invalid as i32
+            );
+            assert_eq!(after, 99);
+            assert_eq!(
+                wdb_file_compact(ptr::null(), 0, &mut before, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(before, 99);
+            let result = wdb_file_compact(ptr::null(), 0, &mut before, &mut after);
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            assert_eq!(result, Error::Invalid as i32);
+            #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+            assert_eq!(result, Error::UnsupportedPlatform as i32);
+            assert_eq!((before, after), (0, 0));
+            assert_eq!(
+                wdb_scan_key(ptr::null(), 0, ptr::null_mut(), 0, ptr::null_mut()),
+                Error::Invalid as i32
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    fn native_path_length_boundary_and_encoding_contract() {
+        let bytes = vec![b'x'; 1024 * 1024];
+        unsafe {
+            assert!(path(bytes.as_ptr(), bytes.len()).is_ok());
+            assert_eq!(
+                path(bytes.as_ptr(), bytes.len() + 1).err(),
+                Some(Error::Limit)
+            );
+            #[cfg(windows)]
+            assert_eq!(path([0xff].as_ptr(), 1).err(), Some(Error::Invalid));
+            #[cfg(not(windows))]
+            assert!(path([0xff].as_ptr(), 1).is_ok());
         }
     }
 }

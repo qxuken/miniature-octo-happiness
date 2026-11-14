@@ -1,5 +1,9 @@
 name: Engine checks
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -9,15 +13,34 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust
         run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
+      - name: Release configuration validation
+        run: |
+          python tools/test_release.py
+          python tools/test_windows_consumers.py
+          python tools/test_c_sanitizers.py
       - name: Rust debug/release and interruption checks; C consumers on macOS/Linux
         run: python tools/check.py --skip-odin
+      - name: Compile Windows C and C++ consumers against both DLL builds
+        if: runner.os == 'Windows'
+        run: |
+          python tools/windows_consumers.py --library target/debug/weekend_db.dll
+          python tools/windows_consumers.py --library target/release/weekend_db.dll
+      - name: Qualify private native package and relocation (no publication)
+        run: python tools/release.py --output target/private-package --features crdt,replication
+      - name: Save native private package evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-private-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-package/
       - name: Save release shared library and C header
         uses: actions/upload-artifact@v7
         with:
@@ -27,10 +50,87 @@ jobs:
             target/release/*.dylib
             target/release/*.so
             target/release/*.dll
+            target/release/*.dll.lib
             include/weekend_db.h
+  helper-controls:
+    name: POSIX qualification helper controls
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned Python with Mise
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          version: 2026.11.6
+          install_args: python@3.14.8
+      - name: Run all registered helper controls normally and under Python -O
+        run: mise exec python@3.14.8 -- python tools/check_helpers.py --output target/helper-controls
+      - name: Save private helper-control evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: helper-controls-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/helper-controls/
+  linux-quota:
+    name: Native Linux quota exhaustion and recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned controller Python with Mise
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          version: 2026.11.6
+          install_args: python@3.14.8
+      - name: Install filesystem quota tools and record their versions
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends quota e2fsprogs util-linux
+          mkdir -p target/quota-host
+          uname -a > target/quota-host/kernel.txt
+          dpkg-query -W quota e2fsprogs util-linux > target/quota-host/packages.txt
+          cat /etc/os-release > target/quota-host/os-release.txt
+      - name: Check controller rejection and cleanup controls without privileges
+        run: |
+          mise exec python@3.14.8 -- python tools/quota/test_runner.py
+          mise exec python@3.14.8 -- python -O tools/quota/test_runner.py
+      - name: Build the native core-only quota fixture
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo +1.99.1 fetch --locked
+          cargo +1.99.1 build --offline --locked --release --example native_quota --target-dir target/quota-build
+          rustc +1.99.1 -Vv > target/quota-host/rustc.txt
+          sha256sum target/quota-build/release/examples/native_quota > target/quota-host/fixture.sha256
+      - name: Calibrate actual EDQUOT and verify commit failure, reopening and retry
+        run: |
+          quota_python="$(mise exec python@3.14.8 -- python -c 'import sys; print(sys.executable)')"
+          sudo "$quota_python" tools/quota/run.py --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-quota"
+      - name: Transfer private evidence ownership for upload
+        if: always()
+        run: |
+          if test -d target/native-quota; then
+            sudo chown -R --reference=. target/native-quota
+          fi
+      - name: Save native quota evidence (no image or registry publication)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-quota-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/native-quota/
+            target/quota-host/
+            target/quota-build/release/examples/native_quota
   sanitizers:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.kind == 'thread' && 40 || 20 }}
     strategy:
       fail-fast: false
       matrix:
@@ -39,7 +139,30 @@ jobs:
       - uses: actions/checkout@v7
       - run: rustup toolchain install nightly --profile minimal --component rust-src
       - run: python3 tools/sanitizers.py ${{ matrix.kind }}
+  c-address:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install nightly --profile minimal --component rust-src
+      - run: python3 tools/c_sanitizers.py
+      - name: Bounded atomic models and fail-required controls
+        env:
+          MODEL_TOOLCHAIN: nightly
+        run: python3 tools/atomic-model/check.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: c-rust-address-sanitizer
+          if-no-files-found: warn
+          path: |
+            target/c-sanitizer-evidence/*.json
+            target/c-sanitizer-evidence/*.log
+            target/c-sanitizer-evidence/calibration.*
+            target/atomic-model-evidence/*.json
+            target/atomic-model-evidence/*.log
   coverage:
+    name: Engine library coverage
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -47,11 +170,14 @@ jobs:
       - run: rustup toolchain install 1.99.1 --profile minimal --component llvm-tools-preview
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
-      - run: python3 tools/coverage.py
+      - run: python3 tools/coverage.py --scope library --output target/coverage-library
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
-          name: rust-test-coverage
+          name: rust-core-library-coverage
           if-no-files-found: error
           path: |
-            target/coverage/report.txt
-            target/coverage/html/
+            target/coverage-library/evidence.json
+            target/coverage-library/*.rejected.*
+            target/coverage-library/report.txt
+            target/coverage-library/html/

@@ -40,6 +40,10 @@ def main():
         filename = ("weekend_db.dll" if sys.platform == "win32" else
                     "libweekend_db.dylib" if sys.platform == "darwin" else "libweekend_db.so")
         run(sys.executable, ROOT / "tools/ffi_smoke.py", dest / filename)
+        if sys.platform == "win32":
+            with tempfile.TemporaryDirectory(prefix="weekend-db-consumers-") as directory:
+                run("cargo", "run", "--offline", "--example", "file", *flags, "--", Path(directory) / "rust.db")
+                run("cargo", "run", "--offline", "--example", "typed", *flags, "--", Path(directory) / "typed.db")
         if sys.platform not in ("darwin", "linux"):
             continue
         library = dest / filename
@@ -68,6 +72,8 @@ def main():
                 run(dest/"odin-file",Path(directory)/"odin.db")
     if sys.platform == "linux":
         print("Rust/C memory, file, and thread checks passed in debug and release; Odin is checked on macOS.")
+    elif sys.platform == "win32":
+        print("Windows Rust and shared-library C ABI checks passed in debug and release.")
     elif sys.platform != "darwin":
         print("Rust and shared-library C ABI checks passed; native file storage is unsupported here.")
     elif args.skip_odin:

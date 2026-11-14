@@ -1,20 +1,25 @@
 //! Experimental thread-safe persistent values, transactions, byte codec,
-//! macOS/Linux files, offline compaction, durable retained snapshots, and optional
+//! macOS/Linux/Windows files, offline compaction, durable retained snapshots, and optional
 //! schema access conventions. See examples/typed.rs for the application layer.
 //! See DESIGN.md for implemented contracts and the remaining durability work.
+#[cfg(feature = "crdt")]
+pub mod crdt;
 mod engine;
 mod ffi;
 mod memory;
+#[cfg(feature = "replication")]
+pub mod replication;
 pub mod schema;
 pub mod storage;
 mod tree;
 mod value;
+pub mod version;
 
 pub use engine::{
     CollectionId, Database, MAX_RETAINED_SNAPSHOTS, Rows, Snapshot, Transaction, TransactionState,
     Validation,
 };
-pub use memory::Limits;
+pub use memory::{Limits, MemoryUsage};
 pub use value::{Kind, Value};
 
 pub type Result<T> = std::result::Result<T, Error>;

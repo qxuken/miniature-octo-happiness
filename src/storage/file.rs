@@ -1,5 +1,6 @@
 //! Shared macOS/Linux regular-file protocol. Protected-region/safe-append assumptions
 //! remain conditional; process interruption tests are not physical power cuts.
+use super::NativeIoOperation;
 #[cfg(target_os = "linux")]
 use super::linux as sys;
 #[cfg(target_os = "macos")]
@@ -26,11 +27,14 @@ unsafe extern "C" {
     fn flock(fd: c_int, operation: c_int) -> c_int;
     fn unlinkat(directory: c_int, name: *const c_char, flags: c_int) -> c_int;
 }
-pub(super) fn retry<T>(mut action: impl FnMut() -> io::Result<T>) -> Result<T> {
+pub(super) fn retry<T>(
+    operation: NativeIoOperation,
+    mut action: impl FnMut() -> io::Result<T>,
+) -> Result<T> {
     loop {
         match action() {
             Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
-            result => return result.map_err(os_error),
+            result => return result.map_err(|error| os_error(operation, error)),
         }
     }
 }
@@ -51,6 +55,10 @@ impl FileStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         Self::open_impl(path.as_ref(), false)
     }
+    /// Open with read access and the same exclusive lease as a writer.
+    pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
+        Location::new(path.as_ref())?.open_mode(false, false)
+    }
     fn open_impl(path: &Path, create: bool) -> Result<Self> {
         Location::new(path)?.open(create)
     }
@@ -63,7 +71,7 @@ impl ByteStore for FileStore {
         if self.claimed {
             return Err(Error::Busy);
         }
-        retry(|| {
+        retry(NativeIoOperation::Lock, || {
             if unsafe { flock(self.file.as_raw_fd(), 2 | 4) } == 0 {
                 Ok(())
             } else {
@@ -78,7 +86,7 @@ impl ByteStore for FileStore {
         Ok(())
     }
     fn unlock(&mut self) {
-        let _ = retry(|| {
+        let _ = retry(NativeIoOperation::Unlock, || {
             if unsafe { flock(self.file.as_raw_fd(), 8) } == 0 {
                 Ok(())
             } else {
@@ -90,15 +98,17 @@ impl ByteStore for FileStore {
     }
     fn length(&mut self) -> Result<u64> {
         self.check()?;
-        Ok(retry(|| self.file.metadata())?.len())
+        Ok(retry(NativeIoOperation::Metadata, || self.file.metadata())?.len())
     }
     fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
         self.check()?;
-        retry(|| self.file.read_at(out, offset))
+        retry(NativeIoOperation::Read, || self.file.read_at(out, offset))
     }
     fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
         self.check()?;
-        retry(|| self.file.write_at(bytes, offset))
+        retry(NativeIoOperation::Write, || {
+            self.file.write_at(bytes, offset)
+        })
     }
     fn sync(&mut self) -> Result<()> {
         self.check()?;
@@ -139,26 +149,32 @@ impl Location {
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
-        let directory = retry(|| {
+        let directory = retry(NativeIoOperation::OpenDirectory, || {
             std::fs::OpenOptions::new()
                 .read(true)
                 .custom_flags(sys::OPEN_DIRECTORY)
                 .open(parent)
         })?;
         let mem = Memory::new(Limits::default())?;
-        let mut name = mem.copy(name)?;
-        mem.reserve(&mut name, 1)?;
+        let mut name = mem.copy_external(name)?;
+        mem.reserve_external(&mut name, 1)?;
         name.push(0);
         Ok(Self { directory, name })
     }
     fn open(&self, create: bool) -> Result<FileStore> {
+        self.open_mode(create, true)
+    }
+    fn open_mode(&self, create: bool, writable: bool) -> Result<FileStore> {
         // Allocate/copy the lease location before creating any directory entry.
         let location = Self {
-            directory: retry(|| self.directory.try_clone())?,
-            name: Memory::new(Limits::default())?.copy(&self.name)?,
+            directory: retry(NativeIoOperation::DuplicateHandle, || {
+                self.directory.try_clone()
+            })?,
+            name: Memory::new(Limits::default())?.copy_external(&self.name)?,
         };
-        let file = self.open_flags(2 | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
-        if !retry(|| file.metadata())?.is_file() {
+        let access = if writable { 2 } else { 0 };
+        let file = self.open_flags(access | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
+        if !retry(NativeIoOperation::Metadata, || file.metadata())?.is_file() {
             return Err(Error::Invalid);
         }
         self.acquire_open_lease(&file)?;
@@ -182,8 +198,8 @@ impl Location {
             Err(Error::NotFound) => return Err(Error::Busy),
             other => other?,
         };
-        let actual = retry(|| actual.metadata())?;
-        let expected = retry(|| file.metadata())?;
+        let actual = retry(NativeIoOperation::Metadata, || actual.metadata())?;
+        let expected = retry(NativeIoOperation::Metadata, || file.metadata())?;
         if actual.is_file() && actual.dev() == expected.dev() && actual.ino() == expected.ino() {
             Ok(())
         } else {
@@ -191,27 +207,34 @@ impl Location {
         }
     }
     fn open_flags(&self, flags: c_int) -> Result<File> {
-        let fd = retry(|| {
-            let fd = unsafe {
-                openat(
-                    self.directory.as_raw_fd(),
-                    self.name.as_ptr().cast(),
-                    flags | OPEN_REQUIRED,
-                    0o600 as c_int,
-                )
-            };
-            if fd < 0 {
-                Err(io::Error::last_os_error())
+        let fd = retry(
+            if flags & OPEN_CREATE != 0 {
+                NativeIoOperation::Create
             } else {
-                Ok(fd)
-            }
-        })?;
+                NativeIoOperation::Open
+            },
+            || {
+                let fd = unsafe {
+                    openat(
+                        self.directory.as_raw_fd(),
+                        self.name.as_ptr().cast(),
+                        flags | OPEN_REQUIRED,
+                        0o600 as c_int,
+                    )
+                };
+                if fd < 0 {
+                    Err(io::Error::last_os_error())
+                } else {
+                    Ok(fd)
+                }
+            },
+        )?;
         Ok(unsafe { File::from_raw_fd(fd) })
     }
     fn matches(&self, file: &File) -> Result<()> {
         let actual_file = self.open_flags(0)?;
-        let actual = retry(|| actual_file.metadata())?;
-        let expected = retry(|| file.metadata())?;
+        let actual = retry(NativeIoOperation::Metadata, || actual_file.metadata())?;
+        let expected = retry(NativeIoOperation::Metadata, || file.metadata())?;
         if actual.is_file()
             && actual.dev() == expected.dev()
             && actual.ino() == expected.ino()
@@ -223,8 +246,8 @@ impl Location {
         }
     }
     fn scratch(&self, mem: &Memory) -> Result<Self> {
-        let mut name = mem.copy(b".wdb-compact-")?;
-        mem.reserve(&mut name, 37)?;
+        let mut name = mem.copy_external(b".wdb-compact-")?;
+        mem.reserve_external(&mut name, 37)?;
         for byte in identity()? {
             for n in [byte >> 4, byte & 15] {
                 name.push(b"0123456789abcdef"[n as usize]);
@@ -232,12 +255,14 @@ impl Location {
         }
         name.extend_from_slice(b".tmp\0");
         Ok(Self {
-            directory: retry(|| self.directory.try_clone())?,
+            directory: retry(NativeIoOperation::DuplicateHandle, || {
+                self.directory.try_clone()
+            })?,
             name,
         })
     }
     fn sync(&self) -> Result<()> {
-        retry(|| self.directory.sync_all())
+        retry(NativeIoOperation::Sync, || self.directory.sync_all())
     }
     fn exchange(&self, other: &Self) -> Result<()> {
         sys::exchange(&self.directory, &self.name, &other.directory, &other.name)
@@ -246,7 +271,10 @@ impl Location {
         if unsafe { unlinkat(self.directory.as_raw_fd(), self.name.as_ptr().cast(), 0) } == 0 {
             Ok(())
         } else {
-            Err(os_error(io::Error::last_os_error()))
+            Err(os_error(
+                NativeIoOperation::Remove,
+                io::Error::last_os_error(),
+            ))
         }
     }
 }
@@ -374,9 +402,11 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
     let mem = Memory::new(limits)?;
     let original = Location::new(path)?;
     let source = original.open(false)?;
-    let old_file = retry(|| source.file.try_clone())?;
+    let old_file = retry(NativeIoOperation::DuplicateHandle, || {
+        source.file.try_clone()
+    })?;
     // Replacing one name cannot preserve a hard-link alias's writer authority.
-    if retry(|| old_file.metadata())?.nlink() != 1 {
+    if retry(NativeIoOperation::Metadata, || old_file.metadata())?.nlink() != 1 {
         return Err(Error::Invalid);
     }
     let (mut storage, head, next_collection, retention) = Storage::open(
@@ -389,7 +419,9 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
     )?;
     let scratch = original.scratch(&mem)?;
     let target = scratch.open(true)?;
-    let new_file = retry(|| target.file.try_clone())?;
+    let new_file = retry(NativeIoOperation::DuplicateHandle, || {
+        target.file.try_clone()
+    })?;
     let (mut replacement, stats) = storage
         .compact(
             Observed {
@@ -422,53 +454,42 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
     })?;
     // From the exchange phase onward retain both names on errors and report an
     // uncertain replacement outcome. Never roll back or delete a recovery copy.
-    struct Namespace<'a> {
-        original: &'a Location,
-        scratch: &'a Location,
-        new_file: &'a File,
-        observer: &'a Observer,
-        exchanged_sync: bool,
-    }
-    impl super::replacement::Replacement for Namespace<'_> {
-        fn exchange(&mut self) -> Result<()> {
-            self.observer.call(CompactionStep::Exchange, || {
-                self.original.exchange(self.scratch)
-            })
+    use super::replacement::Step;
+    super::replacement::publish(|step| match step {
+        Step::Exchange => observer.call(CompactionStep::Exchange, || original.exchange(&scratch)),
+        Step::SyncDirectory => observer.call(CompactionStep::SyncDirectory, || original.sync()),
+        Step::SyncReplacement => {
+            observer.call(CompactionStep::SyncReplacement, || full_sync(&new_file))
         }
-        fn sync_directory(&mut self) -> Result<()> {
-            self.observer.call(
-                if self.exchanged_sync {
-                    CompactionStep::SyncCleanupDirectory
-                } else {
-                    CompactionStep::SyncDirectory
-                },
-                || self.original.sync(),
-            )
+        Step::RemoveOld => observer.call(CompactionStep::RemoveOld, || scratch.remove()),
+        Step::SyncCleanupDirectory => {
+            observer.call(CompactionStep::SyncCleanupDirectory, || original.sync())
         }
-        fn sync_device(&mut self) -> Result<()> {
-            let step = if self.exchanged_sync {
-                CompactionStep::SyncCleanupFile
-            } else {
-                CompactionStep::SyncReplacement
-            };
-            self.observer.call(step, || full_sync(self.new_file))?;
-            self.exchanged_sync = true;
-            Ok(())
+        Step::SyncCleanupFile => {
+            observer.call(CompactionStep::SyncCleanupFile, || full_sync(&new_file))
         }
-        fn remove_old(&mut self) -> Result<()> {
-            self.observer
-                .call(CompactionStep::RemoveOld, || self.scratch.remove())
-        }
-    }
-    super::replacement::publish(&mut Namespace {
-        original: &original,
-        scratch: &scratch,
-        new_file: &new_file,
-        observer: &observer,
-        exchanged_sync: false,
     })
     .map_err(|_| Error::OutcomeUnknown)?;
     Ok(stats)
+}
+
+impl FileStore {
+    /// Synchronous native context for this exact factory invocation.
+    pub fn create_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::create(path))
+    }
+    pub fn open_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::open(path))
+    }
+    pub fn open_read_only_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Self, super::StorageFailure> {
+        super::diagnostics::capture(|| Self::open_read_only(path))
+    }
 }
 
 #[cfg(all(
@@ -498,5 +519,89 @@ mod tests {
         assert_eq!(location.acquire_open_lease(&old), Err(Error::Busy));
         drop(old);
         drop(crate::Database::open_file(&cleanup.0, Limits::default()).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn pathname_and_claimed_read_only_controls() {
+        for name in ["", ".", "..", "end/", "a\0b"] {
+            assert_eq!(Location::new(Path::new(name)).err(), Some(Error::Invalid));
+        }
+        let long = "x".repeat(1024 * 1024);
+        assert!(Location::new(Path::new(&long)).is_ok());
+        assert_eq!(
+            Location::new(Path::new(&(long + "x"))).err(),
+            Some(Error::Limit)
+        );
+        let path = std::env::temp_dir().join(format!(
+            "weekend-native-decisions-{}.db",
+            std::process::id()
+        ));
+        let mut file = FileStore::create(&path).unwrap();
+        assert_eq!(file.length(), Err(Error::Io));
+        file.lock().unwrap();
+        assert_eq!(file.lock(), Err(Error::Busy));
+        file.write(0, b"abc").unwrap();
+        file.sync().unwrap();
+        file.sync().unwrap();
+        file.unlock();
+        assert_eq!(file.length(), Err(Error::Io));
+        drop(file);
+        let mut file = FileStore::open_read_only(&path).unwrap();
+        file.lock().unwrap();
+        assert_eq!(file.length(), Ok(3));
+        let mut bytes = [0; 3];
+        assert_eq!(file.read(0, &mut bytes), Ok(3));
+        assert_eq!(&bytes, b"abc");
+        assert_eq!(file.write(0, b"x"), Err(Error::Io));
+        file.unlock();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(file.lock(), Err(Error::Busy));
+        assert_eq!(file.length(), Err(Error::Io));
+    }
+    #[test]
+    fn namespace_rechecks_distinguish_aliases_replacement_and_removal() {
+        let path =
+            std::env::temp_dir().join(format!("weekend-name-decisions-{}.db", std::process::id()));
+        let alias = path.with_extension("alias");
+        let store = FileStore::create(&path).unwrap();
+        let location = Location::new(&path).unwrap();
+        assert_eq!(location.matches(&store.file), Ok(()));
+        let absent = Location::new(&alias).unwrap();
+        assert_eq!(location.exchange(&absent), Err(Error::NotFound));
+        assert_eq!(absent.remove(), Err(Error::NotFound));
+        assert_eq!(location.matches(&store.file), Ok(()));
+        std::fs::hard_link(&path, &alias).unwrap();
+        assert_eq!(location.check_lease(&store.file), Ok(()));
+        assert_eq!(location.matches(&store.file), Err(Error::Invalid));
+        std::fs::remove_file(&alias).unwrap();
+        assert_eq!(location.matches(&store.file), Ok(()));
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(location.check_lease(&store.file), Err(Error::Busy));
+        assert_eq!(location.matches(&store.file), Err(Error::NotFound));
+        std::fs::write(&path, b"replacement").unwrap();
+        assert_eq!(location.check_lease(&store.file), Err(Error::Busy));
+        assert_eq!(location.matches(&store.file), Err(Error::Invalid));
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn interrupted_retry_can_finish_successfully_without_diagnostics() {
+        let mut calls = 0;
+        let result = super::super::diagnostics::capture(|| {
+            retry(NativeIoOperation::Read, || {
+                calls += 1;
+                if calls < 3 {
+                    Err(io::Error::from(io::ErrorKind::Interrupted))
+                } else {
+                    Ok(9)
+                }
+            })
+        });
+        assert_eq!(result, Ok(9));
+        assert_eq!(calls, 3);
     }
 }

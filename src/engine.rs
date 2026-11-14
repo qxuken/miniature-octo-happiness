@@ -1,3 +1,4 @@
+use crate::memory::ChargedVec;
 use crate::{
     Error, Kind, Limits, Result, Value,
     memory::{Memory, Shared},
@@ -21,17 +22,17 @@ pub(crate) struct Retained {
 }
 pub(crate) struct Retention {
     pub next_id: u64,
-    pub entries: Vec<Retained>,
+    pub entries: ChargedVec<Retained>,
 }
 impl Retention {
     fn new() -> Self {
         Self {
             next_id: 1,
-            entries: Vec::new(),
+            entries: ChargedVec::new(),
         }
     }
     fn fork(&self, mem: &Memory, extra: usize) -> Result<Self> {
-        let mut entries = Vec::new();
+        let mut entries = ChargedVec::new();
         mem.reserve(&mut entries, self.entries.len() + extra)?;
         entries.extend(self.entries.iter().cloned());
         Ok(Self {
@@ -72,9 +73,25 @@ struct State {
     retention: Retention,
 }
 impl State {
-    fn persist(&mut self, mem: &Memory, head: &Head, next_collection: u64) -> Result<()> {
+    fn publish(
+        &mut self,
+        mem: &Memory,
+        head: Shared<Head>,
+        next_collection: u64,
+        retention: Option<Retention>,
+    ) -> Result<()> {
         if let Some(storage) = &mut self.storage {
-            storage.persist(mem, head, next_collection, &self.retention)?;
+            storage.persist(
+                mem,
+                &head,
+                next_collection,
+                retention.as_ref().unwrap_or(&self.retention),
+            )?;
+        }
+        self.head = head;
+        self.next_collection = next_collection;
+        if let Some(retention) = retention {
+            self.retention = retention;
         }
         Ok(())
     }
@@ -116,14 +133,23 @@ pub enum TransactionState {
 }
 struct Point {
     collection: CollectionId,
-    key: Vec<u8>,
+    key: ChargedVec<u8>,
     revision: u64,
 }
 struct Write {
     collection: CollectionId,
-    key: Vec<u8>,
+    key: ChargedVec<u8>,
     value: Option<Value>,
 }
+// Logical draft charge, separate from physical allocation admission. Callers
+// validate keys/values before this point; both checked sums retain their guards.
+fn write_charge(key_bytes: usize, value_weight: usize) -> Result<usize> {
+    key_bytes
+        .checked_add(value_weight)
+        .and_then(|n| n.checked_add(std::mem::size_of::<Write>()))
+        .ok_or(Error::Limit)
+}
+
 /// An exclusively owned draft: movable between threads, but not shareable.
 /// ```compile_fail
 /// fn requires_sync<T: Sync>() {}
@@ -133,14 +159,31 @@ pub struct Transaction<'db> {
     db: &'db Database,
     base: Shared<Head>,
     validation: Validation,
-    points: Vec<Point>,
-    collections: Vec<(CollectionId, u64)>,
-    writes: Vec<Write>,
+    points: ChargedVec<Point>,
+    collections: ChargedVec<(CollectionId, u64)>,
+    writes: ChargedVec<Write>,
     bytes: usize,
     state: TransactionState,
     _exclusive: PhantomData<Cell<()>>,
 }
 impl Database {
+    /// Requested live core allocation bytes and observed high-water mark.
+    /// Excludes allocator overhead, backend/application/FFI buffers and the
+    /// fixed budget control allocation; this is not process RSS.
+    pub fn memory_usage(&self) -> crate::memory::MemoryUsage {
+        self.mem.public_usage()
+    }
+
+    /// Measure append headroom with one length query and no graph reads or writes.
+    /// Requires a healthy byte-backed store. Length I/O errors can be retried.
+    /// Impossible physical lengths block publication until reopening.
+    pub fn storage_space(&self) -> Result<crate::storage::StorageSpace> {
+        self.publication_state()?
+            .storage
+            .as_mut()
+            .ok_or(Error::Invalid)?
+            .space()
+    }
     /// Write a fully synchronized, verified compact copy to an empty byte store.
     /// The source stays open and unchanged; the destination lease is released
     /// on return. Requires a byte-backed source and exclusive access to this
@@ -157,16 +200,50 @@ impl Database {
         &mut self,
         destination: B,
     ) -> Result<crate::storage::CompactionStats> {
+        self.compact_copy(destination).map(|(_, stats)| stats)
+    }
+    pub(crate) fn compact_copy<B: ByteStore + 'static>(
+        &mut self,
+        destination: B,
+    ) -> Result<(Storage, crate::storage::CompactionStats)> {
         let state = self.state.get_mut().map_err(|_| Error::RecoveryRequired)?;
         let storage = state.storage.as_mut().ok_or(Error::Invalid)?;
-        let (_copy, stats) = storage.compact(
+        storage.compact(
             destination,
             &self.mem,
             &state.head,
             state.next_collection,
             &state.retention,
-        )?;
-        Ok(stats)
+        )
+    }
+    #[cfg(feature = "replication")]
+    pub(crate) fn replication_head(&self) -> Result<([u8; 16], u64)> {
+        let state = self.write_state()?;
+        let storage = state.storage.as_ref().ok_or(Error::Invalid)?;
+        storage.guard()?;
+        Ok((storage.identity(), state.head.revision))
+    }
+    #[cfg(all(
+        feature = "replication",
+        any(test, target_os = "macos", target_os = "linux", windows)
+    ))]
+    pub(crate) fn decode_replica(
+        backend: &mut dyn ByteStore,
+        identity: [u8; 16],
+        revision: u64,
+        length: u64,
+        limits: Limits,
+    ) -> Result<Self> {
+        let db = Self::with_limits(limits)?;
+        let recovered =
+            crate::storage::recover_replica(backend, &db.mem, identity, revision, length)?;
+        *db.write_state()? = State {
+            head: recovered.head,
+            next_collection: recovered.next_collection,
+            storage: None,
+            retention: recovered.retention,
+        };
+        Ok(db)
     }
     /// Offline compaction: close every database handle for this file first.
     /// Both old and replacement inodes remain locked through durable exchange.
@@ -185,6 +262,13 @@ impl Database {
     }
     fn write_state(&self) -> Result<MutexGuard<'_, State>> {
         self.state.lock().map_err(|_| Error::RecoveryRequired)
+    }
+    fn publication_state(&self) -> Result<MutexGuard<'_, State>> {
+        let state = self.write_state()?;
+        if let Some(storage) = &state.storage {
+            storage.guard()?;
+        }
+        Ok(state)
     }
     pub fn new() -> Result<Self> {
         Self::with_limits(Limits::default())
@@ -255,13 +339,13 @@ impl Database {
                 .as_ref()
                 .is_some_and(Storage::requires_recovery)
     }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn create_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
         limits.validate()?;
         let identity = crate::storage::file_identity()?;
         Self::create_on(crate::storage::FileStore::create(path)?, identity, limits)
     }
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn open_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
         limits.validate()?;
         Self::open_on(crate::storage::FileStore::open(path)?, limits)
@@ -272,10 +356,7 @@ impl Database {
         if !std::ptr::eq(self, snapshot.db) {
             return Err(Error::ForeignStore);
         }
-        let mut state = self.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.publication_state()?;
         if state.retention.entries.len() >= MAX_RETAINED_SNAPSHOTS {
             return Err(Error::Limit);
         }
@@ -295,18 +376,11 @@ impl Database {
             collections: state.head.collections.clone(),
         })?;
         let next_collection = state.next_collection;
-        if let Some(storage) = &mut state.storage {
-            storage.persist(&self.mem, &head, next_collection, &retention)?;
-        }
-        state.retention = retention;
-        state.head = head;
+        state.publish(&self.mem, head, next_collection, Some(retention))?;
         Ok(id)
     }
     pub fn release_retained(&self, id: u64) -> Result<()> {
-        let mut state = self.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.publication_state()?;
         let index = state
             .retention
             .entries
@@ -322,11 +396,7 @@ impl Database {
             collections: state.head.collections.clone(),
         })?;
         let next_collection = state.next_collection;
-        if let Some(storage) = &mut state.storage {
-            storage.persist(&self.mem, &head, next_collection, &retention)?;
-        }
-        state.retention = retention;
-        state.head = head;
+        state.publish(&self.mem, head, next_collection, Some(retention))?;
         Ok(())
     }
     pub fn retained_snapshot(&self, id: u64) -> Result<Snapshot<'_>> {
@@ -345,10 +415,10 @@ impl Database {
     }
     pub fn retained_ids(&self) -> Result<Vec<u64>> {
         let state = self.read_state();
-        let mut ids = Vec::new();
+        let mut ids = ChargedVec::new();
         self.mem.reserve(&mut ids, state.retention.entries.len())?;
         ids.extend(state.retention.entries.iter().map(|r| r.id));
-        Ok(ids)
+        Ok(ids.into_external())
     }
     pub fn limits(&self) -> Limits {
         self.mem.limits()
@@ -367,10 +437,7 @@ impl Database {
         }
     }
     pub fn create_collection(&self) -> Result<CollectionId> {
-        let mut state = self.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.publication_state()?;
         let next = state.head.revision.checked_add(1).ok_or(Error::Exhausted)?;
         let id = state.next_collection;
         let following = id.checked_add(1).ok_or(Error::Exhausted)?;
@@ -387,19 +454,14 @@ impl Database {
             data_revision: next,
             collections,
         })?;
-        state.persist(&self.mem, &head, following)?;
-        state.head = head;
-        state.next_collection = following;
+        state.publish(&self.mem, head, following, None)?;
         Ok(self.collection_id(id))
     }
     /// Catalog operations are immediate atomic commits, never part of a draft.
     /// IDs are never reused; transactions on a removed collection conflict.
     pub fn drop_collection(&self, id: CollectionId) -> Result<()> {
         self.check_collection(id)?;
-        let mut state = self.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.publication_state()?;
         if state.head.collections.get(&id.id.to_le_bytes()).is_none() {
             return Err(Error::NotFound);
         }
@@ -414,8 +476,7 @@ impl Database {
             collections,
         })?;
         let next_collection = state.next_collection;
-        state.persist(&self.mem, &head, next_collection)?;
-        state.head = head;
+        state.publish(&self.mem, head, next_collection, None)?;
         Ok(())
     }
     pub fn snapshot(&self) -> Snapshot<'_> {
@@ -434,9 +495,9 @@ impl Database {
             db: self,
             base: self.read_state().head.clone(),
             validation,
-            points: Vec::new(),
-            collections: Vec::new(),
-            writes: Vec::new(),
+            points: ChargedVec::new(),
+            collections: ChargedVec::new(),
+            writes: ChargedVec::new(),
             bytes: 0,
             state: TransactionState::Active,
             _exclusive: PhantomData,
@@ -556,7 +617,11 @@ impl Transaction<'_> {
         let Some(record) = collection(&self.base, id)?.records.get(k) else {
             return self.observe_collection(id);
         };
-        if self.points.iter().any(|p| p.collection == id && p.key == k) {
+        if self
+            .points
+            .iter()
+            .any(|p| p.collection == id && p.key.as_slice() == k)
+        {
             return Ok(());
         }
         if self.collections.len() + self.points.len() >= self.db.limits().max_observations {
@@ -583,7 +648,7 @@ impl Transaction<'_> {
         if let Some(w) = self
             .writes
             .iter()
-            .find(|w| w.collection == id && w.key == k)
+            .find(|w| w.collection == id && w.key.as_slice() == k)
         {
             return Ok(w.value.clone());
         }
@@ -610,7 +675,7 @@ impl Transaction<'_> {
         if let Some(index) = self
             .writes
             .iter()
-            .position(|w| w.collection == id && w.key == k)
+            .position(|w| w.collection == id && w.key.as_slice() == k)
         {
             let old = self.writes[index].value.as_ref().map_or(0, Value::weight);
             let bytes = self
@@ -628,11 +693,7 @@ impl Transaction<'_> {
         if self.writes.len() >= self.db.limits().max_writes {
             return Err(Error::Limit);
         }
-        let extra = k
-            .len()
-            .checked_add(weight)
-            .and_then(|n| n.checked_add(std::mem::size_of::<Write>()))
-            .ok_or(Error::Limit)?;
+        let extra = write_charge(k.len(), weight)?;
         let bytes = self.charge(extra)?;
         let k = self.db.mem.copy(k)?;
         self.db.mem.reserve(&mut self.writes, 1)?;
@@ -698,10 +759,7 @@ impl Transaction<'_> {
     fn publish(&self) -> Result<u64> {
         // The commit gate covers validation, rebasing, persistence and publication.
         // ByteStore methods must not call back into this database.
-        let mut state = self.db.write_state()?;
-        if let Some(storage) = &state.storage {
-            storage.guard()?;
-        }
+        let mut state = self.db.publication_state()?;
         self.validate(&state.head)?;
         let next = state.head.revision.checked_add(1).ok_or(Error::Exhausted)?;
         let mut collections = state.head.collections.clone();
@@ -740,8 +798,7 @@ impl Transaction<'_> {
             collections,
         })?;
         let next_collection = state.next_collection;
-        state.persist(&self.db.mem, &head, next_collection)?;
-        state.head = head;
+        state.publish(&self.db.mem, head, next_collection, None)?;
         Ok(next)
     }
     /// Commit errors are terminal. Conflicts abort; preparation failures fail.
@@ -768,6 +825,40 @@ impl Transaction<'_> {
         self.collections.clear();
         self.bytes = 0;
         Ok(())
+    }
+}
+
+impl Database {
+    /// Native I/O context is captured only during this synchronous call.
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    pub fn create_file_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+        limits: Limits,
+    ) -> std::result::Result<Self, crate::storage::StorageFailure> {
+        crate::storage::diagnostics::capture(|| Self::create_file(path, limits))
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    pub fn open_file_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+        limits: Limits,
+    ) -> std::result::Result<Self, crate::storage::StorageFailure> {
+        crate::storage::diagnostics::capture(|| Self::open_file(path, limits))
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    pub fn compact_file_with_diagnostics(
+        path: impl AsRef<std::path::Path>,
+        limits: Limits,
+    ) -> std::result::Result<crate::storage::CompactionStats, crate::storage::StorageFailure> {
+        crate::storage::diagnostics::capture(|| Self::compact_file(path, limits))
+    }
+}
+impl Transaction<'_> {
+    /// Commit with operation-scoped native context. The original error and
+    /// transaction terminal-state rules are preserved, including uncertain outcome.
+    pub fn commit_with_diagnostics(
+        &mut self,
+    ) -> std::result::Result<u64, crate::storage::StorageFailure> {
+        crate::storage::diagnostics::capture(|| self.commit())
     }
 }
 
@@ -810,5 +901,203 @@ mod tests {
         assert_eq!(db.retain_snapshot(&snapshot), Err(Error::Exhausted));
         assert_eq!(db.snapshot().revision(), 0);
         assert!(db.retained_ids().unwrap().is_empty());
+    }
+    #[test]
+    fn every_revision_increment_accepts_last_revision_then_rejects_wrap() {
+        for operation in ["create", "drop", "retain", "release", "commit"] {
+            let db = Database::new().unwrap();
+            let first = db.create_collection().unwrap();
+            let second = db.create_collection().unwrap();
+            db.retain_snapshot(&db.snapshot()).unwrap();
+            db.retain_snapshot(&db.snapshot()).unwrap();
+            let old = db.read_state().head.clone();
+            db.write_state().unwrap().head = db
+                .mem
+                .shared(Head {
+                    revision: u64::MAX - 1,
+                    data_revision: old.data_revision,
+                    collections: old.collections.clone(),
+                })
+                .unwrap();
+            let apply = |second_call| match operation {
+                "create" => db.create_collection().map(|_| ()),
+                "drop" => db.drop_collection(if second_call { second } else { first }),
+                "retain" => db.retain_snapshot(&db.snapshot()).map(|_| ()),
+                "release" => db.release_retained(if second_call { 2 } else { 1 }),
+                "commit" => db.begin().commit().map(|_| ()),
+                _ => unreachable!(),
+            };
+            assert_eq!(apply(false), Ok(()), "{operation}");
+            let ids = db.retained_ids().unwrap();
+            let before = db.memory_usage().live_bytes;
+            assert_eq!(db.snapshot().revision(), u64::MAX);
+            assert_eq!(apply(true), Err(Error::Exhausted), "{operation}");
+            assert_eq!(db.snapshot().revision(), u64::MAX);
+            assert_eq!(db.retained_ids().unwrap(), ids);
+            assert_eq!(db.memory_usage().live_bytes, before);
+            assert_eq!(db.snapshot().count(second), Ok(0));
+        }
+    }
+
+    #[test]
+    fn final_catalog_and_retention_ids_are_assigned_once() {
+        let db = Database::new().unwrap();
+        db.write_state().unwrap().next_collection = u64::MAX - 1;
+        let last = db.create_collection().unwrap();
+        assert_eq!(last.as_u64(), u64::MAX - 1);
+        let revision = db.snapshot().revision();
+        assert_eq!(db.create_collection(), Err(Error::Exhausted));
+        assert_eq!(db.snapshot().revision(), revision);
+        assert_eq!(db.snapshot().count(last), Ok(0));
+        db.write_state().unwrap().retention.next_id = u64::MAX - 1;
+        assert_eq!(db.retain_snapshot(&db.snapshot()), Ok(u64::MAX - 1));
+        let revision = db.snapshot().revision();
+        assert_eq!(db.retain_snapshot(&db.snapshot()), Err(Error::Exhausted));
+        assert_eq!(db.snapshot().revision(), revision);
+        assert_eq!(db.retained_ids().unwrap(), [u64::MAX - 1]);
+    }
+
+    #[test]
+    #[cfg(not(miri))]
+    fn store_identity_exhaustion_is_isolated_in_a_subprocess() {
+        const CHILD: &str = "WEEKEND_DB_ENGINE_STORE_EXHAUSTION";
+        if std::env::var_os(CHILD).is_some() {
+            NEXT_STORE.store(u64::MAX - 1, Ordering::Relaxed);
+            let last = Database::new().unwrap();
+            assert_eq!(last.store, u64::MAX - 1);
+            assert!(matches!(Database::new(), Err(Error::Exhausted)));
+            assert_eq!(NEXT_STORE.load(Ordering::Relaxed), u64::MAX);
+            assert_eq!(last.snapshot().revision(), 0);
+            return;
+        }
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "engine::tests::store_identity_exhaustion_is_isolated_in_a_subprocess",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    #[test]
+    fn mutex_poison_preserves_reads_and_blocks_all_writer_gates() {
+        let mut db = Database::new().unwrap();
+        let c = db.create_collection().unwrap();
+        let revision = db.snapshot().revision();
+        #[cfg(feature = "replication")]
+        assert_eq!(db.replication_head(), Err(Error::Invalid));
+        assert!(!db.requires_recovery());
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _guard = db.write_state().unwrap();
+                panic!("intentional writer-mutex poison");
+            }))
+            .is_err()
+        );
+        assert!(db.requires_recovery());
+        assert_eq!(db.snapshot().revision(), revision);
+        assert_eq!(db.snapshot().count(c), Ok(0));
+        assert_eq!(db.begin().commit(), Err(Error::RecoveryRequired));
+        assert_eq!(db.create_collection(), Err(Error::RecoveryRequired));
+        assert_eq!(db.drop_collection(c), Err(Error::RecoveryRequired));
+        assert_eq!(db.storage_space(), Err(Error::RecoveryRequired));
+        assert_eq!(
+            db.compact_to(crate::storage::MemoryStore::new().unwrap()),
+            Err(Error::RecoveryRequired)
+        );
+        #[cfg(feature = "replication")]
+        assert_eq!(db.replication_head(), Err(Error::RecoveryRequired));
+    }
+    // Balanced shared children represent enormous logical values with O(bits)
+    // distinct nodes. No enormous slice or forged Value is constructed.
+    fn shared_weight(
+        db: &Database,
+        units: usize,
+        cache: &mut std::collections::BTreeMap<usize, Value>,
+    ) -> Value {
+        assert!(units > 0);
+        if let Some(value) = cache.get(&units) {
+            return value.clone();
+        }
+        let value = if units == 1 {
+            db.none().unwrap()
+        } else if units == 2 {
+            db.list().unwrap().list_push(&db.none().unwrap()).unwrap()
+        } else {
+            let left = (units - 1) / 2;
+            let right = units - 1 - left;
+            db.list()
+                .unwrap()
+                .list_push(&shared_weight(db, left, cache))
+                .unwrap()
+                .list_push(&shared_weight(db, right, cache))
+                .unwrap()
+        };
+        assert_eq!(value.weight(), units * 16);
+        cache.insert(units, value.clone());
+        value
+    }
+
+    #[test]
+    fn shared_dag_reaches_transaction_sum_overflow_without_large_allocations() {
+        let limit = isize::MAX as usize;
+        let db = Database::with_limits(Limits {
+            max_value_bytes: limit,
+            max_transaction_bytes: limit,
+            max_live_bytes: 1024 * 1024,
+            ..Limits::default()
+        })
+        .unwrap();
+        let c = db.create_collection().unwrap();
+        let mut cache = std::collections::BTreeMap::new();
+        let first_overhead =
+            std::mem::size_of::<(CollectionId, u64)>() + 1 + std::mem::size_of::<Write>();
+        let first = shared_weight(&db, (limit - first_overhead) / 16, &mut cache);
+        let largest = shared_weight(&db, limit / 16, &mut cache);
+        let mut tx = db.begin();
+        tx.put(c, b"a", &first).unwrap();
+        let before = tx.bytes;
+        assert!(limit - before < 16);
+        assert_eq!(tx.charge(0), Ok(before));
+        assert_eq!(tx.charge(limit - before), Ok(limit));
+        assert_eq!(tx.charge(limit - before + 1), Err(Error::Limit));
+        let extra = write_charge(1, largest.weight()).unwrap();
+        assert!(before.checked_add(extra).is_none());
+        assert_eq!(tx.put(c, b"b", &largest), Err(Error::Limit));
+        assert_eq!(tx.bytes, before);
+        assert_eq!(tx.writes.len(), 1);
+        assert_eq!(tx.state(), TransactionState::Active);
+        assert_eq!(db.snapshot().count(c), Ok(0));
+        assert!(db.memory_usage().peak_bytes <= 1024 * 1024);
+        assert!(cache.len() < 4 * usize::BITS as usize);
+        tx.commit().unwrap();
+        assert!(
+            db.snapshot()
+                .get(c, b"a")
+                .unwrap()
+                .unwrap()
+                .same_node(&first)
+        );
+        assert!(db.snapshot().get(c, b"b").unwrap().is_none());
+    }
+
+    #[test]
+    fn new_write_charge_checks_each_sum_without_allocating_giant_keys() {
+        let overhead = std::mem::size_of::<Write>();
+        let half = isize::MAX as usize;
+        // Both conceptual inputs satisfy the public individual size bounds.
+        // Only the final fixed-overhead sum changes from MAX to overflow.
+        let key = half - overhead + 1;
+        assert_eq!(write_charge(key, half), Ok(usize::MAX));
+        assert_eq!(write_charge(key + 1, half), Err(Error::Limit));
+        // The first sum cannot overflow under the two <=isize::MAX bounds.
+        // This defensive helper-only pair intentionally goes outside that domain.
+        assert_eq!(write_charge(usize::MAX, 1), Err(Error::Limit));
+        assert_eq!(write_charge(0, 0), Ok(overhead));
     }
 }

@@ -4,7 +4,7 @@ mod users;
 use support::Model;
 use weekend_db::{
     Database, Error, Limits,
-    storage::{Crash, Fault, IoKind, MemoryStore, SimulatedDisk},
+    storage::{ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk},
 };
 const ID: [u8; 16] = *b"compaction-test1";
 fn fixture() -> Vec<u8> {
@@ -163,6 +163,55 @@ fn compact_images_start_at_any_revision_parity_including_empty_and_metadata_only
         assert_eq!(copy.create_collection().unwrap().as_u64(), 1);
         assert_eq!(copy.snapshot().revision(), commits + 1);
     }
+}
+
+#[test]
+fn compact_copy_requires_the_selected_roots_witness() {
+    // Model a device silently losing the witness while reporting successful
+    // writes and syncs. The full graph and root slot remain readable.
+    struct LoseWitness(SimulatedDisk);
+    impl ByteStore for LoseWitness {
+        fn lock(&mut self) -> weekend_db::Result<()> {
+            self.0.lock()
+        }
+        fn unlock(&mut self) {
+            self.0.unlock();
+        }
+        fn length(&mut self) -> weekend_db::Result<u64> {
+            self.0.length()
+        }
+        fn read(&mut self, offset: u64, bytes: &mut [u8]) -> weekend_db::Result<usize> {
+            self.0.read(offset, bytes)
+        }
+        fn write(&mut self, offset: u64, bytes: &[u8]) -> weekend_db::Result<usize> {
+            if bytes.starts_with(b"WDBACK01") {
+                self.0.write(offset, &[0; REGION][..bytes.len()])
+            } else {
+                self.0.write(offset, bytes)
+            }
+        }
+        fn sync(&mut self) -> weekend_db::Result<()> {
+            self.0.sync()
+        }
+    }
+    let disk = SimulatedDisk::new().unwrap();
+    let mut db = Database::create_on(disk.clone(), ID, Limits::default()).unwrap();
+    db.create_collection().unwrap();
+    let revision = db.snapshot().revision();
+    let before = disk.durable_image().unwrap();
+    let target = SimulatedDisk::new().unwrap();
+    assert_eq!(
+        db.compact_to(LoseWitness(target.clone())),
+        Err(Error::Corrupt)
+    );
+    assert_eq!(disk.durable_image().unwrap(), before);
+    let reopened = Database::open_on(target.clone(), Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), revision);
+    let witness = (3 + (revision % 2) as usize) * REGION;
+    assert_eq!(
+        &target.durable_image().unwrap()[witness..witness + 8],
+        b"WDBACK01"
+    );
 }
 
 #[test]

@@ -51,8 +51,9 @@ the `Model` trait and its derive macro, plus the engine as `engine`.
 weekend-db-typed = { path = "path/to/weekend-db/crates/weekend-db-typed" }
 ```
 
-`Store::create_file(path)` and `open_file(path)` use the macOS or Linux adapter.
-Creation is exclusive. Close the store before `Store::compact_file(path)`. Byte-backed
+`Store::create_file(path)` and `open_file(path)` use the macOS, Linux, or Windows
+NTFS adapter. Creation is exclusive. On macOS and Linux, close the store before
+`Store::compact_file(path)`. Byte-backed
 stores also support `create_on`, `open_on`, and `compact_to(&mut self, target)`.
 `Store::initialize(database)` accepts a fresh revision-zero engine database with
 custom limits; `from_database` opens one already initialized by this module.
@@ -151,12 +152,122 @@ creation is immediate. Failed fresh initialization can leave a partial image;
 open rejects it. The runtime adds no engine-format or C ABI changes.
 
 Engine size, observation, transaction and 64-snapshot limits still apply.
-Restoration/migration must fit one transaction. All exact unique indexes share
+Restoration and each migration batch must fit one transaction. All exact unique indexes share
 a collection, so conservative absence tracking can conflict across tables.
 Owned models and user defaults use ordinary Rust allocations; this is not a
 process-memory quota. Compile-time macro dependencies are isolated from the
-dependency-free engine. File persistence/replacement is available on macOS and
-Linux (x86_64/aarch64); the memory/byte-adapter interfaces remain portable.
+dependency-free engine. File persistence is available on macOS, Linux
+(x86_64/aarch64), and Windows NTFS. Windows can write a compact copy via
+`compact_to` and `engine::storage::FileStore::create(new_path)`.
+
+## Bounded, resumable migrations
+
+`write.migrate_ids(&table, &[primary_id, ...], |id, raw, model| ...)` migrates
+only explicit primary IDs using point reads. The existing `migrate` still
+migrates a whole table in one transaction. Split a large migration into batches
+and store application progress in the same `store.write` closure:
+
+```rust
+use weekend_db_typed::{Model, Result, Store, Table};
+#[derive(Model)]
+#[weekend(type_id = 80, version = 1)]
+struct Progress { #[weekend(id = 1)] last_id: u64 }
+
+fn batch<T: Model>(store: &Store, records: &Table<T>, progress: &Table<Progress>,
+                  ids: &[u64]) -> Result<usize> {
+    // The caller supplies ascending IDs from its migration plan.
+    store.write(|write| {
+        let changed = write.migrate_ids(records, ids, |_id, _raw, _model| {
+            // Apply application conversions here, beyond declared defaults.
+            Ok(())
+        })?;
+        if let Some(&last_id) = ids.last() {
+            write.update(progress, 1, |receipt| { receipt.last_id = last_id; Ok(()) })?;
+        }
+        Ok(changed)
+    })
+}
+```
+
+Create the progress row before running batches. A successful commit publishes
+both conversions and progress, so reopening can resume from that receipt. The
+application owns the ID plan and must ensure that its cursor does not skip
+unprocessed rows. For a publication outcome of `OutcomeUnknown`, reopen and
+consult durable progress before deciding whether to retry.
+
+IDs are processed in input order. Zero or duplicate IDs return `InvalidId`
+before any callback. A missing row returns engine `NotFound` and aborts the
+transaction, including earlier conversions and progress edits. Already-current
+rows skip the callback. The return value counts changed rows. Empty or
+already-current batches return zero, but the enclosing `store.write` still
+performs its normal commit.
+
+Input length is capped by the smaller of engine `max_writes` and
+`max_observations` before reads or callbacks. Each selected older row runs its
+callback at most once per invocation. Schema reads, index work, receipt edits,
+and encoded values also consume engine budgets, so a smaller batch may still
+return `Limit`. Callbacks themselves are application code and have no time or
+allocation quota. There is no automatic retry. Callbacks may run before a later
+error or conflict, so keep external side effects out of them.
+
+During migration, old and new record versions coexist. Reads use each row's
+stored schema and declared defaults. Updating an old row through the new model
+still requires migration. Unknown fields survive conversion, reserved retired
+fields are removed, and records and unique indexes change atomically. An
+absent field stays unindexed until conversion actually materializes it.
+Duplicate unique values abort the entire batch. Retained snapshots keep their
+original versions and indexes.
+
+Selected records, schemas, and index claims participate in normal conflict
+validation. Concurrent edits to a selected row conflict; an unrelated existing
+row can change without a table-wide scan conflict. Index absence observations
+can still cause conservative conflicts, including across tables. A batch is
+atomic; the full sequence of batches is not. Applications must support mixed
+versions until their progress plan is complete.
+
+## Checking and rebuilding unique indexes
+
+`read.check_indexes(&table)` compares the table's primary records with
+its entries in the shared index collection. The returned `IndexReport`
+counts records, expected/stored entries, missing keys, orphaned keys,
+and keys with an invalid or incorrect record owner. Its
+`is_consistent()` method checks all three discrepancy counts.
+
+```rust
+use weekend_db_typed::{Model, Result, Store};
+#[derive(Model)]
+#[weekend(type_id = 1, version = 1)]
+struct Item { #[weekend(id = 1, unique)] slug: String }
+fn main() -> Result<()> {
+    let mut store = Store::memory()?;
+    let items = store.table::<Item>("items")?;
+    let report = store.read(|read| read.check_indexes(&items))?;
+    if !report.is_consistent() {
+        let before = store.write(|write| write.rebuild_indexes(&items))?;
+        assert!(!before.is_consistent());
+    }
+    Ok(())
+}
+```
+
+`rebuild_indexes` returns the report from the transaction's initial
+view and stages only the required index changes. The write closure
+commits the repair atomically. Scans of primary records and the shared
+index collection make an intervening edit conflict, including an index
+edit for another table. A caught repair error still aborts the closure.
+Both checking and rebuilding validate stored records against their
+stored schema versions. Duplicate physical unique values return
+`UniqueViolation(field_id)` and require an application decision.
+
+Missing fields and explicit nulls stay unindexed even when a schema
+supplies defaults. Rebuilding preserves the exact primary envelopes,
+including unknown fields. Retained snapshots preserve their original
+indexes and can be checked with `read_retained`. Repair applies to keys
+whose table-ID prefix belongs to the selected table. Unattributable
+malformed global index keys and other tables require separate catalog
+inspection. The scans and edits must fit the engine's existing
+collection, observation, and transaction limits. A consistent rebuild
+still participates in the write closure's ordinary commit.
 
 ## Compile-time contracts
 

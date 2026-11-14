@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "suites": [
+    {
+      "path": "artifact-trace/test_runner.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "delivered-faults/test_runner.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "resource-envelope/test_growth_probe.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "resource-envelope/test_runner.py",
+      "allowed_skips": [
+        "helper_suite.RunnerTests.test_frozen_positive_and_corrupted_oracle_controls"
+      ]
+    },
+    {
+      "path": "serialization-scale/test_runner.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "sqlite-baseline/test_runner.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_c_sanitizers.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_compatibility.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_coverage.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_fuzz_runner.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_native_faults.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_release.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "allowed_skips": [
+        "helper_suite.NativeTLS.test_authenticated_observations_restarts_dropped_reply_and_stale_capture"
+      ]
+    },
+    {
+      "path": "test_snapshot_cli_upgrade.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_soak.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_study_cli_upgrade.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_study_peer_soak.py",
+      "allowed_skips": []
+    },
+    {
+      "path": "test_windows_consumers.py",
+      "allowed_skips": []
+    }
+  ]
+}
