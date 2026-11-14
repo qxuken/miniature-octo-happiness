@@ -760,3 +760,161 @@ fn backend_allocation_failure_during_recovery_returns_no_handle_or_partial_state
     }
     assert!(succeeded);
 }
+
+#[test]
+fn repeated_recovery_failures_preserve_retained_roots_and_acknowledged_floor() {
+    let (disk, db) = base_store();
+    db.retain_snapshot(&db.snapshot()).unwrap();
+    staged(&db).commit().unwrap();
+    db.retain_snapshot(&db.snapshot()).unwrap();
+    let image = disk.durable_image().unwrap();
+    let old_revision = db.snapshot().revision();
+    let old = state(&db);
+    let retained: Vec<_> = db
+        .retained_ids()
+        .unwrap()
+        .into_iter()
+        .map(|id| {
+            let view = db.retained_snapshot(id).unwrap();
+            let rows: Vec<_> = view
+                .scan(db.collection_id(1))
+                .unwrap()
+                .into_iter()
+                .map(|(key, value)| (key, Model::read(&value)))
+                .collect();
+            (id, view.revision(), rows)
+        })
+        .collect();
+    drop(db);
+    let trace = commit_trace(&image);
+    let [_, root_sync, _] = commit_barriers(&trace);
+    for initial in 0..3 {
+        let make = || {
+            let disk = SimulatedDisk::from_image(&image).unwrap();
+            let db = open(&disk);
+            let mut tx = staged(&db);
+            if initial != 2 {
+                disk.arm(
+                    root_sync,
+                    Fault::SyncError(if initial == 0 {
+                        Crash::DropAll
+                    } else {
+                        Crash::PersistAll
+                    }),
+                );
+            }
+            assert_eq!(
+                tx.commit(),
+                if initial == 2 {
+                    Ok(old_revision + 1)
+                } else {
+                    Err(Error::OutcomeUnknown)
+                }
+            );
+            assert_eq!(
+                db.snapshot().revision(),
+                old_revision + u64::from(initial == 2)
+            );
+            drop(tx);
+            drop(db);
+            disk.clear_fault();
+            disk
+        };
+        let control = make();
+        control.arm(usize::MAX, Fault::Error);
+        let expected = state(&open(&control));
+        let recovery = control.trace().unwrap();
+        let barriers: Vec<_> = recovery
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| matches!(e.kind, IoKind::Sync | IoKind::Write).then_some(i))
+            .collect();
+        assert_eq!(barriers.len(), 3);
+        let first_read = recovery
+            .iter()
+            .position(|e| e.kind == IoKind::Read)
+            .unwrap();
+        let last_read = recovery
+            .iter()
+            .rposition(|e| e.kind == IoKind::Read)
+            .unwrap();
+        drop(control);
+        let cases = [
+            (first_read, Fault::Error, false),
+            (last_read, Fault::Error, false),
+            (barriers[0], Fault::SyncError(Crash::DropAll), false),
+            (barriers[0], Fault::SyncError(Crash::PersistAll), true),
+            (
+                barriers[1],
+                Fault::Tear {
+                    prefix: 63,
+                    durable: true,
+                },
+                true,
+            ),
+            (barriers[2], Fault::SyncError(Crash::DropAll), true),
+            (barriers[2], Fault::SyncError(Crash::PersistAll), true),
+        ];
+        for (step, fault, stabilized) in cases {
+            for persist in [false, true] {
+                let disk = make();
+                disk.arm(step, fault);
+                assert!(matches!(
+                    Database::open_on(disk.clone(), Limits::default()),
+                    Err(Error::Io)
+                ));
+                assert_eq!(disk.trace().unwrap(), recovery[..=step]);
+                disk.clear_fault();
+                disk.crash(if persist {
+                    Crash::PersistAll
+                } else {
+                    Crash::DropAll
+                })
+                .unwrap();
+                let survives = initial != 0 || stabilized || persist;
+                let revision = old_revision + u64::from(survives);
+                // Discover the next witness barrier in a separate medium, so
+                // the real medium sees two failed opens without a successful
+                // recovery exposing a handle between them.
+                let reference = SimulatedDisk::from_image(&disk.durable_image().unwrap()).unwrap();
+                reference.arm(usize::MAX, Fault::Error);
+                drop(open(&reference));
+                let again = reference
+                    .trace()
+                    .unwrap()
+                    .iter()
+                    .rposition(|e| e.kind == IoKind::Sync)
+                    .unwrap();
+                disk.arm(again, Fault::SyncError(Crash::DropAll));
+                assert!(matches!(
+                    Database::open_on(disk.clone(), Limits::default()),
+                    Err(Error::Io)
+                ));
+                disk.clear_fault();
+                disk.crash(Crash::DropAll).unwrap();
+                let reopened = open(&disk);
+                assert_eq!(reopened.snapshot().revision(), revision);
+                assert_eq!(&state(&reopened), if survives { &expected } else { &old });
+                assert_eq!(reopened.retained_ids().unwrap(), vec![1, 2]);
+                for (id, captured, rows) in &retained {
+                    let view = reopened.retained_snapshot(*id).unwrap();
+                    assert_eq!(view.revision(), *captured);
+                    let actual: Vec<_> = view
+                        .scan(reopened.collection_id(1))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(key, value)| (key, Model::read(&value)))
+                        .collect();
+                    assert_eq!(&actual, rows);
+                }
+                reopened.begin().commit().unwrap();
+                drop(reopened);
+                disk.crash(Crash::DropAll).unwrap();
+                let reopened = open(&disk);
+                assert_eq!(reopened.snapshot().revision(), revision + 1);
+                assert_eq!(&state(&reopened), if survives { &expected } else { &old });
+                assert_eq!(reopened.retained_ids().unwrap(), vec![1, 2]);
+            }
+        }
+    }
+}

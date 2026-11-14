@@ -36,7 +36,7 @@ NATIVE = ["fixture", "drafts_ready", "core_limit_rejected", "drafts_released",
 FAULTS = ["allocation", "append_drop", "append_persist", "root_drop", "root_persist",
           "witness_drop", "witness_persist", "acknowledged"]
 OVERLAYS = ["tools/resource-envelope/" + name for name in
-            ["Cargo.toml", "Cargo.lock", "src/compound.rs", "compound.py", "run.py", "test_compound.py"]]
+            ["Cargo.toml", "Cargo.lock", "src/compound.rs", "src/resilience.rs", "compound.py", "run.py", "test_compound.py"]]
 
 
 def fnv(chunks):
@@ -126,8 +126,8 @@ def check_rows(rows, profile, source):
     return True
 
 
-def observe(binary, data, report, profile, source, arguments=()):
-    result = BASE.observe(binary, data, report, checker=lambda rows: check_rows(rows, profile, source), arguments=arguments)
+def observe(binary, data, report, profile, source, arguments=(), *, checker=None):
+    result = BASE.observe(binary, data, report, checker=checker or (lambda rows: check_rows(rows, profile, source)), arguments=arguments)
     # The observer retires the entire process group even after leader exit.
     # Independently reject surviving live group members (zombies are not live).
     try:

@@ -11,6 +11,7 @@ use weekend_db::{
     Database, Error, Limits, Snapshot, TransactionState, Value,
     storage::{self, Crash, Fault, IoKind, SimulatedDisk},
 };
+mod resilience;
 const MIB: usize = 1024 * 1024;
 const CORE: usize = 96 * MIB;
 const BULK: u64 = 48;
@@ -684,8 +685,44 @@ fn complete(profile: &str) {
 }
 fn main() {
     let args: Vec<_> = std::env::args_os().collect();
-    assert!((2..=4).contains(&args.len()));
+    assert!((2..=7).contains(&args.len()));
     let dir = Path::new(&args[1]);
+    if args.len() >= 4 {
+        let source = Path::new(&args[2]);
+        match args[3].to_str().unwrap() {
+            "maintenance-copy" => {
+                resilience::maintenance(dir, source, false);
+                return;
+            }
+            "maintenance-publish" => {
+                resilience::maintenance(dir, source, true);
+                return;
+            }
+            "resilience-recovery" => {
+                resilience::recovery(dir, source, args[4].to_str().unwrap().parse().unwrap());
+                return;
+            }
+            "resilience-child" => {
+                resilience::child(
+                    source,
+                    args[4].to_str().unwrap().parse().unwrap(),
+                    args[5].to_str().unwrap().parse().unwrap(),
+                    args[6].to_str().unwrap().parse().unwrap(),
+                );
+                return;
+            }
+            "resilience-check" => {
+                resilience::check(
+                    source,
+                    args[4].to_str().unwrap(),
+                    args[5].to_str().unwrap().parse().unwrap(),
+                    args[6].to_str().unwrap().parse().unwrap(),
+                );
+                return;
+            }
+            _ => {}
+        }
+    }
     match args.len() {
         2 => native(dir),
         3 => faults(dir, Path::new(&args[2])),

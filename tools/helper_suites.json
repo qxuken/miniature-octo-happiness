@@ -100,6 +100,10 @@
     {
       "path": "resource-envelope/test_cache_probe.py",
       "allowed_skips": []
+    },
+    {
+      "path": "resource-envelope/test_resilience.py",
+      "allowed_skips": []
     }
   ]
 }
