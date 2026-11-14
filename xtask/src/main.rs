@@ -1,6 +1,10 @@
 mod check;
 mod clean;
+#[cfg(unix)]
+mod faults;
 mod package;
+#[cfg(unix)]
+mod supervise;
 mod support;
 
 use anyhow::Result;
@@ -22,6 +26,24 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Run bounded native or exact-delivery fault qualifications; never publishes.
+    #[cfg(unix)]
+    Faults {
+        #[command(subcommand)]
+        task: faults::Task,
+    },
+    /// Execute one JSON request with bounded POSIX supervision (private protocol).
+    #[cfg(unix)]
+    Supervise,
+    #[command(hide = true)]
+    #[cfg(unix)]
+    ProcessTable,
+    #[command(hide = true)]
+    #[cfg(unix)]
+    RunnerSeed {
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Run the existing debug/release, CLI, renamed consumer and native ABI checks.
     Check {
         #[arg(long)]
@@ -90,6 +112,14 @@ fn execute(cli: Cli) -> Result<()> {
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        #[cfg(unix)]
+        Task::Faults { task } => faults::run(&run, task),
+        #[cfg(unix)]
+        Task::Supervise => supervise::cli(),
+        #[cfg(unix)]
+        Task::ProcessTable => supervise::table_cli(),
+        #[cfg(unix)]
+        Task::RunnerSeed { output } => faults::stage_runner(&root, &output),
         Task::Check { skip_odin, dry_run } => {
             check::run(&mut run, Platform::host()?, skip_odin, dry_run)
         }

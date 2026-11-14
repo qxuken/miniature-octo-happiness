@@ -31,9 +31,10 @@ dependencies. The derive builds with `syn`, `quote`, `proc-macro2`, and
 Run `cargo fetch --locked` once before the offline checks on a fresh
 checkout. `cargo xtask check` checks the whole workspace in debug/release,
 including the CLI lifecycle and a renamed-dependency consumer.
-The private [Rust xtask](docs/xtask.md) provides check, build, package and cleanup
-commands with clap-generated help. Python remains required for the independent
-ABI, attribution and delivered-source checks in this first migration batch.
+The private [Rust xtask](docs/xtask.md) provides check, build, package, cleanup
+and [bounded POSIX fault runners](docs/xtask-supervision.md), with clap-generated
+help. Python remains required for independent oracles and retained OS/profile
+controllers.
 
 [DESIGN.md](DESIGN.md) contains the complete target design, implementation
 sketches, decisions, competitor comparison, reading references, milestones,

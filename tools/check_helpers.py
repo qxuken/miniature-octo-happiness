@@ -5,7 +5,6 @@ import hashlib
 import importlib.util
 import json
 import os
-import resource
 import signal
 from pathlib import Path
 import subprocess
@@ -68,28 +67,13 @@ def bounded_json(path, maximum=MAX_FILE_BYTES):
     return json.loads(data)
 
 def process_table():
-    # Use the captured implementation to avoid recursively journaling this probe
-    # or inheriting suite mocks of subprocess.run/Popen. ps output is trusted
-    # system process metadata, bounded by the host process table; communicate
-    # has a two-second deadline and qualification rejects output over 8 MiB.
-    child = RAW_POPEN(['/bin/ps', '-axo', 'pid=,ppid=,pgid=,lstart=,stat='],
-                      stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                      env={**os.environ, 'LC_ALL': 'C'})
-    try:
-        stdout, stderr = child.communicate(timeout=2)
+    import supervision
+    child=RAW_POPEN([str(supervision.binary()),'process-table'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    try:out,err=child.communicate(timeout=5)
     except BaseException:
-        child.kill(); child.wait(timeout=2)
-        raise
-    require(child.returncode == 0 and len(stdout) <= MAX_FILE_BYTES,
-            'cannot inspect process ownership')
-    result = {}
-    for line in stdout.decode('ascii').splitlines():
-        parts = line.split()
-        require(len(parts) == 9, 'unrecognized process identity')
-        pid, parent, group = map(int, parts[:3])
-        result[pid] = {'pid': pid, 'parent': parent, 'group': group,
-                       'start': ' '.join(parts[3:8]), 'state': parts[8]}
-    return result
+        child.kill();child.wait(timeout=2);raise
+    require(child.returncode==0 and len(out)<=4*MAX_FILE_BYTES,'cannot inspect process ownership')
+    return {int(pid):row for pid,row in json.loads(out).items()}
 
 def journal_popen(journal):
     def spawn(*args, **kwargs):
@@ -109,80 +93,6 @@ def journal_popen(journal):
 
 def cancel_worker(signum, frame):
     raise KeyboardInterrupt('helper watchdog cancellation')
-
-def _cleanup_worker(child, journal):
-    owned = {}
-    table = process_table()
-    frontier = {child.pid}
-    seen = set(frontier)
-    while frontier:
-        descendants = {pid for pid, row in table.items() if row['parent'] in frontier} - seen
-        for pid in descendants:
-            owned[pid] = table[pid]
-        seen.update(descendants)
-        frontier = descendants
-    journal_errors = []
-    def read_journal():
-        try:
-            if not journal.exists():
-                return
-            if journal.stat().st_size > MAX_FILE_BYTES:
-                journal_errors.append('oversized journal')
-            with journal.open('rb') as file:
-                data = file.read(MAX_FILE_BYTES)
-            for line in data.splitlines():
-                try:
-                    row = json.loads(line)
-                    require(set(row) == {'pid', 'parent', 'group', 'start', 'state'} and
-                            type(row['pid']) is int and isinstance(row['start'], str), 'invalid process journal')
-                    owned[row['pid']] = row
-                except (ValueError, TypeError):
-                    journal_errors.append('malformed journal entry')
-        except OSError:
-            journal_errors.append('unreadable journal')
-    read_journal()
-    # Signal the worker first to permit its own finally blocks to run.
-    if child.poll() is None:
-        child.send_signal(signal.SIGTERM)
-        try:
-            child.wait(timeout=.3)
-        except subprocess.TimeoutExpired:
-            pass
-    helpers.stop(child)
-    read_journal()
-    deadline = time.monotonic() + 4
-    while True:
-        table = process_table()
-        # An explicitly created session owns its group even after its leader
-        # exits. Existing group members reserve that PGID against reuse.
-        groups = [row for row in owned.values() if row['pid'] == row['group']]
-        for leader in groups:
-            current = table.get(leader['pid'])
-            if current is not None and current['start'] != leader['start']:
-                continue  # recycled PID now identifies a different session
-            for pid, row in table.items():
-                if row['group'] == leader['group']:
-                    owned[pid] = row
-        live = [row for pid, row in table.items() if pid in owned and
-                row['start'] == owned[pid]['start'] and not row['state'].startswith('Z')]
-        if not live:
-            require(not journal_errors, 'unverifiable journal after best-effort cleanup')
-            return {'verified': True, 'owned_descendants': list(owned.values()),
-                    'identity': 'PID plus ps lstart; bounded trusted-suite process lifetime'}
-        for row in live:
-            try:
-                os.kill(row['pid'], signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        require(time.monotonic() < deadline, 'owned descendant remains running')
-        time.sleep(.02)
-
-def cleanup_worker(child, journal):
-    try:
-        return _cleanup_worker(child, journal)
-    finally:
-        # Inspection/journal errors must never bypass direct worker cleanup.
-        helpers.stop(child)
 
 def registry(root, path):
     data = json.loads(path.read_text())
@@ -277,31 +187,17 @@ def validate(record, row, suite_path, optimize):
     return {'tests': len(ids), 'passed': len(ids) - len(skip_ids), 'skipped': len(skip_ids)}
 
 def execute(command, directory, evidence, *, env=None, timeout=90, file_limit=MAX_FILE_BYTES):
+    import supervision
     record = {'command': list(map(str, command)), 'timeout': timeout, 'exit': None}
     evidence.append(record)
     journal = directory / 'processes.jsonl'
     child_env = dict(os.environ if env is None else env, HELPER_PROCESS_JOURNAL=str(journal))
-    def limit_files():
-        resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit, file_limit))
-    with (directory / 'stdout.log').open('x') as stdout, (directory / 'stderr.log').open('x') as stderr:
-        child = subprocess.Popen(command, stdout=stdout, stderr=stderr, env=child_env, start_new_session=True, preexec_fn=limit_files)
-        record['pid'] = child.pid
-        started = time.monotonic()
-        try:
-            child.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            record['timed_out'] = True
-            raise
-        finally:
-            try:
-                record["cleanup"] = cleanup_worker(child, journal)
-            except BaseException as error:
-                record["cleanup"] = {"verified": False, "failure_type": type(error).__name__}
-                helpers.stop(child)
-                raise
-            finally:
-                record.update(exit=child.returncode, elapsed_seconds=time.monotonic() - started)
-    require(child.returncode == 0, 'worker nonzero exit')
+    result = supervision.request(command, directory/'stdout.log', directory/'stderr.log',
+                    env=child_env, timeout=timeout, maximum=file_limit, file_limit=file_limit, journal=journal)
+    record.update(result, exit=result['returncode'], cleanup={
+        'verified':result['cleanup_verified'],'owned_descendants':result['owned_descendants'],
+        'failure_type':result['cleanup_failure']})
+    supervision.require_success(result, command, timeout)
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
@@ -318,6 +214,8 @@ def main(argv=None):
     try:
         rows, before = registry(HERE, HERE / 'helper_suites.json')
         evidence['source_before'] = before
+        import supervision
+        evidence['supervisor_before']=supervision.identity()
         external = external_inputs(HERE.parent)
         evidence['external_before'] = external
         deadline = time.monotonic() + 600
@@ -347,6 +245,8 @@ def main(argv=None):
         evidence['external_after'] = external_inputs(HERE.parent)
         require(external == evidence['external_after'], 'external input changed during run')
         require(before == after, 'helper source/registry changed during run')
+        evidence['supervisor_after']=supervision.identity()
+        require(evidence['supervisor_before']==evidence['supervisor_after'],'Rust supervisor changed during run')
         evidence['verified'] = True
     except BaseException as error:
         evidence['failure_type'] = type(error).__name__

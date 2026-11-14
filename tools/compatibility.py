@@ -8,10 +8,12 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import tarfile
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0,str(ROOT / "tools"))
 IDENTITY = r'''fn main() {
     println!(r#"{{"identity_kind":"engine_version_api","source_id":"{}","features":{},"abi_version":{},"format_version":{}}}"#,
         weekend_db::version::SOURCE_ID,weekend_db::version::FEATURES,
@@ -77,24 +79,16 @@ def stop(child):
 
 
 def run(command, output, evidence, label, *, cwd=ROOT, env=None, timeout=30):
+    import supervision
     command = [str(arg) for arg in command]
     log_path = output / (label + '.log')
     record = {'command': command, 'cwd': str(cwd), 'timeout_seconds': timeout,
               'log': str(log_path), 'returncode': None}
     evidence['commands'].append(record)
-    started = time.monotonic()
-    with log_path.open('x') as log:
-        child = subprocess.Popen(command, cwd=cwd, env=env, stdout=log,
-                                 stderr=subprocess.STDOUT, start_new_session=True)
-        try:
-            child.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            record['timed_out'] = True
-            raise
-        finally:
-            stop(child)
-            record.update(returncode=child.returncode, elapsed_seconds=time.monotonic() - started)
-    require(child.returncode == 0, f'{label} failed; inspect its log')
+    result = supervision.request(command, log_path, log_path, cwd=cwd, env=env, timeout=timeout)
+    record.update(result)
+    try: supervision.require_success(result, command, timeout)
+    except ValueError as error: raise RuntimeError(str(error)) from error
     return log_path.read_text()
 
 

@@ -62,6 +62,8 @@ def main():
         try:
             C.SCALE.command(['docker','volume','create',volume])
             argv=['docker','run','--name',name,'--network','none','--memory','2g','--cpus','2','--pids-limit','256','--tmpfs','/faults:rw,size=256m,mode=755','--mount',f'type=volume,src={volume},dst=/data','--mount',f'type=bind,src={src},dst=/src,readonly',image,'python3','/src/tools/quota/enospc.py','--worker','/src','/data/run',rev]
+            import supervision
+            argv=supervision.docker_command(argv,image,out)
             with (out/'docker.log').open('x')as log:result=subprocess.run(argv,stdout=log,stderr=subprocess.STDOUT,timeout=600)
         finally:
             try:copied=subprocess.run(['docker','cp',name+':/data/run',str(out/'run')],capture_output=True,text=True,timeout=120);e['copy']={'exit':copied.returncode,'stderr':copied.stderr}

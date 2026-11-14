@@ -75,8 +75,9 @@ flags reject qualification rather than silently omitting a requested profile.
 
 The library, macros, apps, storage/wire formats, durability barriers and separate
 follower-durable acknowledgment are unchanged. This batch begins the migration;
-it does not eliminate Python. Bounded/fault-injection runners and independent
-oracles remain in Python pending their own migration and regression replay.
+it does not eliminate Python. The subsequent [bounded supervision and fault-runner
+batch](xtask-supervision.md) moves child ownership and two fault campaigns to
+Rust; independent oracles and remaining profile/OS policy stay in Python.
 
 ## Cleanup and retention
 
@@ -109,10 +110,11 @@ rejection and normalizing Windows extended-path syntax. A regression first fails
 against the old oracle, then passes under both Python modes. Windows command
 paths use `dunce::canonicalize` for compiler-compatible canonical paths.
 
-Next: migrate bounded process supervision and fault-runner orchestration while
-replaying their cleanup/deadline/output-bound controls; then consider retiring
-Python leaf policies/oracles with independent cross-checks. Windows execution
-and final-candidate consolidation retain their source/platform-specific gates.
+The [bounded supervision migration](xtask-supervision.md) carries forward the
+cleanup/deadline/output-bound controls and native/exact-delivery fault runners.
+Further profile/OS-policy or leaf-oracle migration requires independent
+cross-checks. Windows execution and final-candidate consolidation retain their
+source/platform-specific gates.
 
 ## Verified first-batch results
 

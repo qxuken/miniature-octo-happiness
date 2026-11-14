@@ -5599,3 +5599,24 @@ compatibility entry points. Cleanup retains saved proofs by default and refuses
 source/symlink/self deletion. No library, storage, wire or follower-ack contract
 changes; all 20 project manifests are unpublished. Further runner/oracle
 migration requires its existing failure controls to carry forward.
+
+
+## Rust supervision and fault campaigns (2026-11-15)
+
+The [private supervisor](docs/xtask-supervision.md) now owns bounded POSIX child
+execution shared by compatibility, quota, helper and resource adapters. Native
+permission/ENOSPC and exact-delivery fault parent/worker orchestration move to
+xtask. Nonblocking capped pipes, unreaped leader identity, detached-session
+journals, bounded OS probes and terminal reports preserve the existing timeout,
+output-limit and cleanup contracts. Rust failure injection retires real children;
+Python retains independent byte/state/package oracles and validates adapter
+reports. Campaign cancellation still attempts owned Docker cleanup and requires
+independent absence queries. Historical engines and today's native runner have
+separate source identities and locked workspace snapshots.
+
+Full Mac/Linux helper registries, native tmpfs errors, all six delivered C fault
+modes with separate recovery processes and the compound native/inspect/fault
+profile pass. Exact proof scopes and remaining gates are in the linked report.
+This changes tooling only: engine serialization, durability barriers and separate
+follower durability acknowledgment stay unchanged. All crates remain private;
+no additional product MC/DC score or production-release closure is claimed.

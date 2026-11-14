@@ -122,7 +122,7 @@ def main():
         with tarfile.open(fileobj=io.BytesIO(archive)) as packed: packed.extractall(source, filter='data')
         for name in OVERLAYS:
             p = source / name; p.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(C.ROOT / name, p)
-        for name in ['tools/check_helpers.py', 'tools/serialization-scale/run.py', 'tools/sqlite-baseline/run.py']:
+        for name in ['tools/serialization-scale/run.py', 'tools/sqlite-baseline/run.py']:
             C.require((source / name).read_bytes() == (C.ROOT / name).read_bytes(), 'shared helper/archive mismatch')
         evidence.update(revision=revision, source_hashes=C.SCALE.inventory(source), archive_sha256=C.SCALE.sha(output / 'source.tar'), overlays={name: C.SCALE.sha(C.ROOT / name) for name in OVERLAYS})
         if args.docker_image:
@@ -132,6 +132,8 @@ def main():
             try:
                 C.SCALE.command(['docker', 'volume', 'create', volume])
                 argv = ['docker', 'run', '--name', name, '--network', 'none', '--memory', '2g', '--cpus', '2', '--pids-limit', '256', '--mount', f'type=volume,src={volume},dst=/data', '--mount', f'type=bind,src={source},dst=/src,readonly', image, 'python3', '/src/tools/resource-envelope/resilience.py', '--worker', '/src', '/data/run', revision]
+                import supervision
+                argv=supervision.docker_command(argv,image,output)
                 with (output / 'docker.log').open('x') as log: result = subprocess.run(argv, stdout=log, stderr=subprocess.STDOUT, timeout=1200)
             finally:
                 try:

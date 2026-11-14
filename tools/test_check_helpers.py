@@ -158,14 +158,16 @@ class HelperRunnerTests(unittest.TestCase):
                     except ProcessLookupError:pass
 
     def test_inspection_failure_still_reaps_actual_worker(self):
-        child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)'],start_new_session=True)
-        try:
-            with patch.object(runner,'process_table',side_effect=RuntimeError('inspection failed')):
-                with self.assertRaises(RuntimeError):runner.cleanup_worker(child,Path('/unused-journal'))
-            self.assertIsNotNone(child.returncode)
-            with self.assertRaises(ChildProcessError):os.waitpid(child.pid,os.WNOHANG)
-        finally:
-            runner.helpers.stop(child)
+        # Real inspection failure and waitpid(ECHILD) are checked in Rust.
+        import supervision
+        with tempfile.TemporaryDirectory() as temp:
+            outcome=dict(pid=123,returncode=-9,elapsed_seconds=.1,failure=None,
+                cleanup_failure='ownership inspection failed',cleanup_verified=False,
+                timed_out=False,cancelled=False,owned_descendants=[])
+            evidence=[]
+            with patch.object(supervision,'request',return_value=outcome),self.assertRaises(ValueError):
+                runner.execute(['driver'],Path(temp),evidence)
+            self.assertFalse(evidence[0]['cleanup']['verified']);self.assertEqual(evidence[0]['exit'],-9)
 
     def test_malformed_journal_still_cleans_known_detached_child(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -187,7 +189,7 @@ class HelperRunnerTests(unittest.TestCase):
     def test_nonzero_worker_cannot_be_accepted(self):
         with tempfile.TemporaryDirectory() as temporary:
             evidence=[]
-            with self.assertRaisesRegex(ValueError,'nonzero'):
+            with self.assertRaisesRegex(ValueError,'child exit'):
                 runner.execute([sys.executable,'-c','raise SystemExit(2)'],Path(temporary),evidence)
             self.assertEqual(evidence[0]['exit'],2)
 

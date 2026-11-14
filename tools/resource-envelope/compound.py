@@ -36,7 +36,7 @@ NATIVE = ["fixture", "drafts_ready", "core_limit_rejected", "drafts_released",
 FAULTS = ["allocation", "append_drop", "append_persist", "root_drop", "root_persist",
           "witness_drop", "witness_persist", "acknowledged"]
 OVERLAYS = ["tools/resource-envelope/" + name for name in
-            ["Cargo.toml", "Cargo.lock", "src/compound.rs", "src/resilience.rs", "src/space.rs", "compound.py", "run.py", "test_compound.py"]]
+            ["Cargo.toml", "Cargo.lock", "src/compound.rs", "src/resilience.rs", "src/space.rs", "compound.py", "run.py", "test_compound.py"]] + ["tools/supervision.py", "tools/compatibility.py", "tools/check_helpers.py"]
 
 
 def fnv(chunks):
@@ -204,7 +204,7 @@ def main():
         with tarfile.open(fileobj=io.BytesIO(archive)) as packed: packed.extractall(source, filter="data")
         for name in OVERLAYS:
             path = source / name; path.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(ROOT / name, path)
-        for name in ["tools/check_helpers.py", "tools/serialization-scale/run.py", "tools/sqlite-baseline/run.py"]:
+        for name in ["tools/serialization-scale/run.py", "tools/sqlite-baseline/run.py"]:
             require((source / name).read_bytes() == (ROOT / name).read_bytes(), "archived shared helper mismatch")
         evidence.update(revision=revision, archive_sha256=SCALE.sha(output / "source.tar"), source_hashes=SCALE.inventory(source), overlays={name: SCALE.sha(ROOT / name) for name in OVERLAYS})
         if args.docker_image:
@@ -216,6 +216,8 @@ def main():
                 argv = ["docker", "run", "--name", name, "--network", "none", "--memory", "2g", "--cpus", "2", "--pids-limit", "256",
                         "--mount", f"type=volume,src={volume},dst=/data", "--mount", f"type=bind,src={source},dst=/src,readonly",
                         image, "python3", "/src/tools/resource-envelope/compound.py", "--worker", "/src", "/data/run", revision]
+                import supervision
+                argv=supervision.docker_command(argv,image,output)
                 with (output / "docker.log").open("x") as log:
                     result = subprocess.run(argv, stdout=log, stderr=subprocess.STDOUT, timeout=600)
             finally:

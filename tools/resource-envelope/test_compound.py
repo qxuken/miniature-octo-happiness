@@ -111,115 +111,57 @@ class CompoundControls(unittest.TestCase):
                 self.assertFalse(report["passed"]); self.assertIn("output limit", report["failure"])
                 self.assertIsNone(report["cleanup_failure"])
 
+    def failed_outcome(self, **changes):
+        return dict(pid=123,returncode=0,elapsed_seconds=.1,failure=None,cleanup_failure=None,
+                    timed_out=False,cancelled=False,stdout_bytes=0,stderr_bytes=0,
+                    rss_samples_kib=[1],cleanup_verified=True,owned_descendants=[],**changes)
+
     def test_observer_cleanup_probe_failure_records_terminal_report(self):
-        for mode, expected in [("exit", "cannot verify retired group"),
-                               ("timeout", "TimeoutExpired"),
-                               ("malformed", "invalid process group inventory"),
-                               ("live", "owned group remains live")]:
-            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
-                script = self.script(root, "import time\ntime.sleep(0.1)\nprint('{}')\n")
-                killpg, run = runner.BASE.os.killpg, runner.BASE.subprocess.run
-                group_id = []
-                def denied_group(group, signal):
-                    group_id.append(group)
-                    try: killpg(group, signal)
-                    except PermissionError: pass
-                    raise PermissionError("exited group")
-                def failed_probe(argv, **kwargs):
-                    if argv == ["ps", "-axo", "pgid=,stat="]:
-                        if mode == "timeout": raise subprocess.TimeoutExpired(argv, 5)
-                        return subprocess.CompletedProcess(argv, 1 if mode == "exit" else 0,
-                            "broken" if mode == "malformed" else f"{group_id[0]} S\n" if mode == "live" else "", "probe failed")
-                    return run(argv, **kwargs)
-                checked = []
-                with patch.object(runner.BASE.os, "killpg", side_effect=denied_group), \
-                     patch.object(runner.BASE.subprocess, "run", side_effect=failed_probe), \
-                     self.assertRaises((AssertionError, subprocess.TimeoutExpired)):
-                    runner.BASE.observe(script, root / "data", root / "report.json", checker=checked.append)
-                report = json.loads((root / "report.json").read_text())
-                self.assertIn(expected, report["failure"])
-                self.assertEqual(report["failure"], report["cleanup_failure"])
-                self.assertFalse(report["passed"])
-                self.assertEqual(report["returncode"], 0)
-                self.assertEqual(report["process_group"], group_id[0])
-                self.assertFalse(checked)
-                with self.assertRaises(ChildProcessError): runner.BASE.os.waitpid(group_id[0], runner.BASE.os.WNOHANG)
+        import supervision
+        for mode in ['exit','timeout','malformed','live']:
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);checked=[]
+                outcome=self.failed_outcome();outcome.update(cleanup_failure='process probe '+mode,cleanup_verified=False)
+                with patch.object(supervision,'request',return_value=outcome),self.assertRaises(AssertionError):
+                    runner.BASE.observe(root/'driver',root/'data',root/'report.json',checker=checked.append)
+                report=json.loads((root/'report.json').read_text())
+                self.assertFalse(report['passed']);self.assertIn(mode,report['cleanup_failure'])
+                self.assertIsNotNone(report['failure']);self.assertEqual(report['returncode'],0);self.assertFalse(checked)
 
     def test_observer_spawn_failure_records_terminal_report(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            with self.assertRaises(FileNotFoundError):
-                runner.BASE.observe(root / "missing-driver", root / "data", root / "report.json")
-            report = json.loads((root / "report.json").read_text())
-            self.assertFalse(report["passed"])
-            self.assertIn("FileNotFoundError", report["failure"])
-            self.assertIsNone(report["returncode"])
-            self.assertIsNone(report["cleanup_failure"])
+            root=Path(temp)
+            with self.assertRaises(AssertionError):runner.BASE.observe(root/'missing',root/'data',root/'report.json')
+            report=json.loads((root/'report.json').read_text())
+            self.assertFalse(report['passed']);self.assertIn('spawn child',report['failure'])
+            self.assertIsNone(report['returncode']);self.assertIsNone(report['cleanup_failure'])
 
     def test_observer_wait_failure_records_terminal_report(self):
+        import supervision
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            script = self.script(root, "import time\ntime.sleep(0.1)\nprint('{}')\n")
-            spawn = runner.BASE.subprocess.Popen
-            def failed_wait(*args, **kwargs):
-                child = spawn(*args, **kwargs)
-                if child.args[0] == str(script):
-                    wait = child.wait
-                    def wait_then_fail(*args, **kwargs):
-                        wait(*args, **kwargs)
-                        raise subprocess.TimeoutExpired(child.args, 5)
-                    child.wait = wait_then_fail
-                return child
-            checked = []
-            with patch.object(runner.BASE.subprocess, "Popen", side_effect=failed_wait), self.assertRaises(subprocess.TimeoutExpired):
-                runner.BASE.observe(script, root / "data", root / "report.json", checker=checked.append)
-            report = json.loads((root / "report.json").read_text())
-            self.assertIn("TimeoutExpired", report["cleanup_failure"])
-            self.assertFalse(report["passed"])
-            self.assertEqual(report["returncode"], 0)
-            self.assertFalse(checked)
+            root=Path(temp);checked=[];outcome=self.failed_outcome();outcome.update(cleanup_failure='wait failed after reap',cleanup_verified=False)
+            with patch.object(supervision,'request',return_value=outcome),self.assertRaises(AssertionError):
+                runner.BASE.observe(root/'driver',root/'data',root/'report.json',checker=checked.append)
+            report=json.loads((root/'report.json').read_text());self.assertFalse(checked)
+            self.assertIn('wait failed',report['cleanup_failure']);self.assertFalse(report['passed'])
 
     def test_observer_keeps_observation_and_cleanup_failures(self):
+        import supervision
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            script = self.script(root, "import time\ntime.sleep(0.1)\nprint('{}')\n")
-            waitid, killpg, run = runner.BASE.os.waitid, runner.BASE.os.killpg, runner.BASE.subprocess.run
-            first = [True]
-            def failed_observation(*args):
-                if first[0]: first[0] = False; raise RuntimeError("observation failed")
-                return waitid(*args)
-            def denied_group(group, signal):
-                try: killpg(group, signal)
-                except PermissionError: pass
-                waitid(runner.BASE.os.P_PID, group, runner.BASE.os.WEXITED | runner.BASE.os.WNOWAIT)
-                raise PermissionError("exited group")
-            def failed_probe(argv, **kwargs):
-                if argv == ["ps", "-axo", "pgid=,stat="]: return subprocess.CompletedProcess(argv, 1, "", "probe failed")
-                return run(argv, **kwargs)
-            with patch.object(runner.BASE.os, "waitid", side_effect=failed_observation), \
-                 patch.object(runner.BASE.os, "killpg", side_effect=denied_group), \
-                 patch.object(runner.BASE.subprocess, "run", side_effect=failed_probe), \
-                 self.assertRaises(AssertionError):
-                runner.BASE.observe(script, root / "data", root / "report.json")
-            report = json.loads((root / "report.json").read_text())
-            self.assertEqual(report["failure"], "RuntimeError: observation failed")
-            self.assertIn("cannot verify retired group", report["cleanup_failure"])
-            self.assertFalse(report["passed"])
-            self.assertEqual(report["returncode"], -runner.BASE.signal.SIGKILL)
+            root=Path(temp);outcome=self.failed_outcome();outcome.update(failure='observation failed',cleanup_failure='cleanup probe failed',cleanup_verified=False)
+            with patch.object(supervision,'request',return_value=outcome),self.assertRaises(AssertionError):
+                runner.BASE.observe(root/'driver',root/'data',root/'report.json')
+            report=json.loads((root/'report.json').read_text())
+            self.assertEqual(report['failure'],'observation failed');self.assertEqual(report['cleanup_failure'],'cleanup probe failed');self.assertFalse(report['passed'])
 
     def test_observer_cancellation_records_terminal_report_and_reaps(self):
+        import supervision
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            script = self.script(root, "import time\ntime.sleep(30)\n")
-            with patch.object(runner.BASE.os, "waitid", side_effect=KeyboardInterrupt("cancelled")), self.assertRaises(KeyboardInterrupt):
-                runner.BASE.observe(script, root / "data", root / "report.json")
-            report = json.loads((root / "report.json").read_text())
-            self.assertFalse(report["passed"])
-            self.assertEqual(report["failure"], "KeyboardInterrupt: cancelled")
-            self.assertIsNone(report["cleanup_failure"])
-            self.assertEqual(report["returncode"], -runner.BASE.signal.SIGKILL)
-            with self.assertRaises(ChildProcessError): runner.BASE.os.waitpid(report["process_group"], runner.BASE.os.WNOHANG)
+            root=Path(temp);outcome=self.failed_outcome();outcome.update(failure='supervisor cancelled',cancelled=True,returncode=-9)
+            with patch.object(supervision,'request',return_value=outcome),self.assertRaises(KeyboardInterrupt):
+                runner.BASE.observe(root/'driver',root/'data',root/'report.json')
+            report=json.loads((root/'report.json').read_text())
+            self.assertFalse(report['passed']);self.assertTrue(report['cancelled']);self.assertEqual(report['returncode'],-9)
 
     def test_fresh_output_rejects_existing_and_dangling(self):
         with tempfile.TemporaryDirectory() as temp:

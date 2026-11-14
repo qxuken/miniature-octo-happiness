@@ -64,7 +64,7 @@ class RunnerTests(unittest.TestCase):
             evidence = json.loads(report.read_text())
             self.assertFalse(evidence["passed"])
             self.assertTrue(evidence["process_group_killed"])
-            self.assertIn("TimeoutError", evidence["failure"])
+            self.assertIn("deadline", evidence["failure"])
             with self.assertRaises(ProcessLookupError):
                 os.kill(evidence["process_group"], 0)
             self.assertTrue(pidfile.exists(), "control must actually spawn a descendant")
@@ -78,28 +78,36 @@ class RunnerTests(unittest.TestCase):
                 time.sleep(0.05)
             self.assertTrue(not state or state.startswith("Z"), state)
 
+    def test_transport_import_failure_retains_terminal_report(self):
+        import builtins
+        original=builtins.__import__
+        def unavailable(name,*args,**kwargs):
+            if name=='supervision':raise ImportError('transport unavailable')
+            return original(name,*args,**kwargs)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            with patch.object(builtins,'__import__',side_effect=unavailable),self.assertRaises(AssertionError):
+                runner.observe(root/'missing',root/'data',root/'report.json')
+            report=json.loads((root/'report.json').read_text())
+            self.assertFalse(report['passed']);self.assertIn('ImportError',report['failure'])
+            self.assertIsNone(report['returncode']);self.assertIsNone(report['cleanup_failure'])
+            self.assertIsInstance(report['elapsed_seconds'],float);self.assertEqual(report['rss_sample_count'],0)
+
     def test_small_independent_oracle_known_digest(self):
         self.assertEqual(runner.oracle_hash((1, 1), 8192), 11582251074155391637)
 
     def test_sampler_timeout_reaps_real_child_and_retains_failure(self):
+        # Real sampler failure/retirement is injected in Rust; this checks that
+        # its terminal outcome survives the observer's independent oracle layer.
+        import supervision
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            script = self.script(root, "import time\ntime.sleep(30)\n")
-            report = root / "run.json"
-            with patch.object(runner.sys, "platform", "darwin"), patch.object(
-                    runner.subprocess, "run", side_effect=subprocess.TimeoutExpired(["ps"], 5)) as sampler:
-                with self.assertRaises(AssertionError):
-                    runner.observe(script, root / "data", report)
-            sampler.assert_called_once()
-            self.assertEqual(sampler.call_args.kwargs["timeout"], 5)
-            self.assertEqual(sampler.call_args.args[0][0], "ps")
-            evidence = json.loads(report.read_text())
-            self.assertFalse(evidence["passed"])
-            self.assertTrue(evidence["process_group_killed"])
-            self.assertIn("TimeoutExpired", evidence["failure"])
-            self.assertIsNotNone(evidence["returncode"])
-            with self.assertRaises(ProcessLookupError):
-                os.kill(evidence["process_group"], 0)
+            root=Path(temp);outcome=dict(pid=123,returncode=-9,elapsed_seconds=.1,
+                failure='sampler timeout',cleanup_failure=None,cleanup_verified=True,
+                timed_out=False,cancelled=False,rss_samples_kib=[],owned_descendants=[])
+            with patch.object(supervision,'request',return_value=outcome),self.assertRaises(AssertionError):
+                runner.observe(root/'driver',root/'data',root/'report.json')
+            report=json.loads((root/'report.json').read_text())
+            self.assertIn('sampler timeout',report['failure']);self.assertFalse(report['passed']);self.assertTrue(report['process_group_killed'])
 
     @unittest.skipUnless(os.environ.get("RESOURCE_ENVELOPE_EVIDENCE"), "frozen evidence not supplied")
     def test_frozen_positive_and_corrupted_oracle_controls(self):

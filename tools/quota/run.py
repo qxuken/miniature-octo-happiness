@@ -8,7 +8,6 @@ import os
 from pathlib import Path
 import pwd
 import re
-import selectors
 import shutil
 import signal
 import stat
@@ -43,39 +42,17 @@ def same(actual, expected):
     return actual == expected
 
 def invoke(argv, output, evidence, label, *, timeout=30, allowed=(0,), maximum=LOG_BYTES, env=None):
+    import supervision
     record = {'label': label, 'argv': list(map(str, argv)), 'timeout': timeout, 'exit': None}
     evidence['commands'].append(record)
-    selector = selectors.DefaultSelector(); child = None
-    started = time.monotonic(); deadline = started + timeout
-    paths = {name: output / (label + '.' + name) for name in ['stdout', 'stderr']}
+    stdout, stderr = (output/(label+'.'+name) for name in ['stdout','stderr'])
+    result = supervision.request(argv, stdout, stderr, env=env, timeout=timeout, maximum=maximum)
+    record.update(result, exit=result['returncode'])
     try:
-        with paths['stdout'].open('xb') as stdout, paths['stderr'].open('xb') as stderr:
-            child = subprocess.Popen(record['argv'], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                     start_new_session=True, env=env)
-            record['pid'] = child.pid
-            streams = {child.stdout: [stdout, 0], child.stderr: [stderr, 0]}
-            for stream in streams: selector.register(stream, selectors.EVENT_READ)
-            while selector.get_map():
-                remaining = deadline-time.monotonic()
-                if remaining <= 0: raise TimeoutError('command deadline')
-                events = selector.select(min(remaining, .2))
-                for key, _ in events:
-                    stream = key.fileobj; file, count = streams[stream]
-                    block = os.read(stream.fileno(), min(65536, maximum-count+1))
-                    if not block: selector.unregister(stream); continue
-                    require(count+len(block) <= maximum, 'command output limit')
-                    file.write(block); streams[stream][1] += len(block)
-            remaining = deadline-time.monotonic()
-            if remaining <= 0: raise TimeoutError('command deadline')
-            child.wait(timeout=remaining)
-            require(child.returncode in allowed, 'command failed: ' + label)
-    finally:
-        if child is not None:
-            helpers.stop(child)
-            record['exit'] = child.returncode
-            child.stdout.close(); child.stderr.close()
-        selector.close(); record['elapsed_seconds'] = time.monotonic()-started
-    return paths['stdout'].read_text()
+        supervision.require_success(result, argv, timeout, allowed=allowed)
+    except subprocess.TimeoutExpired as error:
+        raise TimeoutError('command deadline') from error
+    return stdout.read_text()
 
 def one_json(text):
     require(len(text.encode()) <= LOG_BYTES, 'JSON result too large')
@@ -233,7 +210,7 @@ def main(argv=None):
         evidence['source_binding']=source_binding(args.source)
         evidence['fixture_sha256']=sha(args.fixture)
         tools={name:sha(HERE/name) for name in ['run.py','probe.py','test_runner.py','fixture.rs',*(['maintenance.py']if args.maintenance else[])]}
-        tools['compatibility.py']=sha(ROOT/'tools/compatibility.py');evidence['tools_sha256']=tools
+        tools['compatibility.py']=sha(ROOT/'tools/compatibility.py');tools['supervision.py']=sha(ROOT/'tools/supervision.py');evidence['tools_sha256']=tools
         tool_hashes={}
         for name in ['losetup','mkfs.ext4','mount','findmnt','setquota','setpriv','umount','uname']:
             found=shutil.which(name)

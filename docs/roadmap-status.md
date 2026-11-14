@@ -811,3 +811,49 @@ Dirty/existing-output/selected-abort/empty-image/wrong-ID controls reject as
 required. Actual cleanup retains proofs/runner and reduces the main target to
 about 572 MiB. Native Windows remains a CI gate for these new entry points;
 no crate is published and no production-release closure is inferred.
+
+
+## Rust supervision and fault-runner migration (2026-11-15)
+
+The [bounded supervision batch](xtask-supervision.md) moves POSIX process ownership,
+deadlines, capped pipes, RSS, process journals, cancellation and terminal reports
+into the private Rust xtask. Compatibility, quota, resource and helper execution
+adapters share it. Native permission/ENOSPC and exact-delivery fault parent/worker
+orchestration now live in Rust; independent Python byte/state/package oracles and
+privileged OS/profile scheduling retain separate scope. New Docker tool snapshots
+preserve the workspace graph and locked dependencies independently of the engine.
+
+The deadline/output/cleanup regressions cross the Rust supervisor interface.
+Former Python OS mocks move to Rust injection controls with real child retirement;
+adapter tests preserve observation/cleanup errors and refuse the oracle on failure.
+Detached/reparented helpers, exact 8 MiB limits, inherited file limits, cancellation,
+no-overwrite, disabled injection and fail-closed Docker absence queries remain.
+Both full helper registries pass 352 checks plus four registered skips across
+52 workers per platform, using Python 3.14.8 on Mac arm64 and Docker Linux aarch64.
+The native tmpfs campaign and all six exact-package C fault modes pass; recovery
+runs in fresh processes without the shim, validates retained revision 2 and retry
+to revision 4. The compound native/inspect/eight-fault profile passes with its
+independent byte/retained-root oracle. All owned containers/volumes are absent.
+
+Engine bytes, durability barriers and separate follower acknowledgment remain
+unchanged; no product MC/DC claim is added. Crates remain unpublished. Next:
+remaining Python profile/network/OS orchestration where useful, independent leaf
+oracle migration only with cross-checks, and the roadmap's remaining platform,
+maintenance-phase/device and immutable-candidate qualification gates. This tooling
+step does not close the production-readiness roadmap.
+
+Final reviewed Rust controls pass 27 tests per debug/release profile on Mac and
+Docker Linux. Strict all-target Clippy, formatting and Windows MSVC cross-target
+Clippy pass. A transport-import finalization edge case and isolated legacy-CLI
+import path are reproduced and fixed during review. Thirty-two additional real
+exact-limit/overflow iterations pass without retaining their large temporary
+payloads. Maintenance ENOSPC also passes through the native Rust supervisor:
+32 fixture processes, 30 phase records, complete retained roots, full-space
+reopening and successful maintenance retry, with independent owned-resource
+absence. Proof review hashes and the precise split between Rust execution and
+retained Python policies/oracles are in the linked report. Native Windows runtime
+and production/candidate qualification are not inferred from these tooling checks.
+
+Final local proof-review index SHA-256:
+`9b05901a864a22d429a53c128b967f95cf649430bdab79776b0afc830bf9bcfb`.
+All 20 manifests remain unpublished; no crates.io operation is performed.

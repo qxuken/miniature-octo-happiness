@@ -91,89 +91,34 @@ def observe(binary, data, report, deadline_seconds=180, *, checker=check_rows, a
     evidence = {"passed": False, "rss_scope": "main child sampled every ~50ms; stack child has its own phase RSS; not a process cap"}
     with report.open("x") as stream:
         json.dump(evidence, stream)
-    started = time.monotonic()
-    samples = []
-    child = None
+    # The Rust supervisor owns pipes, waitid, RSS probes and process retirement.
     failure = None
-    evidence["cleanup_failure"] = None
+    evidence.update(cleanup_failure=None,returncode=None,rss_samples_kib=[],rss_sample_count=0,sampled_peak_rss_kib=0)
+    started = time.monotonic()
     try:
-        with out.open("x") as stdout, err.open("x") as stderr:
-            child = subprocess.Popen([str(binary), str(data), *map(str, arguments)], stdout=stdout, stderr=stderr, start_new_session=True)
-            try:
-                # Observe exit without reaping: reserve the leader PID until its
-                # group is retired, so PID reuse cannot target an unrelated group.
-                while os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is None:
-                    require(out.stat().st_size < 8 * 1024 * 1024 and err.stat().st_size < 8 * 1024 * 1024, "resource driver output limit")
-                    if time.monotonic() - started > deadline_seconds:
-                        raise TimeoutError("resource driver exceeded 180-second deadline")
-                    if sys.platform == "linux":
-                        try:
-                            status = Path(f"/proc/{child.pid}/status").read_text()
-                            sample = next(line for line in status.splitlines() if line.startswith("VmRSS:"))
-                            samples.append(int(sample.split()[1]))
-                        except (FileNotFoundError, StopIteration):
-                            pass
-                    else:
-                        output = subprocess.run(["ps", "-o", "rss=", "-p", str(child.pid)],
-                                                capture_output=True, text=True, timeout=5)
-                        if output.stdout.strip():
-                            samples.append(int(output.stdout.strip()))
-                    time.sleep(0.05)
-            except Exception as error:
-                failure = f"{type(error).__name__}: {error}"
-            finally:
-                group_killed = False
-                # A completed leader may leave descendants behind. Always retire
-                # the owned process group, including on a nominally successful exit.
-                try:
-                    try:
-                        try:
-                            os.killpg(child.pid, signal.SIGKILL)
-                            group_killed = True
-                        except ProcessLookupError:
-                            pass
-                        except PermissionError:
-                            # This macOS kernel reports EPERM for a zombie-only group.
-                            # Ignore it only after proving the owned leader has exited
-                            # and a bounded process-table query finds no live members.
-                            require(os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None, "cannot retire live leader")
-                            groups = subprocess.run(["ps", "-axo", "pgid=,stat="], capture_output=True, text=True, timeout=5)
-                            require(groups.returncode == 0 and len(groups.stdout) <= 8 * 1024 * 1024, "cannot verify retired group")
-                            members = [line.split() for line in groups.stdout.splitlines()]
-                            require(all(len(row) == 2 for row in members), "invalid process group inventory")
-                            require(not any(int(group) == child.pid and not state.startswith("Z") for group, state in members), "owned group remains live")
-                    finally:
-                        child.wait(timeout=5)
-                except BaseException as error:
-                    evidence["cleanup_failure"] = f"{type(error).__name__}: {error}"
-                    raise
-                finally:
-                    evidence.update(process_group=child.pid, process_group_killed=group_killed)
-            try:
-                require(out.stat().st_size < 8 * 1024 * 1024 and err.stat().st_size < 8 * 1024 * 1024, "resource driver output limit")
-                rows = [json.loads(line) for line in out.read_text().splitlines()]
-                evidence["rows"] = rows
-                if child.returncode == 0 and failure is None:
-                    checker(rows)
-                    require(bool(samples), "no RSS samples")
-                    evidence["passed"] = True
-                elif failure is None:
-                    failure = f"driver exit {child.returncode}"
-            except Exception as error:
-                if failure is None:
-                    failure = f"{type(error).__name__}: {error}"
+        tools = ROOT / 'tools'
+        if str(tools) not in sys.path: sys.path.insert(0, str(tools))
+        import supervision
+        result = supervision.request([binary, data, *arguments], out, err,
+                    timeout=deadline_seconds, exclusive=True, sample_rss=True)
+        samples = result['rss_samples_kib']
+        evidence.update(result, process_group=result['pid'], process_group_killed=result['cleanup_verified'],
+                        rss_sample_count=len(samples), sampled_peak_rss_kib=max(samples, default=0))
+        supervision.require_success(result, [binary,data,*arguments], deadline_seconds)
+        rows = [json.loads(line) for line in out.read_text().splitlines()]
+        evidence['rows'] = rows
+        checker(rows)
+        require(bool(samples), 'no RSS samples')
+        evidence['passed'] = True
+    except Exception as error:
+        failure = f'{type(error).__name__}: {error}'
     except BaseException as error:
-        # Cleanup/startup/cancellation errors must not leave only the initial
-        # marker. Keep an earlier observation error as well as the cleanup error.
-        if failure is None:
-            failure = f"{type(error).__name__}: {error}"
+        failure = f'{type(error).__name__}: {error}'
         raise
     finally:
-        evidence.update(failure=failure, returncode=child.returncode if child is not None else None,
-                        elapsed_seconds=time.monotonic() - started,
-                        rss_samples_kib=samples, rss_sample_count=len(samples),
-                        sampled_peak_rss_kib=max(samples, default=0))
-        report.write_text(json.dumps(evidence, indent=2) + "\n")
+        evidence["elapsed_seconds"] = time.monotonic()-started
+        if failure is not None: evidence['failure'] = evidence.get('failure') or failure
+        report.write_text(json.dumps(evidence, indent=2) + '\n')
     require(evidence["passed"], "resource driver failed; inspect logs")
     return evidence
 
@@ -198,7 +143,7 @@ def main():
         packed.extractall(source, filter="data")
     overlay = ["tools/resource-envelope/Cargo.toml", "tools/resource-envelope/Cargo.lock",
                "tools/resource-envelope/src/main.rs", "tools/resource-envelope/run.py",
-               "tools/resource-envelope/test_runner.py", "tools/resource-envelope/README.md"]
+               "tools/resource-envelope/test_runner.py", "tools/resource-envelope/README.md", "tools/supervision.py"]
     for name in overlay:
         path = source / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -219,7 +164,7 @@ def main():
     if args.docker_image:
         image = command(["docker", "image", "inspect", "--format", "{{.Id}}", args.docker_image], text=True).stdout.strip()
         name = "weekend-resource-" + uuid.uuid4().hex[:12]
-        script = """mkdir /work
+        script = """mkdir -p /work
 rustc -vV > /work/rustc.txt
 stat -f -c '%T' /work > /work/filesystem.txt
 cargo build --offline --release --locked --manifest-path /src/tools/resource-envelope/Cargo.toml > /work/build.log 2>&1
@@ -231,6 +176,9 @@ python3 /src/tools/resource-envelope/run.py --observe /work/build/release/weeken
                 "--env", f"WEEKEND_DB_SOURCE_ID={revision}", image, "sh", "-ec", script]
         evidence.update(docker_image_id=image, docker_command=argv, runtime_filesystem="container writable layer; measured in filesystem.txt")
         try:
+            sys.path.insert(0,str(ROOT/"tools"))
+            import supervision
+            argv=supervision.docker_command(argv,image,output,build_root="/work")
             result = subprocess.run(argv, capture_output=True, text=True, timeout=300)
             (output / "docker.log").write_text(result.stdout + result.stderr)
             evidence["docker_exit_code"] = result.returncode

@@ -67,6 +67,13 @@ jobs:
         with:
           version: 2026.11.6
           install_args: python@3.14.8
+      - name: Build and test the private Rust supervisor
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+          cargo fetch --locked
+          cargo test --offline --locked -p xtask --target-dir target/xtask
+          cargo xtask --help
       - name: Run all registered helper controls normally and under Python -O
         run: mise exec python@3.14.8 -- python tools/check_helpers.py --output target/helper-controls
       - name: Save private helper-control evidence
@@ -97,6 +104,12 @@ jobs:
           uname -a > target/quota-host/kernel.txt
           dpkg-query -W quota e2fsprogs util-linux > target/quota-host/packages.txt
           cat /etc/os-release > target/quota-host/os-release.txt
+      - name: Build the unprivileged private supervisor
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+          cargo fetch --locked
+          cargo xtask --help
       - name: Check controller rejection and cleanup controls without privileges
         run: |
           mise exec python@3.14.8 -- python tools/quota/test_runner.py
