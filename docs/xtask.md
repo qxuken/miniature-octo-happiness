@@ -113,3 +113,56 @@ Next: migrate bounded process supervision and fault-runner orchestration while
 replaying their cleanup/deadline/output-bound controls; then consider retiring
 Python leaf policies/oracles with independent cross-checks. Windows execution
 and final-candidate consolidation retain their source/platform-specific gates.
+
+## Verified first-batch results
+
+Checkpoint `964efef0cd2c68bef7f65f1b23b57254debc2764` passes the full native
+check/build pipelines on Mac arm64 and Docker Linux aarch64. Independent review
+parses the actual execution logs and matches all **44 Mac commands** and
+**36 Linux commands** against the original Python plans, including every
+argument after the documented path/Python-isolation normalization. Mac includes
+both Odin/wgpu integrations. Both helper registries pass **356 controls** and
+four registered optional skips (360 reported tests, 52 workers per platform).
+All 180 copied helper payload hashes per platform and worker cleanup checks pass.
+
+Review then reproduced an empty-image bypass of the old source-isolation
+selection. Checkpoint `c17cd76099336f279d4be731b14f8ee3409b3bf0` rejects the
+empty value through clap and requires explicit success for each requested source
+profile. The latest Rust control suite passes **11 tests** in debug and release
+on Mac, with strict all-target Clippy and formatting. Existing pipeline/helper
+results above retain their original source; only package guards/documentation
+change in this follow-up. The hardened package profiles are rerun from clean,
+frozen `c17cd76` source on both platforms:
+
+| Profile | Result | Manifest SHA-256 |
+|---|---|---|
+| Mac C/C++/Odin, relocation, native Rust source and Docker source isolation | Verified; packaging candidate eligible | `f9548125a409d62538d4ace9d2659cf2110d407eddc56670b258082ea866c22e` |
+| Linux C/C++, relocation and native Rust source | Verified; packaging candidate eligible | `1dd951082fcace18a5a1b7818dc30d3664f82dbc5a5df84fded56f6c5a26cbd8` |
+
+Both package source inventories match all **674** archived input files. Review
+recomputes **758 Mac** and **752 Linux** artifact hashes, independently compares
+header/export sets, verifies source/header bindings, and checks owned Docker
+container/volume absence. The exact Mac library independently reports ABI 1,
+format 2 and feature mask 3. Candidate eligibility here means packaging checks
+passed; it is not production qualification or publication.
+
+Negative controls refuse dirty source, preserve an existing destination, reject
+an actual wrapper-selected `panic=abort`, reject an empty isolation image before
+creating output, and reject the wrong embedded source ID even with
+`PYTHONOPTIMIZE=2`. Profile-result controls also reject missing, false and
+malformed confirmations. Earlier development attempts include a formatter
+disagreement, the short-root false positive, and source-stability rejections
+when checkers were edited during qualification. Those attempts are retained as
+failures; the frozen reruns above supply the qualified results.
+
+The actual cleanup command removes normal and nested caches, retains package
+proofs and `target/xtask`, and successfully runs the tool afterward. The main
+target decreases from **1,754,324 to 586,052 KiB** (about 572 MiB remaining),
+with additional nested caches removed. No other workspace is selected.
+
+Ignored proof is under `target/xtask-qualification/`. Independent review index
+`final-review.json` has SHA-256
+`37cc65e6444e3188103aeb9118aa57a5626b825222bc7e7dd42fec61928d92fe`.
+The source IDs, platform scopes and artifact retention remain explicit; local
+ignored evidence is not permanent archival. Native Windows execution of the
+new entry points remains for CI. All 20 project manifests stay unpublished.

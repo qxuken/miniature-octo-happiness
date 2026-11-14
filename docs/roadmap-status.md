@@ -798,3 +798,16 @@ Next: bounded process/fault-runner migration with existing ownership/deadline/
 output-bound controls, then independent validation before retiring Python leaf
 policies/oracles. Native Windows and immutable-candidate qualification retain
 their own source/platform gates.
+
+Frozen `964efef` passes full Mac/Linux check/build pipelines: actual logs preserve
+all 44/36 original commands and arguments. Each platform's helper registry passes
+356 controls and four registered skips across 52 workers. Follow-up `c17cd76`
+closes an empty-image source-isolation bypass and requires explicit profile
+success. Eleven latest Rust controls pass debug/release on Mac; hardened clean
+package profiles pass again on Mac/Linux, with C/C++ relocation, native Rust
+source, and Mac Odin plus Docker source isolation. All source/artifact hashes
+are independently reviewed in the [qualified results](xtask.md#verified-first-batch-results).
+Dirty/existing-output/selected-abort/empty-image/wrong-ID controls reject as
+required. Actual cleanup retains proofs/runner and reduces the main target to
+about 572 MiB. Native Windows remains a CI gate for these new entry points;
+no crate is published and no production-release closure is inferred.
