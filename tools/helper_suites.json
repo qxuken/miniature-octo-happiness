@@ -104,6 +104,10 @@
     {
       "path": "resource-envelope/test_resilience.py",
       "allowed_skips": []
+    },
+    {
+      "path": "quota/test_maintenance.py",
+      "allowed_skips": []
     }
   ]
 }

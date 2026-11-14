@@ -12,6 +12,7 @@ use weekend_db::{
     storage::{self, Crash, Fault, IoKind, SimulatedDisk},
 };
 mod resilience;
+mod space;
 const MIB: usize = 1024 * 1024;
 const CORE: usize = 96 * MIB;
 const BULK: u64 = 48;
@@ -689,6 +690,10 @@ fn main() {
     let dir = Path::new(&args[1]);
     if args.len() >= 4 {
         let source = Path::new(&args[2]);
+        if args[3].to_str().unwrap().starts_with("space-") {
+            space::run(dir, source, args[3].to_str().unwrap(), &args[4..]);
+            return;
+        }
         match args[3].to_str().unwrap() {
             "maintenance-copy" => {
                 resilience::maintenance(dir, source, false);

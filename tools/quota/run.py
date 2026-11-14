@@ -52,6 +52,7 @@ def invoke(argv, output, evidence, label, *, timeout=30, allowed=(0,), maximum=L
         with paths['stdout'].open('xb') as stdout, paths['stderr'].open('xb') as stderr:
             child = subprocess.Popen(record['argv'], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      start_new_session=True, env=env)
+            record['pid'] = child.pid
             streams = {child.stdout: [stdout, 0], child.stderr: [stderr, 0]}
             for stream in streams: selector.register(stream, selectors.EVENT_READ)
             while selector.get_map():
@@ -104,21 +105,22 @@ def exact_mount(text, mountpoint, loop):
             'mount/backing identity mismatch')
     return row
 
-def validate_probe(row, uid, mode):
+def validate_probe(row, uid, mode, *, ceiling=8*1024*1024, expected_errno=122):
     require(row.get('mode') == mode and type(row.get('pid')) is int and row['pid'] > 0, 'wrong probe identity')
     ids = row.get('identity', {})
     require(same(ids, {'uid': uid, 'uids': [uid]*4, 'gids': [uid]*4, 'groups': [],
                     'caps': {key: 0 for key in ['CapInh','CapPrm','CapEff','CapBnd','CapAmb']}, 'no_new_privs': 1}),
             'guest privileges not verified')
-    require(type(row.get('global_free_bytes')) is int and row['global_free_bytes'] > MIN_FREE and
-            type(row.get('available_bytes')) is int and row['available_bytes'] > MIN_FREE,
+    require(type(row.get('global_free_bytes')) is int and row['global_free_bytes'] > (MIN_FREE if expected_errno==122 else -1) and
+            type(row.get('available_bytes')) is int and row['available_bytes'] > (MIN_FREE if expected_errno==122 else -1),
             'global filesystem space too low to distinguish quota')
     if mode == 'fill':
-        require(type(row.get('errno')) is int and row['errno'] == 122 and
-                type(row.get('written')) is int and 0 <= row['written'] <= 8*1024*1024 and
-                row.get('ceiling') == 8*1024*1024, 'actual bounded EDQUOT required')
+        require(type(row.get('errno')) is int and row['errno'] == expected_errno and
+                type(row.get('written')) is int and 0 <= row['written'] <= ceiling and
+                type(row.get('ceiling'))is int and row['ceiling'] == ceiling, 'actual bounded expected kernel space error required')
+    elif mode == 'headroom': require(type(row.get('released_bytes'))is int and row['released_bytes']==8*1024*1024,'exact owned headroom required')
     elif mode == 'remove': require(row.get('removed') is True, 'ballast removal not proven')
-    elif mode == 'write-control': require(row.get('fsynced_bytes') == 4096, 'same-UID fsynced success required')
+    elif mode == 'write-control': require(type(row.get('fsynced_bytes'))is int and row['fsynced_bytes'] == 4096, 'same-UID fsynced success required')
     return row
 
 def rows_for(revision):
@@ -217,7 +219,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--fixture',type=Path,required=True);parser.add_argument('--source',required=True)
     parser.add_argument('--output',type=Path,required=True);parser.add_argument('--probe-only',action='store_true')
+    parser.add_argument('--maintenance',action='store_true')
     args = parser.parse_args(argv)
+    require(not (args.maintenance and args.probe_only),'maintenance cannot be capability-only')
     require(sys.platform=='linux' and os.geteuid()==0,'requires Linux root controller; elevate only this entrypoint')
     require(re.fullmatch('[0-9a-f]{40}',args.source) is not None,'full source SHA required')
     output = helpers.fresh_output(args.output);logs=output/'logs';logs.mkdir()
@@ -228,7 +232,7 @@ def main(argv=None):
         require(args.fixture.is_absolute() and args.fixture.is_file() and not args.fixture.is_symlink() and args.fixture.stat().st_size<=64*1024*1024,'absolute bounded regular fixture required')
         evidence['source_binding']=source_binding(args.source)
         evidence['fixture_sha256']=sha(args.fixture)
-        tools={name:sha(HERE/name) for name in ['run.py','probe.py','test_runner.py','fixture.rs']}
+        tools={name:sha(HERE/name) for name in ['run.py','probe.py','test_runner.py','fixture.rs',*(['maintenance.py']if args.maintenance else[])]}
         tools['compatibility.py']=sha(ROOT/'tools/compatibility.py');evidence['tools_sha256']=tools
         tool_hashes={}
         for name in ['losetup','mkfs.ext4','mount','findmnt','setquota','setpriv','umount','uname']:
@@ -240,11 +244,11 @@ def main(argv=None):
         scratch=Path(tempfile.mkdtemp(prefix='weekend-quota-'+uuid.uuid4().hex+'-'));scratch.chmod(0o711)
         image=scratch/'image.ext4';mountpoint=scratch/'mount';mountpoint.mkdir()
         fd=os.open(image,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-        with os.fdopen(fd,'wb') as file:file.truncate(IMAGE_BYTES)
+        with os.fdopen(fd,'wb') as file:file.truncate(512*1024*1024 if args.maintenance else IMAGE_BYTES)
         info=image.stat();image_identity=(info.st_dev,info.st_ino);evidence['image_identity']=list(image_identity)
         fixture=scratch/'fixture';shutil.copyfile(args.fixture,fixture);fixture.chmod(0o555)
         probe=scratch/'probe.py';shutil.copyfile(HERE/'probe.py',probe);probe.chmod(0o444)
-        evidence.update(scratch=str(scratch),image_bytes=IMAGE_BYTES)
+        evidence.update(scratch=str(scratch),image_bytes=512*1024*1024 if args.maintenance else IMAGE_BYTES)
         sequence=0
         def call(argv, timeout=30, allowed=(0,), env=None):
             nonlocal sequence
@@ -268,11 +272,12 @@ def main(argv=None):
             uid+=1
         require(uid<65000,'no unused private numeric UID')
         data=mountpoint/'data';data.mkdir(mode=0o700);os.chown(data,uid,uid)
-        evidence['quota']={'uid':uid,'gid':uid,'type':'user','soft_kib':4096,'hard_kib':4096,'inode_soft':0,'inode_hard':0,'image_bytes':IMAGE_BYTES}
+        hard=256*1024 if args.maintenance else 4096
+        evidence['quota']={'uid':uid,'gid':uid,'type':'user','soft_kib':hard,'hard_kib':hard,'inode_soft':0,'inode_hard':0,'image_bytes':evidence['image_bytes']}
         # Identity check immediately before configuring quotas on the private mount.
         require(owned_loops(call(['losetup','--json','--list','--output','NAME,BACK-FILE']),image)==[loop],'loop changed before quota')
         exact_mount(call(['findmnt','--json','--mountpoint',str(mountpoint),'--output','SOURCE,FSTYPE,TARGET,OPTIONS']),mountpoint,loop)
-        try:call(['setquota','-u',str(uid),'4096','4096','0','0',str(mountpoint)])
+        try:call(['setquota','-u',str(uid),str(hard),str(hard),'0','0',str(mountpoint)])
         except (OSError,subprocess.SubprocessError,ValueError,TimeoutError) as error:
             raise Unsupported('private quota configuration unavailable') from error
         drop=['setpriv','--reuid',str(uid),'--regid',str(uid),'--clear-groups','--inh-caps=-all','--ambient-caps=-all','--bounding-set=-all','--no-new-privs']
@@ -287,6 +292,27 @@ def main(argv=None):
         def guest_probe(mode):
             return validate_probe(one_json(call([*drop,guest_python,'-I','-B',probe,mode,data,str(uid)],env=env)),uid,mode)
         evidence['guest_identity']=guest_probe('identity')
+        if args.maintenance:
+            import importlib.util
+            spec=importlib.util.spec_from_file_location('quota_maintenance',HERE/'maintenance.py')
+            maintenance=importlib.util.module_from_spec(spec);spec.loader.exec_module(maintenance)
+            parent=scratch/'seed-parent';parent.mkdir(mode=0o700);os.chown(parent,uid,uid)
+            evidence['_logs']=str(logs)
+            try:
+                images=maintenance.exercise(call,drop,fixture,data,parent/'seed',probe,guest_python,uid,env,args.source,evidence,122,validate_probe)
+            finally:del evidence['_logs']
+            snapshots=output/'images';snapshots.mkdir()
+            for image_path in images:shutil.copyfile(image_path,snapshots/image_path.name)
+            require(source_binding(args.source)==evidence['source_binding'],'source changed')
+            require(sha(args.fixture)==evidence['fixture_sha256'] and sha(fixture)==evidence['fixture_sha256'],'fixture changed')
+            require(all(sha(Path(row['path']))==row['sha256'] for row in tool_hashes.values()),'privileged executable changed')
+            require(sha(Path(evidence['controller_python']['path']))==evidence['controller_python']['sha256'],'controller Python changed')
+            require(sha(guest_python)==evidence['guest_python']['sha256'],'guest Python changed')
+            current={name:sha(HERE/name) for name in ['run.py','probe.py','test_runner.py','fixture.rs','maintenance.py']}
+            current['compatibility.py']=sha(ROOT/'tools/compatibility.py');require(current==tools,'qualification tools changed')
+            require(sha(probe)==tools['probe.py'],'guest probe changed')
+            evidence.update(status='qualified',verified=True)
+            return 0
         evidence['calibration_full']=guest_probe('fill');guest_probe('remove')
         evidence['calibration_control']=guest_probe('write-control')
         if args.probe_only:

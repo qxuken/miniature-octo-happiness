@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Guest-side bounded quota calibration. Never configures a filesystem."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,10 +19,14 @@ def identity(uid):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['identity', 'fill', 'remove', 'write-control'])
+    parser.add_argument('mode', choices=['identity', 'fill', 'remove', 'write-control', 'headroom', 'install-seed'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('uid', type=int)
+    parser.add_argument('--ceiling', type=int, default=LIMIT)
+    parser.add_argument('--seed', type=Path)
     args = parser.parse_args()
+    if not LIMIT <= args.ceiling <= 384 * 1024 * 1024:
+        raise RuntimeError('ballast ceiling out of bounds')
     result = {'mode': args.mode, 'identity': identity(args.uid), 'pid': os.getpid()}
     if args.directory.is_symlink() or not args.directory.is_dir():
         raise RuntimeError('private data directory required')
@@ -31,9 +36,9 @@ def main():
         written = 0; failure = None
         try:
             block = bytes([0x5a]) * 65536
-            while written < LIMIT:
+            while written < args.ceiling:
                 try:
-                    size = os.write(fd, block[:min(len(block), LIMIT-written)])
+                    size = os.write(fd, block[:min(len(block), args.ceiling-written)])
                     if size <= 0: raise RuntimeError('zero-progress ballast write')
                     written += size
                     os.fsync(fd)
@@ -42,7 +47,41 @@ def main():
                     break
         finally:
             os.close(fd)
-        result.update(errno=failure, written=written, ceiling=LIMIT)
+        result.update(errno=failure, written=written, ceiling=args.ceiling)
+    elif args.mode == 'headroom':
+        fd = os.open(ballast, os.O_RDWR | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != args.uid or info.st_size < LIMIT:
+                raise RuntimeError('owned ballast too small')
+            os.ftruncate(fd, info.st_size - LIMIT); os.fsync(fd)
+        finally: os.close(fd)
+        result['released_bytes'] = LIMIT
+    elif args.mode == 'install-seed':
+        if args.seed is None: raise RuntimeError('seed required')
+        installed = {}
+        for name in ['source.wdb', 'backup.wdb']:
+            source = args.seed / name
+            info = source.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != args.uid or not 60*1024*1024 < info.st_size <= 64*1024*1024:
+                raise RuntimeError('unowned/bad seed')
+            target = args.directory / name
+            read = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
+            write = None
+            try:
+                write = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                while block := os.read(read, 65536):
+                    view = memoryview(block)
+                    while view:
+                        size = os.write(write, view)
+                        if size <= 0: raise RuntimeError('zero-progress copy')
+                        view = view[size:]
+                os.fsync(write)
+            finally:
+                os.close(read)
+                if write is not None: os.close(write)
+            installed[name] = {'bytes': target.stat().st_size, 'sha256': hashlib.sha256(target.read_bytes()).hexdigest()}
+        result['installed'] = installed
     elif args.mode == 'remove':
         info = ballast.lstat()
         if not stat.S_ISREG(info.st_mode) or info.st_uid != args.uid:
