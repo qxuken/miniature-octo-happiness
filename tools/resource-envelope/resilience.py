@@ -40,20 +40,21 @@ def check_rows(rows, profile, source):
     if profile.startswith('maintenance-'):
         publish = profile == 'maintenance-publish'
         C.require(profile in PROFILES, 'wrong maintenance profile')
-        count = 16 if publish else 30
+        count = 16 if publish else 36
         C.require(len(rows) == 1 + count * 3 + 2, 'incomplete maintenance cases')
         state(rows[0], 'control', 212, False, 63074304)
         C.require(rows[0]['detail'] == {'fresh_process': True} and type(rows[0]['detail']['fresh_process']) is bool, 'missing fresh control')
-        expected = [(s, 'first') for s in range(9, 17)] if publish else [(s, 'first') for s in range(9)] + [(s, n) for s in [1, 5, 6] for n in ['middle', 'last']]
+        expected = [(s, 'first') for s in range(9, 17)] if publish else [(s, 'first') for s in range(9)] + [(3, 'last'), (7, 'middle'), (7, 'last')] + [(s, n) for s in [1, 5, 6] for n in ['middle', 'last']]
         cursor = 1; counts = {}
         for step, selection in expected:
             for after in [False, True]:
                 boundary, killed, retried = rows[cursor:cursor + 3]; cursor += 3
                 C.require(type(boundary.get('step')) is int and boundary['step'] == step and type(boundary.get('count')) is int and boundary['count'] > 0, 'wrong boundary/count')
                 C.require(type(boundary.get('occurrence')) is int and type(boundary.get('after')) is bool and boundary['after'] == after, 'wrong occurrence/edge')
+                if step in [3, 7]: C.require(boundary['count'] == (2 if step == 3 else 3), 'missing durability barrier')
                 C.require(counts.setdefault(step, boundary['count']) == boundary['count'], 'inconsistent calibration count')
                 n = 0 if selection == 'first' else boundary['count'] // 2 if selection == 'middle' else boundary['count'] - 1
-                C.require(boundary['occurrence'] == n and (selection == 'first' or boundary['count'] > 2), 'wrong sampled large-I/O occurrence')
+                C.require(boundary['occurrence'] == n and (selection == 'first' or boundary['count'] > (1 if step in [3, 7] else 2)), 'wrong sampled large-I/O occurrence')
                 name = f's{step}_n{n}_' + ('after' if after else 'before')
                 exchanged = step > 11 or (step == 11 and after)
                 C.require(boundary.get('boundary') == name and type(boundary.get('signal')) is int and boundary['signal'] == 9 and type(boundary.get('exchanged')) is bool and boundary['exchanged'] == exchanged, 'missing kill/exchange evidence')

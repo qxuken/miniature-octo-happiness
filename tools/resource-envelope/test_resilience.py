@@ -19,15 +19,15 @@ def state(phase, revision=212, changed=False, size=66154496, detail=None):
 def rows(profile):
     result = []
     if profile.startswith('maintenance-'):
-        publish = profile == 'maintenance-publish'; count = 16 if publish else 30
+        publish = profile == 'maintenance-publish'; count = 16 if publish else 36
         result.append(state('control', size=63074304))
         cuts = [(s, 0) for s in (range(9, 17) if publish else range(9))]
-        if not publish: cuts += [(s, n) for s in [1, 5, 6] for n in [5, 9]]
+        if not publish: cuts += [(3, 1), (7, 1), (7, 2)] + [(s, n) for s in [1, 5, 6] for n in [5, 9]]
         for step, n in cuts:
             for after in [False, True]:
                 name = f's{step}_n{n}_' + ('after' if after else 'before')
                 exchanged = step > 11 or (step == 11 and after)
-                result += [{'boundary': name, 'step': step, 'occurrence': n, 'count': 10, 'after': after, 'exchanged': exchanged, 'signal': 9, 'orphans': 0},
+                result += [{'boundary': name, 'step': step, 'occurrence': n, 'count': 2 if step == 3 else 3 if step == 7 else 10, 'after': after, 'exchanged': exchanged, 'signal': 9, 'orphans': 0},
                            state('killed_' + name, size=63074304 if exchanged else 66154496), state('retried_' + name, size=63074304)]
     else:
         initial = int(profile.split('-')[1]); count = 18

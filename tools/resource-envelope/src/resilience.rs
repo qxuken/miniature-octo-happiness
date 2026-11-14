@@ -102,6 +102,9 @@ pub(super) fn maintenance(dir: &Path, source: &Path, publish: bool) {
         .map(|s| (s, 0))
         .collect();
     if !publish {
+        assert_eq!(counts[3], 2); // source stabilization and witness
+        assert_eq!(counts[7], 3); // target append, root and witness
+        cuts.extend([(3, 1), (7, 1), (7, 2)]);
         for step in [1, 5, 6] {
             assert!(counts[step] > 2);
             cuts.push((step, counts[step] / 2));
@@ -157,7 +160,7 @@ pub(super) fn maintenance(dir: &Path, source: &Path, publish: bool) {
     assert_eq!(fs::read(source).unwrap(), original);
     println!(
         "{{\"cleanup\":true,\"cases\":{},\"source_unchanged\":true}}",
-        if publish { 16 } else { 30 }
+        if publish { 16 } else { 36 }
     );
     complete(if publish {
         "maintenance-publish"
@@ -298,9 +301,8 @@ pub(super) fn recovery(dir: &Path, source: &Path, initial: usize) {
             let reference = Database::open_on(control.clone(), limits(CORE)).unwrap();
             verify(&reference, revision, ROUNDS, survives, true);
             drop(reference);
-            let again = control
-                .trace()
-                .unwrap()
+            let repeated_trace = control.trace().unwrap();
+            let again = repeated_trace
                 .iter()
                 .rposition(|e| e.kind == IoKind::Sync)
                 .unwrap();
@@ -310,6 +312,7 @@ pub(super) fn recovery(dir: &Path, source: &Path, initial: usize) {
                 Database::open_on(disk.clone(), limits(CORE)),
                 Err(Error::Io)
             ));
+            assert_eq!(disk.trace().unwrap(), repeated_trace[..=again]);
             disk.clear_fault();
             disk.crash(Crash::DropAll).unwrap();
             let recovered = Database::open_on(disk.clone(), limits(CORE)).unwrap();
