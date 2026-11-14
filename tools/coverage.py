@@ -9,7 +9,7 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
-EXCLUSIONS = r'/(tests|examples|tools)/|/\.rustup/|/\.cargo/registry/|^/rustc/'
+EXCLUSIONS = r'/(tests|examples|tools|xtask)/|/\.rustup/|/\.cargo/registry/|^/rustc/'
 
 
 def output(*args, env=None):

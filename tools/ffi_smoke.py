@@ -30,7 +30,9 @@ def main():
         assert 0 < needed.value < 256
         text = c.create_string_buffer(needed.value)
         call(name, [ptr, size, c.POINTER(size)], text, len(text), c.byref(needed))
-        text.raw.decode("utf-8")
+        actual = text.raw.decode("utf-8")
+        if name == "source_id" and len(sys.argv) > 2:
+            assert actual == sys.argv[2], ("source_id", actual, sys.argv[2])
         call(name, [ptr, size, c.POINTER(size)], text, len(text), None, status=1)
 
     db, tx, value, snapshot, found = (ptr() for _ in range(5))

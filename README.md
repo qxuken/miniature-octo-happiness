@@ -28,9 +28,12 @@ The core, convenience runtime, derive implementation, and application are separa
 Cargo workspace packages. The default engine build has no external crate
 dependencies. The derive builds with `syn`, `quote`, `proc-macro2`, and
 `unicode-ident`.
-Run `cargo fetch --locked` once before the offline check scripts on a fresh
-checkout. `python3 tools/check.py` checks the whole workspace in debug/release,
+Run `cargo fetch --locked` once before the offline checks on a fresh
+checkout. `cargo xtask check` checks the whole workspace in debug/release,
 including the CLI lifecycle and a renamed-dependency consumer.
+The private [Rust xtask](docs/xtask.md) provides check, build, package and cleanup
+commands with clap-generated help. Python remains required for the independent
+ABI, attribution and delivered-source checks in this first migration batch.
 
 [DESIGN.md](DESIGN.md) contains the complete target design, implementation
 sketches, decisions, competitor comparison, reading references, milestones,
@@ -70,7 +73,7 @@ cargo run --example memory
 cargo run --example simulated
 cargo run --example typed
 cargo run --example file -- /tmp/weekend-demo.db
-python3 tools/check.py
+cargo xtask check
 ```
 
 Rust/Cargo 1.99+ is required.
@@ -133,16 +136,18 @@ This creates a new file and leaves it in place. Schema/index guarantees belong
 to validated access: raw core writes can bypass them. Example write methods
 abort the entire draft on error so partial primary/index changes cannot commit.
 
-`cargo build --release` produces `target/release/libweekend_db.dylib` on macOS.
+`cargo xtask build --release` produces `target/release/libweekend_db.dylib` on macOS.
 Foreign consumers use [include/weekend_db.h](include/weekend_db.h); the examples
 arrange the loader search path with rpath. Private relocation-tested bundles are
 described in the [release contract](docs/release-contract.md); nothing is published
 to Cargo. The CI matrix defines native checks on macOS, Linux, and Windows;
 executed results and current local-only checks are in the roadmap status.
-`tools/check.py` loads each shared library through its C ABI. File factories
+`cargo xtask check` loads each shared library through its C ABI. File factories
 support macOS, Linux (x86_64/aarch64), and Windows on local fixed NTFS.
-Native Rust consumers use this crate directly. Run `cargo clean` to remove
-engine artifacts.
+Native Rust consumers use this crate directly. `cargo xtask clean --dry-run`
+lists normal and nested build caches; `cargo xtask clean` removes them while
+keeping the running tool and saved root-target qualification outputs. Add
+`--proofs` to remove those saved outputs as well. Other workspaces are untouched.
 
 The [milestone-1 C-versus-Rust experiment](probe/README.md) now exercises a shared
 C ABI, immutable nested values, and C/Rust/Odin consumers, including the local

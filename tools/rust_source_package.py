@@ -59,10 +59,18 @@ def validate_metadata(metadata, source):
 
 def references_original(text, original, allowed):
     # Rust dep-info uses Make escaping; normalize separators for native Windows.
-    text = text.replace('\\ ', ' ').replace('\\:', ':').replace('\\', '/')
-    for prefix in sorted((Path(path).resolve().as_posix() for path in allowed), key=len, reverse=True):
-        text = re.sub(re.escape(prefix) + r'(?=/|$)', '<delivered-or-registry>', text, flags=re.M)
-    return Path(original).resolve().as_posix() in text
+    def normalize(value):
+        value = value.replace('\\ ', ' ').replace('\\:', ':').replace('\\', '/')
+        value = re.sub(r'(?<![^\s=])/{2,}\?/UNC/', '//', value, flags=re.I)
+        return re.sub(r'(?<![^\s=])/{2,}\?/(?=[A-Za-z]:/)', '', value)
+    text = normalize(text)
+    # A short root such as /src is also a component of registry/std paths.
+    # Only a complete absolute Make path token can refer back to the checkout.
+    # Also inspect rustc's "# env-dep:NAME=/absolute/path" entries.
+    start, end = r'(?<![^\s=])', r'(?=/|[\s:]|$)'
+    for prefix in sorted((normalize(Path(path).resolve().as_posix()) for path in allowed), key=len, reverse=True):
+        text = re.sub(start + re.escape(prefix) + end, '<delivered-or-registry>', text, flags=re.M)
+    return re.search(start + re.escape(normalize(Path(original).resolve().as_posix())) + end, text, flags=re.M) is not None
 
 
 def build_commands(source, target):

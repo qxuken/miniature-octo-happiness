@@ -11,7 +11,7 @@ builds report unknown source. Artifact tooling embeds the revision and
 marks development builds dirty.
 
 ```sh
-python3 tools/release.py --output /absolute/new/package-directory --features replication,crdt
+cargo xtask package --output /absolute/new/package-directory --features replication,crdt
 ```
 
 The tool builds with the lockfile, checks exports against the header,
@@ -25,6 +25,10 @@ build-related environment overrides and discovered ancestor/Cargo-home
 configuration files. Configuration contents and registry credentials
 are omitted. Those hashes identify inputs without retaining their
 contents, so keep the configuration securely for later reproduction.
+The private [xtask crate](xtask.md) owns this orchestration and package lifecycle.
+The retained Python leaf checkers handle ABI calls, platform policy, attribution
+and optional delivered Rust source. `tools/check.py` and `tools/release.py`
+remain compatibility entry points that forward to xtask.
 Compiler wrappers and the compiler remain trusted tools.
 The package includes `notices/inventory.json` and copied attribution
 files for the actual Cargo compiler-artifact package IDs emitted during

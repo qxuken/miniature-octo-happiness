@@ -5588,3 +5588,14 @@ The report distinguishes the proven finalization defect from the unrecorded
 historical intermittent trigger. Engine code, serialization, durability barriers,
 follower acknowledgment and production MC/DC scope are unchanged; all 19 Cargo
 packages remain unpublished.
+
+## Private Rust task orchestration (2026-11-14)
+
+The [first xtask migration](docs/xtask.md) provides clap-derived check, build,
+package and cleanup commands. Golden plans preserve the original platform
+pipelines; private packaging retains exact-artifact, relocation, attribution and
+source/configuration validation. Python remains in tested leaf checkers and
+compatibility entry points. Cleanup retains saved proofs by default and refuses
+source/symlink/self deletion. No library, storage, wire or follower-ack contract
+changes; all 20 project manifests are unpublished. Further runner/oracle
+migration requires its existing failure controls to carry forward.

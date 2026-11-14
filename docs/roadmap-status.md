@@ -773,3 +773,28 @@ reproduced and fixed finalization defect. No production engine, format,
 publication/follower-ack contract or Rust decision denominator changes.
 All 19 Cargo manifests remain unpublished. The maintenance/failure/candidate
 roadmap above continues; this closes the incomplete-report helper defect.
+
+## Private Rust xtask migration, first batch
+
+The [private xtask](xtask.md) moves check, build, package and cleanup orchestration
+to Rust with a clap-derived CLI. The original six check-command plans remain
+golden controls; debug/release tests, native consumers, Odin/wgpu, exact-artifact
+checks, attribution, relocation and source/configuration gates are retained.
+Python ABI/platform-policy/attribution/source validators remain leaf checks;
+legacy check/release scripts forward to xtask. CI uses the new entry points.
+
+Cleanup keeps the running tool cache and saved qualification outputs unless
+`--proofs` is explicit. Dry-run, source/self/symlink protection and nested-cache
+controls accompany real failed-subprocess tests. Compiler-compatible Windows
+paths use dunce. Linux validation exposed and reproduced a pre-existing short
+checkout-root false positive in the delivered-source oracle; absolute path-token
+matching now distinguishes `/src` from `/registry/src`, preserving real checkout
+and undelivered-sibling rejection. Both Python modes cover the regression.
+
+Engine/wire/ABI behavior and separate follower durability acknowledgment remain
+unchanged. All 20 manifests stay private; no publication command is added.
+Product coverage keeps tooling separate, and no xtask MC/DC score is claimed.
+Next: bounded process/fault-runner migration with existing ownership/deadline/
+output-bound controls, then independent validation before retiring Python leaf
+policies/oracles. Native Windows and immutable-candidate qualification retain
+their own source/platform gates.

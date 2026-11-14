@@ -188,6 +188,23 @@ class RustSourceProfile(unittest.TestCase):
         self.assertIn('[ ! -e "$ORIGINAL_SOURCE" ]', command[-1])
         self.assertIn('--locked', command[-1])
 
+    def test_short_checkout_root_requires_an_absolute_path_token_boundary(self):
+        original = Path('/src').resolve()
+        delivered = original / 'target/package/rust-source'
+        self.assertFalse(rust_source_package.references_original('out: /usr/local/cargo/registry/src/crate/lib.rs', original, []))
+        self.assertFalse(rust_source_package.references_original('out: ' + original.as_posix() + '-other/lib.rs', original, []))
+        self.assertTrue(rust_source_package.references_original('out: ' + (original / 'lib.rs').as_posix(), original, []))
+        self.assertTrue(rust_source_package.references_original('# env-dep:CARGO_MANIFEST_DIR=' + original.as_posix(), original, []))
+        self.assertFalse(rust_source_package.references_original('out: ' + (delivered / 'src/lib.rs').as_posix(), original, [delivered]))
+        self.assertFalse(rust_source_package.references_original('# env-dep:CARGO_MANIFEST_DIR=' + delivered.as_posix(), original, [delivered]))
+        self.assertTrue(rust_source_package.references_original('out: ' + (delivered.parent / 'rust-source-escape/lib.rs').as_posix(), original, [delivered]))
+        if original.drive:
+            extended = '//?/' + (original / 'lib.rs').as_posix()
+            self.assertTrue(rust_source_package.references_original('out: ' + extended, original, []))
+            verbatim_root = Path('//?/' + original.as_posix())
+            self.assertTrue(rust_source_package.references_original('out: ' + (original / 'lib.rs').as_posix(), verbatim_root, []))
+            self.assertTrue(rust_source_package.references_original('out: ' + extended, verbatim_root, []))
+
 
 class Attribution(unittest.TestCase):
     def test_built_packages_only_and_missing_inputs_are_review_gates(self):
