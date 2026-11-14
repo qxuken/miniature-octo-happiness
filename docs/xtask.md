@@ -69,6 +69,9 @@ delivered-source validators remain leaf checks. The bridge does not log helper
 stdin/stdout, including the Windows process environment; only selected policy
 results and hashed overrides enter the manifest. Checkers run with isolated
 Python so `PYTHONOPTIMIZE` cannot remove ABI assertions.
+An isolated source request requires a nonempty image and explicit successful
+native/isolation results from the checker. Missing, false or malformed success
+flags reject qualification rather than silently omitting a requested profile.
 
 The library, macros, apps, storage/wire formats, durability barriers and separate
 follower-durable acknowledgment are unchanged. This batch begins the migration;

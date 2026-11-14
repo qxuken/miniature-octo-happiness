@@ -29,7 +29,8 @@ pub struct Options {
     #[arg(
         long = "rust-source-image",
         default_value = "rust:1-bookworm",
-        value_name = "IMAGE"
+        value_name = "IMAGE",
+        value_parser = clap::builder::NonEmptyStringValueParser::new()
     )]
     image: String,
 }
@@ -134,6 +135,18 @@ fn add_attribution(e: &mut Value, attribution: &Value) -> Result<()> {
                 .iter()
                 .cloned(),
         );
+    Ok(())
+}
+
+fn require_source_profile(info: &Value, isolated: bool) -> Result<()> {
+    ensure!(
+        info["native_compile_verified"] == true,
+        "requested native Rust source profile did not qualify"
+    );
+    ensure!(
+        !isolated || info["linux_isolation_verified"] == true,
+        "requested isolated Rust source profile did not qualify"
+    );
     Ok(())
 }
 
@@ -384,6 +397,7 @@ fn qualify(
     if args.source {
         let tracked = run.capture(&cmd(["git", "ls-files", "--cached", "-z"]))?;
         let profile=run.helper("rust-source",&json!({"output":output,"tracked":tracked.split('\0').filter(|n|!n.is_empty()).collect::<Vec<_>>(),"source_id":source_id,"image":if args.isolated {Some(args.image.as_str())}else{None}}))?;
+        require_source_profile(&profile["info"], args.isolated)?;
         for (name, hash) in profile["info"]["source_files_sha256"]
             .as_object()
             .context("source inventory missing")?
@@ -519,6 +533,17 @@ mod tests {
         assert!(options(cmd(["--output", "new", "--rust-source-isolated"])).is_err());
         assert!(options(cmd(["--output", "new", "--odin", "--odin"])).is_err());
         assert!(options(cmd(["--features", "crdt"])).is_err());
+        assert!(
+            options(cmd([
+                "--output",
+                "new",
+                "--rust-source",
+                "--rust-source-isolated",
+                "--rust-source-image",
+                ""
+            ]))
+            .is_err()
+        );
         let args = options(cmd([
             "--output",
             "with spaces",
@@ -531,5 +556,32 @@ mod tests {
         .unwrap();
         assert!(args.odin && args.source && args.isolated);
         assert_eq!(args.output, Path::new("with spaces"));
+    }
+
+    #[test]
+    fn requested_source_profiles_require_explicit_success() {
+        for info in [
+            Value::Null,
+            json!({}),
+            json!({"native_compile_verified":false,"linux_isolation_verified":true}),
+            json!({"native_compile_verified":1}),
+        ] {
+            assert!(require_source_profile(&info, false).is_err());
+        }
+        let native = json!({"native_compile_verified":true,"linux_isolation_verified":false});
+        require_source_profile(&native, false).unwrap();
+        assert!(require_source_profile(&native, true).is_err());
+        assert!(
+            require_source_profile(
+                &json!({"native_compile_verified":true,"linux_isolation_verified":"true"}),
+                true
+            )
+            .is_err()
+        );
+        require_source_profile(
+            &json!({"native_compile_verified":true,"linux_isolation_verified":true}),
+            true,
+        )
+        .unwrap();
     }
 }
