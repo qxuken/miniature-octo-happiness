@@ -138,6 +138,9 @@ qualification is a separate release-candidate requirement.
   64 distinct retained DATA roots. It verifies exact rollback at the image
   cap, byte-identical maintenance copies and the reopened revision at two
   simulated publication failures.
+  The [concurrent follow-up](compound-resource-envelope.md#full-width-drafts-during-a-native-commit)
+  checks three maximum-write drafts, pinned reads during native publication,
+  and simulated tears at all three publication barriers.
   Windows compact copy is an existing capability.
   Qualify in-place Windows replacement independently if it becomes part
   of the release.

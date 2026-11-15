@@ -659,9 +659,9 @@ budget. Each maintenance API call used a 256 MiB budget. Operation times
 exclude the fixture's subsequent full-state checks. Compaction timing
 starts after creating the disposable source copy. RSS includes simulator
 images and allocator overhead. The table records individual observations.
-Concurrent full-width drafts, 64 distinct deep DAGs combined with large
-payloads, a broader torn-write sweep, owner service limits and device
-interruption remain open for this workload.
+The follow-up exercises concurrent full-width drafts and additional simulated
+tears. Distinct deep DAGs combined with large payloads, owner service limits and
+device interruption remain open. [Concurrent workload and results](#full-width-drafts-during-a-native-commit)
 
 Run with a clean checkout at `c4e437b`. The local macOS run used Rust 1.99.1.
 The Docker image uses Rust 1.99.0 and an ext4 volume.
@@ -680,3 +680,82 @@ cargo xtask resource compound-breadth --revision c4e437b \
 | Controller evidence | `1efe64f7f854357d2c831baf26e9d85fb34a139213e3d9e567166d20e387517e` | `142f162416abadac7b080b0a1b80c5deee8d880b9fbbd01f3189155c4e84561b` |
 | Worker evidence | `b98b2aaccfb89c95be2690fb7a54026f245107c6bd3bfc5ef79c66eacec71cdf` | `803331f7ec9aa4d3dfcf9eecb3ccc38a2ec7e37eba17fe529d128af5c8e648ab` |
 | Byte-identical backup, restore and compact images within the run | `70ffb984ef17576affbb745dbafa7b5489e53fe007c1117d738ed97a94f70ec5` | `5096d4bc66651ceefdcd379cbfa1a72c01a7c8658ac79e661ecff3d0b104d281` |
+
+## Full-width drafts during a native commit
+
+At `791164f`, three drafts each stage 1,024 writes against revision 133 on a
+copy of the 58,523,648-byte compacted seed. The test opens the file normally,
+then arms a wrapper that pauses the first writer after the real append sync.
+While the writer holds the publication mutex, a second writer enters the
+commit path and the reader checks all records and nested leaves in the 65
+pre-acquired views. Fresh snapshot acquisition uses the publication mutex.
+
+The first writer receives local acknowledgment for revision 134. The
+overlapping writer returns `Conflict` and aborts. The disjoint draft stays
+live across the first commit. Its original point observations still match,
+but a second full batch of new scalar objects would exceed the format cap by
+49,152 bytes. Its commit returns `Limit`, the transaction is terminal, and
+the 62,840,832-byte image stays byte-for-byte intact with a healthy handle.
+A new transaction updates those same 1,024 keys using one shared scalar.
+It adds 126,976 bytes and acknowledges revision 135. The original pinned
+view still reads revision 133. Reopening the 62,967,808-byte file verifies
+revision 135 and all 64 retained roots.
+
+The simulator uses the same compacted seed and first 1,024-write batch. Each
+case injects a failed sync and persists the indicated prefix of its pending
+write. The crash then discards the other pending bytes. The version 2 slot
+and witness checksums occupy bytes 64 through 71. The metadata padding
+after byte 71 is already zero.
+
+| Failed sync | Persisted prefix | Commit result | Revision reopened | Witness before reopening |
+|---|---:|---|---:|---|
+| Append | 4,096 bytes | `Io` | 133 | Present |
+| Slot | 64 bytes | `OutcomeUnknown` | 133 | Present |
+| Slot | 72 bytes | `OutcomeUnknown` | 134 | Absent |
+| Witness | 64 bytes | `OutcomeUnknown` | 134 | Absent |
+| Witness | 72 bytes | `OutcomeUnknown` | 134 | Present |
+
+In each case the write handle requires recovery, read-only inspection
+selects the revision shown, and a subsequent open verifies the full data
+and stabilizes the witness. The original acknowledged and dropped
+slot/witness cases still run. The independent oracle checks the expected
+state at all 18 phases, including the pre-acknowledgment read, after
+rejection, and after the later acknowledged commit.
+
+Reproduce from a clean checkout at `791164f`.
+
+```sh
+cargo xtask resource compound-breadth --revision 791164f \
+  --output target/compound-breadth-concurrent-macos
+cargo xtask resource compound-breadth --revision 791164f \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/compound-breadth-concurrent-linux
+```
+
+Both runs agree on the revision, logical digest, file length and witness
+state of every phase. The three drafts increase requested core memory by
+688,128 bytes before the writer starts. The concurrent native handle peaks
+at 93,685,728 bytes on both platforms under its 96 MiB limit.
+
+| Single observation | macOS arm64/APFS | Docker Linux arm64/ext4 |
+|---|---:|---:|
+| Verify all pinned views during the pause | 55.5 ms | 68.9 ms |
+| First commit, including the pause | 77.7 ms | 82.8 ms |
+| Reject disjoint batch at the image cap | 10.3 ms | 10.2 ms |
+| Stage and commit the shared-value retry | 10.8 ms | 4.4 ms |
+| Open revision 135 | 242.7 ms | 234.3 ms |
+| Sampled peak worker RSS, including simulator | 525,856 KiB | 314,880 KiB |
+
+The fixed schedule measures pinned reads and selected failure prefixes.
+Fresh snapshot latency, sustained full-width contention and other tear
+offsets remain open. Docker verifies that its container and volume are
+absent after copyback. The macOS xtask suite passed 198 tests with one
+registered ignore. Docker Linux passed the 16 resource controls. Strict
+Clippy passed on both platforms.
+
+| Evidence in the corresponding output directory | macOS SHA-256 | Docker Linux SHA-256 |
+|---|---|---|
+| Release driver | `3b091ace373c04bef64c1ac2c6af70236611af68410c8701b4ee88cc0ccd9503` | `2c4ac967a87fd041329a33549b7e502eaa1defec7c6221b595c32e57644fa4e9` |
+| Controller evidence | `f5d08cb0756c987615eaf5fb3f8e9bd29d5bbb90200ab8b8b4e484c76707f115` | `8031208b2e387f27e0b2e62e02318a506927e1a53e4e5b3a1af1c108557b78ac` |
+| Worker evidence | `a4dcc4474d50116708d06e1a93bd0720b31ad34b6e4b73733e465694f2ab9e33` | `27a166ce9e266dcc765797c09a35484188e10cfa0109c94b0ecf02ea43e04a22` |
+| Final concurrent image | `30c94db33ba5c33927ad95c3551ef99166811462bbd6116aab34683b64498915` | `ecedae08e95b22a28553d60f45a9d6918e4d9bffa7806c5f7fed01b249e670cd` |

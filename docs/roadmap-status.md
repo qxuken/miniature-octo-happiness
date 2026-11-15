@@ -2162,5 +2162,23 @@ another full batch without changing any byte. Backup, restore and in-place
 compaction agree byte for byte at 58,523,648 bytes. The same batch fits there.
 In the simulator, loss of the slot write reopens revision 133 and loss of the
 witness write reopens and stabilizes revision 134. Every case checks the
-current view and all 64 retained views. Concurrent full-width drafts and a
-broader failure sweep for this shape remain open.
+current view and all 64 retained views.
+
+## Concurrent full-width drafts and interrupted publication
+
+At `791164f`, the [concurrent breadth workload](compound-resource-envelope.md#full-width-drafts-during-a-native-commit)
+keeps three 1,024-write drafts and 65 pinned views live through a native
+append sync. The first draft acknowledges revision 134. The overlapping
+draft conflicts. The disjoint draft hits the image cap and leaves the
+same bytes. A new full-width draft using a shared scalar acknowledges
+revision 135, and reopening verifies all 64 retained roots. macOS/APFS
+and Docker Linux/ext4 agree on every observed revision and state digest.
+Five additional simulated tears cover a partial append and the prefixes
+immediately before and through the slot and witness checksums.
+
+Both hosted Windows jobs at `85f6d78` failed strict Clippy because the
+new breadth oracle was compiled into a binary that never uses it.
+The oracle now compiles on Unix alongside its caller and tests.
+The warning failure was reproduced locally. Workspace Clippy with all
+features and targets passes for the MSVC target with Rust 1.99.0.
+The replacement hosted jobs still need to run.
