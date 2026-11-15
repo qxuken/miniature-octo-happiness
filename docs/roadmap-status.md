@@ -1110,3 +1110,38 @@ and the pre-upgrade backup restored an independently writable v1 database
 with its retained checkpoint. The existing storage and snapshot compatibility
 profiles also passed on macOS after extending the controller.
 [Typed rollout evidence](typed-schema-rollout.md)
+
+## Rust-only exact-package qualification
+
+Clean `bc5608447a1830587b7fcd32902e1fc075e2425c` passed the private package
+profiles on macOS/APFS and Docker Linux/ext4. Both manifests bind the same 666
+source inputs and report verified relocation and complete attribution. macOS
+ran exact C/C++/Odin consumers plus the copied Rust source consumer and its
+isolated Linux rebuild. The Docker Linux package ran exact C/C++ consumers and
+an ext4 copied-source Rust build.
+
+| Proof | SHA-256 |
+|---|---|
+| macOS package manifest | `f8d47cecec4ade56027a99a2fc8f352154391a4e8d2c2addfb78ff4f714aa5f5` |
+| Linux package manifest | `0bb683cc87929403a7fd9ab4217d75aa651f8ef4570f5bc2e75aaf6597de798f` |
+| macOS 134-cell trace | `3426415a60fb88e48f4cfd9f379ec6969a50cc0ab05c070943c1d6d4cc503584` |
+| Linux 134-cell trace | `7362e6c77d43f5285a2c9c398ff36322c090706b001d51a8b52fdc4cee07ac09` |
+| Linux delivered C fault sweep | `98e88fd90fe003f75b7d0730caf9d39a89dc881ff65f1e5da349722ac67aa57c` |
+
+All five optimized Rust/C/Odin transcripts matched the independent 134-cell
+oracle. The exact Linux shared library also passed all six delivered C fault
+modes. Fresh recovery selected revisions 4/3/4/4/3/3 in mode order and every
+case finished at revision 4 with retained revision 2. Kernel ENOSPC was errno
+28 on private tmpfs. The disabled injector failed the required C status
+assertion. An independent rehash verified both manifests' files, both trace
+inventories and the delivered fault worker inventory. All owned Docker
+containers and volumes were confirmed absent. These are packaging and
+exact-artifact checks on the named profiles.
+
+A separate clean macOS run of `cargo xtask check --skip-odin` at `6cc8ef3`
+passed the full debug/release checks and native Rust/C consumers. Its log
+SHA-256 is `15132f5bfece2b4bf6d6287ac0dfe80dd95186b8ea39a58b7dff10e33e198c07`.
+The whole xtask test suite at that checkpoint also passed locally under
+ThreadSanitizer with instrumented std, with 180 passes and one registered
+fixture skip. Its log SHA-256 is
+`2ccee77ba8c6f2422329ab045c21cc3d30d1f56e3d891921be5cd7b40dd9e4e9`.
