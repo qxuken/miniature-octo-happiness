@@ -1834,5 +1834,17 @@ both the source and verified backup at zero free bytes. Retrying at fresh
 paths preserved each partial destination and produced copies identical to
 the verified backup. A later source commit reopened at 213. The isolated
 256 MiB VHD detached and was removed. The macOS seed and Linux maintenance
-regressions passed with the same fixture. NTFS quota, macOS actual maintenance
-exhaustion, namespace faults and physical recovery remain separate gates.
+regressions passed with the same fixture. NTFS quota, namespace faults and
+physical recovery remain separate gates.
+
+## macOS near-cap maintenance exhaustion
+
+The [APFS disk-image gate](maintenance-space-exhaustion.md#native-macos-near-cap-copy-profile)
+passed locally on arm64 at `df61d55`. Backup, restore and in-place compaction
+all returned actual `ENOSPC` after an 8 MiB partial copy. The source and
+good backup reopened at revision 212 with all 64 retained roots while
+4 KiB writes still failed with `ENOSPC`. APFS reported 5,849,088 bytes
+available at that boundary. All three retries matched the verified backup.
+The source subsequently reopened at revision 213, and the bounded 256 MiB
+disk image was detached and removed. The hosted macOS job now includes the
+same gate. Actual namespace exhaustion and physical power loss remain open.

@@ -179,8 +179,8 @@ combined with `--maintenance`.
 
 This closes the named near-cap **copy-phase** ENOSPC/EDQUOT maintenance gate.
 Actual filesystem exhaustion during exchange, cleanup, and delayed writeback,
-inode quotas, physical power interruption, full ext4 devices and native
-macOS exhaustion remain separate gates. Earlier process-kill and simulated
+inode quotas, physical power interruption and full ext4 devices remain
+separate gates. Earlier process-kill and simulated
 namespace/recovery matrices retain their separate scope. All 19 Cargo
 manifests retain `publish=false`.
 
@@ -269,6 +269,42 @@ earlier partial scratch still present and verifies that the canonical file
 equals the good backup. Cleanup detaches only the test image and verifies
 its absence before removing the backing file. The macOS job archives the
 same fixture and phase reports as the Windows gate.
+
+The local arm64 run passed at `df61d559dd0aa2b4e37043b21a66c91f9de6f507`
+on macOS 27.0.1 (26A434) and Rust 1.99.1. Backup, restore and in-place
+compaction each returned 28 / `DiskFull` / `Write` after writing 8,388,608
+bytes. APFS reported 5,849,088 bytes available at the full-volume opens,
+and 4 KiB ballast writes returned `ENOSPC` before and after them. Deleting
+the ballast restored 129,232,896 reported available bytes per case.
+
+For each error the source and good backup reopened at revision 212 with all
+64 retained roots. Each retry produced the exact good backup bytes and
+preserved the failed output or scratch. The later source commit reopened at
+213 with all retained data. The good backup stayed at 212. The negative
+control with ample space produced a working backup and hit the required
+assertion. All 29 logged command trees retired, including 26 distinct fixture
+processes. The image detached, its file was removed, and an independent
+inventory query found no attached test image.
+
+The local proof is `target/macos-maintenance-qualified/arm64`. The independent
+check rehashed all 63 listed files and verified the case records. Local test
+controls passed 182 xtask cases with one registered ignore. Strict macOS and
+Windows x64 cross-target Clippy and actionlint passed.
+
+The shared controller also passed all three NTFS cases in the hosted Windows
+rerun for `df61d55`. All 60 listed artifacts rehashed and the preserved backup
+stayed at revision 212. Evidence JSON SHA-256 is
+`a227642de59fbb1542bd7be43cfeaa4a305a55b031ce308a36675fb39fd9150f`.
+[Windows regression archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43727689600/artifacts/14167411697)
+
+| APFS evidence | SHA-256 |
+|---|---|
+| Evidence JSON | `28d87de11542806a6dc66ab001584dd839d23b678f339a5de3a25f9e61152925` |
+| Independent file rehash | `6f3c0b7b66844a343723204196ac634e855f02cf77bac723d202d101c51bb6d6` |
+| Fixture executable | `86314887b4238579a06794d1db73f99e12a5634f9ad8cd8e08053054f8ca790c` |
+| Controller | `200631a7f5c2d85af45ea2d98eb3b0b9d30ca967c954872cd9cfb45f12f0fced` |
+| Advanced source | `61ac286e4c393865e5da765319cf7f83752fd7ba9882c376b0b70cb995f98920` |
+| Preserved backup | `cc77c7bbeef10a0d9ff41db0db598f2deb407a8ed3952df3ea54ba37da032288` |
 
 ## Injected namespace and sync errors
 
