@@ -509,10 +509,10 @@ jobs:
           sudo "$PWD/target/xtask/release/xtask" quota --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-quota"
           sudo jq -ce 'select(.verified) | {source: .source_binding.source, calibrated_errno: .calibration_full.errno, revisions: [.results[] | .current_revision], cleanup: .cleanup.verified}' target/native-quota/evidence.json
           sudo sha256sum target/native-quota/evidence.json
-      - name: Fail a real ext4 append at writeback and reopen after remount
+      - name: Fail real ext4 commit barriers at writeback and reopen after remount
         run: |
           sudo "$PWD/target/xtask/release/xtask" quota --writeback --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-writeback"
-          sudo jq -ce 'select(.verified) | {source: .source_binding.source, fault: .writeback_extent, results: [.results[] | {stage, current_revision, retained_revision, native_operation, native_raw_code}], cleanup: .cleanup.verified, mapper_absent}' target/native-writeback/evidence.json
+          sudo jq -ce 'def phases: map({stage, current_revision, retained_revision, commit_error, native_operation, native_raw_code}); select(.verified) | {source: .source_binding.source, append: {fault: .writeback_extent, results: (.results | phases)}, publication: [.publication_writeback[] | {boundary, fault: .extent, media, results: (.results | phases)}], cleanup: .cleanup.verified, mapper_absent}' target/native-writeback/evidence.json
           sudo sha256sum target/native-writeback/evidence.json
       - name: Build the near-cap maintenance fixture
         run: |

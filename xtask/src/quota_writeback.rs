@@ -1,17 +1,53 @@
-//! Route only the next append's first ext4 data block to a kernel error target.
+//! Route one ext4 data block to a kernel error target at a commit barrier.
 use super::{Calls, Guest, Scratch, cmd, fs, json, path, quota_oracle, sha};
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
 use std::{
+    collections::BTreeSet,
     ffi::OsString,
     io::Read,
     os::unix::fs::{FileTypeExt, MetadataExt},
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 const SECTOR: u64 = 512;
 const BLOCK: u64 = 4096;
 const BLOCK_SECTORS: u64 = BLOCK / SECTOR;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Boundary {
+    Append,
+    RootSlot,
+    Witness,
+}
+
+impl Boundary {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Append => "append",
+            Self::RootSlot => "slot",
+            Self::Witness => "witness",
+        }
+    }
+
+    fn stage(self) -> &'static str {
+        match self {
+            Self::Append => "fail-sync",
+            Self::RootSlot => "fail-slot-sync",
+            Self::Witness => "fail-witness-sync",
+        }
+    }
+
+    fn offset(self, end: usize) -> usize {
+        // Revision 4 uses the even slot (region 1) and witness (region 3).
+        match self {
+            Self::Append => end,
+            Self::RootSlot => BLOCK as usize,
+            Self::Witness => (3 * BLOCK) as usize,
+        }
+    }
+}
 
 pub(super) fn formatter(tool: &Path, image: &Path) -> Vec<OsString> {
     let mut args = vec![path(tool)];
@@ -22,7 +58,7 @@ pub(super) fn formatter(tool: &Path, image: &Path) -> Vec<OsString> {
     args
 }
 
-fn exact_block(report: &str, logical: u64, capacity: u64) -> Result<u64> {
+fn mapped_block(report: &str, logical: u64, capacity: u64, unwritten: bool) -> Result<u64> {
     ensure!(capacity > BLOCK_SECTORS, "invalid mapper capacity");
     let mut found = None;
     for line in report.lines() {
@@ -37,10 +73,10 @@ fn exact_block(report: &str, logical: u64, capacity: u64) -> Result<u64> {
             anyhow::bail!("incomplete FIEMAP row");
         };
         let start: u64 = start.strip_suffix("..").context("extent start")?.parse()?;
-        if start != logical {
+        let end: u64 = end.strip_suffix(':').context("extent end")?.parse()?;
+        if !(start..=end).contains(&logical) {
             continue;
         }
-        let end: u64 = end.strip_suffix(':').context("extent end")?.parse()?;
         let physical: u64 = physical
             .strip_suffix("..")
             .context("physical start")?
@@ -50,24 +86,37 @@ fn exact_block(report: &str, logical: u64, capacity: u64) -> Result<u64> {
             .context("physical end")?
             .parse()?;
         let count: u64 = count.strip_suffix(':').context("extent length")?.parse()?;
-        let flags = rest.last().context("missing FIEMAP flags")?;
+        let flags = rest
+            .last()
+            .filter(|s| !s.ends_with(':'))
+            .copied()
+            .unwrap_or("");
         ensure!(
             found.is_none()
-                && count == BLOCK_SECTORS
-                && logical.checked_add(count - 1) == Some(end)
+                && (!unwritten || (count == BLOCK_SECTORS && logical == start))
+                && logical
+                    .checked_add(BLOCK_SECTORS - 1)
+                    .is_some_and(|last| last <= end)
+                && end.checked_sub(start).and_then(|n| n.checked_add(1)) == Some(count)
+                && count > 0
                 && physical.checked_add(count - 1) == Some(physical_end)
                 && physical_end < capacity - 1
                 && physical > 0
                 && physical.is_multiple_of(BLOCK_SECTORS)
-                && flags.split(',').any(|f| f == "unwritten")
+                && flags.split(',').any(|f| f == "unwritten") == unwritten
                 && flags
                     .split(',')
-                    .all(|f| matches!(f, "unwritten" | "last" | "eof")),
-            "next append lacks an exact private unwritten block"
+                    .all(|f| matches!(f, "" | "unwritten" | "last" | "eof")),
+            "target lacks an exact private data block"
         );
-        found = Some(physical);
+        let sector = physical + (logical - start);
+        ensure!(
+            sector.is_multiple_of(BLOCK_SECTORS),
+            "target block alignment"
+        );
+        found = Some(sector);
     }
-    found.context("FIEMAP omitted the reserved append block")
+    found.context("FIEMAP omitted the target data block")
 }
 
 pub(super) struct Mapping {
@@ -99,6 +148,70 @@ fn mapper_identity(
         "foreign device mapper identity"
     );
     Ok(Some((major, minor)))
+}
+
+fn bounded_image(path: &Path) -> Result<Vec<u8>> {
+    let cap = 2 * super::MIB;
+    let mut image = Vec::new();
+    fs::File::open(path)?
+        .take(cap + 1)
+        .read_to_end(&mut image)?;
+    ensure!(
+        image.len() as u64 <= cap,
+        "writeback image exceeds fixture bound"
+    );
+    Ok(image)
+}
+
+fn assert_only_block_changed(before: &[u8], after: &[u8], offset: usize) -> Result<()> {
+    let end = offset + BLOCK as usize;
+    ensure!(
+        before.len() == after.len() && end <= before.len(),
+        "invalid guarded image range"
+    );
+    ensure!(
+        before[..offset] == after[..offset]
+            && before[end..] == after[end..]
+            && before[offset..end] != after[offset..end],
+        "bytes outside the expected single metadata block differ or the block did not change"
+    );
+    Ok(())
+}
+
+fn verify_recovered_bytes(seed: &[u8], recovered: &[u8], boundary: Boundary) -> Result<()> {
+    ensure!(
+        recovered.len() > seed.len(),
+        "candidate append did not extend the file"
+    );
+    let prefix = &recovered[..seed.len()];
+    if boundary == Boundary::Witness {
+        // Only the already synced candidate slot may change the seed prefix.
+        assert_only_block_changed(seed, prefix, Boundary::RootSlot.offset(seed.len()))
+    } else {
+        ensure!(prefix == seed, "acknowledged prefix changed after remount");
+        Ok(())
+    }
+}
+
+fn medium(
+    calls: &mut Calls<'_, '_>,
+    guest: &Guest,
+    database: &Path,
+    source: &str,
+    revision: u64,
+    committed: usize,
+    witnessed: bool,
+) -> Result<Value> {
+    let physical = fs::metadata(database)?.len();
+    let reply = guest.fixture(calls, vec!["media".into(), path(database)], 30., &[0])?;
+    let row = quota_oracle::one_json(&reply.stdout)?;
+    ensure!(
+        row == json!({"stage":"media","source":source,"features":0,"pid":reply.pid,
+        "revision":revision,"witnessed":witnessed,"retained_revision":2,"committed_bytes":committed,
+        "physical_bytes":physical}),
+        "unexpected revision or durable witness after remount"
+    );
+    Ok(row)
 }
 
 impl Mapping {
@@ -337,9 +450,118 @@ impl Mapping {
         guest: &Guest,
         source: &str,
     ) -> Result<()> {
-        let database = guest.data.join("database.wdb");
+        let mut pids = BTreeSet::new();
+        let mut publication = Vec::new();
+        let append =
+            self.qualify_case(calls, scratch, guest, source, Boundary::Append, &mut pids)?;
+        for (key, field) in [
+            ("writeback_extent", "extent"),
+            ("writeback_images", "images"),
+            ("writeback_media", "media"),
+            ("results", "results"),
+        ] {
+            calls.c.evidence[key] = append[field].clone();
+        }
+        for boundary in [Boundary::RootSlot, Boundary::Witness] {
+            publication
+                .push(self.qualify_case(calls, scratch, guest, source, boundary, &mut pids)?);
+        }
+        calls.c.evidence["publication_writeback"] = json!(publication);
+        Ok(())
+    }
+
+    fn fault_process(
+        &self,
+        calls: &mut Calls<'_, '_>,
+        scratch: &Scratch,
+        guest: &Guest,
+        database: &Path,
+        boundary: Boundary,
+    ) -> Result<Value> {
+        let stage = boundary.stage();
+        let gate = scratch.directory.join(format!("armed-{}", boundary.name()));
+        let mut argv = guest.fixture_argv(vec![stage.into(), path(database), path(&gate)]);
+        argv[0] = path(&calls.tools["setpriv"]);
+        let tools = calls.tools.clone();
+        let mut sequence = calls.sequence;
+        let ready_pid = calls.c.ready_process(
+            argv,
+            stage,
+            (Duration::from_secs(10), 35.),
+            true,
+            |line| {
+                let mut words = line.split(' ');
+                ensure!(
+                    words.next() == Some("ready") && words.next() == Some(stage),
+                    "wrong fixture readiness"
+                );
+                let pid: u32 = words.next().context("missing fixture PID")?.parse()?;
+                ensure!(
+                    pid > 0 && words.next().is_none(),
+                    "invalid fixture readiness"
+                );
+                Ok(pid)
+            },
+            |c, pid| {
+                let mut active = Calls { c, tools, sequence };
+                let armed =
+                    self.switch(&mut active, scratch, self.fault.as_deref().unwrap(), false);
+                sequence = active.sequence;
+                armed?;
+                fs::create_dir(&gate)?;
+                Ok(pid)
+            },
+        );
+        calls.sequence = sequence;
+        let ready_pid = ready_pid?;
+        let stdout = fs::read_to_string(calls.c.output.join(format!("{stage}.stdout.log")))?;
+        let lines: Vec<_> = stdout.lines().collect();
+        ensure!(
+            lines.len() == 2 && lines[0] == format!("ready {stage} {ready_pid}"),
+            "invalid writeback fixture output"
+        );
+        let record = calls.c.evidence["commands"]
+            .as_array()
+            .unwrap()
+            .last()
+            .context("missing fixture supervision")?;
+        ensure!(
+            record["name"] == stage && record["supervision"]["pid"] == ready_pid,
+            "writeback fixture PID disagreement"
+        );
+        let row = quota_oracle::one_json(lines[1])?;
+        ensure!(row["pid"] == ready_pid, "fixture changed PID after arming");
+        Ok(row)
+    }
+
+    fn qualify_case(
+        &mut self,
+        calls: &mut Calls<'_, '_>,
+        scratch: &Scratch,
+        guest: &Guest,
+        source: &str,
+        boundary: Boundary,
+        pids: &mut BTreeSet<u32>,
+    ) -> Result<Value> {
+        let database = guest.data.join(format!("database-{}.wdb", boundary.name()));
+        let mut output = calls.c.output.clone();
+        if boundary != Boundary::Append {
+            output.push(boundary.name());
+            fs::create_dir(&output)?;
+        }
         let mut results = Vec::new();
-        let mut phase = |calls: &mut Calls<'_, '_>, stage: &str, revision: u64| -> Result<()> {
+        let mut check_pid = |row: &Value| -> Result<u32> {
+            let pid: u32 = row["pid"]
+                .as_u64()
+                .context("missing fixture PID")?
+                .try_into()?;
+            ensure!(
+                pid != 0 && pids.insert(pid),
+                "writeback fixture reused a process"
+            );
+            Ok(pid)
+        };
+        let stage = |calls: &mut Calls<'_, '_>, stage: &str, revision: u64| -> Result<Value> {
             let mut args = vec![stage.into(), path(&database)];
             if stage == "inspect" {
                 args.push(revision.to_string().into());
@@ -347,77 +569,123 @@ impl Mapping {
             let reply = guest.fixture(calls, args, 30., &[0])?;
             let row = quota_oracle::one_json(&reply.stdout)?;
             crate::quota_append::verify(&row, source, stage, revision, reply.pid, 5)?;
-            ensure!(
-                !results.iter().any(|r: &Value| r["pid"] == reply.pid),
-                "writeback fixture reused a process"
-            );
-            results.push(row);
-            Ok(())
+            Ok(row)
         };
-        phase(calls, "seed", 3)?;
-        let seed = fs::read(&database)?;
+        let seeded = stage(calls, "seed", 3)?;
+        check_pid(&seeded)?;
+        results.push(seeded);
+        let seed = bounded_image(&database)?;
         let bytes = seed.len() as u64;
         ensure!(
             (5 * BLOCK..=super::MIB).contains(&bytes) && bytes.is_multiple_of(BLOCK),
             "unexpected seed length"
         );
-        let seed_artifact = calls.c.output.join("seed.wdb");
+        let seed_artifact = output.join("seed.wdb");
         fs::write(&seed_artifact, &seed)?;
-        calls.exec(vec![
-            "fallocate".into(),
-            "--keep-size".into(),
-            "--offset".into(),
-            bytes.to_string().into(),
-            "--length".into(),
-            BLOCK.to_string().into(),
-            path(&database),
-        ])?;
-        fs::File::open(&database)?.sync_all()?;
-        ensure!(
-            fs::read(&database)? == seed,
-            "preallocation changed acknowledged database bytes"
-        );
+        if boundary == Boundary::Append {
+            calls.exec(vec![
+                "fallocate".into(),
+                "--keep-size".into(),
+                "--offset".into(),
+                bytes.to_string().into(),
+                "--length".into(),
+                BLOCK.to_string().into(),
+                path(&database),
+            ])?;
+            fs::File::open(&database)?.sync_all()?;
+            ensure!(
+                bounded_image(&database)? == seed,
+                "preallocation changed acknowledged database bytes"
+            );
+        }
         let extents = calls.exec(vec![
             "filefrag".into(),
             "-v".into(),
             "-b512".into(),
             path(&database),
         ])?;
-        let physical = exact_block(&extents.stdout, bytes / SECTOR, self.sectors)?;
+        let offset = boundary.offset(seed.len());
+        let physical = mapped_block(
+            &extents.stdout,
+            offset as u64 / SECTOR,
+            self.sectors,
+            boundary == Boundary::Append,
+        )?;
         self.fault = Some(self.error_table(physical));
-        let fault = self.fault.as_deref().unwrap();
-        calls.c.evidence["writeback_extent"] = json!({"logical_offset":bytes,"sector":physical,
-            "length":BLOCK,"active_table":fault,"linear_table":self.linear(),"dm_name":self.name,"dm_uuid":self.uuid});
-        self.switch(calls, scratch, fault, false)?;
-        phase(calls, "fail-sync", 3)?;
+        let extent = json!({"logical_offset":offset,"sector":physical,
+            "length":BLOCK,"active_table":self.fault,"linear_table":self.linear(),"dm_name":self.name,"dm_uuid":self.uuid});
+        let failure = self.fault_process(calls, scratch, guest, &database, boundary)?;
+        let pid = check_pid(&failure)?;
+        crate::quota_append::verify(&failure, source, boundary.stage(), 3, pid, 5)?;
+        results.push(failure);
         self.switch(calls, scratch, &self.linear(), false)?;
         self.unmount(calls, scratch, false)?;
         self.mount(calls, scratch)?;
-        phase(calls, "inspect", 3)?;
-        let mut prefix = Vec::with_capacity(seed.len());
-        fs::File::open(&database)?
-            .take(bytes)
-            .read_to_end(&mut prefix)?;
-        ensure!(prefix == seed, "acknowledged prefix changed after remount");
-        let failed = calls.c.output.join("reopened.wdb");
+        let recovered = bounded_image(&database)?;
+        verify_recovered_bytes(&seed, &recovered, boundary)?;
+        let revision = if boundary == Boundary::Witness { 4 } else { 3 };
+        let media_before = medium(
+            calls,
+            guest,
+            &database,
+            source,
+            revision,
+            if revision == 3 {
+                seed.len()
+            } else {
+                recovered.len()
+            },
+            revision == 3,
+        )?;
+        check_pid(&media_before)?;
         ensure!(
-            fs::metadata(&database)?.len() <= 2 * super::MIB,
-            "unbounded fail image"
+            recovered == bounded_image(&database)?,
+            "read-only recovery modified the image"
         );
-        fs::copy(&database, &failed)?;
-        phase(calls, "retry", 4)?;
+        let failed = output.join("reopened.wdb");
+        fs::write(&failed, &recovered)?;
+        let reopened = stage(calls, "inspect", revision)?;
+        check_pid(&reopened)?;
+        results.push(reopened);
+        if boundary != Boundary::Witness {
+            let retried = stage(calls, "retry", 4)?;
+            check_pid(&retried)?;
+            results.push(retried);
+        }
         self.unmount(calls, scratch, false)?;
         self.mount(calls, scratch)?;
-        phase(calls, "inspect", 4)?;
-        let retried = calls.c.output.join("retried.wdb");
+        let stable = bounded_image(&database)?;
+        if boundary == Boundary::Witness {
+            // Opening the verified root repairs only the witness. The user
+            // mutation is already present and must not be repeated.
+            assert_only_block_changed(&recovered, &stable, offset)?;
+        }
+        let media_after = medium(calls, guest, &database, source, 4, stable.len(), true)?;
+        check_pid(&media_after)?;
         ensure!(
-            fs::metadata(&database)?.len() <= 2 * super::MIB,
-            "unbounded retry image"
+            stable == bounded_image(&database)?,
+            "read-only check modified the image"
         );
-        fs::copy(&database, &retried)?;
-        calls.c.evidence["writeback_images"] = json!({"seed":sha(&seed_artifact)?,"reopened":sha(&failed)?,"retried":sha(&retried)?,"prefix_verified":true});
-        calls.c.evidence["results"] = json!(results);
-        Ok(())
+        let inspected = stage(calls, "inspect", 4)?;
+        check_pid(&inspected)?;
+        results.push(inspected);
+        ensure!(
+            stable == bounded_image(&database)?,
+            "witnessed reopen changed the stable image"
+        );
+        let final_key = if boundary == Boundary::Witness {
+            "reconciled"
+        } else {
+            "retried"
+        };
+        let final_image = output.join(format!("{final_key}.wdb"));
+        fs::write(&final_image, stable)?;
+        Ok(
+            json!({"boundary":boundary.name(),"extent":extent,"media":[media_before,media_after],"results":results,
+            "images":{"seed":sha(&seed_artifact)?,"reopened":sha(&failed)?,
+                (final_key):sha(&final_image)?,
+                "prefix_verified":true}}),
+        )
     }
 }
 
@@ -428,7 +696,7 @@ mod tests {
     #[test]
     fn append_target_must_be_unwritten_exact_and_within_its_owned_device() {
         let row = "  1:  8.. 15:  53448.. 53455:  8:  49360: last,unwritten,eof";
-        assert_eq!(exact_block(row, 8, 262144).unwrap(), 53448);
+        assert_eq!(mapped_block(row, 8, 262144, true).unwrap(), 53448);
         for bad in [
             row.replace("unwritten", "delalloc"),
             row.replace("unwritten", "unwritten,shared"),
@@ -436,10 +704,51 @@ mod tests {
             row.replace("15:", "16:"),
             format!("{row}\n{row}"),
         ] {
-            assert!(exact_block(&bad, 8, 262144).is_err(), "{bad}");
+            assert!(mapped_block(&bad, 8, 262144, true).is_err(), "{bad}");
         }
-        assert!(exact_block(row, 8, 53456).is_err());
-        assert!(exact_block(row, 16, 262144).is_err());
+        assert!(mapped_block(row, 8, 53456, true).is_err());
+        assert!(mapped_block(row, 16, 262144, true).is_err());
+    }
+
+    #[test]
+    fn metadata_targets_can_be_inside_a_written_extent() {
+        let row = "  0:  0.. 111:  53448.. 53559:  112:  last,eof";
+        assert_eq!(mapped_block(row, 8, 262144, false).unwrap(), 53456);
+        assert_eq!(mapped_block(row, 24, 262144, false).unwrap(), 53472);
+        assert!(mapped_block(row, 24, 262144, true).is_err());
+        assert!(mapped_block(row, 25, 262144, false).is_err());
+        assert!(
+            mapped_block(
+                &row.replace("last,eof", "last,unwritten,eof"),
+                8,
+                262144,
+                false
+            )
+            .is_err()
+        );
+        assert!(
+            mapped_block(
+                &row.replace("last,eof", "last,shared,eof"),
+                8,
+                262144,
+                false
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn recovery_requires_only_the_preceding_metadata_block_to_have_changed() {
+        let seed = vec![0; 6 * BLOCK as usize];
+        let mut reopened = seed.clone();
+        reopened.extend(std::iter::repeat_n(7, BLOCK as usize));
+        verify_recovered_bytes(&seed, &reopened, Boundary::RootSlot).unwrap();
+        let slot = Boundary::RootSlot.offset(seed.len());
+        reopened[slot] = 1;
+        assert!(verify_recovered_bytes(&seed, &reopened, Boundary::RootSlot).is_err());
+        verify_recovered_bytes(&seed, &reopened, Boundary::Witness).unwrap();
+        reopened[Boundary::Witness.offset(seed.len())] = 1;
+        assert!(verify_recovered_bytes(&seed, &reopened, Boundary::Witness).is_err());
     }
 
     #[test]

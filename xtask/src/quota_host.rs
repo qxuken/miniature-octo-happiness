@@ -55,7 +55,7 @@ pub struct Options {
     /// Exhaust all available inodes on a private ext4 filesystem with no quota.
     #[arg(long, requires = "maintenance", conflicts_with = "inode_quota")]
     pub inode_enospc: bool,
-    /// Delay a kernel block error until the local commit's append fsync.
+    /// Exercise kernel block errors at all three local commit sync barriers.
     #[arg(long, conflicts_with_all = ["maintenance", "probe_only"])]
     pub writeback: bool,
 }
@@ -689,10 +689,13 @@ impl Guest {
         timeout: f64,
         allowed: &[i32],
     ) -> Result<Output> {
+        c.guest(self.fixture_argv(args), &self.env, timeout, allowed)
+    }
+    fn fixture_argv(&self, args: Vec<OsString>) -> Vec<OsString> {
         let mut argv = self.drop.clone();
         argv.push(path(&self.fixture));
         argv.extend(args);
-        c.guest(argv, &self.env, timeout, allowed)
+        argv
     }
     fn normal(&self, c: &mut Calls<'_, '_>, source: &str, probe_only: bool) -> Result<()> {
         c.c.evidence["calibration_full"] = self.probe(c, "fill", CHUNK, Space::Quota, None)?;
@@ -791,6 +794,9 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         "native kernel quotas on owned private Linux ext4"
     };
     let mut campaign = Campaign::detached(&run, &output, description)?;
+    if opts.writeback {
+        campaign.limits(LOG_BYTES, None)?;
+    }
     fs::set_permissions(&campaign.output, fs::Permissions::from_mode(0o700))?;
     campaign.evidence["verified"] = json!(false);
     campaign.evidence["status"] = json!("running");

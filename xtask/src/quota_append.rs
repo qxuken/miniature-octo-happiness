@@ -16,14 +16,15 @@ fn rows(revision: u64) -> Value {
     json!([{"key_hex":"7061796c6f6164","kind":"bytes","bytes_hex":bytes},{"key_hex":"726f77","kind":"integer","integer":if new{18}else{17}}])
 }
 pub(super) fn expected(source: &str, stage: &str, revision: u64, pid: u32, raw: i32) -> Value {
-    let (category, operation) = match (stage, raw) {
-        ("fail-sync", _) => ("Other", "Sync"),
-        ("fail", 112) => ("DiskFull", "Write"),
-        ("fail", _) => ("Quota", "Write"),
-        _ => ("None", "None"),
+    let (category, operation, commit_error) = match (stage, raw) {
+        ("fail-slot-sync" | "fail-witness-sync", _) => ("Other", "Sync", 15),
+        ("fail-sync", _) => ("Other", "Sync", 14),
+        ("fail", 112) => ("DiskFull", "Write", 14),
+        ("fail", _) => ("Quota", "Write", 14),
+        _ => ("None", "None", 0),
     };
-    let fail = matches!(stage, "fail" | "fail-sync");
-    json!({"stage":stage,"source":source,"features":0,"pid":pid,"current_revision":revision,"retained_id":1,"retained_revision":2,"commit_error":if fail{14}else{0},"native_category":category,"native_raw_code":fail.then_some(raw),"native_operation":operation,"terminal_error":if fail{11}else{0},"recovery_required":fail,"blocked_write_error":if fail{16}else{0},"current_rows":rows(revision),"retained_rows":rows(3)})
+    let fail = commit_error != 0;
+    json!({"stage":stage,"source":source,"features":0,"pid":pid,"current_revision":revision,"retained_id":1,"retained_revision":2,"commit_error":commit_error,"native_category":category,"native_raw_code":fail.then_some(raw),"native_operation":operation,"terminal_error":if fail{11}else{0},"recovery_required":fail,"blocked_write_error":if fail{16}else{0},"current_rows":rows(revision),"retained_rows":rows(3)})
 }
 pub fn verify(
     row: &Value,
@@ -34,7 +35,11 @@ pub fn verify(
     raw: i32,
 ) -> Result<()> {
     ensure!(
-        ((raw == 5 && matches!(stage, "seed" | "fail-sync" | "inspect" | "retry"))
+        ((raw == 5
+            && matches!(
+                stage,
+                "seed" | "fail-sync" | "fail-slot-sync" | "fail-witness-sync" | "inspect" | "retry"
+            ))
             || (matches!(raw, 112 | 122 | 1295)
                 && matches!(stage, "seed" | "fail" | "inspect" | "retry")))
             && matches!(revision, 3 | 4)
@@ -82,6 +87,16 @@ mod tests {
             let mut changed = row.clone();
             changed[key] = value;
             assert!(verify(&changed, "source", "fail-sync", 3, 42, 5).is_err());
+        }
+    }
+
+    #[test]
+    fn publication_writeback_requires_uncertainty_instead_of_known_io_failure() {
+        for stage in ["fail-slot-sync", "fail-witness-sync"] {
+            let mut row = expected("source", stage, 3, 42, 5);
+            verify(&row, "source", stage, 3, 42, 5).unwrap();
+            row["commit_error"] = json!(14);
+            assert!(verify(&row, "source", stage, 3, 42, 5).is_err());
         }
     }
 }

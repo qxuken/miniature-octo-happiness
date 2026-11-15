@@ -1,4 +1,4 @@
-//! Real native quota fixture. The controller supplies the quota and private path;
+//! Real native storage fault fixture. The controller supplies the private path;
 //! this process neither fills a filesystem nor substitutes a storage backend.
 #[cfg(any(target_os = "linux", windows))]
 fn main() {
@@ -22,6 +22,53 @@ mod native {
 
     const RETAINED_ID: u64 = 1;
     const RETAINED_REVISION: u64 = 2;
+
+    fn await_writeback_fault(mode: &str, gate: &Path) {
+        use std::{
+            io::Write as _,
+            time::{Duration, Instant},
+        };
+        println!("ready {mode} {}", std::process::id());
+        std::io::stdout().flush().unwrap();
+        let start = Instant::now();
+        loop {
+            match std::fs::symlink_metadata(gate) {
+                Ok(info) => {
+                    assert!(info.is_dir());
+                    return;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => panic!("writeback gate: {error}"),
+            }
+            assert!(
+                start.elapsed() < Duration::from_secs(20),
+                "writeback gate deadline"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn inspect_media(path: &Path) {
+        let info = weekend_db::storage::inspect_file(path, Limits::default()).unwrap();
+        assert_eq!(
+            info.retained.as_slice(),
+            [weekend_db::storage::RetainedInfo {
+                id: RETAINED_ID,
+                revision: RETAINED_REVISION,
+                data_revision: RETAINED_REVISION,
+            }]
+        );
+        println!(
+            "{{\"stage\":\"media\",\"source\":\"{}\",\"features\":{},\"pid\":{},\"revision\":{},\"witnessed\":{},\"retained_revision\":{RETAINED_REVISION},\"committed_bytes\":{},\"physical_bytes\":{}}}",
+            version::SOURCE_ID,
+            version::FEATURES,
+            std::process::id(),
+            info.revision,
+            info.witnessed,
+            info.committed_bytes,
+            info.physical_bytes
+        );
+    }
 
     fn baseline_bytes() -> Vec<u8> {
         (0..512).map(|i| ((i * 13 + 7) % 251) as u8).collect()
@@ -179,12 +226,28 @@ mod native {
         let mode = args.get(1).and_then(|s| s.to_str()).expect("command");
         assert!(matches!(
             mode,
-            "seed" | "fail" | "fail-sync" | "inspect" | "retry"
+            "seed"
+                | "fail"
+                | "fail-sync"
+                | "fail-slot-sync"
+                | "fail-witness-sync"
+                | "inspect"
+                | "media"
+                | "retry"
         ));
+        let writeback = matches!(mode, "fail-sync" | "fail-slot-sync" | "fail-witness-sync");
+        let uncertain = matches!(mode, "fail-slot-sync" | "fail-witness-sync");
         #[cfg(windows)]
-        assert_ne!(mode, "fail-sync");
-        assert_eq!(args.len(), if mode == "inspect" { 4 } else { 3 });
+        assert!(!writeback);
+        assert_eq!(
+            args.len(),
+            if mode == "inspect" || writeback { 4 } else { 3 }
+        );
         let path = Path::new(&args[2]);
+        if mode == "media" {
+            inspect_media(path);
+            return;
+        }
         let db = if mode == "seed" {
             Database::create_file(path, Limits::default()).unwrap()
         } else {
@@ -205,18 +268,28 @@ mod native {
                 assert_eq!(db.retain_snapshot(&baseline), Ok(RETAINED_ID));
                 3
             }
-            "fail" | "fail-sync" => {
+            "fail" | "fail-sync" | "fail-slot-sync" | "fail-witness-sync" => {
                 checked_state(&db, 3, false);
                 let mut tx = db.begin();
                 stage(&mut tx, &db, db.collection_id(1), true);
+                if writeback {
+                    await_writeback_fault(mode, Path::new(&args[3]));
+                }
                 let failed = tx.commit_with_diagnostics().unwrap_err();
-                assert_eq!(failed.error, Error::Io);
+                assert_eq!(
+                    failed.error,
+                    if uncertain {
+                        Error::OutcomeUnknown
+                    } else {
+                        Error::Io
+                    }
+                );
                 assert_eq!(failed.verification, None);
                 let native = failed
                     .native
                     .expect("real storage error has native context");
                 #[cfg(target_os = "linux")]
-                let expected_errno = if mode == "fail-sync" { 5 } else { 122 };
+                let expected_errno = if writeback { 5 } else { 122 };
                 #[cfg(windows)]
                 let expected_errno = {
                     let raw = std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
@@ -233,13 +306,20 @@ mod native {
                 };
                 assert_eq!(native.category, category);
                 assert_eq!(native.raw_os_error, Some(expected_errno));
-                let operation = if mode == "fail-sync" {
+                let operation = if writeback {
                     NativeIoOperation::Sync
                 } else {
                     NativeIoOperation::Write
                 };
                 assert_eq!(native.operation, operation);
-                assert_eq!(tx.state(), TransactionState::Aborted);
+                assert_eq!(
+                    tx.state(),
+                    if uncertain {
+                        TransactionState::Failed
+                    } else {
+                        TransactionState::Aborted
+                    }
+                );
                 let terminal = tx.commit().unwrap_err();
                 assert_eq!(terminal, Error::Closed);
                 assert!(db.requires_recovery());
@@ -272,7 +352,7 @@ mod native {
             }
             _ => unreachable!(),
         };
-        let state = checked_state(&db, revision, matches!(mode, "fail" | "fail-sync"));
+        let state = checked_state(&db, revision, mode == "fail" || writeback);
         emit(mode, state, failure);
     }
 }
