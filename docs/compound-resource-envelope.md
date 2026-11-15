@@ -311,3 +311,65 @@ maintenance workload remains a deployment measurement.
 | Diagnostic VM map | `728b8d8e1f103e59edf3bd73b524dfbf1692e9221d865c328701dcda85de89eb` |
 | macOS bounded-buffer controller proof | `ee0233d4fac61d9887f1a3d06d43be044782acc5834fdc35cffb80367bebea52` |
 | Linux bounded-buffer controller proof | `e0089a80b5ade00fd017b1d9e5bd8b3ca2f1906d6d0a9f9c71d48f3453b585b9` |
+
+### Offline copy graph lifetime
+
+Offline backup and restore now release the source serialization caches before
+encoding the destination. Once the destination is durably published, they
+release the input graph and the destination's cached graph references. The
+independent destination recovery runs while both leases are held and checks
+the complete current and retained graphs, identity, revision, committed end
+and witness. A simulator regression observes the first destination header
+read, checks the source lease is still exclusive, and checks the old graph's
+allocations have been released. The previous implementation failed that
+control with 1,129 charged bytes still live on the small fixture.
+
+A disposable macOS probe instrumented the two implementations on the same
+66,154,496-byte input from the bounded-buffer workload. The copy budget
+was 256 MiB. All four backup and restore outputs were byte-identical and
+63,074,304 bytes. Inspection confirmed the same identity, revision and 64
+retained entries. Under the 96 MiB budget, both implementations returned
+`Limit` and left an empty destination. The source SHA-256 was unchanged.
+
+| Single backup + restore probe | Original lifetime | Shorter lifetime |
+|---|---:|---:|
+| Core live bytes before each destination verification | 49,010,118 | 0 |
+| Core peak bytes across encoding and verification | 150,179,254 | 149,915,550 |
+| Peak process RSS, macOS `/usr/bin/time -l` | 230,998,016 bytes | 185,876,480 bytes |
+
+The encoding stage still sets the core peak for this input. The process RSS
+figures are single-run observations, including the probe's inspections.
+Input SHA-256 `691d199057cdf32493def408c3beeb03bc647200c1d2847adee1a812ead4a527`.
+Output SHA-256 `4ef4eb245148021c8e243a0f03f60d746f9cdf42ad1004b6e894d5e82c0375c3`.
+
+The all-feature engine tests passed in debug and release on macOS arm64
+(311 per profile) and Docker Linux arm64 (315 per profile). Both profiles
+report one worker fixture ignored by libtest and invoked by the native
+process tests. Strict all-target Clippy passed on macOS and for the Windows
+MSVC cross-target.
+
+The exact `55e35ad` engine passed all 24 cycles on both platforms. Comparing
+all 168 phase records against the bounded-buffer baseline matched the logical
+digests, revisions, root counts and file lengths. Each fresh workload creates
+a random store identity. For the exact byte check, release admin binaries
+from `af91f05` and `55e35ad` copied the same frozen macOS source fixture. They
+produced the same backup, restored bytes and independent inspection output.
+The fixture retained its original SHA-256.
+
+| 24-cycle workload | macOS arm64/APFS | Docker Linux arm64/ext4 |
+|---|---:|---:|
+| Worker elapsed | 107.2 s | 95.8 s |
+| Sampled peak process RSS | 1,413,968 KiB | 127,044 KiB |
+| Peak requested core bytes in the opened database | 57,794,708 | 57,794,708 |
+| Backup p50 / max | 521.0 / 569.3 ms | 491.4 / 531.0 ms |
+| Restore p50 / max | 530.3 / 562.3 ms | 478.4 / 573.1 ms |
+
+The smaller RSS observation is consistent with reduced overlap. The previous
+macOS repeats varied substantially, so a deployment-level process-memory
+bound remains open. Independent review rehashed all 28 worker artifacts per
+platform and confirmed Docker resource retirement.
+
+| Platform | Controller proof SHA-256 | Worker proof SHA-256 |
+|---|---|---|
+| macOS | `5c96a51a32723ea03d0575e45cf3b1a129d8ffbfae41d4e2a19d23bef4db4ef9` | `08b75558ad99248f75908a2acb20cdaddfdb34ca76c0e37d42688f30dbb8648a` |
+| Linux | `ada746730dc115c919616afb81fdfae8616dffc777e20436bd3fae4ee67057c4` | `206b859bd9d3ffd262f08f209b52559c79265e4b10237a22b222e004e9d0325c` |

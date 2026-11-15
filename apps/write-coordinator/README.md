@@ -214,3 +214,10 @@ Its separate evidence is
 `target/coordinator-capacity-format-followup-21e5d26/evidence.json`, SHA-256
 `35b12358e2de8b66664917533d998b7669760c9eeaf817aa05eca26b27181ac7`.
 Earlier Mac/Linux/Windows artifacts were not relabeled as testing this new hash.
+
+The hosted Windows x86_64 job for PR head `af91f05` later ran the native
+capacity scenario in both debug and release. The job tested PR merge
+`fc31b9a3e0eafbf3c4387f37f1fde8b6cb432d4f`. Both runs filled all 1,024
+receipts, performed restart/replay checks, and passed backup, restore and
+maintained replay. The in-place compaction arm runs on macOS and Linux.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43706610324/job/132788972396)
