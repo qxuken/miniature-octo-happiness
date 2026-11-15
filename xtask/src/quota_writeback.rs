@@ -120,13 +120,69 @@ impl Boundary {
     }
 }
 
-pub(super) fn formatter(tool: &Path, image: &Path) -> Vec<OsString> {
+pub(super) fn formatter(tool: &Path, image: &Path, fault_journal: bool) -> Vec<OsString> {
     let mut args = vec![path(tool)];
+    let features = if fault_journal {
+        "^quota,^fast_commit"
+    } else {
+        "^quota"
+    };
     args.extend(cmd([
-        "-t", "ext4", "-q", "-F", "-O", "^quota", "-b", "4096",
+        "-t", "ext4", "-q", "-F", "-O", features, "-b", "4096",
     ]));
+    if fault_journal {
+        args.extend(cmd(["-E", "lazy_itable_init=0,lazy_journal_init=0"]));
+    }
     args.push(path(image));
     args
+}
+
+fn journal_sectors(report: &str, capacity: u64) -> Result<(u64, u64)> {
+    ensure!(
+        report.starts_with("Inode: 8 "),
+        "missing ext4 journal inode"
+    );
+    let (inode, extents) = report
+        .split_once("\nEXTENTS:\n")
+        .context("missing journal extents")?;
+    let (logical, physical) = extents
+        .trim()
+        .split_once("):")
+        .context("missing journal range")?;
+    let last_logical: u64 = logical
+        .strip_prefix("(0-")
+        .context("journal must start at block zero")?
+        .parse()?;
+    let (start, end) = physical
+        .split_once('-')
+        .context("journal must be contiguous")?;
+    let start: u64 = start.parse()?;
+    let end: u64 = end.parse()?;
+    let size = inode
+        .lines()
+        .find_map(|line| line.split_once(" Size: ").map(|(_, size)| size.trim()))
+        .context("missing journal size")?
+        .parse::<u64>()?;
+    ensure!(
+        start > 0
+            && last_logical > 0
+            && end.checked_sub(start) == Some(last_logical)
+            && last_logical
+                .checked_add(1)
+                .and_then(|n| n.checked_mul(BLOCK))
+                == Some(size),
+        "journal extent and size disagree"
+    );
+    let edge = |block: u64| {
+        block
+            .checked_add(1)
+            .and_then(|n| n.checked_mul(BLOCK_SECTORS))
+            .context("journal sector overflow")
+    };
+    let after = edge(end)?;
+    ensure!(after < capacity, "journal outside owned volume");
+    // Leave the journal superblock addressable. Deny I/O to transaction blocks.
+    Ok((edge(start)?, after))
 }
 
 fn mapped_block(report: &str, logical: u64, capacity: u64, unwritten: bool) -> Result<u64> {
@@ -317,9 +373,13 @@ impl Mapping {
     }
 
     fn error_table(&self, start: u64) -> String {
-        let after = start + BLOCK_SECTORS;
+        self.error_range(start, start + BLOCK_SECTORS)
+    }
+
+    fn error_range(&self, start: u64, after: u64) -> String {
+        let length = after - start;
         format!(
-            "0 {start} linear {} 0\n{start} {BLOCK_SECTORS} error\n{after} {} linear {} {after}",
+            "0 {start} linear {} 0\n{start} {length} error\n{after} {} linear {} {after}",
             self.backing,
             self.sectors - after,
             self.backing
@@ -795,6 +855,25 @@ impl<'a> MaintenanceFault<'a> {
         let destination = format!("failed-{operation}.wdb");
         let offset = self.barrier.offset();
         let early = self.barrier == CopyBarrier::Data;
+        let journal = if offset.is_none() {
+            ensure!(
+                operation == "compact",
+                "journal barrier requires in-place compaction"
+            );
+            let file = fs::File::open(source)?;
+            file.set_permissions(fs::Permissions::from_mode(0o640))?;
+            file.sync_all()?;
+            self.scratch.ownership()?;
+            let geometry = calls.exec(vec![
+                "debugfs".into(),
+                "-R".into(),
+                "stat <8>".into(),
+                path(&self.scratch.image),
+            ])?;
+            Some(journal_sectors(&geometry.stdout, self.mapper.sectors)?)
+        } else {
+            None
+        };
         let mut argv = guest.fixture_argv(vec![
             path(&guest.data),
             path(source),
@@ -858,26 +937,43 @@ impl<'a> MaintenanceFault<'a> {
                         && info.dev() == fs::metadata(&guest.data)?.dev(),
                     "wrong maintenance target identity or allocation boundary"
                 );
-                let geometry = active.exec(vec![
-                    "filefrag".into(),
-                    "-v".into(),
-                    "-b512".into(),
-                    path(&target),
-                ])?;
-                let sector = mapped_block(
-                    &geometry.stdout,
-                    offset / SECTOR,
-                    self.mapper.sectors,
-                    early,
-                )?;
-                let fault = self.mapper.error_table(sector);
+                let (fault, mut boundary) = if let Some((start, after)) = journal {
+                    ensure!(
+                        info.mode() & 0o7777 == 0o600,
+                        "metadata changed before the gate"
+                    );
+                    (
+                        self.mapper.error_range(start, after),
+                        json!({"journal_inode":8,"sector":start,"end_sector_exclusive":after,"length":(after-start)*SECTOR,"scratch_mode_before":0o600}),
+                    )
+                } else {
+                    let offset = offset.context("missing copy barrier offset")?;
+                    let geometry = active.exec(vec![
+                        "filefrag".into(),
+                        "-v".into(),
+                        "-b512".into(),
+                        path(&target),
+                    ])?;
+                    let sector = mapped_block(
+                        &geometry.stdout,
+                        offset / SECTOR,
+                        self.mapper.sectors,
+                        early,
+                    )?;
+                    (
+                        self.mapper.error_table(sector),
+                        json!({"sector":sector,"logical_offset":offset,"length":BLOCK}),
+                    )
+                };
                 self.mapper.fault = Some(fault.clone());
                 self.mapper.switch(active, self.scratch, &fault, false)?;
-                Ok((
-                    target,
-                    json!({"target":name,"sector":sector,"logical_offset":offset,"length":BLOCK,"barrier":self.barrier.name(),
-                    "device":device,"inode":inode,"active_table":fault,"linear_table":self.mapper.linear()}),
-                ))
+                boundary["target"] = json!(name);
+                boundary["barrier"] = json!(self.barrier.name());
+                boundary["device"] = json!(device);
+                boundary["inode"] = json!(inode);
+                boundary["active_table"] = json!(fault);
+                boundary["linear_table"] = json!(self.mapper.linear());
+                Ok((target, boundary))
             },
         )?;
         self.mapper
@@ -891,18 +987,28 @@ impl<'a> MaintenanceFault<'a> {
                 && proof["inode"] == persisted.ino(),
             "failed maintenance target changed identity after remount"
         );
-        let mut block = [0u8; BLOCK as usize];
-        let mut file = fs::File::open(&target)?;
-        file.seek(SeekFrom::Start(offset))?;
-        file.read_exact(&mut block)?;
-        ensure!(
-            block == [0; BLOCK as usize],
-            "failed target block persisted"
-        );
         proof["remounted"] = json!(true);
-        proof["failed_block_zero"] = json!(true);
-        if early {
-            proof["failed_header_zero"] = json!(true);
+        if let Some(offset) = offset {
+            let mut block = [0u8; BLOCK as usize];
+            let mut file = fs::File::open(&target)?;
+            file.seek(SeekFrom::Start(offset))?;
+            file.read_exact(&mut block)?;
+            ensure!(
+                block == [0; BLOCK as usize],
+                "failed target block persisted"
+            );
+            proof["failed_block_zero"] = json!(true);
+            if early {
+                proof["failed_header_zero"] = json!(true);
+            }
+        } else {
+            ensure!(
+                fs::metadata(source)?.mode() & 0o7777 == 0o640
+                    && persisted.mode() & 0o7777 == 0o600,
+                "unexpected source or scratch mode after remount"
+            );
+            proof["source_mode_remounted"] = json!(0o640);
+            proof["scratch_mode_remounted"] = json!(0o600);
         }
         proof["failed_target_sha256"] = json!(sha(&target)?);
         let images = calls.c.output.join("failed-images");
@@ -942,6 +1048,23 @@ fn scratch_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn journal_fault_skips_the_superblock_and_requires_one_bounded_extent() {
+        let stat =
+            "Inode: 8   Type: regular\nUser: 0 Size: 16777216\nEXTENTS:\n(0-4095):32801-36896\n";
+        assert_eq!(journal_sectors(stat, 524288).unwrap(), (262416, 295176));
+        for changed in [
+            stat.replace("Inode: 8", "Inode: 7"),
+            stat.replace("(0-4095)", "(1-4096)"),
+            stat.replace("16777216", "16777215"),
+            stat.replace("36896", "36897"),
+            stat.replace("32801-36896", "32801-34848, (2048-4095):34850-36897"),
+        ] {
+            assert!(journal_sectors(&changed, 524288).is_err(), "{changed}");
+        }
+        assert!(journal_sectors(stat, 295176).is_err());
+    }
 
     #[test]
     fn append_target_must_be_unwritten_exact_and_within_its_owned_device() {

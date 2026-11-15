@@ -75,6 +75,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             | "writeback"
             | "writeback-slot"
             | "writeback-witness"
+            | "writeback-file-metadata"
     ));
     #[cfg(windows)]
     assert!(matches!(kind.as_str(), "ntfs-enospc" | "ntfs-quota"));
@@ -147,7 +148,10 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             let errno = match kind.as_str() {
                 "quota" | "inode-quota" => 122,
                 "enospc" | "inode-enospc" => 28,
-                "writeback" | "writeback-slot" | "writeback-witness" => 5,
+                "writeback"
+                | "writeback-slot"
+                | "writeback-witness"
+                | "writeback-file-metadata" => 5,
                 "ntfs-enospc" => 112,
                 "ntfs-quota" => std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
                     .unwrap()
@@ -208,7 +212,16 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             let partial = partial(dir, op);
             let bytes = fs::read(&partial).unwrap();
             let inspection = storage::inspect_file(&partial, limits(COPY));
-            let disposition = if kind == "writeback-witness" {
+            let disposition = if kind == "writeback-file-metadata" {
+                assert_eq!(op, "compact");
+                let info = inspection.unwrap();
+                assert_eq!(info.revision, FINAL);
+                assert!(info.witnessed);
+                assert_eq!(info.retained.len(), 64);
+                assert_eq!(info.committed_bytes, COMPACTED);
+                assert_eq!(bytes, fs::read(&backup).unwrap());
+                "partial_verified_witnessed"
+            } else if kind == "writeback-witness" {
                 let info = inspection.unwrap();
                 assert_eq!(info.revision, FINAL);
                 assert!(!info.witnessed);

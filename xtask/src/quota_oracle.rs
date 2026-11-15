@@ -17,6 +17,7 @@ pub enum CopyBarrier {
     Data,
     Slot,
     Witness,
+    FileMetadata,
 }
 
 impl CopyBarrier {
@@ -25,15 +26,17 @@ impl CopyBarrier {
             Self::Data => "data",
             Self::Slot => "slot",
             Self::Witness => "witness",
+            Self::FileMetadata => "file-metadata",
         }
     }
 
-    pub fn offset(self) -> u64 {
+    pub fn offset(self) -> Option<u64> {
         // The near-cap copy publishes even revision 212.
         match self {
-            Self::Data => 0,
-            Self::Slot => 4096,
-            Self::Witness => 12288,
+            Self::Data => Some(0),
+            Self::Slot => Some(4096),
+            Self::Witness => Some(12288),
+            Self::FileMetadata => None,
         }
     }
 }
@@ -66,6 +69,7 @@ impl Space {
             Self::Writeback(CopyBarrier::Data) => "writeback",
             Self::Writeback(CopyBarrier::Slot) => "writeback-slot",
             Self::Writeback(CopyBarrier::Witness) => "writeback-witness",
+            Self::Writeback(CopyBarrier::FileMetadata) => "writeback-file-metadata",
         }
     }
     pub fn category(self) -> &'static str {
@@ -177,6 +181,10 @@ pub fn maintenance<'a>(
         matches!(label, "backup" | "restore" | "compact") && pid > 0,
         "invalid maintenance expectation"
     );
+    ensure!(
+        space != Space::Writeback(CopyBarrier::FileMetadata) || label == "compact",
+        "file metadata barrier requires in-place compaction"
+    );
     let expected = match mode {
         "space-fail" if space.fails_at_create() => {
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
@@ -200,6 +208,9 @@ pub fn maintenance<'a>(
         }
         "space-retry" if space.fails_at_create() => {
             json!({"stage":"retry","operation":label,"pid":pid,"no_partial":true,"matches_backup":true})
+        }
+        "space-retry" if space == Space::Writeback(CopyBarrier::FileMetadata) => {
+            json!({"stage":"retry","operation":label,"pid":pid,"partial_verified_witnessed":true,"existing_rejected":false,"partial_preserved":true,"matches_backup":true})
         }
         "space-retry" if space == Space::Writeback(CopyBarrier::Witness) => {
             json!({"stage":"retry","operation":label,"pid":pid,"partial_verified_unwitnessed":true,"existing_rejected":label!="compact","partial_preserved":true,"matches_backup":true})
@@ -617,6 +628,47 @@ mod tests {
                 "backup",
                 SOURCE,
                 Space::Writeback(CopyBarrier::Slot),
+                42
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn file_metadata_writeback_requires_a_witnessed_compaction_scratch() {
+        let retry = json!({"stage":"retry","operation":"compact","pid":42,"partial_verified_witnessed":true,"existing_rejected":false,"partial_preserved":true,"matches_backup":true});
+        let completion = resource_oracle::completion("space-retry", SOURCE);
+        let space = Space::Writeback(CopyBarrier::FileMetadata);
+        maintenance(
+            &[retry.clone(), completion.clone()],
+            "space-retry",
+            "compact",
+            SOURCE,
+            space,
+            42,
+        )
+        .unwrap();
+        assert!(
+            maintenance(
+                &[
+                    mutate(&retry, "partial_verified_witnessed", json!(false)),
+                    completion.clone()
+                ],
+                "space-retry",
+                "compact",
+                SOURCE,
+                space,
+                42
+            )
+            .is_err()
+        );
+        assert!(
+            maintenance(
+                &[mutate(&retry, "operation", json!("backup")), completion],
+                "space-retry",
+                "backup",
+                SOURCE,
+                space,
                 42
             )
             .is_err()

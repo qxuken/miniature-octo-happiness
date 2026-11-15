@@ -18,7 +18,7 @@ static struct stat directory, created;
 static const char *label, *gate, *target, *metadata_magic;
 static off64_t offset;
 static char name_at_creation[64];
-static int seen_target, armed;
+static int seen_target, armed, file_metadata;
 
 static int scratch_name(const char *name) {
     static const char prefix[] = ".wdb-compact-";
@@ -43,6 +43,9 @@ __attribute__((constructor)) static void setup(void) {
     } else if (strcmp(barrier, "witness") == 0) {
         offset = 12288;
         metadata_magic = "WDBACK01";
+    } else if (strcmp(barrier, "file-metadata") == 0) {
+        assert(strcmp(target, "scratch") == 0);
+        file_metadata = 1;
     } else {
         assert(strcmp(barrier, "data") == 0);
     }
@@ -98,7 +101,7 @@ int openat(int dirfd, const char *name, int flags, ...) {
         assert(strlen(name) < sizeof(name_at_creation));
         memcpy(name_at_creation, name, strlen(name) + 1);
         seen_target = 1;
-        if (!metadata_magic) {
+        if (!metadata_magic && !file_metadata) {
             assert(fallocate(fd, FALLOC_FL_KEEP_SIZE, 0, 4096) == 0);
             struct stat info;
             assert(fstat(fd, &info) == 0 && info.st_size == 0);
@@ -126,4 +129,25 @@ ssize_t pwrite64(int fd, const void *buf, size_t size, off64_t where) {
         }
     }
     return next(fd, buf, size, where);
+}
+
+int fchmod(int fd, mode_t mode) {
+    static int (*next)(int, mode_t);
+    if (!next) {
+        next = (int (*)(int, mode_t))dlsym(RTLD_NEXT, "fchmod");
+        assert(next);
+    }
+    if (seen_target && file_metadata && mode == 0640) {
+        struct stat info;
+        assert(fstat(fd, &info) == 0);
+        if (info.st_dev == created.st_dev && info.st_ino == created.st_ino) {
+            assert(info.st_size == 63074304 && (info.st_mode & 07777) == 0600);
+            await_arm();
+            int result = next(fd, mode);
+            assert(result == 0);
+            assert(fstat(fd, &info) == 0 && (info.st_mode & 07777) == mode);
+            return result;
+        }
+    }
+    return next(fd, mode);
 }

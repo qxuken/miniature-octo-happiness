@@ -123,6 +123,7 @@ fn support_tools(c: &Campaign<'_>, opts: &Options) -> Result<BTreeMap<String, Pa
                 .into_iter()
                 .flatten(),
         )
+        .chain((opts.copy_barrier == Some(CopyBarrier::FileMetadata)).then_some("debugfs"))
         .map(|name| {
             Ok((
                 name.into(),
@@ -857,7 +858,11 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         };
         let device = (|| -> Result<String> {
             let format = if opts.writeback {
-                writeback::formatter(&call.tools["mkfs.ext4"], &s.image)
+                writeback::formatter(
+                    &call.tools["mkfs.ext4"],
+                    &s.image,
+                    opts.copy_barrier == Some(CopyBarrier::FileMetadata),
+                )
             } else {
                 quota_oracle::formatter(&call.tools["mkfs.ext4"], &s.image, space)
             };
@@ -1170,7 +1175,12 @@ impl Guest {
         c.c.evidence["maintenance_negative"] = json!({"exit":negative.exit,"pid":negative.pid,"required_failure_rejected":true,"successful_copy_verified":true});
         fs::remove_file(path)?;
         let mut cases = vec![];
-        for op in ["backup", "restore", "compact"] {
+        let operations = if space == Space::Writeback(CopyBarrier::FileMetadata) {
+            ["compact"].as_slice()
+        } else {
+            ["backup", "restore", "compact"].as_slice()
+        };
+        for &op in operations {
             let a = sha(&original)?;
             let b = sha(&backup)?;
             let (full, headroom) = match space {
@@ -1287,6 +1297,14 @@ impl Guest {
                     mapped["failed_target_sha256"] == sha(&target)?,
                     "retry modified the failed destination"
                 );
+                if space == Space::Writeback(CopyBarrier::FileMetadata) {
+                    ensure!(
+                        fs::metadata(&retried)?.mode() & 0o7777 == 0o640
+                            && fs::metadata(&target)?.mode() & 0o7777 == 0o600,
+                        "metadata retry changed the retained scratch mode or lost the source mode"
+                    );
+                    data.phase(c, "space-check", "failed-metadata-scratch", &target, false)?;
+                }
             }
             data.phase(
                 c,
