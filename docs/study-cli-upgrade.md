@@ -17,7 +17,7 @@ old-reader rollback qualification after arbitrary new application changes.
 
 ## Observed upgrade behavior
 
-Both operating systems passed the following scenario with unchanged credentials,
+The runner uses the following scenario with unchanged credentials,
 collection `[9;16]`, policy generation 7 and actor identities `[1;16]`/`[2;16]`:
 
 1. The historical binaries generate credentials, initialize both native files
@@ -66,23 +66,24 @@ migration implementation changed.
 manifests/locks and separate Cargo targets. The production CLI sources are never
 rewritten. It then generates a disposable current integration test from the
 frozen credential test's process/relay/public-state helpers plus
-`tools/study-cli-upgrade-fixture.rs`. The only helper transformation passes an
-explicit executable with the log argument to `Peer::start` and uses that path in
-`Command::new`; exact unique extraction/substitution guards fail closed. No
-TLS implementation or rejection result is mocked. Dead unused helper code is
-allowed in this generated fixture. Strict release integration-target Clippy
-passes on both platforms.
+`tools/study-cli-upgrade-fixture.rs`. The generated test passes the copied
+executable explicitly to `Peer::start`. On Windows the helper uses normal
+directory creation inside an ACL-restricted runtime root. The historical CLI
+creates the credentials there. Every substituted helper fragment must occur
+exactly once. TLS negotiation and replication execute in the archived CLIs.
+The controller also runs strict release integration-target Clippy.
 
 Each relay owns its loopback port for the scenario, points to CLI port-zero
 listeners after readiness, and forwards opaque bytes. Existing helper deadlines
 bound readiness/replies (8 seconds), one-shot commands (10 seconds), convergence
 and rejection (20 seconds), and relay I/O (4 seconds). The controller bounds
 builds/Clippy to 300 seconds, test execution to 180 seconds and Docker execution
-to 900 seconds. Owned process groups are killed on every exit, including a failed leader that
-has already exited; the direct child is reaped. The fixture kills
-and reaps its children, removes private credential trees, and the runner removes
-its owned runtime directory even after fixture failure. Logs contain no generated
-private-key bytes; only proof and executable copies leave the Docker volume.
+to 900 seconds. POSIX uses owned process groups. Windows assigns each top-level
+child to a job while suspended, then verifies retirement of the job tree,
+including descendants of the integration test. The fixture reaps its children
+and removes credential trees. The runner removes the owned runtime directory
+after the test, including on failure. The hosted Windows archive includes the
+frozen sources, worker logs and copied executables.
 
 Existing or dangling output paths reject before any external command. Known
 ambient build overrides are removed while `RUSTUP_HOME` and `RUSTUP_TOOLCHAIN`
@@ -90,6 +91,56 @@ remain intact. Toolchains, configuration and registry caches are trusted inputs.
 The maintained controls cover fresh output, toolchain selection, child failure
 and timeout, authoritative Docker absence, exact fixture extraction,
 exited-leader cleanup, and rejection of mutated copied evidence.
+
+### Native Windows command
+
+Use native x64 MSVC on fixed NTFS with both frozen Git commits available.
+The CLI uses a fresh output directory and the cached original dependencies.
+
+```powershell
+cargo fetch --locked
+cargo xtask study-cli-upgrade --new 365daf6c8a6b7c85fb049fb5a0370b401dde2424 --output target/windows-study-upgrade
+```
+
+## Native Windows NTFS result
+
+On 2026-11-15, PR head `6a72f49` passed with native x64 Windows, fixed NTFS
+and Rust 1.99.1 MSVC. The controller and worker ran from the PR test merge
+`9bfdc5e02b1b2df0cb567678c0b195eb6fa2f412`. Both production CLIs were built
+in release mode from the frozen archives, with the original lockfiles.
+The generated integration test and strict release Clippy passed.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43733555230/job/132871086478)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43733555230/artifacts/14168509733).
+
+With mixed binaries, both peers stayed at their locally acknowledged
+revision 6. A had 23 minutes and lessons `[1, 2, 3]`. B had 25 minutes
+and lessons `[1, 2, 4]`. The new peer reported the missing ALPN and both
+peers reported zero acknowledgments. With both binaries upgraded, the peers
+converged at revisions `[7, 7]` with 36 minutes, goal 80, session limit 20,
+lessons `[1, 2, 3, 4]` and an empty planned set. The fixture checked
+complete causal records, both pre-upgrade retained roots and stable revisions
+through repeated exchanges and another restart.
+
+The audit verified all 42 worker payload hashes and the logs and recorded
+cleanup of all 24 controller and worker commands. The exact executables
+matched the recorded hashes and x64 PE headers. Both lockfiles matched
+their Git blobs. The Windows archives matched the macOS and Linux archives
+byte for byte. The private runtime directory was removed, and the downloaded
+artifact contained no private keys.
+
+The same runner passed on macOS/APFS and Docker Linux/ext4. The reruns
+converged at `[7, 7]` and `[9, 9]` respectively, with the same logical
+result and repeat/restart invariant. Each rerun's 43 worker artifact hashes
+matched. The Linux container and ext4 volume were independently confirmed
+absent after the run.
+
+| Evidence | SHA-256 |
+|---|---|
+| Windows ZIP | `a68e1d548c426bd0ad58f1e983caf0b2306771a74ea535846932e99546d25ec9` |
+| Windows controller | `e467fdd14a6817b12af8ce97fb3f23ffd4082f8200d5b87ce5252ca2b4cbc94a` |
+| Windows worker | `7dae6371893ca5dca77bf7fb85bbe4ea68c19fd0537d19bf750dc588b0e040bf` |
+| macOS worker rerun | `1d269a5320fdfd4d6794287a2879c5df6c4b7fabc8ced71414788ec4b98bf714` |
+| Docker Linux worker rerun | `fcf901391d0748619b74ddeea69ca52902f1a0d196654743a95c0942fec795df` |
 
 ## Historical native qualification and evidence
 
