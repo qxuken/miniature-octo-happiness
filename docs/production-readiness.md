@@ -8,7 +8,7 @@ device and owner decisions.
 Recent local evidence includes [stopped credential cutovers](snapshot-credential-cutover.md),
 [persistent CRDT peers](study-credential-cutover.md), the
 [64-root serialization axis](serialization-history-scale.md) and
-[Linux minimum-compiler checks](local-toolchains-a56083c.md).
+[Linux minimum-compiler and Odin delivery checks](linux-minimum-package.md).
 Further gates now cover actual [snapshot](snapshot-cli-upgrade.md) and
 [study](study-cli-upgrade.md) CLI upgrades, [both delivered validation modes](artifact-trace-validation-modes.md),
 and [packaged C publication-error recovery](delivered-c-faults.md).

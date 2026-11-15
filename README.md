@@ -81,11 +81,13 @@ cargo xtask check
 Rust/Cargo 1.99+ is required.
 The file example creates a new path, retains an old snapshot, reopens both
 versions, releases retention, and leaves the database in place. Creation never
-overwrites an existing file. The check script uses temporary paths and runs
-debug/release tests plus memory/file Rust/C/Odin examples on macOS and Linux;
-Odin uses its installed `vendor:wgpu` prebuilt static archive. `--skip-odin`
-explicitly omits that integration. See [DESIGN.md](DESIGN.md#implemented-in-memory-contract)
-for the API, resource limits, allocation behavior, and tested scope.
+overwrites an existing file. `cargo xtask check` uses temporary paths and runs
+debug and release tests plus Rust and C memory/file examples on macOS and Linux.
+On macOS it also runs the Odin examples with the installed `vendor:wgpu` archive.
+Use `--skip-odin` to omit those examples. Linux arm64 has a separate
+[Odin package and exact-library check](docs/linux-minimum-package.md).
+See [DESIGN.md](DESIGN.md#implemented-in-memory-contract) for the API,
+resource limits, allocation behavior, and tested scope.
 
 Rust callers can use `Database::create_on` / `open_on` with `MemoryStore` or
 `SimulatedDisk` to exercise the real codec and recovery protocol. The simulator
