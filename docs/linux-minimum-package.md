@@ -1,4 +1,4 @@
-# Linux arm64 minimum compiler and Odin delivery
+# Linux minimum compiler and Odin delivery
 
 Clean source `44bd5a6ca9f313745b62d09083671d7c092ea562` passed the
 workspace, combined-feature private package and delivered trace checks
@@ -69,8 +69,8 @@ cargo xtask artifact-trace --package target/linux-minimum-package \
 The raw package, trace, workspace log and independent rehash are retained
 locally under `target/msrv-linux-44bd5a6/`. Both owned containers and their
 volume were removed after the copy and verification. The recorded profile
-covers this Linux arm64 checkpoint. Linux x86_64 at the minimum compiler
-and the final release candidate remain separate. See the
+covers this Linux arm64 checkpoint. The later x86_64 result is recorded
+below. The final release candidate remains separate. See the
 [native Windows Odin results](windows-private-package.md#recorded-native-windows-odin-result).
 
 | Evidence | SHA-256 |
@@ -108,3 +108,55 @@ cargo +1.99.0 fetch --locked --manifest-path crates/weekend-db-typed/tests/renam
 cargo +1.99.0 fetch --locked --manifest-path examples/rust_package/Cargo.toml
 cargo +1.99.0 xtask linux-msrv --odin --output target/linux-msrv
 ```
+
+### Recorded native x86_64 and arm64 results
+
+PR head `5a6ffd2d3a22d949abf99c3f804c19e49289f801` passed on native
+x86_64 Ubuntu 24.04 with kernel 7.0.0-1014-aws and ext4 runtime data.
+The hosted source was `10feae471dda0c65a82e9e70feb35f32af7e7d02`.
+Docker arm64 also passed the same command against the byte-identical
+PR head with Debian 12, LinuxKit 7.0.14 and private ext4 volume.
+Both used Rust/Cargo 1.99.0 and Odin `dev-2026-10-nightly:84bc3fc`.
+The hosted ext4 mount used `nobarrier,data=writeback`. These compiler
+and delivered-artifact checks qualify the software on the recorded
+profiles. Physical power-loss qualification remains open.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43743610769/job/132901951201)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43743610769/artifacts/14173209158).
+
+Each architecture passed 666 tests across 60 summaries in both debug
+and release. C11, C++17 and Odin consumers passed package smoke and
+relocation. The packaged Rust consumer built from its copied source.
+The optimized Rust, C and Odin traces each matched all 134 oracle lines.
+On both architectures the C and Odin loader logs confirmed initialization
+of the exact relocated `.so`. The rehash matched all 689 source files and
+13 locks against Git, all 52 controller commands and 16 trace cleanup
+records per platform, and 3,231 x86_64 and 3,237 arm64 payload hashes.
+
+The shared controller also passed on Windows x64/NTFS from the same hosted
+source. Both workspace profiles passed and all 30 C/C++/Odin exact-DLL
+cases held. The independent audit checked 1,814 Windows payload hashes.
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43743610769/job/132901951439)
+and [Windows evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43743610769/artifacts/14173088700).
+
+The first controller at `ce57e3f` placed Rust build outputs in an
+in-checkout scratch directory. The existing copied-source checker
+rejected the dependency records on both architectures. The corrected
+controller keeps scratch outside the checkout and retains that checker.
+An arm64 negative control sets `TMPDIR` inside the checkout and rejects
+at admission. Both scoped Docker containers and volumes were removed
+after retrieving the results. Local evidence is under
+`target/linux-msrv-ce57e3f/`.
+
+| Evidence | SHA-256 |
+|---|---|
+| x86_64 hosted ZIP | `f92ea6311c7962eb5cdad5f8cbb675b11716b367cc21b66aa1f9a100dab25484` |
+| x86_64 controller | `c10ea0b9672b6941951dfdf0b4d7ed686cb182ef68b930dfc809a79e8759815b` |
+| x86_64 package manifest | `444740bc44bfb2c7e406f8c11f6490e64b3b7ec1eb175a2f99547a7feab9a86e` |
+| x86_64 delivered `.so` | `075212f21b1824a9b205533247c8408d21630c3282e93058b8f2693a122b3870` |
+| x86_64 delivered trace | `fb67b56afb0dda54f3f43009523df9730a0f23ac362572ce7ae51a654996c835` |
+| x86_64 Odin compiler | `49e21d51855d60a618c493e929fe2b236d44de3daeb3a2c2f03f4c8aef566644` |
+| x86_64 independent audit | `15cf7ee937805becf596f4a65499fe0fd35b8d4f6075c33e32f71a67cf343f70` |
+| arm64 controller | `6b9661db2c8492cc52a89bf24f95ca28bf1afd75ad9fe421c5db189b02199e1e` |
+| arm64 delivered trace | `ccb27e3a89111a3ef1f276079bd740edcd18dc51c171208950334f88c057d23a` |
+| arm64 independent audit | `84e8d2c38172d928bca3603843b737c57f133a68ac2244263d90fcdfec2c64d7` |
+| Same-source Windows ZIP | `21d9bd7252513e349a22185ea22039d05f5d6a87cc360867efc7e1598fa24d67` |
