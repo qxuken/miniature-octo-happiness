@@ -694,6 +694,70 @@ inspection and retention tests passed. Evidence is under
 The hosted ZIP SHA-256 is
 `072d21b3b23a6e0251dbdd113b4fa94507205c2a3dd0f188f29d332631a06a5e`.
 
-This profile covers the first copy-data flush. Native faults at later
-maintenance syncs, actual namespace space exhaustion, and physical
-power interruption remain separate qualification cases.
+This result covers the first copy-data flush. The next profile covers the
+root-slot and witness flushes in the same destination image.
+
+## Kernel EIO at maintenance root-slot and witness flushes
+
+Add `--copy-barrier slot` or `--copy-barrier witness` to the preceding
+reproduction command and choose a fresh output directory for each run.
+Each barrier runs backup, restore and in-place compaction, with a fresh
+near-cap source and verified backup.
+
+The same shim records the newly created destination inode, then pauses just
+before the populated slot or witness write to that inode. The payload is
+already synchronized. The controller verifies the initialized FIEMAP extent
+and arms the kernel block error before allowing the write. A remount after
+restoring linear I/O makes persisted bytes available for inspection.
+
+| Kernel fault | Backup / restore result | In-place compaction result | Failed destination after remount |
+|---|---|---|---|
+| Root-slot block at byte 4,096 | `OutcomeUnknown` | `Io` | `Corrupt` at root selection. The header and payload match the verified backup. The slot and its witness are blank |
+| Witness block at byte 12,288 | `OutcomeUnknown` | `Io` | Revision 212, unwitnessed, all 64 retained roots verified. Only the witness block differs from the verified backup |
+
+Each native diagnostic reports `Sync / Other / EIO (5)`. The failures
+precede in-place exchange, so the canonical path retains the original
+source bytes. The source and good backup reopen at revision 212 with every
+current and retained value. The retry preserves the failed output and matches the
+verified backup byte for byte after remount. The final source reopens at
+revision 213, and the good backup reopens at 212, both with the same retained
+history.
+
+Independent admin checks on the Docker images rejected all three slot
+outputs and verified all three unwitnessed outputs without changing their
+bytes. Explicit `weekend-admin backup` and `restore` from one unwitnessed
+output each created a fresh durable image byte-identical to the verified
+backup. The original unwitnessed output kept its hash.
+
+Docker Linux arm64/ext4 passed with Rust 1.99.0 at
+`c902334fae9ef6ac546f7a3710eafe89209294dd`. Hosted Ubuntu 24.04 x64/ext4
+passed at the same PR head with Rust 1.99.1 and tested merge
+`3faf6e6af47306310ebb82a06e789ccd1065270c`. The hosted job also passed
+the first copy-data and all three commit writeback barriers, append quota,
+maintenance block and inode quotas, and global inode exhaustion.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43756445904/job/132941481260), [Hosted artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43756445904/artifacts/14178601948)
+
+Each audit checked 694 source files, 532 evidence payloads,
+175 bounded command records and 30 maintenance
+phase records. It compared the entire failed images against the good backup
+with only the expected metadata blocks replaced by zeros. It also rehashed
+the exact fixture and preload library. The hosted admin check verified
+the final revisions, all retained roots, and both failed-output dispositions
+without changing the copied images. Every mapper, mount and loop was removed.
+The 29 Linux quota tests, strict Linux Clippy and the Windows x64 fixture
+cross-target Clippy check passed. Local evidence is under
+`target/maintenance-publication-writeback/`.
+
+| Evidence | Root slot SHA-256 | Witness SHA-256 |
+|---|---|---|
+| Docker controller | `8dff89cfdd7783191178fa1967e601aa5d449e0b9f6562b85883fc5d9b6b9aeb` | `0501f45b21943a731edb3a056514bae5baa4b0131ac409a2b88a38c29c19dcd9` |
+| Docker audit | `5cf8e314e7e6d0e7e7bafec345dd472cab2087fac43700583fcbe641e32b12b3` | `cab1776f777bc7fd1174b019ff60fa6bb407b3699e675f02fd675293f664ada5` |
+| Hosted controller | `1cc1847f073934aee8f8bb00c0cff7dd78cbfc4c3e15168549648af38053913b` | `d7b97cbc4a6613a01c2ec9347606df0a14ac92dfbd1490f6586e36e29beda58b` |
+| Hosted audit | `c62a15a2a3e8b0eba1d5d0df9601856174fabb0aebe6d28f409eee872437da9a` | `189d879238fe5c59597c1968bf0491a8b4d1f3b6ade97944c2f1260794d061c0` |
+
+The hosted ZIP SHA-256 is
+`fc3c4a4da9808f2903a1b098ead3d8018190164108c687929f7ec8b7615862df`.
+
+Native failures during the subsequent metadata sync, namespace replacement
+and cleanup phases, actual namespace space exhaustion, and physical power
+interruption remain separate qualification cases.

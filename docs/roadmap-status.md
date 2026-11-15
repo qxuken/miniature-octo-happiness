@@ -2034,3 +2034,16 @@ source revision 213 and backup revision 212, each with retained history.
 The audit checked the exact input source, fixture, preload library and
 output images. Later maintenance sync errors, namespace space exhaustion
 and physical power interruption remain open.
+
+## Native maintenance root-slot and witness writeback
+
+At `c902334`, the [maintenance metadata writeback profile](maintenance-space-exhaustion.md#kernel-eio-at-maintenance-root-slot-and-witness-flushes)
+passed on Docker Linux arm64 and hosted Ubuntu x64. Kernel `EIO` at the
+slot and witness flushes returned `OutcomeUnknown` for backup and restore
+and `Io` for in-place compaction. The slot outputs failed root selection.
+The witness outputs verified revision 212 and all 64 retained roots with
+the witness absent. Explicit admin backup and restore from an inspected
+unwitnessed output created byte-identical witnessed copies. The canonical
+source and good backup stayed valid, and all retries matched the good backup.
+Subsequent metadata sync, replacement and cleanup faults, namespace space
+exhaustion, and physical power interruption remain open.

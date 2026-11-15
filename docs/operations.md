@@ -25,6 +25,12 @@ reject an existing path. A failure can leave a partial new destination.
 Inspect that file before deciding whether to remove it, and preserve the
 original source until the restored application state has been checked.
 
+After a copy returns `OutcomeUnknown`, read-only inspection may find a
+complete unwitnessed root in the failed destination. An explicit backup or
+restore of that verified root to a fresh destination can produce a witnessed
+copy. Preserve the failed output when investigating the error.
+[Native writeback results](maintenance-space-exhaustion.md#kernel-eio-at-maintenance-root-slot-and-witness-flushes)
+
 The recovery point is the selected source revision under the lease.
 When the source was cleanly closed after an acknowledged commit, that
 includes the latest acknowledged commit. Copying a readable unwitnessed

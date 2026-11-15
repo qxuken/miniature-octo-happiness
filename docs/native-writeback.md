@@ -151,5 +151,6 @@ The hosted ZIP SHA-256 is
 The results qualify the precise sectors denied by the `error` target on
 ext4. The simulator covers other slot-survival outcomes. The
 [maintenance writeback profile](maintenance-space-exhaustion.md#kernel-writeback-eio-during-near-cap-maintenance)
-qualifies the first copy-data flush. Later maintenance sync failures and
-physical power interruption remain open.
+qualifies the data, slot and witness flushes at the copy destination.
+Native faults during subsequent replacement and cleanup, and
+physical power interruption, remain open.
