@@ -258,9 +258,14 @@ jobs:
         with:
           name: weekend-db-macos-maintenance-space-${{ runner.arch }}
           if-no-files-found: warn
-          path: |
-            target/macos-maintenance-space/
-            target/macos-namespace-enospc/
+          path: target/macos-maintenance-space/
+      - name: Save macOS compaction exchange exhaustion evidence
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-macos-namespace-enospc-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/macos-namespace-enospc/
       - name: Release configuration validation
         run: |
           cargo test --offline --locked -p xtask --bin xtask

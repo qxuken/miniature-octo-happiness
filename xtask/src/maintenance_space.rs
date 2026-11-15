@@ -732,8 +732,13 @@ mod native {
             "missing successful exchange retry"
         );
         proof["retry_mount"] = macos_volume::remount(proof, fixture.output, &fixture.env)?;
+        let retried = fs::symlink_metadata(&source)?;
         ensure!(
-            fs::metadata(&source)?.mode() & 0o7777 == 0o640
+            retried.is_file()
+                && retried.ino() != original_meta.ino()
+                && retried.ino() != scratch_inode
+                && retried.mode() & 0o7777 == 0o640
+                && partial_path(data, "compact")? == scratch
                 && fs::metadata(&scratch)?.ino() == scratch_inode
                 && sha(&source)? == backup_hash
                 && sha(&scratch)? == backup_hash
@@ -758,7 +763,7 @@ mod native {
             fs::metadata(&source)?.len(),
         )?;
         verified_copy(&backup, &fixture.output.join("backup.wdb"), COPY_BYTES)?;
-        proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":"compact","exchange":rows[0],"source_sha256":source_hash,"scratch_sha256":backup_hash,"original_inode":original_meta.ino(),"scratch_inode":scratch_inode,"ballast_bytes":filled,"free_at_exchange":available,"free_after_release":freed,"retry_matches_backup":true,"scratch_preserved_after_remount":true}));
+        proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":"compact","exchange":rows[0],"source_sha256":source_hash,"scratch_sha256":backup_hash,"original_inode":original_meta.ino(),"scratch_inode":scratch_inode,"retried_inode":retried.ino(),"ballast_bytes":filled,"free_at_exchange":available,"free_after_release":freed,"retry_matches_backup":true,"scratch_preserved_after_remount":true}));
         Ok(())
     }
 
