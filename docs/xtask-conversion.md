@@ -539,3 +539,11 @@ near-cap maintenance. The Python files and their helper registrations stay
 available during that first native verification. Windows CI for the preceding
 coordinator fixture fix (`7d45f48`) is green, including the full capacity run
 and all 20 exact-DLL cases. The engine and fuzz workflows both passed.
+
+The initial hosted Rust run verified the source archive and native quota
+setup, then rejected the staged controller binary at the fixture size gate.
+The runner and the engine fixture now have separate 128 MiB and 64 MiB limits,
+respectively. CI builds the controller in release mode. A Linux control tests
+both boundaries, and x64 Linux and macOS strict Clippy checks pass after fixing
+a Linux-only redundant closure. The first failing native run remains recorded
+as a failed qualification.

@@ -59,10 +59,10 @@ Use a disposable, quota-capable Linux host with `quota`, `e2fsprogs` and
 ```sh
 source_id="$(git rev-parse HEAD)"
 cargo +1.99.1 fetch --locked
-cargo +1.99.1 build --offline --locked -p xtask --target-dir target/xtask
+cargo +1.99.1 build --offline --locked -p xtask --release --target-dir target/xtask
 WEEKEND_DB_SOURCE_ID="$source_id" cargo +1.99.1 build --offline --locked --release \
   --example native_quota --target-dir target/quota-build
-sudo "$PWD/target/xtask/debug/xtask" quota \
+sudo "$PWD/target/xtask/release/xtask" quota \
   --fixture "$PWD/target/quota-build/release/examples/native_quota" \
   --source "$source_id" \
   --output "$PWD/target/native-quota"

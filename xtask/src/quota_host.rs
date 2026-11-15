@@ -15,6 +15,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::{OsStr, OsString},
     fs::{self, DirBuilder, OpenOptions},
+    io::Read,
     os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt, chown},
     path::{Path, PathBuf},
     time::Duration,
@@ -30,6 +31,8 @@ const HOST_TOOLS: [&str; 8] = [
     "uname",
 ];
 const ARRAY_MOUNT: &[&str] = &["--json", "--mountpoint"];
+const MAX_FIXTURE_BYTES: u64 = 64 * MIB;
+const MAX_RUNNER_BYTES: u64 = 128 * MIB;
 
 #[derive(Args)]
 pub struct Options {
@@ -695,19 +698,21 @@ impl Guest {
         Ok(())
     }
 }
-fn regular_fixture(file: &Path) -> Result<()> {
-    ensure!(file.is_absolute(), "absolute fixture required");
+fn bounded_executable(file: &Path, ceiling: u64) -> Result<()> {
+    ensure!(file.is_absolute(), "absolute executable path required");
     let info = fs::symlink_metadata(file)?;
     ensure!(
-        info.is_file() && info.len() > 0 && info.len() <= 64 * MIB,
-        "bounded regular fixture required"
+        info.is_file() && info.len() > 0 && info.len() <= ceiling,
+        "{} must be a regular executable between 1 and {ceiling} bytes (observed {})",
+        file.display(),
+        info.len()
     );
     Ok(())
 }
-fn copy_executable(from: &Path, to: &Path) -> Result<String> {
-    regular_fixture(from)?;
+fn copy_executable(from: &Path, to: &Path, ceiling: u64) -> Result<String> {
+    bounded_executable(from, ceiling)?;
     let digest = sha(from)?;
-    let mut input = OpenOptions::new()
+    let input = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW)
         .open(from)?;
@@ -717,7 +722,11 @@ fn copy_executable(from: &Path, to: &Path) -> Result<String> {
         .mode(0o500)
         .custom_flags(libc::O_NOFOLLOW)
         .open(to)?;
-    std::io::copy(&mut input, &mut output)?;
+    let size = std::io::copy(&mut input.take(ceiling + 1), &mut output)?;
+    ensure!(
+        size > 0 && size <= ceiling,
+        "executable changed size while staging"
+    );
     drop(output);
     fs::set_permissions(to, fs::Permissions::from_mode(0o555))?;
     ensure!(
@@ -756,7 +765,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         sequence: 0,
     };
     let result = (|| -> Result<()> {
-        regular_fixture(&opts.fixture)?;
+        bounded_executable(&opts.fixture, MAX_FIXTURE_BYTES)?;
         let source_files = source_binding(call.c, &opts.source)?;
         let tools = qualification_files(&run.root, opts.maintenance)?;
         call.c.evidence["tools_sha256"] = json!(tools);
@@ -827,9 +836,9 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         .map_err(|e| unsupported(e, "private quota configuration unavailable"))?;
         let runner = s.directory.join("xtask-guest");
         let current = dunce::canonicalize(std::env::current_exe()?)?;
-        let runner_hash = copy_executable(&current, &runner)?;
+        let runner_hash = copy_executable(&current, &runner, MAX_RUNNER_BYTES)?;
         let fixture = s.directory.join("fixture");
-        let fixture_hash = copy_executable(&opts.fixture, &fixture)?;
+        let fixture_hash = copy_executable(&opts.fixture, &fixture, MAX_FIXTURE_BYTES)?;
         let mut guest = Guest {
             runner,
             fixture,
@@ -928,7 +937,7 @@ fn finish_qualification(
 }
 
 fn json_rows(s: &str) -> Result<Vec<Value>> {
-    s.lines().map(|line| quota_oracle::one_json(line)).collect()
+    s.lines().map(quota_oracle::one_json).collect()
 }
 struct Maintenance<'a> {
     guest: &'a Guest,
@@ -1198,10 +1207,13 @@ pub fn enospc_worker(run: &Run, source: &Path, revision: &str, output: &Path) ->
         private_directory(&seed, uid)?;
         let runner = root.join("xtask-guest");
         let current = dunce::canonicalize(std::env::current_exe()?)?;
-        let runner_hash = copy_executable(&current, &runner)?;
+        let runner_hash = copy_executable(&current, &runner, MAX_RUNNER_BYTES)?;
         let fixture = root.join("fixture");
-        let fixture_hash =
-            copy_executable(&target.join("release/weekend-compound-resource"), &fixture)?;
+        let fixture_hash = copy_executable(
+            &target.join("release/weekend-compound-resource"),
+            &fixture,
+            MAX_FIXTURE_BYTES,
+        )?;
         let tools = ["setpriv"]
             .into_iter()
             .map(|name| {
@@ -1257,6 +1269,24 @@ pub fn enospc_worker(run: &Run, source: &Path, revision: &str, output: &Path) ->
 mod tests {
     use super::*;
     use crate::support::Scratch as Temp;
+    #[test]
+    fn guest_runner_and_engine_fixture_have_independent_size_limits() {
+        let temp = Temp::new(&std::env::temp_dir(), "quota-executable-size").unwrap();
+        let runner = temp.path().join("runner");
+        fs::File::create(&runner)
+            .unwrap()
+            .set_len(MAX_FIXTURE_BYTES + 1)
+            .unwrap();
+        assert!(bounded_executable(&runner, MAX_FIXTURE_BYTES).is_err());
+        bounded_executable(&runner, MAX_RUNNER_BYTES).unwrap();
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&runner)
+            .unwrap()
+            .set_len(MAX_RUNNER_BYTES + 1)
+            .unwrap();
+        assert!(bounded_executable(&runner, MAX_RUNNER_BYTES).is_err());
+    }
     #[test]
     fn unsupported_probe_cannot_qualify_the_engine() {
         let temp = Temp::new(&std::env::temp_dir(), "quota-unsupported").unwrap();

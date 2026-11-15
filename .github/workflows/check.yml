@@ -117,8 +117,8 @@ jobs:
           rustup toolchain install 1.99.1 --profile minimal
           rustup override set 1.99.1
           cargo fetch --locked
-          cargo build --offline --locked -p xtask --target-dir target/xtask
-          sha256sum target/xtask/debug/xtask > target/quota-host/xtask.sha256
+          cargo build --offline --locked -p xtask --release --target-dir target/xtask
+          sha256sum target/xtask/release/xtask > target/quota-host/xtask.sha256
       - name: Check controller rejection and cleanup controls without privileges
         run: |
           cargo test --offline --locked -p xtask --bin xtask quota
@@ -132,7 +132,7 @@ jobs:
           sha256sum target/quota-build/release/examples/native_quota > target/quota-host/fixture.sha256
       - name: Calibrate actual EDQUOT and verify commit failure, reopening and retry
         run: |
-          sudo "$PWD/target/xtask/debug/xtask" quota --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-quota"
+          sudo "$PWD/target/xtask/release/xtask" quota --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-quota"
           sudo jq -ce 'select(.verified) | {source: .source_binding.source, calibrated_errno: .calibration_full.errno, revisions: [.results[] | .current_revision], cleanup: .cleanup.verified}' target/native-quota/evidence.json
           sudo sha256sum target/native-quota/evidence.json
       - name: Build the near-cap maintenance fixture
@@ -141,7 +141,7 @@ jobs:
           sha256sum target/maintenance-quota-build/release/weekend-compound-resource > target/quota-host/maintenance-fixture.sha256
       - name: Verify maintenance EDQUOT, full-space reopen and retry
         run: |
-          sudo "$PWD/target/xtask/debug/xtask" quota --maintenance --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-quota"
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-quota"
           sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, bytes: .failure.partial_bytes}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified}' target/maintenance-quota/evidence.json
           sudo sha256sum target/maintenance-quota/evidence.json
       - name: Transfer private evidence ownership for upload

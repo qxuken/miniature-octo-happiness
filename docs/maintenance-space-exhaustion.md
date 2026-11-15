@@ -160,11 +160,11 @@ with quota/e2fsprogs/util-linux installed:
 ```sh
 source_id="$(git rev-parse HEAD)"
 cargo +1.99.1 fetch --locked
-cargo +1.99.1 build --offline --locked -p xtask --target-dir target/xtask
+cargo +1.99.1 build --offline --locked -p xtask --release --target-dir target/xtask
 WEEKEND_DB_SOURCE_ID="$source_id" cargo +1.99.1 build --offline --locked --release \
   --manifest-path tools/resource-envelope/Cargo.toml --features compound \
   --bin weekend-compound-resource --target-dir target/maintenance-quota-build
-sudo "$PWD/target/xtask/debug/xtask" quota --maintenance \
+sudo "$PWD/target/xtask/release/xtask" quota --maintenance \
   --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" \
   --source "$source_id" --output "$PWD/target/maintenance-quota-new"
 ```
