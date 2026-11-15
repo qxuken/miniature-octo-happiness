@@ -511,6 +511,154 @@ fn provision(root: &Path, actor: &str, label: &str, logs: &Path) -> Vec<u8> {
 }
 
 #[test]
+fn persistent_study_progress_survives_interrupted_credential_cutover() {
+    let private = Private::new();
+    let root = &private.0;
+    let logs = if let Some(path) = std::env::var_os("STUDY_CUTOVER_EVIDENCE") {
+        let path = PathBuf::from(path);
+        private_dir(&path);
+        path
+    } else {
+        let path = root.join("logs");
+        fs::create_dir(&path).unwrap();
+        path
+    };
+    let log = Arc::new(Mutex::new(File::create(logs.join("events.log")).unwrap()));
+    let mut fingerprints = BTreeSet::new();
+    for actor in ["a", "b"] {
+        for generation in ["old", "new"] {
+            let certificate = provision(root, actor, generation, &logs);
+            let fingerprint = Sha256::digest(certificate);
+            assert!(fingerprints.insert(fingerprint));
+            event(
+                &log,
+                format!("public certificate fingerprint {actor}-{generation}: {fingerprint:x}"),
+            );
+        }
+    }
+    for actor in ["a", "b"] {
+        once(
+            BIN,
+            &[
+                "init".as_ref(),
+                root.join(format!("{actor}.db")).as_os_str(),
+                actor.as_ref(),
+                ID.as_ref(),
+            ],
+            &logs,
+            &format!("init-{actor}"),
+        );
+        activate(root, actor, "old", &log);
+    }
+    let (ra, rb) = (Relay::new(), Relay::new());
+    let start = |actor, phase| {
+        Peer::start(
+            root,
+            &logs,
+            actor,
+            phase,
+            if actor == "a" { &rb } else { &ra },
+            if actor == "a" { &ra } else { &rb },
+            &log,
+        )
+    };
+    let (mut a, mut b) = (start("a", "old"), start("b", "old"));
+    a.local("edit 1 5 30 60");
+    b.local("edit 2 7 40 50");
+    converge(&mut a, &mut b, 12, 40, 50, &[1, 2]);
+    a.stop(false);
+    b.stop(false);
+    ra.point_to(None);
+    rb.point_to(None);
+    let mut historical = Vec::new();
+    for actor in ["a", "b"] {
+        let db = Database::open_file(root.join(format!("{actor}.db")), Limits::default()).unwrap();
+        let snapshot = db.snapshot();
+        let revision = snapshot.revision();
+        let id = db.retain_snapshot(&snapshot).unwrap();
+        historical.push((revision, id));
+    }
+    let old = [core(root, "a").0, core(root, "b").0];
+    assert_eq!(old[0], old[1]);
+    activate(root, "a", "new", &log);
+    let (mut a, mut b) = (start("a", "mismatch"), start("b", "mismatch"));
+    let ar = a.local("edit 3 11 80 45");
+    let br = b.local("edit 4 13 70 20");
+    a.state().assert_values(23, 80, 45, &[1, 2, 3]);
+    b.state().assert_values(25, 70, 20, &[1, 2, 4]);
+    rejected(&mut a, &mut b);
+    assert_eq!(a.state().revision, ar);
+    assert_eq!(b.state().revision, br);
+    a.stop(false);
+    b.stop(false);
+    ra.point_to(None);
+    rb.point_to(None);
+    activate(root, "b", "new", &log);
+    let mut interrupted = start("a", "interrupted-after-replacement");
+    assert_eq!(interrupted.report().1, "peer 0 idle");
+    let interrupted_revision = interrupted.local("practice 17");
+    interrupted.state().assert_values(40, 80, 45, &[1, 2, 3]);
+    interrupted.stop(true);
+    ra.point_to(None);
+    event(
+        &log,
+        "operator interruption: killed A after replacement and local commit, before any successful new exchange",
+    );
+    let (mut a, mut b) = (start("a", "new"), start("b", "new"));
+    assert_eq!(a.state().revision, interrupted_revision);
+    a.state().assert_values(40, 80, 45, &[1, 2, 3]);
+    b.state().assert_values(25, 70, 20, &[1, 2, 4]);
+    let final_revisions = converge(&mut a, &mut b, 53, 80, 20, &[1, 2, 3, 4]);
+    a.stop(false);
+    b.stop(false);
+    ra.point_to(None);
+    rb.point_to(None);
+    activate(root, "a", "old", &log);
+    let (mut a, mut b) = (start("a", "stale-old"), start("b", "stale-old"));
+    assert_eq!([a.state().revision, b.state().revision], final_revisions);
+    rejected(&mut a, &mut b);
+    a.stop(false);
+    b.stop(false);
+    ra.point_to(None);
+    rb.point_to(None);
+    activate(root, "a", "new", &log);
+    let (mut a, mut b) = (start("a", "fresh-repeat"), start("b", "fresh-repeat"));
+    assert_eq!(
+        converge(&mut a, &mut b, 53, 80, 20, &[1, 2, 3, 4]),
+        final_revisions,
+        "matching repeated sync must add no commit"
+    );
+    a.stop(false);
+    b.stop(false);
+    ra.point_to(None);
+    rb.point_to(None);
+    let final_states = [core(root, "a"), core(root, "b")];
+    assert_eq!(
+        final_states[0].0, final_states[1].0,
+        "entire public record, including causal state, converges"
+    );
+    for (index, (state, revision, retained)) in final_states.iter().enumerate() {
+        assert_eq!(state.practice_minutes.total(), 53);
+        assert_eq!(state.planned, Default::default());
+        assert_eq!(state.completed.iter().collect::<Vec<_>>(), [1, 2, 3, 4]);
+        assert_eq!(state.weekly_goal.values().collect::<Vec<_>>(), [80]);
+        assert_eq!(state.session_limit.values().collect::<Vec<_>>(), [20]);
+        let (historical_state, historical_revision, id) = retained.as_ref().unwrap();
+        assert_eq!(*historical_state, old[index]);
+        assert_eq!((*historical_revision, *id), historical[index]);
+        assert_eq!(*revision, final_revisions[index]);
+    }
+    event(
+        &log,
+        format!(
+            "PASS full-record convergence total=53 goal=80 limit=20 completed=[1,2,3,4], planned empty; retained old roots valid; revisions={final_revisions:?}; stale credentials rejected; repeat sync no commit"
+        ),
+    );
+}
+
+// Keep new scenarios after the credential cutover test. The upgrade fixture
+// extracts the shared helpers before that test as a standalone source file.
+#[test]
 fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
     let private = Private::new();
     let root = &private.0;
@@ -736,151 +884,5 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
     assert_eq!(
         old.each_ref().map(|path| fs::read(path).unwrap()),
         old_bytes
-    );
-}
-
-#[test]
-fn persistent_study_progress_survives_interrupted_credential_cutover() {
-    let private = Private::new();
-    let root = &private.0;
-    let logs = if let Some(path) = std::env::var_os("STUDY_CUTOVER_EVIDENCE") {
-        let path = PathBuf::from(path);
-        private_dir(&path);
-        path
-    } else {
-        let path = root.join("logs");
-        fs::create_dir(&path).unwrap();
-        path
-    };
-    let log = Arc::new(Mutex::new(File::create(logs.join("events.log")).unwrap()));
-    let mut fingerprints = BTreeSet::new();
-    for actor in ["a", "b"] {
-        for generation in ["old", "new"] {
-            let certificate = provision(root, actor, generation, &logs);
-            let fingerprint = Sha256::digest(certificate);
-            assert!(fingerprints.insert(fingerprint));
-            event(
-                &log,
-                format!("public certificate fingerprint {actor}-{generation}: {fingerprint:x}"),
-            );
-        }
-    }
-    for actor in ["a", "b"] {
-        once(
-            BIN,
-            &[
-                "init".as_ref(),
-                root.join(format!("{actor}.db")).as_os_str(),
-                actor.as_ref(),
-                ID.as_ref(),
-            ],
-            &logs,
-            &format!("init-{actor}"),
-        );
-        activate(root, actor, "old", &log);
-    }
-    let (ra, rb) = (Relay::new(), Relay::new());
-    let start = |actor, phase| {
-        Peer::start(
-            root,
-            &logs,
-            actor,
-            phase,
-            if actor == "a" { &rb } else { &ra },
-            if actor == "a" { &ra } else { &rb },
-            &log,
-        )
-    };
-    let (mut a, mut b) = (start("a", "old"), start("b", "old"));
-    a.local("edit 1 5 30 60");
-    b.local("edit 2 7 40 50");
-    converge(&mut a, &mut b, 12, 40, 50, &[1, 2]);
-    a.stop(false);
-    b.stop(false);
-    ra.point_to(None);
-    rb.point_to(None);
-    let mut historical = Vec::new();
-    for actor in ["a", "b"] {
-        let db = Database::open_file(root.join(format!("{actor}.db")), Limits::default()).unwrap();
-        let snapshot = db.snapshot();
-        let revision = snapshot.revision();
-        let id = db.retain_snapshot(&snapshot).unwrap();
-        historical.push((revision, id));
-    }
-    let old = [core(root, "a").0, core(root, "b").0];
-    assert_eq!(old[0], old[1]);
-    activate(root, "a", "new", &log);
-    let (mut a, mut b) = (start("a", "mismatch"), start("b", "mismatch"));
-    let ar = a.local("edit 3 11 80 45");
-    let br = b.local("edit 4 13 70 20");
-    a.state().assert_values(23, 80, 45, &[1, 2, 3]);
-    b.state().assert_values(25, 70, 20, &[1, 2, 4]);
-    rejected(&mut a, &mut b);
-    assert_eq!(a.state().revision, ar);
-    assert_eq!(b.state().revision, br);
-    a.stop(false);
-    b.stop(false);
-    ra.point_to(None);
-    rb.point_to(None);
-    activate(root, "b", "new", &log);
-    let mut interrupted = start("a", "interrupted-after-replacement");
-    assert_eq!(interrupted.report().1, "peer 0 idle");
-    let interrupted_revision = interrupted.local("practice 17");
-    interrupted.state().assert_values(40, 80, 45, &[1, 2, 3]);
-    interrupted.stop(true);
-    ra.point_to(None);
-    event(
-        &log,
-        "operator interruption: killed A after replacement and local commit, before any successful new exchange",
-    );
-    let (mut a, mut b) = (start("a", "new"), start("b", "new"));
-    assert_eq!(a.state().revision, interrupted_revision);
-    a.state().assert_values(40, 80, 45, &[1, 2, 3]);
-    b.state().assert_values(25, 70, 20, &[1, 2, 4]);
-    let final_revisions = converge(&mut a, &mut b, 53, 80, 20, &[1, 2, 3, 4]);
-    a.stop(false);
-    b.stop(false);
-    ra.point_to(None);
-    rb.point_to(None);
-    activate(root, "a", "old", &log);
-    let (mut a, mut b) = (start("a", "stale-old"), start("b", "stale-old"));
-    assert_eq!([a.state().revision, b.state().revision], final_revisions);
-    rejected(&mut a, &mut b);
-    a.stop(false);
-    b.stop(false);
-    ra.point_to(None);
-    rb.point_to(None);
-    activate(root, "a", "new", &log);
-    let (mut a, mut b) = (start("a", "fresh-repeat"), start("b", "fresh-repeat"));
-    assert_eq!(
-        converge(&mut a, &mut b, 53, 80, 20, &[1, 2, 3, 4]),
-        final_revisions,
-        "matching repeated sync must add no commit"
-    );
-    a.stop(false);
-    b.stop(false);
-    ra.point_to(None);
-    rb.point_to(None);
-    let final_states = [core(root, "a"), core(root, "b")];
-    assert_eq!(
-        final_states[0].0, final_states[1].0,
-        "entire public record, including causal state, converges"
-    );
-    for (index, (state, revision, retained)) in final_states.iter().enumerate() {
-        assert_eq!(state.practice_minutes.total(), 53);
-        assert_eq!(state.planned, Default::default());
-        assert_eq!(state.completed.iter().collect::<Vec<_>>(), [1, 2, 3, 4]);
-        assert_eq!(state.weekly_goal.values().collect::<Vec<_>>(), [80]);
-        assert_eq!(state.session_limit.values().collect::<Vec<_>>(), [20]);
-        let (historical_state, historical_revision, id) = retained.as_ref().unwrap();
-        assert_eq!(*historical_state, old[index]);
-        assert_eq!((*historical_revision, *id), historical[index]);
-        assert_eq!(*revision, final_revisions[index]);
-    }
-    event(
-        &log,
-        format!(
-            "PASS full-record convergence total=53 goal=80 limit=20 completed=[1,2,3,4], planned empty; retained old roots valid; revisions={final_revisions:?}; stale credentials rejected; repeat sync no commit"
-        ),
     );
 }

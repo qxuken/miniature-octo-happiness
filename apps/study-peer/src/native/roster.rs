@@ -1,6 +1,6 @@
 use super::{
     AppResult, COLLECTION_ROW, enroll,
-    protocol::{Enrollment, StudyReplica, parse_id},
+    protocol::{Enrollment, StudyReplica},
     study::StudyProgress,
     tls::bounded_file,
 };
@@ -9,6 +9,22 @@ use weekend_db::{
     Database, Error, Limits, Result,
     crdt::{Actor, GrowSet, Policy},
 };
+
+fn parse_id(id: &str) -> AppResult<[u8; 16]> {
+    if id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("identity must be 32 hexadecimal digits".into());
+    }
+    Ok(u128::from_str_radix(id, 16)?.to_be_bytes())
+}
+
+pub(super) fn enrollment(actor: &str, policy: Policy) -> AppResult<Enrollment> {
+    let actor = match actor {
+        "a" => policy.actors[0],
+        "b" => policy.actors[1],
+        _ => return Err("actor must be a or b".into()),
+    };
+    Ok(Enrollment { policy, actor })
+}
 
 pub(super) fn policy_file(path: &Path) -> AppResult<Policy> {
     let bytes = bounded_file(path, 256)?;
@@ -122,8 +138,8 @@ pub(super) fn stage(
     }
     let left = Database::create_file(new_files[0], Limits::default())?;
     let right = Database::create_file(new_files[1], Limits::default())?;
-    let seeded = enroll(&left, Enrollment::with_policy("a", new)?)?;
-    enroll(&right, Enrollment::with_policy("b", new)?)?;
+    let seeded = enroll(&left, enrollment("a", new)?)?;
+    enroll(&right, enrollment("b", new)?)?;
     // Seed A only. Authenticated staging sync brings the same causal state to B.
     seeded.update(|state, actor| visible.seed(state, actor))?;
     if Visible::read(seeded.read()?)? != visible {

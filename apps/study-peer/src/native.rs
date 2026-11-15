@@ -103,7 +103,7 @@ pub fn main() -> AppResult<()> {
             let enrollment = if command == "run" {
                 Enrollment::parse(actor, config)?
             } else {
-                Enrollment::with_policy(utf8(actor)?, roster::policy_file(Path::new(config))?)?
+                roster::enrollment(utf8(actor)?, roster::policy_file(Path::new(config))?)?
             };
             let options = RunOptions::parse(options)?;
             let tls = Tls::new(

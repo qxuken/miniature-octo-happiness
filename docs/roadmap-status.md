@@ -1653,8 +1653,10 @@ checks and 24 application checks in both debug and release, plus six core
 replication integration checks in debug. Strict Clippy passed for the app
 on both hosts and for the all-feature core on macOS. macOS ASan and TSan at
 `nightly-2026-11-12` each passed all 24 application checks with rebuilt std.
-The MSVC cross-target core check passed. Native Windows execution of the
-restartable capture remains due.
+The MSVC cross-target core check passed. The native Windows job for
+`6155aa1` also passed the saved-image verifier, lost-terminal-reply and
+sender interruption checks in debug and release.
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43719561073/job/132828376063)
 
 ```sh
 cargo test --offline --locked -p weekend-db --features replication --lib replication
@@ -1674,6 +1676,7 @@ cargo test --offline --locked -p weekend-replicate --all-targets
 | Docker Linux checks and Clippy | `e4a22ec4e785698b1396a24c6a67bd523b93c47bba8135f4b7b7a08acace751e` |
 | Docker Linux core release replication log | `c83585697fc9c7c5824bdb2b8f73f761e7f82da0a617e1660780804a9228faf3` |
 | MSVC cross-target core check | `db7de6234672b0169b84aad4d7e6befddcb3dc2d48bfc8046b68f74882f2fd3f` |
+| Native Windows job log | `519c55d41dc922af64bd3d604691470a6c1125af2bb7b425376912c703db9c2b` |
 
 ## Native StudyProgress roster cutover
 
@@ -1705,6 +1708,14 @@ roster process test passed on macOS ASan and TSan with rebuilt std at
 remains due. Routing authority and stopping copies on remote hosts remain
 operator responsibilities.
 
+The table below records the initial `9aab470` implementation. That head
+also cross-linked both apps' seven Windows MSVC test executables in debug
+and release with `cargo-xwin 0.23.1`. The hosted Ubuntu qualification caught
+the roster scenario entering the historical upgrade helper extraction.
+The follow-up keeps both scenarios outside the shared helper prefix and
+isolates explicit policy parsing from the frozen legacy protocol source.
+The existing upgrade seam tests catch omissions or extra executable seams.
+
 ```sh
 cargo test --offline --locked -p study-peer --test credential_rotation native_roster_cutover
 cargo test --offline --locked --release -p study-peer --all-targets
@@ -1720,3 +1731,5 @@ cargo test --offline --locked --release -p study-peer --all-targets
 | macOS TSan log | `b92bb332f370275c2115da1fba94bdf0ab8ab48fec72b79a8d1f0bd46d6a580a` |
 | Docker Linux debug, release and Clippy log | `3fea25135c6ffb70f5ce7fa15a21f6ff98dc0fbae77532859051fb3405d9e61d` |
 | Docker Linux subprocess event archive | `643d597814c5f1024d1e67ccb3fe3c11c7204dc436e90a7267b40a7c1b5c29e7` |
+| Windows application debug cross-link log | `709d46d9a3e44abc56886cb8ad9cb0a79fa74ae609e7b25538a1f459fadc25d1` |
+| Windows application release cross-link log | `8348ea7078e4fbd39c5077662ca36c8c8549e84b26d4e5b20c5974b102983994` |
