@@ -1,5 +1,7 @@
 mod abi;
 #[cfg(unix)]
+mod artifact_trace;
+#[cfg(unix)]
 mod assurance;
 #[cfg(unix)]
 mod atomic_model;
@@ -36,6 +38,8 @@ mod sanitizers;
 mod supervise;
 mod support;
 mod toolchain;
+#[cfg(any(unix, test))]
+mod trace_model;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
@@ -56,6 +60,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Compare delivered Rust/C/Odin consumers with the independent operation model.
+    #[cfg(unix)]
+    ArtifactTrace(artifact_trace::Options),
     /// Reproduce the macOS C/Rust/Odin packaging experiment with explicit skips.
     #[cfg(unix)]
     Probe(probe::Options),
@@ -180,6 +187,8 @@ fn execute(cli: Cli) -> Result<()> {
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        #[cfg(unix)]
+        Task::ArtifactTrace(options) => artifact_trace::run(&run, options),
         #[cfg(unix)]
         Task::Probe(options) => probe::run(&run, options),
         #[cfg(unix)]

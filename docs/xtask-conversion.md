@@ -338,3 +338,64 @@ independent. Local proof under `target/xtask-fault-oracles/` (SHA-256):
 - Delivered worker: `b338d35f95d5c3dae048a78071c236753c6024536746a4d00a9f79a66115fc21`.
 - Native drill: `9785a2122e7255317dc37d2928004ddb8a700a7b84b7d56e23ddda5b2ada2e41`.
 - Remaining helper registry: `c3ae64e4592ef310d2cdf772d80650d724885debfe7ae868e76b569131e997c3`.
+
+## Independent POSIX delivered trace conversion
+
+`cargo xtask artifact-trace` replaces the POSIX Python controller and Docker
+worker. Its independent Rust model imports neither engine nor FFI code. Frozen
+operation fixtures and hand-computed controls preserve the 59-cell v1 and
+134-cell v2 formats, all conflict/terminal/history outcomes, and exact original
+trace/transcript SHA-256 values. Native Rust rebuilds only delivered private
+source, using its original consumer manifest and lockfile plus an explicit
+current driver overlay. Optimized C/Odin load the unchanged relocated library;
+loader records must identify that exact path. Input/package/runner hashes and
+dependency paths remain checked independently.
+
+The Docker worker builds the staged current Rust runner offline, from a read-only
+seed and registry cache, on an owned ext4 volume. It has no original-checkout
+mount. Its detached provenance explicitly leaves Git identity/dirty state unknown;
+it attests source hashes and the actual worker executable instead. The host
+verifies frozen inputs, copied package inventories, result hashes, transcript
+hashes and independent container/volume absence. Vendor configuration preserves
+existing Cargo aliases, supports the legacy config filename, and rejects source
+replacement or ambiguous configuration rather than overwriting it. Build caches
+are pruned before evidence hashing, including nested copied worker caches.
+
+The prior 300-second build/execution deadlines, 64 MiB native child-file cap and
+16 MiB per-stream limit remain; the stream limit is now enforced during capture.
+The shared diagnostic campaign latches cancellation across commands: a real
+SIGTERM between commands prevents further work, still permits explicit resource
+retirement, and forces failed/unverified terminal evidence. A subprocess regression
+checks this gap without signaling parallel tests. Separate controls check both
+stream caps, inherited file limits, output admission, package corruption/path
+escapes, detached identity and cleanup supervision. Existing fault timeout,
+output-limit and 15-second cancellation/retirement regressions remain intact.
+
+All 14 retired POSIX trace controls map to discovered Rust tests, taking the
+frozen mapping to **55/179**. Three Python files are removed, leaving **43**.
+The Windows trace controller, its frozen Python model and its 12 controls remain
+until that separate port is verified. Mac debug/release runner suites pass
+**103 tests** (96 unit plus seven integration); strict native/MSVC cross-target
+Clippy passes. The remaining Python helper registry passes **244 checks plus four
+registered skips across 34 workers** with pinned Python 3.14.8.
+
+Native Mac Rust/C/Odin and Docker Linux Rust/C each match all 134 expected lines
+against the exact clean `06d0a15` packages qualified earlier. Current runner
+sources are separately recorded as `0ccdb2b-dirty`; no clean-current-source or
+Windows trace qualification is implied. Linux verifies ext4 for both build and
+runtime, original checkout absence, preserved Cargo aliases, copied frozen state
+and owned resource removal. This is finite operation/package evidence, separate
+from physical power-loss qualification and follower durability acknowledgment.
+No crate is published.
+
+Local proof under `target/xtask-artifact-trace/` (SHA-256):
+
+- Mac Rust/C/Odin: `68b6981caf9bdb399b07d422daf3082d0c69efc78032ce36a51f44129f644f7e`.
+- Linux parent: `24e815238c04230cf30cac22c737e97f55b8f39e139604f4908b84494581fa96`.
+- Linux worker: `ab9e2c72668d9f1e132bdbaa9905fbb3cdcf8e603f517b8fb4952cc973c1274b`.
+- Remaining helper registry: `cead4ebc9263b8d7bb758966f672b012ad9223b143a5dbae1d0684d471939300`.
+
+Clean `0ccdb2b` subsequently passed all hosted engine/fuzz jobs, including
+TSan, Rust coverage and native Windows/private packaging. This new trace port
+retains its own pending hosted gates. Earlier local development invocations and
+failed command logs remain separate from the final qualified proofs.

@@ -947,3 +947,16 @@ native permission/ENOSPC maintenance/retry and owned-resource checks pass. Separ
 phase receipts remain mandatory. The ledger records exact old-package/new-runner
 identities; 41/179 controls now map to Rust, 46 Python files remain, and the
 remaining helper registry passes 272 checks plus four registered skips.
+
+The POSIX delivered-artifact trace is now Rust-only, including its independent
+model and offline Docker worker. Both immutable trace formats/transcripts remain
+byte-identical. Real optimized Mac Rust/C/Odin and isolated Linux/ext4 Rust/C
+consumers match all 134 lines against exact `06d0a15` packages. Cancellation stays
+latched between commands while explicit retirement remains available; stream,
+file, deadline, package, source, copied-evidence and owned-resource gates remain.
+Mac debug/release runner controls and native/MSVC cross-target Clippy pass. The
+conversion now accounts for 55/179 legacy controls, with 43 Python files remaining;
+the residual helper registry passes 244 checks plus four registered skips. The
+Windows trace port and remaining state/distributed/workload/quota/helper tools
+remain open. Exact provenance and proof hashes are in the
+[conversion ledger](xtask-conversion.md#independent-posix-delivered-trace-conversion).

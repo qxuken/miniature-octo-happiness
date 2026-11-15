@@ -8,92 +8,125 @@
     "test_coverage.py",
     "test_coverage_executables.py",
     "test_native_faults.py",
-    "delivered-faults/test_runner.py"
+    "delivered-faults/test_runner.py",
+    "artifact-trace/test_runner.py"
   ],
   "controls": [
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.TraceContract.test_binary_bounds",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "trace_model::tests::binary_bounds_and_round_trip"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.TraceContract.test_hand_checked_publications_and_missing_delete",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "trace_model::tests::hand_checked_publications_and_missing_delete"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.TraceContract.test_finite_trace_conflicts_and_durable_history",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "trace_model::tests::finite_v1_conflicts_and_durable_history"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.TraceContract.test_v1_bytes_oracle_and_records_semantics_preserved",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "trace_model::tests::v1_bytes_and_records_semantics_are_frozen"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.TraceContract.test_hand_checked_whole_database_empty_publication_and_terminal_states",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "trace_model::tests::hand_checked_whole_database_empty_publication_and_terminal_states"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.TraceContract.test_hand_checked_retained_publication_validation_and_reopen",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "trace_model::tests::hand_checked_retained_publication_validation_and_reopen"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.TraceContract.test_invalid_v2_validation_mode_and_unknown_version_rejected",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "trace_model::tests::invalid_v2_validation_and_unknown_version_reject"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.TraceContract.test_v2_finite_validation_matrix_and_unchanged_v1_prefix",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "trace_model::tests::v2_validation_matrix_and_v1_prefix_are_frozen"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.PackageProvenance.test_environment_preserves_toolchain_selection_but_removes_build_overrides",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "artifact_trace::tests::environment_preserves_selection_and_removes_overrides"
+      ],
+      "unix_only": true
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.PackageProvenance.test_cleanup_argv_is_limited_to_matching_uuid_pair",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "artifact_trace::tests::cleanup_requires_matching_owned_uuid_pair"
+      ],
+      "unix_only": true
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.PackageProvenance.test_corruption_extra_file_symlink_and_dirty_identity_rejected",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "delivery::tests::verified_package_rejects_corruption_extras_symlinks_and_dirty_identity"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.PackageProvenance.test_manifest_path_escape_rejected",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "delivery::tests::escaped_self_hashed_and_duplicate_json_paths_reject"
+      ]
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.PackageProvenance.test_existing_output_is_never_overwritten",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "artifact_trace::tests::existing_output_rejects_before_inputs_or_processes"
+      ],
+      "unix_only": true
     },
     {
       "path": "artifact-trace/test_runner.py",
       "id": "helper_suite.PackageProvenance.test_dangling_final_symlink_rejected_before_any_input_or_work",
       "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
-      "rust": []
+      "rust": [
+        "artifact_trace::tests::dangling_output_rejects_before_inputs_or_work"
+      ],
+      "unix_only": true
     },
     {
       "path": "artifact-trace/test_windows_trace.py",

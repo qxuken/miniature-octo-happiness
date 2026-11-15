@@ -69,6 +69,7 @@ fn walk(
             walk(root, &file, out, all)?;
         } else if kind.is_file()
             && (all
+                || file.starts_with(root.join("xtask/tests"))
                 || matches!(
                     file.extension().and_then(|s| s.to_str()),
                     Some("rs" | "c" | "h" | "json" | "odin")
@@ -114,9 +115,20 @@ pub struct Campaign<'a> {
     pub env: BTreeMap<OsString, OsString>,
     pub evidence: Value,
     before: BTreeMap<String, String>,
+    maximum_bytes: u64,
+    file_limit: Option<u64>,
+    cancellation: supervise::Cancellation,
 }
 impl<'a> Campaign<'a> {
     pub fn new(run: &'a Run, output: &Path, scope: &str) -> Result<Self> {
+        Self::create(run, output, scope, true)
+    }
+    /// A frozen worker snapshot has no Git directory. Its exact input hashes
+    /// and runner binary are attested, without inventing a clean checkout ID.
+    pub fn detached(run: &'a Run, output: &Path, scope: &str) -> Result<Self> {
+        Self::create(run, output, scope, false)
+    }
+    fn create(run: &'a Run, output: &Path, scope: &str, git: bool) -> Result<Self> {
         let output = fresh(&run.root, output)?;
         let before = snapshot(&run.root)?;
         let mut campaign = Self {
@@ -124,13 +136,24 @@ impl<'a> Campaign<'a> {
             output,
             env: run.env.clone(),
             before: before.clone(),
+            maximum_bytes: 64 * 1024 * 1024,
+            file_limit: None,
+            cancellation: supervise::Cancellation::new()?,
             evidence: json!({"passed":false,"scope":scope,"source_hashes":before,"commands":[]}),
         };
         campaign.save()?;
-        let source = campaign.command(cmd(["git", "rev-parse", "HEAD"]), "source", None, 30.)?;
-        campaign.evidence["source"] = json!(source.trim());
-        let dirty = campaign.command(cmd(["git", "status", "--porcelain"]), "dirty", None, 30.)?;
-        campaign.evidence["dirty"] = json!(!dirty.trim().is_empty());
+        if git {
+            let source =
+                campaign.command(cmd(["git", "rev-parse", "HEAD"]), "source", None, 30.)?;
+            campaign.evidence["source"] = json!(source.trim());
+            let dirty =
+                campaign.command(cmd(["git", "status", "--porcelain"]), "dirty", None, 30.)?;
+            campaign.evidence["dirty"] = json!(!dirty.trim().is_empty());
+        } else {
+            campaign.evidence["source"] = Value::Null;
+            campaign.evidence["dirty"] = Value::Null;
+        }
+        campaign.evidence["git_identity_available"] = json!(git);
         campaign.evidence["runner_sha256"] = json!(sha(&std::env::current_exe()?)?);
         campaign.save()?;
         Ok(campaign)
@@ -139,6 +162,15 @@ impl<'a> Campaign<'a> {
         let mut bytes = serde_json::to_vec_pretty(&self.evidence)?;
         bytes.push(b'\n');
         fs::write(self.output.join("evidence.json"), bytes)?;
+        Ok(())
+    }
+    pub fn limits(&mut self, log_bytes: u64, file_bytes: Option<u64>) -> Result<()> {
+        ensure!(
+            log_bytes > 0 && log_bytes <= 64 * 1024 * 1024 && file_bytes.is_none_or(|n| n > 0),
+            "invalid campaign output limits"
+        );
+        self.maximum_bytes = log_bytes;
+        self.file_limit = file_bytes;
         Ok(())
     }
     pub fn unchanged(&self) -> Result<bool> {
@@ -154,6 +186,21 @@ impl<'a> Campaign<'a> {
         self.command_at(args, name, expected, timeout, &self.run.root.clone())
     }
     pub fn command_at(
+        &mut self,
+        args: Vec<OsString>,
+        name: &str,
+        expected: Option<&str>,
+        timeout: f64,
+        cwd: &Path,
+    ) -> Result<String> {
+        ensure!(!self.cancellation.requested(), "campaign cancelled");
+        self.execute(args, name, expected, timeout, cwd)
+    }
+    /// Only resource retirement/absence queries may run after cancellation.
+    pub fn retirement_command(&mut self, args: Vec<OsString>, name: &str) -> Result<String> {
+        self.execute(args, name, None, 30., &self.run.root.clone())
+    }
+    fn execute(
         &mut self,
         args: Vec<OsString>,
         name: &str,
@@ -196,9 +243,9 @@ impl<'a> Campaign<'a> {
             stderr: stderr.clone(),
             report: Some(self.output.join(format!("{name}.process.json"))),
             timeout_seconds: timeout,
-            maximum_bytes: 64 * 1024 * 1024,
+            maximum_bytes: self.maximum_bytes,
             exclusive_limit: false,
-            file_limit: None,
+            file_limit: self.file_limit,
             journal: None,
             sample_rss: false,
         });
@@ -218,6 +265,7 @@ impl<'a> Campaign<'a> {
     }
     pub fn finish(mut self, result: Result<()>) -> Result<()> {
         let checked = result.and_then(|()| {
+            ensure!(!self.cancellation.requested(), "campaign cancelled");
             ensure!(
                 self.before == snapshot(&self.run.root)?,
                 "source changed during diagnostic campaign"
@@ -225,7 +273,11 @@ impl<'a> Campaign<'a> {
             Ok(())
         });
         self.evidence["passed"] = json!(checked.is_ok());
+        self.evidence["cancelled"] = json!(self.cancellation.requested());
         if let Err(e) = &checked {
+            if self.evidence.get("verified").is_some() {
+                self.evidence["verified"] = json!(false);
+            }
             self.evidence["error"] = json!(format!("{e:#}"));
             if self.evidence["status"].as_str().is_some_and(|s| {
                 matches!(
@@ -292,6 +344,113 @@ mod tests {
         (dir, run)
     }
     #[test]
+    fn cancellation_between_commands_stays_latched_through_retirement() {
+        const MARKER: &str = "XTASK_CAMPAIGN_CANCELLATION_FIXTURE";
+        if let Some(root) = std::env::var_os(MARKER) {
+            let run = Run::new(PathBuf::from(root));
+            let mut c =
+                Campaign::detached(&run, Path::new("proof"), "cancellation control").unwrap();
+            c.evidence["verified"] = json!(true);
+            // SAFETY: this isolated test subprocess has the campaign handler
+            // installed, with no active command handler to mask the lifetime gap.
+            assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
+            assert!(
+                c.command(cmd(["/bin/sh", "-c", "exit 99"]), "forbidden", None, 10.)
+                    .is_err()
+            );
+            assert_eq!(
+                c.retirement_command(cmd(["/bin/sh", "-c", "printf retired"]), "retirement")
+                    .unwrap(),
+                "retired"
+            );
+            assert!(c.finish(Ok(())).is_err());
+            assert!(!run.root.join("proof/forbidden.stdout.log").exists());
+            return;
+        }
+        let dir =
+            crate::support::Scratch::new(&std::env::temp_dir(), "campaign-cancellation").unwrap();
+        let env = std::env::vars()
+            .chain([(MARKER.into(), dir.path().to_str().unwrap().into())])
+            .collect();
+        let r = supervise::run(&Request {
+            argv: vec![
+                std::env::current_exe().unwrap().to_str().unwrap().into(),
+                "--exact".into(),
+                "assurance::tests::cancellation_between_commands_stays_latched_through_retirement"
+                    .into(),
+                "--nocapture".into(),
+            ],
+            cwd: Some(dir.path().to_owned()),
+            env: Some(env),
+            stdout: dir.path().join("stdout"),
+            stderr: dir.path().join("stderr"),
+            report: None,
+            // Includes instrumented self-binary hashing before SIGTERM; the
+            // existing 15-second cancellation/retirement regressions stay intact.
+            timeout_seconds: 60.,
+            maximum_bytes: 1024 * 1024,
+            exclusive_limit: false,
+            file_limit: None,
+            journal: None,
+            sample_rss: false,
+        })
+        .unwrap();
+        assert!(r.success(), "{r:?}");
+        let proof: Value =
+            serde_json::from_slice(&fs::read(dir.path().join("proof/evidence.json")).unwrap())
+                .unwrap();
+        assert_eq!(proof["cancelled"], true);
+        assert_eq!(proof["passed"], false);
+        assert_eq!(proof["verified"], false);
+        assert_eq!(proof["commands"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            proof["commands"][0]["supervision"]["cleanup_verified"],
+            true
+        );
+    }
+    #[test]
+    fn configured_limits_reach_child_files_and_both_streams() {
+        let (_dir, run) = fixture();
+        let mut c = Campaign::new(&run, Path::new("limits"), "test").unwrap();
+        assert!(c.limits(0, Some(1024)).is_err());
+        assert!(c.limits(1024, Some(0)).is_err());
+        c.limits(1024, Some(1024)).unwrap();
+        let file = c.output.join("payload");
+        assert!(
+            c.command(
+                vec![
+                    "/bin/dd".into(),
+                    "if=/dev/zero".into(),
+                    format!("of={}", file.display()).into(),
+                    "bs=2048".into(),
+                    "count=1".into()
+                ],
+                "file",
+                None,
+                10.
+            )
+            .is_err()
+        );
+        assert_eq!(fs::metadata(file).unwrap().len(), 1024);
+        for (label, redirect) in [("stdout", ""), ("stderr", " >&2")] {
+            let script = format!(
+                "while :; do printf 'abcdefghijklmnopqrstuvwxyz0123456789'{redirect}; done"
+            );
+            assert!(
+                c.command(cmd(["/bin/sh", "-c", &script]), label, None, 10.)
+                    .is_err()
+            );
+            let row = c.evidence["commands"].as_array().unwrap().last().unwrap();
+            assert_eq!(row["supervision"]["cleanup_verified"], true);
+            assert!(
+                row["supervision"]["failure"]
+                    .as_str()
+                    .unwrap()
+                    .contains("limit")
+            );
+        }
+    }
+    #[test]
     fn campaign_failures_persist_terminal_evidence_and_stdout_cannot_satisfy_marker() {
         let (_dir, run) = fixture();
         for (name, script, passed) in [
@@ -326,12 +485,14 @@ mod tests {
         let (_dir, run) = fixture();
         let mut c = Campaign::new(&run, Path::new("drift"), "test").unwrap();
         c.evidence["status"] = json!("measured");
+        c.evidence["verified"] = json!(true);
         fs::write(run.root.join("src/input.rs"), "after").unwrap();
         let output = c.output.clone();
         assert!(c.finish(Ok(())).is_err());
         let evidence: Value =
             serde_json::from_slice(&fs::read(output.join("evidence.json")).unwrap()).unwrap();
         assert_eq!(evidence["passed"], false);
+        assert_eq!(evidence["verified"], false);
         assert_eq!(evidence["status"], "rejected");
         assert!(
             evidence["error"]

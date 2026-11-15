@@ -1,6 +1,6 @@
 # Exact-package deterministic operation trace
 
-`tools/artifact-trace/run.py` supplies a finite F03/F15 semantic qualification: native Rust, C and Odin interpret one versioned binary operation trace and each transcript must equal an independent Python contract model. It never publishes, pushes, commits, or invokes remote CI. All inputs and database paths are synthetic and private.
+`cargo xtask artifact-trace` supplies the current finite F03/F15 semantic qualification: native Rust, C and Odin interpret one versioned binary operation trace and each transcript must equal an independent Rust contract model. The POSIX Python controller, Docker worker and boundary suite have been retired; the separate Windows controller still uses the frozen Python model until its conversion. It never publishes, pushes, commits, or invokes remote CI. All inputs and database paths are synthetic and private.
 
 This report preserves the v1 59-cell results. The current default is the
 [v2 134-cell validation-mode trace](artifact-trace-validation-modes.md), which
@@ -28,7 +28,7 @@ The Linux package has no Odin bindings or Rust source payload. Its Rust consumer
 
 ## Shared trace and independent oracle
 
-`model.py` defines the trace and its independent model without importing or invoking the engine. The runner emits `trace.bin` and `expected.txt` before compiling any consumer. Each consumer reads `trace.bin`; no expected values or transcript are linked into a consumer.
+The historical `model.py` defines the trace and its independent model without importing or invoking the engine. The current POSIX runner uses `xtask/src/trace_model.rs`, with frozen operation fixtures, explicit hand-computed controls and unchanged v1/v2 byte and transcript hashes. The runner emits `trace.bin` and `expected.txt` before compiling any consumer. Each consumer reads `trace.bin`; no expected values or transcript are linked into a consumer.
 
 The binary format is explicitly little-endian:
 
@@ -87,7 +87,7 @@ The worker records actual `findmnt --json` results for both the build directory 
 
 Docker uses `--pull never`, a UUID container/volume pair, a 2 GiB memory limit, 2 CPUs, 256 PIDs and no network. After execution the stopped container's volume proofs are copied into the fresh host `linux-result/` directory. Packages, source/trace/expected files and transcripts are checked again after copyback. Cleanup accepts only matching `weekend-trace-<UUID>` / `weekend-trace-data-<UUID>` names, removes only that container and volume, then separately verifies both are absent. Container state, copyback and cleanup/absence logs are retained under `docker-logs/`. Native Mac proofs live directly in the output directory; Linux native proofs live in `linux-result/`, identified by `native_evidence_root`.
 
-Every child command has a 300-second deadline; timed-out child process groups are killed. Native child files have a 64 MiB per-file cap; a completed command with either log over 16 MiB is rejected. Consumers accept at most 256 operations, 16 rows/list entries and 32-byte output buffers. The runner requires a new output directory and does not overwrite prior evidence. It rejects any existing final output entry, including a dangling symlink, at the caller's original absolute path **before resolving its parent or reading package inputs**. Interrupted or failed runs keep partial logs and `verified: false` evidence when Python can finalize it.
+Trace build/execution commands have a 300-second deadline; version and cleanup commands use shorter deadlines. The current Rust supervisor retires child groups after success or failure, bounds each stream at 16 MiB during capture and retains the native child-file cap of 64 MiB. Consumers accept at most 256 operations, 16 rows/list entries and 32-byte output buffers. The runner requires a new output directory and does not overwrite prior evidence. It rejects any existing final output entry, including a dangling symlink, at the caller's original absolute path **before resolving its parent or reading package inputs**. Interrupted or failed runs keep partial logs and `verified: false` evidence when the runner can finalize it.
 
 Evidence includes source and package manifest hashes, all copied package files, the driver overlay's original/replacement hashes, original consumer lockfile hash, trace and expected transcript hashes, compiler version logs and invoked-tool binary hashes, consumer binary/library hashes, runtime loader logs, command vectors, exit codes and durations. Tool source hashes (including the test source) are captured before and after each run and must remain identical. Every captured stdout transcript hash must equal the expected transcript hash. Linux additionally captures the complete frozen input state before/after, filesystem records and verified UUID resource cleanup. Cargo target files are retained for dependency review but excluded from the compact hash inventory.
 
@@ -103,19 +103,20 @@ Both verified runs used trace SHA-256 `78b916121e57e2cb0ce3d010dd126e46ef4d8047e
 Use new output paths on every invocation:
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/artifact-trace/test_runner.py
-mise exec rust@1.99.1 python@3.14.8 -- python tools/artifact-trace/run.py \
+cargo test --offline --locked -p xtask --bin xtask trace_model::tests
+cargo test --offline --locked -p xtask --bin xtask artifact_trace::tests
+cargo xtask artifact-trace \
   --package target/qualification-21e5d26/mac-package \
   --output target/artifact-trace-mac-NEW \
   --odin /Users/qxuken/projects/libs/Odin/odin
-mise exec rust@1.99.1 python@3.14.8 -- python tools/artifact-trace/run.py \
+cargo xtask artifact-trace \
   --package target/qualification-21e5d26/linux-package \
   --source-package target/qualification-21e5d26/mac-package \
   --output target/artifact-trace-linux-NEW \
   --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
 ```
 
-Eight unit checks independently cover a hand-computed empty/missing-delete publication sequence, known conflict/terminal/history outcomes, malformed trace bounds, corrupted/extra/symlinked package rejection, manifest path escape rejection, preserving an existing output directory, rejecting a dangling final output symlink before any input/work, and exact cleanup argv restricted to matching UUID resources. The dangling-link control asserts the redirected target stays absent and the surrounding directory is unchanged. These complement the actual packaged-consumer executions; they do not replace them.
+The preserved model and provenance controls independently cover a hand-computed empty/missing-delete publication sequence, known conflict/terminal/history outcomes, malformed trace bounds, corrupted/extra/symlinked package rejection, manifest path escape rejection, preserving an existing output directory, rejecting a dangling final output symlink before any input/work, and exact cleanup argv restricted to matching UUID resources. The dangling-link control asserts the redirected target stays absent and the surrounding directory is unchanged. These complement the actual packaged-consumer executions; they do not replace them.
 
 ## Compiler selector correction and fresh replay
 
@@ -149,3 +150,12 @@ container/volume absence after copyback. No package or engine changed.
 | `linux/evidence.json` | `04ec52145ff538905221dd272f11b59278efcd13b3541e52c7e7b89a7f1e1840` |
 | `tools/artifact-trace/run.py` | `c4f3a28c34023f20561571abd5f561abf0267481327596a2a114f56b2457a782` |
 | `tools/artifact-trace/test_runner.py` | `4c9c79bb3221b3e9865c55ddf11567bcbb9d06127e5afaaa46f2535c665ba326` |
+
+## Rust controller layout
+
+The current POSIX entry point writes command, stdout/stderr and process reports
+beside its `evidence.json`; `native` contains consumer, loader and transcript
+results. Docker worker evidence is under `linux-result/`. The historical
+`docker-logs/` and `native_evidence_root` descriptions above apply to the archived
+Python proofs. Current migration results and exact new-runner/old-package hashes
+are recorded in the [conversion ledger](xtask-conversion.md#independent-posix-delivered-trace-conversion).
