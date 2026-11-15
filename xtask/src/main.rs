@@ -46,6 +46,8 @@ mod odin;
 mod package;
 #[cfg(unix)]
 mod probe;
+#[cfg(any(target_os = "linux", windows, test))]
+mod quota_append;
 #[cfg(unix)]
 mod quota_enospc;
 #[cfg(target_os = "linux")]
@@ -86,6 +88,8 @@ mod trace_model;
 mod trace_process;
 #[cfg(windows)]
 mod windows_process;
+#[cfg(windows)]
+mod windows_quota;
 #[cfg(any(windows, test))]
 mod windows_trace;
 #[cfg(windows)]
@@ -170,6 +174,9 @@ enum Task {
     /// Verify real NTFS exhaustion and fresh recovery using the exact Windows DLL.
     #[cfg(windows)]
     WindowsDiskFull(windows_trace::Options),
+    /// Verify an actual NTFS owner quota and append recovery on a private VHD.
+    #[cfg(windows)]
+    WindowsQuota(windows_quota::Options),
     /// Verify near-cap backup, restore and compact-copy exhaustion on NTFS.
     #[cfg(windows)]
     WindowsMaintenanceSpace(maintenance_space::Options),
@@ -363,6 +370,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::WindowsFaults(options) => windows_trace::run_faults(&mut run, options),
         #[cfg(windows)]
         Task::WindowsDiskFull(options) => windows_trace::run_disk_full(&mut run, options),
+        #[cfg(windows)]
+        Task::WindowsQuota(options) => windows_quota::run(&run, options),
         #[cfg(windows)]
         Task::WindowsMaintenanceSpace(options) => maintenance_space::run(&run, options),
         #[cfg(target_os = "macos")]

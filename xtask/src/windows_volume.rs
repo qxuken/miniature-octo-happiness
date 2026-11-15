@@ -160,7 +160,7 @@ fn create(image: &Path, bytes: u64) -> Result<OwnedHandle> {
     Ok(unsafe { OwnedHandle::from_raw_handle(handle) })
 }
 
-fn diskpart() -> Result<PathBuf> {
+pub fn system_command(name: &str) -> Result<PathBuf> {
     let mut directory = [0; 32768];
     // SAFETY: an initialized UTF-16 buffer of the supplied length.
     let length =
@@ -169,7 +169,7 @@ fn diskpart() -> Result<PathBuf> {
         length > 0 && length < directory.len(),
         "resolve Windows system directory"
     );
-    Ok(PathBuf::from(OsString::from_wide(&directory[..length])).join("diskpart.exe"))
+    Ok(PathBuf::from(OsString::from_wide(&directory[..length])).join(name))
 }
 
 fn verify_extent(letter: char, expected: u32, bytes: u64) -> Result<()> {
@@ -284,7 +284,11 @@ pub fn with_volume(
         call(
             proof,
             output,
-            vec![path(&diskpart()?), "/s".into(), path(&script)],
+            vec![
+                path(system_command("diskpart.exe")?),
+                "/s".into(),
+                path(&script),
+            ],
             &scratch,
             "format",
             env,

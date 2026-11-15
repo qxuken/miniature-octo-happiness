@@ -1,18 +1,18 @@
-//! Real Linux quota fixture. The controller supplies the quota and private path;
+//! Real native quota fixture. The controller supplies the quota and private path;
 //! this process neither fills a filesystem nor substitutes a storage backend.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn main() {
-    linux::run();
+    native::run();
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 fn main() {
-    eprintln!("native_quota requires Linux and the private quota controller");
+    eprintln!("native_quota requires Linux or Windows and the private quota controller");
     std::process::exit(1);
 }
 
-#[cfg(target_os = "linux")]
-mod linux {
+#[cfg(any(target_os = "linux", windows))]
+mod native {
     use std::{fmt::Write, path::Path};
     use weekend_db::{
         CollectionId, Database, Error, Kind, Limits, Rows, Snapshot, Transaction, TransactionState,
@@ -208,8 +208,24 @@ mod linux {
                 assert_eq!(failed.error, Error::Io);
                 assert_eq!(failed.verification, None);
                 let native = failed.native.expect("real quota error has native context");
-                assert_eq!(native.category, NativeIoCategory::Quota);
-                assert_eq!(native.raw_os_error, Some(122));
+                #[cfg(target_os = "linux")]
+                let expected_errno = 122;
+                #[cfg(windows)]
+                let expected_errno = {
+                    let raw = std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
+                        .expect("controller supplies real quota calibration")
+                        .parse()
+                        .unwrap();
+                    assert!(matches!(raw, 112 | 1295));
+                    raw
+                };
+                let category = if expected_errno == 112 {
+                    NativeIoCategory::DiskFull
+                } else {
+                    NativeIoCategory::Quota
+                };
+                assert_eq!(native.category, category);
+                assert_eq!(native.raw_os_error, Some(expected_errno));
                 assert_eq!(native.operation, NativeIoOperation::Write);
                 assert_eq!(tx.state(), TransactionState::Aborted);
                 let terminal = tx.commit().unwrap_err();

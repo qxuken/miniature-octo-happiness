@@ -55,6 +55,25 @@ jobs:
           name: weekend-db-windows-disk-full-${{ runner.arch }}
           if-no-files-found: warn
           path: target/private-windows-disk-full/
+      - name: Verify actual NTFS owner quota, fresh reopen and retry
+        if: runner.os == 'Windows'
+        id: windows_quota
+        continue-on-error: true
+        shell: pwsh
+        env:
+          WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+        run: |
+          cargo build --offline --locked --release -p weekend-db --example native_quota --target-dir target/windows-quota-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask windows-quota --fixture target/windows-quota-build/release/examples/native_quota.exe --source $env:WEEKEND_DB_SOURCE_ID --output target/windows-quota
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save NTFS owner quota evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-quota-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/windows-quota/
       - name: Verify near-cap Windows backup, restore and compact-copy exhaustion
         if: runner.os == 'Windows'
         id: windows_maintenance_space
@@ -147,7 +166,7 @@ jobs:
             target/release/*.dll.lib
             include/weekend_db.h
       - name: Enforce the Windows publication and maintenance fault results
-        if: always() && runner.os == 'Windows' && (steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
+        if: always() && runner.os == 'Windows' && (steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
         shell: pwsh
         run: exit 1
       - name: Enforce the macOS maintenance fault result

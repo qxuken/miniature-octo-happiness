@@ -1,4 +1,4 @@
-# Native Linux quota exhaustion and recovery
+# Native quota exhaustion and recovery
 
 The `linux-quota` job uses an isolated ext4 loop filesystem on an Ubuntu 24.04
 host. It exercises the real Linux file adapter, not an injected ByteStore error.
@@ -138,3 +138,32 @@ retry after freeing ballast and a later acknowledged 213 reopening. Actual
 EDQUOT occurs with ample global space. The existing append profile above is
 unchanged and passes again in the same hosted job. Other maintenance error
 phases, filesystems and physical power loss retain their separate obligations.
+## Native Windows NTFS owner quota
+
+The Windows controller provisions a fixed private 64 MiB NTFS VHD. It
+changes ownership of its database and ballast to the built-in Local Service
+SID, verifies both owner SIDs, and sets a 1 MiB hard quota for that SID on
+the owned volume. Windows charges NTFS quota to the file owner. The controller
+and fixture run under the elevated test runner account.
+[Windows NTFS disk quota limits](https://learn.microsoft.com/en-us/windows/win32/fileio/disk-quota-limits)
+· [fsutil quota](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/fsutil-quota)
+
+Run from an elevated native x64 Windows session:
+
+```powershell
+$env:WEEKEND_DB_SOURCE_ID = (git rev-parse HEAD)
+cargo build --offline --locked --release -p weekend-db --example native_quota --target-dir target/windows-quota-build
+cargo xtask windows-quota --fixture target/windows-quota-build/release/examples/native_quota.exe --source $env:WEEKEND_DB_SOURCE_ID --output target/windows-quota
+```
+
+The ballast probe must fail a 4 KiB write within the independent 2 MiB
+write bound while the volume has more than 32 MiB globally free. The
+controller passes the calibrated Win32 code to the independent append
+oracle. It requires the same native code from the database append and the
+matching diagnostic category. Windows code 112 reports `DiskFull`, and code
+1295 reports `Quota`. The fixture verifies terminal transaction behavior,
+current revision 3 and retained revision 2. A fresh process reopens both
+revisions with the quota still enforced. The controller raises the hard
+limit to 4 MiB with the ballast in place, proves a synchronized write
+succeeds, retries to revision 4 and verifies the final file in another
+process. The VHD and its quota configuration are retired together.
