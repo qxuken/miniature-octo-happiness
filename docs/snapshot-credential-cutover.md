@@ -146,3 +146,20 @@ The unmodified control passes. This is test-harness mutation evidence, not
 compiler-measured core MC/DC. Original cutover proofs were not overwritten.
 Record: `target/credential-directory-mutation-a56083c/evidence.json`, SHA-256
 `71bdb45d092b1753b7d3019cd6b65099ae8c1a685dd5b0015f17fbe3532fc357`.
+
+## Portable digest verification
+
+The stopped-endpoint test now runs in the native Windows CLI suite as well as
+on macOS and Linux. The test hashes the actual captured bytes directly with
+the workspace's locked SHA-256 dependency. It compares each independently
+computed digest to the corresponding reopened durable receipt and retains
+the stale-pin, interrupted startup, retry and full retained-data checks.
+
+Both tests passed in debug and release on macOS/APFS and Docker Linux/ext4.
+The Windows-native result for the portable test is pending.
+
+| Local proof | SHA-256 |
+|---|---|
+| macOS log | `da331d6653143174c89dfb0c2506819bfb5fec3ae35da3abe1f3d81cf7bd6602` |
+| Linux log | `f54d0646a0868e749dd9ef9e62703cd02aa0c8a85ed0a925cb4f1c3db2d732ff` |
+| Test source | `c3cdece03cb104efb8a97259131a3bda6ec8fa5e293d514531b43ebb889e6168` |

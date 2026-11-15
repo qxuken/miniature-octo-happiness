@@ -1,5 +1,6 @@
 //! Operator stop/restart cutover; no runtime reload or enrollment change.
-#![cfg(any(target_os = "macos", target_os = "linux"))]
+#![cfg(any(target_os = "macos", target_os = "linux", windows))]
+use sha2::{Digest, Sha256};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -13,8 +14,13 @@ const STREAM: &str = "11111111111111111111111111111111";
 struct Directory(PathBuf);
 impl Directory {
     fn create(path: PathBuf) -> std::io::Result<Self> {
-        use std::os::unix::fs::DirBuilderExt;
-        fs::DirBuilder::new().mode(0o700).create(&path)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            fs::DirBuilder::new().mode(0o700).create(&path)?;
+        }
+        #[cfg(windows)]
+        fs::create_dir(&path)?;
         Ok(Self(path))
     }
     fn fresh() -> Self {
@@ -58,13 +64,10 @@ impl Drop for Process {
     }
 }
 fn run(root: &Path, args: &[&str], success: bool) -> String {
-    run_program(root, BIN, args, success)
-}
-fn run_program(root: &Path, binary: &str, args: &[&str], success: bool) -> String {
     let stdout = root.join("command.stdout");
     let stderr = root.join("command.stderr");
     let mut child = Process(
-        Command::new(binary)
+        Command::new(BIN)
             .args(args)
             .stdout(fs::File::create(&stdout).unwrap())
             .stderr(fs::File::create(&stderr).unwrap())
@@ -135,25 +138,9 @@ fn receipt(text: &str) -> &str {
         .find(|l| l.starts_with("follower durable_revision="))
         .unwrap()
 }
-fn check_digest(root: &Path, export: &Path, ack: &str) {
-    #[cfg(target_os = "macos")]
-    let digest = run_program(
-        root,
-        "/usr/bin/shasum",
-        &["-a", "256", export.to_str().unwrap()],
-        true,
-    );
-    #[cfg(target_os = "linux")]
-    let digest = run_program(
-        root,
-        "/usr/bin/sha256sum",
-        &[export.to_str().unwrap()],
-        true,
-    );
-    assert_eq!(
-        ack.split("digest=").nth(1).unwrap(),
-        digest.split_whitespace().next().unwrap()
-    );
+fn check_digest(export: &Path, ack: &str) {
+    let digest = format!("{:x}", Sha256::digest(fs::read(export).unwrap()));
+    assert_eq!(ack.split_once("digest=").unwrap().1, digest);
 }
 fn check_image(path: &Path, revision: u64, byte: u8) {
     let db = Database::open_file(path, Limits::default()).unwrap();
@@ -287,7 +274,7 @@ fn stopped_endpoint_credential_cutover_preserves_receipt_history_and_retry() {
     );
     assert!(shipped.contains("local captured_revision=3"));
     let old_ack = receipt(&shipped).to_owned();
-    check_digest(root, &first_export, &old_ack);
+    check_digest(&first_export, &old_ack);
     assert_eq!(receipt(&poll(&address, &co, &sop, true)), old_ack);
     drop(server);
     let original = offline(root, follower, identity, &old_ack, 3, 1);
@@ -397,7 +384,7 @@ fn stopped_endpoint_credential_cutover_preserves_receipt_history_and_retry() {
         true,
     );
     let new_ack = receipt(&shipped).to_owned();
-    check_digest(root, &next_export, &new_ack);
+    check_digest(&next_export, &new_ack);
     assert!(new_ack.starts_with("follower durable_revision=4 "));
     assert_ne!(new_ack, old_ack);
     assert_eq!(receipt(&poll(&address, &cn, &snp, true)), new_ack);

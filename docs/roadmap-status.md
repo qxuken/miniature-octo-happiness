@@ -1180,3 +1180,8 @@ covers new detached descendants below known parents and ignores reuse of a
 reaped worker's PID. The macOS debug/release suites, Docker Linux helper
 registry and native macOS delivered fault cases passed. The original
 intermittent hosted Linux cleanup report remains separately recorded.
+
+The [snapshot credential cutover regression](snapshot-credential-cutover.md#portable-digest-verification)
+now computes the export digest portably and is enabled in the Windows-native
+suite. Debug/release passed on macOS/APFS and Docker Linux/ext4. The Windows
+result is pending.
