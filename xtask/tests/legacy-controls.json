@@ -11,7 +11,9 @@
     "delivered-faults/test_runner.py",
     "artifact-trace/test_runner.py",
     "artifact-trace/test_windows_trace.py",
-    "serialization-scale/test_runner.py"
+    "serialization-scale/test_runner.py",
+    "quota/test_runner.py",
+    "quota/test_maintenance.py"
   ],
   "controls": [
     {
@@ -248,79 +250,118 @@
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_source_must_resolve_to_exact_commit_before_archiving",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_host::tests::source_mismatch_stops_before_archive_or_root_work"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_resolved_mke2fs_explicitly_selects_ext4",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_oracle::tests::resolved_mke2fs_explicitly_selects_ext4"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_exact_mount_and_backing_identity",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_oracle::tests::mount_and_loop_require_exact_owned_paths"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_real_quota_category_cannot_be_substituted",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_oracle::tests::real_quota_requires_kernel_errno_global_space_and_no_privileges"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_full_current_and_retained_oracles_reject_damage_and_stale_state",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_oracle::tests::full_current_and_retained_oracles_reject_damage_and_stale_state"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_failure_diagnostics_and_terminal_state_are_required",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_oracle::tests::quota_publication_diagnostics_and_terminal_state_are_required"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_output_and_timeout_bounds_kill_reap_actual_children",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_host::tests::real_process_capture_caps_output_and_reports_timeout_cleanup"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_output_admission_precedes_external_commands",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_host::tests::existing_and_dangling_outputs_reject_before_external_admission"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_unsupported_probe_is_not_engine_qualification",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_host::tests::unsupported_probe_cannot_qualify_the_engine"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_completed_quota_paths_recheck_the_same_tool_inventory",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_host::tests::both_quota_profiles_recheck_the_same_tool_inventory_on_completion"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_cleanup_attempts_detach_after_unmount_timeout_and_proves_absence",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_host::tests::cleanup_continues_after_unmount_timeout_and_proves_both_absences"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_cleanup_identity_drift_never_unmounts_or_detaches",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_host::tests::cleanup_mount_identity_drift_never_unmounts_or_detaches"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_runner.py",
       "id": "helper_suite.QuotaControls.test_findmnt_query_error_cannot_prove_absence_or_remove_scratch",
       "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
-      "rust": []
+      "rust": [
+        "quota_host::tests::findmnt_query_error_is_not_absence_and_never_removes_scratch"
+      ],
+      "linux_only": true
     },
     {
       "path": "resource-envelope/test_growth_probe.py",
@@ -1259,19 +1300,28 @@
       "path": "quota/test_maintenance.py",
       "id": "helper_suite.MaintenanceControls.test_classified_partial_copy_requires_real_errno_and_unchanged_inputs",
       "source_sha256": "9ae6ced61da45004590cda1156708116d306d3010448f94dbffe449b6d2ba51f",
-      "rust": []
+      "rust": [
+        "quota_oracle::tests::maintenance_partial_copy_requires_classified_errno_and_unchanged_inputs"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_maintenance.py",
       "id": "helper_suite.MaintenanceControls.test_retry_and_oracle_reject_wrong_dispositions_and_bytes",
       "source_sha256": "9ae6ced61da45004590cda1156708116d306d3010448f94dbffe449b6d2ba51f",
-      "rust": []
+      "rust": [
+        "quota_oracle::tests::maintenance_retry_and_reopen_require_right_disposition_and_bytes"
+      ],
+      "linux_only": true
     },
     {
       "path": "quota/test_maintenance.py",
       "id": "helper_suite.MaintenanceControls.test_larger_ballast_still_requires_privilege_and_distinct_space_failures",
       "source_sha256": "9ae6ced61da45004590cda1156708116d306d3010448f94dbffe449b6d2ba51f",
-      "rust": []
+      "rust": [
+        "quota_oracle::tests::maintenance_ballast_checks_larger_ceiling_and_distinct_kernel_errors"
+      ],
+      "linux_only": true
     }
   ]
 }

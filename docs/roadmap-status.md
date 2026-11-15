@@ -1009,3 +1009,10 @@ ENOSPC drill. All three partial-copy errors used errno 28 and passed reopen and
 retry with 64 retained roots. The native EDQUOT job now uses the Rust entry point.
 Legacy quota files remain until the native job verifies the replacement.
 [Quota migration evidence](xtask-conversion.md#linux-quota-controller-and-maintenance-enospc)
+
+Hosted Linux verified both Rust quota profiles at `d4c8fff`. The append test
+observed errno 122 and reopened revisions 3 and 4. Near-cap backup, restore and
+compaction each reported errno 122 after 8,392,704 bytes of partial output.
+Both profiles verified cleanup. All 16 legacy quota controls map to Linux Rust
+tests. The migration now accounts for 90/179 frozen controls, with 31 Python
+files remaining. [Native quota evidence](xtask-conversion.md#linux-quota-controller-and-maintenance-enospc)

@@ -2,10 +2,6 @@
   "version": 1,
   "suites": [
     {
-      "path": "quota/test_runner.py",
-      "allowed_skips": []
-    },
-    {
       "path": "resource-envelope/test_growth_probe.py",
       "allowed_skips": []
     },
@@ -59,10 +55,6 @@
     },
     {
       "path": "resource-envelope/test_resilience.py",
-      "allowed_skips": []
-    },
-    {
-      "path": "quota/test_maintenance.py",
       "allowed_skips": []
     }
   ]

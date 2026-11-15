@@ -45,6 +45,9 @@ mod tests {
                 if row["unix_only"].as_bool() == Some(true) && !cfg!(unix) {
                     continue;
                 }
+                if row["linux_only"].as_bool() == Some(true) && !cfg!(target_os = "linux") {
+                    continue;
+                }
                 assert!(
                     names.contains(name.as_str().unwrap()),
                     "missing Rust control: {name}"

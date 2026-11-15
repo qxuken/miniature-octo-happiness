@@ -547,3 +547,19 @@ respectively. CI builds the controller in release mode. A Linux control tests
 both boundaries, and x64 Linux and macOS strict Clippy checks pass after fixing
 a Linux-only redundant closure. The first failing native run remains recorded
 as a failed qualification.
+
+The Rust native qualification passed in [the hosted Linux job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43692342623/job/132745452397)
+for PR head `d4c8fff`. The job built merge source
+`53c9ffbfd35b5c192050d164c941205d6e7a3a09`. The append test calibrated errno
+122 and observed revisions 3, 3, 3, 4 and 4. The maintenance test observed
+errno 122 after 8,392,704 bytes of partial output for each of backup, restore
+and compaction. It reopened the final source at 213 and the backup at 212 with
+64 retained roots. Both profiles verified mount and loop cleanup.
+
+- Native append proof SHA-256 `da0e8827292c238cf97611436efcc695b9bbcd18faca54357f564f2261b47445`.
+- Native maintenance proof SHA-256 `f3947fd3d004a05239d6cc10b6c79ce0f50c3fedbb3297380cde11d1c54a6656`.
+
+The two quota suites now map all 16 legacy controls to Linux Rust tests. The
+conversion accounts for **90/179** frozen controls and **31** remaining Python
+files after retiring the six quota files. The optional runtime calibration still
+records unsupported capabilities without producing engine qualification.
