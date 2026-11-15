@@ -182,11 +182,14 @@ harness-level scope reference.
    progress helper add evidence, without retroactively qualifying every profile.
 4. **Qualify continuous coordinator operation.** The sequenced profile gives
    each writer one retryable receipt and an explicit way to retire it when the
-   next write commits. macOS and Linux passed 1,152 native writes and nine
-   verified copies. A native process test interrupts a journal client after the
-   server commit and resumes it across a server restart. Qualify the continued
-   deployment's restore and routing procedure against service budgets. The
-   owner accepts the slot and history policy before promoting this profile.
+   next write commits. A native process test interrupts a journal client after
+   the server commit and resumes it across a server restart. The
+   [journal lifecycle workload](roadmap-status.md#coordinator-and-journal-lifecycle)
+   drives 1,152 writes with real local client journals and verifies each
+   restored coordinator and journal pair at nine cutovers on macOS and Linux.
+   Compare measured write, space and cutover costs with the deployment's
+   budgets. The owner accepts the slot and history policy before promoting
+   this profile.
 
 The named hosted Windows and Linux append-quota profiles now have actual
 execution evidence. Additional native profiles, actual device power interruption,

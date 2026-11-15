@@ -712,6 +712,162 @@ fn native_sequenced_workload_reuses_receipts_across_maintenance() {
     }
 }
 
+#[test]
+#[ignore = "extended native coordinator and journal maintenance workload"]
+fn native_journal_workload_resumes_after_verified_restore() {
+    use std::path::Path;
+    use weekend_db::{Database, Limits, storage};
+
+    fn journal(action: &str, path: &Path, args: &[&str]) -> String {
+        let result = Command::new(BIN)
+            .args(["journal", action])
+            .arg(path)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "journal {action}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        String::from_utf8(result.stdout).unwrap()
+    }
+
+    let dir = Directory::new();
+    let key = dir.0.join("secret");
+    let token = "a".repeat(64);
+    write_secret(&key, &token);
+    let key = key.to_str().unwrap();
+    let mut files = ["coordinator.db", "writer-0.db", "writer-1.db"].map(|name| dir.0.join(name));
+    assert!(
+        Command::new(BIN)
+            .arg("init-sequenced")
+            .arg(&files[0])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let (mut server, mut client) =
+        configured_service("serve-sequenced", files[0].to_str().unwrap(), key, &token);
+    let identity = client.request("identity");
+    let identity = identity.strip_prefix("identity ").unwrap();
+    let mut port = client.address.port().to_string();
+    for slot in 0..2 {
+        assert_eq!(
+            journal(
+                "init",
+                &files[slot + 1],
+                &[&port, &slot.to_string(), "--secret-file", key],
+            ),
+            format!("journal {identity} {slot}\nreceipt 0\n"),
+        );
+    }
+
+    const BATCH: u64 = 128;
+    const CYCLES: u64 = 9;
+    let mut latency = Vec::with_capacity((BATCH * CYCLES) as usize);
+    let mut writes = 0;
+    for cycle in 1..=CYCLES {
+        for n in writes + 1..=writes + BATCH {
+            let slot = (n - 1) as usize % 2;
+            let expected = (n + 2).to_string();
+            let value = n.to_string();
+            let start = Instant::now();
+            let reply = journal(
+                "set",
+                &files[slot + 1],
+                &[&port, &expected, &value, "--secret-file", key],
+            );
+            latency.push(start.elapsed().as_micros());
+            assert_eq!(reply, format!("committed {}\n", n + 3));
+        }
+        writes += BATCH;
+        let revision = writes + 3;
+        assert_eq!(client.request("get"), format!("value {revision} {writes}"));
+        let cutover = Instant::now();
+        server.stop();
+
+        let maintenance = Instant::now();
+        let mut sizes = [(0, 0); 3];
+        let mut retired = Vec::with_capacity(6);
+        for (index, source) in files.iter_mut().enumerate() {
+            let backup = dir.0.join(format!("backup-{cycle}-{index}.db"));
+            let restored = dir.0.join(format!("restored-{cycle}-{index}.db"));
+            let expected_revision = if index == 0 { revision } else { writes + 2 };
+            let original = storage::inspect_file(&*source, Limits::default()).unwrap();
+            assert_eq!(original.revision, expected_revision);
+            let copied = storage::backup_file(&*source, &backup, Limits::default()).unwrap();
+            assert_eq!(copied.before_bytes, original.physical_bytes);
+            assert!(copied.after_bytes < copied.before_bytes);
+            storage::restore_file(&backup, &restored, Limits::default()).unwrap();
+            assert_eq!(fs::read(&backup).unwrap(), fs::read(&restored).unwrap());
+            let db = Database::open_file(&restored, Limits::default()).unwrap();
+            let snapshot = db.snapshot();
+            assert_eq!(snapshot.revision(), expected_revision);
+            assert!(db.retained_ids().unwrap().is_empty());
+            let collection = db.collection_id(if index == 0 { 2 } else { 1 });
+            let rows = snapshot.scan(collection).unwrap();
+            assert_eq!(rows.len(), if index == 0 { 3 } else { 1 });
+            if index == 0 {
+                assert_eq!(
+                    snapshot
+                        .get(collection, b"counter")
+                        .unwrap()
+                        .unwrap()
+                        .as_u64(),
+                    Ok(writes),
+                );
+            }
+            drop(rows);
+            drop(snapshot);
+            drop(db);
+            retired.push(std::mem::replace(source, restored));
+            retired.push(backup);
+            sizes[index] = (copied.before_bytes, copied.after_bytes);
+        }
+        let copy_us = maintenance.elapsed().as_micros();
+
+        (server, client) =
+            configured_service("serve-sequenced", files[0].to_str().unwrap(), key, &token);
+        port = client.address.port().to_string();
+        assert_eq!(client.request("identity"), format!("identity {identity}"));
+        for (slot, last) in [(0, writes - 1), (1, writes)] {
+            let acknowledged = last + 3;
+            let receipt = format!("receipt {} {} {last} {acknowledged}", writes / 2, last + 2);
+            assert_eq!(client.request(&format!("receipt {slot}")), receipt);
+            let journal_path = &files[slot + 1];
+            assert_eq!(
+                journal("status", journal_path, &[]),
+                format!("journal {identity} {slot}\n{receipt}\n"),
+            );
+            for _ in 0..2 {
+                assert_eq!(
+                    journal("resume", journal_path, &[&port, "--secret-file", key]),
+                    format!("committed {acknowledged}\n"),
+                );
+            }
+        }
+        assert_eq!(client.request("get"), format!("value {revision} {writes}"));
+        let cutover_us = cutover.elapsed().as_micros();
+        for path in retired {
+            fs::remove_file(path).unwrap();
+        }
+        eprintln!(
+            "journal cycle {cycle}: {writes} writes, revision {revision}, copy_verify_us={copy_us}, cutover_us={cutover_us}, bytes={sizes:?}"
+        );
+    }
+    server.stop();
+    latency.sort_unstable();
+    let percentile = |p: usize| latency[(latency.len() * p).div_ceil(100) - 1];
+    eprintln!(
+        "journal write_us: count={}, p50={}, p95={}, max={}",
+        latency.len(),
+        percentile(50),
+        percentile(95),
+        percentile(100),
+    );
+}
+
 fn verify_all_capacity_receipts(path: &std::path::Path) -> u64 {
     use weekend_db::{Database, Limits};
 

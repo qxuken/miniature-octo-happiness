@@ -1481,3 +1481,55 @@ cargo test --offline --locked --manifest-path fuzz/Cargo.toml --lib replay_coord
 | Docker Linux ext4 mount record | `40ab1c448ee0a848b68e89ad6f74c25d07f36ec6932a602da9050e95743f05fb` |
 | Windows cross-target Clippy log | `0c3cea29467528063362871133c41a5585265376542b7800b48cd2588f07d0ab` |
 | Bounded ASan fuzz log | `29af6942d7a42404f8f1fe1cb1af90b734bb126e4d69828eb9a88e95dcde3d07` |
+
+The macOS all-feature workspace run at `c6d6cf7` passed 633 tests, including
+the explicit separation of local commit and follower durability over TCP.
+Four extended checks were ignored by default. The workspace log SHA-256 is
+`5bbac7696aab370a4c0c271da91e55e8315580e31bf0baa008d0151e79a8cd25`.
+
+## Coordinator and journal lifecycle
+
+The release workload alternates 1,152 writes between two actual journal
+clients against the authenticated local coordinator. Every 128 writes it
+stops the server, verifies and backs up the server file and both journals,
+restores all three to fresh paths and compares each backup and restore byte
+for byte. It preserves the original paths through verification. The oracle
+reopens every file, checks the selected revision and live row counts, and
+compares the server identity, counter, both receipts and both journals with
+the workload's independent expected values. Repeating each journal's `resume`
+preserves the server revision during all nine cutovers. Continued fresh writes
+advance through the verified copies.
+
+Both hosts finished at server revision 1,155 with counter 1,152 and two
+sequence-576 receipts. Each journal finished at its local revision 1,154 with
+one journal row and no pending intent. Each compact server image was 45,056
+bytes and each compact journal was 32,768 bytes. The first batch grew to
+2,158,592 server bytes and 1,622,016 per journal. Each later batch grew to
+2,142,208 server bytes and 1,605,632 per journal.
+
+| Rust 1.99.1 release runs | Write p50 / p95 / max | Inspect, copy, restore and verify all files | Stop to restored service and receipt validation |
+|---|---|---|---|
+| macOS 27.0.1 arm64, APFS | 35.91 / 40.29 / 46.32 ms | 55.67–96.75 ms | 102.93–166.34 ms |
+| Docker Linux arm64, private ext4 volume | 5.89 / 9.87 / 16.46 ms | 6.93–15.19 ms | 13.38–23.21 ms |
+
+Writes include CLI process startup, guarded reads, journal staging, server
+publication and local receipt persistence. The table records finite samples
+under the hosts' observed load and storage paths. Deployment latency and
+restore objectives remain open. The workload uses coordinated, current backups.
+The [operator guide](../apps/write-coordinator/README.md#back-up-and-restore-a-coordinator-with-active-journals)
+covers stale-restore reconciliation separately.
+
+```sh
+cargo test --offline --locked --release -p write-coordinator --test writers \
+  native_journal_workload_resumes_after_verified_restore -- --ignored --exact --nocapture
+```
+
+Docker used the offline `linux/arm64` image
+`sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08`
+and ran both the toolchain build and native files on the private ext4 volume.
+
+| Evidence | SHA-256 |
+|---|---|
+| Native workload source | `03f2083e19fea6cbddb913caab55fdc812a4d99dec3fca1dbbe17aa6ff2ccd4e` |
+| macOS lifecycle log | `a1ebe07d706297e484798e766df12f74e529ab662964aa2c8865f540e91c7fb5` |
+| Linux lifecycle and Clippy log | `143030575b646875c72a9f479dc177bfaae1d051755b10f2ff70a667600ae11a` |

@@ -233,6 +233,31 @@ lineage. A restore at the exact recorded predecessor looks like the original
 history to a client whose next reply was lost. Recovery of external effects and
 selection of the authoritative endpoint remain operator decisions.
 
+### Back up and restore a coordinator with active journals
+
+1. Pause submissions and compare each writer's `journal status` with the
+   server's `identity`, `get` and `receipt <slot>` responses. Resolve pending
+   writes against the current authority before taking a coordinated backup.
+   Record the server identity, revision, counter, and receipts for all
+   assigned slots.
+2. Stop the server and close all journal commands. Use `weekend-admin backup`
+   on the coordinator and each journal while writes are paused. Use a fresh
+   destination for every file and retain the originals as a set.
+3. Restore each backup to a fresh path. Check the restored files with
+   `weekend-admin check`. Start only the restored coordinator on an isolated
+   loopback port and compare its identity, counter and receipts with the
+   checkpoint. Match each restored `journal status` to its slot's receipt.
+   A `journal resume` with an empty pending slot reports the local receipt,
+   so the server receipt comparison still matters.
+4. Route the writers to the verified server using the restored journal paths.
+   Keep the old coordinator stopped and preserve the old files until the
+   checkpoint and continued writes have been verified.
+
+The [journal lifecycle qualification](../../docs/roadmap-status.md#coordinator-and-journal-lifecycle)
+repeats this cutover nine times while alternating 1,152 acknowledged writes
+between two journal files. Its results include physical growth and measured
+commit and downtime intervals for macOS and Docker Linux.
+
 ## Finite native receipt-capacity qualification
 
 `native_receipt_capacity_survives_restarts_backup_restore_and_compaction` in
