@@ -5,7 +5,7 @@ mod writeback;
 use crate::{
     artifact_trace::{inventory, nonce},
     assurance::{self, Campaign},
-    quota_oracle::{self, CEILING, CHUNK, LOG_BYTES, Space},
+    quota_oracle::{self, CEILING, CHUNK, CopyBarrier, LOG_BYTES, Space},
     resource_oracle::{self, MIB, number},
     supervise::{self, Request},
     support::{Run, cmd, path, sha},
@@ -58,6 +58,9 @@ pub struct Options {
     /// Exercise kernel block errors at commit barriers or during maintenance.
     #[arg(long, conflicts_with_all = ["inode_quota", "inode_enospc", "probe_only"])]
     pub writeback: bool,
+    /// Choose the near-cap destination flush at which to deny writeback.
+    #[arg(long, value_enum, requires_all = ["maintenance", "writeback"])]
+    pub copy_barrier: Option<CopyBarrier>,
 }
 #[derive(Debug)]
 struct Unsupported(String);
@@ -837,7 +840,11 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let kernel = call.exec(cmd(["uname", "-a"]))?;
         call.c.evidence["kernel"] = json!(kernel.stdout);
         let (hard, inodes, space) = if opts.writeback {
-            (0, 0, Space::Writeback)
+            (
+                0,
+                0,
+                Space::Writeback(opts.copy_barrier.unwrap_or(CopyBarrier::Data)),
+            )
         } else if opts.inode_enospc {
             (0, 0, Space::InodeEnospc)
         } else if opts.inode_quota {
@@ -948,10 +955,12 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         if opts.maintenance {
             let seed = s.directory.join("seed-parent");
             private_directory(&seed, uid)?;
-            let fault = mapping
-                .as_mut()
-                .map(|map| writeback::MaintenanceFault::prepare(map, s, &mut call, &guest))
-                .transpose()?;
+            let fault = match (&mut mapping, space) {
+                (Some(map), Space::Writeback(barrier)) => Some(
+                    writeback::MaintenanceFault::prepare(map, s, &mut call, &guest, barrier)?,
+                ),
+                _ => None,
+            };
             guest.maintenance(&mut call, &opts.source, space, &seed.join("seed"), fault)?;
         } else if let Some(map) = &mut mapping {
             map.qualify(&mut call, s, &guest, &opts.source)?;
@@ -1177,7 +1186,7 @@ impl Guest {
                     self.probe(c, "fill", CEILING, space, None)?,
                     self.probe(c, "headroom", CEILING, space, None)?,
                 ),
-                Space::Writeback => (Value::Null, Value::Null),
+                Space::Writeback(_) => (Value::Null, Value::Null),
             };
             if space == Space::InodeEnospc {
                 let created = number(&full, "created")?;
@@ -1240,7 +1249,7 @@ impl Guest {
             } else {
                 "remove"
             };
-            let (remove, control) = if space == Space::Writeback {
+            let (remove, control) = if writeback.is_some() {
                 (Value::Null, Value::Null)
             } else {
                 (
@@ -1295,7 +1304,7 @@ impl Guest {
             )?;
             data.phase(c, "space-retire", op, &original, false)?;
             let mut case = json!({"operation":op,"full":full,"headroom":headroom,"failure":fail,"ballast_removed":remove,"write_control":control});
-            if space == Space::Writeback {
+            if writeback.is_some() {
                 case["writeback"] = mapped;
             }
             cases.push(case);
@@ -1641,6 +1650,7 @@ mod tests {
                 inode_quota: false,
                 inode_enospc: false,
                 writeback: false,
+                copy_barrier: None,
             };
             assert!(
                 super::run(&run, opts)

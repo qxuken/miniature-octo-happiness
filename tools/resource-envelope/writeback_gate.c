@@ -14,9 +14,11 @@
 #include <time.h>
 #include <unistd.h>
 
-static struct stat directory;
-static const char *label, *gate, *target;
-static int armed;
+static struct stat directory, created;
+static const char *label, *gate, *target, *metadata_magic;
+static off64_t offset;
+static char name_at_creation[64];
+static int seen_target, armed;
 
 static int scratch_name(const char *name) {
     static const char prefix[] = ".wdb-compact-";
@@ -32,21 +34,26 @@ __attribute__((constructor)) static void setup(void) {
     gate = getenv("WDB_WRITEBACK_GATE");
     label = getenv("WDB_WRITEBACK_LABEL");
     target = getenv("WDB_WRITEBACK_TARGET");
-    assert(dir && gate && label && target && getuid() != 0);
+    const char *barrier = getenv("WDB_WRITEBACK_BARRIER");
+    assert(dir && gate && label && target && barrier && getuid() != 0);
     assert(stat(dir, &directory) == 0 && S_ISDIR(directory.st_mode));
+    if (strcmp(barrier, "slot") == 0) {
+        offset = 4096;
+        metadata_magic = "WDBSLOT1";
+    } else if (strcmp(barrier, "witness") == 0) {
+        offset = 12288;
+        metadata_magic = "WDBACK01";
+    } else {
+        assert(strcmp(barrier, "data") == 0);
+    }
 }
 
-static void await_arm(int fd, const char *name) {
+static void await_arm(void) {
     struct stat info;
     assert(!armed);
     armed = 1;
-    assert(fstat(fd, &info) == 0 && S_ISREG(info.st_mode));
-    assert(info.st_dev == directory.st_dev && info.st_uid == getuid());
-    assert(info.st_size == 0 && info.st_nlink == 1);
-    assert(fallocate(fd, FALLOC_FL_KEEP_SIZE, 0, 4096) == 0);
-    assert(fstat(fd, &info) == 0 && info.st_size == 0);
     printf("ready %s %jd %ju %ju %s\n", label, (intmax_t)getpid(),
-           (uintmax_t)info.st_dev, (uintmax_t)info.st_ino, name);
+           (uintmax_t)created.st_dev, (uintmax_t)created.st_ino, name_at_creation);
     assert(fflush(stdout) == 0);
 
     struct timespec started, now, pause = {0, 10000000};
@@ -84,7 +91,39 @@ int openat(int dirfd, const char *name, int flags, ...) {
         struct stat parent;
         assert(fstat(dirfd, &parent) == 0 && parent.st_dev == directory.st_dev
                && parent.st_ino == directory.st_ino);
-        await_arm(fd, name);
+        assert(!seen_target);
+        assert(fstat(fd, &created) == 0 && S_ISREG(created.st_mode));
+        assert(created.st_dev == directory.st_dev && created.st_uid == getuid());
+        assert(created.st_size == 0 && created.st_nlink == 1);
+        assert(strlen(name) < sizeof(name_at_creation));
+        memcpy(name_at_creation, name, strlen(name) + 1);
+        seen_target = 1;
+        if (!metadata_magic) {
+            assert(fallocate(fd, FALLOC_FL_KEEP_SIZE, 0, 4096) == 0);
+            struct stat info;
+            assert(fstat(fd, &info) == 0 && info.st_size == 0);
+            await_arm();
+        }
     }
     return fd;
+}
+
+ssize_t pwrite64(int fd, const void *buf, size_t size, off64_t where) {
+    static ssize_t (*next)(int, const void *, size_t, off64_t);
+    if (!next) {
+        next = (ssize_t (*)(int, const void *, size_t, off64_t))dlsym(RTLD_NEXT, "pwrite64");
+        assert(next);
+    }
+    /* Initial file creation writes zeroes at the same offset. Pause only
+     * before writing the populated root slot or witness to the new inode. */
+    if (seen_target && metadata_magic && where == offset && size == 4096
+        && memcmp(buf, metadata_magic, 8) == 0) {
+        struct stat info;
+        assert(fstat(fd, &info) == 0);
+        if (info.st_dev == created.st_dev && info.st_ino == created.st_ino) {
+            assert(info.st_size == 63074304);
+            await_arm();
+        }
+    }
+    return next(fd, buf, size, where);
 }

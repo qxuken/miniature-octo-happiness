@@ -12,20 +12,46 @@ pub const CEILING: u64 = 384 * MIB;
 pub const LOG_BYTES: u64 = MIB;
 pub const EXT4_INODES: u64 = 128;
 pub const MAX_CALIBRATION_INODES: u64 = 2 * EXT4_INODES;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum CopyBarrier {
+    Data,
+    Slot,
+    Witness,
+}
+
+impl CopyBarrier {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Data => "data",
+            Self::Slot => "slot",
+            Self::Witness => "witness",
+        }
+    }
+
+    pub fn offset(self) -> u64 {
+        // The near-cap copy publishes even revision 212.
+        match self {
+            Self::Data => 0,
+            Self::Slot => 4096,
+            Self::Witness => 12288,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Space {
     Quota,
     Enospc,
     InodeQuota,
     InodeEnospc,
-    Writeback,
+    Writeback(CopyBarrier),
 }
 impl Space {
     pub fn errno(self) -> i32 {
         match self {
             Self::Enospc | Self::InodeEnospc => 28,
             Self::Quota | Self::InodeQuota => 122,
-            Self::Writeback => 5,
+            Self::Writeback(_) => 5,
         }
     }
     pub fn fails_at_create(self) -> bool {
@@ -37,14 +63,16 @@ impl Space {
             Self::Enospc => "enospc",
             Self::InodeQuota => "inode-quota",
             Self::InodeEnospc => "inode-enospc",
-            Self::Writeback => "writeback",
+            Self::Writeback(CopyBarrier::Data) => "writeback",
+            Self::Writeback(CopyBarrier::Slot) => "writeback-slot",
+            Self::Writeback(CopyBarrier::Witness) => "writeback-witness",
         }
     }
     pub fn category(self) -> &'static str {
         match self {
             Self::Enospc | Self::InodeEnospc => "DiskFull",
             Self::Quota | Self::InodeQuota => "Quota",
-            Self::Writeback => "Other",
+            Self::Writeback(_) => "Other",
         }
     }
 }
@@ -153,8 +181,13 @@ pub fn maintenance<'a>(
         "space-fail" if space.fails_at_create() => {
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
         }
-        "space-fail" if space == Space::Writeback => {
-            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":"Other","raw":5,"native_operation":"Sync","partial_bytes":63_074_304,"source_unchanged":true,"backup_unchanged":true})
+        "space-fail" if matches!(space, Space::Writeback(_)) => {
+            let error = if space == Space::Writeback(CopyBarrier::Data) || label == "compact" {
+                14
+            } else {
+                15
+            };
+            json!({"stage":"fail","operation":label,"pid":pid,"error":error,"category":"Other","raw":5,"native_operation":"Sync","partial_bytes":63_074_304,"source_unchanged":true,"backup_unchanged":true})
         }
         "space-fail" => {
             let partial = number(row, "partial_bytes")?;
@@ -167,6 +200,9 @@ pub fn maintenance<'a>(
         }
         "space-retry" if space.fails_at_create() => {
             json!({"stage":"retry","operation":label,"pid":pid,"no_partial":true,"matches_backup":true})
+        }
+        "space-retry" if space == Space::Writeback(CopyBarrier::Witness) => {
+            json!({"stage":"retry","operation":label,"pid":pid,"partial_verified_unwitnessed":true,"existing_rejected":label!="compact","partial_preserved":true,"matches_backup":true})
         }
         "space-retry" => {
             json!({"stage":"retry","operation":label,"pid":pid,"partial_rejected":true,"existing_rejected":label!="compact","partial_preserved":true,"matches_backup":true})
@@ -508,7 +544,7 @@ mod tests {
             "space-fail",
             "compact",
             SOURCE,
-            Space::Writeback,
+            Space::Writeback(CopyBarrier::Data),
             42,
         )
         .unwrap();
@@ -524,12 +560,67 @@ mod tests {
                     "space-fail",
                     "compact",
                     SOURCE,
-                    Space::Writeback,
+                    Space::Writeback(CopyBarrier::Data),
                     42
                 )
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn maintenance_metadata_eio_keeps_copy_uncertainty_and_unwitnessed_inspection() {
+        for barrier in [CopyBarrier::Slot, CopyBarrier::Witness] {
+            for operation in ["backup", "restore", "compact"] {
+                let error = if operation == "compact" { 14 } else { 15 };
+                let mut row = json!({"stage":"fail","operation":operation,"pid":42,"error":error,"category":"Other","raw":5,"native_operation":"Sync","partial_bytes":63_074_304,"source_unchanged":true,"backup_unchanged":true});
+                let space = Space::Writeback(barrier);
+                let completion = resource_oracle::completion("space-fail", SOURCE);
+                maintenance(
+                    &[row.clone(), completion.clone()],
+                    "space-fail",
+                    operation,
+                    SOURCE,
+                    space,
+                    42,
+                )
+                .unwrap();
+                row["error"] = json!(29 - error);
+                assert!(
+                    maintenance(
+                        &[row, completion],
+                        "space-fail",
+                        operation,
+                        SOURCE,
+                        space,
+                        42
+                    )
+                    .is_err()
+                );
+            }
+        }
+        let retry = json!({"stage":"retry","operation":"backup","pid":42,"partial_verified_unwitnessed":true,"existing_rejected":true,"partial_preserved":true,"matches_backup":true});
+        let completion = resource_oracle::completion("space-retry", SOURCE);
+        maintenance(
+            &[retry.clone(), completion.clone()],
+            "space-retry",
+            "backup",
+            SOURCE,
+            Space::Writeback(CopyBarrier::Witness),
+            42,
+        )
+        .unwrap();
+        assert!(
+            maintenance(
+                &[retry, completion],
+                "space-retry",
+                "backup",
+                SOURCE,
+                Space::Writeback(CopyBarrier::Slot),
+                42
+            )
+            .is_err()
+        );
     }
 
     #[test]

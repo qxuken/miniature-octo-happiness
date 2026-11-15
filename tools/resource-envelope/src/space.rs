@@ -68,7 +68,13 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     #[cfg(unix)]
     assert!(matches!(
         kind.as_str(),
-        "enospc" | "quota" | "inode-quota" | "inode-enospc" | "writeback"
+        "enospc"
+            | "quota"
+            | "inode-quota"
+            | "inode-enospc"
+            | "writeback"
+            | "writeback-slot"
+            | "writeback-witness"
     ));
     #[cfg(windows)]
     assert!(matches!(kind.as_str(), "ntfs-enospc" | "ntfs-quota"));
@@ -77,6 +83,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
         quota_token::set_copy_owner().expect("set quota owner in the fixture token");
     }
     let inode = matches!(kind.as_str(), "inode-quota" | "inode-enospc");
+    let copy_metadata = matches!(kind.as_str(), "writeback-slot" | "writeback-witness");
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
@@ -130,12 +137,17 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 operation(dir, source, op, &dir.join(format!("failed-{op}.wdb")))
             })
             .unwrap_err();
-            assert_eq!(failure.error, Error::Io);
+            let expected = if copy_metadata && !replaces_source(op) {
+                Error::OutcomeUnknown
+            } else {
+                Error::Io
+            };
+            assert_eq!(failure.error, expected);
             let native = failure.native.unwrap();
             let errno = match kind.as_str() {
                 "quota" | "inode-quota" => 122,
                 "enospc" | "inode-enospc" => 28,
-                "writeback" => 5,
+                "writeback" | "writeback-slot" | "writeback-witness" => 5,
                 "ntfs-enospc" => 112,
                 "ntfs-quota" => std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
                     .unwrap()
@@ -167,7 +179,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 let partial = partial(dir, op);
                 assert!(now.difference(&entries).eq([&partial]));
                 let size = fs::metadata(partial).unwrap().len();
-                if kind == "writeback" {
+                if errno == 5 {
                     assert_eq!(native.operation, NativeIoOperation::Sync);
                     assert_eq!(size, COMPACTED);
                 } else {
@@ -176,8 +188,8 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 (size, "")
             };
             println!(
-                "{{\"stage\":\"fail\",\"operation\":\"{op}\",\"pid\":{pid},\"error\":14,\"category\":\"{:?}\",\"raw\":{errno},\"native_operation\":\"{:?}\",\"partial_bytes\":{size},\"source_unchanged\":true,\"backup_unchanged\":true{inventory}}}",
-                native.category, native.operation
+                "{{\"stage\":\"fail\",\"operation\":\"{op}\",\"pid\":{pid},\"error\":{},\"category\":\"{:?}\",\"raw\":{errno},\"native_operation\":\"{:?}\",\"partial_bytes\":{size},\"source_unchanged\":true,\"backup_unchanged\":true{inventory}}}",
+                failure.error as i32, native.category, native.operation
             );
         } else if mode == "space-retry" && inode {
             assert_eq!(names(dir), [source.to_path_buf(), backup.clone()].into());
@@ -195,10 +207,30 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
         } else if mode == "space-retry" {
             let partial = partial(dir, op);
             let bytes = fs::read(&partial).unwrap();
-            assert!(matches!(
-                storage::inspect_file(&partial, limits(COPY)),
-                Err(Error::Corrupt | Error::UnsupportedFormat)
-            ));
+            let inspection = storage::inspect_file(&partial, limits(COPY));
+            let disposition = if kind == "writeback-witness" {
+                let info = inspection.unwrap();
+                assert_eq!(info.revision, FINAL);
+                assert!(!info.witnessed);
+                assert_eq!(info.retained.len(), 64);
+                assert_eq!(info.committed_bytes, COMPACTED);
+                let good = fs::read(&backup).unwrap();
+                let start = 3 * storage::REGION;
+                let end = 4 * storage::REGION;
+                assert_eq!(bytes[..start], good[..start]);
+                assert_eq!(bytes[end..], good[end..]);
+                assert!(bytes[start..end].iter().all(|b| *b == 0));
+                "partial_verified_unwitnessed"
+            } else {
+                assert!(matches!(
+                    inspection,
+                    Err(Error::Corrupt | Error::UnsupportedFormat)
+                ));
+                if kind == "writeback-slot" {
+                    assert_eq!(inspection, Err(Error::Corrupt));
+                }
+                "partial_rejected"
+            };
             let existing = if replaces_source(op) {
                 false
             } else {
@@ -219,7 +251,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             assert_eq!(fs::read(actual).unwrap(), fs::read(backup).unwrap());
             assert_eq!(fs::read(&partial).unwrap(), bytes);
             println!(
-                "{{\"stage\":\"retry\",\"operation\":\"{op}\",\"pid\":{pid},\"partial_rejected\":true,\"existing_rejected\":{existing},\"partial_preserved\":true,\"matches_backup\":true}}"
+                "{{\"stage\":\"retry\",\"operation\":\"{op}\",\"pid\":{pid},\"{disposition}\":true,\"existing_rejected\":{existing},\"partial_preserved\":true,\"matches_backup\":true}}"
             );
         } else if mode == "space-retire" {
             if !inode {

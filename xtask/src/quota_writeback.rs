@@ -1,11 +1,13 @@
 //! Route one ext4 data block to a kernel error target at a commit barrier.
-use super::{Calls, Guest, Output, Scratch, cmd, fs, json, path, quota_oracle, sha};
+use super::{
+    Calls, CopyBarrier, Guest, Output, Scratch, Space, cmd, fs, json, path, quota_oracle, sha,
+};
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
 use std::{
     collections::BTreeSet,
     ffi::OsString,
-    io::Read,
+    io::{Read, Seek, SeekFrom},
     os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt},
     path::{Path, PathBuf},
     time::Duration,
@@ -728,6 +730,7 @@ pub(super) struct MaintenanceFault<'a> {
     scratch: &'a Scratch,
     shim: PathBuf,
     shim_hash: String,
+    barrier: CopyBarrier,
 }
 
 impl<'a> MaintenanceFault<'a> {
@@ -736,6 +739,7 @@ impl<'a> MaintenanceFault<'a> {
         scratch: &'a Scratch,
         calls: &mut Calls<'_, '_>,
         guest: &Guest,
+        barrier: CopyBarrier,
     ) -> Result<Self> {
         let archived = calls.c.output.join("frozen-source").join(GATE_SOURCE);
         let staged = scratch.directory.join("writeback_gate.c");
@@ -771,6 +775,7 @@ impl<'a> MaintenanceFault<'a> {
             scratch,
             shim,
             shim_hash,
+            barrier,
         })
     }
 
@@ -788,6 +793,8 @@ impl<'a> MaintenanceFault<'a> {
         let label = format!("writeback-{operation}");
         let gate = self.scratch.directory.join(format!("armed-{operation}"));
         let destination = format!("failed-{operation}.wdb");
+        let offset = self.barrier.offset();
+        let early = self.barrier == CopyBarrier::Data;
         let mut argv = guest.fixture_argv(vec![
             path(&guest.data),
             path(source),
@@ -798,11 +805,16 @@ impl<'a> MaintenanceFault<'a> {
             guest.drop.len()..guest.drop.len(),
             [
                 path(&calls.tools["env"]),
-                "WEEKEND_PRIVATE_MAINTENANCE=writeback".into(),
+                format!(
+                    "WEEKEND_PRIVATE_MAINTENANCE={}",
+                    Space::Writeback(self.barrier).profile()
+                )
+                .into(),
                 assignment("LD_PRELOAD", &self.shim),
                 assignment("WDB_WRITEBACK_DIRECTORY", &guest.data),
                 assignment("WDB_WRITEBACK_GATE", &gate),
                 format!("WDB_WRITEBACK_LABEL={label}").into(),
+                format!("WDB_WRITEBACK_BARRIER={}", self.barrier.name()).into(),
                 format!(
                     "WDB_WRITEBACK_TARGET={}",
                     if operation == "compact" {
@@ -838,7 +850,7 @@ impl<'a> MaintenanceFault<'a> {
                 let info = fs::symlink_metadata(&target)?;
                 ensure!(
                     info.is_file()
-                        && info.len() == 0
+                        && info.len() == if early { 0 } else { 63_074_304 }
                         && info.nlink() == 1
                         && info.uid() == guest.uid
                         && info.dev() == device
@@ -852,13 +864,18 @@ impl<'a> MaintenanceFault<'a> {
                     "-b512".into(),
                     path(&target),
                 ])?;
-                let sector = mapped_block(&geometry.stdout, 0, self.mapper.sectors, true)?;
+                let sector = mapped_block(
+                    &geometry.stdout,
+                    offset / SECTOR,
+                    self.mapper.sectors,
+                    early,
+                )?;
                 let fault = self.mapper.error_table(sector);
                 self.mapper.fault = Some(fault.clone());
                 self.mapper.switch(active, self.scratch, &fault, false)?;
                 Ok((
                     target,
-                    json!({"target":name,"sector":sector,"logical_offset":0,"length":BLOCK,
+                    json!({"target":name,"sector":sector,"logical_offset":offset,"length":BLOCK,"barrier":self.barrier.name(),
                     "device":device,"inode":inode,"active_table":fault,"linear_table":self.mapper.linear()}),
                 ))
             },
@@ -874,14 +891,19 @@ impl<'a> MaintenanceFault<'a> {
                 && proof["inode"] == persisted.ino(),
             "failed maintenance target changed identity after remount"
         );
-        let mut header = [0u8; BLOCK as usize];
-        fs::File::open(&target)?.read_exact(&mut header)?;
+        let mut block = [0u8; BLOCK as usize];
+        let mut file = fs::File::open(&target)?;
+        file.seek(SeekFrom::Start(offset))?;
+        file.read_exact(&mut block)?;
         ensure!(
-            header == [0; BLOCK as usize],
-            "failed target's first block persisted"
+            block == [0; BLOCK as usize],
+            "failed target block persisted"
         );
         proof["remounted"] = json!(true);
-        proof["failed_header_zero"] = json!(true);
+        proof["failed_block_zero"] = json!(true);
+        if early {
+            proof["failed_header_zero"] = json!(true);
+        }
         proof["failed_target_sha256"] = json!(sha(&target)?);
         let images = calls.c.output.join("failed-images");
         fs::create_dir_all(&images)?;
