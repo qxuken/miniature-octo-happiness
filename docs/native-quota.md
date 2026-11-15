@@ -4,6 +4,8 @@ The `linux-quota` job uses an isolated ext4 loop filesystem on an Ubuntu 24.04
 host. It exercises the real Linux file adapter, not an injected ByteStore error.
 The existing [tmpfs ENOSPC/permission drill](native-fault-drills.md) retains its
 own scope and guards.
+The same job also runs the separate [append writeback profile](native-writeback.md)
+against a device-mapped ext4 image.
 
 ## What the gate requires
 
@@ -34,7 +36,7 @@ The source-bound, core-only Rust fixture then executes in fresh processes:
 5. Remove owned ballast, retry once to revision 4, then reopen independently.
    Verify the complete new current data and unchanged retained revision 2.
 
-Both the fixture and independent Python oracle check full rows. The parent
+Both the fixture and independent Rust oracle check full rows. The parent
 rejects wrong types, missing/extra fields, stale revisions, damaged payloads,
 wrong source/features and substituted error categories. Fixture modes emit
 their actual process IDs; phases must use distinct processes.

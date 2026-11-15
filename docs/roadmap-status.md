@@ -1995,3 +1995,15 @@ name. Each reopened at revision 212 with all 64 retained roots before the
 directory regained write permission. Both retries matched the compacted
 control byte for byte. Actual namespace space exhaustion and delayed
 writeback remain open in F10.
+
+## Native append writeback failure and recovery
+
+At `fdb3ff2`, the [ext4 writeback profile](native-writeback.md) passed on
+Docker Linux arm64 and hosted Ubuntu x64. An isolated block-device fault
+returned kernel `EIO` during the append `fsync`. The live writer
+required recovery. Fresh processes reopened current revision 3 after
+remount and revision 4 after retry and a second remount, both with
+retained revision 2. The acknowledged file prefix remained byte-identical.
+The audit verified the exact fixture, both remounts and resource cleanup.
+This extends F03 to real pre-publication writeback failure. Native failures
+at slot, witness and maintenance barriers remain open.
