@@ -25,6 +25,7 @@ const INPUTS: &[&str] = &[
     "xtask/src/check.rs",
     "xtask/src/compatibility.rs",
     "xtask/src/qualification_net.rs",
+    "xtask/src/replica_progress.rs",
     "xtask/src/snapshot_proof.rs",
     "xtask/src/snapshot_upgrade.rs",
     "xtask/src/study_upgrade.rs",
@@ -38,7 +39,11 @@ const INPUTS: &[&str] = &[
     "tools/compatibility-snapshot.rs",
     "tools/compatibility-typed-v1.rs",
     "tools/compatibility-typed-v2.rs",
+    "tools/replica-progress-fixture/Cargo.lock",
+    "tools/replica-progress-fixture/Cargo.toml",
+    "tools/replica-progress-fixture/src/main.rs",
     "tools/snapshot-cli-upgrade-fixture.rs",
+    "tools/snapshot-test-keygen.rs",
     "tools/study-cli-upgrade-fixture.rs",
 ];
 

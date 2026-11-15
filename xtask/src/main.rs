@@ -58,7 +58,7 @@ mod quota_guest;
 mod quota_host;
 #[cfg(target_os = "linux")]
 mod quota_oracle;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod replica_progress;
 #[cfg(unix)]
 mod resource_campaign;
@@ -137,8 +137,8 @@ enum Task {
     #[cfg(unix)]
     MonthlyWorkload(monthly_workload::Options),
     /// Observe local, captured and follower progress through the native replication CLI.
-    #[cfg(unix)]
-    ReplicaProgress(replica_progress::Options),
+    #[cfg(any(unix, windows))]
+    ReplicaProgress(Box<replica_progress::Options>),
     /// Qualify the actual authenticated snapshot CLIs across two frozen revisions.
     #[cfg(any(unix, windows))]
     SnapshotCliUpgrade(snapshot_upgrade::Options),
@@ -332,8 +332,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::StudyCliUpgrade(options) => study_upgrade::run(&run, options),
         #[cfg(unix)]
         Task::MonthlyWorkload(options) => monthly_workload::run(&run, options),
-        #[cfg(unix)]
-        Task::ReplicaProgress(options) => replica_progress::run(options),
+        #[cfg(any(unix, windows))]
+        Task::ReplicaProgress(options) => replica_progress::run(*options),
         #[cfg(any(unix, windows))]
         Task::SnapshotCliUpgrade(options) => snapshot_upgrade::run(&run, options),
         #[cfg(unix)]

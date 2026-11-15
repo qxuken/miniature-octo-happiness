@@ -116,6 +116,37 @@ jobs:
             target/windows-study-upgrade/*.tar
             target/windows-study-upgrade/work/result/**
             !target/windows-study-upgrade/**/key.der
+      - name: Verify Windows replica progress after a lost TLS response and restart
+        if: runner.os == 'Windows'
+        id: windows_replica_progress
+        continue-on-error: true
+        shell: pwsh
+        env:
+          WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+        run: |
+          cargo build --offline --locked --release -p weekend-replicate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --offline --locked -p xtask
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --offline --locked --release --manifest-path tools/replica-progress-fixture/Cargo.toml --target-dir target/replica-progress-fixture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --offline --locked -p xtask --bin xtask replica_progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:REPLICA_PROGRESS_BIN = (Resolve-Path target/release/weekend-replicate.exe).Path
+          $env:REPLICA_PROGRESS_XTASK = (Resolve-Path target/debug/xtask.exe).Path
+          $env:REPLICA_PROGRESS_FIXTURE = (Resolve-Path target/replica-progress-fixture/release/replica-progress-fixture.exe).Path
+          $env:REPLICA_PROGRESS_EVIDENCE = 'target/windows-replica-progress'
+          cargo test --offline --locked -p xtask --bin xtask authenticated_observations_restarts_dropped_reply_and_stale_capture -- --ignored --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows replica progress evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-replica-progress-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-replica-progress/**
+            !target/windows-replica-progress/**/key.der
       - name: Qualify the private Windows package and relocation
         if: runner.os == 'Windows'
         run: cargo xtask package --output target/private-package --features crdt,replication
@@ -262,7 +293,7 @@ jobs:
             target/release/*.dll.lib
             include/weekend_db.h
       - name: Enforce the Windows fault and compatibility results
-        if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.windows_storage_wire.outcome == 'failure' || steps.windows_snapshot_upgrade.outcome == 'failure' || steps.windows_study_upgrade.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
+        if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.windows_storage_wire.outcome == 'failure' || steps.windows_snapshot_upgrade.outcome == 'failure' || steps.windows_study_upgrade.outcome == 'failure' || steps.windows_replica_progress.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
         shell: pwsh
         run: exit 1
       - name: Enforce the macOS maintenance fault result

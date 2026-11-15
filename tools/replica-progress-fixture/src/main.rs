@@ -1,7 +1,13 @@
 use weekend_db::{Database, Limits};
+#[cfg(windows)]
+#[path = "../../snapshot-test-keygen.rs"]
+mod credentials;
+
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     match args[1].as_str() {
+        #[cfg(windows)]
+        "keygen" => credentials::keygen(std::path::Path::new(&args[2])),
         "create" => {
             let db = Database::create_file(&args[2], Limits::default()).unwrap();
             let c = db.create_collection().unwrap();

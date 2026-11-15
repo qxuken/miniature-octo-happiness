@@ -159,6 +159,7 @@ fn drain(
     mut file: impl Write + Send + 'static,
     maximum: u64,
     overflow: Arc<AtomicBool>,
+    pipe_failed: Arc<AtomicBool>,
     failures: Arc<Mutex<Vec<String>>>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
@@ -186,7 +187,7 @@ fn drain(
                 .lock()
                 .unwrap()
                 .push(format!("pipe capture: {e:#}"));
-            overflow.store(true, Ordering::Relaxed);
+            pipe_failed.store(true, Ordering::Relaxed);
         }
     })
 }
@@ -226,6 +227,7 @@ fn owned(
     let mut job = None;
     let mut readers = vec![];
     let overflow = Arc::new(AtomicBool::new(false));
+    let pipe_failed = Arc::new(AtomicBool::new(false));
     let failures = Arc::new(Mutex::new(vec![]));
     let execution = (|| -> Result<()> {
         job = Some(Job::own_and_resume(&child)?);
@@ -234,6 +236,7 @@ fn owned(
             stdout,
             request.maximum,
             overflow.clone(),
+            pipe_failed.clone(),
             failures.clone(),
         ));
         readers.push(drain(
@@ -241,21 +244,21 @@ fn owned(
             stderr,
             request.maximum,
             overflow.clone(),
+            pipe_failed.clone(),
             failures.clone(),
         ));
         loop {
-            ensure!(
-                !overflow.load(Ordering::Relaxed),
-                "command output limit/read failure"
-            );
+            if overflow.load(Ordering::Relaxed) || pipe_failed.load(Ordering::Relaxed) {
+                break;
+            }
             if let Some(status) = child.try_wait()? {
                 report.exit = status.code().map(|n| i64::from(n as u32));
                 break;
             }
-            ensure!(
-                started.elapsed().as_secs_f64() < request.timeout,
-                "command deadline"
-            );
+            if started.elapsed().as_secs_f64() >= request.timeout {
+                report.timed_out = true;
+                anyhow::bail!("command deadline");
+            }
             if stop.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
                 report.stopped = true;
                 break;
@@ -318,11 +321,9 @@ fn owned(
             clean = false;
         }
     }
-    if overflow.load(Ordering::Relaxed) {
-        failures
-            .lock()
-            .unwrap()
-            .push("command output limit/read failure".into());
+    report.output_exceeded = overflow.load(Ordering::Relaxed);
+    if report.output_exceeded {
+        failures.lock().unwrap().push("command output limit".into());
     }
     report.cleanup_verified = clean;
     report.seconds = started.elapsed().as_secs_f64();

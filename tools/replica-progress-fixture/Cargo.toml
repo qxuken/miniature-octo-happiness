@@ -7,3 +7,6 @@ license = "MIT OR Apache-2.0"
 [workspace]
 [dependencies]
 weekend-db = { path = "../.." }
+
+[target.'cfg(windows)'.dependencies]
+rcgen = { version = "0.14.10", default-features = false, features = ["ring"] }

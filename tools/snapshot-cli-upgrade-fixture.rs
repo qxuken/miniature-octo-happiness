@@ -1,25 +1,8 @@
 use weekend_db::{Database, Limits};
 
 #[cfg(windows)]
-fn keygen(directory: &std::path::Path) {
-    use std::io::Write;
-    let rcgen::CertifiedKey { cert, signing_key } =
-        rcgen::generate_simple_self_signed(["weekend-replicate".to_owned()]).unwrap();
-    std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(directory.join("key.der"))
-        .unwrap()
-        .write_all(&signing_key.serialize_der())
-        .unwrap();
-    std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(directory.join("cert.der"))
-        .unwrap()
-        .write_all(cert.der().as_ref())
-        .unwrap();
-}
+#[path = "snapshot-test-keygen.rs"]
+mod credentials;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -29,7 +12,7 @@ fn main() {
     }
     match args[1].as_str() {
         #[cfg(windows)]
-        "keygen" => keygen(std::path::Path::new(&args[2])),
+        "keygen" => credentials::keygen(std::path::Path::new(&args[2])),
         "create" => {
             let db = Database::create_file(&args[2], Limits::default()).unwrap();
             let c = db.create_collection().unwrap();

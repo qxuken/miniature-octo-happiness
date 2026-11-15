@@ -1,20 +1,25 @@
 //! Versioned, independently validated observations of the native snapshot CLI.
-use crate::{
-    delivery,
-    supervise::{self, Request},
-    support::Scratch,
-};
+#[cfg(unix)]
+use crate::supervise::{self, Request};
+use crate::{delivery, support::Scratch};
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
+#[cfg(windows)]
+use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
 use std::{
     ffi::{OsStr, OsString},
-    fs::{self, OpenOptions},
-    io::{Read, Write},
-    os::unix::fs::{MetadataExt, OpenOptionsExt},
+    fs::{self, File, OpenOptions},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::SystemTime,
+    time::{Duration, Instant},
+};
+#[cfg(unix)]
+use std::{
+    os::unix::fs::{MetadataExt, OpenOptionsExt},
+    time::UNIX_EPOCH,
 };
 
 const SCHEMA: &str = "weekend-replica-progress";
@@ -396,6 +401,7 @@ fn valid_timestamp(value: &str) -> bool {
     year > 0 && (1..=max_day).contains(&day) && hour < 24 && minute < 60 && second < 60
 }
 
+#[cfg(unix)]
 fn timestamp() -> Result<String> {
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
     let seconds = libc::time_t::try_from(now.as_secs())?;
@@ -420,16 +426,42 @@ fn timestamp() -> Result<String> {
     Ok(value)
 }
 
+#[cfg(windows)]
+fn timestamp() -> Result<String> {
+    use windows_sys::Win32::{Foundation::SYSTEMTIME, System::SystemInformation::GetSystemTime};
+    let mut now = SYSTEMTIME::default();
+    // SAFETY: Windows writes the current UTC fields into the live output.
+    unsafe { GetSystemTime(&mut now) };
+    let value = format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:06}Z",
+        now.wYear,
+        now.wMonth,
+        now.wDay,
+        now.wHour,
+        now.wMinute,
+        now.wSecond,
+        u32::from(now.wMilliseconds) * 1000,
+    );
+    ensure!(valid_timestamp(&value), "invalid UTC clock observation");
+    Ok(value)
+}
+
+fn open_read_file(path: &Path) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NONBLOCK);
+    #[cfg(windows)]
+    options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
+    options.open(path)
+}
+
 fn prior_record(path: &Path) -> Observed<Record> {
     let fallible = || -> Result<Record> {
-        let file = OpenOptions::new()
-            .read(true)
-            .custom_flags(libc::O_NONBLOCK)
-            .open(path)?;
-        let metadata = file.metadata()?;
+        let file = open_read_file(path)?;
         ensure!(
-            metadata.is_file() && metadata.len() <= PRIOR_MAX,
-            "invalid prior file"
+            file_signature(&file)?.len <= PRIOR_MAX,
+            "oversized prior file"
         );
         let mut data = Vec::new();
         file.take(PRIOR_MAX + 1).read_to_end(&mut data)?;
@@ -486,14 +518,46 @@ fn follower_receipt(line: &str, expected: &str) -> Observed<Progress> {
     ))
 }
 
-fn metadata_signature(metadata: &fs::Metadata) -> (u64, u64, u64, i64, i64) {
-    (
-        metadata.dev(),
-        metadata.ino(),
-        metadata.len(),
-        metadata.mtime(),
-        metadata.mtime_nsec(),
-    )
+#[derive(PartialEq, Eq)]
+struct FileSignature {
+    identity: (u64, u64),
+    len: u64,
+    modified: SystemTime,
+}
+
+fn file_signature(file: &File) -> Result<FileSignature> {
+    let metadata = file.metadata()?;
+    ensure!(
+        metadata.is_file() && !delivery::reparse(&metadata),
+        "regular observation file required"
+    );
+    #[cfg(unix)]
+    let identity = (metadata.dev(), metadata.ino());
+    #[cfg(windows)]
+    let identity = {
+        use windows_sys::Win32::Storage::FileSystem::{
+            BY_HANDLE_FILE_INFORMATION, FILE_TYPE_DISK, GetFileInformationByHandle, GetFileType,
+        };
+        let handle = file.as_raw_handle();
+        let mut info = BY_HANDLE_FILE_INFORMATION::default();
+        // SAFETY: the file owns a live borrowed handle and the output is writable.
+        unsafe {
+            ensure!(GetFileType(handle) == FILE_TYPE_DISK, "disk file required");
+            ensure!(
+                GetFileInformationByHandle(handle, &mut info) != 0,
+                "file identity unavailable"
+            );
+        }
+        (
+            u64::from(info.dwVolumeSerialNumber),
+            (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow),
+        )
+    };
+    Ok(FileSignature {
+        identity,
+        len: metadata.len(),
+        modified: metadata.modified()?,
+    })
 }
 
 fn digest_file(
@@ -502,13 +566,9 @@ fn digest_file(
     deadline: Instant,
     invalid: Rejection,
 ) -> Observed<String> {
-    let mut file = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NONBLOCK)
-        .open(path)
-        .map_err(|_| invalid)?;
-    let before = file.metadata().map_err(|_| invalid)?;
-    if !before.is_file() || before.len() > maximum {
+    let mut file = open_read_file(path).map_err(|_| invalid)?;
+    let before = file_signature(&file).map_err(|_| invalid)?;
+    if before.len > maximum {
         return Err(invalid);
     }
     let mut hash = Sha256::new();
@@ -523,17 +583,15 @@ fn digest_file(
             break;
         }
         size += n as u64;
-        if size > before.len() {
+        if size > before.len {
             return Err(invalid);
         }
         hash.update(&buffer[..n]);
     }
-    let after = file.metadata().map_err(|_| invalid)?;
-    let reopened = fs::metadata(path).map_err(|_| invalid)?;
-    if size != before.len()
-        || metadata_signature(&before) != metadata_signature(&after)
-        || metadata_signature(&before) != metadata_signature(&reopened)
-    {
+    let after = file_signature(&file).map_err(|_| invalid)?;
+    let reopened =
+        file_signature(&open_read_file(path).map_err(|_| invalid)?).map_err(|_| invalid)?;
+    if size != before.len || before != after || before != reopened {
         return Err(invalid);
     }
     Ok(format!("{:x}", hash.finalize()))
@@ -553,20 +611,45 @@ impl Probe<'_> {
         }
         let argv = std::iter::once(self.options.binary.as_os_str())
             .chain(args.iter().copied())
+            .map(OsStr::to_owned)
+            .collect::<Vec<_>>();
+        self.command += 1;
+        let stdout = self.directory.join(format!("{}.stdout", self.command));
+        let stderr = self.directory.join(format!("{}.stderr", self.command));
+        let code = Self::run_cli(&argv, &stdout, &stderr, remaining)?;
+        let text = fs::read(stdout).map_err(|_| Rejection::CliFailure)?;
+        if !text.is_ascii() {
+            return Err(Rejection::ParseError);
+        }
+        let lines = std::str::from_utf8(&text)
+            .map_err(|_| Rejection::ParseError)?
+            .lines()
+            .map(ToOwned::to_owned)
+            .collect();
+        Ok((code, lines))
+    }
+
+    #[cfg(unix)]
+    fn run_cli(
+        argv: &[OsString],
+        stdout: &Path,
+        stderr: &Path,
+        remaining: Duration,
+    ) -> Observed<i32> {
+        let argv = argv
+            .iter()
             .map(|arg| {
                 arg.to_str()
                     .map(ToOwned::to_owned)
                     .ok_or(Rejection::CliFailure)
             })
             .collect::<Observed<_>>()?;
-        self.command += 1;
-        let stdout = self.directory.join(format!("{}.stdout", self.command));
         let result = supervise::run(&Request {
             argv,
             cwd: None,
             env: None,
-            stdout: stdout.clone(),
-            stderr: self.directory.join(format!("{}.stderr", self.command)),
+            stdout: stdout.to_owned(),
+            stderr: stderr.to_owned(),
             report: None,
             timeout_seconds: remaining.as_secs_f64(),
             maximum_bytes: TEXT_MAX,
@@ -591,16 +674,42 @@ impl Probe<'_> {
         {
             return Err(Rejection::CliFailure);
         }
-        let text = fs::read(stdout).map_err(|_| Rejection::CliFailure)?;
-        if !text.is_ascii() {
+        Ok(code)
+    }
+
+    #[cfg(windows)]
+    fn run_cli(
+        argv: &[OsString],
+        stdout: &Path,
+        stderr: &Path,
+        remaining: Duration,
+    ) -> Observed<i32> {
+        use crate::trace_process::{self, Request};
+        let cwd = std::env::current_dir().map_err(|_| Rejection::CliFailure)?;
+        let env = std::env::vars_os().collect();
+        let result = trace_process::run(&Request {
+            argv,
+            cwd: &cwd,
+            env: &env,
+            stdout,
+            stderr,
+            timeout: remaining.as_secs_f64(),
+            maximum: TEXT_MAX,
+        })
+        .map_err(|_| Rejection::CliFailure)?;
+        if !result.cleanup_verified || result.stopped {
+            return Err(Rejection::CliFailure);
+        }
+        if result.timed_out {
+            return Err(Rejection::Timeout);
+        }
+        if result.output_exceeded && result.failure.as_deref() == Some("command output limit") {
             return Err(Rejection::ParseError);
         }
-        let lines = std::str::from_utf8(&text)
-            .map_err(|_| Rejection::ParseError)?
-            .lines()
-            .map(ToOwned::to_owned)
-            .collect();
-        Ok((code, lines))
+        if !result.qualifies(true) {
+            return Err(Rejection::CliFailure);
+        }
+        i32::try_from(result.exit.ok_or(Rejection::CliFailure)?).map_err(|_| Rejection::CliFailure)
     }
 
     fn describe(&mut self, path: &Path) -> Observed<(u64, String)> {
@@ -790,11 +899,11 @@ fn admit(options: &Options) -> Result<()> {
 }
 
 fn save(path: &Path, bytes: &[u8]) -> Result<()> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(path)?;
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = options.open(path)?;
     file.write_all(bytes)?;
     file.sync_all()?;
     Ok(())
@@ -820,6 +929,11 @@ pub fn run(options: Options) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use crate::assurance::Campaign;
+    #[cfg(windows)]
+    use crate::windows_compatibility::Campaign;
+    #[cfg(unix)]
     use std::os::unix::fs::{PermissionsExt, symlink};
 
     const STREAM: &str = "11111111111111111111111111111111";
@@ -961,16 +1075,19 @@ mod tests {
             timeout: 3.,
         }
     }
+    #[cfg(unix)]
     fn script(binary: &Path, content: &str) {
         fs::write(binary, format!("#!/bin/sh\n{content}\n")).unwrap();
         fs::set_permissions(binary, fs::Permissions::from_mode(0o700)).unwrap();
     }
+    #[cfg(unix)]
     fn describe_rows(revision: &str, identity: &str) -> String {
         format!(
             "local verified_revision={revision} stream={STREAM} file_identity={identity}\nweekend-replicate follower-init EMPTY_DIR {STREAM} {identity}\n"
         )
     }
 
+    #[cfg(unix)]
     #[test]
     fn invalid_identity_and_oversized_revision_reject_before_poll() {
         let tmp = Scratch::new(&std::env::temp_dir(), "replica-parse").unwrap();
@@ -999,7 +1116,22 @@ mod tests {
     fn excessive_output_is_rejected_before_the_child_deadline() {
         let tmp = Scratch::new(&std::env::temp_dir(), "replica-output").unwrap();
         let options = options(tmp.path());
+        #[cfg(unix)]
         script(&options.binary, "head -c 9000 /dev/zero; exec sleep 30");
+        #[cfg(unix)]
+        let args: &[&OsStr] = &[];
+        #[cfg(windows)]
+        let options = Options {
+            binary: "cmd.exe".into(),
+            ..options
+        };
+        #[cfg(windows)]
+        let args = &[
+            "/D".as_ref(),
+            "/Q".as_ref(),
+            "/C".as_ref(),
+            "for /L %i in (1,1,1000000) do @echo abcdefghijklmnopqrstuvwxyz".as_ref(),
+        ];
         let started = Instant::now();
         let mut probe = Probe {
             options: &options,
@@ -1007,7 +1139,7 @@ mod tests {
             deadline: started + Duration::from_secs(10),
             command: 0,
         };
-        assert_eq!(probe.invoke(&[]), Err(Rejection::ParseError));
+        assert_eq!(probe.invoke(args), Err(Rejection::ParseError));
         assert!(started.elapsed() < Duration::from_secs(5));
         assert_eq!(
             fs::metadata(tmp.path().join("1.stdout")).unwrap().len(),
@@ -1015,6 +1147,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn observer_log_setup_failure_launches_no_child() {
         let tmp = Scratch::new(&std::env::temp_dir(), "replica-output").unwrap();
@@ -1034,6 +1167,7 @@ mod tests {
         assert!(!tmp.path().join("1.stderr").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn timeout_keeps_valid_prior_as_historical_only() {
         let tmp = Scratch::new(&std::env::temp_dir(), "replica-timeout").unwrap();
@@ -1064,11 +1198,16 @@ mod tests {
         let tmp = Scratch::new(&std::env::temp_dir(), "replica-save").unwrap();
         let mut options = options(tmp.path());
         let existing = tmp.path().join("prior.json");
-        let link = tmp.path().join("dangling");
         fs::write(&existing, b"keep").unwrap();
+        #[cfg(unix)]
+        let link = tmp.path().join("dangling");
+        #[cfg(unix)]
         symlink(tmp.path().join("missing"), &link).unwrap();
-        script(&options.binary, "touch \"$(dirname \"$0\")/invoked\"");
-        for path in [&existing, &link] {
+        #[cfg(unix)]
+        let destinations = [&existing, &link];
+        #[cfg(windows)]
+        let destinations = [&existing];
+        for path in destinations {
             options.save = Some(path.to_owned());
             assert!(admit(&options).is_err());
         }
@@ -1076,6 +1215,7 @@ mod tests {
         assert!(!tmp.path().join("invoked").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn failed_ship_preserves_verified_local_capture_without_acknowledgment() {
         let tmp = Scratch::new(&std::env::temp_dir(), "replica-ship").unwrap();
@@ -1099,6 +1239,90 @@ mod tests {
         assert_eq!(record.follower, Progress::empty(State::Unknown));
         let encoded = serde_json::to_string(&record).unwrap();
         assert!(!encoded.contains("SECRET") && !encoded.contains("PRIVATE"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_child_deadline_rejects_without_using_transport_output() {
+        let tmp = Scratch::new(&std::env::temp_dir(), "replica-timeout").unwrap();
+        let options = Options {
+            binary: "cmd.exe".into(),
+            ..options(tmp.path())
+        };
+        let mut probe = Probe {
+            options: &options,
+            directory: tmp.path(),
+            deadline: Instant::now() + Duration::from_secs(2),
+            command: 0,
+        };
+        let args = [
+            "/D".as_ref(),
+            "/Q".as_ref(),
+            "/C".as_ref(),
+            "echo incomplete&ping -n 30 127.0.0.1 >nul".as_ref(),
+        ];
+        assert_eq!(probe.invoke(&args), Err(Rejection::Timeout));
+    }
+
+    #[cfg(unix)]
+    fn scenario_observe(
+        _: &mut Campaign<'_>,
+        options: &Options,
+        _: &str,
+        _: bool,
+    ) -> Result<Record> {
+        let record = observe(options)?;
+        if let Some(path) = &options.save {
+            save(path, &serde_json::to_vec(&record)?)?;
+        }
+        Ok(record)
+    }
+
+    #[cfg(windows)]
+    fn scenario_observe(
+        c: &mut Campaign<'_>,
+        options: &Options,
+        label: &str,
+        failure: bool,
+    ) -> Result<Record> {
+        use crate::support::{cmd, path};
+        let mut argv = vec![path(c.output.join("xtask.exe")), "replica-progress".into()];
+        for (flag, value) in [
+            ("--binary", path(&options.binary)),
+            ("--source", path(&options.source)),
+            ("--stream", path(&options.stream)),
+            ("--peer", path(&options.peer)),
+            ("--credentials", path(&options.credentials)),
+            ("--pin", path(&options.pin)),
+            ("--timeout", options.timeout.to_string().into()),
+        ] {
+            argv.extend([flag.into(), value]);
+        }
+        if let Some(ship) = &options.ship {
+            argv.extend(["--ship".into(), path(ship)]);
+        } else {
+            argv.extend(cmd(["--poll"]));
+        }
+        for (flag, file) in [
+            ("--capture", &options.capture),
+            ("--previous", &options.previous),
+            ("--save", &options.save),
+        ] {
+            if let Some(file) = file {
+                argv.extend([flag.into(), path(file)]);
+            }
+        }
+        let stdout = if failure {
+            c.command_exit(argv, label, 1, 45.)?
+        } else {
+            c.command(argv, label, None, 45.)?
+        };
+        let record: Record = serde_json::from_value(delivery::json(stdout.as_bytes())?)?;
+        ensure!(
+            record.valid() && record.error.is_some() == failure,
+            "invalid native observation"
+        );
+        Ok(record)
     }
 
     fn drop_responses<T>(
@@ -1175,26 +1399,78 @@ mod tests {
     #[ignore = "requires REPLICA_PROGRESS_BIN and REPLICA_PROGRESS_FIXTURE"]
     fn authenticated_observations_restarts_dropped_reply_and_stale_capture() {
         use crate::{
-            assurance::Campaign,
-            snapshot_proof::{description_identity, receipt, scrub_keys, selected_slot},
+            snapshot_proof::{
+                description_identity, finish_with_key_cleanup, receipt, selected_slot,
+            },
             support::{Run, path},
         };
-        let binary = fs::canonicalize(std::env::var_os("REPLICA_PROGRESS_BIN").unwrap()).unwrap();
+        let binary =
+            dunce::canonicalize(std::env::var_os("REPLICA_PROGRESS_BIN").unwrap()).unwrap();
         let fixture =
-            fs::canonicalize(std::env::var_os("REPLICA_PROGRESS_FIXTURE").unwrap()).unwrap();
+            dunce::canonicalize(std::env::var_os("REPLICA_PROGRESS_FIXTURE").unwrap()).unwrap();
+        #[cfg(unix)]
         let tmp = Scratch::new(&std::env::temp_dir(), "native-observation").unwrap();
+        #[cfg(unix)]
         let run = Run::new(tmp.path().to_owned());
+        #[cfg(unix)]
         let mut c = Campaign::detached(
             &run,
             &tmp.path().join("report"),
             "native authenticated observation",
         )
         .unwrap();
-        let result = (|| -> Result<()> {
-            let follower = tmp.path().join("follower");
-            let client = tmp.path().join("client");
-            let server = tmp.path().join("server");
-            let mut options = options(tmp.path());
+        #[cfg(unix)]
+        let data = tmp.path().to_owned();
+        #[cfg(windows)]
+        let run = Run::new(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .to_owned(),
+        );
+        #[cfg(windows)]
+        let mut c = Campaign::new(
+            &run,
+            Path::new(
+                &std::env::var_os("REPLICA_PROGRESS_EVIDENCE")
+                    .expect("fresh evidence output required"),
+            ),
+            "native authenticated observation",
+        )
+        .unwrap();
+        #[cfg(windows)]
+        let data = c.output.join("work");
+        let follower = data.join("follower");
+        let client = data.join("client");
+        let server = data.join("server");
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<()> {
+            #[cfg(windows)]
+            let (binary, fixture) = {
+                use crate::support::sha;
+                fs::create_dir(&data)?;
+                c.restrict_directories(&[("work", &data)])?;
+                c.env.retain(|name, _| {
+                    !name.eq_ignore_ascii_case("TMP") && !name.eq_ignore_ascii_case("TEMP")
+                });
+                for name in ["TMP", "TEMP"] {
+                    c.env.insert(name.into(), path(&data));
+                }
+                let cli = c.output.join("weekend-replicate.exe");
+                let files = c.output.join("replica-progress-fixture.exe");
+                let observer = c.output.join("xtask.exe");
+                fs::copy(binary, &cli)?;
+                fs::copy(fixture, &files)?;
+                fs::copy(
+                    std::env::var_os("REPLICA_PROGRESS_XTASK")
+                        .context("native xtask executable required")?,
+                    &observer,
+                )?;
+                c.evidence["cli_sha256"] = serde_json::json!(sha(&cli)?);
+                c.evidence["fixture_sha256"] = serde_json::json!(sha(&files)?);
+                c.evidence["observer_sha256"] = serde_json::json!(sha(&observer)?);
+                (cli, files)
+            };
+            let mut options = options(&data);
             options.binary = binary;
             options.credentials = client.clone();
             options.pin = server.join("cert.der");
@@ -1207,8 +1483,15 @@ mod tests {
                 45.,
             )?;
             for (label, dir) in [("key-client", &client), ("key-server", &server)] {
+                #[cfg(unix)]
+                let keygen = &options.binary;
+                #[cfg(windows)]
+                let keygen = {
+                    fs::create_dir(dir)?;
+                    &fixture
+                };
                 c.command(
-                    vec![path(&options.binary), "keygen".into(), path(dir)],
+                    vec![path(keygen), "keygen".into(), path(dir)],
                     label,
                     None,
                     45.,
@@ -1251,10 +1534,10 @@ mod tests {
                 "20".into(),
             ];
             let limits = (Duration::from_secs(10), 150.);
-            let export = tmp.path().join("first.export");
-            c.loopback(serve.clone(), "initial-server", limits, false, |_, addr| {
+            let export = data.join("first.export");
+            c.loopback(serve.clone(), "initial-server", limits, false, |c, addr| {
                 options.peer = addr.to_string();
-                let empty = observe(&options)?;
+                let empty = scenario_observe(c, &options, "empty", false)?;
                 assert_eq!(empty.error, None);
                 assert_eq!(empty.follower.state, State::Empty);
                 options.ship = Some(export.clone());
@@ -1262,29 +1545,32 @@ mod tests {
                 options.timeout = 3.;
                 let (uncertain, discarded) = drop_responses(addr, |proxy| {
                     options.peer = proxy.to_string();
-                    observe(&options)
+                    scenario_observe(c, &options, "lost-reply", true)
                 });
                 let uncertain = uncertain?;
                 assert!(discarded > 0);
                 assert!(uncertain.error.is_some());
                 assert_eq!(uncertain.follower, Progress::empty(State::Unknown));
+                c.evidence["discarded_tls_reply_bytes"] = serde_json::json!(discarded);
                 Ok(())
             })?;
-            let saved = tmp.path().join("prior.json");
+            let saved = data.join("prior.json");
             let first = c.loopback(serve, "restarted-server", limits, false, |c, addr| {
                 options.peer = addr.to_string();
                 options.ship = None;
                 options.poll = true;
                 options.timeout = 10.;
                 options.capture = Some(export.clone());
-                let confirmed = observe(&options)?;
+                options.save = Some(saved.clone());
+                let confirmed = scenario_observe(c, &options, "reopened-receipt", false)?;
+                options.save = None;
                 assert_eq!(confirmed.error, None);
                 assert_eq!(confirmed.relation, Relation::ExactCapture);
                 assert_eq!(confirmed.follower.revision, Some(3));
-                save(&saved, &serde_json::to_vec(&confirmed)?)?;
+                #[cfg(unix)]
                 assert_eq!(fs::metadata(&saved)?.permissions().mode() & 0o777, 0o600);
                 options.previous = Some(saved.clone());
-                let duplicate = observe(&options)?;
+                let duplicate = scenario_observe(c, &options, "repeat-poll", false)?;
                 assert_eq!(duplicate.error, None);
                 assert_eq!(duplicate.prior.state, PriorState::Consistent);
                 c.command(
@@ -1293,22 +1579,22 @@ mod tests {
                     None,
                     45.,
                 )?;
-                let second = tmp.path().join("second.export");
+                let second = data.join("second.export");
                 options.ship = Some(second.clone());
                 options.poll = false;
                 options.capture = None;
-                let newer = observe(&options)?;
+                let newer = scenario_observe(c, &options, "ship-newer", false)?;
                 assert_eq!(newer.error, None);
                 assert_eq!(newer.follower.revision, Some(4));
                 assert_eq!(newer.prior.state, PriorState::Superseded);
                 options.ship = None;
                 options.poll = true;
                 options.capture = Some(export);
-                let stale = observe(&options)?;
+                let stale = scenario_observe(c, &options, "stale-capture", false)?;
                 assert_eq!(stale.error, None);
                 assert_eq!(stale.relation, Relation::NewerThanCapture);
                 assert_ne!(stale.follower.digest, stale.capture.digest);
-                let changed = tmp.path().join("changed.export");
+                let changed = data.join("changed.export");
                 fs::copy(second, &changed)?;
                 OpenOptions::new()
                     .append(true)
@@ -1316,18 +1602,24 @@ mod tests {
                     .write_all(&[0; 4096])?;
                 options.capture = Some(changed);
                 options.previous = None;
-                assert_eq!(observe(&options)?.error, Some(Rejection::DigestConflict));
+                assert_eq!(
+                    scenario_observe(c, &options, "changed-export", true)?.error,
+                    Some(Rejection::DigestConflict)
+                );
                 let mut foreign = confirmed.clone();
                 foreign.enrollment.file_identity = Some("ff".repeat(16));
-                let foreign_path = tmp.path().join("foreign.json");
+                let foreign_path = data.join("foreign.json");
                 save(&foreign_path, &serde_json::to_vec(&foreign)?)?;
                 options.capture = None;
                 options.previous = Some(foreign_path);
-                assert_eq!(observe(&options)?.error, Some(Rejection::IdentityMismatch));
+                assert_eq!(
+                    scenario_observe(c, &options, "foreign-prior", true)?.error,
+                    Some(Rejection::IdentityMismatch)
+                );
                 Ok(confirmed)
             })?;
             options.previous = Some(saved);
-            let unavailable = observe(&options)?;
+            let unavailable = scenario_observe(&mut c, &options, "unavailable", true)?;
             assert_eq!(unavailable.prior.state, PriorState::HistoricalOnly);
             assert_eq!(unavailable.prior.observed_at, Some(first.observed_at));
             assert_eq!(unavailable.follower, Progress::empty(State::Unavailable));
@@ -1353,9 +1645,15 @@ mod tests {
                     45.,
                 )?;
             }
-            scrub_keys(&[&client, &server])?;
             Ok(())
-        })();
+        }))
+        .unwrap_or_else(|_| {
+            Err(anyhow::anyhow!(
+                "native replica observation assertion failed"
+            ))
+        });
+        let result =
+            finish_with_key_cleanup(&mut c.evidence, &c.output, result, &[&client, &server]);
         c.finish(result).unwrap();
     }
 }

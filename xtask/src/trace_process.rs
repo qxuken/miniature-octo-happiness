@@ -14,6 +14,10 @@ pub struct Report {
     pub failure: Option<String>,
     #[cfg(windows)]
     pub stopped: bool,
+    #[cfg(windows)]
+    pub timed_out: bool,
+    #[cfg(windows)]
+    pub output_exceeded: bool,
 }
 impl Report {
     #[cfg(windows)]
@@ -48,7 +52,7 @@ fn admit(request: &Request<'_>) -> Result<()> {
         !request.argv.is_empty()
             && request.timeout.is_finite()
             && request.timeout > 0.
-            && request.timeout <= 300.
+            && request.timeout <= 600.
             && request.maximum > 0
             && request.maximum <= 64 * 1024 * 1024,
         "invalid trace process request"
