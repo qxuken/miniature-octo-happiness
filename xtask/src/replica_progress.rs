@@ -28,6 +28,8 @@ const PRIOR_MAX: u64 = 16_384;
 const IMAGE_MAX: u64 = 64 * 1024 * 1024;
 const BINARY_MAX: u64 = 256 * 1024 * 1024;
 
+mod monitor;
+
 #[derive(Args)]
 #[group(id = "replica-progress-options", multiple = true)]
 pub struct Options {
@@ -57,6 +59,11 @@ pub struct Options {
     attempts: u8,
     #[arg(long, default_value_t = 110.0)]
     timeout: f64,
+    #[arg(long, requires = "poll", conflicts_with_all = ["previous", "save"],
+        value_parser = clap::value_parser!(u8).range(1..=64))]
+    samples: Option<u8>,
+    #[arg(long, requires = "samples", value_parser = clap::value_parser!(u64).range(100..=60_000))]
+    interval_ms: Option<u64>,
 }
 
 // Missing nullable fields and explicit null have distinct meanings in v1.
@@ -742,7 +749,7 @@ impl Probe<'_> {
         Ok(Progress::observed(State::Verified, revision, digest))
     }
 
-    fn check(&mut self, record: &mut Record) -> Observed<()> {
+    fn check(&mut self, record: &mut Record, previous: Option<&Record>) -> Observed<()> {
         let options = self.options;
         record.cli_sha256 = Some(digest_file(
             &options.binary,
@@ -750,30 +757,28 @@ impl Probe<'_> {
             self.deadline,
             Rejection::CliFailure,
         )?);
-        let prior = if let Some(path) = &options.previous {
+        let saved = if let Some(path) = &options.previous {
             match prior_record(path) {
-                Ok(prior) => {
-                    record.prior = Prior {
-                        state: PriorState::HistoricalOnly,
-                        observed_at: Some(prior.observed_at.clone()),
-                    };
-                    Some(prior)
-                }
+                Ok(prior) => Some(prior),
                 Err(reason) => return record.reject_prior(reason),
             }
         } else {
             None
         };
+        let prior = previous.or(saved.as_ref());
+        if let Some(prior) = prior {
+            record.prior = Prior {
+                state: PriorState::HistoricalOnly,
+                observed_at: Some(prior.observed_at.clone()),
+            };
+        }
         let (rev, identity) = self.describe(&options.source)?;
         record.enrollment.file_identity = Some(identity.clone());
         record.local = Local {
             state: State::Verified,
             revision: Some(rev),
         };
-        if prior
-            .as_ref()
-            .is_some_and(|p| p.enrollment != record.enrollment)
-        {
+        if prior.is_some_and(|p| p.enrollment != record.enrollment) {
             return record.reject_prior(Rejection::IdentityMismatch);
         }
         if let Some(path) = &options.capture {
@@ -830,11 +835,15 @@ impl Probe<'_> {
         if latest_identity != identity || Some(latest) < record.local.revision {
             return Err(Rejection::IdentityMismatch);
         }
-        record.reconcile(prior.as_ref())
+        record.reconcile(prior)
     }
 }
 
 fn observe(options: &Options) -> Result<Record> {
+    observe_with_prior(options, None)
+}
+
+fn observe_with_prior(options: &Options, prior: Option<&Record>) -> Result<Record> {
     let action = if options.ship.is_some() {
         Action::Ship
     } else {
@@ -851,7 +860,7 @@ fn observe(options: &Options) -> Result<Record> {
             deadline,
             command: 0,
         }
-        .check(&mut record)
+        .check(&mut record, prior)
     })();
     if let Err(reason) = result {
         record.error = Some(reason);
@@ -881,6 +890,20 @@ fn admit(options: &Options) -> Result<()> {
         options.poll != options.ship.is_some() && (options.capture.is_none() || options.poll),
         "choose ship or poll; capture belongs to poll"
     );
+    if let Some(samples) = options.samples {
+        ensure!(
+            (1..=64).contains(&samples)
+                && options.poll
+                && options.previous.is_none()
+                && options.save.is_none()
+                && options
+                    .interval_ms
+                    .is_none_or(|ms| (100..=60_000).contains(&ms)),
+            "sampled polling requires 1..64 samples and a 100..60000 millisecond interval"
+        );
+    } else {
+        ensure!(options.interval_ms.is_none(), "interval requires samples");
+    }
     if let Some(path) = &options.save {
         let parent = path.parent().context("observation save parent required")?;
         let parent = if parent.as_os_str().is_empty() {
@@ -911,6 +934,9 @@ fn save(path: &Path, bytes: &[u8]) -> Result<()> {
 
 pub fn run(options: Options) -> Result<()> {
     admit(&options)?;
+    if let Some(samples) = options.samples {
+        return monitor::run(&options, samples, io::stdout().lock());
+    }
     let record = observe(&options)?;
     let output = serde_json::to_value(&record)?;
     let encoded = format!("{output}\n");
@@ -1073,7 +1099,57 @@ mod tests {
             save: None,
             attempts: 1,
             timeout: 3.,
+            samples: None,
+            interval_ms: None,
         }
+    }
+
+    #[test]
+    fn sampled_progress_keeps_durable_age_and_catch_up_separate_from_failed_probes() {
+        let poll = |local, durable: Option<u64>, error| {
+            let mut record = sample();
+            record.local.revision = Some(local);
+            record.capture = Progress::empty(State::None);
+            record.follower = durable.map_or_else(
+                || Progress::empty(State::Empty),
+                |revision| Progress::observed(State::Durable, revision, "33".repeat(32)),
+            );
+            record.error = error;
+            record.relation = record.relation();
+            assert!(record.valid());
+            record
+        };
+        let mut monitor = monitor::Monitor::default();
+        let mut measure = |number, ms, record| {
+            monitor.sample(number, Duration::from_millis(ms), Duration::ZERO, record)
+        };
+        let empty = measure(1, 10, poll(3, None, None));
+        assert!(empty["revision_gap"].is_null());
+        assert!(empty["last_durable"].is_null());
+        assert_eq!(empty["waiting_for"]["revision"], 3);
+        let behind = measure(2, 20, poll(4, Some(3), None));
+        assert_eq!(behind["revision_gap"], 1);
+        assert_eq!(behind["caught_up"]["observed_after_ms"], 10);
+        assert_eq!(behind["waiting_for"]["revision"], 4);
+
+        // An authenticated response can still be rejected by reconciliation.
+        let conflict = measure(3, 35, poll(4, Some(4), Some(Rejection::DigestConflict)));
+        assert_eq!(conflict["accepted"], false);
+        assert!(conflict["revision_gap"].is_null());
+        assert!(conflict["waiting_for"].is_null());
+        assert!(conflict["caught_up"].is_null());
+        assert_eq!(conflict["last_durable"]["revision"], 3);
+        assert_eq!(conflict["last_durable"]["age_ms"], 15);
+
+        let advanced = measure(4, 60, poll(5, Some(4), None));
+        assert_eq!(advanced["revision_gap"], 1);
+        assert_eq!(advanced["caught_up"]["revision"], 4);
+        assert_eq!(advanced["caught_up"]["observed_after_ms"], 40);
+        assert_eq!(advanced["waiting_for"]["revision"], 5);
+        let current = measure(5, 80, poll(5, Some(5), None));
+        assert!(current["waiting_for"].is_null());
+        assert_eq!(current["revision_gap"], 0);
+        assert_eq!(current["last_durable"]["age_ms"], 0);
     }
     #[cfg(unix)]
     fn script(binary: &Path, content: &str) {
@@ -1085,6 +1161,68 @@ mod tests {
         format!(
             "local verified_revision={revision} stream={STREAM} file_identity={identity}\nweekend-replicate follower-init EMPTY_DIR {STREAM} {identity}\n"
         )
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sampled_poll_rejects_regression_after_an_unavailable_sample_and_continues() {
+        let tmp = Scratch::new(&std::env::temp_dir(), "replica-monitor").unwrap();
+        let mut options = options(tmp.path());
+        options.samples = Some(4);
+        options.interval_ms = Some(100);
+        script(
+            &options.binary,
+            &format!(
+                r#"
+if [ "$1" = describe ]; then
+  printf '%s' '{}'
+  exit 0
+fi
+counter="$(dirname "$0")/poll-count"
+count=0
+if [ -f "$counter" ]; then read -r count < "$counter"; fi
+count=$((count + 1))
+printf '%s\n' "$count" > "$counter"
+printf '%s\n' 'local verified_revision=4'
+case "$count" in
+  1) next=3 ;;
+  3) next=2 ;;
+  4) next=4 ;;
+  *) exit 1 ;;
+esac
+printf 'follower durable_revision=%s stream={STREAM} digest={}\n' "$next"
+"#,
+                describe_rows("4", IDENTITY),
+                "33".repeat(32)
+            ),
+        );
+        admit(&options).unwrap();
+        let mut output = Vec::new();
+        monitor::run(&options, 4, &mut output).unwrap();
+        let rows: Vec<_> = std::str::from_utf8(&output)
+            .unwrap()
+            .lines()
+            .map(|line| delivery::json(line.as_bytes()).unwrap())
+            .collect();
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0]["revision_gap"], 1);
+        assert_eq!(rows[1]["observation"]["error"], "cli_failure");
+        assert_eq!(rows[2]["observation"]["error"], "follower_regression");
+        for stale in &rows[1..3] {
+            assert_eq!(stale["accepted"], false);
+            assert_eq!(stale["last_durable"]["revision"], 3);
+            assert!(stale["last_durable"]["age_ms"].as_u64().unwrap() >= 100);
+            assert!(stale["revision_gap"].is_null());
+        }
+        assert_eq!(rows[3]["accepted"], true);
+        assert_eq!(rows[3]["caught_up"]["revision"], 4);
+        assert_eq!(rows[3]["last_durable"]["age_ms"], 0);
+
+        output.clear();
+        assert!(monitor::run(&options, 1, &mut output).is_err());
+        let failed = delivery::json(&output).unwrap();
+        assert_eq!(failed["accepted"], false);
+        assert!(failed["last_durable"].is_null());
     }
 
     #[cfg(unix)]
@@ -1278,15 +1416,9 @@ mod tests {
         Ok(record)
     }
 
-    #[cfg(windows)]
-    fn scenario_observe(
-        c: &mut Campaign<'_>,
-        options: &Options,
-        label: &str,
-        failure: bool,
-    ) -> Result<Record> {
+    fn scenario_args(executable: &Path, options: &Options) -> Vec<OsString> {
         use crate::support::{cmd, path};
-        let mut argv = vec![path(c.output.join("xtask.exe")), "replica-progress".into()];
+        let mut argv = vec![path(executable), "replica-progress".into()];
         for (flag, value) in [
             ("--binary", path(&options.binary)),
             ("--source", path(&options.source)),
@@ -1312,6 +1444,23 @@ mod tests {
                 argv.extend([flag.into(), path(file)]);
             }
         }
+        if let Some(samples) = options.samples {
+            argv.extend(["--samples".into(), samples.to_string().into()]);
+        }
+        if let Some(interval) = options.interval_ms {
+            argv.extend(["--interval-ms".into(), interval.to_string().into()]);
+        }
+        argv
+    }
+
+    #[cfg(windows)]
+    fn scenario_observe(
+        c: &mut Campaign<'_>,
+        options: &Options,
+        label: &str,
+        failure: bool,
+    ) -> Result<Record> {
+        let argv = scenario_args(&c.output.join("xtask.exe"), options);
         let stdout = if failure {
             c.command_exit(argv, label, 1, 45.)?
         } else {
@@ -1323,6 +1472,31 @@ mod tests {
             "invalid native observation"
         );
         Ok(record)
+    }
+
+    fn scenario_monitor(c: &mut Campaign<'_>, options: &Options) -> Result<Vec<serde_json::Value>> {
+        admit(options)?;
+        #[cfg(unix)]
+        let executable = std::env::var_os("REPLICA_PROGRESS_XTASK").map(PathBuf::from);
+        #[cfg(windows)]
+        let executable = Some(c.output.join("xtask.exe"));
+        let output = if let Some(executable) = executable {
+            c.evidence["observer_sha256"] = serde_json::json!(crate::support::sha(&executable)?);
+            c.command(
+                scenario_args(&executable, options),
+                "scheduled-polls",
+                None,
+                45.,
+            )?
+        } else {
+            let mut output = Vec::new();
+            monitor::run(options, options.samples.unwrap(), &mut output)?;
+            String::from_utf8(output)?
+        };
+        output
+            .lines()
+            .map(|line| delivery::json(line.as_bytes()))
+            .collect()
     }
 
     fn drop_responses<T>(
@@ -1402,7 +1576,7 @@ mod tests {
             snapshot_proof::{
                 description_identity, finish_with_key_cleanup, receipt, selected_slot,
             },
-            support::{Run, path},
+            support::{Run, path, sha},
         };
         let binary =
             dunce::canonicalize(std::env::var_os("REPLICA_PROGRESS_BIN").unwrap()).unwrap();
@@ -1413,12 +1587,10 @@ mod tests {
         #[cfg(unix)]
         let run = Run::new(tmp.path().to_owned());
         #[cfg(unix)]
-        let mut c = Campaign::detached(
-            &run,
-            &tmp.path().join("report"),
-            "native authenticated observation",
-        )
-        .unwrap();
+        let output = std::env::var_os("REPLICA_PROGRESS_EVIDENCE")
+            .map_or_else(|| tmp.path().join("report"), PathBuf::from);
+        #[cfg(unix)]
+        let mut c = Campaign::detached(&run, &output, "native authenticated observation").unwrap();
         #[cfg(unix)]
         let data = tmp.path().to_owned();
         #[cfg(windows)]
@@ -1446,7 +1618,6 @@ mod tests {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<()> {
             #[cfg(windows)]
             let (binary, fixture) = {
-                use crate::support::sha;
                 fs::create_dir(&data)?;
                 c.restrict_directories(&[("work", &data)])?;
                 c.env.retain(|name, _| {
@@ -1465,11 +1636,11 @@ mod tests {
                         .context("native xtask executable required")?,
                     &observer,
                 )?;
-                c.evidence["cli_sha256"] = serde_json::json!(sha(&cli)?);
-                c.evidence["fixture_sha256"] = serde_json::json!(sha(&files)?);
                 c.evidence["observer_sha256"] = serde_json::json!(sha(&observer)?);
                 (cli, files)
             };
+            c.evidence["cli_sha256"] = serde_json::json!(sha(&binary)?);
+            c.evidence["fixture_sha256"] = serde_json::json!(sha(&fixture)?);
             let mut options = options(&data);
             options.binary = binary;
             options.credentials = client.clone();
@@ -1535,11 +1706,21 @@ mod tests {
             ];
             let limits = (Duration::from_secs(10), 150.);
             let export = data.join("first.export");
+            let start = Instant::now();
+            let mut monitor = monitor::Monitor::default();
+            let mut number = 0;
+            let mut measure = |record: Record| {
+                number += 1;
+                monitor.sample(number, start.elapsed(), Duration::ZERO, record)
+            };
             c.loopback(serve.clone(), "initial-server", limits, false, |c, addr| {
                 options.peer = addr.to_string();
                 let empty = scenario_observe(c, &options, "empty", false)?;
                 assert_eq!(empty.error, None);
                 assert_eq!(empty.follower.state, State::Empty);
+                let empty = measure(empty);
+                assert_eq!(empty["waiting_for"]["revision"], 3);
+                c.evidence["monitor_transitions"]["empty"] = empty;
                 options.ship = Some(export.clone());
                 options.poll = false;
                 options.timeout = 3.;
@@ -1554,6 +1735,14 @@ mod tests {
                 c.evidence["discarded_tls_reply_bytes"] = serde_json::json!(discarded);
                 Ok(())
             })?;
+            options.ship = None;
+            options.poll = true;
+            let refused = scenario_observe(&mut c, &options, "refused-before-reopen", true)?;
+            let refused = measure(refused);
+            assert_eq!(refused["accepted"], false);
+            assert!(refused["last_durable"].is_null());
+            assert!(refused["caught_up"].is_null());
+            c.evidence["monitor_transitions"]["refused_before_reopen"] = refused;
             let saved = data.join("prior.json");
             let first = c.loopback(serve, "restarted-server", limits, false, |c, addr| {
                 options.peer = addr.to_string();
@@ -1567,6 +1756,10 @@ mod tests {
                 assert_eq!(confirmed.error, None);
                 assert_eq!(confirmed.relation, Relation::ExactCapture);
                 assert_eq!(confirmed.follower.revision, Some(3));
+                let reopened = measure(confirmed.clone());
+                assert_eq!(reopened["revision_gap"], 0);
+                assert_eq!(reopened["caught_up"]["revision"], 3);
+                c.evidence["monitor_transitions"]["reopened"] = reopened;
                 #[cfg(unix)]
                 assert_eq!(fs::metadata(&saved)?.permissions().mode() & 0o777, 0o600);
                 options.previous = Some(saved.clone());
@@ -1579,6 +1772,34 @@ mod tests {
                     None,
                     45.,
                 )?;
+                let behind = measure(scenario_observe(c, &options, "behind", false)?);
+                assert_eq!(behind["revision_gap"], 1);
+                assert_eq!(behind["waiting_for"]["revision"], 4);
+                c.evidence["monitor_transitions"]["behind"] = behind;
+                let prior = options.previous.take();
+                options.samples = Some(2);
+                options.interval_ms = Some(100);
+                let series = scenario_monitor(c, &options)?;
+                assert_eq!(series.len(), 2);
+                for (index, sample) in series.iter().enumerate() {
+                    assert_eq!(sample["sample"], index + 1);
+                    assert_eq!(sample["accepted"], true);
+                    assert_eq!(sample["revision_gap"], 1);
+                    assert_eq!(sample["last_durable"]["revision"], 3);
+                    assert_eq!(sample["waiting_for"]["revision"], 4);
+                    assert!(sample["caught_up"].is_null());
+                }
+                assert_eq!(series[1]["observation"]["prior"]["state"], "consistent");
+                assert!(
+                    series[1]["waiting_for"]["observed_for_ms"]
+                        .as_u64()
+                        .unwrap()
+                        >= 100
+                );
+                c.evidence["scheduled_polls"] = serde_json::json!(series);
+                options.samples = None;
+                options.interval_ms = None;
+                options.previous = prior;
                 let second = data.join("second.export");
                 options.ship = Some(second.clone());
                 options.poll = false;
@@ -1594,6 +1815,10 @@ mod tests {
                 assert_eq!(stale.error, None);
                 assert_eq!(stale.relation, Relation::NewerThanCapture);
                 assert_ne!(stale.follower.digest, stale.capture.digest);
+                let current = measure(stale);
+                assert_eq!(current["revision_gap"], 0);
+                assert_eq!(current["caught_up"]["revision"], 4);
+                c.evidence["monitor_transitions"]["current"] = current;
                 let changed = data.join("changed.export");
                 fs::copy(second, &changed)?;
                 OpenOptions::new()
@@ -1623,6 +1848,11 @@ mod tests {
             assert_eq!(unavailable.prior.state, PriorState::HistoricalOnly);
             assert_eq!(unavailable.prior.observed_at, Some(first.observed_at));
             assert_eq!(unavailable.follower, Progress::empty(State::Unavailable));
+            let unavailable = measure(unavailable);
+            assert_eq!(unavailable["accepted"], false);
+            assert!(unavailable["revision_gap"].is_null());
+            assert_eq!(unavailable["last_durable"]["revision"], 4);
+            c.evidence["monitor_transitions"]["refused_after_current"] = unavailable;
             let status = c.command(
                 vec![
                     path(&options.binary),
