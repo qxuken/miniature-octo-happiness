@@ -242,7 +242,7 @@ jobs:
           name: weekend-db-windows-maintenance-space-${{ runner.arch }}
           if-no-files-found: warn
           path: target/windows-maintenance-space/
-      - name: Verify near-cap macOS backup, restore and compaction exhaustion
+      - name: Verify near-cap macOS copy and compaction exchange exhaustion
         if: runner.os == 'macOS'
         id: macos_maintenance_space
         continue-on-error: true
@@ -251,13 +251,16 @@ jobs:
         run: |
           cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-mac-build
           cargo xtask macos-maintenance-space --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-maintenance-space
+          cargo xtask macos-maintenance-space --namespace-enospc --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-namespace-enospc
       - name: Save macOS maintenance exhaustion evidence
         if: always() && runner.os == 'macOS'
         uses: actions/upload-artifact@v7
         with:
           name: weekend-db-macos-maintenance-space-${{ runner.arch }}
           if-no-files-found: warn
-          path: target/macos-maintenance-space/
+          path: |
+            target/macos-maintenance-space/
+            target/macos-namespace-enospc/
       - name: Release configuration validation
         run: |
           cargo test --offline --locked -p xtask --bin xtask

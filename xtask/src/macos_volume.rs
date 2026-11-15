@@ -148,6 +148,70 @@ fn disk(entry: &Value) -> Result<&str> {
     Ok(name)
 }
 
+fn attach(
+    proof: &mut Value,
+    output: &Path,
+    env: &BTreeMap<OsString, OsString>,
+    label: &str,
+) -> Result<Value> {
+    let scratch = output.join("volume");
+    let mount = scratch.join("mount");
+    let image = scratch.join("owned.dmg");
+    let mut args = cmd([HDIUTIL, "attach", "-plist", "-nobrowse", "-mountpoint"]);
+    args.extend([path(&mount), path(&image)]);
+    call(proof, output, args, &scratch, label, env, false)?;
+    let attached = query(&image, &scratch, env)?.context("owned image absent from inventory")?;
+    let physical = disk(&attached)?;
+    ensure!(
+        attached["blockcount"]
+            .as_u64()
+            .zip(attached["blocksize"].as_u64())
+            .and_then(|(count, size)| count.checked_mul(size))
+            == Some(SIZE),
+        "wrong backing image geometry"
+    );
+    let volume = stat(&mount)?;
+    volume.admit_private()?;
+    let recorded = attached["system-entities"].as_array().unwrap();
+    ensure!(
+        volume.mount == mount.to_str().context("UTF-8 APFS mount")?
+            && volume.device != stat(&scratch)?.device
+            && recorded
+                .iter()
+                .any(|p| p["mount-point"] == volume.mount && p["dev-entry"] == volume.device),
+        "APFS mount is not part of the owned image"
+    );
+    let mut evidence = volume.evidence();
+    evidence["whole_disk"] = json!(physical);
+    evidence["virtual_bytes"] = json!(SIZE);
+    Ok(evidence)
+}
+
+pub fn remount(
+    proof: &mut Value,
+    output: &Path,
+    env: &BTreeMap<OsString, OsString>,
+) -> Result<Value> {
+    let scratch = output.join("volume");
+    let image = scratch.join("owned.dmg");
+    let attached = query(&image, &scratch, env)?.context("missing owned image before remount")?;
+    call(
+        proof,
+        output,
+        cmd([HDIUTIL, "detach", disk(&attached)?]),
+        &scratch,
+        "detach-for-reopen",
+        env,
+        false,
+    )?;
+    ensure!(
+        query(&image, &scratch, env)?.is_none()
+            && stat(&scratch.join("mount"))?.device == stat(&scratch)?.device,
+        "initial APFS mount did not retire"
+    );
+    attach(proof, output, env, "attach-for-reopen")
+}
+
 pub fn with_volume(
     proof: &mut Value,
     output: &Path,
@@ -184,35 +248,7 @@ pub fn with_volume(
         ]);
         args.push(path(&image));
         call(proof, output, args, &scratch, "create", env, false)?;
-        let mut args = cmd([HDIUTIL, "attach", "-plist", "-nobrowse", "-mountpoint"]);
-        args.extend([path(&mount), path(&image)]);
-        call(proof, output, args, &scratch, "attach", env, false)?;
-        let attached =
-            query(&image, &scratch, env)?.context("owned image absent from inventory")?;
-        let physical = disk(&attached)?;
-        ensure!(
-            attached["blockcount"]
-                .as_u64()
-                .zip(attached["blocksize"].as_u64())
-                .and_then(|(count, size)| count.checked_mul(size))
-                == Some(SIZE),
-            "wrong backing image geometry"
-        );
-        let volume = stat(&mount)?;
-        volume.admit_private()?;
-        let recorded = attached["system-entities"].as_array().unwrap();
-        ensure!(
-            volume.mount == mount.to_str().context("UTF-8 APFS mount")?
-                && volume.device != host.device
-                && recorded
-                    .iter()
-                    .any(|p| p["mount-point"] == volume.mount && p["dev-entry"] == volume.device),
-            "APFS mount is not part of the owned image"
-        );
-        let mut evidence = volume.evidence();
-        evidence["whole_disk"] = json!(physical);
-        evidence["virtual_bytes"] = json!(SIZE);
-        proof["private_volume"] = evidence;
+        proof["private_volume"] = attach(proof, output, env, "attach")?;
         let data = mount.join("data");
         fs::create_dir(&data)?;
         test(proof, &data)

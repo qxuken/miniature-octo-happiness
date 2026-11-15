@@ -7,6 +7,46 @@ use storage::{NativeIoCategory, NativeIoOperation};
 mod quota_token;
 const COPY: usize = 256 * MIB;
 const COMPACTED: u64 = 63_074_304;
+
+#[cfg(target_os = "macos")]
+fn exchange_at_capacity(source: &Path, gate: PathBuf, pid: u32) {
+    let mut entered = false;
+    let failure = storage::with_storage_diagnostics(|| {
+        storage::compact_file_with_hook(source, limits(COPY), move |event| {
+            if event.step == storage::CompactionStep::Exchange && !event.after {
+                assert!(!entered, "compaction repeated exchange");
+                entered = true;
+                println!("ready exchange {pid}");
+                std::io::stdout().flush().unwrap();
+                let started = Instant::now();
+                loop {
+                    match fs::symlink_metadata(&gate) {
+                        Ok(info) => {
+                            assert!(info.is_dir());
+                            break;
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(error) => panic!("inspect exchange gate: {error}"),
+                    }
+                    assert!(started.elapsed() < std::time::Duration::from_secs(90));
+                    thread::sleep(std::time::Duration::from_millis(10));
+                }
+            }
+            Ok(())
+        })
+    })
+    .expect_err("expected kernel namespace exhaustion");
+    assert_eq!(failure.error, Error::OutcomeUnknown);
+    assert!(failure.verification.is_none());
+    let native = failure.native.unwrap();
+    assert_eq!(native.operation, NativeIoOperation::Exchange);
+    assert_eq!(native.category, NativeIoCategory::DiskFull);
+    assert_eq!(native.raw_os_error, Some(28));
+    println!(
+        "{{\"stage\":\"exchange\",\"operation\":\"compact\",\"pid\":{pid},\"error\":15,\"native_operation\":\"Exchange\",\"category\":\"DiskFull\",\"raw\":28}}"
+    );
+}
+
 fn replaces_source(op: &str) -> bool {
     cfg!(unix) && op == "compact"
 }
@@ -92,6 +132,13 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
+    #[cfg(target_os = "macos")]
+    if mode == "space-exchange" {
+        assert!(op == "compact" && kind == "enospc" && source == dir.join("source.wdb"));
+        exchange_at_capacity(source, PathBuf::from(&arguments[1]), pid);
+        complete(mode);
+        return;
+    }
     if mode == "space-quota-probe" {
         assert_eq!(kind, "ntfs-quota");
         assert!(

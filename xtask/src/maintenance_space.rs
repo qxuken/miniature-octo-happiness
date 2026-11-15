@@ -77,6 +77,10 @@ fn verify_phase(
         "invalid maintenance phase"
     );
     let expected = match mode {
+        #[cfg(any(target_os = "macos", test))]
+        "space-exchange" if profile == Profile::Apfs && label == "compact" => {
+            json!({"stage":"exchange","operation":label,"pid":pid,"error":15,"native_operation":"Exchange","category":"DiskFull","raw":28})
+        }
         "space-fail" => {
             let partial = oracle::number(row, "partial_bytes")?;
             ensure!(
@@ -170,6 +174,10 @@ mod native {
         /// Apply an enforced quota to the copy fixture's own user SID.
         #[arg(long)]
         owner_quota: bool,
+        #[cfg(target_os = "macos")]
+        /// Exhaust space immediately before compaction's native exchange.
+        #[arg(long)]
+        namespace_enospc: bool,
     }
 
     struct Fixture<'a> {
@@ -584,6 +592,176 @@ mod native {
         Ok(hash)
     }
 
+    #[cfg(target_os = "macos")]
+    fn qualify_exchange(
+        run: &Run,
+        fixture: &mut Fixture<'_>,
+        proof: &mut Value,
+        seed: &Path,
+        data: &Path,
+    ) -> Result<()> {
+        use crate::assurance::Campaign;
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        use std::time::Duration;
+
+        let source = data.join("source.wdb");
+        let backup = data.join("backup.wdb");
+        let source_hash = verified_copy(&seed.join("source.wdb"), &source, SOURCE_BYTES)?;
+        let backup_hash = verified_copy(&seed.join("backup.wdb"), &backup, COPY_BYTES)?;
+        let original = fs::File::open(&source)?;
+        original.set_permissions(fs::Permissions::from_mode(0o640))?;
+        original.sync_all()?;
+        let original_meta = original.metadata()?;
+        drop(original);
+        fixture.phase(proof, data, &source, "space-check", "initial-source")?;
+        fixture.phase(proof, data, &backup, "space-check", "initial-backup")?;
+
+        let ballast = data.join("ballast");
+        let gate_root = fixture.output.join("exchange-child");
+        let ready = gate_root.join("release");
+        let mut child = Campaign::detached(run, &gate_root, "native APFS exchange at ENOSPC")?;
+        child.env = fixture.env.clone();
+        child.limits(1024 * 1024, None)?;
+        let result = child.ready_process(
+            vec![
+                path(fixture.binary),
+                path(data),
+                path(&source),
+                "space-exchange".into(),
+                "compact".into(),
+                path(&ready),
+            ],
+            "exchange",
+            (Duration::from_secs(60), 150.),
+            true,
+            |line| {
+                let pid: u32 = line
+                    .strip_prefix("ready exchange ")
+                    .context("wrong APFS exchange boundary")?
+                    .parse()?;
+                ensure!(pid > 0, "invalid APFS exchange PID");
+                Ok(pid)
+            },
+            |_, pid| {
+                let scratch = partial_path(data, "compact")?;
+                let meta = fs::symlink_metadata(&scratch)?;
+                ensure!(
+                    meta.is_file()
+                        && meta.dev() == original_meta.dev()
+                        && meta.ino() != original_meta.ino()
+                        && meta.mode() & 0o7777 == 0o640
+                        && meta.nlink() == 1
+                        && meta.len() == COPY_BYTES
+                        && sha(&scratch)? == backup_hash
+                        && sha(&source)? == source_hash,
+                    "wrong source or verified replacement at exchange gate"
+                );
+                let (fill, available) = bounded_fill(data, &ballast, true)?;
+                fs::create_dir(&ready)?;
+                Ok((pid, scratch, meta.ino(), fill, available))
+            },
+        );
+        let (pid, scratch, scratch_inode, filled, available) = match result {
+            Ok(gate) => {
+                child.finish(Ok(()))?;
+                gate
+            }
+            Err(error) => {
+                return child.finish(Err(error));
+            }
+        };
+        let gate_record = delivery::read_json(&gate_root.join("evidence.json"))?;
+        ensure!(
+            gate_record["passed"] == true
+                && gate_record["commands"][0]["supervision"]["pid"] == pid
+                && fixture.processes.insert(pid),
+            "APFS exchange process identity mismatch"
+        );
+        let rows = fs::read_to_string(gate_root.join("exchange.stdout.log"))?
+            .lines()
+            .skip(1)
+            .map(|line| delivery::json(line.as_bytes()))
+            .collect::<Result<Vec<_>>>()?;
+        verify_phase(
+            &rows,
+            fixture.source,
+            "space-exchange",
+            "compact",
+            pid,
+            Profile::Apfs,
+        )?;
+        proof["maintenance_records"].as_array_mut().unwrap().push(
+            json!({"mode":"space-exchange","label":"compact","pid":pid,"observation":rows[0]}),
+        );
+        ensure!(
+            fs::metadata(&source)?.ino() == original_meta.ino()
+                && fs::metadata(&scratch)?.ino() == scratch_inode
+                && sha(&source)? == source_hash
+                && sha(&scratch)? == backup_hash
+                && sha(&backup)? == backup_hash,
+            "kernel exchange refusal changed an image or pathname"
+        );
+        fixture.phase(proof, data, &source, "space-check", "full-source")?;
+        fixture.phase(proof, data, &scratch, "space-check", "full-scratch")?;
+        fixture.phase(proof, data, &backup, "space-check", "full-backup")?;
+        ensure!(
+            fs::metadata(&ballast)?.len() == filled && full(free_space(data)?),
+            "space released before full reopens"
+        );
+        fs::remove_file(&ballast)?;
+        fs::File::open(data)?.sync_all()?;
+        let freed = free_space(data)?;
+        ensure!(
+            freed > COPY_BYTES,
+            "insufficient space for a fresh replacement"
+        );
+
+        let (stdout, _) = fixture.command(
+            proof,
+            vec![
+                path(data),
+                path(&source),
+                "namespace-failure-child".into(),
+                "0".into(),
+            ],
+            "retry-exchange",
+            false,
+        )?;
+        ensure!(
+            fs::read_to_string(stdout)? == "namespace compaction completed\n",
+            "missing successful exchange retry"
+        );
+        proof["retry_mount"] = macos_volume::remount(proof, fixture.output, &fixture.env)?;
+        ensure!(
+            fs::metadata(&source)?.mode() & 0o7777 == 0o640
+                && fs::metadata(&scratch)?.ino() == scratch_inode
+                && sha(&source)? == backup_hash
+                && sha(&scratch)? == backup_hash
+                && sha(&backup)? == backup_hash,
+            "retry or remount changed the compacted bytes, scratch or source mode"
+        );
+        fixture.phase(proof, data, &source, "space-check", "retry-source")?;
+        fixture.phase(
+            proof,
+            data,
+            &scratch,
+            "space-check",
+            "retry-preserved-scratch",
+        )?;
+        fixture.phase(proof, data, &source, "space-advance", "advanced")?;
+        fixture.phase(proof, data, &source, "space-check", "advanced-source")?;
+        fixture.phase(proof, data, &backup, "space-check", "final-backup")?;
+        verified_copy(&scratch, &fixture.output.join("scratch.wdb"), COPY_BYTES)?;
+        verified_copy(
+            &source,
+            &fixture.output.join("advanced.wdb"),
+            fs::metadata(&source)?.len(),
+        )?;
+        verified_copy(&backup, &fixture.output.join("backup.wdb"), COPY_BYTES)?;
+        proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":"compact","exchange":rows[0],"source_sha256":source_hash,"scratch_sha256":backup_hash,"original_inode":original_meta.ino(),"scratch_inode":scratch_inode,"ballast_bytes":filled,"free_at_exchange":available,"free_after_release":freed,"retry_matches_backup":true,"scratch_preserved_after_remount":true}));
+        Ok(())
+    }
+
     fn qualify(
         fixture: &mut Fixture<'_>,
         proof: &mut Value,
@@ -859,6 +1037,12 @@ mod native {
         } else {
             scope
         };
+        #[cfg(target_os = "macos")]
+        let scope = if opts.namespace_enospc {
+            "kernel ENOSPC at APFS compaction exchange"
+        } else {
+            scope
+        };
         fixture
             .env
             .insert("WEEKEND_PRIVATE_MAINTENANCE".into(), mode.into());
@@ -905,7 +1089,11 @@ mod native {
             )?;
             #[cfg(target_os = "macos")]
             macos_volume::with_volume(&mut proof, &output, &env, |proof, data| {
-                qualify(&mut fixture, proof, &seed, data)
+                if opts.namespace_enospc {
+                    qualify_exchange(run, &mut fixture, proof, &seed, data)
+                } else {
+                    qualify(&mut fixture, proof, &seed, data)
+                }
             })?;
             ensure!(
                 sha(&binary)? == original_hash && sha(&copy)? == original_hash,
@@ -957,6 +1145,34 @@ pub use native::{Options, run};
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apfs_exchange_requires_the_native_enospc_and_uncertain_outcome() {
+        let source = "1111111111111111111111111111111111111111";
+        let done = oracle::completion("space-exchange", source);
+        let row = json!({"stage":"exchange","operation":"compact","pid":41,"error":15,"native_operation":"Exchange","category":"DiskFull","raw":28});
+        let verify = |row, profile| {
+            verify_phase(
+                &[row, done.clone()],
+                source,
+                "space-exchange",
+                "compact",
+                41,
+                profile,
+            )
+        };
+        verify(row.clone(), Profile::Apfs).unwrap();
+        assert!(verify(row.clone(), Profile::Ntfs).is_err());
+        for (field, value) in [
+            ("raw", json!(5)),
+            ("native_operation", json!("Write")),
+            ("error", json!(14)),
+        ] {
+            let mut invalid = row.clone();
+            invalid[field] = value;
+            assert!(verify(invalid, Profile::Apfs).is_err(), "{field}");
+        }
+    }
 
     #[test]
     fn ntfs_owner_quota_requires_the_calibrated_native_code_and_category() {
