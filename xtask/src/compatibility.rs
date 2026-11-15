@@ -23,7 +23,6 @@ use std::{
 #[cfg(windows)]
 use windows::Campaign;
 
-#[cfg(unix)]
 const ENDPOINTS: [&str; 2] = ["historical", "current"];
 const NATIVE_IDENTITY: &str = r###"fn main() {
     println!(r#"{{"identity_kind":"engine_version_api","source_id":"{}","features":{},"abi_version":{},"format_version":{}}}"#,
@@ -73,7 +72,7 @@ impl Profile {
 
 #[derive(Args)]
 pub struct Options {
-    #[arg(long, value_enum, default_value = if cfg!(windows) { "typed" } else { "storage" })]
+    #[arg(long, value_enum, default_value = "storage")]
     profile: Profile,
     #[arg(long)]
     historical: Option<String>,
@@ -309,7 +308,6 @@ fn build_endpoint(
     })
 }
 
-#[cfg(unix)]
 fn storage_cases(c: &mut Campaign<'_>, binaries: [&Path; 2]) -> Result<()> {
     for (writer, binary) in ENDPOINTS.into_iter().zip(binaries) {
         let name = format!("{writer}-writer");
@@ -366,7 +364,6 @@ fn storage_cases(c: &mut Campaign<'_>, binaries: [&Path; 2]) -> Result<()> {
     Ok(())
 }
 
-#[cfg(any(unix, test))]
 fn require_receipts(primary: &Value, follower: &Value, export: &Path) -> Result<String> {
     ensure!(primary == follower, "sender/receiver receipts differ");
     let hash = sha(export)?;
@@ -381,7 +378,6 @@ fn require_receipts(primary: &Value, follower: &Value, export: &Path) -> Result<
     Ok(hash)
 }
 
-#[cfg(unix)]
 fn snapshot_cases(c: &mut Campaign<'_>, binaries: [&Path; 2]) -> Result<()> {
     for (send, receive) in [(0, 1), (1, 0)] {
         let name = format!("{}-to-{}", ENDPOINTS[send], ENDPOINTS[receive]);
@@ -503,11 +499,6 @@ fn typed_cases(c: &mut Campaign<'_>, [old, new]: [&Path; 2]) -> Result<()> {
 }
 
 pub fn run(run: &Run, opts: Options) -> Result<()> {
-    #[cfg(windows)]
-    ensure!(
-        opts.profile == Profile::Typed,
-        "Windows qualifies only the typed profile"
-    );
     // This profile supports a new output hierarchy, retaining atomic
     // create-dir admission for the final path.
     let mut c = Campaign::new(
@@ -551,12 +542,8 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let binaries = [old.binary.as_path(), new.binary.as_path()];
         match opts.profile {
             Profile::Typed => typed_cases(&mut c, binaries)?,
-            #[cfg(unix)]
             Profile::Storage => storage_cases(&mut c, binaries)?,
-            #[cfg(unix)]
             Profile::Snapshot => snapshot_cases(&mut c, binaries)?,
-            #[cfg(windows)]
-            _ => unreachable!("profile checked before creating evidence"),
         }
         for endpoint in [old, new] {
             ensure!(
@@ -605,10 +592,7 @@ mod tests {
             outputs
         };
         let run = Run::new(root.to_owned());
-        #[cfg(unix)]
         let profiles = [Profile::Storage, Profile::Snapshot, Profile::Typed];
-        #[cfg(windows)]
-        let profiles = [Profile::Typed];
         for profile in profiles {
             for &output in &outputs {
                 let opts = Options {

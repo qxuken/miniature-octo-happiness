@@ -1,10 +1,10 @@
-//! Native process adapter for the frozen typed rollout oracle.
+//! Native process adapter for the frozen compatibility oracles.
 use crate::{
     support::{Run, cmd, sha},
     trace_process::{self, Request},
     windows_process,
 };
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -22,9 +22,16 @@ const INPUTS: &[&str] = &[
     "xtask/src/trace_process.rs",
     "xtask/src/windows_compatibility.rs",
     "xtask/src/windows_process.rs",
+    "tools/compatibility-driver.rs",
+    "tools/compatibility-snapshot.rs",
     "tools/compatibility-typed-v1.rs",
     "tools/compatibility-typed-v2.rs",
 ];
+
+struct Capture {
+    record: Value,
+    output: Result<String>,
+}
 
 fn input_hashes(root: &Path) -> Result<BTreeMap<&'static str, String>> {
     INPUTS
@@ -90,7 +97,7 @@ impl<'a> Campaign<'a> {
     ) -> Result<String> {
         ensure!(
             expected.is_none(),
-            "typed qualification checks exact exits and stdout"
+            "Windows compatibility checks exact exits and stdout"
         );
         self.execute(args, name, 0, timeout, cwd)
     }
@@ -113,6 +120,41 @@ impl<'a> Campaign<'a> {
         timeout: f64,
         cwd: &Path,
     ) -> Result<String> {
+        let captured = self.capture(args, name, code, timeout, cwd)?;
+        self.record(captured)
+    }
+
+    pub fn pair(&mut self, commands: [(&str, Vec<OsString>); 2], timeout: f64) -> Result<()> {
+        let [(first, a), (second, b)] = commands;
+        ensure!(
+            !first.eq_ignore_ascii_case(second),
+            "parallel command names must differ"
+        );
+        let cwd = &self.run.root;
+        let (one, two) = std::thread::scope(|scope| {
+            let campaign = &*self;
+            let worker = scope.spawn(|| campaign.capture(a, first, 0, timeout, cwd));
+            let two = campaign.capture(b, second, 0, timeout, cwd);
+            let one = worker
+                .join()
+                .unwrap_or_else(|_| Err(anyhow!("compatibility supervisor thread panicked")));
+            (one, two)
+        });
+        let one = one.and_then(|capture| self.record(capture));
+        let two = two.and_then(|capture| self.record(capture));
+        one?;
+        two?;
+        Ok(())
+    }
+
+    fn capture(
+        &self,
+        args: Vec<OsString>,
+        name: &str,
+        code: i64,
+        timeout: f64,
+        cwd: &Path,
+    ) -> Result<Capture> {
         ensure!(
             !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'),
             "invalid compatibility log label"
@@ -148,24 +190,30 @@ impl<'a> Campaign<'a> {
             }
             Err(error) => record["error"] = json!(format!("{error:#}")),
         }
+        let output = result.and_then(|report| {
+            ensure!(
+                passed,
+                "compatibility command {name} expected exit {code}: {report:?}"
+            );
+            Ok(fs::read_to_string(stdout)?.trim().into())
+        });
+        Ok(Capture { record, output })
+    }
+
+    fn record(&mut self, capture: Capture) -> Result<String> {
         self.evidence["commands"]
             .as_array_mut()
             .unwrap()
-            .push(record);
+            .push(capture.record);
         self.save()?;
-        let report = result?;
-        ensure!(
-            passed,
-            "compatibility command {name} expected exit {code}: {report:?}"
-        );
-        Ok(fs::read_to_string(stdout)?.trim().into())
+        capture.output
     }
 
     pub fn finish(mut self, result: Result<()>) -> Result<()> {
         let result = result.and_then(|()| {
             ensure!(
                 self.evidence["source_hashes"] == json!(input_hashes(&self.run.root)?),
-                "typed qualification inputs changed"
+                "compatibility qualification inputs changed"
             );
             Ok(())
         });
@@ -176,5 +224,36 @@ impl<'a> Campaign<'a> {
         }
         self.save()?;
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::support::Scratch;
+
+    #[test]
+    fn parallel_command_failure_keeps_both_retired_jobs() {
+        let scratch = Scratch::new(&std::env::temp_dir(), "windows-compatibility-pair").unwrap();
+        let run = Run::new(scratch.path().to_owned());
+        let mut campaign = Campaign {
+            run: &run,
+            output: run.root.clone(),
+            env: run.env.clone(),
+            evidence: json!({"commands":[]}),
+        };
+        let first = cmd(["cmd.exe", "/D", "/Q", "/C", "exit /b 9"]);
+        let second = cmd(["cmd.exe", "/D", "/Q", "/C", "exit /b 0"]);
+        assert!(
+            campaign
+                .pair([("one", first), ("two", second)], 15.)
+                .is_err()
+        );
+        let proof = crate::delivery::read_json(&run.root.join("evidence.json")).unwrap();
+        let rows = proof["commands"].as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["exit_code"], 9);
+        assert_eq!(rows[1]["exit_code"], 0);
+        assert!(rows.iter().all(|row| row["cleanup_verified"] == true));
     }
 }
