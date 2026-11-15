@@ -123,10 +123,17 @@ pub fn generate(header: &str) -> Result<String> {
 pub fn check(root: &Path) -> Result<()> {
     ensure!(
         generate(&fs::read_to_string(root.join("include/weekend_db.h"))?)?
-            == fs::read_to_string(root.join("bindings/odin/weekend_db.odin"))?,
+            == checkout_text(&fs::read_to_string(
+                root.join("bindings/odin/weekend_db.odin")
+            )?),
         "Odin binding differs from C header; run cargo xtask odin-bindings"
     );
     Ok(())
+}
+// Git may expand LF to CRLF on Windows. Normalize only that checkout transform;
+// declaration text, trailing whitespace, bare CR and the final newline still matter.
+fn checkout_text(text: &str) -> String {
+    text.replace("\r\n", "\n")
 }
 pub fn run(root: &Path, check_only: bool) -> Result<()> {
     if check_only {
@@ -143,9 +150,43 @@ pub fn run(root: &Path, check_only: bool) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
+    fn checked_out_crlf_binding_passes_but_declaration_drift_rejects() {
+        let dir = crate::support::Scratch::new(&std::env::temp_dir(), "odin-crlf").unwrap();
+        fs::create_dir_all(dir.path().join("include")).unwrap();
+        fs::create_dir_all(dir.path().join("bindings/odin")).unwrap();
+        let header = include_str!("../../include/weekend_db.h");
+        fs::write(
+            dir.path().join("include/weekend_db.h"),
+            header.replace("\r\n", "\n").replace('\n', "\r\n"),
+        )
+        .unwrap();
+        let generated = generate(header).unwrap();
+        let binding = dir.path().join("bindings/odin/weekend_db.odin");
+        fs::write(&binding, generated.replace('\n', "\r\n")).unwrap();
+        check(dir.path()).unwrap();
+        fs::write(
+            &binding,
+            generated
+                .replace("WDB_ABI_VERSION :: 1", "WDB_ABI_VERSION :: 2")
+                .replace('\n', "\r\n"),
+        )
+        .unwrap();
+        assert!(check(dir.path()).is_err());
+        for changed in [
+            generated.replace("Status :: i32", "Status :: i32 "),
+            generated.trim_end_matches('\n').to_owned(),
+            generated.replace("package weekend_db\n", "package weekend_db\r"),
+        ] {
+            fs::write(&binding, changed).unwrap();
+            assert!(check(dir.path()).is_err());
+        }
+        run(dir.path(), false).unwrap();
+        assert_eq!(fs::read_to_string(binding).unwrap(), generated);
+    }
+    #[test]
     fn generated_binding_preserves_every_header_signature_and_constant() {
         let header = include_str!("../../include/weekend_db.h");
-        let original = include_str!("../../bindings/odin/weekend_db.odin");
+        let original = checkout_text(include_str!("../../bindings/odin/weekend_db.odin"));
         assert_eq!(generate(header).unwrap(), original);
         assert_ne!(
             generate(&header.replace(
