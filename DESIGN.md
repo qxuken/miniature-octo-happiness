@@ -2619,6 +2619,12 @@ error fixed and vary whether the root survives. The test also checks that
 retaining only the root's pending write reopens `r + 1` and that retaining
 only its first 63 bytes reopens `r`.
 
+The [native ext4 writeback test](docs/native-writeback.md#root-slot-and-witness-results)
+checks the same three barriers through the regular file adapter. Denying
+writes to the append or root-slot block leaves the old revision selected.
+Denying the witness block leaves the new root selectable and unwitnessed.
+Writable open stabilizes that root and writes its witness before exposing it.
+
 ### PUB-V2. Persisted prefixes in reused root and witness regions
 
 The [torn metadata tests](tests/durability.rs) use last acknowledged revisions

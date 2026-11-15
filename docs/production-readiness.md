@@ -84,9 +84,9 @@ qualification is a separate release-candidate requirement.
   `Io`, `OutcomeUnknown`, and `RecoveryRequired` guarantee. Provide a
   recipe for atomically recording an application request ID with its
   effect when callers need safe retries after an uncertain outcome.
-  Test the contract through each shipped API. The [Linux append writeback profile](native-writeback.md)
-  verifies writer poisoning and the selected revision after an actual
-  `fsync` error before publication.
+  Test the contract through each shipped API. The [Linux writeback profile](native-writeback.md#root-slot-and-witness-results)
+  verifies writer poisoning and recovery after actual `fsync` errors at the
+  append, root-slot and durability-witness barriers.
 - **Inspection and diagnostics.** Add a read-only verifier for a
   quiescent file or verified export. The current writable open syncs
   and writes a witness. Expose an `info` and `check` command or API with

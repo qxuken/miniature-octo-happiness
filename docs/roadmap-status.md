@@ -2007,3 +2007,16 @@ retained revision 2. The acknowledged file prefix remained byte-identical.
 The audit verified the exact fixture, both remounts and resource cleanup.
 This extends F03 to real pre-publication writeback failure. Native failures
 at slot, witness and maintenance barriers remain open.
+
+## Native writeback failures at root and witness publication
+
+At `2b9f00f`, the [three-barrier ext4 profile](native-writeback.md#root-slot-and-witness-results)
+passed on Docker Linux arm64 and hosted Ubuntu x64. Both root-slot and
+witness `fsync` failures returned `OutcomeUnknown` and poisoned the live
+writer. The root-slot fault reopened revision 3 and retried to 4. The
+witness fault reopened revision 4 without its witness. A writable
+reopen repaired just the witness, and the second remount verified
+revision 4 with no repeated mutation. Retained revision 2 survived all
+cases. The independent checks confirmed the raw images, exact source,
+fixture and resource cleanup. Native maintenance writeback and physical
+interruption remain open.

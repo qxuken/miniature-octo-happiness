@@ -4,7 +4,7 @@ The `linux-quota` job uses an isolated ext4 loop filesystem on an Ubuntu 24.04
 host. It exercises the real Linux file adapter, not an injected ByteStore error.
 The existing [tmpfs ENOSPC/permission drill](native-fault-drills.md) retains its
 own scope and guards.
-The same job also runs the separate [append writeback profile](native-writeback.md)
+The same job also runs the separate [commit writeback profile](native-writeback.md)
 against a device-mapped ext4 image.
 
 ## What the gate requires
