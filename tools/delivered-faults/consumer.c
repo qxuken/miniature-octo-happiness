@@ -5,24 +5,28 @@
 #endif
 #include "weekend_db.h"
 #include <assert.h>
+#if !defined(_WIN32)
 #include <dlfcn.h>
+#include <sys/resource.h>
+#include <unistd.h>
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/resource.h>
 #if defined(__linux__)
 #include <sys/statfs.h>
 #include <sys/statvfs.h>
 #define LAST_MODE 5
 #elif defined(__APPLE__)
 #define LAST_MODE 4
+#elif defined(_WIN32)
+#define LAST_MODE 5
 #else
 #error unsupported delivered fault fixture host
 #endif
-#include <unistd.h>
 #ifdef NDEBUG
 #error assertions required
 #endif
@@ -98,15 +102,23 @@ static void fill(const char *directory,char *ballast,size_t capacity) {
 }
 #endif
 int main(int argc,char **argv) {
+#if !defined(_WIN32)
     const struct rlimit no_core = {0, 0};
     assert(setrlimit(RLIMIT_CORE, &no_core) == 0);
+#endif
     assert(argc==4 || argc==5);int recovering=argc==5;
     if(recovering)assert(!strcmp(argv[1],"recover"));
     int mode=atoi(recovering?argv[4]:argv[1]);assert(mode>=0 && mode<=LAST_MODE);
     if(!recovering) {
+#if defined(_WIN32)
+        arm=windows_arm;
+        disarm=windows_disarm;
+        count=windows_count;
+#else
         arm=(void(*)(const char*,int))dlsym(RTLD_DEFAULT,"qualification_arm");
         disarm=(void(*)(void))dlsym(RTLD_DEFAULT,"qualification_disarm");
         count=(int(*)(int))dlsym(RTLD_DEFAULT,"qualification_count");assert(arm && disarm && count);
+#endif
     }
     uint8_t source[64];size_t need=99;OK(wdb_source_id(source,sizeof source,&need));
     assert(need==strlen(argv[3]) && !memcmp(source,argv[3],need));
@@ -139,20 +151,38 @@ int main(int argc,char **argv) {
     char ballast[1024];
     if(mode==5)fill(argv[2],ballast,sizeof ballast);
 #endif
-    candidate(db,&tx);arm(path,mode==5?0:mode);
+    candidate(db,&tx);
+#if defined(_WIN32)
+    arm(path,mode);
+#else
+    arm(path,mode==5?0:mode);
+#endif
     /* A different inode must not consume this database's armed sync failure. */
     char other[1024];assert(snprintf(other,sizeof other,"%s/unrelated",argv[2])>0);
+#if defined(_WIN32)
+    windows_probe_unrelated(other);
+#else
     if(mode!=5) {int fd=open(other,O_WRONLY|O_CREAT|O_EXCL,0600);assert(fd>=0);assert(fsync(fd)==0);assert(close(fd)==0);}
+#endif
     assert(count(1)==0 && count(0)==0);
     revision=UINT64_C(0xdeadbeefcafebabe);int status=wdb_tx_commit(tx,&revision);
     int expected=mode==0?WDB_OK:(mode==1 || mode==5?WDB_IO:WDB_OUTCOME_UNKNOWN);
     assert(status==expected && revision==(mode==0?4u:0u));
     int hits=count(0),syncs=count(1),roots=count(2),witnesses=count(3),native_error=count(5);
-    assert(hits==((mode>=1 && mode<=4)?1:0));assert(count(4)>0);
+#if defined(_WIN32)
+    assert(hits==(mode!=0));
+    assert(native_error==(mode==0?0:(mode==5?ERROR_DISK_FULL:ERROR_IO_DEVICE)));
+#else
+    assert(hits==((mode>=1 && mode<=4)?1:0));
+#endif
+    assert(count(4)>0);
     if(mode==0)assert(syncs==3 && roots==1 && witnesses==1);
     if(mode>=1 && mode<=3)assert(syncs==mode && roots==(mode>=2) && witnesses==(mode>=3));
     if(mode==4)assert(syncs==1 && roots==1 && witnesses==0);
-    if(mode==5)assert(syncs==0 && roots==0 && witnesses==0 && native_error==ENOSPC);
+    if(mode==5)assert(syncs==0 && roots==0 && witnesses==0);
+#if defined(__linux__)
+    if(mode==5)assert(native_error==ENOSPC);
+#endif
     verify(db,mode==0?4:3,mode==0);
     revision=99;assert(wdb_tx_commit(tx,&revision)==WDB_CLOSED && revision==0);OK(wdb_tx_release(tx));
     if(mode!=0) {
@@ -165,4 +195,5 @@ int main(int argc,char **argv) {
     if(mode==5)assert(unlink(ballast)==0);
 #endif
     printf("{\"mode\":%d,\"status\":%d,\"visible\":%d,\"hits\":%d,\"syncs\":%d,\"root_writes\":%d,\"witness_writes\":%d,\"native_errno\":%d,\"verified\":true}\n",mode,status,mode==0?4:3,hits,syncs,roots,witnesses,native_error);
+    return 0;
 }

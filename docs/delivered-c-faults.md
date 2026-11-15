@@ -175,3 +175,37 @@ including the kernel tmpfs ENOSPC control. Its reopened revisions remain
 The macOS case injects single syscall returns and recovers through independent
 processes on a running kernel. Physical power interruption and Darwin kernel
 ENOSPC need separate evidence.
+## Native Windows delivered C gate
+
+Use a manifest-pinned combined-feature package and a fresh output path on
+local fixed x64 NTFS. The Windows CI job runs the gate against the same
+packaged DLL as the delivered C/C++ trace.
+
+```powershell
+$pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+cargo xtask windows-faults --package target/private-package --manifest-sha256 $pin --output target/windows-faults
+```
+
+The optimized C11 consumer uses the same row, retained-root and transaction
+oracle as the Unix gate. Each process verifies its loaded DLL path, DLL
+hash, embedded source identity, ABI, format and feature mask. The exercising
+process patches the loaded DLL's two import slots for `FlushFileBuffers`
+and `NtWriteFile` in memory. The injector filters calls by the case database
+path, observes an unrelated handle without consuming a fault, and restores
+both slots before normal exit. The fresh recovery process opens the tested
+file with its original import table. A disabled-injection executable must
+fail the expected-status assertion.
+
+| Windows case | Injection | Expected API result | Expected fresh reopen |
+|---|---|---|---:|
+| Baseline | Observe all three publication flushes | OK | 4 |
+| Append flush | `FlushFileBuffers` reports an I/O device error | IO | 3 |
+| Root flush | `FlushFileBuffers` reports an I/O device error after the root write | OUTCOME_UNKNOWN | 4 |
+| Witness flush | `FlushFileBuffers` reports an I/O device error after the witness write | OUTCOME_UNKNOWN | 4 |
+| Root write | `NtWriteFile` returns the I/O device error before writing the slot | OUTCOME_UNKNOWN | 3 |
+| Append write | `NtWriteFile` returns disk full before appending | IO | 3 |
+
+Each recovery reconciles request 42, finishes at revision 4 and verifies
+retained revision 2. The gate covers injected write/flush returns on the
+real native filesystem. Physical device persistence and actual Windows
+volume exhaustion retain separate qualification gates.

@@ -158,6 +158,9 @@ enum Task {
     /// Verify native x64 Windows C/C++ traces against a manifest-pinned DLL.
     #[cfg(windows)]
     WindowsTrace(windows_trace::Options),
+    /// Verify publication errors and fresh recovery using the exact Windows DLL.
+    #[cfg(windows)]
+    WindowsFaults(windows_trace::Options),
     /// Compare delivered Rust/C/Odin consumers with the independent operation model.
     #[cfg(unix)]
     ArtifactTrace(artifact_trace::Options),
@@ -341,6 +344,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::WindowsConsumers(options) => toolchain::windows_consumers(&mut run, options),
         #[cfg(windows)]
         Task::WindowsTrace(options) => windows_trace::run(&mut run, options),
+        #[cfg(windows)]
+        Task::WindowsFaults(options) => windows_trace::run_faults(&mut run, options),
         #[cfg(unix)]
         Task::Faults { task } => faults::run(&run, task),
         #[cfg(unix)]

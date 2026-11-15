@@ -40,6 +40,20 @@ jobs:
           Write-Output "Delivered manifest SHA-256: $pin"
           cargo xtask windows-trace --package target/private-package --manifest-sha256 $pin --output target/private-windows-trace
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify Windows exact-DLL publication failures and reopening
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          cargo xtask windows-faults --package target/private-package --manifest-sha256 $pin --output target/private-windows-faults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows exact-DLL fault evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-faults-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-windows-faults/
       - name: Save Windows exact-DLL trace evidence
         if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@v7

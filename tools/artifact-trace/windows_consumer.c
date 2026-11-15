@@ -24,6 +24,12 @@ static char *utf8(const wchar_t *text) {
     return out;
 }
 
+#if defined(WDB_WINDOWS_FAULTS)
+#include "windows_injector.h"
+#define main fault_main
+#include "fault_consumer.c"
+#undef main
+#else
 static FILE *utf8_fopen(const char *path, const char *mode) {
     int n = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, NULL, 0);
     assert(n > 0);
@@ -42,6 +48,7 @@ static FILE *utf8_fopen(const char *path, const char *mode) {
 #include "consumer.c"
 #undef main
 #undef fopen
+#endif
 
 static void file_sha256(HANDLE file, char out[65]) {
     BCRYPT_ALG_HANDLE algorithm = NULL;
@@ -146,7 +153,17 @@ int wmain(int argc, wchar_t **wide_argv) {
     for (int i = 0; i < argc; i++) argv[i] = utf8(wide_argv[i]);
     assert(strlen(argv[5]) == 64 && strcmp(before, argv[5]) == 0);
     attest(wide_argv[6], "before", loaded, before, argv[3]);
+#if defined(WDB_WINDOWS_FAULTS)
+    int result;
+    if (strncmp(argv[1], "recover-", 8) == 0) {
+        char *recovery[] = {argv[0], "recover", argv[2], argv[3], argv[1] + 8};
+        result = fault_main(5, recovery);
+    } else {
+        result = fault_main(4, argv);
+    }
+#else
     int result = trace_main(4, argv);
+#endif
     assert(result == 0);
     file_sha256(file, after);
     assert(strcmp(before, after) == 0);

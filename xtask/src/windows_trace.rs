@@ -1,4 +1,7 @@
 //! Windows delivered-artifact policy and finite cases, independent of the engine.
+#[path = "windows_faults.rs"]
+mod faults;
+
 use crate::{
     delivery,
     support::{path, sha, text},
@@ -621,6 +624,15 @@ fn admission(root: &Path, output: &Path) -> Result<std::path::PathBuf> {
     crate::notices::resolve(&output)
 }
 pub fn run(run: &mut crate::support::Run, opts: Options) -> Result<()> {
+    qualify(run, opts, false)
+}
+
+#[cfg(windows)]
+pub fn run_faults(run: &mut crate::support::Run, opts: Options) -> Result<()> {
+    qualify(run, opts, true)
+}
+
+fn qualify(run: &mut crate::support::Run, opts: Options, publication_errors: bool) -> Result<()> {
     let output = admission(&run.root, &opts.output)?;
     let requested = if opts.package.is_absolute() {
         opts.package.clone()
@@ -628,6 +640,10 @@ pub fn run(run: &mut crate::support::Run, opts: Options) -> Result<()> {
         run.root.join(&opts.package)
     };
     let (info, bits) = verified(&requested, &opts.manifest_sha256)?;
+    ensure!(
+        !publication_errors || bits == 3,
+        "combined native package required"
+    );
     let package = dunce::canonicalize(&requested)?;
     ensure!(
         !output.starts_with(&package) && !package.starts_with(&output),
@@ -640,7 +656,15 @@ pub fn run(run: &mut crate::support::Run, opts: Options) -> Result<()> {
     }
     #[cfg(windows)]
     {
-        native(run, &package, &output, &opts.manifest_sha256, info, bits)
+        native(
+            run,
+            &package,
+            &output,
+            &opts.manifest_sha256,
+            info,
+            bits,
+            publication_errors,
+        )
     }
 }
 #[cfg(windows)]
@@ -678,6 +702,7 @@ fn inputs(root: &Path) -> Result<BTreeMap<String, String>> {
         "xtask/Cargo.toml",
         "xtask/src/main.rs",
         "xtask/src/windows_trace.rs",
+        "xtask/src/windows_faults.rs",
         "xtask/src/windows_process.rs",
         "xtask/src/trace_process.rs",
         "xtask/src/trace_model.rs",
@@ -689,6 +714,8 @@ fn inputs(root: &Path) -> Result<BTreeMap<String, String>> {
         "xtask/tests/trace-v2.expected",
         "tools/artifact-trace/consumer.c",
         "tools/artifact-trace/windows_consumer.c",
+        "tools/delivered-faults/consumer.c",
+        "tools/delivered-faults/windows_injector.h",
     ]
     .into_iter()
     .map(|name| Ok((name.into(), sha(&root.join(name))?)))
@@ -717,11 +744,17 @@ fn native(
     pin: &str,
     info: Value,
     features: u32,
+    publication_errors: bool,
 ) -> Result<()> {
     fs::create_dir_all(output.parent().context("output parent")?)?;
     fs::create_dir(output)?;
     let before = inputs(&run.root)?;
-    let mut proof = json!({"verified":false,"native_windows_verified":false,"scope":"Delivered Windows x64 C/C++ finite state trace; not full API, MC/DC or power loss","engine_source_id":info["source_id"],"features":features,"manifest_sha256":pin,"commands":[],"source_before":before,"runner_sha256":sha(&std::env::current_exe()?)?});
+    let scope = if publication_errors {
+        "Delivered Windows x64 C publication errors and fresh-process recovery"
+    } else {
+        "Delivered Windows x64 C/C++ finite state trace; not full API, MC/DC or power loss"
+    };
+    let mut proof = json!({"verified":false,"native_windows_verified":false,"scope":scope,"engine_source_id":info["source_id"],"features":features,"manifest_sha256":pin,"commands":[],"source_before":before,"runner_sha256":sha(&std::env::current_exe()?)?});
     write_proof(output, &proof)?;
     let result = (|| -> Result<()> {
         proof["data_volume"] = crate::windows_process::volume(output)?;
@@ -798,6 +831,30 @@ fn native(
             "PATH".into(),
             std::env::join_paths([system.join("System32"), system])?,
         );
+        if publication_errors {
+            let driver = run.root.join("tools/delivered-faults");
+            fs::copy(driver.join("consumer.c"), input.join("fault_consumer.c"))?;
+            fs::copy(
+                driver.join("windows_injector.h"),
+                input.join("windows_injector.h"),
+            )?;
+            faults::run(
+                &mut proof,
+                faults::Environment {
+                    output,
+                    input: &input,
+                    package: &relocated,
+                    compiler: compiler.as_os_str(),
+                    build: &env,
+                    runtime: &runtime,
+                },
+                text(&info["source_id"])?,
+            )?;
+            verified(package, pin)?;
+            verified(&relocated, pin)?;
+            ensure!(inputs(&run.root)? == before, "fault tool inputs changed");
+            return Ok(());
+        }
         let mut outcomes = vec![];
         for (cpp, language) in [(false, "c"), (true, "cpp")] {
             let build = output.join(language);
@@ -947,9 +1004,17 @@ fn native(
     }
     write_proof(output, &proof)?;
     result?;
-    println!(
-        "{}",
-        json!({"verified":true,"output":output,"cases":20,"cells":134,"source_id":info["source_id"],"manifest_sha256":pin,"dll_sha256":proof["c"]["dll_sha256"],"evidence_sha256":sha(&output.join("evidence.json"))?})
-    );
+    let outcomes = if publication_errors {
+        json!({"cases":6,"disabled_injection_control":true,"dll_sha256":proof["dll_sha256"]})
+    } else {
+        json!({"cases":20,"cells":134,"dll_sha256":proof["c"]["dll_sha256"]})
+    };
+    let mut summary = json!({"verified":true,"output":output,"source_id":info["source_id"],
+        "manifest_sha256":pin,"evidence_sha256":sha(&output.join("evidence.json"))?});
+    summary
+        .as_object_mut()
+        .unwrap()
+        .extend(outcomes.as_object().unwrap().clone());
+    println!("{summary}");
     Ok(())
 }
