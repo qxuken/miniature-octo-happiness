@@ -1940,3 +1940,14 @@ changed export bytes and foreign saved state, and kept the prior receipt
 historical-only when the follower was unavailable. The audit matched 62
 artifact hashes and 24 cleanup records. macOS and Docker Linux/ext4 regressions
 passed. This advances R04 for the Windows x64/NTFS loopback profile.
+
+## Native follower manifest ceiling and rotation
+
+At `61efe2d`, the [native follower rotation](replication-operations.md#recorded-native-rotation-result)
+passed on Windows/NTFS, macOS/APFS and Docker Linux/ext4. After 81 installs
+the 1,044,480-byte manifest preserved durable revision 84 through an exact
+duplicate and a rejected revision-85 offer. Cleanup removed only the inactive
+slot. A fresh directory accepted the same initial receipt and reopened at
+revision 85 with retained revision 2. The old selected image and manifest
+survived byte-identically. The Windows CLI test passed its capped-manifest
+compaction refusal. This records the native R03 rotation profile.

@@ -125,6 +125,68 @@ native compaction hook, reopens the exact selected revision and digest,
 and retries the same export. Existing simulator tests continue to exercise
 image sync, manifest append/root/witness barriers, lost replies and retries.
 
+### Naturally exhausted manifest and fresh-directory rotation
+
+The native rotation test grows a real follower manifest through successive
+installs until it reaches its admission threshold. A poll and an exact
+duplicate return the old receipt. A newer offer returns `Limit` on both
+ends before altering any follower file. Cleanup then removes only the
+inactive slot. The replacement directory first receives the exact old
+export under the same enrollment, then accepts the previously rejected
+next export. Reopening both directories compares current state, retained
+revision 2 and the selected receipts. The old manifest and selected image
+remain byte-identical throughout reseeding.
+
+Run the release fixture against the native file adapter. Set
+`WEEKEND_MANIFEST_ROTATION_EVIDENCE` to a fresh output directory to copy
+the capped follower before cleanup, the old follower after rotation, and
+the replacement. The fixture uses test-owned TCP loopback. The companion
+CLI integration test exercises authenticated CLI maintenance.
+
+```sh
+cargo test --offline --locked --release -p weekend-db --features replication --test replication \
+  native_manifest_growth_and_reseed_preserve_receipts -- --exact --ignored --nocapture
+cargo test --offline --locked --release -p weekend-replicate --test cli \
+  native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime -- --exact
+```
+
+#### Recorded native rotation result
+
+PR head `61efe2d` passed on native Windows x64 with fixed NTFS and
+Rust 1.99.1. The hosted checkout was test merge
+`0f998401b7923adadea2315de663caabf89a26b5`. The app's Windows CLI test
+also passed its explicit compaction refusal at the cap and its cleanup
+and receipt checks.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43738101373/job/132885068399)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43738101373/artifacts/14171297883).
+
+The first `maintenance_required` status followed 81 successful
+installs. The manifest length was 1,044,480 bytes, with a 1,048,576-byte
+ceiling. The capped follower preserved its revision-84 receipt after a
+poll, exact duplicate and rejected revision-85 offer. The replacement
+reopened at revision 85 with a 73,728-byte manifest. The copied proof
+shows that cleanup removed only the inactive slot and that the
+replacement's initial image matched the capped follower's selected
+image byte for byte. Read-only inspection of both final selected
+images verified witnessed format-2 roots at 84 and 85 and retained
+ID 1 at revision 2.
+
+macOS/APFS and Docker Linux/ext4 passed the same natural-growth and
+CLI profiles. The installations, file lengths and revisions matched
+the Windows observations. File identities and image hashes were
+generated separately. The Linux Cargo lock stayed unchanged and the
+owned Docker container and volume were removed.
+
+| Evidence | SHA-256 |
+|---|---|
+| Windows ZIP | `2ed13a8d063730085bdd56c63b6386370318b0b5b5d47a7c98c891e2b79b39a7` |
+| Windows rotation log | `68aa61f973a07357786730949076ba11b38ac91358ab484442bd82d5cf92a5df` |
+| Windows CLI log | `9089f1da3dc69ff0cad60e9b738c96e862267b926342de233e479d6b677865e8` |
+| Windows old selected image at revision 84 | `fce3b49745faf02207a3f1ffd24be174d299b61ec9a33c4425f8259aac11d009` |
+| Windows replacement image at revision 85 | `61ca0edca794f1c67fc0ffd8d60acbed96f20560f9fc784b6ced64ce57140768` |
+| macOS rotation log | `06f0ed9bd895e9c8906b6869397eb126636f83f73458ef0394e4b4a4bea1edce` |
+| Docker Linux test log | `fd489391c9ac0b2bc5df596e0f48037c37eb613a8072492a1bc1d9897bf0ce07` |
+
 ## Transport deployment contract
 
 Complete transport authentication before passing a channel to
