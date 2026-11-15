@@ -2086,3 +2086,16 @@ scratch has its previous mode `0600`. The exact retry preserves the
 canonical mode `0640` and the failed scratch. The final source reopens
 at revision 213 and the backup at 212. Namespace replacement, cleanup
 and physical device faults remain outside this result.
+
+## Ext4 compaction directory writeback
+
+At `bcbae97`, the [ext4 directory fault tests](maintenance-space-exhaustion.md#kernel-eio-at-compaction-directory-syncs)
+return `OutcomeUnknown` for kernel EIO after both a successful exchange
+and a successful unlink on Docker arm64 and hosted Ubuntu x64. After
+remount, the exchange case has the original
+file at the canonical path and the compacted file under the scratch name.
+The cleanup case keeps the compacted file canonical and restores the old
+scratch entry. Both open every root at revision 212 and retry to the exact
+compacted image. The final source reaches revision 213 with all 64 retained
+roots. This closes two directory sync cases. Namespace space exhaustion,
+remaining file sync faults and physical device tests remain open.

@@ -24,7 +24,10 @@ It reports the old and new file sizes after durable replacement. It preserves
 the store identity, current revision and all retained roots. A live handle
 causes `Busy`. A post-exchange `OutcomeUnknown` calls for inspecting the
 canonical path with `check` and keeping any scratch output while diagnosing
-the failure. The CLI uses the library's default limits. Applications that set
+the failure. The canonical file and scratch can both hold valid images
+of the same revision. [Tested ext4 recovery outcomes](maintenance-space-exhaustion.md#kernel-eio-at-compaction-directory-syncs)
+
+The CLI uses the library's default limits. Applications that set
 a custom allocation budget can pass it to `Database::compact_file`.
 On Windows, `backup` produces a compacted, verified copy at a fresh path.
 

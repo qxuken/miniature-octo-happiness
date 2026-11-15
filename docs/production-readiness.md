@@ -120,10 +120,10 @@ qualification is a separate release-candidate requirement.
   verifies reopen and retry after exchange and unlink failures. The
   [maintenance writeback test](maintenance-space-exhaustion.md#kernel-writeback-eio-during-near-cap-maintenance)
   verifies recovery after copy-data, root-slot and witness flush failures.
-  [Ext4 journal writeback](maintenance-space-exhaustion.md#kernel-eio-at-compaction-file-metadata-sync)
-  also verifies the in-place compaction file metadata sync before exchange.
-  Actual namespace space exhaustion and faults during replacement and
-  cleanup still need qualification. Verify the canonical image before
+  Ext4 journal writeback also verifies the [file metadata sync before exchange](maintenance-space-exhaustion.md#kernel-eio-at-compaction-file-metadata-sync)
+  and both [directory syncs after exchange and cleanup](maintenance-space-exhaustion.md#kernel-eio-at-compaction-directory-syncs).
+  Actual namespace space exhaustion and failures at the subsequent file
+  syncs still need qualification. Verify the canonical image before
   removing any orphan. The [admin CLI](operations.md) can compact in place
   with exclusive leases on macOS and Linux. The [paired isolation workload](compound-resource-envelope.md#short-lived-maintenance-processes)
   measures the process-memory effect with the same copy budgets and seed.

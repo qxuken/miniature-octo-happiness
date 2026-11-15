@@ -809,5 +809,65 @@ mapper, mount and loop were removed.
 The hosted ZIP SHA-256 is
 `2c7a437acfae4fa1df05efee0f744de6dc75f20f16e8299c7d1e8ee7db971758`.
 
-Native faults at namespace replacement and cleanup barriers, actual
-namespace space exhaustion and physical power interruption remain open.
+The next profile exercises the two directory syncs after exchange and cleanup.
+
+## Kernel EIO at compaction directory syncs
+
+Add `--copy-barrier exchange-directory` or `--copy-barrier cleanup-directory`
+to the [writeback reproduction](#kernel-writeback-eio-during-near-cap-maintenance).
+Run each barrier on a freshly formatted private ext4 image. The controller
+uses the same internal journal extent as the file metadata profile. The
+shim checks both file identities and pauses immediately before the real
+`renameat2(RENAME_EXCHANGE)` or `unlinkat`. The selected syscall succeeds
+and the shim verifies the live directory entries. The following directory
+`fsync` returns kernel `EIO (5)`. The engine reports `OutcomeUnknown`
+with the native operation `Sync` and category `Other`.
+
+| Failed directory sync | Live canonical file and scratch | Canonical file and scratch after linear I/O is restored and ext4 remounts |
+|---|---|---|
+| After successful exchange | Compacted image at the canonical path, original image under the scratch name | Original image canonical, compacted image at the scratch name |
+| After successful unlink | Compacted image canonical, scratch name absent | Compacted image canonical, original image restored at the scratch name |
+
+The controller checks the inode mapping at the fault gate and verifies
+the exact inodes and file hashes after remount. Each canonical file,
+recovered scratch and verified backup reopens witnessed at revision 212
+with all 64 retained roots.
+The canonical path matches the appropriate image byte for byte. A retry
+publishes the verified compacted bytes, keeps mode `0640`, and preserves
+the old scratch. The next commit and remount reopen the canonical file
+at revision 213 and the backup at 212. Those checks also verify all
+retained roots. These outcomes describe the two ext4 journal faults tested.
+
+Docker Linux arm64/ext4 with Rust 1.99.0 passed both barriers and the file
+metadata regression at `bcbae975a8b715ff60adb6b67cdf528e5460df04`.
+Hosted Ubuntu x64/ext4 with Rust 1.99.1 passed the kernel quota and writeback
+matrix at tested merge `43619a316bfa9de266a6f3ebc53387f4864a7d71`.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43762341176/job/132959697452), [Hosted artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43762341176/artifacts/14181152343)
+
+The 32 Linux quota unit tests passed. Strict Clippy passed for the Linux
+controller and compound fixture on Linux and macOS, plus the Windows x64
+fixture cross-target. The C gate compiled with warnings treated as errors.
+
+The independent audit for each phase matched the exact Git archive and
+rehashed 694 source files and 299 evidence payloads, including the compiled
+gate. It checked cleanup for all 98 command records and all 15 phase
+records. A separate admin process verified every retained revision in the
+three archived images and kept the original hashes. The controller
+confirmed removal of the owned mapper, loop and mount.
+
+The Docker fixture SHA-256 is
+`b4c4606db9fb679449f716b65053262c71e606f0f070b27d78730274965c5ab8`.
+The hosted fixture SHA-256 is
+`bb50bbaf6f651c2da62a808139e1a516d42436acc250c1e85201c55592ef2f01`.
+The hosted ZIP SHA-256 is
+`32854c92b711cd0a7c4ea8014284e37678a64c9b28a798388d37d3f9da1c0dd0`.
+
+| Evidence under `target/maintenance-journal-validation/` | Exchange directory SHA-256 | Cleanup directory SHA-256 |
+|---|---|---|
+| Docker controller | `e0db8ef5eb37ca9c4c16d3baab7d9ff98363272394ac5c15a07985b44f25aaa4` | `0817f201e8169219a8a02ec04c2772591a610aa705a1deb371607789875e0e20` |
+| Docker audit | `55295834a6c78ddeb5c23eb4c18a2b173631755ee4fa60cd00803330ebc02ac6` | `a03ffea8dfda1d3a6c4795b05fe98167314244eb4120ba60a6080a2b1b7da001` |
+| Hosted controller | `57648c20d38e2a8caa7c8f29261951f64f422797fd8a1c8d2fe8d579205aa1fc` | `0e5efa3216e7731867ce2dd05bb95f309dc6e6b33139301f5b87a387d4fad6b7` |
+| Hosted audit | `f7dcdbe14db5a3c3cf6b982f9d4926e48ff0173e97c9167fa8322fa2a32ffc21` | `3e8b57a78c463a3a246cd7290fc6cdb0d9bf4e27b877e526b7710a7f7056833e` |
+
+Actual namespace space exhaustion, device faults at the later file syncs
+and physical power interruption remain open.
