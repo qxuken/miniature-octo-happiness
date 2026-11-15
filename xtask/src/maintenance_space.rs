@@ -374,11 +374,22 @@ mod native {
                 fixture,
                 proof,
                 "icacls.exe",
+                "grant-drive-traverse",
+                &[
+                    root.into(),
+                    "/grant".into(),
+                    format!("{}:(RX)", quota.owner.account).into(),
+                ],
+            )?;
+            Self::tool(
+                fixture,
+                proof,
+                "icacls.exe",
                 "grant-copy-user",
                 &[
                     path(data),
                     "/grant".into(),
-                    format!("{}:(OI)(CI)M", quota.owner.account).into(),
+                    format!("{}:(OI)(CI)F", quota.owner.account).into(),
                     "/T".into(),
                 ],
             )?;
@@ -396,14 +407,14 @@ mod native {
                 )?;
                 preserved.verify(file)?;
             }
-            quota.quota(fixture, proof, "quota-track", "track", &[])?;
-            quota.limit(fixture, proof, "quota-initial-limit", HEADROOM)?;
-            quota.quota(fixture, proof, "quota-enforce", "enforce", &[])?;
-            quota.quota(fixture, proof, "quota-enforced-query", "query", &[])?;
             fixture
                 .env
                 .insert("WEEKEND_PRIVATE_MAINTENANCE".into(), "ntfs-quota".into());
             let probe = quota.create_probe(fixture, proof, data, "quota-create-calibration")?;
+            quota.quota(fixture, proof, "quota-track", "track", &[])?;
+            quota.limit(fixture, proof, "quota-initial-limit", HEADROOM)?;
+            quota.quota(fixture, proof, "quota-enforce", "enforce", &[])?;
+            quota.quota(fixture, proof, "quota-enforced-query", "query", &[])?;
             let (code, bytes) = windows_quota::exhaust(&probe, HEADROOM + oracle::MIB)?;
             let physical = Self::free(data)?;
             ensure!(

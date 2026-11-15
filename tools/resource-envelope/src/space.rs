@@ -78,11 +78,16 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     let pid = std::process::id();
     if mode == "space-quota-probe" {
         assert_eq!(kind, "ntfs-quota");
+        assert!(
+            fs::metadata(dir)
+                .expect("read private quota directory")
+                .is_dir()
+        );
         fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(source)
-            .unwrap();
+            .expect("create file under the restricted token");
     } else if mode == "space-check" {
         let changed = arguments.get(1).is_some_and(|v| v == "changed");
         let db = Database::open_file(source, limits(CORE)).unwrap();
