@@ -12,10 +12,6 @@
       ]
     },
     {
-      "path": "test_snapshot_cli_upgrade.py",
-      "allowed_skips": []
-    },
-    {
       "path": "test_study_cli_upgrade.py",
       "allowed_skips": []
     },

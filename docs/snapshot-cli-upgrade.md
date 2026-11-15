@@ -46,7 +46,7 @@ One native source and follower enrollment pass through these stages:
    revision-5 receipt. Offline reopening preserves the complete manifest bytes;
    no extra commit is concealed by equal logical values.
 
-Each receipt's SHA256 is independently computed in Python over the entire
+The harness independently computes each receipt's SHA-256 over the entire
 export. The selected follower image must equal the full exported bytes. Each
 version's separately linked fixture scans current and retained views: exactly
 one `row` key, all 32,768 bytes, exact current/retained revisions, and the complete
@@ -64,28 +64,27 @@ On a trusted POSIX development machine with the recorded offline dependency
 cache and both Git commits:
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/snapshot_cli_upgrade.py \
+cargo xtask snapshot-cli-upgrade \
   --historical 315068fc38b99d8ec616fdb5a8ee81107b471534 \
   --current 365daf6c8a6b7c85fb049fb5a0370b401dde2424 \
   --output target/my-fresh-snapshot-upgrade
 ```
 
-The output must be fresh, including absence of a dangling final symlink. Safe
-archive extraction requires Python's `filter='data'` support; the qualified host
-uses Python 3.14.8. The Linux wrapper safely extracts on the host and invokes
-`qualify()` with the frozen copied source/hash manifests inside the container;
-it does not claim the Python 3.11 container ran the top-level extractor.
+The output must be fresh, including absence of a dangling final symlink. The
+Rust controller accepts only regular tracked files in the source archives.
+The Linux qualification runs the same xtask command in an isolated Docker
+container with its database and build output on ext4.
 
 Child commands have bounded deadlines and process-group kill/reap on failure.
-Server readiness has a ten-second deadline; each finite stage stops its owned
-server in a `finally` block. Output goes to files rather than undrained pipes.
+Server readiness has a ten-second deadline. The supervisor stops each owned
+server after its stage and verifies process retirement. Its bounded logs
+include the terminal status.
 The helper preserves the selected Rust toolchain while removing build overrides.
 It records failure metadata, source/tool hashes, exact commands, compiler and
 binary identities. Generated private keys are removed from evidence on normal
 completion and caught failures; public certificates and synthetic database
-contents remain. A hard kill of the Python orchestrator can prevent cleanup:
-protect its mode-0700 output directory and discard leftover test credentials.
-No endpoint process is a production server.
+contents remain. After a hard kill of the controller, discard any leftover
+test credentials in the private output directory.
 
 These finite loopback checks do not establish native Windows, cross-host
 routing, upgrade during a live writer's lease, hardware power loss, arbitrary

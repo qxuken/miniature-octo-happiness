@@ -56,6 +56,8 @@ mod sanitizers;
 #[cfg(unix)]
 mod serialization_scale;
 #[cfg(unix)]
+mod snapshot_upgrade;
+#[cfg(unix)]
 mod soak;
 #[cfg(unix)]
 mod sqlite_baseline;
@@ -90,6 +92,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Qualify the actual authenticated snapshot CLIs across two frozen revisions.
+    #[cfg(unix)]
+    SnapshotCliUpgrade(snapshot_upgrade::Options),
     /// Verify native follower backup, restore and fresh-stream reseeding.
     #[cfg(unix)]
     FollowerBackupRestore(follower_backup::Options),
@@ -254,6 +259,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::SnapshotCliUpgrade(options) => snapshot_upgrade::run(&run, options),
         #[cfg(unix)]
         Task::FollowerBackupRestore(options) => follower_backup::run(&run, options),
         #[cfg(unix)]

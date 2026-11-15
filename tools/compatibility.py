@@ -1,7 +1,6 @@
 """Shared helpers for the remaining legacy POSIX runners."""
 import os
 from pathlib import Path
-import signal
 
 
 def fresh_output(path):
@@ -25,13 +24,3 @@ def child_env():
             env.pop(name, None)
     env['CARGO_INCREMENTAL'] = '0'
     return env
-
-
-def stop(child):
-    # Every caller owns a child started with start_new_session=True. Descendants
-    # can outlive an already-exited leader, so its status must not gate killpg.
-    try:
-        os.killpg(child.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    child.wait(timeout=5)

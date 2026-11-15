@@ -1052,3 +1052,10 @@ retained revision 2. Wrong-stream upload preserved the old durable receipt
 and all original files. Both runs verified process retirement and removed
 their private keys. Fourteen Python files remain.
 [Reseed verification](xtask-conversion.md#authenticated-follower-backup-and-reseed)
+
+The Rust mixed-version snapshot CLI qualification passed on macOS and Docker
+Linux/ext4 with durable receipts at 3, 4 and 5. Wrong-pin failure left the
+follower at 3 while the local capture was 4. Retry advanced follower
+durability and repeat polls at 5 preserved exact files. The conversion now
+covers 139/179 controls and 12 maintained Python files.
+[Snapshot upgrade verification](xtask-conversion.md#mixed-version-authenticated-snapshot-cli)

@@ -21,7 +21,8 @@
     "resource-envelope/test_resilience.py",
     "sqlite-baseline/test_runner.py",
     "test_compatibility.py",
-    "test_soak.py"
+    "test_soak.py",
+    "test_snapshot_cli_upgrade.py"
   ],
   "controls": [
     {
@@ -1228,43 +1229,65 @@
       "path": "test_snapshot_cli_upgrade.py",
       "id": "helper_suite.Contract.test_docker_cleanup_attempts_both_and_requires_both_absence",
       "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
-      "rust": []
+      "rust": [
+        "artifact_trace::tests::cleanup_requires_matching_owned_uuid_pair",
+        "faults::tests::cleanup_attempts_both_retirements_and_both_absence_probes"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_snapshot_cli_upgrade.py",
       "id": "helper_suite.Contract.test_exact_receipt_grammar",
       "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
-      "rust": []
+      "rust": [
+        "follower_backup::tests::receipt_parser_separates_local_capture_and_durable_acknowledgment"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_snapshot_cli_upgrade.py",
       "id": "helper_suite.Contract.test_fresh_output_preserves_existing_and_dangling",
       "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
-      "rust": []
+      "rust": [
+        "compatibility::tests::both_profiles_reject_existing_and_dangling_outputs_before_build"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_snapshot_cli_upgrade.py",
       "id": "helper_suite.Contract.test_environment_preserves_selected_toolchain",
       "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
-      "rust": []
+      "rust": [
+        "snapshot_upgrade::tests::environment_preserves_selected_toolchain_and_removes_overrides"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_snapshot_cli_upgrade.py",
       "id": "helper_suite.Contract.test_timeout_reaps_real_child_and_records_exit",
       "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
-      "rust": []
+      "rust": [
+        "supervise::tests::timeout_reaps_leader_and_cleans_descendants"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_snapshot_cli_upgrade.py",
       "id": "helper_suite.Contract.test_failed_setup_records_failure_and_scrubs_keys",
       "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
-      "rust": []
+      "rust": [
+        "snapshot_upgrade::tests::failed_setup_scrubs_private_keys_and_records_failure"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_snapshot_cli_upgrade.py",
       "id": "helper_suite.Contract.test_expected_failure_does_not_accept_success",
       "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
-      "rust": []
+      "rust": [
+        "assurance::tests::expected_failure_needs_stderr_marker_and_successful_retirement"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_soak.py",

@@ -754,3 +754,39 @@ controls mapped. [Follower backup runbook](follower-backup-restore.md)
 macOS passed all 153 xtask tests in debug and release. Docker Linux passed
 the focused receipt, credential cleanup, and loopback controls. Strict
 Clippy passed on macOS and the Linux and MSVC cross targets.
+
+## Mixed-version authenticated snapshot CLI
+
+`cargo xtask snapshot-cli-upgrade` qualifies the original
+`315068fc38b99d8ec616fdb5a8ee81107b471534` and
+`365daf6c8a6b7c85fb049fb5a0370b401dde2424` release CLIs. It builds both
+original locks unchanged, binds the exact linked rlibs and fixtures, and
+checks process retirement on every stopped server. Both frozen engine builds
+and both independent fixtures retain their hashes throughout the scenario.
+
+The first port rejected a real historical poll because its standalone
+`local verified_revision=3` line has no suffix. The corrected parser checks
+that line separately from the exact durable receipt. A regression test pairs
+local revision 4 with durable revision 3 and rejects a missing receipt.
+Both corrected runs passed.
+
+macOS/APFS and Docker Linux/ext4 observed durable revisions 3, 4 and 5, with
+retained revision 2 verified by both fixtures. Wrong pin rejection kept the
+local capture at 4 and the follower at 3, and left all follower files unchanged.
+The trusted retry installed 4. After advancement and shipment to the upgraded
+server, repeated poll and offline reopen preserved every follower byte at 5.
+All five servers retired, all private test keys were removed, and the Docker
+container and volume cleanup passed.
+
+- macOS evidence SHA-256 `bc7ad0bde258ba9741ee645b12cb1a01dc91a3275f6d26d085f5d549549e6da4`.
+- Docker Linux evidence SHA-256 `973e948a213366c974c23b57cc8063bc71079b07f555c727db45e1c684075bd8`.
+
+All seven old upgrade controls map to named Rust tests. The conversion now
+covers **139/179** controls and **12** maintained Python files.
+[Snapshot upgrade runbook](snapshot-cli-upgrade.md)
+
+All 156 xtask tests passed on macOS in debug and release. Docker Linux passed
+the focused controller tests. Strict Clippy passed on macOS and the Linux
+and MSVC cross targets. The four remaining suites passed 78 checks with two
+registered skips across eight workers. Their evidence SHA-256 is
+`9256db5d279c8578246c9a34f55c9e46f83a2decb37bce0de77e6da109c552d4`.

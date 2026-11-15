@@ -602,7 +602,15 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         );
         Ok(())
     })();
-    let scrubbed = scrub_keys(&[&client, &server]);
+    finish_with_key_cleanup(c, result, &[&client, &server])
+}
+
+pub(crate) fn finish_with_key_cleanup(
+    mut c: Campaign<'_>,
+    result: Result<()>,
+    directories: &[&Path],
+) -> Result<()> {
+    let scrubbed = scrub_keys(directories);
     c.evidence["private_credentials_retained"] = json!(scrubbed.is_err());
     let result = match (result, scrubbed) {
         (Ok(()), Ok(())) => {
@@ -639,6 +647,8 @@ mod tests {
             let bad = good.replacen("revision=4", &format!("revision={revision}"), 1);
             assert!(receipt(&bad, &stream).is_err());
         }
+        let oversized = good.replacen("revision=4", &format!("revision={}", "1".repeat(5000)), 1);
+        assert!(receipt(&oversized, &stream).is_err());
         assert_eq!(selected_slot("selected_slot=Some(1)").unwrap(), "1");
         assert!(selected_slot("selected_slot=Some(2)").is_err());
     }
