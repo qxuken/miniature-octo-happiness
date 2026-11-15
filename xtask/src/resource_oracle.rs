@@ -255,6 +255,94 @@ fn contention_samples(detail: &Value) -> Result<()> {
     Ok(())
 }
 
+const BREADTH_PHASES: [&str; 9] = [
+    "near_cap",
+    "image_limit",
+    "reopen",
+    "backup",
+    "restore",
+    "compact",
+    "acknowledged",
+    "slot_drop",
+    "witness_drop",
+];
+
+fn breadth_digest(probe: bool) -> u64 {
+    fnv((0..=64).flat_map(|id| {
+        let revision: u64 = if id == 0 {
+            133 + u64::from(probe)
+        } else {
+            4 + 2 * id
+        };
+        let epoch = if id == 0 { 64 } else { id };
+        revision
+            .to_le_bytes()
+            .into_iter()
+            .chain((0..4095u64).flat_map(move |key| {
+                let regular_update = key.checked_sub(1024).filter(|n| (10..=epoch).contains(n));
+                let version = match key {
+                    0..1024 if id == 0 && probe => 65,
+                    0..1024 => epoch.min(9),
+                    _ => regular_update.unwrap_or(0),
+                };
+                (version << 32 | key).to_le_bytes()
+            }))
+            .chain((0..8192u32).flat_map(|entry| {
+                (entry % 4096)
+                    .to_be_bytes()
+                    .into_iter()
+                    .chain(0x5749_4445u64.to_le_bytes())
+            }))
+    }))
+}
+
+pub fn compound_breadth(rows: &[Value], source: &str) -> Result<()> {
+    ensure!(
+        rows.len() == BREADTH_PHASES.len() + 1
+            && rows.last() == Some(&completion("breadth", source)),
+        "incomplete breadth phases or wrong build identity"
+    );
+    let old_digest = breadth_digest(false);
+    let new_digest = breadth_digest(true);
+    let source_bytes = number(&rows[0], "file_bytes")?;
+    let compact = number(&rows[3], "file_bytes")?;
+    let appended = number(&rows[6], "file_bytes")?;
+    ensure!(
+        (64 * MIB - 4 * MIB + 1..=64 * MIB).contains(&source_bytes)
+            && (1..source_bytes).contains(&compact)
+            && (compact + 4 * MIB..=64 * MIB).contains(&appended),
+        "bad breadth source, compacted or appended image size"
+    );
+    for (index, (row, phase)) in rows.iter().zip(BREADTH_PHASES).enumerate() {
+        let (bytes, witness, revision, digest) = match phase {
+            "acknowledged" => (appended, Some(true), 134, new_digest),
+            "slot_drop" => (appended, Some(true), 133, old_digest),
+            "witness_drop" => (appended, Some(false), 134, new_digest),
+            _ => (
+                if index < 3 { source_bytes } else { compact },
+                None,
+                133,
+                old_digest,
+            ),
+        };
+        ensure!(
+            row["phase"] == phase
+                && row["revision"] == revision
+                && row["roots"] == 64
+                && row["width"] == 4096
+                && row["depth"] == 64
+                && row["digest"] == digest
+                && row["file_bytes"] == bytes
+                && row.get("inspected_witness") == Some(&json!(witness))
+                && (1..=CORE).contains(&number(row, "core_peak_bytes")?)
+                && number(row, "rss_kib")? > 0
+                && number(row, "elapsed_ns")? > 0,
+            "wrong breadth state or missing measurement: {phase}"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(unix)]
 pub fn compound_cycles(rows: &[Value], source: &str, isolated: bool) -> Result<()> {
     const PHASES: [&str; 7] = [
@@ -719,6 +807,46 @@ mod tests {
             assert!(envelope(&corrupt).is_err(), "{field}");
         }
         assert!(envelope(&rows[..rows.len() - 1]).is_err());
+    }
+
+    #[test]
+    fn breadth_oracle_requires_exact_roots_and_recovery_outcomes() {
+        const OLD: u64 = 7_918_828_611_224_877_843;
+        const NEW: u64 = 12_349_113_872_356_617_204;
+        let mut rows: Vec<_> = BREADTH_PHASES
+            .iter()
+            .enumerate()
+            .map(|(i, phase)| {
+                let new = matches!(i, 6 | 8);
+                json!({
+                    "phase":phase,"revision":133 + u64::from(new),"roots":64,
+                    "width":4096,"depth":64,"digest":if new { NEW } else { OLD },
+                    "file_bytes":match i {
+                        0..3 => 63_574_016,
+                        3..6 => 58_523_648,
+                        _ => 62_840_832,
+                    },
+                    "elapsed_ns":1,"core_peak_bytes":1,"rss_kib":1,
+                    "inspected_witness":if i < 6 { None } else { Some(i != 8) }
+                })
+            })
+            .collect();
+        rows.push(completion("breadth", "fixture"));
+        compound_breadth(&rows, "fixture").unwrap();
+        assert!(compound_breadth(&rows[1..], "fixture").is_err());
+        assert!(compound_breadth(&rows, "different-build").is_err());
+        for (index, field, replacement) in [
+            (1, "file_bytes", json!(63_574_017)),
+            (3, "roots", json!(63)),
+            (4, "depth", json!(63)),
+            (5, "digest", json!(0)),
+            (7, "revision", json!(134)),
+            (8, "inspected_witness", json!(true)),
+        ] {
+            let mut bad = rows.clone();
+            bad[index][field] = replacement;
+            assert!(compound_breadth(&bad, "fixture").is_err(), "{field}");
+        }
     }
 
     #[test]

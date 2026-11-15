@@ -12,6 +12,8 @@ use weekend_db::{
     storage::{self, Crash, Fault, IoKind, SimulatedDisk},
 };
 #[cfg(unix)]
+mod breadth;
+#[cfg(unix)]
 mod resilience;
 mod space;
 const MIB: usize = 1024 * 1024;
@@ -897,6 +899,11 @@ fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     assert!((2..=7).contains(&args.len()));
     let dir = Path::new(&args[1]);
+    #[cfg(unix)]
+    if args.len() == 4 && args[2] == "--" && args[3] == "breadth" {
+        breadth::run(dir);
+        return;
+    }
     if args.len() >= 4 {
         let source = Path::new(&args[2]);
         if args[3].to_str().unwrap().starts_with("space-") {

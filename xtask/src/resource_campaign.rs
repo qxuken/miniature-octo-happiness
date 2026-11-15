@@ -22,6 +22,7 @@ const DRIVER: &str = "tools/resource-envelope";
 const BASE: &[&str] = &["Cargo.toml", "Cargo.lock", "src/main.rs"];
 const COMPOUND: &[&str] = &[
     "src/compound.rs",
+    "src/breadth.rs",
     "src/resilience.rs",
     "src/space.rs",
     "namespace_fault.c",
@@ -43,6 +44,7 @@ pub enum Profile {
     Compound,
     CompoundCycles,
     CompoundIsolation,
+    CompoundBreadth,
     Resilience,
     NamespaceFailures,
 }
@@ -53,6 +55,7 @@ impl Profile {
             Self::Compound => "compound",
             Self::CompoundCycles => "compound-cycles",
             Self::CompoundIsolation => "compound-isolation",
+            Self::CompoundBreadth => "compound-breadth",
             Self::Resilience => "resilience",
             Self::NamespaceFailures => "namespace-failures",
         }
@@ -63,6 +66,7 @@ impl Profile {
             Self::Compound
             | Self::CompoundCycles
             | Self::CompoundIsolation
+            | Self::CompoundBreadth
             | Self::Resilience
             | Self::NamespaceFailures => "weekend-compound-resource",
         }
@@ -341,6 +345,21 @@ pub(crate) fn worker(
                 resource_oracle::envelope,
             )?;
             c.evidence["run"] = value;
+        } else if profile == Profile::CompoundBreadth {
+            let value = observe(
+                Observation {
+                    binary: &binary,
+                    data: &output.join("data"),
+                    report: &output.join("run.json"),
+                    args: &["--".into(), "breadth".into()],
+                    context: &run,
+                    deadline: 240.,
+                    inspect_group: true,
+                },
+                |rows| resource_oracle::compound_breadth(rows, revision),
+            )?;
+            check_breadth(&value, &output.join("data"), revision)?;
+            c.evidence["run"] = value;
         } else {
             let source_image = output.join("native-data/source.wdb");
             for (label, args) in [
@@ -597,6 +616,7 @@ fn docker(
                 Profile::Compound | Profile::NamespaceFailures => 600.,
                 Profile::CompoundCycles => 900.,
                 Profile::CompoundIsolation => 1400.,
+                Profile::CompoundBreadth => 600.,
                 Profile::Resilience => 1200.,
             },
         );
@@ -632,6 +652,38 @@ fn docker(
     retired?;
     result
 }
+fn check_breadth(run: &Value, data: &Path, revision: &str) -> Result<()> {
+    ensure!(
+        run["passed"] == true && run["owned_live_processes_absent"] == true,
+        "unverified breadth run"
+    );
+    let rows = run["rows"].as_array().context("breadth rows missing")?;
+    resource_oracle::compound_breadth(rows, revision)?;
+    ensure!(
+        fs::read_dir(data)?.count() == 4,
+        "unexpected breadth outputs"
+    );
+    let source = data.join("source.wdb");
+    ensure!(
+        fs::metadata(source)?.len() == resource_oracle::number(&rows[0], "file_bytes")?,
+        "breadth source size differs from report"
+    );
+    let backup_hash = sha(&data.join("backup.wdb"))?;
+    for (name, row) in [
+        ("backup.wdb", &rows[3]),
+        ("restored.wdb", &rows[4]),
+        ("compact.wdb", &rows[5]),
+    ] {
+        let path = data.join(name);
+        ensure!(
+            sha(&path)? == backup_hash
+                && fs::metadata(&path)?.len() == resource_oracle::number(row, "file_bytes")?,
+            "breadth copy bytes differ from report or backup: {name}"
+        );
+    }
+    Ok(())
+}
+
 fn check_proof(
     output: &Path,
     source: &BTreeMap<String, String>,
@@ -666,6 +718,8 @@ fn check_proof(
                 .as_array()
                 .context("resource rows missing")?,
         )?;
+    } else if profile == Profile::CompoundBreadth {
+        check_breadth(&proof["run"], &output.join("data"), revision)?;
     } else {
         ensure!(
             proof["runs"]
