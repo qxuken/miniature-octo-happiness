@@ -7,6 +7,25 @@ use weekend_db::{
     storage::{ByteStore, Crash, Fault, IoKind, MAX_IMAGE_BYTES, MemoryStore, SimulatedDisk},
 };
 
+#[test]
+fn storage_identity_is_read_without_io_and_survives_compaction() {
+    assert_eq!(
+        Database::new().unwrap().storage_identity(),
+        Err(Error::Invalid)
+    );
+    let source = SimulatedDisk::new().unwrap();
+    let identity = [3; 16];
+    let mut db = Database::create_on(source.clone(), identity, Limits::default()).unwrap();
+    source.arm(usize::MAX, Fault::Error);
+    assert_eq!(db.storage_identity(), Ok(identity));
+    assert!(source.trace().unwrap().is_empty());
+
+    let destination = SimulatedDisk::new().unwrap();
+    db.compact_to(destination.clone()).unwrap();
+    let reopened = Database::open_on(destination, Limits::default()).unwrap();
+    assert_eq!(reopened.storage_identity(), Ok(identity));
+}
+
 struct ReportedLength {
     disk: SimulatedDisk,
     reported: Arc<AtomicU64>,

@@ -111,7 +111,7 @@ fn sequenced_requests(input: &[u8]) {
         let slot = usize::from(op.get(1).copied().unwrap_or(0)) % receipts.len();
         let value = u64::from(op.get(2).copied().unwrap_or(0));
         let (latest, old_expected, old_value, previous_ack) = receipts[slot];
-        let (sequence, expected, replacement) = match op[0] % 7 {
+        let (mut sequence, mut expected, mut replacement) = match op[0] % 7 {
             0 | 1 => (latest + 1, revision, value),
             2 => (latest, old_expected, old_value),
             3 => (latest.saturating_sub(1), revision, value),
@@ -119,7 +119,42 @@ fn sequenced_requests(input: &[u8]) {
             5 => (latest + 1, revision - 1, value),
             _ => (latest, old_expected, old_value + 1),
         };
-        let want = if sequence == latest + 1 && expected == revision {
+        let (command, guard_error) = if op[0] & 64 != 0 {
+            (sequence, expected, replacement) = (latest + 1, revision, value);
+            let guard = op[0] & 3;
+            let identity = if guard == 1 { "3f" } else { "3e" }.repeat(16);
+            let previous = if guard == 2 && latest == 0 {
+                "bad".to_owned()
+            } else if latest == 0 {
+                "-".to_owned()
+            } else {
+                let prior_value = old_value + u64::from(guard == 2);
+                [1u8]
+                    .into_iter()
+                    .chain(
+                        [latest, old_expected, prior_value, previous_ack]
+                            .into_iter()
+                            .flat_map(u64::to_le_bytes),
+                    )
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect()
+            };
+            let error = match guard {
+                1 => Some(Error::ForeignStore),
+                2 if latest == 0 => Some(Error::Invalid),
+                2 => Some(Error::Conflict),
+                _ => None,
+            };
+            (
+                format!("journal-set {identity} {slot} {sequence} {previous} {expected} {replacement}"),
+                error,
+            )
+        } else {
+            (format!("set-seq {slot} {sequence} {expected} {replacement}"), None)
+        };
+        let want = if let Some(error) = guard_error {
+            Err(error)
+        } else if sequence == latest + 1 && expected == revision {
             revision += 1;
             current = replacement;
             receipts[slot] = (sequence, expected, replacement, revision);
@@ -137,7 +172,6 @@ fn sequenced_requests(input: &[u8]) {
         } else {
             Ok(format!("conflict {revision} {current}"))
         };
-        let command = format!("set-seq {slot} {sequence} {expected} {replacement}");
         assert_eq!(sequenced::handle(&mut db, &command), want);
         if index % 8 == 7 {
             drop(db);
@@ -171,6 +205,7 @@ fn replay_coordinator() {
         &[
             1, 0, 9, 2, 0, 0, 1, 0, 11, 3, 0, 0, 4, 0, 0, 5, 1, 22, 1, 1, 22, 6, 0, 0,
         ],
+        &[66, 3, 5, 64, 1, 7, 65, 1, 9, 66, 1, 11, 67, 1, 13],
     ] {
         coordinator_protocol(input);
     }

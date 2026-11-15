@@ -134,7 +134,6 @@ impl Storage {
             remaining_append_bytes: MAX_IMAGE_BYTES as u64 - next_append_offset,
         })
     }
-    #[cfg(feature = "replication")]
     pub(crate) fn identity(&self) -> [u8; 16] {
         self.identity
     }

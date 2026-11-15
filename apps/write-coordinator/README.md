@@ -192,6 +192,47 @@ cargo test --offline --locked --release -p write-coordinator --test writers \
   native_sequenced_workload_reuses_receipts_across_maintenance -- --ignored --exact --nocapture
 ```
 
+### Durable client journal
+
+Use one journal file per assigned slot and keep it in a private directory.
+With a fresh sequenced coordinator on port 8400, create a journal for slot 7
+and submit the first conditional write.
+
+```sh
+cargo run -p write-coordinator -- journal init writer-7.db 8400 7 \
+  --secret-file coordinator.secret
+cargo run -p write-coordinator -- journal set writer-7.db 8400 3 20 \
+  --secret-file coordinator.secret
+cargo run -p write-coordinator -- journal status writer-7.db
+cargo run -p write-coordinator -- journal resume writer-7.db 8400 \
+  --secret-file coordinator.secret
+```
+
+Initialization requires an empty slot. `set` durably records the exact request
+before sending it. The coordinator commits the change and its receipt together.
+The client then durably saves the receipt before printing `committed 4` or
+allowing the next sequence. The local file lease serializes client invocations
+using that journal. `status` reads the recorded coordinator identity and slot,
+latest receipt and any pending request. Use `resume` after a lost reply or a
+client interruption. It retries a pending request verbatim or reports the
+latest local acknowledgment when the pending request already cleared.
+
+Each journal write sends the coordinator database identity and the latest stored
+receipt as its predecessor. A fresh write requires the same lineage and exact
+predecessor on the server. A retry of the latest exact request can recover its
+existing receipt. A newer precondition conflict after the predecessor check
+allows the journal to drop the rejected request and reuse that sequence with a
+new precondition. Transport failures, retirement, unexpected replies and
+incompatible history leave the request pending for investigation or retry.
+
+The journal contains recorded values and no secret. Keep it with the same care
+as the coordinator file. Use offline verified maintenance for either file.
+After a stale restore, isolate the endpoint and reconcile journals and any
+external effects before rerouting clients. A copied database has the same
+lineage. A restore at the exact recorded predecessor looks like the original
+history to a client whose next reply was lost. Recovery of external effects and
+selection of the authoritative endpoint remain operator decisions.
+
 ## Finite native receipt-capacity qualification
 
 `native_receipt_capacity_survives_restarts_backup_restore_and_compaction` in

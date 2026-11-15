@@ -1,3 +1,4 @@
+mod journal;
 mod protocol;
 #[cfg(test)]
 use protocol::MAX_RECEIPTS;
@@ -20,6 +21,10 @@ write-coordinator serve <file> <port> --secret-file <file>
 write-coordinator client <port> --secret-file <file>
 write-coordinator init-sequenced <file>
 write-coordinator serve-sequenced <file> <port> --secret-file <file>
+write-coordinator journal init <file> <port> <slot> --secret-file <file>
+write-coordinator journal set <file> <port> <expected-revision> <unsigned-value> --secret-file <file>
+write-coordinator journal resume <file> <port> --secret-file <file>
+write-coordinator journal status <file>
 client commands: get, set <expected-revision> <unsigned-value>,
 set-id <request-id> <expected-revision> <unsigned-value>,
 sequenced commands: receipt <slot>, set-seq <slot> <sequence> <expected-revision> <unsigned-value>, quit";
@@ -69,6 +74,7 @@ pub(super) fn run() -> AppResult<()> {
         [command, port, flag, secret] if command == "client" && flag == "--secret-file" => {
             client(address(port)?, Some(Secret::load(Path::new(secret))?))
         }
+        [command, journal_args @ ..] if command == "journal" => journal::run(journal_args),
         _ => Err(USAGE.into()),
     }
 }
@@ -194,17 +200,21 @@ fn client(address: SocketAddr, secret: Option<Secret>) -> AppResult<()> {
         if command.is_empty() {
             continue;
         }
-        let mut stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
-        configure(&stream)?;
-        if let Some(secret) = &secret {
-            writeln!(stream, "auth {} {command}", std::str::from_utf8(&secret.0)?)?;
-        } else {
-            writeln!(stream, "{command}")?;
-        }
-        let reply = read_line(&stream)?;
+        let reply = request(address, secret.as_ref(), command)?;
         writeln!(io::stdout().lock(), "{reply}")?;
     }
     Ok(())
+}
+
+fn request(address: SocketAddr, secret: Option<&Secret>, command: &str) -> AppResult<String> {
+    let mut stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
+    configure(&stream)?;
+    if let Some(secret) = secret {
+        writeln!(stream, "auth {} {command}", std::str::from_utf8(&secret.0)?)?;
+    } else {
+        writeln!(stream, "{command}")?;
+    }
+    Ok(read_line(&stream)?)
 }
 
 #[cfg(test)]

@@ -450,6 +450,170 @@ fn sequenced_clients_preserve_receipts_through_restart_and_restore() {
 }
 
 #[test]
+fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
+    use std::net::{TcpListener, TcpStream};
+    use weekend_db::{Limits, storage};
+
+    fn relay(
+        listener: &TcpListener,
+        client: &AuthenticatedClient,
+        verb: &str,
+    ) -> (TcpStream, String) {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let mut socket = loop {
+            match listener.accept() {
+                Ok((socket, _)) => break socket,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline, "journal did not send {verb}");
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("accepting {verb}: {error}"),
+            }
+        };
+        socket.set_nonblocking(false).unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        socket
+            .set_write_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut line = String::new();
+        BufReader::new((&mut socket).take(257))
+            .read_line(&mut line)
+            .unwrap();
+        let prefix = format!("auth {} ", client.token);
+        let command = line
+            .strip_prefix(&prefix)
+            .and_then(|line| line.strip_suffix('\n'))
+            .expect("journal sent a complete authenticated request");
+        assert_eq!(command.split(' ').next(), Some(verb));
+        (socket, client.request(command))
+    }
+
+    let dir = Directory::new();
+    let file = dir.0.join("primary.db");
+    let foreign = dir.0.join("foreign.db");
+    let divergent = dir.0.join("divergent.db");
+    let journal = dir.0.join("writer.db");
+    let key = dir.0.join("secret");
+    let token = "4".repeat(64);
+    write_secret(&key, &token);
+    let key = key.to_str().unwrap();
+    let journal = journal.to_str().unwrap();
+    for path in [&file, &foreign] {
+        assert!(
+            Command::new(BIN)
+                .arg("init-sequenced")
+                .arg(path)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    storage::backup_file(&file, &divergent, Limits::default()).unwrap();
+
+    let run = |action, tail: &[&str]| {
+        Command::new(BIN)
+            .args(["journal", action, journal])
+            .args(tail)
+            .output()
+            .unwrap()
+    };
+    let stdout = |output: std::process::Output| {
+        assert!(output.status.success(), "{:?}", output);
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let (mut primary, client) =
+        configured_service("serve-sequenced", file.to_str().unwrap(), key, &token);
+    let port = client.address.port().to_string();
+    let identity = client.request("identity");
+    let identity = identity.strip_prefix("identity ").unwrap();
+    assert_eq!(
+        stdout(run("init", &[&port, "0", "--secret-file", key])),
+        format!("journal {identity} 0\nreceipt 0\n")
+    );
+
+    let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
+    proxy.set_nonblocking(true).unwrap();
+    let proxy_port = proxy.local_addr().unwrap().port().to_string();
+    let mut interrupted = Process::start(&[
+        "journal",
+        "set",
+        journal,
+        &proxy_port,
+        "3",
+        "42",
+        "--secret-file",
+        key,
+    ]);
+    let (mut preflight, reply) = relay(&proxy, &client, "journal-get");
+    assert_eq!(reply, "value 3 0");
+    writeln!(preflight, "{reply}").unwrap();
+    drop(preflight);
+    let (withheld, reply) = relay(&proxy, &client, "journal-set");
+    assert_eq!(reply, "committed 4");
+    interrupted.stop();
+    drop(withheld);
+    let pending = format!("journal {identity} 0\nreceipt 0\npending 1 3 42\n");
+    assert_eq!(stdout(run("status", &[])), pending);
+    assert_eq!(client.request("receipt 0"), "receipt 1 3 42 4");
+    primary.stop();
+
+    let (mut other, other_client) =
+        configured_service("serve-sequenced", foreign.to_str().unwrap(), key, &token);
+    let other_port = other_client.address.port().to_string();
+    assert!(
+        !run("resume", &[&other_port, "--secret-file", key])
+            .status
+            .success()
+    );
+    assert_eq!(other_client.request("get"), "value 3 0");
+    assert_eq!(stdout(run("status", &[])), pending);
+    other.stop();
+
+    let (_primary, client) =
+        configured_service("serve-sequenced", file.to_str().unwrap(), key, &token);
+    let port = client.address.port().to_string();
+    for _ in 0..2 {
+        assert_eq!(
+            stdout(run("resume", &[&port, "--secret-file", key])),
+            "committed 4\n"
+        );
+    }
+    assert_eq!(client.request("get"), "value 4 42");
+    assert_eq!(
+        stdout(run("status", &[])),
+        format!("journal {identity} 0\nreceipt 1 3 42 4\n")
+    );
+
+    let (_other, other_client) =
+        configured_service("serve-sequenced", divergent.to_str().unwrap(), key, &token);
+    let other_port = other_client.address.port().to_string();
+    assert_eq!(
+        other_client.request("identity"),
+        format!("identity {identity}")
+    );
+    assert_eq!(other_client.request("set-seq 0 1 3 777"), "committed 4");
+    assert!(
+        !run("set", &[&other_port, "4", "99", "--secret-file", key])
+            .status
+            .success()
+    );
+    assert_eq!(
+        stdout(run("status", &[])),
+        format!("journal {identity} 0\nreceipt 1 3 42 4\npending 2 4 99\n")
+    );
+    assert_eq!(other_client.request("get"), "value 4 777");
+    assert_eq!(client.request("get"), "value 4 42");
+    assert_eq!(
+        stdout(run("resume", &[&port, "--secret-file", key])),
+        "committed 5\n"
+    );
+    assert_eq!(client.request("receipt 0"), "receipt 2 4 99 5");
+    assert_eq!(client.request("get"), "value 5 99");
+}
+
+#[test]
 #[ignore = "extended native maintenance workload"]
 fn native_sequenced_workload_reuses_receipts_across_maintenance() {
     use weekend_db::{Database, Limits, storage};

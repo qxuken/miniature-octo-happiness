@@ -184,6 +184,17 @@ impl Database {
             .ok_or(Error::Invalid)?
             .space()
     }
+    /// Return the persistent identity of a byte-backed database without I/O.
+    /// Copies and restores preserve this identity. It identifies a lineage,
+    /// so callers also need a revision or application receipt to detect rollback.
+    /// An in-memory database without a byte store returns `Error::Invalid`.
+    pub fn storage_identity(&self) -> Result<[u8; 16]> {
+        self.read_state()
+            .storage
+            .as_ref()
+            .map(Storage::identity)
+            .ok_or(Error::Invalid)
+    }
     /// Write a fully synchronized, verified compact copy to an empty byte store.
     /// The source stays open and unchanged; the destination lease is released
     /// on return. Requires a byte-backed source and exclusive access to this

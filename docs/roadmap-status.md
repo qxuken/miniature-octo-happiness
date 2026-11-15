@@ -1405,9 +1405,10 @@ sequence or published the value without its receipt.
 A native release workload passed 1,152 commits and nine verified copies on
 macOS/APFS and Docker Linux/ext4. Both ended at revision 1,155 with two live
 receipt rows. Each compact copy occupied 45,056 bytes. The first batch grew
-to 2,158,592 bytes and each later batch to 2,142,208 bytes. Native Windows
-execution of the new coordinator profile and operator acceptance of the
-client journaling, maintenance and stale-restore policy remain open.
+to 2,158,592 bytes and each later batch to 2,142,208 bytes. The default native
+Windows job for `bbf5b7c` passed the sequenced restart and restore test in
+debug and release. The extended nine-copy workload remains scoped to macOS
+and Linux. [Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43715144047/job/132814939237)
 
 | Evidence | SHA-256 |
 |---|---|
@@ -1422,3 +1423,61 @@ client journaling, maintenance and stale-restore policy remain open.
 | Bounded native ASan fuzz log | `db284535f2eee4e4091c30daad448fed8670f8db45433ce356e98fffee25e5fe` |
 | Retired receipt acknowledgment mutation | `5e8f2376cded9e2e5ccf94dd1ddfd717383d5ee63de895fac603028cf53eae00` |
 | Missing receipt mutation | `9bb1d28b00f9444b7e81b18677b0aa270d1f75f7672fdd587e6165a51ee852c6` |
+| Native Windows default profile job log | `357672e57193f728dcf15c13c041fd2f7dce0001108d0d0eff5f32f721b373f4` |
+
+## Durable coordinator client journal
+
+The [journal CLI](../apps/write-coordinator/README.md#durable-client-journal)
+stages the exact intent before sending and saves the reply before returning a
+successful exit or advancing the slot. The coordinator commits the effect
+and its receipt together. Its identity identifies the database lineage, and
+its last receipt guards fresh writes against a fork at the same revision.
+The previous receipt and pending intent live in one fixed-size journal record.
+The journal uses the native file lease and ordinary database publication path.
+
+| Scenario | Result after reopen |
+|---|---|
+| I/O error during any traced operation staging the intent | Reopens idle or pending according to persistence of the root. Only the read-only preflight can have reached the coordinator. |
+| I/O error saving the local acknowledgment after server revision 4 | Reopens pending or with receipt 4. A pending retry gets the exact original receipt, while an already saved reply is read locally. Both keep the server at revision 4. |
+| Client process killed after the coordinator commits and before reply delivery, then coordinator restarted | Client reopens pending and recovers revision 4 twice. The server effect stays at revision 4. |
+| Other lineage or a same-lineage copy with a divergent prior receipt | Client retains its pending request. An isolated incompatible endpoint retains its local data. Retrying on the correct history allows the next write at revision 5. |
+| Confirmed newer precondition conflict after the predecessor check | Client clears pending and can reuse that sequence with a revised precondition. Malformed, retired and uncertain responses preserve pending. |
+
+The simulator uses both `DropAll` and `PersistAll` at every traced operation
+in each client commit. The native process oracle forwards the exact CLI
+request and withholds its reply after observing the server's durable response.
+The augmented protocol fuzz model covers correct, foreign and incompatible
+guards and reopens periodically. It passed 2,000 ASan runs at seed 9.
+
+macOS arm64/APFS and Docker Linux arm64/ext4 each passed 20 coordinator tests
+in debug and release, with the extended workload excluded. The storage
+decision suite passed nine tests on both, including lineage preserved through
+a verified compact copy. Five journal checks passed under each of macOS ASan
+and TSan with rebuilt std at `nightly-2026-11-12`. Strict Clippy passed on both
+host profiles and for cross-target `x86_64-pc-windows-msvc`. A native Windows
+run of the journal CLI is pending. Deployment-specific latency and maintenance
+budgets, authoritative routing after a stale restore, and operator acceptance
+of slot assignment and reconciliation remain open.
+
+```sh
+cargo test --offline --locked -p write-coordinator
+cargo test --offline --locked --release -p write-coordinator
+cargo test --offline --locked -p weekend-db --all-features --test storage_decisions
+cargo test --offline --locked --manifest-path fuzz/Cargo.toml --lib replay_coordinator
+```
+
+| Evidence | SHA-256 |
+|---|---|
+| Client journal source | `d2999afd8a649577d9f5bfa4a2c656c7bf2e52b0a08b44cd1d5569847855117d` |
+| Server protocol source | `ec13c699bf69bd4d0a67c3a788b05523e94fd45d65626e7c9df0db93cbbcbd73` |
+| Native process test source | `2a6b76a38dd208d37a96558f48551e97b5ce20751421d4768e507f3eabfdbd8e` |
+| Fuzz source | `c8ff43db3848b629ffe0fd02e2d09523c4894ce74e6e0962adadbe2951ad6480` |
+| macOS debug log | `fff67b43f1ac97f1ea60c234e8fe9ce5e3d008eb2bf1eb9a02336b801809cf04` |
+| macOS release log | `1f860d3af8103efe8da702884d14001abc258184233d9d3d642b0dbe87aee8c5` |
+| macOS storage decisions log | `42458dfdfa1f4b5f7b23bf6de006b818e07300e71c60b018494a285ae098fc95` |
+| macOS ASan journal log | `64e6d6ae6612afc5ebe1c0751ef108c8cbf2a73be7eb810d1b6da6b2bf491137` |
+| macOS TSan journal log | `301c46035b5fd5cb99abb0d6a675c6f9468839d4cffba2e715af9cc859288d9e` |
+| Docker Linux debug, release, storage decisions and Clippy log | `08ce1bd7970241233d914ca220d446447e3fd6592a572e7b70edf6ef2296fdd4` |
+| Docker Linux ext4 mount record | `40ab1c448ee0a848b68e89ad6f74c25d07f36ec6932a602da9050e95743f05fb` |
+| Windows cross-target Clippy log | `0c3cea29467528063362871133c41a5585265376542b7800b48cd2588f07d0ab` |
+| Bounded ASan fuzz log | `29af6942d7a42404f8f1fe1cb1af90b734bb126e4d69828eb9a88e95dcde3d07` |

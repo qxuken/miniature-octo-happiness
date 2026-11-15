@@ -5,8 +5,8 @@ const FORMAT_COLLECTION: u64 = 1;
 const DATA_COLLECTION: u64 = 2;
 const FORMAT_KEY: &[u8] = b"protocol";
 const FORMAT: &[u8] = b"coordinator-sequenced-v1";
-const MAX_SLOTS: u64 = 1024;
-const INITIAL_REVISION: u64 = 3;
+pub(crate) const MAX_SLOTS: u64 = 1024;
+pub(crate) const INITIAL_REVISION: u64 = 3;
 
 pub(crate) fn initialize(db: &Database) -> Result<()> {
     let format = db.create_collection()?;
@@ -46,16 +46,20 @@ fn slot_key(slot: &str) -> Result<[u8; 6]> {
     Ok(key)
 }
 
-struct Receipt {
-    sequence: u64,
-    expected: u64,
-    value: u64,
-    revision: u64,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Receipt {
+    pub(crate) sequence: u64,
+    pub(crate) expected: u64,
+    pub(crate) value: u64,
+    pub(crate) revision: u64,
 }
 
 impl Receipt {
     fn decode(value: &Value, head: u64) -> Result<Self> {
-        let bytes = value.as_bytes().map_err(|_| Error::Corrupt)?;
+        Self::from_bytes(value.as_bytes().map_err(|_| Error::Corrupt)?, head)
+    }
+
+    pub(crate) fn from_bytes(bytes: &[u8], head: u64) -> Result<Self> {
         if bytes.len() != 33 || bytes[0] != 1 {
             return Err(Error::Corrupt);
         }
@@ -79,7 +83,7 @@ impl Receipt {
         Ok(receipt)
     }
 
-    fn encode(&self) -> [u8; 33] {
+    pub(crate) fn encode(&self) -> [u8; 33] {
         let mut bytes = [0; 33];
         bytes[0] = 1;
         bytes[1..9].copy_from_slice(&self.sequence.to_le_bytes());
@@ -88,6 +92,67 @@ impl Receipt {
         bytes[25..33].copy_from_slice(&self.revision.to_le_bytes());
         bytes
     }
+
+    pub(crate) fn reply(&self) -> String {
+        format!(
+            "receipt {} {} {} {}",
+            self.sequence, self.expected, self.value, self.revision
+        )
+    }
+}
+
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(2 * bytes.len());
+    for &b in bytes {
+        out.push(char::from(DIGITS[usize::from(b >> 4)]));
+        out.push(char::from(DIGITS[usize::from(b & 15)]));
+    }
+    out
+}
+
+pub(crate) fn unhex<const N: usize>(word: &str) -> Result<[u8; N]> {
+    if word.len() != 2 * N {
+        return Err(Error::Invalid);
+    }
+    fn digit(b: u8) -> Result<u8> {
+        match b {
+            b'0'..=b'9' => Ok(b - b'0'),
+            b'a'..=b'f' => Ok(b - b'a' + 10),
+            _ => Err(Error::Invalid),
+        }
+    }
+    let mut decoded = [0; N];
+    for (output, pair) in decoded.iter_mut().zip(word.as_bytes().as_chunks::<2>().0) {
+        *output = digit(pair[0])? << 4 | digit(pair[1])?;
+    }
+    Ok(decoded)
+}
+
+fn require_identity(db: &Database, identity: &str) -> Result<()> {
+    if unhex::<16>(identity)? != db.storage_identity()? {
+        return Err(Error::ForeignStore);
+    }
+    Ok(())
+}
+
+fn value_reply(db: &Database) -> Result<String> {
+    let (revision, value) = state_in(db, DATA_COLLECTION)?;
+    Ok(format!("value {revision} {value}"))
+}
+
+fn receipt_reply(db: &Database, slot: &str) -> Result<String> {
+    let snapshot = db.snapshot();
+    let key = slot_key(slot)?;
+    let Some(bytes) = snapshot.get(db.collection_id(DATA_COLLECTION), &key)? else {
+        return Ok("receipt 0".to_owned());
+    };
+    Ok(Receipt::decode(&bytes, snapshot.revision())?.reply())
+}
+
+enum Predecessor {
+    Unchecked,
+    Exact(Option<Receipt>),
 }
 
 pub(crate) fn handle(db: &mut Database, line: &str) -> Result<String> {
@@ -96,21 +161,48 @@ pub(crate) fn handle(db: &mut Database, line: &str) -> Result<String> {
     }
     let words: Vec<_> = line.split_whitespace().collect();
     match words.as_slice() {
-        ["get"] => {
-            let (revision, value) = state_in(db, DATA_COLLECTION)?;
-            Ok(format!("value {revision} {value}"))
+        ["get"] => value_reply(db),
+        ["receipt", slot] => receipt_reply(db, slot),
+        ["identity"] => Ok(format!("identity {}", hex(&db.storage_identity()?))),
+        ["journal-get", identity] => {
+            require_identity(db, identity)?;
+            value_reply(db)
         }
-        ["receipt", slot] => {
-            let snapshot = db.snapshot();
-            let key = slot_key(slot)?;
-            let Some(bytes) = snapshot.get(db.collection_id(DATA_COLLECTION), &key)? else {
-                return Ok("receipt 0".to_owned());
+        ["journal-receipt", identity, slot] => {
+            require_identity(db, identity)?;
+            receipt_reply(db, slot)
+        }
+        [
+            "journal-set",
+            identity,
+            slot,
+            sequence,
+            previous,
+            expected,
+            value,
+        ] => {
+            require_identity(db, identity)?;
+            let previous = if *previous == "-" {
+                None
+            } else {
+                let bytes = unhex::<33>(previous)?;
+                Some(Receipt::from_bytes(&bytes, u64::MAX).map_err(|_| Error::Invalid)?)
             };
-            let r = Receipt::decode(&bytes, snapshot.revision())?;
-            Ok(format!(
-                "receipt {} {} {} {}",
-                r.sequence, r.expected, r.value, r.revision
-            ))
+            let sequence = number(sequence)?;
+            let expected = number(expected)?;
+            if previous.map_or(0, |r| r.sequence).checked_add(1) != Some(sequence)
+                || previous.is_some_and(|r| r.revision > expected)
+            {
+                return Err(Error::Invalid);
+            }
+            submit(
+                db,
+                &slot_key(slot)?,
+                sequence,
+                expected,
+                number(value)?,
+                Predecessor::Exact(previous),
+            )
         }
         ["set-seq", slot, sequence, expected, value] => submit(
             db,
@@ -118,24 +210,35 @@ pub(crate) fn handle(db: &mut Database, line: &str) -> Result<String> {
             number(sequence)?,
             number(expected)?,
             number(value)?,
+            Predecessor::Unchecked,
         ),
         _ => Err(Error::Invalid),
     }
 }
 
-fn submit(db: &Database, key: &[u8], sequence: u64, expected: u64, value: u64) -> Result<String> {
+fn submit(
+    db: &Database,
+    key: &[u8],
+    sequence: u64,
+    expected: u64,
+    value: u64,
+    predecessor: Predecessor,
+) -> Result<String> {
     if sequence == 0 {
         return Err(Error::Invalid);
     }
     let collection = db.collection_id(DATA_COLLECTION);
     let mut tx = db.begin_with_validation(Validation::WholeDatabase);
     let (revision, current) = state_in(db, DATA_COLLECTION)?;
-    let mut last = 0;
-    if let Some(bytes) = tx.get(collection, key)? {
-        let receipt = Receipt::decode(&bytes, revision)?;
-        last = receipt.sequence;
+    let previous = tx
+        .get(collection, key)?
+        .as_ref()
+        .map(|bytes| Receipt::decode(bytes, revision))
+        .transpose()?;
+    let last = previous.map_or(0, |receipt| receipt.sequence);
+    if let Some(receipt) = previous {
         match sequence.cmp(&last) {
-            std::cmp::Ordering::Less => return Ok(format!("retired {}", last - 1)),
+            std::cmp::Ordering::Less => return Ok(format!("retired {}", receipt.sequence - 1)),
             std::cmp::Ordering::Equal => {
                 if (expected, value) != (receipt.expected, receipt.value) {
                     return Err(Error::Invalid);
@@ -147,6 +250,11 @@ fn submit(db: &Database, key: &[u8], sequence: u64, expected: u64, value: u64) -
     }
     if last.checked_add(1) != Some(sequence) {
         return Err(Error::Invalid);
+    }
+    if let Predecessor::Exact(expected) = predecessor
+        && expected != previous
+    {
+        return Err(Error::Conflict);
     }
     if revision != expected {
         return Ok(format!("conflict {revision} {current}"));
