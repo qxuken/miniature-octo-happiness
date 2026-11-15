@@ -1,13 +1,25 @@
 mod abi;
+#[cfg(unix)]
+mod assurance;
+#[cfg(unix)]
+mod atomic_model;
+#[cfg(unix)]
+mod c_sanitizers;
 mod check;
 mod clean;
 #[cfg(unix)]
 mod faults;
+#[cfg(unix)]
+mod fuzz;
+#[cfg(any(unix, test))]
+mod instrumentation;
 mod migration;
 mod notices;
 mod odin;
 mod package;
 mod rust_source;
+#[cfg(unix)]
+mod sanitizers;
 #[cfg(unix)]
 mod supervise;
 mod support;
@@ -32,6 +44,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Calibrate shared-runtime ASan across C and Rust, then run C consumers.
+    #[cfg(unix)]
+    CSanitizers(c_sanitizers::Options),
+    /// Run ASan or TSan over the workspace with instrumented std.
+    #[cfg(unix)]
+    Sanitizers(sanitizers::Options),
+    /// Run the bounded ownership and budget models and fail-required mutants.
+    #[cfg(unix)]
+    AtomicModel(atomic_model::Options),
+    /// Run discovered fuzz targets with bounded ASan execution and evidence.
+    #[cfg(unix)]
+    Fuzz(fuzz::Options),
     #[command(hide = true)]
     CompilerEnvironment {
         #[arg(long)]
@@ -132,6 +156,14 @@ fn execute(cli: Cli) -> Result<()> {
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        #[cfg(unix)]
+        Task::CSanitizers(options) => c_sanitizers::run(&run, options),
+        #[cfg(unix)]
+        Task::Sanitizers(options) => sanitizers::run(&run, options),
+        #[cfg(unix)]
+        Task::AtomicModel(options) => atomic_model::run(&run, options),
+        #[cfg(unix)]
+        Task::Fuzz(options) => fuzz::run(&run, options),
         Task::CompilerEnvironment { directory } => {
             let env = toolchain::compiler_environment(&mut run, &directory)?;
             let strings: std::collections::BTreeMap<String, String> = env

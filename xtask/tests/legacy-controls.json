@@ -2,7 +2,9 @@
   "source_commit": "065dbdb9d0caf1f5090763cb3840e57a897fc6cf",
   "retired_suites": [
     "test_release.py",
-    "test_windows_consumers.py"
+    "test_windows_consumers.py",
+    "test_c_sanitizers.py",
+    "test_fuzz_runner.py"
   ],
   "controls": [
     {
@@ -435,7 +437,9 @@
       "path": "test_c_sanitizers.py",
       "id": "helper_suite.EnvironmentTests.test_hostile_inherited_flags_and_suppressions_are_replaced",
       "source_sha256": "112c9ead200018906059a2e2684d02a5617278463a67d6072d9de08236a3b5c6",
-      "rust": []
+      "rust": [
+        "instrumentation::tests::hostile_inherited_flags_and_suppressions_are_replaced"
+      ]
     },
     {
       "path": "test_check_helpers.py",
@@ -693,13 +697,19 @@
       "path": "test_fuzz_runner.py",
       "id": "helper_suite.EvidenceTests.test_requested_runs_and_failed_builds_are_not_completed_runs",
       "source_sha256": "cd99781ece03053a96933d64c87b4fdc787b78d5c087451275d1cf55a0f03c40",
-      "rust": []
+      "rust": [
+        "fuzz::tests::requested_runs_and_failed_builds_are_not_completed_runs"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_fuzz_runner.py",
       "id": "helper_suite.EvidenceTests.test_input_changes_are_visible_and_corpus_changes_are_excluded",
       "source_sha256": "cd99781ece03053a96933d64c87b4fdc787b78d5c087451275d1cf55a0f03c40",
-      "rust": []
+      "rust": [
+        "assurance::tests::source_changes_are_visible_and_corpora_excluded"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_native_faults.py",

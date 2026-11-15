@@ -23,7 +23,6 @@ jobs:
       - name: Release configuration validation
         run: |
           cargo test --offline --locked -p xtask --bin xtask
-          python tools/test_c_sanitizers.py
       - name: Rust debug/release and interruption checks; C consumers on macOS/Linux
         run: cargo xtask check --skip-odin
       - name: Compile Windows C and C++ consumers against both DLL builds
@@ -164,19 +163,32 @@ jobs:
         kind: [address, thread]
     steps:
       - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.99.1 --profile minimal
       - run: rustup toolchain install nightly --profile minimal --component rust-src
-      - run: python3 tools/sanitizers.py ${{ matrix.kind }}
+      - run: cargo +1.99.1 fetch --locked
+      - run: cargo +1.99.1 xtask sanitizers ${{ matrix.kind }}
+      - name: Save bounded sanitizer diagnostics
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: workspace-sanitizer-${{ matrix.kind }}
+          path: |
+            target/sanitizer-${{ matrix.kind }}-evidence/*.json
+            target/sanitizer-${{ matrix.kind }}-evidence/*.log
+          if-no-files-found: warn
   c-address:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.99.1 --profile minimal
       - run: rustup toolchain install nightly --profile minimal --component rust-src
-      - run: python3 tools/c_sanitizers.py
+      - run: cargo +1.99.1 fetch --locked
+      - run: cargo +1.99.1 xtask c-sanitizers
       - name: Bounded atomic models and fail-required controls
         env:
           MODEL_TOOLCHAIN: nightly
-        run: python3 tools/atomic-model/check.py
+        run: cargo +1.99.1 xtask atomic-model
       - uses: actions/upload-artifact@v7
         if: always()
         with:

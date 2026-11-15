@@ -40,10 +40,6 @@
       "allowed_skips": []
     },
     {
-      "path": "test_c_sanitizers.py",
-      "allowed_skips": []
-    },
-    {
       "path": "test_check_helpers.py",
       "allowed_skips": []
     },
@@ -57,10 +53,6 @@
     },
     {
       "path": "test_coverage_executables.py",
-      "allowed_skips": []
-    },
-    {
-      "path": "test_fuzz_runner.py",
       "allowed_skips": []
     },
     {

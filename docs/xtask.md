@@ -13,6 +13,11 @@ cargo xtask check --skip-odin
 cargo xtask build --release --features crdt,replication
 cargo xtask package --output target/private-package --features crdt,replication
 cargo xtask package --help
+cargo xtask sanitizers address
+cargo xtask sanitizers thread
+cargo xtask c-sanitizers --cc clang
+cargo xtask atomic-model
+cargo xtask fuzz --runs 1000 --seconds 20 --output target/fuzz-evidence/private
 cargo xtask clean --dry-run
 ```
 
@@ -31,6 +36,28 @@ locked tooling dependencies. There are 20 private project manifests, all with
 
 ## Existing checks and package contract
 
+Sanitizer, fuzz and atomic-model commands run on POSIX through the same bounded
+supervisor as fault campaigns. Each requires a fresh evidence directory and
+records separate stdout/stderr, exit status, timeout, verified retirement and
+source hashes. `--output` chooses another directory for a repeat run. Sanitizers
+accept `--toolchain` (default `nightly`); the atomic model also honors
+`MODEL_TOOLCHAIN`. ASan/TSan rebuild the standard library and include xtask in
+workspace tests. C ASan calibrates valid and deliberately invalid reads on both
+sides of the ABI before running memory/thread/file consumers. Choose a compatible
+Clang shared runtime explicitly with `--cc`; the local Mac profile uses
+`/opt/homebrew/opt/llvm/bin/clang`, since Apple Clang's runtime fails the Rust
+link calibration. Inherited flags, wrappers and sanitizer suppressions cannot
+override the controlled sanitizer environment. A first instrumented-std build may
+need registry inputs; Cargo uses the checked-in lockfile.
+
+Fuzz targets are discovered from the manifest, with repeatable `--target` filters.
+Requested run/time budgets do not count as executions: every target must emit a
+nonzero completed-run summary and exit successfully. Both lockfiles, reviewed
+seeds and source stay bound to the campaign. Model mutants require their exact
+stderr assertion and a completed, retired process; timeout or a missing marker
+cannot qualify a negative control. Coverage/mutation and the other independent
+qualification tools remain tracked in the conversion ledger.
+
 The check planner preserves the original Python pipeline: formatting, strict
 workspace Clippy, debug/release workspace tests, task CLI demo, renamed-dependency
 consumer, memory/raw/typed/simulated Rust examples, workspace builds, shared-library
@@ -40,7 +67,8 @@ skipped. Windows C/C++ compilation remains a separate native CI step.
 
 Golden command plans were captured from the executed `e5c4d95:tools/check.py`
 under six platform/option profiles. The test compares every command and argument,
-normalizing only path separators and the new isolated-Python `-I -B` flags:
+normalizing path separators and the independent Rust ABI consumer that replaces
+the former Python ABI smoke command:
 
 | Profile | Commands |
 |---|---:|

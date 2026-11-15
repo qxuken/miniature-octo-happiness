@@ -30,7 +30,7 @@ entry points.
 |---|---|---|
 | Core entry points | check/build/package/cleanup, shared bounded POSIX supervision, native and delivered fault parent/worker | Check/build/package/cleanup are Rust-only; bounded supervision/fault orchestration is Rust with remaining adapters/oracles pending |
 | Packaging leaves and consumers | release policy, MSVC discovery/consumers, attribution, Odin bindings, dynamic ABI smoke, delivered Rust source | Clean Mac/Linux packages qualify at `06d0a15`; native Windows checkout regression fixed, hosted rerun pending |
-| CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, `probe/run.py` | Pending |
+| CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, `probe/run.py` | Sanitizer, C-ASan, atomic-model and fuzz runners are Rust; coverage, mutations and packaging experiment pending |
 | Independent delivery traces | state model, Rust/C/Odin trace controller, Docker worker, Windows 134-cell trace | Pending |
 | Upgrade and distributed qualification | storage/snapshot compatibility, snapshot/study CLI upgrades, replica progress, follower backup/restore, coordinator/peer soaks | Pending |
 | Resource/workload qualification | baseline/benchmark/monthly workload, serialization scale, resource observer, compound/recovery/growth/cache probes | Pending |
@@ -90,3 +90,64 @@ constant drift rejection, significant whitespace/bare-CR/final-newline rejection
 and exact LF regeneration. The same normalization applies to the embedded golden
 fixture. Windows execution remains a hosted gate; cross-target Clippy alone does
 not qualify it. This correction does not change any ABI or serialized bytes.
+
+## Sanitizer, model and fuzz conversion checkpoint
+
+Clap commands `sanitizers`, `c-sanitizers`, `atomic-model` and `fuzz` replace their
+Python controllers. Shared source-bound campaigns use the existing POSIX
+supervisor, with fresh output admission, 64 MiB per-stream ceilings, finite
+deadlines, process retirement and terminal JSON even when a command fails.
+Expected failures require a nonzero exit and the exact stderr assertion, while
+observation/output/deadline/cleanup failures still reject. New process controls
+exercise those distinctions and source drift rather than mocking successful
+instrumentation. Inherited flags, wrappers and suppression settings are replaced
+by controlled sanitizer settings. Instrumented-std workspace tests include xtask.
+
+All three legacy controls from the retired C-sanitizer and fuzz suites map to
+discovered Rust tests; **20 of 179** frozen controls are now mapped, with the
+remaining 159 visible. Unix-only fuzz controls have an explicit platform scope;
+the sanitizer-environment control still runs on Windows. Six more Python files
+are removed, leaving **56** maintained files for the remaining batches. Coverage
+and mutation measurement, the packaging probe, independent fault/state/artifact
+oracles and the final helper controller remain open. This checkpoint is not the
+completion of the conversion or product MC/DC.
+
+The Mac debug/release runner suites pass **55 tests** (48 unit, seven integration),
+and strict Clippy passes natively and for Windows MSVC. Docker Linux passes the
+same debug tests and Clippy. Both platforms execute the two atomic-model baselines
+and detect both deliberate mutants by their required assertions. C/Rust ASan
+passes both valid and both invalid calibration reads plus all three real C
+consumers on Mac (LLVM Clang 23.1.5) and Linux (Clang 16.0.6, nightly-2026-11-01).
+The initial Apple-Clang Mac attempt fails Rust runtime linking and remains failed
+evidence; it does not qualify ASan. Linux's offline container and volume are
+independently absent after copying proof. The source hash maps match across these
+Mac/Linux campaigns.
+
+All **22** Mac fuzz targets pass under ASan, totaling **21,391 actual executions**
+with 1,000-run/20-second limits. The snapshot-install target completes 407 and the
+schema/index target 984; the other twenty complete 1,000 each. Both lockfiles and
+reviewed seeds remain stable. These are bounded smoke results, not an extension
+of the older million-execution campaign. Source is explicitly `e3ff5ad-dirty`;
+later clean/hosted execution retains its own source identity.
+
+The full Mac workspace ASan command also passes through the new Rust runner with
+instrumented std, all features, coordinator capacity/restart/backup/restore checks,
+and xtask's own controls. Its supervised child exits zero in 217.94 seconds and
+retirement is verified. The remaining helper registry passes **314 checks plus
+four registered skips across 44 workers** with pinned Python 3.14.8. That registry
+is still maintained Python until its later conversion batch; these results do not
+claim the complete repository is Python-free. Hosted TSan for this new runner
+remains a subsequent exact-commit gate.
+
+Local SHA-256 proof bindings under `target/xtask-full-conversion/`:
+
+| Evidence | SHA-256 |
+|---|---|
+| Mac model | `0deac24dc8fccc7a733e5c1c19769caa29eb23bc1b4f5a2b8cae870912898b56` |
+| Mac C/Rust ASan | `8d18c2d2fa307a06c04e61ed6ef7c96bee613a0856b4e46eaeba4fe7aa0d2d15` |
+| Mac fuzz | `7669e99e23715492ce695c9bea2e81d9b9fff9afab99ea4771b73b89cbd8d34a` |
+| Linux controller | `4331ecd7dacc909ecf7684f06d70e88a1c5e2e9451e1ef3c2b188ff567e1e97d` |
+| Linux C/Rust ASan | `89a27fbf2b29e0a1d60c618ec789cd437d2d5c14a3dbbdd1ed240491be16d874` |
+| Linux model | `392f52d33d9c1a9922a317fcfe85f7f0509abc0b464ac38d404fb71080f0d6e5` |
+| Mac workspace ASan | `5d2cd6a36cdec8f7dfe80c580f4d64aa610f1bbc6f07be0a19b5909dd7ac4de0` |
+| Remaining Mac helper registry | `28624624875c489a4c9b1c941a9686c8cb0da9b881a9136aa20109ddc23fd748` |

@@ -42,6 +42,9 @@ mod tests {
                 );
             }
             for name in mapped {
+                if row["unix_only"].as_bool() == Some(true) && !cfg!(unix) {
+                    continue;
+                }
                 assert!(
                     names.contains(name.as_str().unwrap()),
                     "missing Rust control: {name}"

@@ -890,3 +890,27 @@ allowance covers provenance, while the fifteen-second cancellation/cleanup bound
 and production deadlines stay intact. All five supervisor integration controls
 pass with nightly TSan and instrumented std in 18.65 s. No product TSan exclusion
 or race waiver is added; details are in the supervisor report.
+
+## Complete xtask conversion in progress (2026-11-15)
+
+The user's [complete conversion scope](xtask-conversion.md) includes all maintained
+Python controllers, independent validators and tests before the roadmap resumes.
+Packaging, policy, attribution, raw Odin generation, dynamic C-ABI smoke and
+delivered Rust-source validation now run directly in Rust. Clean `06d0a15` packages
+qualify on native Mac and Docker Linux, including relocation and delivered-source
+consumers. Hosted Windows at `e3ff5ad` passes after a CRLF-checkout regression is
+fixed without weakening declaration checks. `065dbdb` also passes hosted TSan;
+its setup correction preserves the separate cancellation deadline.
+
+The next verified tooling batch replaces workspace sanitizers, shared-runtime
+C/Rust ASan, atomic models and fuzz orchestration with bounded Rust campaigns.
+Local Mac workspace ASan, all 22 fuzz targets (21,391 actual executions), Mac/Linux
+C/Rust calibration plus real consumers, model baselines and both fail-required
+mutants pass. Runner controls pass debug/release on Mac and debug on Docker Linux,
+with strict native/MSVC cross-target Clippy. The remaining Mac helper registry
+passes 314 checks plus four registered skips across 44 workers. Frozen legacy
+controls remain accounted for: 20/179 map to Rust tests, with 159 still pending;
+56 maintained Python files remain. Coverage/executable attribution, mutations,
+the probe, independent delivery/fault oracles and the remaining qualifications are
+explicitly open. Detailed source IDs, hashes, failed Apple-runtime calibration
+and platform limitations remain in the conversion ledger. No crate is published.

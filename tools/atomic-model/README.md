@@ -44,7 +44,7 @@ The baseline passed on arm64 macOS. Two deliberate controls were detected:
 `--broken-admission` replaces CAS with a load/store pair and loses accounting;
 `--broken-sampling` stops persisting sampled peaks and permits a decreasing report.
 The former fails the release-accounting assertion and the latter the monotone
-peak assertion. `python3 tools/atomic-model/check.py` replays both ownership and
+peak assertion. `cargo xtask atomic-model` replays both ownership and
 budget baselines, requires both controls to fail for those reasons, and saves
 model hashes and logs. Native Linux CI runs this alongside C ASan. Review the
 model when production atomics change; this remains a bounded copied model.
