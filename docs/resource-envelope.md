@@ -217,9 +217,11 @@ both final artifacts; no actionable finding remained. A failed earlier trial
 that attempted charged catalog enumeration at saturation remains separate and
 is not counted as a passing run.
 
-Unqualified combinations remain: maximum reachable payload plus all 64 roots
-each with distinct maximum-depth data simultaneously, breadth/entry/node limits,
-all allocator/interleaving/failure paths, adversarial parser inputs, sustained
+The [near-cap breadth workload](compound-resource-envelope.md#default-width-depth-and-write-count-near-the-image-cap)
+adds default entry width and depth, shared nodes, maximum write count and all 64
+retained DATA roots on one image. Unqualified combinations include maximum
+reachable payload with 64 distinct maximum-depth values, larger configured
+widths, combined allocator/interleaving/failure paths, adversarial parser inputs, sustained
 concurrency/load, cold-cache behavior, service budgets, Windows and other ABIs,
 device interruption/power loss, and production-lifetime memory/stack guarantees.
 This record closes these finite near-limit cases only.

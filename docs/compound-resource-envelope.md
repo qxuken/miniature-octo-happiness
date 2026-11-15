@@ -595,3 +595,88 @@ ignore. The 15 resource tests and 13 supervisor tests passed on Linux.
 | Exact release fixture | `62358fd5be434fcc65f011fceb423a27cc80c68020609818d10707c4945a78ab` | `375e0174db70b26b1b95bb42b7c469b74d1f6449a61f71912fb9335fbf8b7b85` |
 | Worker evidence | `3ce93e31213c6ecf718616e8d939bb90fe5ab27bb6919ecf24b77c07f8ee8df2` | `b7b84a8db7b9b035244ed9c1d47f6c6988ad710961d82b1e1fef1b6729f84961` |
 | Independent audit | `78807cf4dee2c353ae3ec46202d7202eb2ae0f2c5b0bf7e158c1b90e42d02b2e` | `eaa6ba4999ca56c9725d16c315135c06f792de501151a08e985f005204047f17` |
+
+## Default width, depth and write count near the image cap
+
+The `compound-breadth` profile fills one collection with 4,096 keys in four
+1,024-write commits. One record is depth 64. Its bottom list references the
+same 4,096-entry map twice, and every map entry references one shared scalar.
+Nine full update batches and 55 single-record updates produce 64 distinct
+retained DATA roots. Each retains the same deep DAG alongside a different
+record state. The current revision is 133, with DATA revision 132.
+
+The fixture checks the 4,097th map entry, 65th nesting level, 1,025th staged
+write, 4,097th collection entry and 65th retained root. Each returns `Limit`.
+Under the 32 MiB logical draft budget, 203 references to the shared value
+can be staged. The next reference returns `Limit` and a scalar at the same
+key still fits. A separate 1,024-write batch of new scalars stages in the
+near-cap store, then returns `Limit` during commit. The failed transaction is
+terminal, the handle stays healthy and the file matches its pre-attempt
+bytes. A fresh open verifies the same state.
+
+On both platforms the source is **63,574,016 bytes** (94.73% of the 64 MiB
+format cap). Backup, restore and in-place compaction each produce
+**58,523,648 bytes**, with byte-for-byte agreement within each run and the
+same store identity. The rejected batch fits after compaction, reaching
+62,840,832 bytes. Using the compacted bytes as the seed for each simulation,
+the fixture observes three sync points from the successful publication and
+injects an error at either the slot or witness sync. The crash discards
+pending writes.
+
+| Simulated publication | Commit result | Inspected revision | Witness on inspection | Revision after reopening |
+|---|---|---:|---|---:|
+| All syncs succeed | Acknowledged revision 134 | 134 | Present | 134 |
+| Slot sync fails, pending slot discarded | `OutcomeUnknown` | 133 | Present | 133 |
+| Witness sync fails, pending witness discarded | `OutcomeUnknown` | 134 | Absent | 134 |
+
+Both failed syncs require recovery before more writes. Reopening installs the
+missing witness in the last row. A second read-only inspection matches the
+selected metadata with the witness now present. At each of the nine reported
+phases the fixture checks all 266,240 records across the current and retained
+views and 532,480 nested map leaf references. The Rust controller
+independently calculates the expected digest for both revisions, verifies
+file lengths and copy hashes, binds the build and artifacts to the source
+archive, and checks that the owned worker group has retired. Docker independently
+checks the owned container and volume are absent. The macOS xtask suite and
+the 16 Linux resource controls passed. Strict Clippy passed for the controller
+and the fixture on both platforms.
+
+| Single operation observation | macOS arm64/APFS | Docker Linux arm64/ext4 |
+|---|---:|---:|
+| Create and fill source | 1,636.0 ms | 297.4 ms |
+| Stage and reject full batch | 11.3 ms | 11.8 ms |
+| Reopen source | 232.8 ms | 240.7 ms |
+| Verified backup | 709.6 ms | 719.6 ms |
+| Verified restore | 715.7 ms | 697.1 ms |
+| In-place compaction | 1,010.2 ms | 969.8 ms |
+| Sampled peak worker RSS, including simulator | 479,440 KiB | 295,696 KiB |
+
+Peak requested core memory was 20,451,448 bytes for the source writer
+and 79,338,568 bytes for each native reopen, including verification reads
+through that handle. The maximum of the simulated reopen samples was
+80,611,848 bytes. The source and reopened handles used a 96 MiB core
+budget. Each maintenance API call used a 256 MiB budget. Operation times
+exclude the fixture's subsequent full-state checks. Compaction timing
+starts after creating the disposable source copy. RSS includes simulator
+images and allocator overhead. The table records individual observations.
+Concurrent full-width drafts, 64 distinct deep DAGs combined with large
+payloads, a broader torn-write sweep, owner service limits and device
+interruption remain open for this workload.
+
+Run with a clean checkout at `c4e437b`. The local macOS run used Rust 1.99.1.
+The Docker image uses Rust 1.99.0 and an ext4 volume.
+
+```sh
+cargo xtask resource compound-breadth --revision c4e437b \
+  --output target/compound-breadth-qualified-macos
+cargo xtask resource compound-breadth --revision c4e437b \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/compound-breadth-qualified-linux
+```
+
+| Evidence in the corresponding output directory | macOS SHA-256 | Docker Linux SHA-256 |
+|---|---|---|
+| Release driver | `8c7217ce8178dd9cb6ac2f80fe86577134afc85a03adeee1e84e0e0f51a8c0f5` | `5f8a833947bee40b5494f9a51153a750c46bf2a567c3a66bd2b568bada13e955` |
+| Controller evidence | `1efe64f7f854357d2c831baf26e9d85fb34a139213e3d9e567166d20e387517e` | `142f162416abadac7b080b0a1b80c5deee8d880b9fbbd01f3189155c4e84561b` |
+| Worker evidence | `b98b2aaccfb89c95be2690fb7a54026f245107c6bd3bfc5ef79c66eacec71cdf` | `803331f7ec9aa4d3dfcf9eecb3ccc38a2ec7e37eba17fe529d128af5c8e648ab` |
+| Byte-identical backup, restore and compact images within the run | `70ffb984ef17576affbb745dbafa7b5489e53fe007c1117d738ed97a94f70ec5` | `5096d4bc66651ceefdcd379cbfa1a72c01a7c8658ac79e661ecff3d0b104d281` |

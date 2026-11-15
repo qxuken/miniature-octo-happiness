@@ -133,6 +133,11 @@ qualification is a separate release-candidate requirement.
   removing any orphan. The [admin CLI](operations.md) can compact in place
   with exclusive leases on macOS and Linux. The [paired isolation workload](compound-resource-envelope.md#short-lived-maintenance-processes)
   measures the process-memory effect with the same copy budgets and seed.
+  The [near-cap breadth workload](compound-resource-envelope.md#default-width-depth-and-write-count-near-the-image-cap)
+  tests the default width, depth and write count with a shared value DAG and
+  64 distinct retained DATA roots. It verifies exact rollback at the image
+  cap, byte-identical maintenance copies and the reopened revision at two
+  simulated publication failures.
   Windows compact copy is an existing capability.
   Qualify in-place Windows replacement independently if it becomes part
   of the release.

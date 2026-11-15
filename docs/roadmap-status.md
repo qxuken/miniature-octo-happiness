@@ -2151,3 +2151,16 @@ and reopened revision 980 with 64 retained roots. Both raw image
 comparisons allow only the eight last-write stamps and the resulting
 DATA checksum differences. Physical footprint and owner deployment
 budgets remain open.
+
+## Near-cap width, depth and write count
+
+At `c4e437b`, the [breadth workload](compound-resource-envelope.md#default-width-depth-and-write-count-near-the-image-cap)
+combines 4,096 records, a shared depth-64 value with a 4,096-entry map,
+1,024-write transactions and 64 distinct retained DATA roots. On macOS
+arm64/APFS and Docker Linux arm64/ext4, the 63,574,016-byte source rejects
+another full batch without changing any byte. Backup, restore and in-place
+compaction agree byte for byte at 58,523,648 bytes. The same batch fits there.
+In the simulator, loss of the slot write reopens revision 133 and loss of the
+witness write reopens and stabilizes revision 134. Every case checks the
+current view and all 64 retained views. Concurrent full-width drafts and a
+broader failure sweep for this shape remain open.
