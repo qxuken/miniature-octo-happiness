@@ -373,3 +373,84 @@ platform and confirmed Docker resource retirement.
 |---|---|---|
 | macOS | `5c96a51a32723ea03d0575e45cf3b1a129d8ffbfae41d4e2a19d23bef4db4ef9` | `08b75558ad99248f75908a2acb20cdaddfdb34ca76c0e37d42688f30dbb8648a` |
 | Linux | `ada746730dc115c919616afb81fdfae8616dffc777e20436bd3fae4ee67057c4` | `206b859bd9d3ffd262f08f209b52559c79265e4b10237a22b222e004e9d0325c` |
+
+### In-place compaction graph lifetime
+
+In-place compaction releases the source serialization caches before encoding.
+After the destination is written, it releases the temporary source graph and
+the destination serialization caches before the first verification read. Both
+file leases stay held. Verification runs before metadata copy and again
+after metadata sync, before namespace exchange. A live `compact_to` caller
+retains its source state for subsequent transactions. The compact destination
+also releases its serialization caches before verification.
+
+The native regression uses a 512 KiB value shared by the current and retained
+views. The baseline reached the first target verification with 525,757
+bytes still charged. The new test passes at both first verification reads
+with less than the payload size charged, and probes both file leases at each
+read. The regression exercises the same file compaction path as the public
+API.
+
+A focused macOS arm64/APFS run used Rust 1.99.1 release builds from Git
+archives of `d7aa7eb` and `438d9b2`. Each process compacted an independent
+copy of the same revision-213 input 12 times. Both final images have
+63,074,304 bytes, the same identity and 64 retained roots, and the exact
+same SHA-256 `3d6d987a9e411d6b3e8e5a3e5000d5471e5940150996ae0425c6d6b74818bc35`.
+
+| 12-compaction observation | Baseline `d7aa7eb` | Candidate `438d9b2` |
+|---|---:|---:|
+| Compactions elapsed | 9.856 s | 9.703 s |
+| macOS `time -l` maximum RSS | 889,176,064 bytes | 838,680,576 bytes |
+
+The immutable input SHA-256 is
+`12463c2d6f37877731e6c33ea273fb2a135b702b18f7cc885c2f1c0851bbdbc0`.
+The RSS difference is a single paired observation on this host.
+
+The same release builds each ran all 24 maintenance cycles from
+a copy of one compacted revision-212 seed with SHA-256
+`c50285d97a005ee7690781b2e081ba83662f1a5ee59bc1f49a99901fb59f21d6`.
+Independent replay checked all 168 phase digests per build, all 768 commit
+samples, all 6,144 reader samples, the open-database allocation budget,
+and the file lengths at each phase. Both reached revision 980, sequence 100
+and 63,074,304 bytes. The final raw images differed only in the eight
+workers' last-write revisions and their DATA object's checksum. Independent
+decoding identified the same revision set, 973 through 980, assigned in
+different orders. Three same-build single-cycle controls also produced
+distinct hashes under contention.
+
+| 24-cycle observation | Baseline `d7aa7eb` | Candidate `438d9b2` |
+|---|---:|---:|
+| Worker elapsed | 126.03 s | 125.27 s |
+| macOS `time -l` maximum RSS | 1,226,555,392 bytes | 1,307,787,264 bytes |
+| Peak charged bytes in the opened database | 57,794,708 | 57,794,708 |
+| In-place compact p50 / max, 24 samples | 765.0 / 900.7 ms | 748.6 / 1,145.5 ms |
+
+Peak RSS was higher in the mixed candidate run. The verification lifetime
+test measures charged allocations at a precise boundary. The mixed process
+RSS remains a separate deployment measurement.
+
+To repeat the paired cycles, build each exact checkout and use the same
+verified compacted revision-212 image as the seed for both workers.
+Choose a fresh output directory each time.
+
+```sh
+revision=$(git rev-parse HEAD)
+WEEKEND_DB_SOURCE_ID="$revision" cargo build --offline --locked --release \
+  --manifest-path tools/resource-envelope/Cargo.toml --features compound \
+  --bin weekend-compound-resource --target-dir target/compaction-cycles-build
+/usr/bin/time -l target/compaction-cycles-build/release/weekend-compound-resource \
+  target/compaction-cycles-fresh "$seed" cycles
+```
+
+On macOS, 182 all-feature library, compaction, durability, inspection,
+replication and retention tests passed, with one registered fixture ignore.
+Strict Clippy passed for macOS and the Windows MSVC cross-target.
+The hosted Ubuntu x64/ext4 job passed the data, slot and witness maintenance
+writeback checks on tested merge `a67f5330a6fd719aaa270c34f894d1a5d99398ad`.
+The exact fixture rehashed, and both final archived images for each barrier
+matched their recorded hashes and 64 retained-root counts.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43757596487/job/132944986947), [Hosted artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43757596487/artifacts/14179131667)
+
+Local evidence is under `target/compaction-lifetime-validation/`.
+The cycle audit SHA-256 is
+`6681d82da4a9b7cf60c20a94ad0ad19cfdd9200cf8eaab7b17d5f7043f10236c`.

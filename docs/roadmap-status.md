@@ -2047,3 +2047,15 @@ unwitnessed output created byte-identical witnessed copies. The canonical
 source and good backup stayed valid, and all retries matched the good backup.
 Subsequent metadata sync, replacement and cleanup faults, namespace space
 exhaustion, and physical power interruption remain open.
+
+## In-place compaction graph lifetime
+
+At `438d9b2`, [in-place compaction](compound-resource-envelope.md#in-place-compaction-graph-lifetime)
+releases the source graph and both sets of serialization caches before
+verifying the compacted target. A native regression checks both leases
+through the two verification reads. Twelve compactions of identical inputs
+produced byte-identical outputs. Both 24-cycle workloads passed all state
+oracles. The isolated macOS run used about 48 MiB less peak RSS, and the
+mixed candidate run peaked about 77 MiB higher. That leaves the deployment
+RSS gate open. Hosted ext4 passed all three copy writeback barriers on
+the updated engine.
