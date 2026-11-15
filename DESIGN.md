@@ -2619,6 +2619,60 @@ error fixed and vary whether the root survives. The test also checks that
 retaining only the root's pending write reopens `r + 1` and that retaining
 only its first 63 bytes reopens `r`.
 
+### PUB-V2. Persisted prefixes in reused root and witness regions
+
+The [torn metadata tests](tests/durability.rs) use last acknowledged revisions
+5 and 6, so they overwrite both parities of the root slot and witness. Each
+image retains snapshots 1 and 2 at revisions 2 and 4, with distinct record
+contents. A clean commit supplies the new regions and calibrates the actual
+write and sync operations. The expected durable image splices the persisted
+prefix into the old region while taking the already-synced append from the
+clean commit. The tests compare the entire resulting image byte for byte.
+
+The 4,097 possible prefix lengths of each 4 KiB write produce 13 distinct
+byte images in each chosen region. Extending a prefix across unchanged bytes
+produces the same persisted region. The test takes prefix zero and the first
+prefix that includes each differing byte. It also executes the full 4 KiB
+write separately. Five write/sync failure and crash combinations per tested
+prefix give 70 cases per region and parity, 280 total. They include immediate
+durable tears, volatile tears followed by either crash policy, and a failed
+sync that persists a prefix before the outer crash drops or persists pending
+bytes.
+
+| Publication point | Persisted bytes | Read-only selection | Witnessed |
+|---|---|---|---|
+| Root | Old slot or incomplete new slot | Original revision `r` | Yes |
+| Root | Complete new slot | Revision `r + 1` | No |
+| Witness | Old witness or incomplete new witness | Revision `r + 1` | No |
+| Witness | Complete new witness | Revision `r + 1` | Yes |
+
+Every injected failure returns `OutcomeUnknown`, leaves the in-process head
+at `r`, and poisons publication pending recovery. Inspection leaves the exact
+durable image intact. The writable open verifies current values and both
+retained snapshots and installs the selected witness. A further crash and
+inspection confirm that witness.
+
+The repeated-open test also uses the distinct prefixes of recovery's witness
+write. Its initial states are a volatile new root, a durable unwitnessed new
+root and an acknowledged new root. It performs 68, 68 and 20 compound cases
+respectively, including read and sync controls. For each witness tear it
+checks the persisted bytes and witness status before the next writable open.
+The second failed open is followed by a healthy reopen and another acknowledged
+commit. Current and both retained snapshots match their copied value model
+after recovery and after that final commit.
+
+The sweep covers prefix tears of the chosen V2 metadata regions. Wider
+append payload offsets and device persistence failures have separate gates.
+
+All 16 durability tests passed in debug and release on macOS arm64 and
+Docker Linux arm64, with strict Clippy on both. macOS ASan and TSan passed
+the same target with instrumented std at nightly `2026-11-12`. Two disposable
+mutations made the new test fail. Reporting the selected root as witnessed
+unconditionally produced `(6, true)` where `(6, false)` was expected.
+Returning `Corrupt` for a checksum-invalid root slot rejected an image that
+should reopen its last acknowledged revision. The test source and logs are
+bound in the [roadmap checkpoint](docs/roadmap-status.md#torn-metadata-prefix-qualification).
+
 ### REC-V1. Witness agreement with the selected root
 
 The [recovery guard](src/storage/codec.rs#L705) rejects a selected root if

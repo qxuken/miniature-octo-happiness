@@ -2,7 +2,10 @@ mod support;
 use support::{Model, Rng};
 use weekend_db::{
     Database, Error, Limits, TransactionState,
-    storage::{APPEND_START, ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk},
+    storage::{
+        APPEND_START, ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk,
+        inspect_on,
+    },
 };
 
 #[test]
@@ -79,12 +82,30 @@ fn staged(db: &Database) -> weekend_db::Transaction<'_> {
     tx.put(c, b"b", &db.integer(9).unwrap()).unwrap();
     tx
 }
-fn state(db: &Database) -> Vec<(Vec<u8>, Model)> {
+type Rows = Vec<(Vec<u8>, Model)>;
+
+fn state(db: &Database) -> Rows {
     db.snapshot()
         .scan(db.collection_id(1))
         .unwrap()
         .into_iter()
         .map(|(k, v)| (k, Model::read(&v)))
+        .collect()
+}
+fn retained_rows(db: &Database) -> Vec<(u64, u64, Rows)> {
+    db.retained_ids()
+        .unwrap()
+        .into_iter()
+        .map(|id| {
+            let view = db.retained_snapshot(id).unwrap();
+            let rows = view
+                .scan(db.collection_id(1))
+                .unwrap()
+                .into_iter()
+                .map(|(key, value)| (key, Model::read(&value)))
+                .collect();
+            (id, view.revision(), rows)
+        })
         .collect()
 }
 fn commit_trace(image: &[u8]) -> Vec<weekend_db::storage::IoEvent> {
@@ -236,6 +257,147 @@ fn publication_failures_reopen_the_revision_that_survived() {
                 if next { &new } else { &old },
                 "step={step}, event={event:?}, policy={policy:?}",
             );
+        }
+    }
+}
+
+// Extending the prefix through equal bytes leaves the durable region identical.
+fn distinct_prefixes<'a>(old: &'a [u8], new: &'a [u8]) -> impl Iterator<Item = usize> + 'a {
+    assert_eq!(old.len(), new.len());
+    std::iter::once(0).chain(
+        old.iter()
+            .zip(new)
+            .enumerate()
+            .filter_map(|(i, (a, b))| (a != b).then_some(i + 1)),
+    )
+}
+
+#[test]
+fn every_distinct_reused_metadata_prefix_preserves_the_acknowledged_floor() {
+    for (extra_commit, revision) in [(false, 5), (true, 6)] {
+        let (control, db) = base_store();
+        db.retain_snapshot(&db.snapshot()).unwrap();
+        staged(&db).commit().unwrap();
+        db.retain_snapshot(&db.snapshot()).unwrap();
+        if extra_commit {
+            db.begin().commit().unwrap();
+        }
+        assert_eq!(db.snapshot().revision(), revision);
+        let original = control.durable_image().unwrap();
+        let old = state(&db);
+        let retained = retained_rows(&db);
+        assert_eq!(
+            retained.iter().map(|r| (r.0, r.1)).collect::<Vec<_>>(),
+            [(1, 2), (2, 4)]
+        );
+        drop(db);
+
+        let db = open(&control);
+        control.arm(usize::MAX, Fault::Error);
+        assert_eq!(staged(&db).commit(), Ok(revision + 1));
+        let new = state(&db);
+        assert_ne!(old, new);
+        let complete = control.durable_image().unwrap();
+        let trace = control.trace().unwrap();
+        let [_, root_sync, witness_sync] = commit_barriers(&trace);
+        drop(db);
+
+        let parity = (revision + 1) as usize % 2;
+        let root = (1 + parity) * REGION..(2 + parity) * REGION;
+        let witness = (3 + parity) * REGION..(4 + parity) * REGION;
+        for (sync, region) in [(root_sync, root.clone()), (witness_sync, witness.clone())] {
+            let write = sync - 1;
+            let event = &trace[write];
+            assert_eq!(
+                (event.kind, event.offset, event.len),
+                (IoKind::Write, region.start as u64, REGION)
+            );
+            let before = &original[region.clone()];
+            let after = &complete[region.clone()];
+            assert_ne!(before, after);
+            assert!(
+                before.iter().any(|&byte| byte != 0),
+                "exercise a reused region"
+            );
+            let prefixes: Vec<_> = distinct_prefixes(before, after).collect();
+            assert!(prefixes.len() > 2);
+            eprintln!(
+                "parity {parity}, metadata offset {}: {} distinct byte images, {} fault/crash cases",
+                region.start,
+                prefixes.len(),
+                (prefixes.len() + 1) * 5
+            );
+            // Include the physical end even when an earlier prefix produced
+            // the complete metadata bytes. The simulator also sees a full write.
+            for prefix in prefixes.into_iter().chain(std::iter::once(REGION)) {
+                let tear = |durable| Fault::Tear { prefix, durable };
+                let torn_sync = Fault::SyncError(Crash::Torn { write: 0, prefix });
+                for (step, fault, crash, persisted) in [
+                    (write, tear(true), Crash::DropAll, prefix),
+                    (write, tear(false), Crash::PersistAll, prefix),
+                    (write, tear(false), Crash::DropAll, 0),
+                    (sync, torn_sync, Crash::DropAll, prefix),
+                    (sync, torn_sync, Crash::PersistAll, REGION),
+                ] {
+                    let case = (parity, region.start, prefix, fault, crash);
+                    let disk = SimulatedDisk::from_image(&original).unwrap();
+                    let db = open(&disk);
+                    let mut tx = staged(&db);
+                    disk.arm(step, fault);
+                    assert_eq!(tx.commit(), Err(Error::OutcomeUnknown), "{case:?}");
+                    assert_eq!(tx.state(), TransactionState::Failed, "{case:?}");
+                    assert!(db.requires_recovery(), "{case:?}");
+                    assert_eq!(db.snapshot().revision(), revision, "{case:?}");
+                    assert_eq!(state(&db), old, "{case:?}");
+                    assert_eq!(disk.trace().unwrap(), trace[..=step], "{case:?}");
+                    drop(tx);
+                    drop(db);
+                    disk.clear_fault();
+                    disk.crash(crash).unwrap();
+
+                    let mut expected = complete.clone();
+                    expected[region.start + persisted..region.end]
+                        .copy_from_slice(&before[persisted..]);
+                    if sync == root_sync {
+                        expected[witness.clone()].copy_from_slice(&original[witness.clone()]);
+                    }
+                    assert!(
+                        disk.durable_image().unwrap() == expected,
+                        "durable bytes {case:?}"
+                    );
+                    let root_committed = expected[root.clone()] == complete[root.clone()];
+                    let expected_revision = revision + u64::from(root_committed);
+                    let rows = if root_committed { &new } else { &old };
+                    let witnessed =
+                        !root_committed || expected[witness.clone()] == complete[witness.clone()];
+                    let info = inspect_on(disk.clone(), Limits::default()).unwrap();
+                    assert_eq!(
+                        (info.revision, info.witnessed),
+                        (expected_revision, witnessed),
+                        "{case:?}"
+                    );
+                    assert!(
+                        disk.durable_image().unwrap() == expected,
+                        "inspection changed bytes {case:?}"
+                    );
+                    let reopened = open(&disk);
+                    assert_eq!(
+                        reopened.snapshot().revision(),
+                        expected_revision,
+                        "{case:?}"
+                    );
+                    assert_eq!(&state(&reopened), rows, "{case:?}");
+                    assert_eq!(retained_rows(&reopened), retained, "{case:?}");
+                    drop(reopened);
+                    disk.crash(Crash::DropAll).unwrap();
+                    let stable = inspect_on(disk, Limits::default()).unwrap();
+                    assert_eq!(
+                        (stable.revision, stable.witnessed),
+                        (expected_revision, true),
+                        "{case:?}"
+                    );
+                }
+            }
         }
     }
 }
@@ -770,21 +932,7 @@ fn repeated_recovery_failures_preserve_retained_roots_and_acknowledged_floor() {
     let image = disk.durable_image().unwrap();
     let old_revision = db.snapshot().revision();
     let old = state(&db);
-    let retained: Vec<_> = db
-        .retained_ids()
-        .unwrap()
-        .into_iter()
-        .map(|id| {
-            let view = db.retained_snapshot(id).unwrap();
-            let rows: Vec<_> = view
-                .scan(db.collection_id(1))
-                .unwrap()
-                .into_iter()
-                .map(|(key, value)| (key, Model::read(&value)))
-                .collect();
-            (id, view.revision(), rows)
-        })
-        .collect();
+    let retained = retained_rows(&db);
     drop(db);
     let trace = commit_trace(&image);
     let [_, root_sync, _] = commit_barriers(&trace);
@@ -821,8 +969,10 @@ fn repeated_recovery_failures_preserve_retained_roots_and_acknowledged_floor() {
             disk
         };
         let control = make();
+        let before_recovery = control.durable_image().unwrap();
         control.arm(usize::MAX, Fault::Error);
         let expected = state(&open(&control));
+        let after_recovery = control.durable_image().unwrap();
         let recovery = control.trace().unwrap();
         let barriers: Vec<_> = recovery
             .iter()
@@ -839,23 +989,34 @@ fn repeated_recovery_failures_preserve_retained_roots_and_acknowledged_floor() {
             .rposition(|e| e.kind == IoKind::Read)
             .unwrap();
         drop(control);
-        let cases = [
+        let witness_write = &recovery[barriers[1]];
+        assert_eq!(
+            (witness_write.kind, witness_write.len),
+            (IoKind::Write, REGION)
+        );
+        let offset = witness_write.offset as usize;
+        let witness_region = offset..offset + REGION;
+        let before_witness = &before_recovery[witness_region.clone()];
+        let after_witness = &after_recovery[witness_region.clone()];
+        let prefixes: Vec<_> = distinct_prefixes(before_witness, after_witness).collect();
+        assert_eq!(prefixes.len() == 1, initial == 2);
+        let other_faults = [
             (first_read, Fault::Error, false),
             (last_read, Fault::Error, false),
             (barriers[0], Fault::SyncError(Crash::DropAll), false),
             (barriers[0], Fault::SyncError(Crash::PersistAll), true),
-            (
-                barriers[1],
-                Fault::Tear {
-                    prefix: 63,
-                    durable: true,
-                },
-                true,
-            ),
             (barriers[2], Fault::SyncError(Crash::DropAll), true),
             (barriers[2], Fault::SyncError(Crash::PersistAll), true),
         ];
-        for (step, fault, stabilized) in cases {
+        let witness_tears = prefixes.iter().copied().chain([REGION]).flat_map(|prefix| {
+            [false, true].map(|durable| (barriers[1], Fault::Tear { prefix, durable }, true))
+        });
+        eprintln!(
+            "recovery initial state {initial}: {} witness byte images, {} compound fault cases",
+            prefixes.len(),
+            2 * (other_faults.len() + 2 * (prefixes.len() + 1))
+        );
+        for (step, fault, stabilized) in other_faults.into_iter().chain(witness_tears) {
             for persist in [false, true] {
                 let disk = make();
                 disk.arm(step, fault);
@@ -873,6 +1034,19 @@ fn repeated_recovery_failures_preserve_retained_roots_and_acknowledged_floor() {
                 .unwrap();
                 let survives = initial != 0 || stabilized || persist;
                 let revision = old_revision + u64::from(survives);
+                if let Fault::Tear { prefix, durable } = fault {
+                    let n = if durable || persist { prefix } else { 0 };
+                    let bytes = disk.durable_image().unwrap();
+                    let actual = &bytes[witness_region.clone()];
+                    assert_eq!(&actual[..n], &after_witness[..n]);
+                    assert_eq!(&actual[n..], &before_witness[n..]);
+                    let info = inspect_on(disk.clone(), Limits::default()).unwrap();
+                    assert_eq!(
+                        (info.revision, info.witnessed),
+                        (revision, actual == after_witness)
+                    );
+                    assert!(disk.durable_image().unwrap() == bytes);
+                }
                 // Discover the next witness barrier in a separate medium, so
                 // the real medium sees two failed opens without a successful
                 // recovery exposing a handle between them.
@@ -895,25 +1069,14 @@ fn repeated_recovery_failures_preserve_retained_roots_and_acknowledged_floor() {
                 let reopened = open(&disk);
                 assert_eq!(reopened.snapshot().revision(), revision);
                 assert_eq!(&state(&reopened), if survives { &expected } else { &old });
-                assert_eq!(reopened.retained_ids().unwrap(), vec![1, 2]);
-                for (id, captured, rows) in &retained {
-                    let view = reopened.retained_snapshot(*id).unwrap();
-                    assert_eq!(view.revision(), *captured);
-                    let actual: Vec<_> = view
-                        .scan(reopened.collection_id(1))
-                        .unwrap()
-                        .into_iter()
-                        .map(|(key, value)| (key, Model::read(&value)))
-                        .collect();
-                    assert_eq!(&actual, rows);
-                }
+                assert_eq!(retained_rows(&reopened), retained);
                 reopened.begin().commit().unwrap();
                 drop(reopened);
                 disk.crash(Crash::DropAll).unwrap();
                 let reopened = open(&disk);
                 assert_eq!(reopened.snapshot().revision(), revision + 1);
                 assert_eq!(&state(&reopened), if survives { &expected } else { &old });
-                assert_eq!(reopened.retained_ids().unwrap(), vec![1, 2]);
+                assert_eq!(retained_rows(&reopened), retained);
             }
         }
     }

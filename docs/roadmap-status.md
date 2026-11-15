@@ -1310,3 +1310,31 @@ as did the bounded fuzz workflow.
 | Authenticated StudyProgress soak evidence | `6dabd65147e87dd86f6d3810eee6e1514abc3c04f569291ed0e895787001b843` |
 | Native macOS replica observer log | `296663fbb22f9e498269fd636263db3d3efa3db28539325890b0aa1191f50f99` |
 | Native Linux replica observer and app log | `3d468f43dd64dea3957c8da8f6d86ca3fb4f1529c3b1378d3b5b00e335475a60` |
+
+## Torn metadata prefix qualification
+
+[PUB-V2](../DESIGN.md#pub-v2-persisted-prefixes-in-reused-root-and-witness-regions)
+adds 280 publication cases covering every distinct persisted prefix of each
+chosen reused root or witness region, and expands the compound recovery test
+to 156 cases. Both slot parities, exact durable bytes, read-only witness
+status, the reopened revision and both retained snapshots are checked.
+The existing near-cap qualification retains its separate 108 recovery cases
+per platform with 64 retained roots.
+
+Run `cargo test --offline --locked -p weekend-db --all-features --test durability -- --nocapture --test-threads=4`
+in debug and with `--release` for the optimized profile. Each passed 16 tests
+on macOS arm64 and Docker Linux arm64. Linux used immutable image
+`sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08`.
+macOS ASan and TSan rebuilt std and passed all 16 tests. Each of two
+single-change mutations failed the new test on its intended assertion.
+
+| Evidence on base `af29db7` | SHA-256 |
+|---|---|
+| Durability test source | `f8a3aabef596062eb8c9a8f9ce93fd6325409c2b2d1771c62eaf82407913e109` |
+| macOS debug | `cde0bc95ae23a76d025f5ba19b904f75b491ab53e1151347c39ddab31aa17e56` |
+| macOS release | `d081ad36d6b866f37c71aeac0e71e03a8df4048ee91a6433573df41e63d5bae5` |
+| Linux debug, release and Clippy | `947ed81f427514f7df94f60335a098a8c8d4cb95dc5626c9f4604791ff32161d` |
+| macOS ASan | `46da9b939bf7ec403023d3c37c30c5b6c03743ed08263f2e7697e8963fb6cecb` |
+| macOS TSan | `4618f511d71a3f3fb48c80bd581f29d4edbc297575e24d1ca13701d35322af80` |
+| Witness-report mutation | `2d2d52d3b1f83d4056fdc516e1dce3e3f8ea4a0d3bf5b68a5d31c045d388024d` |
+| Checksum-rejection mutation | `d0bfc1439315a057252f2dd66120a5eac84ed2606a46ba056cfdc4a2dcc26586` |

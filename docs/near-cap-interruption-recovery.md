@@ -152,6 +152,12 @@ after two failed opens, then current state/catalog after a later acknowledged
 publication. The large fresh-process matrix checks full retained values again. The large matrix
 lives in the private resource harness, outside default fast workspace tests.
 
+The [torn metadata sweep](../DESIGN.md#pub-v2-persisted-prefixes-in-reused-root-and-witness-regions)
+later extended those 42 small-fixture cases to 156 and added 280 publication
+cases. It covers every distinct persisted prefix for the chosen reused metadata
+regions, including both slot parities during publication. The near-cap matrix
+above retains its original selected offsets and case count.
+
 - Core-package all-feature debug/release: **308 tests per Mac profile** and
   **312 per Linux profile**, including the new 42-case regression. Each profile
   has one intentionally ignored parent-invoked subprocess helper. Root/test
