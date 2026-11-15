@@ -1951,3 +1951,14 @@ slot. A fresh directory accepted the same initial receipt and reopened at
 revision 85 with retained revision 2. The old selected image and manifest
 survived byte-identically. The Windows CLI test passed its capped-manifest
 compaction refusal. This records the native R03 rotation profile.
+
+## Native inode quota during maintenance creation
+
+The [Linux ext4 inode-quota profile](maintenance-space-exhaustion.md#recorded-native-inode-quota-result)
+at `f3d42b8` returned kernel `EDQUOT` during backup, restore and compaction
+file creation while global inodes and data blocks remained available. Both
+images reopened at revision 212 with all 64 retained roots and unchanged
+bytes. Releasing one inode permitted retry. The source later reopened at 213
+with history intact. The original block-quota profiles also passed in the
+same job. Later namespace operations and physical device failures remain
+separate gates.

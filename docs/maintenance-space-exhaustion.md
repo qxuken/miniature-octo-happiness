@@ -179,8 +179,8 @@ combined with `--maintenance`.
 
 This closes the named near-cap **copy-phase** ENOSPC/EDQUOT maintenance gate.
 Actual filesystem exhaustion during exchange, cleanup, and delayed writeback,
-inode quotas, physical power interruption and full ext4 devices remain
-separate gates. Earlier process-kill and simulated
+physical power interruption, and global inode exhaustion on full ext4 devices
+remain separate gates. Earlier process-kill and simulated
 namespace/recovery matrices retain their separate scope. All 19 Cargo
 manifests retain `publish=false`.
 
@@ -207,6 +207,45 @@ backup's bytes and reopen with the complete retained history.
 Build the controller and compound fixture as in the block-quota profile
 above, then run the same `quota --maintenance` command with `--inode-quota`
 and a fresh output directory. The hosted quota job runs both profiles.
+
+### Recorded native inode quota result
+
+PR head `f3d42b8` passed on Ubuntu 24.04 x86_64 with kernel
+`7.0.0-1017-azure`. The hosted checkout was
+`a69c3b9ea5bdd74464680071ac30cb631682690a`. Each calibration returned
+errno 122 from exclusive create with **32,753 free inodes** and
+**344,027,136 bytes available**, and fsynced the existing ballast.
+The same job also passed the previous append and block-quota
+maintenance profiles. [Hosted quota job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43745342960/job/132907295547)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43745342960/artifacts/14173049779).
+
+All three maintenance operations returned `Io / Quota / Create`, raw
+errno 122. No destination or scratch file appeared. The source and
+backup reopened at revision 212 with **all 64 retained roots** while
+the limit remained active. Each retry passed after releasing one inode.
+A fresh inspector then verified witnessed revision 213 in the advanced
+source and revision 212 in the unchanged backup. Retained IDs 1–64
+still reported revisions 53, 55, …, 179 in both images. Read-only
+inspection preserved the original hashes.
+
+The independent audit checked 689 archived source hashes, 195 evidence
+payload hashes, 64 command cleanup records, and all 30 maintenance phase
+records. Its separate payload oracle recomputed the expected current and
+retained digests. Cleanup proved the owned mount and loop were absent.
+Docker Linux passed 19 quota controls and strict Clippy for the
+controller and fixture. The Windows-target fixture Clippy check passed.
+Compaction, inspection and retention tests passed on macOS with 18 tests
+each in debug and release. Local proofs are under
+`target/linux-inode-quota-f3d42b8/`.
+
+| Evidence | SHA-256 |
+|---|---|
+| Hosted ZIP | `689e8ae36c5dda1c8604e74ca8b528dc83a1b2b49a019ea6ff5b3dc06d4f151e` |
+| Inode quota controller evidence | `d1596104eb8768f29eed8602cc00a24cb4bd44f5d5770a0653df05b009118664` |
+| Exact uploaded fixture | `f6c88ff99e7a31ed9f121527b9c2d8d47e3974ff8ddd06ee53e527d8518ba531` |
+| Advanced source at revision 213 | `236eb1c4f73012036b05ecc7d84f36819cfd96083ef6062e034fd6fd93ef9ebe` |
+| Backup at revision 212 | `5dde4f8628feda0cdc422362b9f92dcaf4c3f0bebdc5c533e7ccbb022df8c11e` |
+| Independent audit | `c8af1e112a3a9ef2619f3632e023436948550fb2d2e600fa5c7b831fa91970cb` |
 
 ## Native Windows near-cap copy profile
 
