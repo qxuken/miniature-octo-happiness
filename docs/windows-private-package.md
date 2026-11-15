@@ -76,6 +76,15 @@ the Odin process verifies its loaded DLL path and hash, ABI, format,
 feature mask and source identity under the same evidence rules as C/C++.
 The evidence binds the package manifest, DLL and trace report by their hashes.
 
+The controller runs delivery first once it admits the toolchain and locked
+inputs. It records workspace compile-only preparation and test execution
+as separate commands, each with a 300-second deadline and owned Windows job
+cleanup. At `078a0ba` a single combined release command exhausted that
+deadline after building in 2 minutes 42 seconds and entering the
+coordinator backup/restore test. Its process cleanup was verified. The
+separate deadlines retain the full workspace test suite and preserve the
+delivery result if workspace verification later fails.
+
 ### Recorded Rust 1.99.0 qualification
 
 PR head `ec08f39` passed on native x64 Windows and fixed NTFS on
@@ -114,3 +123,43 @@ were rechecked.
 | Windows delivered trace | `0b920f81c66cf264e6fb9f7dcdc2f50824e803df6838e1fbc1e732d09e263137` |
 | macOS workspace check log | `38f65cfc08498b04a00f21b2cf74d058783b2d0fd46add6e2b62130070d27f59` |
 | macOS package manifest | `f3f55f1857e1d7c3fd38d6b42bcc3a1939bbe3b2fc910d8c66d995adad528f64` |
+
+### Recorded native Windows Odin result
+
+PR head `bf7cc30` passed on native Windows x64 with fixed NTFS. The
+hosted checkout was `fd161270963a42f69dfa221c9bf924166f7dabf0` and used
+Rust/Cargo 1.99.0, MSVC 14.51.36231, Windows SDK 10.0.26100.0 and Odin
+`dev-2026-10-nightly:84bc3fc`. Both the relocated Odin smoke consumer and
+the copied-source Rust consumer passed. [Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43741573249/job/132895675756)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43741573249/artifacts/14172524854).
+
+All 30 exact-DLL cases passed across optimized C11, C++17 and Odin.
+Each consumer matched the full 134-cell oracle and four shorter expected
+transcripts. All 15 rejections left the destination absent. The five Odin
+rejections covered invalid validation mode, unknown trace version, wrong
+DLL hash, wrong loaded path and wrong source ID. The format and validation
+controls reached the initial loader attestation. The three identity
+controls left both attestation files absent. Successful runs recorded
+matching process IDs and exact loaded paths, DLL digests, ABI, format,
+features and source before and after running the database operations.
+
+The independent audit checked 1,814 artifact hashes, 689 package source
+hashes against Git, all 13 original locks and the output and cleanup
+records of 39 controller commands and 33 trace commands. The standalone
+Odin compiler and license hashes matched the pinned upstream ZIP. Each
+workspace profile recorded 516 passes across 60 test summaries. Release
+compilation took 219.52 seconds and execution took 87.66 seconds under
+their independent deadlines. The macOS regression with the earlier
+`ec08f39` package also matched the 134-cell oracle in Rust, C and Odin
+after the shared Odin driver change.
+
+| Evidence | SHA-256 |
+|---|---|
+| Windows ZIP | `599daccd7475e3c2bd13529e1b5f43f8c478fde7e85368f69d459420ad0a741b` |
+| Windows controller | `4fa90ecbf941c677db18d82ffe3b5cfff66ae7f3f71ab02ea901947d4a002df8` |
+| Package manifest | `13702b3e17623bfe4b03cd265af78ce3cf7c972ee2e317bbc9ed1f61c515c9f7` |
+| Delivered DLL | `23250b1fd6cec0704867ab382a58d3a8d76027796389e40dc86d0f025d457c95` |
+| Delivered trace | `3b514ff4e7db1ff0976609283d77d24c44348ae4b6d1a10363cb51d8687a1718` |
+| Odin compiler | `19e23dbe5153cbb317e3efdac1a43951a524e775ac9054dcb937fec48b8f2d5b` |
+| Common 134-line transcript | `0075c8251dae1a0b2f1fd6d4ef152da3c581a947abd8edebad7f4f33aa74cef3` |
+| Independent audit | `5c8a6d1e49742f1df2ea00375423fbc7c327cf697ca292fff51c2cd75ce47f11` |

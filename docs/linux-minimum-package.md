@@ -69,8 +69,9 @@ cargo xtask artifact-trace --package target/linux-minimum-package \
 The raw package, trace, workspace log and independent rehash are retained
 locally under `target/msrv-linux-44bd5a6/`. Both owned containers and their
 volume were removed after the copy and verification. The recorded profile
-covers this Linux arm64 checkpoint. Linux x86_64 at the minimum compiler,
-the final release candidate, and native Windows Odin remain separate.
+covers this Linux arm64 checkpoint. Linux x86_64 at the minimum compiler
+and the final release candidate remain separate. See the
+[native Windows Odin results](windows-private-package.md#recorded-native-windows-odin-result).
 
 | Evidence | SHA-256 |
 |---|---|

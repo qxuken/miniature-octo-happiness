@@ -30,8 +30,10 @@ Odin and C/C++ profile, including relocation with the original path absent.
 A fresh Linux ARM64 rust:1-bookworm container passed C/C++/ctypes and actual
 SONAME/$ORIGIN relocation. A later [Linux arm64 ext4 qualification](linux-minimum-package.md)
 passes both the relocated Odin package consumer and the optimized 134-cell
-Odin trace with the exact delivered `.so`. Windows Odin command construction
-is tested. Native Windows Odin execution remains pending.
+Odin trace with the exact delivered `.so`. The [native Windows x64 NTFS
+qualification](windows-private-package.md#recorded-native-windows-odin-result)
+passes relocation and all ten Odin trace and rejection cases with the
+exact delivered DLL.
 Dirty development packages correctly report `verified=true` and
 `candidate_eligible=false`; compiler hashes and Odin's runtime license hash are
 recorded in the manifest. If the compiler root's LICENSE is unavailable,
