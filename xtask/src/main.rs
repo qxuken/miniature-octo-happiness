@@ -39,6 +39,8 @@ mod maintenance_space;
 mod migration;
 #[cfg(unix)]
 mod monthly_workload;
+#[cfg(any(target_os = "linux", windows))]
+mod msrv;
 #[cfg(unix)]
 mod mutations;
 mod notices;
@@ -94,8 +96,6 @@ mod trace_model;
 mod trace_process;
 #[cfg(windows)]
 mod windows_compatibility;
-#[cfg(windows)]
-mod windows_msrv;
 #[cfg(windows)]
 mod windows_process;
 #[cfg(windows)]
@@ -180,7 +180,10 @@ enum Task {
     WindowsTrace(windows_trace::Options),
     /// Qualify the declared minimum Rust compiler and exact Windows artifacts.
     #[cfg(windows)]
-    WindowsMsrv(windows_msrv::Options),
+    WindowsMsrv(msrv::Options),
+    /// Qualify the declared minimum Rust compiler and exact Linux artifacts on ext4.
+    #[cfg(target_os = "linux")]
+    LinuxMsrv(msrv::Options),
     /// Verify publication errors and fresh recovery using the exact Windows DLL.
     #[cfg(windows)]
     WindowsFaults(windows_trace::Options),
@@ -380,7 +383,9 @@ fn execute(cli: Cli) -> Result<()> {
         #[cfg(windows)]
         Task::WindowsTrace(options) => windows_trace::run(&mut run, options),
         #[cfg(windows)]
-        Task::WindowsMsrv(options) => windows_msrv::run(&run, options),
+        Task::WindowsMsrv(options) => msrv::run(&run, options),
+        #[cfg(target_os = "linux")]
+        Task::LinuxMsrv(options) => msrv::run(&run, options),
         #[cfg(windows)]
         Task::WindowsFaults(options) => windows_trace::run_faults(&mut run, options),
         #[cfg(windows)]

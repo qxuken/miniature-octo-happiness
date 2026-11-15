@@ -83,3 +83,26 @@ and the final release candidate remain separate. See the
 | Trace evidence | `a37093aae2808721c8733a41d8c25d901204a71d52e2a7967b13a0aad46c9df4` |
 | Common 134-line transcript | `0075c8251dae1a0b2f1fd6d4ef152da3c581a947abd8edebad7f4f33aa74cef3` |
 | Independent audit | `ff984ae3f53cc85f6d752dc784e9744131d061645bbfa450fd9858d75a2cdead` |
+
+## Native Linux minimum-compiler runner
+
+The `linux-msrv` command shares the compiler, lockfile and workspace checks
+with `windows-msrv`. On Linux it requires GNU Rust for the running x86_64
+or aarch64 architecture and ext4 for the runtime data. It binds the
+combined-feature package, original root lock, packaged Rust source,
+relocated `.so` and common 134-cell trace in one report. With `--odin`, the
+trace must use the same Odin binary as the package. Compilation and
+execution of the workspace tests have separate deadlines.
+
+On a clean x86_64 Linux checkout, install the pinned `dev-2026-10` Odin
+toolchain from the upstream `odin-linux-amd64-dev-2026-10.tar.gz`
+with SHA-256 `c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab`.
+Make its compiler and Clang available on `PATH`. [Odin release](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10)
+
+```sh
+rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+cargo +1.99.0 fetch --locked
+cargo +1.99.0 fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
+cargo +1.99.0 fetch --locked --manifest-path examples/rust_package/Cargo.toml
+cargo +1.99.0 xtask linux-msrv --odin --output target/linux-msrv
+```

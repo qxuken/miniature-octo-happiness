@@ -1,8 +1,11 @@
-//! Native Windows minimum-compiler qualification using the normal check plan.
+//! Native minimum-compiler qualification using the normal check plan.
+#[cfg(target_os = "linux")]
+use crate::assurance::Campaign;
+#[cfg(windows)]
+use crate::windows_compatibility::Campaign;
 use crate::{
     check, delivery,
     support::{Platform, Run, Scratch, cargo_build_env, cmd, path, qualification_inventory, sha},
-    windows_compatibility::Campaign,
 };
 use anyhow::{Context, Result, ensure};
 use serde_json::json;
@@ -83,6 +86,7 @@ fn committed_locks(
 }
 
 fn run_checks(c: &mut Campaign<'_>, root: &Path, target: &Path, xtask: &Path) -> Result<()> {
+    let platform = Platform::host()?;
     let mut scratch = Scratch::new(&c.output, "msrv-native")?;
     let run = |c: &mut Campaign<'_>, prefix: &str, commands: Vec<Vec<OsString>>| -> Result<()> {
         for (index, mut args) in commands.into_iter().enumerate() {
@@ -111,14 +115,15 @@ fn run_checks(c: &mut Campaign<'_>, root: &Path, target: &Path, xtask: &Path) ->
             check::profile(
                 root,
                 target,
-                Platform::Windows,
-                "x86_64",
+                platform,
+                std::env::consts::ARCH,
                 true,
                 xtask.as_os_str(),
                 &data,
                 release,
             ),
         )?;
+        #[cfg(windows)]
         c.command(
             vec![
                 path(xtask),
@@ -161,6 +166,8 @@ fn run_delivery(
     let pin = sha(&manifest_path)?;
     ensure!(
         manifest["verified"] == true
+            && manifest["candidate_eligible"] == true
+            && manifest["relocation_verified"] == true
             && manifest["source"] == c.evidence["source"]
             && manifest["toolchain"] == compiler
             && manifest["lockfile_sha256"] == root_lock
@@ -169,15 +176,27 @@ fn run_delivery(
             && (!odin || manifest["odin"]["verified"] == true),
         "minimum-compiler package identity or consumer mismatch"
     );
+    run_trace(c, xtask, &package, &pin, &manifest, odin)
+}
+
+#[cfg(windows)]
+fn run_trace(
+    c: &mut Campaign<'_>,
+    xtask: &Path,
+    package: &Path,
+    pin: &str,
+    manifest: &serde_json::Value,
+    odin: bool,
+) -> Result<()> {
     let trace = c.output.join("trace");
     c.command(
         vec![
             path(xtask),
             "windows-trace".into(),
             "--package".into(),
-            path(&package),
+            path(package),
             "--manifest-sha256".into(),
-            pin.clone().into(),
+            pin.into(),
             "--output".into(),
             path(&trace),
         ],
@@ -211,12 +230,80 @@ fn run_delivery(
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
+fn run_trace(
+    c: &mut Campaign<'_>,
+    xtask: &Path,
+    package: &Path,
+    pin: &str,
+    manifest: &serde_json::Value,
+    odin: bool,
+) -> Result<()> {
+    use crate::{support::text, toolchain, trace_model::EXPECTED_SHA256};
+    use std::ffi::OsStr;
+
+    let trace = c.output.join("trace");
+    let mut command = vec![
+        path(xtask),
+        "artifact-trace".into(),
+        "--package".into(),
+        path(package),
+        "--output".into(),
+        path(&trace),
+    ];
+    let compiler = if odin {
+        let compiler = toolchain::which(OsStr::new("odin"), &c.env).context("Odin missing")?;
+        let compiler = dunce::canonicalize(compiler)?;
+        ensure!(
+            manifest["odin"]["compiler_sha256"] == sha(&compiler)?,
+            "Odin compiler differs from the package compiler"
+        );
+        command.extend(["--odin".into(), path(&compiler)]);
+        Some(compiler)
+    } else {
+        None
+    };
+    c.command(command, "native-trace", None, 300.)?;
+    let trace_path = trace.join("evidence.json");
+    let proof = delivery::read_json(&trace_path)?;
+    let library = sha(&package.join("libweekend_db.so"))?;
+    let mut languages = vec!["rust", "c"];
+    if let Some(compiler) = compiler {
+        let name = compiler.to_str().context("UTF-8 Odin compiler path")?;
+        ensure!(
+            proof["native"]["tool_binary_sha256"][name] == manifest["odin"]["compiler_sha256"],
+            "Odin trace compiler identity mismatch"
+        );
+        languages.push("odin");
+    }
+    ensure!(
+        proof["passed"] == true
+            && proof["verified"] == true
+            && proof["engine_source_id"] == manifest["source_id"]
+            && proof["package_manifest_sha256"] == pin
+            && proof["source_manifest_sha256"] == pin
+            && proof["native"]["library_sha256"] == library
+            && proof["trace_cells"] == 134
+            && proof["native"]["languages"] == json!(languages)
+            && languages.iter().all(|name| {
+                text(&proof["native"]["transcript_sha256"][*name]).ok() == Some(EXPECTED_SHA256)
+            }),
+        "minimum-compiler delivered trace mismatch"
+    );
+    c.evidence["delivery"] = json!({
+        "package_manifest_sha256":pin, "trace_evidence_sha256":sha(&trace_path)?,
+        "library_sha256":library, "trace_cells":134, "languages":languages,
+        "rust_source_verified":true, "odin_verified":odin,
+    });
+    Ok(())
+}
+
 pub fn run(run: &Run, opts: Options) -> Result<()> {
-    let mut c = Campaign::new(
-        run,
-        &opts.output,
-        "native x64 Windows declared minimum Rust compiler",
-    )?;
+    let scope = format!(
+        "native {} declared minimum Rust compiler",
+        std::env::consts::OS
+    );
+    let mut c = Campaign::new(run, &opts.output, &scope)?;
     let result = (|| -> Result<()> {
         ensure!(c.evidence["dirty"] == false, "clean checkout required");
         let compiler_version = minimum(&run.root)?;
@@ -228,17 +315,52 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         });
         c.env.insert("CARGO_NET_OFFLINE".into(), "true".into());
         c.env.insert("CARGO_TARGET_DIR".into(), path(&target));
+        #[cfg(windows)]
+        let host = "x86_64-pc-windows-msvc";
+        #[cfg(target_os = "linux")]
+        let mut runtime = Scratch::new(&c.output, "msrv-runtime")?;
+        #[cfg(target_os = "linux")]
+        let host = {
+            let arch = std::env::consts::ARCH;
+            ensure!(
+                matches!(arch, "x86_64" | "aarch64"),
+                "unsupported Linux architecture"
+            );
+            let kernel = c.command(cmd(["uname", "-a"]), "kernel", None, 30.)?;
+            let machine = c.command(cmd(["uname", "-m"]), "machine", None, 30.)?;
+            ensure!(machine == arch, "native Linux architecture mismatch");
+            let mount = c.command(
+                vec![
+                    "findmnt".into(),
+                    "--json".into(),
+                    "--output".into(),
+                    "TARGET,SOURCE,FSTYPE,OPTIONS".into(),
+                    "--target".into(),
+                    path(runtime.path()),
+                ],
+                "mount",
+                None,
+                30.,
+            )?;
+            let mount: serde_json::Value = serde_json::from_str(&mount)?;
+            ensure!(
+                mount["filesystems"][0]["fstype"] == "ext4",
+                "native ext4 runtime required"
+            );
+            c.evidence["kernel"] = json!(kernel);
+            c.evidence["volume"] = mount["filesystems"][0].clone();
+            c.env.insert("TMPDIR".into(), path(runtime.path()));
+            format!("{arch}-unknown-linux-gnu")
+        };
         let rustc = c.command(cmd(["rustc", "-Vv"]), "rustc", None, 30.)?;
         let cargo = c.command(cmd(["cargo", "-V"]), "cargo", None, 30.)?;
         ensure!(
             rustc
                 .lines()
                 .any(|line| line == format!("release: {compiler_version}"))
-                && rustc
-                    .lines()
-                    .any(|line| line == "host: x86_64-pc-windows-msvc")
+                && rustc.lines().any(|line| line == format!("host: {host}"))
                 && cargo.split_ascii_whitespace().nth(1) == Some(&compiler_version),
-            "select Rust and Cargo {compiler_version} on native Windows MSVC"
+            "select Rust and Cargo {compiler_version} for {host}"
         );
         c.evidence["minimum_version"] = json!(compiler_version);
         c.evidence["rustc"] = json!(rustc);
@@ -250,6 +372,8 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         run_delivery(&mut c, &xtask, &rustc, &locks["Cargo.lock"], opts.odin)?;
         c.save()?;
         run_checks(&mut c, &run.root, &target, &xtask)?;
+        #[cfg(target_os = "linux")]
+        runtime.close()?;
         ensure!(
             committed_locks(&mut c, &run.root, "after")? == locks,
             "locked inputs changed"
@@ -266,7 +390,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         );
         c.evidence["artifact_sha256"] = json!(qualification_inventory(
             &c.output,
-            &["build", "evidence.json"]
+            &["build", "trace/cargo-target", "evidence.json"]
         )?);
         Ok(())
     })();

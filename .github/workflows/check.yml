@@ -365,6 +365,44 @@ jobs:
             target/windows-msrv/**
             !target/windows-msrv/build/**
             !target/windows-msrv/.weekend-msrv-native-*/**
+  linux-msrv:
+    name: Linux x86_64 minimum Rust
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust 1.99.0 and cache the locked inputs
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.99.0
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
+          cargo fetch --locked --manifest-path examples/rust_package/Cargo.toml
+      - name: Install the pinned Odin compiler
+        run: |
+          archive="$RUNNER_TEMP/odin-linux-amd64-dev-2026-10.tar.gz"
+          compiler="$RUNNER_TEMP/odin-dev-2026-10"
+          curl --fail --location --retry 2 --max-time 180 --output "$archive" https://github.com/odin-lang/Odin/releases/download/dev-2026-10/odin-linux-amd64-dev-2026-10.tar.gz
+          printf '%s  %s\n' c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab "$archive" | sha256sum -c -
+          mkdir "$compiler"
+          tar -xzf "$archive" --strip-components=1 -C "$compiler"
+          ODIN_ROOT="$compiler" "$compiler/odin" version
+          printf '%s\n' "$compiler" >> "$GITHUB_PATH"
+          printf 'ODIN_ROOT=%s\n' "$compiler" >> "$GITHUB_ENV"
+      - name: Verify the minimum compiler, workspace and exact delivered artifacts
+        run: cargo xtask linux-msrv --odin --output target/linux-msrv
+      - name: Save Linux minimum-compiler evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-linux-msrv-${{ runner.arch }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            target/linux-msrv/**
+            !target/linux-msrv/build/**
+            !target/linux-msrv/trace/cargo-target/**
+            !target/linux-msrv/.weekend-msrv-*/**
   helper-controls:
     name: POSIX qualification helper controls
     strategy:
