@@ -152,7 +152,7 @@ keeping the running tool and saved root-target qualification outputs. Add
 
 The [milestone-1 C-versus-Rust experiment](probe/README.md) now exercises a shared
 C ABI, immutable nested values, and C/Rust/Odin consumers, including the local
-prebuilt wgpu-native integration. Run `python3 probe/run.py` on macOS. Its
+prebuilt wgpu-native integration. Run `cargo xtask probe` on macOS. Its
 results led to the accepted Rust/shared-library distribution. The probe remains
 separate experiment evidence; its ABI is not the engine ABI.
 

@@ -36,6 +36,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "tests",
         "fuzz",
         "xtask",
+        "probe",
         "tools/atomic-model",
     ] {
         walk(root, &root.join(name), &mut out, false)?;
@@ -53,6 +54,9 @@ fn walk(
     }
     for entry in fs::read_dir(directory)? {
         let file = entry?.path();
+        if file == root.join("probe/build") {
+            continue;
+        }
         if matches!(
             file.file_name().and_then(|s| s.to_str()),
             Some("target" | "corpus" | "artifacts" | ".git")
@@ -67,7 +71,7 @@ fn walk(
             && (all
                 || matches!(
                     file.extension().and_then(|s| s.to_str()),
-                    Some("rs" | "c" | "h" | "json")
+                    Some("rs" | "c" | "h" | "json" | "odin")
                 )
                 || matches!(
                     file.file_name().and_then(|s| s.to_str()),

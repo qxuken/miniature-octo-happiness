@@ -30,7 +30,7 @@ entry points.
 |---|---|---|
 | Core entry points | check/build/package/cleanup, shared bounded POSIX supervision, native and delivered fault parent/worker | Check/build/package/cleanup are Rust-only; bounded supervision/fault orchestration is Rust with remaining adapters/oracles pending |
 | Packaging leaves and consumers | release policy, MSVC discovery/consumers, attribution, Odin bindings, dynamic ABI smoke, delivered Rust source | Clean Mac/Linux packages qualify at `06d0a15`; hosted Windows passes at `e3ff5ad` and `cfa08d1` |
-| CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, `probe/run.py` | Sanitizer, C-ASan, atomic-model, fuzz, coverage and mutation runners are Rust; packaging experiment pending |
+| CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, packaging probe | Rust implementations and local qualification pass; hosted qualification is recorded per commit below |
 | Independent delivery traces | state model, Rust/C/Odin trace controller, Docker worker, Windows 134-cell trace | Pending |
 | Upgrade and distributed qualification | storage/snapshot compatibility, snapshot/study CLI upgrades, replica progress, follower backup/restore, coordinator/peer soaks | Pending |
 | Resource/workload qualification | baseline/benchmark/monthly workload, serialization scale, resource observer, compound/recovery/growth/cache probes | Pending |
@@ -256,3 +256,45 @@ Local proof under `target/xtask-mutations/` (SHA-256):
 - Mac final report: `78c263fe1eb5219af1204255855b12acbf54eddd8321d7cbc3ef4fc928defa02`.
 - Linux final report: `4f8a96e207ed1adc80bb61a36ee5768d5f3712a8f702096b5574bb5dcb4a14aa`.
 - Linux controller: `35e885afe9980348ad635c73586f60d58329cd25390b827a83ab3339632e365b`.
+
+## Packaging experiment conversion checkpoint
+
+`cargo xtask probe` replaces `probe/run.py`; no Python is needed for the macOS
+C-versus-Rust experiment. The original eight debug/release static/shared artifacts
+still run both C and Rust consumers. Generated C amalgamation, ASan/UBSan contract
+and allocation tests, deliberate C/Rust lifetime mistakes, and all plain/wgpu
+Odin integrations retain the complete **29-case** inventory. Explicit Odin/wgpu
+skips retain their smaller recorded scope. Rust builds are now offline/locked
+with an owned target, dynamic consumers have explicit local rpaths, and every
+subprocess has bounded output, a deadline and verified retirement. The exact
+wgpu archive is hashed before and after execution. Independent controls reject
+the expected duplicate-symbol exception for shared Rust, plain Odin, unrelated
+link failures, timeout or failed retirement.
+
+The full Mac run passes all 29 outcomes and reproduces only the two expected
+Rust-static/wgpu duplicate-symbol failures, in debug and release. Both shared
+Rust/wgpu cases pass. C sanitizer checks and both required lifetime diagnostics
+pass; all command outcomes are explicitly accounted for. The tested wgpu archive
+SHA-256 is `7d8b688a6b55f0728c847e1c3b028d07ccb1009d8cea4833a6186a5775384248`.
+This is the original local-path packaging experiment, not an engine or release
+artifact qualification. The source-bound development run is `7a2c4b8-dirty`.
+
+Mac and Docker Linux debug/release runner suites pass **79 tests** each (72 unit
+plus seven integration); strict native/MSVC cross-target Clippy passes. Linux
+does not execute the Mac experiment. Its owned control container and volume are
+independently absent. Source binding now includes the probe's C/Rust/Odin inputs
+while excluding the retired `probe/build` cache. No separate legacy Python suite
+was removed here: the mapping stays 38/179, and **50** Python files remain for
+independent delivery/state/fault oracles, distributed/workload/quota qualification
+and final helper retirement. Current probe instructions use Rust; historical
+reports retain the original entry point and source identity.
+
+Local proof under `target/xtask-probe/` (SHA-256):
+
+- Mac full evidence: `3bfb3cf17199fb3af51a095943f3bf19ccb57dbbb8196180a6e836333025120e`.
+- Mac result inventory: `419262ea6f9dfb01db1d13ebf8b8b5627dd7b4a2135d119a567a06b1278b8815`.
+- Linux control controller: `d187ca10139231e18b306f64337e540292e447c050081e26a03a3f8b4a7adaa9`.
+
+Hosted engine/fuzz runs at clean `60f03c0` are subsequently fully green,
+including the new Rust library-coverage job, both sanitizers and all three native
+package platforms. Later mutation/probe commits retain their own CI gates.

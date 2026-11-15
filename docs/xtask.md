@@ -21,6 +21,7 @@ cargo xtask fuzz --runs 1000 --seconds 20 --output target/fuzz-evidence/private
 cargo xtask coverage --scope library
 cargo xtask coverage-executables --help
 cargo xtask mutations --list
+cargo xtask probe
 cargo xtask clean --dry-run
 ```
 

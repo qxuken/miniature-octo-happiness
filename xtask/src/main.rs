@@ -23,6 +23,8 @@ mod mutations;
 mod notices;
 mod odin;
 mod package;
+#[cfg(unix)]
+mod probe;
 mod rust_source;
 #[cfg(unix)]
 mod sanitizers;
@@ -50,6 +52,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Reproduce the macOS C/Rust/Odin packaging experiment with explicit skips.
+    #[cfg(unix)]
+    Probe(probe::Options),
     /// Detect reviewed safe guard mutants in an isolated source checkout.
     #[cfg(unix)]
     Mutations(mutations::Options),
@@ -171,6 +176,8 @@ fn execute(cli: Cli) -> Result<()> {
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        #[cfg(unix)]
+        Task::Probe(options) => probe::run(&run, options),
         #[cfg(unix)]
         Task::Mutations(options) => mutations::run(&run, options),
         #[cfg(unix)]

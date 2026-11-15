@@ -932,3 +932,11 @@ Linux. All 680 copied inputs are restored, root inputs stay stable, and owned
 resources are retired. The final predicate rejects compiler errors, quoted
 markers, empty tests and supervision failures. No separate Python suite is
 removed in this step: 38/179 legacy mappings remain, with 51 Python files left.
+
+The Mac packaging experiment is also Rust-only: `cargo xtask probe` passes all 29
+original cases, including the two expected static-Rust/wgpu linkage failures and
+both successful shared-Rust/wgpu profiles. Debug/release runner controls pass on
+Mac/Linux; the experiment itself remains Mac-only. The remaining conversion is
+50 Python files for independent delivery/fault/state oracles and distributed,
+workload, quota and helper qualification. Clean `60f03c0` passes hosted engine and
+fuzz runs, including Rust coverage, both sanitizers and native private packaging.
