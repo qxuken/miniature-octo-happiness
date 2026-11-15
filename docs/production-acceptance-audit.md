@@ -40,7 +40,7 @@ an unoffered expansion, not a defect to fix speculatively.
 | C/Odin | ABI 1, valid pointers/live handles/close quiescence, unwind-enabled package; [release contract](release-contract.md) | Exact artifact consumers on each advertised target; no promise that arbitrary downstream abort builds contain panics. |
 | Passive follower | Verified snapshots, configured leaf pins, separate local revision and durable receipt; offline maintenance and capture require quiescence | Owner accepts stop/capture/restart workflow and transfer size/rate envelope; no automatic promotion/fencing. |
 | CRDT peers | Exactly two enrolled actors, fixed policy/field bounds, lawful app-supplied `Record`, application-owned reserved rows | Owner accepts fixed roster and operator-controlled migration; authenticate transport and prevent raw writes in the embedding app. |
-| Coordinator | Loopback demo, optional configured shared secret, one unsigned record, 1,024 permanent receipts | Owner must select authenticated local-only promotion or fund remote transport/authorization. No HA or per-user ACL claim. |
+| Coordinator | One file owner and one unsigned record on loopback. Legacy has 1,024 permanent receipts. The [authenticated sequenced profile](../apps/write-coordinator/README.md#sequenced-requests-for-long-running-writers) keeps the latest receipt in each of 1,024 explicitly assigned slots. | Owner selects deployment, accepts the client journaling and retirement contract, and defines service budgets. Remote authorization and HA are distinct profiles. |
 | Expansion | SQL, gossip/discovery, dynamic rosters, encryption, online maintenance and larger images are not offered | Outside profile until a named workload requires them. They are not prerequisites for the bounded local profile. |
 
 ## Functional and operational acceptance
@@ -81,7 +81,7 @@ an unoffered expansion, not a defect to fix speculatively.
 | C03 Evolution, actor replacement and stale backup | [policy migration](crdt-policy-migration.md), [credential cutover](study-credential-cutover.md), actual [pre-ALPN CLI upgrade](study-cli-upgrade.md) | Mac/Linux qualify fixed-roster credential replacement and a distinct binary upgrade: mixed versions reject without remote acknowledgment or lost offline edits, coordinated new peers preserve retained records and converge without repeat commits. Actor-generation/roster migration routing and other version pairs remain separate; neither drill resets actors. |
 | C04 Membership/gossip/cross-record constraints | No offered dynamic membership/discovery/atomic distributed constraints | Outside profile. Do not introduce coordinator/CRDT abstractions solely to tick a roadmap row. |
 | W01 Coordinator auth, authorization, admission/backpressure | Loopback/optional shared secret, bounded line/frame, serial handling, native lease | Local-only trust boundary explicit. Remote TLS and per-principal authorization are missing only if owner promotes a remote coordinator. Public unauthenticated service is not supported. |
-| W02 Preconditions, durable receipts, restart/lost reply | Atomic record+receipt; [capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) passed both profiles on macOS, Linux and Windows | The permanent receipt table accepts 1,024 distinct IDs. Owner decides whether bounded sessions suffice. A continuous service needs a specified epoch, archival and stale-retry protocol. |
+| W02 Preconditions, durable receipts, restart/lost reply | Atomic record+receipt. The legacy [capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) passed both profiles on macOS, Linux and Windows. Sequenced requests retire predecessors atomically and reject stale sequences. | Qualify the new profile on native Windows, measure sustained native writes and maintenance against service budgets, and obtain owner acceptance for client-side archives, slot assignment and stale-restore reconciliation. |
 | W03 HA leadership/fencing | Not implemented or promised | Outside selected single-owner profile. Do not infer safe failover from snapshot durability or the file lease on another host. |
 
 ## Decision inventory acceptance
@@ -180,11 +180,12 @@ harness-level scope reference.
    source-consumer, sanitizer, mutation/corpus and workload evidence must be
    reconciled against the chosen immutable candidate. The shared trace and
    progress helper add evidence, without retroactively qualifying every profile.
-4. **Resolve continuous coordinator receipt policy before implementation.** The
-   tested permanent 1,024-slot cap intentionally rejects overflow. The owner
-   chooses whether bounded sessions suffice; otherwise specify safe request-ID
-   epochs/archive and reconciliation of stale retries. Silent eviction is not
-   an acceptable shortcut.
+4. **Qualify continuous coordinator operation.** The sequenced profile gives
+   each writer one retryable receipt and an explicit way to retire it when the
+   next write commits. macOS and Linux passed 1,152 native writes and nine
+   verified copies. Qualify actual client journal recovery and the restore
+   procedure under the selected deployment. The owner accepts the slot and
+   history policy before promoting this profile.
 
 The named hosted Windows and Linux append-quota profiles now have actual
 execution evidence. Additional native profiles, actual device power interruption,

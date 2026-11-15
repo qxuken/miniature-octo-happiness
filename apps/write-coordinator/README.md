@@ -119,6 +119,79 @@ memory may obtain it. All clients with the shared secret have equal
 access. Remote transport, per-client authorization, connection-rate
 limits and credential revocation without restart require separate work.
 
+## Sequenced requests for long-running writers
+
+Start this profile with a fresh database and a configured secret file.
+Assign each logical writer its own slot in `0..=1023`, and keep that
+assignment in the writer's durable journal. Clients use the same `client`
+command and authentication prefix shown above.
+
+```sh
+cargo run -p write-coordinator -- init-sequenced counter-sequenced.db
+cargo run -p write-coordinator -- serve-sequenced counter-sequenced.db 8400 \
+  --secret-file coordinator.secret
+```
+
+| Request | Example response |
+|---|---|
+| `get` | `value 3 0` |
+| `receipt 7` | `receipt 0` |
+| `set-seq 7 1 3 20` | `committed 4` |
+| `set-seq 7 1 3 20` after a lost reply | `committed 4` |
+| `set-seq 7 2 4 35` after recording the prior receipt | `committed 5` |
+| `set-seq 7 1 5 99` | `retired 1` |
+| `receipt 7` | `receipt 2 4 35 5` |
+
+The `set-seq` arguments are slot, sequence, expected database revision and
+replacement value. A new slot starts at sequence 1. Reserve one in-flight
+request per slot and durably record its exact arguments before sending. Retry
+the same request after a lost reply or `OutcomeUnknown`. Restart the server
+first if it requires recovery. Replaying the latest request yields its
+original revision. A changed replay or a sequence gap returns `error Invalid`.
+A stale precondition returns `conflict <revision> <value>` and leaves the
+sequence available for a revised attempt.
+
+Record or archive a successful reply before sending the next sequence. The
+next successful write atomically commits the replacement record and replaces
+that slot's receipt. `retired <sequence>` reports the last committed sequence
+minus one. `receipt <slot>` returns
+the latest sequence, original precondition, replacement and acknowledged
+revision for reconciliation. A lost journal must be reconciled before sending
+a new request in that slot. The server stores at most one receipt per slot.
+All clients with the shared secret can access all slots, so the operator must
+assign slots to trusted clients and coordinate slot handoffs.
+
+The sequenced layout marker is `coordinator-sequenced-v1` at collection 1,
+key `protocol`. Collection 2 contains `counter` and the receipt rows. Each
+receipt key is `seq/` followed by a big-endian `u16` slot. Its value is format
+byte `1` followed by four little-endian `u64` fields in response order.
+The selector commands validate their layout before serving requests. For a
+legacy cutover, quiesce writers, reconcile outstanding `set-id` requests and
+archive the verified legacy file before routing clients to the fresh profile.
+Use the last reconciled value to seed the new counter under an assigned slot.
+
+Plan ongoing storage headroom checks and quiescent compaction or verified copy
+according to the [operations guide](../../docs/operations.md). Physical history
+grows between maintenance runs even though each slot holds one logical receipt.
+For continued writing from a current backup, stop the old coordinator and
+verify the new file's revision and receipts before routing clients. An older
+backup can roll back both receipts and sequence watermarks. For a stale restore,
+isolate the restored endpoint, rotate credentials, and reconcile client journals
+before reopening it to requests. Retain the original file for reconciliation.
+
+The extended native test drives 1,152 authenticated writes across two slots
+in nine batches. After each batch it shuts down the server, copies the
+verified database, and resumes on the compact copy. It independently checks
+that the copy holds exactly one counter and two receipts. Replaying each
+latest sequence and submitting retired sequences all preserve the selected
+revision. macOS/APFS and Docker Linux/ext4 each finished at revision 1,155
+with a 45,056-byte maintained image.
+
+```sh
+cargo test --offline --locked --release -p write-coordinator --test writers \
+  native_sequenced_workload_reuses_receipts_across_maintenance -- --ignored --exact --nocapture
+```
+
 ## Finite native receipt-capacity qualification
 
 `native_receipt_capacity_survives_restarts_backup_restore_and_compaction` in

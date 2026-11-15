@@ -1,7 +1,7 @@
 mod protocol;
 #[cfg(test)]
 use protocol::MAX_RECEIPTS;
-use protocol::{COLLECTION, KEY, handle, state};
+use protocol::{COLLECTION, KEY, handle, sequenced, state};
 use std::{
     ffi::OsStr,
     io::{self, BufRead, Read, Write},
@@ -18,11 +18,19 @@ write-coordinator serve <file> <port>
 write-coordinator client <port>
 write-coordinator serve <file> <port> --secret-file <file>
 write-coordinator client <port> --secret-file <file>
+write-coordinator init-sequenced <file>
+write-coordinator serve-sequenced <file> <port> --secret-file <file>
 client commands: get, set <expected-revision> <unsigned-value>,
-set-id <request-id> <expected-revision> <unsigned-value>, quit";
+set-id <request-id> <expected-revision> <unsigned-value>,
+sequenced commands: receipt <slot>, set-seq <slot> <sequence> <expected-revision> <unsigned-value>, quit";
 const TIMEOUT: Duration = Duration::from_secs(3);
 
 type AppResult<T> = Result<T, Box<dyn std::error::Error>>;
+
+enum Profile {
+    Legacy,
+    Sequenced,
+}
 
 pub(super) fn run() -> AppResult<()> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
@@ -32,9 +40,12 @@ pub(super) fn run() -> AppResult<()> {
             Ok(())
         }
         [command, path] if command == "init" => Ok(initialize(Path::new(path))?),
+        [command, path] if command == "init-sequenced" => Ok(sequenced::initialize(
+            &Database::create_file(Path::new(path), Limits::default())?,
+        )?),
         [command, path, port] if command == "serve" => {
             eprintln!("unauthenticated loopback demo mode");
-            serve(Path::new(path), address(port)?, None)
+            serve(Path::new(path), address(port)?, None, Profile::Legacy)
         }
         [command, port] if command == "client" => client(address(port)?, None),
         [command, path, port, flag, secret] if command == "serve" && flag == "--secret-file" => {
@@ -42,6 +53,17 @@ pub(super) fn run() -> AppResult<()> {
                 Path::new(path),
                 address(port)?,
                 Some(Secret::load(Path::new(secret))?),
+                Profile::Legacy,
+            )
+        }
+        [command, path, port, flag, secret]
+            if command == "serve-sequenced" && flag == "--secret-file" =>
+        {
+            serve(
+                Path::new(path),
+                address(port)?,
+                Some(Secret::load(Path::new(secret))?),
+                Profile::Sequenced,
             )
         }
         [command, port, flag, secret] if command == "client" && flag == "--secret-file" => {
@@ -119,9 +141,23 @@ fn read_line(stream: &TcpStream) -> io::Result<String> {
     })
 }
 
-fn serve(path: &Path, address: SocketAddr, secret: Option<Secret>) -> AppResult<()> {
+fn serve(
+    path: &Path,
+    address: SocketAddr,
+    secret: Option<Secret>,
+    profile: Profile,
+) -> AppResult<()> {
     let mut db = Database::open_file(path, Limits::default())?;
-    state(&db)?;
+    let dispatch: fn(&mut Database, &str) -> DbResult<String> = match profile {
+        Profile::Legacy => {
+            state(&db)?;
+            handle
+        }
+        Profile::Sequenced => {
+            sequenced::admit(&db)?;
+            sequenced::handle
+        }
+    };
     let listener = TcpListener::bind(address)?;
     writeln!(io::stdout().lock(), "ready {}", listener.local_addr()?)?;
     for stream in listener.incoming() {
@@ -135,7 +171,7 @@ fn serve(path: &Path, address: SocketAddr, secret: Option<Secret>) -> AppResult<
             };
             let reply = match command {
                 Some(command) => {
-                    handle(&mut db, command).unwrap_or_else(|error| format!("error {error}"))
+                    dispatch(&mut db, command).unwrap_or_else(|error| format!("error {error}"))
                 }
                 None => "error Unauthorized".to_owned(),
             };

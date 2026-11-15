@@ -241,24 +241,29 @@ fn capacity_request(index: usize) -> String {
     )
 }
 
-fn configured_service(path: &str, secret: &str, token: &str) -> (Process, CapacityClient) {
-    let server = Process::start(&["serve", path, "0", "--secret-file", secret]);
+fn configured_service(
+    command: &str,
+    path: &str,
+    secret: &str,
+    token: &str,
+) -> (Process, AuthenticatedClient) {
+    let server = Process::start(&[command, path, "0", "--secret-file", secret]);
     let ready = server.receive();
     let address = ready.strip_prefix("ready ").unwrap().parse().unwrap();
     (
         server,
-        CapacityClient {
+        AuthenticatedClient {
             address,
             token: token.to_owned(),
         },
     )
 }
 
-struct CapacityClient {
+struct AuthenticatedClient {
     address: std::net::SocketAddr,
     token: String,
 }
-impl CapacityClient {
+impl AuthenticatedClient {
     fn send(&self, command: &str) -> std::net::TcpStream {
         let bounds = Duration::from_secs(5);
         let mut socket = std::net::TcpStream::connect_timeout(&self.address, bounds).unwrap();
@@ -287,6 +292,259 @@ impl CapacityClient {
             reply.push(byte[0]);
         }
         panic!("capacity response exceeds 128 bytes: {command}");
+    }
+}
+
+fn write_secret(file: &std::path::Path, token: &str) {
+    fs::write(file, token).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(file, fs::Permissions::from_mode(0o600)).unwrap();
+    }
+}
+
+#[test]
+fn sequenced_clients_preserve_receipts_through_restart_and_restore() {
+    use std::net::Shutdown;
+    use weekend_db::{Limits, storage};
+
+    let dir = Directory::new();
+    let path = dir.0.join("sequenced.db");
+    let secret = dir.0.join("secret");
+    let token = "d".repeat(64);
+    write_secret(&secret, &token);
+    let secret = secret.to_str().unwrap();
+    let path = path.to_str().unwrap();
+    let legacy = dir.0.join("legacy.db");
+    let legacy = legacy.to_str().unwrap();
+    for (command, file) in [("init-sequenced", path), ("init", legacy)] {
+        assert!(
+            Command::new(BIN)
+                .args([command, file])
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    for args in [
+        vec!["serve-sequenced", path, "0"],
+        vec!["serve-sequenced", legacy, "0", "--secret-file", secret],
+        vec!["serve", path, "0", "--secret-file", secret],
+    ] {
+        let mut rejected = Process::start(&args);
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            if let Some(exit) = rejected.child.try_wait().unwrap() {
+                assert!(!exit.success(), "{args:?}");
+                break;
+            }
+            assert!(Instant::now() < deadline, "incompatible startup: {args:?}");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    let (mut server, client) = configured_service("serve-sequenced", path, secret, &token);
+    let unauthorized = AuthenticatedClient {
+        address: client.address,
+        token: "e".repeat(64),
+    };
+    assert_eq!(
+        unauthorized.request("set-seq 0 1 3 99"),
+        "error Unauthorized"
+    );
+    assert_eq!(client.request("get"), "value 3 0");
+    assert_eq!(client.request("receipt 0"), "receipt 0");
+    assert_eq!(client.request("receipt 1024"), "error Invalid");
+    assert_eq!(client.request("set-seq 0 0 3 99"), "error Invalid");
+    assert_eq!(client.request("set-seq 0 2 3 99"), "error Invalid");
+
+    let lost = client.send("set-seq 0 1 3 10");
+    lost.shutdown(Shutdown::Write).unwrap();
+    drop(lost);
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        let receipt = client.request("receipt 0");
+        if receipt != "receipt 0" {
+            assert_eq!(receipt, "receipt 1 3 10 4");
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "lost reply request didn't reach publication"
+        );
+    }
+    server.stop();
+    let (mut server, client) = configured_service("serve-sequenced", path, secret, &token);
+    assert_eq!(client.request("set-seq 0 1 3 10"), "committed 4");
+    assert_eq!(client.request("set-seq 0 1 3 11"), "error Invalid");
+
+    let port = client.address.port().to_string();
+    let mut a = Process::start(&["client", &port, "--secret-file", secret]);
+    let mut b = Process::start(&["client", &port, "--secret-file", secret]);
+    a.send("set-seq 0 2 4 20");
+    b.send("set-seq 1023 1 4 30");
+    let replies = (a.receive(), b.receive());
+    let (a_expected, b_expected, final_value) = match (replies.0.as_str(), replies.1.as_str()) {
+        ("committed 5", "conflict 5 20") => (4, 5, 30),
+        ("conflict 5 30", "committed 5") => (5, 4, 20),
+        _ => panic!("expected one commit and one conflict, got {replies:?}"),
+    };
+    let a_request = format!("set-seq 0 2 {a_expected} 20");
+    let b_request = format!("set-seq 1023 1 {b_expected} 30");
+    let assert_receipts = |client: &AuthenticatedClient| {
+        assert_eq!(
+            client.request(&a_request),
+            format!("committed {}", a_expected + 1)
+        );
+        assert_eq!(
+            client.request(&b_request),
+            format!("committed {}", b_expected + 1)
+        );
+        assert_eq!(client.request("set-seq 0 1 6 99"), "retired 1");
+        assert_eq!(
+            client.request("receipt 0"),
+            format!("receipt 2 {a_expected} 20 {}", a_expected + 1)
+        );
+        assert_eq!(
+            client.request("receipt 1023"),
+            format!("receipt 1 {b_expected} 30 {}", b_expected + 1)
+        );
+        assert_eq!(client.request("get"), format!("value 6 {final_value}"));
+    };
+    let conflicted = if a_expected == 5 {
+        "receipt 0"
+    } else {
+        "receipt 1023"
+    };
+    let before_retry = if a_expected == 5 {
+        "receipt 1 3 10 4"
+    } else {
+        "receipt 0"
+    };
+    assert_eq!(client.request(conflicted), before_retry);
+    assert_receipts(&client);
+    server.stop();
+
+    let backup = dir.0.join("backup.db");
+    let restored = dir.0.join("restored.db");
+    storage::backup_file(path, &backup, Limits::default()).unwrap();
+    storage::restore_file(&backup, &restored, Limits::default()).unwrap();
+    assert_eq!(fs::read(&backup).unwrap(), fs::read(&restored).unwrap());
+    let (_server, client) = configured_service(
+        "serve-sequenced",
+        restored.to_str().unwrap(),
+        secret,
+        &token,
+    );
+    assert_receipts(&client);
+    assert_eq!(client.request("set-seq 0 3 6 40"), "committed 7");
+    assert_eq!(client.request(&a_request), "retired 2");
+    assert_eq!(client.request("get"), "value 7 40");
+    assert_eq!(
+        storage::inspect_file(path, Limits::default())
+            .unwrap()
+            .revision,
+        6
+    );
+}
+
+#[test]
+#[ignore = "extended native maintenance workload"]
+fn native_sequenced_workload_reuses_receipts_across_maintenance() {
+    use weekend_db::{Database, Limits, storage};
+
+    let directory = Directory::new();
+    let mut path = directory.0.join("sequenced.db");
+    let key = directory.0.join("secret");
+    let token = "d".repeat(64);
+    write_secret(&key, &token);
+    let key = key.to_str().unwrap();
+    assert!(
+        Command::new(BIN)
+            .arg("init-sequenced")
+            .arg(&path)
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    let batch = 128;
+    let mut writes = 0u64;
+    for cycle in 1..=9 {
+        let (mut server, client) =
+            configured_service("serve-sequenced", path.to_str().unwrap(), key, &token);
+        assert_eq!(
+            client.request("get"),
+            format!("value {} {writes}", writes + 3)
+        );
+        for n in writes + 1..=writes + batch {
+            let slot = (n - 1) % 2;
+            let sequence = n.div_ceil(2);
+            let expected = n + 2;
+            assert_eq!(
+                client.request(&format!("set-seq {slot} {sequence} {expected} {n}")),
+                format!("committed {}", n + 3)
+            );
+        }
+        writes += batch;
+        server.stop();
+
+        let destination = directory.0.join(format!("copy-{cycle}.db"));
+        let sizes = storage::backup_file(&path, &destination, Limits::default()).unwrap();
+        assert!(sizes.after_bytes < sizes.before_bytes);
+        let verified = storage::inspect_file(&path, Limits::default()).unwrap();
+        assert_eq!(
+            (verified.revision, verified.physical_bytes),
+            (writes + 3, sizes.before_bytes)
+        );
+        let reopened = Database::open_file(&destination, Limits::default()).unwrap();
+        let snapshot = reopened.snapshot();
+        let collection = reopened.collection_id(2);
+        assert_eq!(snapshot.revision(), writes + 3);
+        assert_eq!(
+            snapshot
+                .get(collection, b"counter")
+                .unwrap()
+                .unwrap()
+                .as_u64(),
+            Ok(writes)
+        );
+        assert_eq!(snapshot.scan(collection).unwrap().len(), 3);
+        drop(reopened);
+        fs::remove_file(&path).unwrap();
+        path = destination;
+
+        let (mut server, client) =
+            configured_service("serve-sequenced", path.to_str().unwrap(), key, &token);
+        let sequence = writes / 2;
+        for (slot, n) in [(0, writes - 1), (1, writes)] {
+            let expected = n + 2;
+            let revision = n + 3;
+            assert_eq!(
+                client.request(&format!("receipt {slot}")),
+                format!("receipt {sequence} {expected} {n} {revision}")
+            );
+            assert_eq!(
+                client.request(&format!("set-seq {slot} {sequence} {expected} {n}")),
+                format!("committed {revision}")
+            );
+            assert_eq!(
+                client.request(&format!("set-seq {slot} 1 {} 999", writes + 3)),
+                format!("retired {}", sequence - 1)
+            );
+        }
+        assert_eq!(
+            client.request("get"),
+            format!("value {} {writes}", writes + 3)
+        );
+        server.stop();
+        eprintln!(
+            "sequenced maintenance cycle {cycle}: {writes} commits, revision {}, {} -> {} bytes",
+            writes + 3,
+            sizes.before_bytes,
+            sizes.after_bytes
+        );
     }
 }
 
@@ -341,7 +599,7 @@ fn verify_all_capacity_receipts(path: &std::path::Path) -> u64 {
     fs::metadata(path).unwrap().len()
 }
 
-fn full_service_replays_without_new_revision(client: &CapacityClient) {
+fn full_service_replays_without_new_revision(client: &AuthenticatedClient) {
     let state = format!(
         "value {} {}",
         DURABLE_RECEIPTS + 2,
@@ -381,12 +639,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
     let file = dir.0.join("capacity.db");
     let secret_file = dir.0.join("secret");
     let token = "c".repeat(64);
-    fs::write(&secret_file, &token).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&secret_file, fs::Permissions::from_mode(0o600)).unwrap();
-    }
+    write_secret(&secret_file, &token);
     let path = file.to_str().unwrap();
     let secret = secret_file.to_str().unwrap();
     assert!(
@@ -396,7 +649,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
             .unwrap()
             .success()
     );
-    let (mut server, mut client) = configured_service(path, secret, &token);
+    let (mut server, mut client) = configured_service("serve", path, secret, &token);
     // Direct stderr bypasses libtest's per-test capture so CI interruption
     // preserves the last completed phase without reducing this full-cap test.
     writeln!(std::io::stderr(), "receipt capacity: filling 1024 receipts").unwrap();
@@ -417,7 +670,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
                 format!("value {} {}", index + 3, capacity_value(index))
             );
             server.stop();
-            (server, client) = configured_service(path, secret, &token);
+            (server, client) = configured_service("serve", path, secret, &token);
             restarts += 1;
             assert_eq!(client.request(&request), format!("committed {}", index + 3));
             // The very first receipt remains the original acknowledgment even
@@ -472,7 +725,8 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
         )
         .unwrap();
         let image = fs::read(file).unwrap();
-        let (mut server, client) = configured_service(file.to_str().unwrap(), secret, &token);
+        let (mut server, client) =
+            configured_service("serve", file.to_str().unwrap(), secret, &token);
         full_service_replays_without_new_revision(&client);
         server.stop();
         drop(server);

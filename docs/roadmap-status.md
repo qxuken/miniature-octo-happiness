@@ -25,7 +25,7 @@ decision tests and first four fuzz targets.
 | CRDT peers | Fixed two-actor TLS demo exists. Register admission rejects unwitnessed retirement and incompatible cyclic histories, with bounded causal-event/frame oracles. The [explicit migration example](crdt-policy-migration.md) qualifies reviewed schema/policy conversion, fresh identities, stale-backup recovery and repeat sync. Native macOS/Linux process tests now verify both old writer leases, six staging interruptions, independent destination reopening and complete old current/retained preservation. Serial/default debug/release pass after correcting a child-output fixture bug. Raw reserved-row ownership, distributed quiescence/routing, operational cutover and broader policy/deployment qualification remain application gates. |
 | Performance | Original [serialization scaling](serialization-scale.md) and [history](serialization-history-scale.md) reports preserve the linear-search baselines. The [VALUE index](serialization-identity-index.md) and [DATA index](serialization-data-index.md) now pass exact-byte and allocation/budget/crash/retained-root checks on Mac/Linux. DATA comparison work at 64 roots drops from 108,036 to 39,837 including sorting/searches; small histories use more comparisons. [Charged buffer growth](serialization-buffer-growth.md) passes the same compound workload on Mac/Linux, reduces measured copy-domain peak from 166.76 to 143.22 MiB and preserves 17 exact images; live cache slack increases and clean timing/RSS outcomes are mixed. [Shared cache/index reuse](serialization-cache-sharing.md) now reduces entry clones and per-publication rebuild/sort work while adding retained index memory and cold-open work. Affected-cache forks and additional resource profiles remain; no general latency bound is claimed. A [matched durable-history SQLite baseline](sqlite-baseline.md) passed full current/retained byte oracles across 192 data commits, 12 separate pins and 96 warm-cache reopens per engine on macOS APFS, including verified backup/restore/compaction. Three finite small-state rounds are a baseline, not representative scale, service budgets, stack/RSS bounds or other-platform performance qualification. |
 | Authenticated peer workload | Frozen ed8f9f9 passed [30 real CLI offline/sync rounds](study-peer-soak.md) between macOS/APFS and Docker Linux/ext4 with exact pins. All six paired post-acknowledgment SIGKILL restarts preserved exact local revisions and displayed values; repeated covering exchanges added no commits after convergence. The final Python-O launcher and independent review passed. This is a bounded accelerated scenario, not a wall-clock month, long-duration soak, new-candidate or native Windows qualification. |
-| Coordinator | Conditional writes, durable receipts and configured loopback authentication tested. The [native capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) fills all 1,024 receipts, retries lost replies and restarts, rejects overflow/changed payloads, verifies backup/restore and preserves original acknowledgment revisions. It passed both profiles on macOS, Linux and Windows. The macOS and Linux profiles also execute in-place compaction. Broader deployment and continuous receipt policy remain. |
+| Coordinator | The [legacy capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) passed 1,024 permanent receipts on macOS, Linux and Windows. The [opt-in sequenced mode](../apps/write-coordinator/README.md#sequenced-requests-for-long-running-writers) stores one receipt per slot, rejects retired requests and passed 1,152 native writes with repeated maintenance on macOS and Linux. Client journal policy and deployment gates remain. |
 | Release operations | [Minimum-compiler/dependency review](local-baseline-ffdf506.md) passed full Mac checks at declared Rust 1.99.0 and all twelve checkpoint locks plus the new progress fixture against 1,490 frozen advisories. [Linux ext4 minimum-compiler checks](local-toolchains-a56083c.md) also pass at 1.99.0. Quota provisioning stopped before engine execution on the available kernel. Support/security policy and provenance recorded; capped cross-OS month and restore passed. [1,800-second Mac/Linux soaks](soak.md#extended-macos-and-linux-controls-at-7a9e661) passed the tiny-record lifecycle workload; longer deployment soak, latency guarantees and final bundle remain. |
 
 The full acceptance inventory is in [production-readiness.md](production-readiness.md).
@@ -1362,7 +1362,11 @@ relocation and exact mask checks below. The CRDT-only check used the
 qualified Cargo spelling `weekend-db/crdt`. Independent verification
 matched every listed file hash and confirmed Docker resource retirement.
 Strict macOS and Windows MSVC cross-target Clippy passed. The fresh native
-Windows package still needs to execute the new mask gate.
+Windows combined package subsequently verified Cargo and runtime mask `3`.
+Its published CI artifact was rehashed and byte-matched to the DLL used by
+all 20 C/C++ cases. The trace checked 134 cells. The checks used merge
+`a57dae6d287bb142dacfff8183a699359ea1df81` at PR head `5142906`.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43713372642/job/132809582790)
 
 | Build | Runtime mask | macOS manifest SHA-256 | Linux manifest SHA-256 |
 |---|---:|---|---|
@@ -1372,3 +1376,49 @@ Windows package still needs to execute the new mask gate.
 | CRDT and replication | 3 | `747f0ba36eeac6855f322b094f406adb71b8fdf0f523b209cebeae2251e4004e` | `312669d0fd36a1f73ef464729e9ddbdc705cc93570024f74ebce75619c74c7e7` |
 | Explicit fault-injection profile | 4 | `9f0db490bd11d3de16d0243b254e495a1d262d1769c4714e8eab2e1f27e40b4a` | `1041d74e09e8bb38b670959a9ca20132cede4b4a89290d8d987eb6161a85f368` |
 | Rejected extra feature | 6 | `fb7d9d73782f36652f239b334f05b282e7c9379b9221aa55a98a50ca4154700c` | `9e4b4c164bb870ac7b9344331cf924df5a8e2a316a9df630ebb5dfd8281bfa1c` |
+
+Windows manifest `1c42306aea5c7e81f4d7993b07d9c71f560ee1cf7be7d29d790be0dae5a10103`,
+DLL `bec84ae64df14dd925ccff68dab923210513abbf3445bea6622a783ca3dd84b6`,
+and trace evidence `26ed1b182f68c4a334f560944bcf3f0872b729657deb89131aa39ba2d6d992bc`.
+
+## Sequenced coordinator receipt retirement
+
+The [opt-in local profile](../apps/write-coordinator/README.md#sequenced-requests-for-long-running-writers)
+accepts contiguous sequences in 1,024 explicitly assigned slots. A successful
+write replaces the latest receipt atomically with its effect. A client must
+journal the latest acknowledgment before advancing its slot. Older sequence
+numbers report the retirement watermark. The existing permanent-ID profile
+preserves original receipts and uses its own startup command.
+
+The configured native process test covers a lost reply, server kill and
+restart, two competing clients, an invalid replay, and resuming on a verified
+restore. The added fault matrix reopens the old value and receipt or their
+successors together for every I/O error in the retirement commit. The bounded
+protocol fuzzer compares a four-slot model through 32 operations, including
+reopens, and completed 2,000 ASan runs at seed 7. Four sequenced checks passed
+under both macOS ASan and TSan with rebuilt std at nightly `2026-11-12`.
+The app suite passed 15 tests in each debug and release profile on macOS and
+Linux. The extended native maintenance workload ran separately. Two disposable
+mutations failed as expected when they returned an acknowledgment for a retired
+sequence or published the value without its receipt.
+
+A native release workload passed 1,152 commits and nine verified copies on
+macOS/APFS and Docker Linux/ext4. Both ended at revision 1,155 with two live
+receipt rows. Each compact copy occupied 45,056 bytes. The first batch grew
+to 2,158,592 bytes and each later batch to 2,142,208 bytes. Native Windows
+execution of the new coordinator profile and operator acceptance of the
+client journaling, maintenance and stale-restore policy remain open.
+
+| Evidence | SHA-256 |
+|---|---|
+| Sequenced implementation | `b3d6e9790dc99f7e57a5c34a9203b507e9f24126fc0053456bbd4ed4c719a82f` |
+| Native process test source | `ab507a3aa23b96dbfe36802a2f905eeaa98e66767c70542c6e922e201022b5f0` |
+| Fuzz source | `2311ff37db87b250e977a20961e6ff1a6eee1bfe4a0b3234165def6af44dbc2f` |
+| macOS default debug tests | `5448da85a9b8e88aaa382de9f7104e8a12c95097f67336de391f21c76064dd5c` |
+| macOS default release tests | `83eb7df9b87e18df069f473d770261e84304d57e5bbcc1903b50388ae838996b` |
+| Linux default tests and Clippy | `0dcf63e23036dcd0689f4cbafd18fbe4c209d2b8b938cfc39ffa3bbef5cbf035` |
+| macOS native maintenance log | `ca7ea0ddd7c76ebee6db3d30ba9563d30d6b66bd118fd01326702a1f6c7d8b77` |
+| Linux native maintenance log | `b2203c0820cf475b3141612d32d756f39c59880be27efa43cd539f81f205ef38` |
+| Bounded native ASan fuzz log | `db284535f2eee4e4091c30daad448fed8670f8db45433ce356e98fffee25e5fe` |
+| Retired receipt acknowledgment mutation | `5e8f2376cded9e2e5ccf94dd1ddfd717383d5ee63de895fac603028cf53eae00` |
+| Missing receipt mutation | `9bb1d28b00f9444b7e81b18677b0aa270d1f75f7672fdd587e6165a51ee852c6` |

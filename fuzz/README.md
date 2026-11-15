@@ -266,6 +266,12 @@ operation checks state and every eighth operation reopens the image. Receipts
 are bounded to eight IDs here; capacity exhaustion is covered by the existing
 application test at the real 1,024-receipt limit.
 
+The same target runs a second schedule through the sequenced coordinator on
+a separate durable MemoryStore. Its four-slot model predicts exact replay,
+changed payload rejection, retired sequences, gaps and stale preconditions.
+It checks the counter and the affected receipt after every operation and
+reopens every eighth operation.
+
 `peer_transport` exercises the shipped study-peer application's exact enrollment
 parser and local command executor, including its existing conflict retry helper.
 These functions were moved into a private module and are included by path,

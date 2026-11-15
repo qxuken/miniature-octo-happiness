@@ -1,5 +1,7 @@
 use std::io::{self, Read};
 use weekend_db::{Database, Error, Result as DbResult};
+#[path = "sequenced.rs"]
+pub(crate) mod sequenced;
 pub(crate) const COLLECTION: u64 = 1;
 pub(crate) const KEY: &[u8] = b"counter";
 const MAX_LINE: usize = 256;
@@ -41,9 +43,13 @@ pub(crate) fn read_line_from(
 }
 
 pub(crate) fn state(db: &Database) -> DbResult<(u64, u64)> {
+    state_in(db, COLLECTION)
+}
+
+fn state_in(db: &Database, collection: u64) -> DbResult<(u64, u64)> {
     let snapshot = db.snapshot();
     let value = snapshot
-        .get(db.collection_id(COLLECTION), KEY)?
+        .get(db.collection_id(collection), KEY)?
         .ok_or(Error::NotFound)?
         .as_u64()?;
     Ok((snapshot.revision(), value))

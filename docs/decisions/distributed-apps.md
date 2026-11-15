@@ -99,6 +99,29 @@ durable idempotency token. Arithmetic exhaustion of a new receipt's revision
 and every allocator/storage failure at each wrapper callsite remain delegated.
 Fixed receipt integer slices are safe after exact length/version validation.
 
+### A3 follow-up. Sequenced receipt decisions
+
+The opt-in mode uses the same loopback framing and authorization checks.
+`sequenced_clients_preserve_receipts_through_restart_and_restore` runs native
+clients through profile admission, authentication, two writers competing on a
+revision, lost response, restart and verified restore. The simulator targets
+every I/O in the commit that advances a slot from sequence 1 to sequence 2.
+
+| Decision | Observable pair |
+|---|---|
+| Slot range | Slot 1023 admits a new write. Slot 1024 returns `Invalid` before lookup. |
+| First sequence | Sequence 1 can commit from an empty slot. Zero and gaps reject with the slot empty. |
+| Latest request equality | Retrying the exact precondition and payload returns the original commit revision. Changing the replacement value returns `Invalid`. |
+| Prior sequence | A retired request reports its watermark even with the current precondition. A valid next sequence with that precondition can write. |
+| Current revision | Matching precondition advances both value and receipt. The competing precondition yields `conflict` and keeps that slot's previous receipt. |
+| Root survival | Dropping the pending root at its failed sync preserves sequence 1 and revision 4. Persisting it preserves sequence 2 and revision 5. A retry reaches revision 5 either way. |
+
+The receipt guard tests short length, unknown version, sequence zero, mismatch
+between expected and acknowledged revisions, a sequence beyond the committed
+prefix, a future revision and overflow. Both lookup and retry reject each
+malformed row while preserving the current counter. These rows record directed
+decision evidence for the named conditions.
+
 ## A4: CLI dispatch and scope limits
 
 `cli_dispatch_rejects_invalid_shapes_and_accepts_help` and

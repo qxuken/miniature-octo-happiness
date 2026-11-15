@@ -96,6 +96,69 @@ pub fn coordinator_protocol(input: &[u8]) {
             assert_eq!(protocol::state(&db), Ok((revision, value)));
         }
     }
+    drop(db);
+    sequenced_requests(input);
+}
+
+fn sequenced_requests(input: &[u8]) {
+    use protocol::sequenced;
+    let disk = MemoryStore::new().unwrap();
+    let mut db = Database::create_on(disk.clone(), [62; 16], Limits::default()).unwrap();
+    sequenced::initialize(&db).unwrap();
+    let (mut revision, mut current) = (3, 0);
+    let mut receipts = [(0u64, 0u64, 0u64, 0u64); 4];
+    for (index, op) in input.chunks(3).take(32).enumerate() {
+        let slot = usize::from(op.get(1).copied().unwrap_or(0)) % receipts.len();
+        let value = u64::from(op.get(2).copied().unwrap_or(0));
+        let (latest, old_expected, old_value, previous_ack) = receipts[slot];
+        let (sequence, expected, replacement) = match op[0] % 7 {
+            0 | 1 => (latest + 1, revision, value),
+            2 => (latest, old_expected, old_value),
+            3 => (latest.saturating_sub(1), revision, value),
+            4 => (latest + 2, revision, value),
+            5 => (latest + 1, revision - 1, value),
+            _ => (latest, old_expected, old_value + 1),
+        };
+        let want = if sequence == latest + 1 && expected == revision {
+            revision += 1;
+            current = replacement;
+            receipts[slot] = (sequence, expected, replacement, revision);
+            Ok(format!("committed {revision}"))
+        } else if sequence == 0 || sequence > latest + 1 {
+            Err(Error::Invalid)
+        } else if sequence < latest {
+            Ok(format!("retired {}", latest - 1))
+        } else if sequence == latest {
+            if (expected, replacement) == (old_expected, old_value) {
+                Ok(format!("committed {previous_ack}"))
+            } else {
+                Err(Error::Invalid)
+            }
+        } else {
+            Ok(format!("conflict {revision} {current}"))
+        };
+        let command = format!("set-seq {slot} {sequence} {expected} {replacement}");
+        assert_eq!(sequenced::handle(&mut db, &command), want);
+        if index % 8 == 7 {
+            drop(db);
+            db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+            sequenced::admit(&db).unwrap();
+        }
+        assert_eq!(
+            sequenced::handle(&mut db, "get"),
+            Ok(format!("value {revision} {current}"))
+        );
+        let (sequence, expected, replacement, acknowledgment) = receipts[slot];
+        let receipt = if sequence == 0 {
+            "receipt 0".to_owned()
+        } else {
+            format!("receipt {sequence} {expected} {replacement} {acknowledgment}")
+        };
+        assert_eq!(
+            sequenced::handle(&mut db, &format!("receipt {slot}")),
+            Ok(receipt)
+        );
+    }
 }
 #[test]
 fn replay_coordinator() {
@@ -105,6 +168,9 @@ fn replay_coordinator() {
         b"\xff\n",
         &[b'a'; 257],
         &[2, 0, 7, 0, 2, 0, 7, 2, 2, 0, 8, 2, 130, 0, 0, 0],
+        &[
+            1, 0, 9, 2, 0, 0, 1, 0, 11, 3, 0, 0, 4, 0, 0, 5, 1, 22, 1, 1, 22, 6, 0, 0,
+        ],
     ] {
         coordinator_protocol(input);
     }
