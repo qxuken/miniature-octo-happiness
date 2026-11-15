@@ -8,6 +8,8 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[cfg(windows)]
+mod support;
 use weekend_db::{Database, Limits};
 const BIN: &str = env!("CARGO_BIN_EXE_weekend-replicate");
 const STREAM: &str = "11111111111111111111111111111111";
@@ -221,7 +223,11 @@ fn stopped_endpoint_credential_cutover_preserves_receipt_history_and_retry() {
     let follower = follower_path.to_str().unwrap();
     run(root, &["follower-init", follower, STREAM, identity], true);
     for name in ["client-old", "server-old", "client-new", "server-new"] {
-        run(root, &["keygen", root.join(name).to_str().unwrap()], true);
+        let path = root.join(name);
+        #[cfg(unix)]
+        run(root, &["keygen", path.to_str().unwrap()], true);
+        #[cfg(windows)]
+        support::credentials(&path);
     }
     let co = root.join("client-old");
     let so = root.join("server-old");

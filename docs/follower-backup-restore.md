@@ -163,8 +163,7 @@ inventory unchanged. The fresh follower reports its own stream's durable
 revision 4, and the original receipt and all source and backup bytes survive.
 
 Both tests passed in debug and release on macOS/APFS and Docker Linux/ext4.
-The CI native Windows job runs both profiles. The Windows result for this
-regression is pending.
+The native Windows job also passed this named test in both profiles on PR head `5be73db`. [Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43705255065/job/132784834134)
 
 | Local proof | SHA-256 |
 |---|---|

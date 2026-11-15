@@ -163,3 +163,14 @@ The Windows-native result for the portable test is pending.
 | macOS log | `da331d6653143174c89dfb0c2506819bfb5fec3ae35da3abe1f3d81cf7bd6602` |
 | Linux log | `f54d0646a0868e749dd9ef9e62703cd02aa0c8a85ed0a925cb4f1c3db2d732ff` |
 | Test source | `c3cdece03cb104efb8a97259131a3bda6ec8fa5e293d514531b43ebb889e6168` |
+
+The first hosted Windows run reached the `keygen` setup and correctly refused
+that Unix-only command. The Windows test now provisions test-only certificates
+and DER keys through the shared CLI fixture. Unix still exercises `keygen`.
+Both CLI suites passed again in debug and release on macOS and Docker Linux.
+The Windows rerun is pending.
+[Initial Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43705827453/job/132786560448)
+
+The rerun log SHA-256 values are
+`b3eed46b3061c1ffbd70187a7b5c4518b4201befa4e232f606f2b694dc13961c` on macOS
+and `ff3d4c3fb4e4679a709e39fd9d0eb620f8d028de0f83b1353260307ebf6d28b9` on Linux.

@@ -1191,3 +1191,10 @@ checks all pairs and triples of seven reachable StudyProgress states, including
 two offline writers, an observed removal, two policy resolutions and a later
 edit. A left-biased record fails the helper. All 13 integration tests passed
 in debug and release on macOS and Docker Linux.
+
+Native Windows passed the follower backup and reseed case in debug and
+release at `5be73db`. The separate Windows cutover test initially invoked the
+Unix-only `keygen` command. Its fixture now shares credential provisioning with
+the Windows CLI tests. The revised CLI and cutover suites pass on macOS and
+Docker Linux, with hosted Windows rerunning.
+[Windows follower job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43705255065/job/132784834134)
