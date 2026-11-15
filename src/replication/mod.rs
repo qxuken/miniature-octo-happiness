@@ -48,6 +48,20 @@ pub struct DurableAck {
     pub digest: [u8; 32],
 }
 
+/// A verified local revision sampled before one authenticated poll, and the
+/// follower's durable receipt from that exchange. An empty follower has no receipt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReplicaObservation {
+    pub local_revision: u64,
+    pub follower: Option<DurableAck>,
+}
+impl ReplicaObservation {
+    /// Revision difference, including metadata commits.
+    pub fn revision_gap(&self) -> Option<u64> {
+        self.local_revision.checked_sub(self.follower?.revision)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Offer {
     revision: u64,
@@ -156,6 +170,30 @@ impl Primary {
         let revision = self.check_source(source)?;
         self.capture(source, crate::storage::FileStore::create(path)?, revision)
     }
+    /// Pin the current acknowledged head and retained roots of an open
+    /// primary. Source writes can proceed during destination encoding and I/O.
+    /// The copy has its own limits. Pinned values remain charged to the
+    /// source until encoding releases them. The destination must be empty.
+    /// On failure the caller may need to discard a partial destination.
+    pub fn export_live_to(
+        &mut self,
+        source: &Database,
+        destination: impl ByteStore + 'static,
+        limits: Limits,
+    ) -> Result<Export> {
+        self.capture_live(source, limits, || Ok(destination))
+    }
+    /// Live export to a fresh file. Validate the source and pin the revision
+    /// before creating the destination. The caller owns destination cleanup.
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    pub fn export_live_file(
+        &mut self,
+        source: &Database,
+        path: impl AsRef<std::path::Path>,
+        limits: Limits,
+    ) -> Result<Export> {
+        self.capture_live(source, limits, || crate::storage::FileStore::create(path))
+    }
     /// Reopen a previously captured image using its trusted local descriptor.
     /// Verify the exact length and digest, witnessed revision, identity and
     /// complete graph under one exclusive lease. No bytes are written.
@@ -206,6 +244,9 @@ impl Primary {
     }
     fn check_source(&self, source: &Database) -> Result<u64> {
         let (identity, revision) = source.replication_head()?;
+        self.check_revision(identity, revision)
+    }
+    fn check_revision(&self, identity: [u8; 16], revision: u64) -> Result<u64> {
         if identity != self.enrollment.file_identity || revision < self.verified_revision {
             return Err(Error::ForeignStore);
         }
@@ -217,8 +258,28 @@ impl Primary {
         destination: impl ByteStore + 'static,
         revision: u64,
     ) -> Result<Export> {
-        let (mut storage, stats) = source.compact_copy(destination)?;
-        let length = stats.after_bytes;
+        let (storage, stats) = source.compact_copy(destination)?;
+        self.finish_capture(storage, revision, stats.after_bytes)
+    }
+    fn capture_live<B: ByteStore + 'static>(
+        &mut self,
+        source: &Database,
+        limits: Limits,
+        destination: impl FnOnce() -> Result<B>,
+    ) -> Result<Export> {
+        let mem = Memory::new(limits)?;
+        let state = source.replication_snapshot(&mem)?;
+        let revision = self.check_revision(state.identity, state.head.revision)?;
+        let (mut storage, bytes) = state.encode(destination()?, &mem)?;
+        storage.verify(&mem)?;
+        self.finish_capture(storage, revision, bytes)
+    }
+    fn finish_capture(
+        &mut self,
+        mut storage: Storage,
+        revision: u64,
+        length: u64,
+    ) -> Result<Export> {
         let digest = image_digest(storage.image_bytes(), length)?;
         let offer = Offer {
             revision,
@@ -243,6 +304,22 @@ impl Primary {
             wire::Reply::Empty if self.progress.is_none() => Ok(None),
             _ => Err(Error::Conflict),
         }
+    }
+    /// Sample the acknowledged primary revision and poll over an authenticated
+    /// channel while the source stays open. The sender preserves its follower
+    /// progress checks across calls. The source locks are released before I/O.
+    pub fn poll_live(
+        &mut self,
+        source: &Database,
+        channel: impl Read + Write,
+    ) -> Result<ReplicaObservation> {
+        let local_revision = self.check_source(source)?;
+        self.verified_revision = local_revision;
+        let follower = self.poll(channel)?;
+        Ok(ReplicaObservation {
+            local_revision,
+            follower,
+        })
     }
     /// Transfer or retry one export over an authenticated channel. If the reply
     /// is lost, poll on a fresh channel. A stale offer can return a newer ack.

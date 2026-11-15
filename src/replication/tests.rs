@@ -58,6 +58,109 @@ fn poll(primary: &mut Primary, reply: Reply) -> Result<Option<DurableAck>> {
     primary.poll(Exchange::new([reply]))
 }
 
+#[test]
+fn live_poll_refreshes_local_revision_and_keeps_accepted_follower_progress() {
+    let (source, [old, _, latest]) = exports();
+    let old = ack(&old);
+    let latest = ack(&latest);
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    primary.verified_revision = old.revision;
+    assert_eq!(
+        poll(&mut primary, Reply::Installed(latest)),
+        Err(Error::ForeignStore)
+    );
+
+    let foreign =
+        Database::create_on(MemoryStore::new().unwrap(), [9; 16], Limits::default()).unwrap();
+    let mut channel = Exchange::new([Reply::Empty]);
+    assert_eq!(
+        primary.poll_live(&foreign, &mut channel),
+        Err(Error::ForeignStore)
+    );
+    assert!(channel.sent.is_empty());
+
+    let empty = primary
+        .poll_live(&source, Exchange::new([Reply::Empty]))
+        .unwrap();
+    assert_eq!(empty.local_revision, latest.revision);
+    assert_eq!(empty.revision_gap(), None);
+    let observed = primary
+        .poll_live(&source, Exchange::new([Reply::Installed(latest)]))
+        .unwrap();
+    assert_eq!(observed.follower, Some(latest));
+    assert_eq!(observed.revision_gap(), Some(0));
+    assert_eq!(source.begin().commit(), Ok(latest.revision + 1));
+    assert_eq!(
+        primary.poll_live(&source, Exchange::new([Reply::Installed(old)])),
+        Err(Error::Conflict)
+    );
+    let observed = primary
+        .poll_live(&source, Exchange::new([Reply::Installed(latest)]))
+        .unwrap();
+    assert_eq!(observed.local_revision, latest.revision + 1);
+    assert_eq!(observed.follower, Some(latest));
+    assert_eq!(observed.revision_gap(), Some(1));
+}
+
+#[test]
+fn live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged() {
+    use crate::storage::{Fault, IoKind, SimulatedDisk};
+
+    let disk = SimulatedDisk::new().unwrap();
+    let source = Database::create_on(disk.clone(), [4; 16], Limits::default()).unwrap();
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    source.create_collection().unwrap();
+    source.retain_snapshot(&source.snapshot()).unwrap();
+    let original = disk.durable_image().unwrap();
+    let baseline = source.memory_usage().live_bytes;
+    let rejected = SimulatedDisk::new().unwrap();
+    assert_eq!(
+        primary
+            .export_live_to(
+                &source,
+                rejected.clone(),
+                Limits {
+                    max_live_bytes: 1,
+                    ..Limits::default()
+                }
+            )
+            .err(),
+        Some(Error::Limit)
+    );
+    assert!(rejected.durable_image().unwrap().is_empty());
+    assert_eq!(primary.verified_revision, 0);
+
+    let trace = SimulatedDisk::new().unwrap();
+    let mut probe = Primary::new(&source, STREAM).unwrap();
+    let expected = probe
+        .export_live_to(&source, trace.clone(), Limits::default())
+        .unwrap();
+    let data_sync = trace
+        .trace()
+        .unwrap()
+        .iter()
+        .position(|event| event.kind == IoKind::Sync)
+        .unwrap();
+    let failed = SimulatedDisk::new().unwrap();
+    failed.arm(data_sync, Fault::Error);
+    assert_eq!(
+        primary
+            .export_live_to(&source, failed, Limits::default())
+            .err(),
+        Some(Error::Io)
+    );
+    assert_eq!(primary.verified_revision, 0);
+    assert_eq!(source.retained_ids().unwrap(), vec![1]);
+    assert!(!source.requires_recovery());
+    assert_eq!(source.memory_usage().live_bytes, baseline);
+    assert_eq!(disk.durable_image().unwrap(), original);
+    let retry = primary
+        .export_live_to(&source, MemoryStore::new().unwrap(), Limits::default())
+        .unwrap();
+    assert_eq!(retry.descriptor(), expected.descriptor());
+    assert_eq!(source.begin().commit(), Ok(3));
+}
+
 fn wrong_digest(mut ack: DurableAck) -> DurableAck {
     ack.digest[0] ^= 1;
     ack

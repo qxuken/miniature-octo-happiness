@@ -154,9 +154,7 @@ impl Storage {
         if before_bytes < self.end || before_bytes > MAX_IMAGE_BYTES as u64 {
             return Err(Error::Corrupt);
         }
-        // Empty caches are essential: copy exactly the current and explicitly
-        // retained graphs, never the source's obsolete serialization cache.
-        let mut copy = Self::create(
+        let (copy, after_bytes) = Self::create_compact(
             destination,
             mem,
             head,
@@ -164,12 +162,26 @@ impl Storage {
             self.identity,
             retention,
         )?;
-        copy.release_serialization_caches();
         let stats = CompactionStats {
             before_bytes,
-            after_bytes: copy.end,
+            after_bytes,
         };
         Ok((copy, stats))
+    }
+    pub(crate) fn create_compact<B: ByteStore + 'static>(
+        destination: B,
+        mem: &Memory,
+        head: &Head,
+        next_collection: u64,
+        identity: [u8; 16],
+        retention: &Retention,
+    ) -> Result<(Self, u64)> {
+        // Encode only the supplied graphs. Release the encoder caches before
+        // independent verification builds its own graph.
+        let mut copy = Self::create(destination, mem, head, next_collection, identity, retention)?;
+        copy.release_serialization_caches();
+        let bytes = copy.end;
+        Ok((copy, bytes))
     }
     fn release_serialization_caches(&mut self) {
         self.data_cache = None;

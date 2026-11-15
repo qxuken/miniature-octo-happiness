@@ -14,12 +14,16 @@ use std::{
     fs,
     net::{TcpListener, TcpStream},
     path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc,
+    },
     time::Duration,
 };
 use weekend_db::{
     Database, Error, Limits,
     replication::{Follower, Primary},
+    storage::{ByteStore, FileStore},
 };
 
 struct Directory(PathBuf);
@@ -74,6 +78,166 @@ fn exchange<T>(
         let result = request(stream);
         (result, receiver.join().unwrap())
     })
+}
+
+struct PausedCopy {
+    file: FileStore,
+    pause: Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>,
+}
+impl ByteStore for PausedCopy {
+    fn lock(&mut self) -> weekend_db::Result<()> {
+        self.file.lock()
+    }
+    fn unlock(&mut self) {
+        self.file.unlock();
+    }
+    fn length(&mut self) -> weekend_db::Result<u64> {
+        self.file.length()
+    }
+    fn read(&mut self, offset: u64, out: &mut [u8]) -> weekend_db::Result<usize> {
+        self.file.read(offset, out)
+    }
+    fn write(&mut self, offset: u64, bytes: &[u8]) -> weekend_db::Result<usize> {
+        self.file.write(offset, bytes)
+    }
+    fn sync(&mut self) -> weekend_db::Result<()> {
+        self.file.sync()?;
+        if let Some((arrived, resume)) = self.pause.take() {
+            arrived.send(()).unwrap();
+            resume.recv_timeout(Duration::from_secs(10)).unwrap();
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn live_export_pins_old_roots_while_the_native_source_changes() {
+    let dir = Directory::new();
+    let limits = Limits::default();
+    let source_path = dir.0.join("primary");
+    let mut db = Database::create_file(&source_path, limits).unwrap();
+    let collection = db.create_collection().unwrap();
+    let put = |db: &Database, n| {
+        let mut tx = db.begin();
+        tx.put(collection, b"key", &db.unsigned(n).unwrap())
+            .unwrap();
+        tx.commit().unwrap()
+    };
+    assert_eq!(put(&db, 1), 2);
+    let retained = db.retain_snapshot(&db.snapshot()).unwrap();
+    let captured_revision = put(&db, 2);
+    let mut primary = Primary::new(&db, [7; 16]).unwrap();
+    let baseline_path = dir.0.join("baseline");
+    let baseline = primary.export_file(&mut db, &baseline_path).unwrap();
+    let descriptor = baseline.descriptor();
+    drop(baseline);
+
+    let export_path = dir.0.join("live");
+    let (arrived, at_sync) = mpsc::channel();
+    let (resume, resumed) = mpsc::channel();
+    let copy = PausedCopy {
+        file: FileStore::create(&export_path).unwrap(),
+        pause: Some((arrived, resumed)),
+    };
+    let (mut export, latest, replacement) = std::thread::scope(|scope| {
+        let capture = scope.spawn(|| primary.export_live_to(&db, copy, limits));
+        at_sync.recv_timeout(Duration::from_secs(10)).unwrap();
+        let (done, finished) = mpsc::channel();
+        let db = &db;
+        let writer = scope.spawn(move || {
+            put(db, 3);
+            db.release_retained(retained).unwrap();
+            let replacement = db.retain_snapshot(&db.snapshot()).unwrap();
+            let _ = db.create_collection().unwrap();
+            done.send((db.snapshot().revision(), replacement)).unwrap();
+        });
+        let result = finished.recv_timeout(Duration::from_secs(5));
+        resume.send(()).unwrap();
+        writer.join().unwrap();
+        let (latest, replacement) = result.expect("source waited for a destination sync");
+        (capture.join().unwrap().unwrap(), latest, replacement)
+    });
+    assert_eq!(export.descriptor(), descriptor);
+    assert_eq!(export.revision(), captured_revision);
+    assert_eq!(
+        Database::open_file(&source_path, limits).err(),
+        Some(Error::Busy)
+    );
+    assert!(latest > captured_revision);
+    assert_eq!(db.retained_ids().unwrap(), vec![replacement]);
+
+    let follower_path = dir.0.join("follower");
+    fs::create_dir(&follower_path).unwrap();
+    let mut follower = Follower::create(&follower_path, primary.enrollment(), limits).unwrap();
+    let (received, served) = exchange(&mut follower, |socket| primary.ship(&mut export, socket));
+    served.unwrap();
+    let received = received.unwrap();
+    assert_eq!(received.revision, captured_revision);
+    drop(export);
+    assert_eq!(
+        fs::read(&export_path).unwrap(),
+        fs::read(&baseline_path).unwrap()
+    );
+    let (progress, served) = exchange(&mut follower, |socket| primary.poll_live(&db, socket));
+    served.unwrap();
+    let progress = progress.unwrap();
+    assert_eq!(progress.local_revision, latest);
+    assert_eq!(progress.follower, Some(received));
+    assert_eq!(progress.revision_gap(), Some(latest - captured_revision));
+    {
+        let replica = follower.replica().unwrap();
+        let collection = replica.collection_id(collection.as_u64());
+        let old = replica.retained_snapshot(retained).unwrap();
+        assert_eq!(old.revision(), 2);
+        assert_eq!(
+            old.get(collection, b"key").unwrap().unwrap().as_u64(),
+            Ok(1)
+        );
+        assert_eq!(
+            replica
+                .snapshot()
+                .get(collection, b"key")
+                .unwrap()
+                .unwrap()
+                .as_u64(),
+            Ok(2)
+        );
+    }
+    let mut new = primary
+        .export_live_file(&db, dir.0.join("updated"), limits)
+        .unwrap();
+    assert_eq!(new.revision(), latest);
+    let (received, served) = exchange(&mut follower, |socket| primary.ship(&mut new, socket));
+    served.unwrap();
+    let received = received.unwrap();
+    let enrollment = primary.enrollment();
+    drop(follower);
+    let mut follower = Follower::open(&follower_path, enrollment, limits).unwrap();
+    let (progress, served) = exchange(&mut follower, |socket| primary.poll_live(&db, socket));
+    served.unwrap();
+    let progress = progress.unwrap();
+    assert_eq!(progress.follower, Some(received));
+    assert_eq!(progress.revision_gap(), Some(0));
+    let replica = follower.replica().unwrap();
+    let collection = replica.collection_id(collection.as_u64());
+    assert_eq!(
+        replica.retained_snapshot(retained).err(),
+        Some(Error::NotFound)
+    );
+    let current = replica.retained_snapshot(replacement).unwrap();
+    assert_eq!(
+        current.get(collection, b"key").unwrap().unwrap().as_u64(),
+        Ok(3)
+    );
+    assert_eq!(
+        replica
+            .snapshot()
+            .get(collection, b"key")
+            .unwrap()
+            .unwrap()
+            .as_u64(),
+        Ok(3)
+    );
 }
 
 #[test]

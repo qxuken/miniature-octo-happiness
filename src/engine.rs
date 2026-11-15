@@ -71,6 +71,30 @@ struct State {
     next_collection: u64,
     retention: Retention,
 }
+#[cfg(feature = "replication")]
+pub(crate) struct ReplicationSnapshot {
+    pub(crate) head: Shared<Head>,
+    pub(crate) identity: [u8; 16],
+    next_collection: u64,
+    retention: Retention,
+}
+#[cfg(feature = "replication")]
+impl ReplicationSnapshot {
+    pub(crate) fn encode(
+        self,
+        destination: impl ByteStore + 'static,
+        mem: &Memory,
+    ) -> Result<(Storage, u64)> {
+        Storage::create_compact(
+            destination,
+            mem,
+            &self.head,
+            self.next_collection,
+            self.identity,
+            &self.retention,
+        )
+    }
+}
 struct Publication<'db> {
     db: &'db Database,
     storage: MutexGuard<'db, Option<Storage>>,
@@ -250,6 +274,18 @@ impl Database {
         let writer = self.lock_writer()?;
         let storage = writer.as_ref().ok_or(Error::Invalid)?;
         Ok((storage.identity(), self.read_state().head.revision))
+    }
+    #[cfg(feature = "replication")]
+    pub(crate) fn replication_snapshot(&self, mem: &Memory) -> Result<ReplicationSnapshot> {
+        let writer = self.lock_writer()?;
+        let storage = writer.as_ref().ok_or(Error::Invalid)?;
+        let state = self.read_state();
+        Ok(ReplicationSnapshot {
+            head: state.head.clone(),
+            identity: storage.identity(),
+            next_collection: state.next_collection,
+            retention: state.retention.fork(mem, 0)?,
+        })
     }
     #[cfg(all(
         feature = "replication",
