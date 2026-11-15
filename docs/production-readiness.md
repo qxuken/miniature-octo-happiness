@@ -122,8 +122,11 @@ qualification is a separate release-candidate requirement.
   verifies recovery after copy-data, root-slot and witness flush failures.
   Ext4 journal writeback also verifies the [file metadata sync before exchange](maintenance-space-exhaustion.md#kernel-eio-at-compaction-file-metadata-sync)
   and both [directory syncs after exchange and cleanup](maintenance-space-exhaustion.md#kernel-eio-at-compaction-directory-syncs).
-  Actual namespace space exhaustion and failures at the subsequent file
-  syncs still need qualification. Verify the canonical image before
+  The [ext4 namespace exhaustion profile](maintenance-space-exhaustion.md#ext4-compaction-with-no-remaining-user-blocks-or-inodes)
+  verifies successful publication with zero available user blocks and
+  inodes after the replacement is durable. Namespace failures on other
+  filesystems and faults at the subsequent file syncs still need
+  qualification. Verify the canonical image before
   removing any orphan. The [admin CLI](operations.md) can compact in place
   with exclusive leases on macOS and Linux. The [paired isolation workload](compound-resource-envelope.md#short-lived-maintenance-processes)
   measures the process-memory effect with the same copy budgets and seed.

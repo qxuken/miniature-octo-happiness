@@ -2099,3 +2099,19 @@ scratch entry. Both open every root at revision 212 and retry to the exact
 compacted image. The final source reaches revision 213 with all 64 retained
 roots. This closes two directory sync cases. Namespace space exhaustion,
 remaining file sync faults and physical device tests remain open.
+
+## Ext4 compaction publication at block and inode exhaustion
+
+The [ext4 namespace exhaustion profile](maintenance-space-exhaustion.md#ext4-compaction-with-no-remaining-user-blocks-or-inodes)
+at `3acc7f8` fills a private volume after the compacted replacement is
+durable on Docker arm64 and hosted Ubuntu x64. Unprivileged writes and
+an exclusive create return kernel ENOSPC.
+The real exchange and unlink have zero available blocks and inodes.
+Compaction succeeds and remount verifies the exact compacted bytes,
+mode `0640`, no scratch, and all 64 retained roots at revision 212.
+The next commit survives remount at revision 213, and the backup remains
+at 212. This is scoped to ext4 and to an already-durable replacement.
+
+A preliminary macOS APFS probe on a private 256 MiB image received kernel
+`ENOSPC` from the real exchange syscall. The near-cap engine case still
+needs to verify both images after the refusal, release space and retry.

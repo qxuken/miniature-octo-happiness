@@ -869,5 +869,69 @@ The hosted ZIP SHA-256 is
 | Hosted controller | `57648c20d38e2a8caa7c8f29261951f64f422797fd8a1c8d2fe8d579205aa1fc` | `0e5efa3216e7731867ce2dd05bb95f309dc6e6b33139301f5b87a387d4fad6b7` |
 | Hosted audit | `f7dcdbe14db5a3c3cf6b982f9d4926e48ff0173e97c9167fa8322fa2a32ffc21` | `3e8b57a78c463a3a246cd7290fc6cdb0d9bf4e27b877e526b7710a7f7056833e` |
 
-Actual namespace space exhaustion, device faults at the later file syncs
-and physical power interruption remain open.
+The next profile exercises namespace publication after the replacement is
+durable and the ordinary user runs out of blocks and inodes.
+
+## Ext4 compaction with no remaining user blocks or inodes
+
+Build the controller and fixture as in the [writeback reproduction](#kernel-writeback-eio-during-near-cap-maintenance).
+Use an owned private Linux ext4 volume through the controller. Choose a
+fresh output directory.
+
+```sh
+sudo "$PWD/target/xtask/release/xtask" quota --maintenance --namespace-enospc \
+  --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" \
+  --source "$(git rev-parse HEAD)" --output "$PWD/target/maintenance-namespace-enospc"
+```
+
+The unprivileged compaction process pauses just before its real exchange.
+By then it has durably written and verified the replacement, whose bytes
+match the verified backup. The controller checks exact file identities and
+source and scratch hashes. A separate process under the same UID exhausts
+the global inode inventory and writes an existing ballast file until the
+kernel returns `ENOSPC`. An exclusive create also returns `ENOSPC`. A
+small remainder can fit in a separate existing inode when extending the
+large file requires more space. The fixture consumes that remainder before
+resuming. The interposer verifies zero available blocks and inodes at
+both the real exchange and the unlink. The filesystem can still report
+reserved blocks in its global free count.
+
+The exchange, unlink and all publication syncs succeed. The canonical
+file is the exact 63,074,304-byte compacted image and keeps mode `0640`.
+The old scratch name is absent. The result survives remount. Fresh
+processes verify revision 212 and all 64 retained roots in the canonical
+file and backup. A subsequent commit and remount reopen revision 213 on
+the source with the same retained roots. The backup remains at revision
+212. An earlier full-inode profile separately exercises failure during
+scratch creation and retry after freeing an inode.
+[Creation-time ENOSPC](#recorded-native-global-inode-exhaustion-result)
+
+Docker Linux arm64/ext4 with Rust 1.99.0 passed at
+`3acc7f8cb279542388e494d12c4acf92bb06321d`. Hosted Ubuntu x64/ext4 with
+Rust 1.99.1 passed at tested merge `c7fc34e7b7105314eddd6996363e8d15c3874ebb`.
+The fill on each platform wrote 289,308,672 bytes,
+including a final 4,096 bytes in the separate inode, while 37,576,704
+bytes remained in the global free count. The exact inode-exhaustion retry
+profile also passed. All 33 Linux quota unit tests passed, along with strict
+Clippy for the Linux controller and fixture and macOS and Windows x64
+cross-target fixture checks. The C gate compiled with warnings as errors.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43763861937/job/132964470395), [Hosted artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43763861937/artifacts/14182160363)
+
+The independent audit on each platform checked 694 source files, 154 evidence payloads,
+cleanup for 50 command records and all eight phase records. Read-only
+admin verified current and every retained revision in both archived images
+and kept their hashes. The controller verified that the owned ext4 mount
+and loop device retired.
+
+| Evidence under `target/namespace-enospc-validation/` | Docker arm64 SHA-256 | Hosted x64 SHA-256 |
+|---|---|---|
+| Controller | `bec251f78daa205dde0ab882f9fce6d41ab27c368a1222511d3c97d349620191` | `5f60026e6e49d6d7cf6f752333c3033d117270abdf8f3da410ec9bdf7d005e4a` |
+| Exact fixture | `02cd69bbd16265e4061956b2ff87fc4e98e1f9467535fad0b906d8d1807343f7` | `6ffbfa9f5ad313cb916dfcc3537a7ce9ecca9498961740179da5f488145f6fff` |
+| Exact gate library | `e8688b3e67a8ef982abb64d801b7f12f202a06112e420da9aa8db4fe00233787` | `803e3d10b5ee35155490d086882a0a673e5b8183637e5f2ae41e0972f32dc7ca` |
+| Independent audit | `f3c2a4932a2bd786223d573c555d3acb3649fbabdcf526f4434f1ef53eeff190` | `665a18cb5ed33a83a2ca35b758db697594c4eaa27a5185859acfd291e46ec360` |
+
+The hosted ZIP SHA-256 is
+`332b5136eec623683b47a7d8b15522719a288fcb9edecbb86daef334db0a0176`.
+
+Native namespace `ENOSPC` during publication on other filesystems, faults
+at the later file syncs, and physical power interruption remain open.
