@@ -2226,3 +2226,16 @@ on macOS and from 73.725 to 91.139 ms on Linux. The independently replayed
 reader state and all cycle checkpoints pass. The 17 resource controls
 and strict Clippy pass on both platforms.
 [Paired results and raw samples](compound-resource-envelope.md#sustained-fresh-snapshot-acquisition)
+
+## Fixed-arrival snapshot queueing
+
+At `ece552a`, the paired workload completes all 49,152 scheduled
+reads per run at a nominal 8,000 arrivals per second, while preserving
+the three-writer, 384-commit schedule. Full response p99 falls from
+134.004 to 5.590 ms on macOS/APFS and from 18.914 to 9.399 ms on Docker
+Linux/ext4. Acquisition p99 falls to 0.584 µs and 1.292 µs, respectively.
+The full responses include queue wait, dispatch and read checks. Durable
+commit p99 moves from 37.825 to 35.940 ms on macOS and from 28.911 to
+32.565 ms on Linux. All four runs reopen revision 517 with the same
+current and retained state and the same checkpoint lengths.
+[Schedule, measurements and preserved traces](compound-resource-envelope.md#fixed-arrival-snapshot-queueing)

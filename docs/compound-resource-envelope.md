@@ -837,8 +837,9 @@ barriers. Percentiles use the nearest rank. Raw samples with zero
 elapsed clock ticks are counted and retained. The reader loop submits
 its next request after the previous iteration, so the candidate can
 complete substantially more reads and verification work in each window.
-Open-loop arrival queues, direct lock-installation timing and deployment
-thresholds remain separate.
+The fixed-arrival follow-up measures queueing at one offered rate.
+Direct lock-installation timing and deployment thresholds remain open.
+[Fixed-arrival measurements](#fixed-arrival-snapshot-queueing)
 
 Reproduce from the driver checkout at `48e2e6d`.
 
@@ -888,3 +889,81 @@ strict Clippy pass on macOS and Docker Linux.
 | `sustained-breadth-macos-candidate` | `faf9d69c677a63a554cc244b1c61d3566ddea71ded9c11b91ae1f49d17520625` | `1aed01a471f8b007fdb704e556e2b1c06dad5a0a07fdc8b334ff7788a6a2fcc1` |
 | `sustained-breadth-linux-baseline` | `3c2f31953991516d4c98df96876b502a32110da5ab7cd9f29f31d2a75b8ce150` | `4fab816fae907e9660dd6bd6fda36d7dc5023870dad72f2a35febb73ca9ccda2` |
 | `sustained-breadth-linux-candidate` | `2ce071185070ea4a15632584f72aac89574bfeef62afb02b915b22f745582ccb` | `8e6c2125d3dfa4fa2b999847f8dba8dad07e14d79d97beeb0ab66350edfb2b3a` |
+
+## Fixed-arrival snapshot queueing
+
+The `compound-breadth-arrivals` profile pairs `b131f84` with `ece552a` on
+macOS arm64/APFS and Docker Linux arm64/ext4. All four runs use the same
+release driver source and the same 58,523,648-byte seed. Each run keeps
+the eight cycles, three writer threads and 384 full-width commits from
+the completion-paced workload. It reopens and checks the current and all
+64 retained views after each compaction.
+
+Four reader threads each receive 1,536 scheduled requests per cycle.
+Their arrivals are 500 µs apart from the common start barrier, for a
+nominal 8,000 arrivals per second over each 768 ms window. A reader handles
+its own requests in order. The schedule models a finite per-reader queue.
+Each request keeps its original arrival time through any backlog. All
+49,152 requests per run must complete. Each request checks both ends of
+every writer's key range. The first request and every 128 requests after
+it scan the entire current view, for 384 full read checks per run.
+
+The raw trace records each request's start, completion, acquisition time
+and observed revision. The earliest eligible start is the later of its
+scheduled arrival and the preceding request's completion in that reader
+thread. Queue wait runs from arrival to eligibility, dispatch delay from
+eligibility to actual start, service from start to completion, and response
+from arrival to completion. Service includes the read checks. The controller
+rejects incomplete schedules, inconsistent timing and any reader state that
+disagrees with replay of the acknowledged write order. It keeps the bounded
+raw log and verifies the summary from the copied log and its hash.
+
+Reproduce from the driver checkout at `ece552a`.
+
+```sh
+cargo xtask resource compound-breadth-arrivals --revision b131f84 \
+  --output target/breadth-arrivals-macos-baseline
+cargo xtask resource compound-breadth-arrivals --revision ece552a \
+  --output target/breadth-arrivals-macos-candidate
+cargo xtask resource compound-breadth-arrivals --revision b131f84 \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/breadth-arrivals-linux-baseline
+cargo xtask resource compound-breadth-arrivals --revision ece552a \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/breadth-arrivals-linux-candidate
+```
+
+| Metric | macOS baseline | macOS candidate | Docker Linux baseline | Docker Linux candidate |
+|---|---:|---:|---:|---:|
+| Scheduled requests completed | 49,152 | 49,152 | 49,152 | 49,152 |
+| Requests that waited behind earlier requests | 39,034 | 4,058 | 20,701 | 16,456 |
+| Queue wait p99 | 133.504 ms | 5.090 ms | 18.414 ms | 8.899 ms |
+| Dispatch delay p99 | 120.833 µs | 125.250 µs | 663.916 µs | 665.500 µs |
+| Snapshot acquisition p99 | 11.901 ms | 0.584 µs | 2.033 ms | 1.292 µs |
+| Request service p99 | 12.140 ms | 9.125 µs | 3.572 ms | 11.666 µs |
+| Full response p99 | 134.004 ms | 5.590 ms | 18.914 ms | 9.399 ms |
+| Longest full response | 165.999 ms | 9.703 ms | 34.543 ms | 34.097 ms |
+| Requests completed after their offered window | 0 | 0 | 11 | 2 |
+| Durable commit p99 | 37.825 ms | 35.940 ms | 28.911 ms | 32.565 ms |
+| Sampled peak worker RSS | 495,760 KiB | 495,840 KiB | 185,784 KiB | 185,888 KiB |
+
+The lock split lowers acquisition and full-response p99 in both pairs.
+Queueing still contributes to request latency after the split. The readers
+in each candidate run collectively observe all 376 intermediate revisions.
+Commit p99 falls on macOS and rises on Docker Linux at this fixed read
+rate. Multiple offered rates, direct installation timing, and deployment
+thresholds remain open.
+
+The four seed files match byte for byte. All cycle checkpoints agree on
+revision, digest and file lengths. The final open verifies revision 517
+and its 64 retained roots. Docker verifies absence of the owned
+containers and volumes after copyback.
+The 18 resource controls and strict Clippy pass on macOS and Docker Linux.
+The completion-paced profile also passes end to end on macOS.
+
+| Output directory under `target/` | Raw `run/run.jsonl` SHA-256 | Worker `run/evidence.json` SHA-256 |
+|---|---|---|
+| `breadth-arrivals-macos-baseline` | `cf0cb4645070dec92bf8bf3d431ea45c35d7a71e4ff48ee882b33871d80e085d` | `f31a3f9635ea830f6c31d9bbc9c248fd6e649939a51c0e18bdae62218ab855c7` |
+| `breadth-arrivals-macos-candidate` | `5f9af7fd9939e05eff02bc941d9f6b1618c9527ea05ea18f3538dccf8c18a014` | `d15feaa730840450f90348617356c5222c1e8bd7e4fcdd1897a6a40ab378010a` |
+| `breadth-arrivals-linux-baseline` | `c6f672ff255606b9c5ec737422711302cafe36709a54a1c4ff67fd24741ee4d3` | `354c4a2a30789b87450da6aea1f08365c4301022482f23c4f80ce6c0bd973c93` |
+| `breadth-arrivals-linux-candidate` | `9fdd44e021c3db4d10d4519d85c45f0f744ee945e0368b43ad9e04a518880815` | `c32eafaa2e28617567ed5c808815176d8620187e76e137a833c97e88095cd807` |
