@@ -40,8 +40,12 @@ mod quota_guest;
 mod quota_host;
 #[cfg(target_os = "linux")]
 mod quota_oracle;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
+mod resource_campaign;
+#[cfg(unix)]
 mod resource_oracle;
+#[cfg(unix)]
+mod resource_probe;
 mod rust_source;
 #[cfg(unix)]
 mod sanitizers;
@@ -78,6 +82,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Qualify bounded resource and compound workloads on a frozen engine.
+    #[cfg(unix)]
+    Resource(resource_campaign::Options),
+    /// Measure disposable allocation and cache work against a clean reference.
+    #[cfg(unix)]
+    ResourceProbe(resource_probe::Options),
     /// Exercise near-cap maintenance on a private Docker Linux tmpfs.
     #[cfg(unix)]
     QuotaEnospc(quota_enospc::Options),
@@ -222,6 +232,10 @@ fn execute(cli: Cli) -> Result<()> {
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        #[cfg(unix)]
+        Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::ResourceProbe(options) => resource_probe::run(&run, options),
         #[cfg(unix)]
         Task::QuotaEnospc(options) => quota_enospc::run(&run, options),
         #[cfg(target_os = "linux")]

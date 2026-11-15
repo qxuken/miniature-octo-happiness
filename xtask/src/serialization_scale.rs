@@ -207,7 +207,7 @@ fn instrument(root: &Path) -> Result<()> {
     fs::write(module, api)?;
     Ok(())
 }
-fn clean_env(original: &BTreeMap<OsString, OsString>) -> BTreeMap<OsString, OsString> {
+pub(crate) fn clean_env(original: &BTreeMap<OsString, OsString>) -> BTreeMap<OsString, OsString> {
     let mut env = original.clone();
     env.retain(|k, _| {
         let k = k.to_string_lossy();

@@ -1,17 +1,16 @@
 # Finite private resource envelope
 
-Requires a new output directory whose parent already exists. Uses the existing
-SQLite-baseline runner's tested no-overwrite/source-command helpers and public
-engine APIs; no core code or configured limits are expanded.
+Requires a new output directory whose parent already exists. The private Rust
+xtask uses bounded subprocess supervision and an independent byte oracle.
+The fixture exercises public engine APIs within the configured limits.
 
 ```sh
-mise x python@3.14.8 -- python3 tools/resource-envelope/run.py \
-  target/resource-envelope-new --revision 96e105f80c189a2f9de12530518c4d834f2796ea
-mise x python@3.14.8 -- python3 tools/resource-envelope/run.py \
-  target/resource-envelope-linux-new --revision 96e105f80c189a2f9de12530518c4d834f2796ea \
+cargo xtask resource envelope --revision 96e105f80c189a2f9de12530518c4d834f2796ea \
+  --output target/resource-envelope-new
+cargo xtask resource envelope --revision 96e105f80c189a2f9de12530518c4d834f2796ea \
+  --output target/resource-envelope-linux-new \
   --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
-RESOURCE_ENVELOPE_EVIDENCE=target/resource-envelope-new/evidence.json \
-  mise x python@3.14.8 -- python3 -O tools/resource-envelope/test_runner.py
+cargo test --offline --locked -p xtask --bin xtask resource
 ```
 
 Fixed workload: 64 depth-64 roots, real draft/owned-value pressure against a
@@ -28,7 +27,7 @@ Native timeout cleanup kills the child process group, including the stack worker
 macOS RSS probes have a five-second timeout; setup probes/builds default to 120
 seconds. A stuck probe fails qualification and records terminal cleanup metadata.
 Actual sources, toolchains, phase timings/core/RSS/file bytes, raw RSS sample count
-and independent Python byte-oracle checks are recorded. Core requested layouts,
+and independent byte-oracle checks are recorded. Core requested layouts,
 sampled RSS, file lengths and requested worker stack are separate quantities.
 See [the qualification report](../../docs/resource-envelope.md) for actual results
 and exclusions. No publication or remote service is used.
@@ -36,13 +35,9 @@ and exclusions. No publication or remote service is used.
 ## Compound workload (macOS/Linux)
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/compound.py \
-  --revision c583ca7 --output target/compound-new
-mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/compound.py \
-  --revision c583ca7 --output target/compound-linux-new \
+cargo xtask resource compound --revision c583ca7 --output target/compound-new
+cargo xtask resource compound --revision c583ca7 --output target/compound-linux-new \
   --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
-mise exec python@3.14.8 -- python tools/resource-envelope/test_compound.py
-mise exec python@3.14.8 -- python -O tools/resource-envelope/test_compound.py
 ```
 
 The source archive plus explicit harness overlays builds the optional private
@@ -66,14 +61,13 @@ durability. Crates remain unpublished.
 
 The [growth report](../../docs/serialization-buffer-growth.md) binds before/after
 compound runs, exact-byte fixtures, clean latency/RSS and a separate disposable
-allocation probe. `growth_probe.py --source SOURCE --reference RUN/evidence.json
+allocation probe. `cargo xtask resource-probe growth --source SOURCE --reference RUN/evidence.json
 --revision FULL_SHA --output FRESH` copies a frozen source, instruments successful
 ChargedVec growth and domain destruction, then verifies phase/state/live-byte/
 file-size records against the clean reference. Its timings/RSS must not be used
-as production measurements. `test_growth_probe.py` controls unique patch sites
-and strict parser/reference failures and runs normally/optimized in the helper
-registry. Full clean profiles and source hashes are validated before comparison;
-a verified flag alone cannot admit truncated evidence.
+as production measurements. The resource probe tests cover unique patch sites
+and strict parser and reference failures. The probe requires every clean
+profile and validates the source hashes before comparison.
 
 `growth_copy.rs` is an independent 160 MiB-budget public-API consumer. Compile
 against each compound run's exact rlib with its pinned rustc, edition 2024,
@@ -85,23 +79,22 @@ content from successful return or file size alone. No package is published.
 ## Shared-cache and index work
 
 The [cache-sharing report](../../docs/serialization-cache-sharing.md) compares
-36592ee and 910e490 on the same compound workload. `cache_probe.py` accepts the
+36592ee and 910e490 on the same compound workload. `cargo xtask resource-probe cache` accepts the
 same source/reference/revision/fresh-output arguments as the growth probe,
 validates complete clean profiles and source hashes, and compiles a disposable
 instrumented copy. It counts cloned entries, copied index positions, rebuilt/
 sorted entries, DATA comparisons/shifts and charged allocation/domain work.
 It must reproduce clean logical/live-byte/file-size records. Its latency/RSS
-must be excluded from production comparisons. `test_cache_probe.py` tests both
-patch surfaces and malformed/regressing reports normally/optimized in the
-continuous helper registry; actual archived old/new Rust is compiled separately
-in the qualification runs. No artifacts or crates are published.
+must be excluded from production comparisons. The Rust tests cover both patch
+surfaces and malformed or regressing reports. The qualification runs compile
+the archived old and new Rust sources separately.
 
 ## Interrupted maintenance and repeated recovery
 
-`resilience.py --revision COMMIT --output FRESH` archives and builds the compound
+`cargo xtask resource resilience --revision COMMIT --output FRESH` archives and builds the compound
 binary, runs the existing profiles, then adds 52 native maintenance SIGKILLs and
 108 repeated-recovery scenarios. Add the immutable `--docker-image` above for
-Linux/ext4. `--worker SOURCE OUTPUT REVISION` is the container entry point.
+Linux/ext4.
 See the [matrix and results](../../docs/near-cap-interruption-recovery.md).
 
 The native cut set covers all source/target syncs and metadata/namespace action
@@ -112,11 +105,10 @@ no intervening handle on the real medium. Current/all-retained byte oracles and
 source identity are checked. Private case files are retired only after checks;
 this is not a production cleanup API or device power-loss qualification.
 
-`test_resilience.py` runs complete synthetic matrices and rejects missing or
+The Rust tests exercise complete synthetic matrices and reject missing or
 mutated phases, source IDs/types, bytes/revisions, kill/exchange/calibration and
-cleanup records normally and under optimized Python in the helper registry.
-Per-worker deadlines/output bounds and owned-process-group retirement are
-inherited; Docker has a 1,200-second overall deadline. No crates are published.
+cleanup records. Each worker retains the same process and output bounds as the
+compound run. Docker has a 1,200-second overall deadline.
 
 ## Maintenance space exhaustion
 

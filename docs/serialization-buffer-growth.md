@@ -181,9 +181,9 @@ an audit denominator; generated/dependency code retains its separate scope.
 ## Reproduction and remaining work
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/compound.py --revision fe4d057 --output target/growth-old-fresh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/compound.py --revision 742079c --output target/growth-new-fresh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/growth_probe.py --source target/growth-new-fresh/source --reference target/growth-new-fresh/run/evidence.json --revision 742079cad1cd7683395f027d2ca60f75b7da31a8 --output target/growth-work-fresh
+cargo xtask resource compound --revision fe4d057 --output target/growth-old-fresh
+cargo xtask resource compound --revision 742079c --output target/growth-new-fresh
+cargo xtask resource-probe growth --source target/growth-new-fresh/source --reference target/growth-new-fresh/run/evidence.json --revision 742079cad1cd7683395f027d2ca60f75b7da31a8 --output target/growth-work-fresh
 mise exec rust@1.99.1 -- cargo test --offline --locked -p weekend-db --all-features
 mise exec rust@1.99.1 -- cargo test --offline --locked -p weekend-db --all-features --release
 mise exec rust@1.99.1 -- cargo test --offline --locked --manifest-path fuzz/Cargo.toml --lib
@@ -192,8 +192,8 @@ mise exec rust@1.99.1 -- cargo test --offline --locked --manifest-path fuzz/Carg
 Add `--docker-image` with the immutable image above to a compound invocation
 for Linux. For a clean 160 MiB copy check, compile `growth_copy.rs` with the
 matching pinned rustc, edition 2024, opt-level 3, overflow-checks=yes,
-`--extern weekend_db=.../run/build/release/deps/libweekend_db.rlib` and
-`-L dependency=.../run/build/release/deps`; pass source, fresh destination,
+`--extern weekend_db=.../run/cargo-target/release/deps/libweekend_db.rlib` and
+`-L dependency=.../run/cargo-target/release/deps`; pass source, fresh destination,
 `limit`/`ok` and the full source ID. Use the same compound binary's `inspect`
 mode to check the successful destination in a fresh process.
 

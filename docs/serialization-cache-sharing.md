@@ -208,16 +208,16 @@ The [memory](decisions/memory.md#growth-equality-limit-pair-closed) and
 historical audit scopes and map this follow-up.
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/compound.py --revision 36592ee --output target/cache-old-fresh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/compound.py --revision 910e490 --output target/cache-new-fresh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/resource-envelope/cache_probe.py --source target/cache-new-fresh/source --reference target/cache-new-fresh/run/evidence.json --revision 910e4904e8f13a7bc8f0ef1401092ed2fb3b11c8 --output target/cache-work-fresh
+cargo xtask resource compound --revision 36592ee --output target/cache-old-fresh
+cargo xtask resource compound --revision 910e490 --output target/cache-new-fresh
+cargo xtask resource-probe cache --source target/cache-new-fresh/source --reference target/cache-new-fresh/run/evidence.json --revision 910e4904e8f13a7bc8f0ef1401092ed2fb3b11c8 --output target/cache-work-fresh
 ```
 
 Use the immutable Docker image in the compound report via `--docker-image`
 for Linux. The cache probe adds private counters only in its fresh source copy;
-`test_cache_probe.py` runs current/synthetic legacy patch controls and malformed/
-regressing evidence rejection normally and under optimized Python. Actual old
-and new instrumented Rust binaries are compiled in the qualification runs.
+the Rust probe tests cover current and synthetic legacy patch sites and reject
+malformed or regressing evidence. The qualification runs compile both archived
+instrumented Rust binaries.
 
 Remaining costs include affected-cache forks, copying large sparse hash tables,
 cold-open index construction, out-of-order insertion and broader DAG/history

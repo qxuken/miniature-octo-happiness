@@ -1016,3 +1016,11 @@ compaction each reported errno 122 after 8,392,704 bytes of partial output.
 Both profiles verified cleanup. All 16 legacy quota controls map to Linux Rust
 tests. The migration now accounts for 90/179 frozen controls, with 31 Python
 files remaining. [Native quota evidence](xtask-conversion.md#linux-quota-controller-and-maintenance-enospc)
+
+The Rust resource controller passed the standalone envelope on macOS/APFS and
+Docker Linux/overlayfs, the combined workload on macOS/APFS, and the full
+interruption matrix on Docker Linux/ext4. It verified 52 maintenance kills and
+108 repeated recovery cases, with the source image unchanged. The growth and
+cache probes reproduced the macOS clean state and byte observations. Eleven
+Python files were retired, bringing the conversion to 112/179 frozen controls
+and 20 maintained Python files. [Resource evidence](xtask-conversion.md#resource-workloads-and-instrumentation)

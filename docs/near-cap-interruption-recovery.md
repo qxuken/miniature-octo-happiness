@@ -202,10 +202,9 @@ are reused; these added drills do not manufacture new independent conditions.
 ## Reproduction and provenance
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python -I tools/resource-envelope/resilience.py --revision 3136017 --output target/resilience-new
-mise exec rust@1.99.1 python@3.14.8 -- python -I tools/resource-envelope/resilience.py --revision 3136017 --output target/resilience-linux-new --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
-mise exec python@3.14.8 -- python -I tools/resource-envelope/test_resilience.py
-mise exec python@3.14.8 -- python -I -O tools/resource-envelope/test_resilience.py
+cargo xtask resource resilience --revision 3136017 --output target/resilience-new
+cargo xtask resource resilience --revision 3136017 --output target/resilience-linux-new --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
+cargo test --offline --locked -p xtask --bin xtask complete_resilience_matrix
 ```
 
 The runner archives an explicit Git revision, overlays named private harness

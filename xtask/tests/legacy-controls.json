@@ -13,7 +13,12 @@
     "artifact-trace/test_windows_trace.py",
     "serialization-scale/test_runner.py",
     "quota/test_runner.py",
-    "quota/test_maintenance.py"
+    "quota/test_maintenance.py",
+    "resource-envelope/test_growth_probe.py",
+    "resource-envelope/test_compound.py",
+    "resource-envelope/test_runner.py",
+    "resource-envelope/test_cache_probe.py",
+    "resource-envelope/test_resilience.py"
   ],
   "controls": [
     {
@@ -367,109 +372,166 @@
       "path": "resource-envelope/test_growth_probe.py",
       "id": "helper_suite.GrowthProbeControls.test_unique_instrumentation_and_strict_domain_measurements",
       "source_sha256": "dd3eb30c81692de556a677b2ef7c28df3e2991e7cc4f5759dad65b56a33ad8b5",
-      "rust": []
+      "rust": [
+        "resource_probe::tests::growth_requires_unique_patch_and_monotonic_released_domains",
+        "resource_probe::tests::clean_reference_requires_exact_source_and_every_successful_profile"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_independent_fixed_digests_and_full_profile_schema",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_oracle::tests::digest_replays_preserve_the_frozen_independent_oracle",
+        "resource_oracle::tests::complete_compound_profiles_reject_wrong_counts_bytes_caps_and_outcomes"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_reject_missing_phase_bytes_cap_revision_overlap_and_samples",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_oracle::tests::complete_compound_profiles_reject_wrong_counts_bytes_caps_and_outcomes"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_observer_arguments_and_leader_exit_retire_live_descendant",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::observer_preserves_arguments_and_retires_descendants_after_leader_exit"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_observer_output_bound_records_failure_before_parse",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::real_output_cap_and_deadline_retire_child_groups"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_observer_cleanup_probe_failure_records_terminal_report",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::observer_preserves_observation_cleanup_and_cancellation_failures"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_observer_spawn_failure_records_terminal_report",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::malformed_json_and_spawn_errors_save_terminal_evidence"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_observer_wait_failure_records_terminal_report",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::observer_preserves_observation_cleanup_and_cancellation_failures"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_observer_keeps_observation_and_cleanup_failures",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::observer_preserves_observation_cleanup_and_cancellation_failures"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_observer_cancellation_records_terminal_report_and_reaps",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::observer_preserves_observation_cleanup_and_cancellation_failures"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_compound.py",
       "id": "helper_suite.CompoundControls.test_fresh_output_rejects_existing_and_dangling",
       "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::existing_and_dangling_outputs_reject_before_creating_logs"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_runner.py",
       "id": "helper_suite.RunnerTests.test_observer_existing_outputs_remain_untouched",
       "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::existing_and_dangling_outputs_reject_before_creating_logs"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_runner.py",
       "id": "helper_suite.RunnerTests.test_malformed_output_retains_terminal_failure",
       "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::malformed_json_and_spawn_errors_save_terminal_evidence"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_runner.py",
       "id": "helper_suite.RunnerTests.test_timeout_kills_worker_process_group_and_records_failure",
       "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::real_output_cap_and_deadline_retire_child_groups"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_runner.py",
       "id": "helper_suite.RunnerTests.test_transport_import_failure_retains_terminal_report",
       "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::observer_preserves_observation_cleanup_and_cancellation_failures"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_runner.py",
       "id": "helper_suite.RunnerTests.test_small_independent_oracle_known_digest",
       "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
-      "rust": []
+      "rust": [
+        "resource_oracle::tests::digest_replays_preserve_the_frozen_independent_oracle"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_runner.py",
       "id": "helper_suite.RunnerTests.test_sampler_timeout_reaps_real_child_and_retains_failure",
       "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
-      "rust": []
+      "rust": [
+        "resource_campaign::tests::observer_preserves_observation_cleanup_and_cancellation_failures",
+        "supervise::unix::controls::probe_wait_sampler_and_combined_failures_still_reap"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_runner.py",
       "id": "helper_suite.RunnerTests.test_frozen_positive_and_corrupted_oracle_controls",
       "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
-      "rust": []
+      "rust": [
+        "resource_oracle::tests::frozen_envelope_rows_reject_semantic_corruption"
+      ],
+      "unix_only": true
     },
     {
       "path": "serialization-scale/test_runner.py",
@@ -1276,25 +1338,37 @@
       "path": "resource-envelope/test_cache_probe.py",
       "id": "helper_suite.CacheProbeControls.test_current_and_legacy_unique_sites_and_ambiguous_patch_rejection",
       "source_sha256": "67f20de4544136f8a193353dbcf8127eb3ff5149d632de8fbab80b17704a7790",
-      "rust": []
+      "rust": [
+        "resource_probe::tests::cache_requires_unique_current_or_legacy_sites_and_monotonic_counters"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_cache_probe.py",
       "id": "helper_suite.CacheProbeControls.test_parser_rejects_missing_malformed_and_regressing_totals",
       "source_sha256": "67f20de4544136f8a193353dbcf8127eb3ff5149d632de8fbab80b17704a7790",
-      "rust": []
+      "rust": [
+        "resource_probe::tests::cache_requires_unique_current_or_legacy_sites_and_monotonic_counters"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_resilience.py",
       "id": "helper_suite.ResilienceControls.test_complete_matrix_and_corruption_omission_type_identity_rejections",
       "source_sha256": "60aa69c061b49f048f418a0a051ebe63f00a3eb7c87be2683f60471eddded1de",
-      "rust": []
+      "rust": [
+        "resource_oracle::tests::complete_resilience_matrix_rejects_omitted_cases_wrong_roots_and_wrong_cut_edges"
+      ],
+      "unix_only": true
     },
     {
       "path": "resource-envelope/test_resilience.py",
       "id": "helper_suite.ResilienceControls.test_case_control_and_namespace_order_are_not_interchangeable",
       "source_sha256": "60aa69c061b49f048f418a0a051ebe63f00a3eb7c87be2683f60471eddded1de",
-      "rust": []
+      "rust": [
+        "resource_oracle::tests::complete_resilience_matrix_rejects_omitted_cases_wrong_roots_and_wrong_cut_edges"
+      ],
+      "unix_only": true
     },
     {
       "path": "quota/test_maintenance.py",

@@ -563,3 +563,53 @@ The two quota suites now map all 16 legacy controls to Linux Rust tests. The
 conversion accounts for **90/179** frozen controls and **31** remaining Python
 files after retiring the six quota files. The optional runtime calibration still
 records unsupported capabilities without producing engine qualification.
+
+## Resource workloads and instrumentation
+
+`cargo xtask resource` runs the standalone envelope, compound workload and
+interrupted maintenance matrix against an explicit archived revision. It uses
+the bounded Rust supervisor for subprocess deadlines, output limits, RSS
+sampling and process-group retirement. The reports preserve the original
+failures alongside any cleanup failures. An independent Rust oracle validates
+phase order, current and retained bytes, memory and image limits, and the
+outcome of each injected failure. Docker copyback verifies the source, exact
+binary, artifacts and oracle before reporting success and checks that the owned
+container and volume are absent.
+
+At frozen engine source `761f26731e78f450e6f31baaed45155559afbfce`, the standalone
+envelope passed on macOS/APFS and Docker Linux/overlayfs. The compound workload
+passed on macOS/APFS. The Linux/ext4 resilience run passed all three baseline
+profiles, 52 native maintenance interruptions and 108 repeated recovery cases.
+Fresh checks verified the current and retained roots and the original source
+image stayed byte-identical. Both Docker runs verified cleanup.
+
+`cargo xtask resource-probe growth` and `cargo xtask resource-probe cache` passed
+on macOS using the same frozen compound reference. Each disposable instrumented
+build reproduced all three clean profiles, including logical digests, revisions,
+live requested bytes and file lengths. The probe timings remain excluded from
+the clean performance comparisons.
+
+Controller evidence under `target/xtask-resource-port` is indexed by SHA-256.
+
+| Run | Evidence SHA-256 |
+|---|---|
+| `mac-envelope` | `fdf839f97cde6a95ae2a42741dee88c76c22f199b5405c173c90092e349e752c` |
+| `linux-envelope` | `747908919d830220ffb4b1c7d26e4dd3a20e9cfa2a8fd5bb888075dcfada8bc4` |
+| `mac-compound` | `b07faf4f9f99753fd75f5c289a2e16d02b58ecd6945b7a1fa2a5262288bc82da` |
+| `linux-resilience` | `320667da22c24c1de1064901f6b5946f9f5dd45c606abb2be49692dc0b1637c8` |
+| `mac-growth` | `9a8b8e6c934a9f948a3894f372783003155b8902802b22fd3a8f684b7ca0bb51` |
+| `mac-cache` | `150a3252034c18a28f299772cf2e5e6f1522f844fe0ae433b1ec66364ba94e18` |
+
+The envelope corruption test uses rows frozen from the macOS worker report
+(`10b4ff96d1e2c44fac2d805f863f98d7e946f1451cb0d33a5941f18377afe1fa`).
+Its fixture SHA-256 is `a90f78e411e2980ec5159179ceefe04258033789ede8896a02a3bf6e433ee087`.
+The resource migration maps all 22 legacy controls, including the former
+optional frozen-envelope check. The obsolete shared Python serialization
+launcher is also retired. This brings the total to **112/179** mapped controls
+and **20** maintained Python files. The engine and workload fixtures retain
+their existing limits. [Resource runbook](../tools/resource-envelope/README.md)
+
+macOS passed all 137 xtask tests in both debug and release. Strict Clippy passed
+on macOS and the x86-64 Linux and MSVC cross targets. The residual helper suite
+passed 132 checks with two registered skips across 16 workers. Its evidence
+SHA-256 is `81810801755892c7226304c7a3e9472ccfb91ecc3f01d379b49246b5898adba0`.

@@ -14,7 +14,10 @@ marker containing only `passed: false` and RSS scope. It saved the final report
 **after** signaling the child group, verifying an EPERM group and waiting for
 the child. An exception in any of those cleanup steps jumped past the final
 write. The output-limit control then read the initial marker and raised KeyError
-for the absent `failure`, obscuring the original error.
+for the absent `failure`, obscuring the original error. The historical Python
+command below applies to the archived source documented in this report. The
+maintained controls now run via `cargo test --offline --locked -p xtask
+--bin xtask resource_campaign`.
 
 The deterministic regression launches a real child, observes its exit without
 reaping, exercises the PermissionError cleanup path and forces the process-table

@@ -40,6 +40,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "probe",
         "tools/atomic-model",
         "tools/serialization-scale",
+        "tools/resource-envelope",
     ] {
         walk(root, &root.join(name), &mut out, false)?;
     }

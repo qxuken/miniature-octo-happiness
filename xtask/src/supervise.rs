@@ -175,13 +175,16 @@ pub fn cli() -> Result<()> {
 pub fn table_cli() -> Result<()> {
     #[cfg(unix)]
     {
-        serde_json::to_writer(std::io::stdout(), &unix::table()?)?;
+        serde_json::to_writer(std::io::stdout(), &process_table()?)?;
         Ok(())
     }
     #[cfg(not(unix))]
     {
         anyhow::bail!("POSIX process table unavailable")
     }
+}
+pub(crate) fn process_table() -> Result<BTreeMap<i32, Identity>> {
+    unix::table()
 }
 
 #[cfg(unix)]
