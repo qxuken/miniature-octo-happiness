@@ -267,6 +267,7 @@ pub(crate) use unix::nonblocking;
 mod unix {
     use super::*;
     use std::{
+        collections::BTreeSet,
         io::{self, PipeReader},
         os::{
             fd::AsRawFd,
@@ -494,31 +495,37 @@ mod unix {
     }
     fn descendants(
         table: &BTreeMap<i32, Identity>,
-        root: i32,
+        unreaped_root: Option<i32>,
         owned: &mut BTreeMap<i32, Identity>,
     ) {
-        let mut parents = vec![root];
+        let mut parents: Vec<_> = unreaped_root
+            .into_iter()
+            .chain(owned.keys().copied())
+            .collect();
+        let mut inspected = BTreeSet::new();
         while let Some(parent) = parents.pop() {
+            let root = unreaped_root == Some(parent);
+            let known = owned.get(&parent);
+            let current = table.get(&parent);
+            let matches = known
+                .zip(current)
+                .is_some_and(|(old, now)| old.start == now.start);
+            let has_children = root || matches;
+            // The last member can outlive the leader of an observed detached
+            // group. A different current holder of the number invalidates it.
+            let has_group = root
+                || known.is_some_and(|old| old.group == parent && (matches || current.is_none()));
+            if !(has_children || has_group) || !inspected.insert(parent) {
+                continue;
+            }
             for row in table.values() {
-                if row.parent == parent && row.pid != root && !owned.contains_key(&row.pid) {
+                if unreaped_root != Some(row.pid)
+                    && row.pid != parent
+                    && (has_children && row.parent == parent || has_group && row.group == parent)
+                {
                     owned.insert(row.pid, row.clone());
                     parents.push(row.pid);
                 }
-            }
-        }
-        let groups: Vec<_> = owned
-            .values()
-            .filter(|r| {
-                r.pid == r.group
-                    && table
-                        .get(&r.pid)
-                        .is_none_or(|current| current.start == r.start)
-            })
-            .map(|r| r.group)
-            .collect();
-        for row in table.values() {
-            if groups.contains(&row.group) {
-                owned.insert(row.pid, row.clone());
             }
         }
     }
@@ -576,10 +583,7 @@ mod unix {
         // Errors in inspection must never bypass direct group kill and reaping.
         match inspect.table() {
             Ok(t) => {
-                descendants(&t, -1, owned);
-                for row in t.values().filter(|r| r.group == root && r.pid != root) {
-                    owned.insert(row.pid, row.clone());
-                }
+                descendants(&t, Some(root), owned);
             }
             Err(e) => errors.push(format!("ownership inspection: {e:#}")),
         }
@@ -643,6 +647,9 @@ mod unix {
         if let Err(e) = journal(request, owned, true) {
             errors.push(format!("{e:#}"));
         }
+        // wait released the leader PID. Only previously owned identities and
+        // their groups can seed the remaining cleanup.
+        owned.remove(&root);
         let end = Instant::now() + Duration::from_secs(4);
         loop {
             let t = match inspect.table() {
@@ -652,7 +659,7 @@ mod unix {
                     break;
                 }
             };
-            descendants(&t, root, owned);
+            descendants(&t, None, owned);
             let live: Vec<_> = t
                 .values()
                 .filter(|r| {
@@ -805,7 +812,7 @@ mod unix {
                     anyhow::bail!("command deadline");
                 }
                 if request.journal.is_some() && Instant::now() >= next_journal {
-                    descendants(&inspect.table()?, child.id() as i32, &mut owned);
+                    descendants(&inspect.table()?, Some(child.id() as i32), &mut owned);
                     journal(request, &mut owned, false)?;
                     next_journal = Instant::now() + Duration::from_millis(50);
                 }
@@ -858,6 +865,42 @@ mod unix {
     #[cfg(test)]
     mod controls {
         use super::*;
+        #[test]
+        fn discovery_walks_known_ancestors_and_never_reuses_a_reaped_root_pid() {
+            let row = |pid, parent, group, start: &str| Identity {
+                pid,
+                parent,
+                group,
+                start: start.to_owned(),
+                state: "S".to_owned(),
+            };
+            let known = row(101, 100, 100, "known");
+            let mut owned = BTreeMap::from([(known.pid, known.clone())]);
+            let detached = row(102, 101, 102, "detached");
+            let same_group_orphan = row(103, 1, 102, "orphan");
+            let table = BTreeMap::from([
+                (101, known),
+                (102, detached),
+                (103, same_group_orphan.clone()),
+            ]);
+            descendants(&table, Some(100), &mut owned);
+            assert_eq!(owned.keys().copied().collect::<Vec<_>>(), [101, 102, 103]);
+
+            // The root has been reaped. A tracked detached group still has an
+            // orphan, while the old root and another tracked PID were reused.
+            owned.remove(&103);
+            let table = BTreeMap::from([
+                (100, row(100, 1, 100, "unrelated root")),
+                (101, row(101, 1, 101, "unrelated worker")),
+                (103, same_group_orphan),
+                (104, row(104, 100, 100, "unrelated group member")),
+                (105, row(105, 101, 105, "unrelated child")),
+            ]);
+            descendants(&table, None, &mut owned);
+            assert_eq!(owned.keys().copied().collect::<Vec<_>>(), [101, 102, 103]);
+            assert_eq!(owned[&101].start, "known");
+        }
+
         struct Fault {
             mode: &'static str,
         }

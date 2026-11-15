@@ -227,3 +227,21 @@ through the separate native fault drill. Temporary timing instrumentation is
 removed after diagnosis; child stderr is retained by the fixture for useful
 failure messages. This is a test setup budget correction, not a race waiver or
 an exclusion of xtask from sanitizer coverage.
+
+## Descendant discovery after reaping
+
+Discovery follows descendants of already tracked parents, including a child
+that starts a new process group. Before reaping it can traverse the reserved
+root PID and its group. After reaping, traversal starts from previously owned
+identities. A reused tracked PID with a different start time supplies neither
+children nor group membership. An orphan in a previously recorded detached
+group remains discoverable after its leader exits.
+
+The directed process-table control covers both a detached descendant below an
+already tracked parent and reused root/descendant PIDs. Real timeout, detached
+early-exit, orphan and malformed-journal regressions also passed. macOS
+passed 182 xtask tests in each profile. Docker Linux passed all 203 helper
+tests per profile with eight clean worker retirements across both profiles.
+The explicit TLS fixture skip remains one per profile. Docker resources were
+confirmed absent. The Linux helper evidence SHA-256 is
+`17da639746e8bddef40fcc6af358404d3732f531f1f1a165b4db247fc5d14ee7`.

@@ -1158,3 +1158,25 @@ passed debug and release on macOS/APFS and Docker Linux/ext4. The old follower
 rejects the new stream without changing any files. The fresh follower reopens
 the restored revision 4 and retained revision 2 with its own durable receipt.
 The Windows-native result is pending.
+
+The hosted `6cc8ef3` matrix passed all ten engine jobs and bounded fuzzing.
+The macOS ThreadSanitizer artifact confirms that the failed-ship fixture and
+its separate timeout control passed with instrumented std. The Rust-only
+helper artifacts verify debug/release controls on both hosted POSIX platforms.
+The workflow checked out PR merge `8cdb0df862c4a641d5746a1e0989feda6cdf983a`.
+[Engine checks](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43703164759)
+[Bounded fuzzing](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43703164764)
+
+Downloaded Windows proof from the same run contains all 20 successful
+C/C++ case dispositions and the 134-cell trace. Independent review verified
+all listed package and trace file hashes and byte-matched the packaged DLL
+to the relocated and both consumer DLL copies. The DLL SHA-256 is
+`3a84afa47ce45bf772161f0f8e5f9ccfb09762efb62b1e61dd232b9eb8739f62`.
+The Windows trace proof SHA-256 is
+`5f2fc9543bac32f316917262e5de216c843531a64308d212d9424e83dd899608`.
+
+The [supervision ownership regression](xtask-supervision.md#descendant-discovery-after-reaping)
+covers new detached descendants below known parents and ignores reuse of a
+reaped worker's PID. The macOS debug/release suites, Docker Linux helper
+registry and native macOS delivered fault cases passed. The original
+intermittent hosted Linux cleanup report remains separately recorded.
