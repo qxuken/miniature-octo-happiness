@@ -161,9 +161,10 @@ mod native {
             proof,
             driver.environment.output,
             driver.environment.runtime,
+            windows_volume::Capacity::Append,
             |proof, data| {
                 let exercise = driver.run(proof, &dir, data, 6, Phase::Exercise, false)?;
-                let full = windows_volume::space(data)?;
+                let full = windows_volume::space(data, windows_volume::Capacity::Append)?;
                 ensure!(
                     windows_volume::full(full),
                     "private NTFS volume still has a free allocation unit"
@@ -171,13 +172,13 @@ mod native {
                 let database = data.join("database.wdb");
                 let exhausted = sha(&database)?;
                 let verify_full = driver.run(proof, &dir, data, 6, Phase::VerifyFull, false)?;
-                let after = windows_volume::space(data)?;
+                let after = windows_volume::space(data, windows_volume::Capacity::Append)?;
                 ensure!(
                     windows_volume::full(after) && sha(&database)? == exhausted,
                     "fresh open under exhaustion changed the database or freed space"
                 );
                 fs::remove_file(data.join("ballast"))?;
-                let freed = windows_volume::space(data)?;
+                let freed = windows_volume::space(data, windows_volume::Capacity::Append)?;
                 ensure!(
                     freed > 32 * 1024 * 1024,
                     "ballast removal did not restore headroom"

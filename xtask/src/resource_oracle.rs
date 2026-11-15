@@ -255,6 +255,7 @@ fn contention_samples(detail: &Value) -> Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
 pub fn compound_cycles(rows: &[Value], source: &str) -> Result<()> {
     const PHASES: [&str; 7] = [
         "cycle_open",
@@ -327,6 +328,7 @@ pub fn compound_cycles(rows: &[Value], source: &str) -> Result<()> {
 
 /// The finite single-lane resource driver emits telemetry plus an independent
 /// digest of the application payloads. Check its order and each root's contents.
+#[cfg(unix)]
 pub fn envelope(rows: &[Value]) -> Result<()> {
     const PHASES: [&str; 20] = [
         "nested_first_root",
@@ -441,6 +443,7 @@ pub fn envelope(rows: &[Value]) -> Result<()> {
 
 /// Check adapter diagnostics and recovered data against the public operation
 /// order. Each failure is followed by a separate reopen and retry checker.
+#[cfg(unix)]
 pub fn namespace_failures(rows: &[Value], source: &str, macos: bool) -> Result<()> {
     const PROFILE: &str = "namespace-failures";
     let quota = if macos { 69 } else { 122 };
@@ -506,6 +509,7 @@ pub fn namespace_failures(rows: &[Value], source: &str, macos: bool) -> Result<(
 
 /// Independent schedule/outcome oracle for the injected second failures and
 /// the killed native maintenance worker on both sides of selected boundaries.
+#[cfg(unix)]
 pub fn resilience(rows: &[Value], profile: &str, source: &str) -> Result<()> {
     ensure!(
         rows.len() > 1 && rows.last() == Some(&completion(profile, source)),
@@ -661,7 +665,7 @@ pub fn resilience(rows: &[Value], profile: &str, source: &str) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     fn fixtures() -> Value {

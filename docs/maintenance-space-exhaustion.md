@@ -184,6 +184,32 @@ Mac/Windows exhaustion remain separate gates. Earlier process-kill and simulated
 namespace/recovery matrices retain their separate scope. All 19 Cargo
 manifests retain `publish=false`.
 
+## Native Windows near-cap copy profile
+
+Run from an elevated native x64 Windows session on fixed NTFS. The Windows
+controller reuses the same 212-revision, 64-retained-root seed and creates a
+fixed 256 MiB VHD. It verifies the NTFS extent and the 4 KiB allocation unit
+before installing both source and independently verified backup.
+
+```powershell
+$env:WEEKEND_DB_SOURCE_ID = (git rev-parse HEAD)
+cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-win-build
+cargo xtask windows-maintenance-space --fixture target/maintenance-win-build/release/weekend-compound-resource.exe --source $env:WEEKEND_DB_SOURCE_ID --output target/windows-maintenance-space
+```
+
+Windows exercises `backup_file`, `restore_file` and `Database::compact_to`
+with a new file. The in-place compaction and namespace exchange API remains
+scoped to macOS and Linux. The Windows fixture asserts native error 112
+(`DiskFull`, `Write`) after a partial copy. It starts each operation with
+8 MiB free, consumes any remaining space after the failed write, and reopens
+the unmodified source and good backup in separate processes at zero free
+bytes. Every retry keeps the failed destination at its original path and
+produces bytes identical to the good backup in a fresh destination. A later
+commit on the original reopens at revision 213 with all 64 retained roots.
+
+Native execution is pending. The controller archives the executable, phase
+records, image hashes and owned-volume cleanup evidence.
+
 ## Injected namespace and sync errors
 
 The `namespace-failures` resource profile runs the production

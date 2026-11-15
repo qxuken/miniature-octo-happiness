@@ -37,8 +37,22 @@ use windows_sys::Win32::{
     },
 };
 
-const SIZE: u64 = 64 * 1024 * 1024;
-const CLUSTER: u64 = 4096;
+pub const CLUSTER: u64 = 4096;
+
+#[derive(Clone, Copy)]
+pub enum Capacity {
+    Append,
+    Maintenance,
+}
+
+impl Capacity {
+    const fn bytes(self) -> u64 {
+        match self {
+            Self::Append => 64 * 1024 * 1024,
+            Self::Maintenance => 256 * 1024 * 1024,
+        }
+    }
+}
 
 fn wide(text: &OsStr) -> Vec<u16> {
     text.encode_wide().chain([0]).collect()
@@ -51,7 +65,8 @@ fn status(code: u32, context: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn space(directory: &Path) -> Result<u64> {
+pub fn space(directory: &Path, capacity: Capacity) -> Result<u64> {
+    let bytes = capacity.bytes();
     let mut available = 0;
     let mut total = 0;
     let mut free = 0;
@@ -66,7 +81,7 @@ pub fn space(directory: &Path) -> Result<u64> {
     };
     ensure!(ok != 0, "volume free space: {}", io::Error::last_os_error());
     ensure!(
-        available == free && free <= total && (SIZE / 2..=SIZE).contains(&total),
+        available == free && free <= total && (bytes / 2..=bytes).contains(&total),
         "bounded private volume without a per-user quota required"
     );
     Ok(free)
@@ -107,7 +122,7 @@ fn physical_disk(handle: HANDLE) -> Result<u32> {
     disk_number(&String::from_utf16(&name[..length])?)
 }
 
-fn create(image: &Path) -> Result<OwnedHandle> {
+fn create(image: &Path, bytes: u64) -> Result<OwnedHandle> {
     let store = VIRTUAL_STORAGE_TYPE {
         DeviceId: VIRTUAL_STORAGE_TYPE_DEVICE_VHD,
         VendorId: VIRTUAL_STORAGE_TYPE_VENDOR_MICROSOFT,
@@ -116,7 +131,7 @@ fn create(image: &Path) -> Result<OwnedHandle> {
         Version: CREATE_VIRTUAL_DISK_VERSION_1,
         Anonymous: CREATE_VIRTUAL_DISK_PARAMETERS_0 {
             Version1: CREATE_VIRTUAL_DISK_PARAMETERS_0_0 {
-                MaximumSize: SIZE,
+                MaximumSize: bytes,
                 SectorSizeInBytes: 512,
                 ..Default::default()
             },
@@ -139,7 +154,7 @@ fn create(image: &Path) -> Result<OwnedHandle> {
                 &mut handle,
             )
         },
-        "create fixed 64 MiB VHD",
+        "create private fixed VHD",
     )?;
     // SAFETY: successful creation transferred ownership of the new VHD handle.
     Ok(unsafe { OwnedHandle::from_raw_handle(handle) })
@@ -157,7 +172,7 @@ fn diskpart() -> Result<PathBuf> {
     Ok(PathBuf::from(OsString::from_wide(&directory[..length])).join("diskpart.exe"))
 }
 
-fn verify_extent(letter: char, expected: u32) -> Result<()> {
+fn verify_extent(letter: char, expected: u32, bytes: u64) -> Result<()> {
     let device = wide(OsStr::new(&format!(r"\\.\{letter}:")));
     // SAFETY: open the drive-letter device for metadata only, with no sharing
     // restrictions on other readers or writers.
@@ -208,8 +223,8 @@ fn verify_extent(letter: char, expected: u32) -> Result<()> {
             && extent
                 .StartingOffset
                 .checked_add(extent.ExtentLength)
-                .is_some_and(|end| end <= SIZE as i64),
-        "volume does not resolve to the owned 64 MiB disk"
+                .is_some_and(|end| end <= bytes as i64),
+        "volume does not resolve to the bounded owned disk"
     );
     Ok(())
 }
@@ -218,8 +233,10 @@ pub fn with_volume(
     proof: &mut Value,
     output: &Path,
     env: &BTreeMap<OsString, OsString>,
+    capacity: Capacity,
     test: impl FnOnce(&mut Value, &Path) -> Result<()>,
 ) -> Result<()> {
+    let bytes = capacity.bytes();
     let scratch = output.join("volume");
     fs::create_dir(&scratch)?;
     let image = scratch.join("owned.vhd");
@@ -232,7 +249,7 @@ pub fn with_volume(
     let mut handle = None;
     let mut attached = false;
     let result = (|| {
-        handle = Some(create(&image)?);
+        handle = Some(create(&image, bytes)?);
         let handle = handle.as_ref().unwrap().as_raw_handle();
         // SAFETY: valid owned disk, synchronous call, drive letter assignment
         // disabled. Closing this handle is a fallback detach on process exit.
@@ -277,7 +294,7 @@ pub fn with_volume(
             physical_disk(handle)? == disk,
             "attached physical disk changed"
         );
-        verify_extent(letter, disk)?;
+        verify_extent(letter, disk, bytes)?;
         let mut volume = crate::windows_process::volume(&root)?;
         let mut sectors = 0;
         let mut sector_bytes = 0;
@@ -296,13 +313,13 @@ pub fn with_volume(
             "NTFS allocation unit must be 4096 bytes"
         );
         volume["physical_disk"] = json!(disk);
-        volume["virtual_bytes"] = json!(SIZE);
+        volume["virtual_bytes"] = json!(bytes);
         volume["allocation_unit_bytes"] = json!(CLUSTER);
-        volume["free_before"] = json!(space(&root)?);
+        volume["free_before"] = json!(space(&root, capacity)?);
         ensure!(
             volume["free_before"]
                 .as_u64()
-                .is_some_and(|free| free > SIZE / 2),
+                .is_some_and(|free| free > bytes / 2),
             "unusable test volume capacity"
         );
         proof["private_volume"] = volume;

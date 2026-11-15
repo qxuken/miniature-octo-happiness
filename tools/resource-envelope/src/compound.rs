@@ -1,7 +1,7 @@
 //! Compound finite workload; no production API or limit changes.
 use std::{
     fs,
-    io::{Read, Write},
+    io::Write,
     path::Path,
     sync::{Barrier, mpsc},
     thread,
@@ -11,6 +11,7 @@ use weekend_db::{
     Database, Error, Limits, Snapshot, TransactionState, Value,
     storage::{self, Crash, Fault, IoKind, SimulatedDisk},
 };
+#[cfg(unix)]
 mod resilience;
 mod space;
 const MIB: usize = 1024 * 1024;
@@ -20,6 +21,7 @@ const LARGE: usize = 896 * 1024;
 const ROOTS: u64 = 64;
 const WRITERS: usize = 8;
 const ROUNDS: u64 = 4;
+#[cfg(unix)]
 const CYCLES: u64 = 24;
 const CELL: usize = 64 * 1024;
 const BASE: u64 = 3 + BULK + 1;
@@ -72,6 +74,42 @@ fn rss_kib() -> usize {
             .trim()
             .parse()
             .unwrap()
+    }
+    #[cfg(windows)]
+    {
+        use std::{ffi::c_void, mem::size_of};
+
+        #[repr(C)]
+        struct Counters {
+            bytes: u32,
+            faults: u32,
+            peak_working_set: usize,
+            working_set: usize,
+            other: [usize; 6],
+        }
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetCurrentProcess() -> *mut c_void;
+            fn K32GetProcessMemoryInfo(
+                process: *mut c_void,
+                counters: *mut Counters,
+                bytes: u32,
+            ) -> i32;
+        }
+        let bytes = size_of::<Counters>() as u32;
+        let mut counters = Counters {
+            bytes,
+            faults: 0,
+            peak_working_set: 0,
+            working_set: 0,
+            other: [0; 6],
+        };
+        // SAFETY: live current-process pseudo-handle and sized PROCESS_MEMORY_COUNTERS.
+        assert_ne!(
+            unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, bytes) },
+            0
+        );
+        counters.working_set / 1024
     }
 }
 fn nested(db: &Database, epoch: u64) -> Value {
@@ -483,6 +521,7 @@ fn native(dir: &Path) {
         ("restore", &restored),
         ("compact", &compact),
     ] {
+        #[cfg(unix)]
         if phase == "compact" {
             fs::copy(&path, destination).unwrap();
         }
@@ -495,7 +534,10 @@ fn native(dir: &Path) {
                 storage::restore_file(&backup, destination, limits(256 * MIB)).unwrap();
             }
             _ => {
+                #[cfg(unix)]
                 Database::compact_file(destination, limits(256 * MIB)).unwrap();
+                #[cfg(windows)]
+                space::compact_copy(&path, destination).unwrap();
             }
         }
         let ns = now.elapsed().as_nanos();
@@ -514,7 +556,9 @@ fn native(dir: &Path) {
     complete("native");
 }
 
+#[cfg(unix)]
 fn verify_file_bytes(left: &Path, right: &Path) {
+    use std::io::Read;
     let mut left = fs::File::open(left).unwrap();
     let mut right = fs::File::open(right).unwrap();
     let mut remaining = left.metadata().unwrap().len();
@@ -530,6 +574,7 @@ fn verify_file_bytes(left: &Path, right: &Path) {
     }
 }
 
+#[cfg(unix)]
 fn cycles(dir: &Path, seed: &Path) {
     fs::create_dir(dir).unwrap();
     let source = dir.join("cycles.wdb");
@@ -809,6 +854,7 @@ fn main() {
             space::run(dir, source, args[3].to_str().unwrap(), &args[4..]);
             return;
         }
+        #[cfg(unix)]
         match args[3].to_str().unwrap() {
             "cycles" => {
                 cycles(dir, source);

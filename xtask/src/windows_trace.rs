@@ -610,7 +610,7 @@ pub struct Options {
     #[arg(long)]
     pub output: std::path::PathBuf,
 }
-fn admission(root: &Path, output: &Path) -> Result<std::path::PathBuf> {
+pub(super) fn admission(root: &Path, output: &Path) -> Result<std::path::PathBuf> {
     let output = if output.is_absolute() {
         output.to_owned()
     } else {
@@ -682,7 +682,7 @@ fn qualify(run: &mut crate::support::Run, opts: Options, campaign: Campaign) -> 
     }
 }
 #[cfg(windows)]
-fn write_proof(root: &Path, proof: &Value) -> Result<()> {
+pub(super) fn write_proof(root: &Path, proof: &Value) -> Result<()> {
     let mut bytes = serde_json::to_vec_pretty(proof)?;
     bytes.push(b'\n');
     fs::write(root.join("evidence.json"), bytes)?;

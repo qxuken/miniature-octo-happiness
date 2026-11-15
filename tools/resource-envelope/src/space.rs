@@ -4,6 +4,9 @@ use std::{collections::BTreeSet, path::PathBuf};
 use storage::{NativeIoCategory, NativeIoOperation};
 const COPY: usize = 256 * MIB;
 const COMPACTED: u64 = 63_074_304;
+fn replaces_source(op: &str) -> bool {
+    cfg!(unix) && op == "compact"
+}
 fn names(dir: &Path) -> BTreeSet<PathBuf> {
     fs::read_dir(dir)
         .unwrap()
@@ -11,7 +14,7 @@ fn names(dir: &Path) -> BTreeSet<PathBuf> {
         .collect()
 }
 fn partial(dir: &Path, op: &str) -> PathBuf {
-    if op != "compact" {
+    if !replaces_source(op) {
         return dir.join(format!("failed-{op}.wdb"));
     }
     let paths: Vec<_> = names(dir)
@@ -36,13 +39,33 @@ fn operation(
     match op {
         "backup" => storage::backup_file(source, target, limits(COPY)),
         "restore" => storage::restore_file(dir.join("backup.wdb"), target, limits(COPY)),
-        "compact" => Database::compact_file(source, limits(COPY)),
+        "compact" => {
+            #[cfg(unix)]
+            {
+                Database::compact_file(source, limits(COPY))
+            }
+            #[cfg(windows)]
+            {
+                compact_copy(source, target)
+            }
+        }
         _ => panic!("unknown maintenance operation"),
     }
 }
+#[cfg(windows)]
+pub(super) fn compact_copy(
+    source: &Path,
+    target: &Path,
+) -> weekend_db::Result<storage::CompactionStats> {
+    let mut database = Database::open_file(source, limits(COPY))?;
+    database.compact_to(storage::FileStore::create(target)?)
+}
 pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::OsString]) {
     let kind = std::env::var("WEEKEND_PRIVATE_MAINTENANCE").unwrap();
+    #[cfg(unix)]
     assert!(matches!(kind.as_str(), "enospc" | "quota"));
+    #[cfg(windows)]
+    assert_eq!(kind, "ntfs-enospc");
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
@@ -86,7 +109,12 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             .unwrap_err();
             assert_eq!(failure.error, Error::Io);
             let native = failure.native.unwrap();
-            let errno = if kind == "quota" { 122 } else { 28 };
+            let errno = match kind.as_str() {
+                "quota" => 122,
+                "enospc" => 28,
+                "ntfs-enospc" => 112,
+                _ => unreachable!(),
+            };
             assert_eq!(
                 native.category,
                 if kind == "quota" {
@@ -119,7 +147,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 storage::inspect_file(&partial, limits(COPY)),
                 Err(Error::Corrupt | Error::UnsupportedFormat)
             ));
-            let existing = if op == "compact" {
+            let existing = if replaces_source(op) {
                 false
             } else {
                 assert_eq!(
@@ -131,7 +159,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             };
             let destination = dir.join(format!("retry-{op}.wdb"));
             operation(dir, source, op, &destination).unwrap();
-            let actual = if op == "compact" {
+            let actual = if replaces_source(op) {
                 source
             } else {
                 &destination
@@ -143,7 +171,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             );
         } else if mode == "space-retire" {
             fs::remove_file(partial(dir, op)).unwrap();
-            if op != "compact" {
+            if !replaces_source(op) {
                 fs::remove_file(dir.join(format!("retry-{op}.wdb"))).unwrap();
             }
             assert_eq!(

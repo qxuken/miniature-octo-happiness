@@ -54,7 +54,7 @@ mod quota_oracle;
 mod replica_progress;
 #[cfg(unix)]
 mod resource_campaign;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod resource_oracle;
 #[cfg(unix)]
 mod resource_probe;
@@ -80,6 +80,8 @@ mod toolchain;
 mod trace_model;
 #[cfg(any(windows, test))]
 mod trace_process;
+#[cfg(any(windows, test))]
+mod windows_maintenance;
 #[cfg(windows)]
 mod windows_process;
 #[cfg(any(windows, test))]
@@ -166,6 +168,9 @@ enum Task {
     /// Verify real NTFS exhaustion and fresh recovery using the exact Windows DLL.
     #[cfg(windows)]
     WindowsDiskFull(windows_trace::Options),
+    /// Verify near-cap backup, restore and compact-copy exhaustion on NTFS.
+    #[cfg(windows)]
+    WindowsMaintenanceSpace(windows_maintenance::Options),
     /// Compare delivered Rust/C/Odin consumers with the independent operation model.
     #[cfg(unix)]
     ArtifactTrace(artifact_trace::Options),
@@ -353,6 +358,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::WindowsFaults(options) => windows_trace::run_faults(&mut run, options),
         #[cfg(windows)]
         Task::WindowsDiskFull(options) => windows_trace::run_disk_full(&mut run, options),
+        #[cfg(windows)]
+        Task::WindowsMaintenanceSpace(options) => windows_maintenance::run(&run, options),
         #[cfg(unix)]
         Task::Faults { task } => faults::run(&run, task),
         #[cfg(unix)]
