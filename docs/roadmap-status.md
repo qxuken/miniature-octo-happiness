@@ -1674,3 +1674,49 @@ cargo test --offline --locked -p weekend-replicate --all-targets
 | Docker Linux checks and Clippy | `e4a22ec4e785698b1396a24c6a67bd523b93c47bba8135f4b7b7a08acace751e` |
 | Docker Linux core release replication log | `c83585697fc9c7c5824bdb2b8f73f761e7f82da0a617e1660780804a9228faf3` |
 | MSVC cross-target core check | `db7de6234672b0169b84aad4d7e6befddcb3dc2d48bfc8046b68f74882f2fd3f` |
+
+## Native StudyProgress roster cutover
+
+The [staged cutover](crdt-operations.md#staged-roster-cutover) adds explicit
+versioned policy files, `stage-roster`, `run-policy`, and
+`verify-roster`. Existing default enrollment still uses the original
+commands. The staged migration requires matching old causal payloads
+under both native leases. It seeds the visible state on new actor A only.
+New actor B obtains that state over the authenticated staging link while
+application edits are disabled. The verification command reopens both
+files and checks exact new causal payload equality.
+
+| Native process case | Verified result |
+|---|---|
+| Divergent old histories, active lease, or reused collection/generation/actor ID | Rejects before creating either destination. |
+| Second destination already exists | Reports `AlreadyExists`, preserves that file, and leaves the first destination empty at revision 0. A fresh target pair stages successfully. |
+| Fresh pair before authenticated staging sync | The verifier reports `Conflict`. |
+| Old actor and fresh actor deliberately exchanged using working TLS pins | Both receivers reported `ForeignStore`. Both senders recorded zero covering acknowledgments, and both revisions stayed fixed. |
+| Fresh TLS pins and new roster, then one staging peer killed | The reopened pair verified revision 3 on both files with 12 practice minutes, completed topics 1 and 2, planned topic 4, goal 40 and limit 50. |
+| New independent edits after verification | Both actors converged to 19 minutes, completed topics 1, 2, 3 and 5, planned topic 4, goal 50 and limit 40. Repeated covering exchanges advanced neither revision. |
+
+The tests compare both archived old files byte for byte, including the
+retained roots. They also verify a removed planned topic stays absent after
+conversion. macOS arm64/APFS and Docker Linux arm64/ext4 passed all 17
+`study-peer` tests per debug and release profile, including the existing
+credential interruption test. Strict Clippy passed on both hosts. The
+roster process test passed on macOS ASan and TSan with rebuilt std at
+`nightly-2026-11-12`. Native Windows execution of this roster scenario
+remains due. Routing authority and stopping copies on remote hosts remain
+operator responsibilities.
+
+```sh
+cargo test --offline --locked -p study-peer --test credential_rotation native_roster_cutover
+cargo test --offline --locked --release -p study-peer --all-targets
+```
+
+| Evidence | SHA-256 |
+|---|---|
+| Roster command source | `37016be4a18fccec6655046bfa69d8074be99bf90a5e55ffcd8d7879489ff649` |
+| Native process test source | `2d56b6980f9c39f49517f90ecb00509fea63f70e098911a4ca02b58c6101ce0a` |
+| macOS debug log | `a95e85be415f2b60f82da1353cd74cc4c3394126c5bf687f876cd2b61b826643` |
+| macOS release log | `027b5a9206ec661d3252e9a3fa6d5fa0c9bddd4a801fe746ca7c6f68b1de3e8b` |
+| macOS ASan log | `96cf2fdef71d59b59d1909bde8281cc2d00734ef14d56fe2e8d9427024b44e62` |
+| macOS TSan log | `b92bb332f370275c2115da1fba94bdf0ab8ab48fec72b79a8d1f0bd46d6a580a` |
+| Docker Linux debug, release and Clippy log | `3fea25135c6ffb70f5ce7fa15a21f6ff98dc0fbae77532859051fb3405d9e61d` |
+| Docker Linux subprocess event archive | `643d597814c5f1024d1e67ccb3fe3c11c7204dc436e90a7267b40a7c1b5c29e7` |

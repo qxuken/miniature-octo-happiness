@@ -203,7 +203,11 @@ fn two_writers_recover_a_lost_ack() {
             .unwrap(),
         };
         let enabled = std::env::var("STUDY_PEER_TEST_PAUSE").unwrap() == "yes";
-        run(&db, enrollment, network, false, |stream| PauseReply {
+        let options = RunOptions {
+            pushing: false,
+            sync_only: false,
+        };
+        run(&db, enrollment, network, options, |stream| PauseReply {
             stream,
             enabled,
         })

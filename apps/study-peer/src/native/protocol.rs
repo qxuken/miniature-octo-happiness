@@ -19,24 +19,31 @@ impl Enrollment {
             generation: 7,
             actors: [[1; 16], [2; 16]],
         };
+        if collection == [0; 16] {
+            return Err("collection ID must be nonzero".into());
+        }
+        Self::with_policy(actor, policy)
+    }
+
+    pub(crate) fn with_policy(actor: &str, policy: Policy) -> AppResult<Self> {
         let actor = match actor {
             "a" => policy.actors[0],
             "b" => policy.actors[1],
             _ => return Err("actor must be a or b".into()),
         };
-        if collection == [0; 16] {
-            return Err("collection ID must be nonzero".into());
-        }
         Ok(Self { policy, actor })
     }
 
     pub(crate) fn parse(actor: &OsStr, id: &OsStr) -> AppResult<Self> {
-        let id = utf8(id)?;
-        if id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err("collection ID must be 32 hexadecimal digits".into());
-        }
-        Self::new(utf8(actor)?, u128::from_str_radix(id, 16)?.to_be_bytes())
+        Self::new(utf8(actor)?, parse_id(utf8(id)?)?)
     }
+}
+
+pub(crate) fn parse_id(id: &str) -> AppResult<[u8; 16]> {
+    if id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("identity must be 32 hexadecimal digits".into());
+    }
+    Ok(u128::from_str_radix(id, 16)?.to_be_bytes())
 }
 
 pub(crate) fn utf8(value: &OsStr) -> AppResult<&str> {

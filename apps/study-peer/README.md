@@ -43,6 +43,13 @@ existing file. By default, outgoing sync starts on launch.
 
 ## TLS admission and coordinated upgrades
 
+The [actor roster cutover](../../docs/crdt-operations.md#staged-roster-cutover)
+uses a fresh collection, generation and actor IDs. It stages the existing
+visible StudyProgress in two new files, synchronizes over TLS with local
+edits disabled, and verifies the pair before resuming edits. The original
+`run` command still opens generation 7 with actor IDs `[1; 16]` and
+`[2; 16]`. Use `run-policy` for explicit enrollment.
+
 Upgrade both study peers together: the hardened CLI requires `study-progress/1`
 ALPN, so older binaries without ALPN are rejected. Snapshot uses the distinct
 `weekend-snapshot/1` protocol. Enrollment, on-disk encodings, merge rules and

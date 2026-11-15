@@ -1,5 +1,6 @@
 mod protocol;
 use protocol::{Enrollment, StudyReplica, command, utf8};
+mod roster;
 #[cfg(test)]
 mod tests;
 mod tls;
@@ -26,7 +27,10 @@ type AppResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 const USAGE: &str = "study-peer keygen <credentials-dir>
 study-peer init <file> <a|b> <32-hex-collection-id>
-study-peer run <file> <a|b> <collection-id> <listen-addr> <peer-addr> <credentials-dir> <peer-cert.der> [--no-push]
+study-peer run <file> <a|b> <collection-id> <listen-addr> <peer-addr> <credentials-dir> <peer-cert.der> [--no-push] [--sync-only]
+study-peer run-policy <file> <a|b> <policy-file> <listen-addr> <peer-addr> <credentials-dir> <peer-cert.der> [--no-push] [--sync-only]
+study-peer stage-roster <old-a> <old-b> <old-policy-file> <new-a> <new-b> <new-policy-file>
+study-peer verify-roster <a> <b> <policy-file>
 commands: edit <lesson> <minutes> <weekly-goal> <session-limit>, practice <minutes>, show, peer, push on|off, quit";
 const COLLECTION_ROW: u64 = 1;
 const POLL: Duration = Duration::from_millis(250);
@@ -36,6 +40,30 @@ struct Network {
     listener: TcpListener,
     peer: SocketAddr,
     tls: Tls,
+}
+
+struct RunOptions {
+    pushing: bool,
+    sync_only: bool,
+}
+
+impl RunOptions {
+    fn parse(args: &[std::ffi::OsString]) -> AppResult<Self> {
+        let mut options = Self {
+            pushing: true,
+            sync_only: false,
+        };
+        for option in args {
+            if option == "--no-push" && options.pushing {
+                options.pushing = false;
+            } else if option == "--sync-only" && !options.sync_only {
+                options.sync_only = true;
+            } else {
+                return Err(USAGE.into());
+            }
+        }
+        Ok(options)
+    }
 }
 
 pub fn main() -> AppResult<()> {
@@ -49,18 +77,35 @@ pub fn main() -> AppResult<()> {
         [command, path, actor, id] if command == "init" => {
             initialize(Path::new(path), Enrollment::parse(actor, id)?)
         }
+        [command, a, b, old, target_a, target_b, new] if command == "stage-roster" => {
+            roster::stage(
+                [Path::new(a), Path::new(b)],
+                roster::policy_file(Path::new(old))?,
+                [Path::new(target_a), Path::new(target_b)],
+                roster::policy_file(Path::new(new))?,
+            )
+        }
+        [command, a, b, policy] if command == "verify-roster" => roster::verify(
+            [Path::new(a), Path::new(b)],
+            roster::policy_file(Path::new(policy))?,
+        ),
         [
             command,
             path,
             actor,
-            id,
+            config,
             listen,
             peer,
             credentials,
             pin,
             options @ ..,
-        ] if command == "run" && (options.is_empty() || options == ["--no-push"]) => {
-            let enrollment = Enrollment::parse(actor, id)?;
+        ] if command == "run" || command == "run-policy" => {
+            let enrollment = if command == "run" {
+                Enrollment::parse(actor, config)?
+            } else {
+                Enrollment::with_policy(utf8(actor)?, roster::policy_file(Path::new(config))?)?
+            };
+            let options = RunOptions::parse(options)?;
             let tls = Tls::new(
                 &Credentials::load(Path::new(credentials))?,
                 bounded_file(Path::new(pin), 65536)?.into(),
@@ -71,9 +116,7 @@ pub fn main() -> AppResult<()> {
                 peer: utf8(peer)?.parse()?,
                 tls,
             };
-            run(&db, enrollment, network, options.is_empty(), |stream| {
-                stream
-            })
+            run(&db, enrollment, network, options, |stream| stream)
         }
         _ => Err(USAGE.into()),
     }
@@ -81,10 +124,14 @@ pub fn main() -> AppResult<()> {
 
 fn initialize(path: &Path, enrollment: Enrollment) -> AppResult<()> {
     let db = Database::create_file(path, Limits::default())?;
+    enroll(&db, enrollment)?;
+    Ok(())
+}
+
+fn enroll(db: &Database, enrollment: Enrollment) -> weekend_db::Result<StudyReplica<'_>> {
     let collection = db.create_collection()?;
     assert_eq!(collection.as_u64(), COLLECTION_ROW);
-    StudyReplica::enroll(&db, collection, enrollment.policy, enrollment.actor)?;
-    Ok(())
+    StudyReplica::enroll(db, collection, enrollment.policy, enrollment.actor)
 }
 
 #[derive(Default)]
@@ -97,7 +144,7 @@ fn run<S: io::Read + Write>(
     db: &Database,
     enrollment: Enrollment,
     network: Network,
-    start_pushing: bool,
+    options: RunOptions,
     incoming: impl Fn(Incoming) -> S + Send,
 ) -> AppResult<()> {
     let replica = StudyReplica::open(
@@ -112,7 +159,7 @@ fn run<S: io::Read + Write>(
         tls,
     } = network;
     listener.set_nonblocking(true)?;
-    let pushing = AtomicBool::new(start_pushing);
+    let pushing = AtomicBool::new(options.pushing);
     let stop = AtomicBool::new(false);
     let status = Mutex::new(PeerStatus::default());
     let stdout = io::stdout();
@@ -190,6 +237,12 @@ fn run<S: io::Read + Write>(
                             }
                         };
                         writeln!(stdout.lock(), "{reply}")?;
+                    }
+                    ["edit" | "practice", ..] if options.sync_only => {
+                        writeln!(
+                            stdout.lock(),
+                            "error local edits are disabled during staging"
+                        )?;
                     }
                     _ => match command(&words, db, &replica) {
                         Ok(reply) => writeln!(stdout.lock(), "{reply}")?,

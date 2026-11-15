@@ -83,6 +83,81 @@ the new pair with an explicit relationship to the prior history.
 Membership growth, gossip, discovery and automatic actor replacement
 remain outside the two-actor contract.
 
+## Staged roster cutover
+
+`study-peer` can stage a fresh two-actor history for the same StudyProgress
+schema. Keep both old databases and their retained roots as the archive for
+the retired history. The [schema and policy migration example](crdt-policy-migration.md)
+shows a separate conversion when the units, payload layout or resolution
+policies change.
+
+Each endpoint uses the same versioned policy file with one marker, a
+32-hex-digit collection ID, a nonzero decimal generation and two ascending
+nonzero 32-hex-digit actor IDs. Files are limited to 256 bytes. Slots `a`
+and `b` select the first and second actor IDs. Use a fresh logical
+collection, a higher generation and two unused actor IDs for the cutover.
+For an existing default deployment with collection `0909…0909`, example
+old and fresh policy files are shown below. Allocate unique IDs for a real
+deployment.
+
+```text
+study-policy-v1 09090909090909090909090909090909 7 01010101010101010101010101010101 02020202020202020202020202020202
+study-policy-v1 0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a 8 03030303030303030303030303030303 04040404040404040404040404040404
+```
+
+1. Freeze edits on both old actors and reconcile their state with the old
+   authenticated routes. Use `--sync-only` to allow synchronization and
+   disable `edit` and `practice` on a restarted endpoint. Stop both actors
+   and preserve the old files. Local exclusive leases protect the files
+   opened by the command. Operators also stop any remote or copied writers.
+2. Stage the reviewed state while both old files are quiescent.
+
+   ```sh
+   study-peer stage-roster old-a.db old-b.db old.policy new-a.db new-b.db new.policy
+   ```
+
+   The command holds both old leases, checks exact equality of the old
+   causal payloads and checks that the practice total fits in one actor
+   component. It creates two new native stores. It seeds the total,
+   completed and currently planned topics and effective register values on
+   actor A only. Old causal dots and tombstones remain in the old files.
+   Save the `visible` line in the cutover record. An error may leave one
+   or both partial destinations. Keep old routes frozen and use fresh
+   paths for a retry after inspecting the failed pair.
+3. Provision and pin fresh TLS identities for the new actors. Start both
+   new stores with `run-policy` and `--sync-only` on staging routes, using
+   their respective policy slot and peer address.
+
+   ```sh
+   study-peer run-policy new-a.db a new.policy 127.0.0.1:8301 127.0.0.1:8302 \
+     a-new b-new/cert.der --sync-only
+   study-peer run-policy new-b.db b new.policy 127.0.0.1:8302 127.0.0.1:8301 \
+     b-new a-new/cert.der --sync-only
+   ```
+
+   Wait for both sides to report covering peer acknowledgments. The TLS
+   pin identifies the configured peer. The core also compares the
+   collection, generation and roster in every incoming frame.
+4. Stop the staging processes and verify the quiescent files together.
+   For a split-host setup, verify quiescent native copies of both files
+   and keep the deployed staging files frozen during verification.
+
+   ```sh
+   study-peer verify-roster new-a.db new-b.db new.policy
+   ```
+
+   Verification requires exact causal payload equality. Compare its
+   `visible` line with the saved staging output. Once verified, route the
+   new actors to each other and restart them without `--sync-only`.
+   Keep the old routes and actor identities retired for writes.
+
+The filesystem writes and route change are separate operations. Before new
+writes, the operator can discard the staging pair and keep the frozen old
+history. Once new writes are acknowledged, reconciliation must preserve
+them before any further migration. Arbitrary stale backups still require
+review of all available histories. The stage command requires a reconciled
+pair and rejects divergent inputs.
+
 ## Evidence and fuzzing
 
 The existing CRDT tests exercise stale backup rejection, generation

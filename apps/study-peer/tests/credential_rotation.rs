@@ -203,13 +203,19 @@ impl Peer {
         log: &Log,
     ) -> Self {
         let name = format!("{phase}-{actor}");
-        let mut child = Command::new(BIN)
+        let mut command = Command::new(BIN);
+        command
             .arg("run")
             .arg(root.join(format!("{actor}.db")))
             .args([actor, ID, "127.0.0.1:0", &outgoing.address.to_string()])
             .arg(root.join(format!("{actor}-active")))
             .arg(root.join(format!("{actor}-pin.der")))
-            .arg("--no-push")
+            .arg("--no-push");
+        Self::spawn(command, name, logs, incoming, log)
+    }
+
+    fn spawn(mut command: Command, name: String, logs: &Path, incoming: &Relay, log: &Log) -> Self {
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(File::create(logs.join(format!("{name}.stderr"))).unwrap())
@@ -482,6 +488,257 @@ fn activate(root: &Path, actor: &str, generation: &str, log: &Log) {
     );
 }
 
+fn provision(root: &Path, actor: &str, label: &str, logs: &Path) -> Vec<u8> {
+    let credentials = root.join(format!("{actor}-{label}"));
+    #[cfg(unix)]
+    once(
+        BIN,
+        &["keygen".as_ref(), credentials.as_os_str()],
+        logs,
+        &format!("keygen-{actor}-{label}"),
+    );
+    #[cfg(windows)]
+    {
+        let _ = logs;
+        // Use the Windows operator provisioning path for synthetic keys.
+        private_dir(&credentials);
+        let rcgen::CertifiedKey { cert, signing_key } =
+            rcgen::generate_simple_self_signed(["study-peer".into()]).unwrap();
+        fs::write(credentials.join("cert.der"), cert.der()).unwrap();
+        fs::write(credentials.join("key.der"), signing_key.serialize_der()).unwrap();
+    }
+    fs::read(credentials.join("cert.der")).unwrap()
+}
+
+#[test]
+fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
+    let private = Private::new();
+    let root = &private.0;
+    let logs =
+        std::env::var_os("STUDY_ROSTER_EVIDENCE").map_or_else(|| root.join("logs"), PathBuf::from);
+    private_dir(&logs);
+    let log = Arc::new(Mutex::new(File::create(logs.join("events.log")).unwrap()));
+    let old = [root.join("a.db"), root.join("b.db")];
+    let new = [root.join("fresh-a.db"), root.join("fresh-b.db")];
+    let old_policy = root.join("old.policy");
+    let new_policy = root.join("new.policy");
+    let policy_text = |collection: &str, generation: u64, a: u8, b: u8| {
+        format!(
+            "study-policy-v1 {collection} {generation} {} {}\n",
+            format!("{a:02x}").repeat(16),
+            format!("{b:02x}").repeat(16)
+        )
+    };
+    fs::write(&old_policy, policy_text(ID, 7, 1, 2)).unwrap();
+    let next_id = "0a".repeat(16);
+    fs::write(&new_policy, policy_text(&next_id, 8, 3, 4)).unwrap();
+    for (slot, actor) in ["a", "b"].into_iter().enumerate() {
+        once(
+            BIN,
+            &[
+                "init".as_ref(),
+                old[slot].as_os_str(),
+                actor.as_ref(),
+                ID.as_ref(),
+            ],
+            &logs,
+            &format!("initialize-{actor}"),
+        );
+        assert_ne!(
+            provision(root, actor, "old", &logs),
+            provision(root, actor, "new", &logs)
+        );
+        let db = Database::open_file(&old[slot], Limits::default()).unwrap();
+        db.retain_snapshot(&db.snapshot()).unwrap();
+        if slot == 0 {
+            Replica::<StudyProgress>::open(&db, db.collection_id(1), policy(), [1; 16])
+                .unwrap()
+                .update(|state, actor| {
+                    state.planned.insert(4, actor)?;
+                    state.planned.insert(6, actor)?;
+                    state.planned.remove(6)?;
+                    Ok(())
+                })
+                .unwrap();
+        }
+    }
+    for actor in ["a", "b"] {
+        activate(root, actor, "old", &log);
+    }
+
+    let stage = |configuration: &Path, targets: [&Path; 2]| {
+        Command::new(BIN)
+            .arg("stage-roster")
+            .args(&old)
+            .arg(&old_policy)
+            .args(targets)
+            .arg(configuration)
+            .output()
+            .unwrap()
+    };
+    let reject = |output: std::process::Output, expected: &str| {
+        assert!(!output.status.success(), "{output:?}");
+        assert_eq!(String::from_utf8(output.stderr).unwrap().trim(), expected);
+    };
+    let targets = [&new[0] as &Path, &new[1] as &Path];
+    reject(stage(&new_policy, targets), "Conflict");
+    assert!(new.iter().all(|p| !p.exists()));
+    let invalid = root.join("invalid.policy");
+    for configuration in [
+        policy_text(ID, 8, 3, 4),
+        policy_text(&next_id, 7, 3, 4),
+        policy_text(&next_id, 8, 1, 4),
+        policy_text(&next_id, 8, 4, 3),
+    ] {
+        fs::write(&invalid, configuration).unwrap();
+        reject(stage(&invalid, targets), "Invalid");
+        assert!(new.iter().all(|p| !p.exists()));
+    }
+
+    let (ra, rb) = (Relay::new(), Relay::new());
+    let run_old = |actor: &str, name| {
+        let (outgoing, incoming) = if actor == "a" { (&rb, &ra) } else { (&ra, &rb) };
+        Peer::start(root, &logs, actor, name, outgoing, incoming, &log)
+    };
+    let run_new = |slot: usize, name: &str, sync_only: bool| {
+        let (actor, outgoing, incoming) = if slot == 0 {
+            ("a", &rb, &ra)
+        } else {
+            ("b", &ra, &rb)
+        };
+        let mut cli = Command::new(BIN);
+        cli.arg("run-policy")
+            .arg(&new[slot])
+            .arg(actor)
+            .arg(&new_policy)
+            .args(["127.0.0.1:0", &outgoing.address.to_string()])
+            .arg(root.join(format!("{actor}-active")))
+            .arg(root.join(format!("{actor}-pin.der")))
+            .arg("--no-push");
+        if sync_only {
+            cli.arg("--sync-only");
+        }
+        Peer::spawn(cli, name.into(), &logs, incoming, &log)
+    };
+    let (mut a, mut b) = (run_old("a", "old"), run_old("b", "old"));
+    a.local("edit 1 5 30 60");
+    b.local("edit 2 7 40 50");
+    converge(&mut a, &mut b, 12, 40, 50, &[1, 2]);
+    reject(stage(&new_policy, targets), "Busy");
+    assert!(new.iter().all(|p| !p.exists()));
+    a.stop(false);
+    b.stop(false);
+
+    let old_bytes = old.each_ref().map(|path| fs::read(path).unwrap());
+    let old_ids = ["a", "b"].map(|actor| core(root, actor));
+    assert_eq!(old_ids[0].0, old_ids[1].0);
+    assert_eq!(old_ids[0].0.planned.iter().collect::<Vec<_>>(), [4]);
+    assert!(
+        old_ids
+            .iter()
+            .all(|(_, _, prior)| prior.unwrap().0 == StudyProgress::default())
+    );
+
+    let partial = root.join("partial-a");
+    let occupied = root.join("occupied");
+    fs::write(&occupied, b"preserve").unwrap();
+    reject(stage(&new_policy, [&partial, &occupied]), "AlreadyExists");
+    assert_eq!(fs::read(&occupied).unwrap(), b"preserve");
+    let partial_db = Database::open_file(partial, Limits::default()).unwrap();
+    assert_eq!(partial_db.snapshot().revision(), 0);
+    drop(partial_db);
+
+    let staged = stage(&new_policy, targets);
+    assert!(staged.status.success(), "{staged:?}");
+    let visible = "visible minutes=12 completed=[1, 2] planned=[4] goal=Some(40) limit=Some(50)";
+    let staged = String::from_utf8(staged.stdout).unwrap();
+    event(&log, staged.trim());
+    assert!(staged.lines().any(|line| line == visible));
+    let verify = || {
+        Command::new(BIN)
+            .arg("verify-roster")
+            .args(&new)
+            .arg(&new_policy)
+            .output()
+            .unwrap()
+    };
+    reject(verify(), "Conflict");
+
+    // Reuse the old TLS pins for this controlled attempt so the core sees
+    // the authenticated frame with the wrong collection and actor roster.
+    let (mut stale, mut staged_b) = (run_old("a", "stale"), run_new(1, "staged-b", true));
+    let before = [stale.state(), staged_b.state()];
+    assert_eq!(
+        staged_b.command("practice 100"),
+        "error local edits are disabled during staging"
+    );
+    assert_eq!(stale.command("push on"), "push on");
+    assert_eq!(staged_b.command("push on"), "push on");
+    let deadline = Instant::now() + BUDGET;
+    loop {
+        assert_eq!(stale.report().0, 0);
+        assert_eq!(staged_b.report().0, 0);
+        if ["stale-a", "staged-b"].iter().all(|name| {
+            fs::read_to_string(logs.join(format!("{name}.stderr")))
+                .unwrap()
+                .contains("incoming sync: ForeignStore")
+        }) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "no authenticated old-roster rejection"
+        );
+        thread::sleep(Duration::from_millis(30));
+    }
+    assert_eq!([stale.state(), staged_b.state()], before);
+    stale.stop(false);
+    staged_b.stop(false);
+    for actor in ["a", "b"] {
+        activate(root, actor, "new", &log);
+    }
+
+    let (mut a, mut b) = (
+        run_new(0, "synchronize-a", true),
+        run_new(1, "synchronize-b", true),
+    );
+    assert_eq!(
+        a.command("edit 8 10 40 30"),
+        "error local edits are disabled during staging"
+    );
+    let staged_revisions = converge(&mut a, &mut b, 12, 40, 50, &[1, 2]);
+    a.stop(true);
+    b.stop(false);
+    let verified = verify();
+    assert!(verified.status.success(), "{verified:?}");
+    let verified = String::from_utf8(verified.stdout).unwrap();
+    event(&log, verified.trim());
+    assert_eq!(
+        verified,
+        format!(
+            "verified generation=8 revisions={} {}\n{visible}\n",
+            staged_revisions[0], staged_revisions[1]
+        )
+    );
+
+    let (mut a, mut b) = (run_new(0, "live-a", false), run_new(1, "live-b", false));
+    assert_eq!([a.state().revision, b.state().revision], staged_revisions);
+    a.local("edit 3 3 50 45");
+    b.local("edit 5 4 45 40");
+    converge(&mut a, &mut b, 19, 50, 40, &[1, 2, 3, 5]);
+    a.stop(false);
+    b.stop(false);
+    let final_report = verify();
+    assert!(final_report.status.success(), "{final_report:?}");
+    assert!(String::from_utf8(final_report.stdout).unwrap().lines().any(|line|
+        line == "visible minutes=19 completed=[1, 2, 3, 5] planned=[4] goal=Some(50) limit=Some(40)"
+    ));
+    assert_eq!(
+        old.each_ref().map(|path| fs::read(path).unwrap()),
+        old_bytes
+    );
+}
+
 #[test]
 fn persistent_study_progress_survives_interrupted_credential_cutover() {
     let private = Private::new();
@@ -499,24 +756,7 @@ fn persistent_study_progress_survives_interrupted_credential_cutover() {
     let mut fingerprints = BTreeSet::new();
     for actor in ["a", "b"] {
         for generation in ["old", "new"] {
-            let credentials = root.join(format!("{actor}-{generation}"));
-            #[cfg(unix)]
-            once(
-                BIN,
-                &["keygen".as_ref(), credentials.as_os_str()],
-                &logs,
-                &format!("keygen-{actor}-{generation}"),
-            );
-            #[cfg(windows)]
-            {
-                // Use the Windows operator provisioning path for synthetic keys.
-                private_dir(&credentials);
-                let rcgen::CertifiedKey { cert, signing_key } =
-                    rcgen::generate_simple_self_signed(["study-peer".into()]).unwrap();
-                fs::write(credentials.join("cert.der"), cert.der()).unwrap();
-                fs::write(credentials.join("key.der"), signing_key.serialize_der()).unwrap();
-            }
-            let certificate = fs::read(credentials.join("cert.der")).unwrap();
+            let certificate = provision(root, actor, generation, &logs);
             let fingerprint = Sha256::digest(certificate);
             assert!(fingerprints.insert(fingerprint));
             event(
