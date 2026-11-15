@@ -1,25 +1,7 @@
 """Shared helpers for the remaining legacy POSIX runners."""
-import hashlib
 import os
 from pathlib import Path
 import signal
-import sys
-
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-
-
-def require(condition, message):
-    if not condition:
-        raise RuntimeError(message)
-
-
-def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def source_hashes(source):
-    return {str(p.relative_to(source)): digest(p) for p in sorted(source.rglob('*')) if p.is_file()}
 
 
 def fresh_output(path):
@@ -53,17 +35,3 @@ def stop(child):
     except ProcessLookupError:
         pass
     child.wait(timeout=5)
-
-
-def run(command, output, evidence, label, *, cwd=ROOT, env=None, timeout=30):
-    import supervision
-    command = [str(arg) for arg in command]
-    log_path = output / (label + '.log')
-    record = {'command': command, 'cwd': str(cwd), 'timeout_seconds': timeout,
-              'log': str(log_path), 'returncode': None}
-    evidence['commands'].append(record)
-    result = supervision.request(command, log_path, log_path, cwd=cwd, env=env, timeout=timeout)
-    record.update(result)
-    try: supervision.require_success(result, command, timeout)
-    except ValueError as error: raise RuntimeError(str(error)) from error
-    return log_path.read_text()

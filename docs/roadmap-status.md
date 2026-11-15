@@ -1039,3 +1039,9 @@ revision 4 and retained revision 2 survived reopen and duplicate shipment
 while the primary advanced to 5. The migration now accounts for 124/179
 controls and 17 Python files.
 [Compatibility verification](xtask-conversion.md#frozen-native-and-wire-compatibility)
+
+`cargo xtask soak` passed a 30-second macOS/APFS run and the 12-round cap on
+Docker Linux/ext4 against frozen engine `7a9e661`. The controller validated
+every round, verified process cleanup and bounded RSS telemetry to the peak
+and sample count. The conversion now covers 132/179 controls and 15 Python
+files. [Native lifecycle verification](xtask-conversion.md#native-lifecycle-soak)

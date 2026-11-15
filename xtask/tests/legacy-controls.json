@@ -20,7 +20,8 @@
     "resource-envelope/test_cache_probe.py",
     "resource-envelope/test_resilience.py",
     "sqlite-baseline/test_runner.py",
-    "test_compatibility.py"
+    "test_compatibility.py",
+    "test_soak.py"
   ],
   "controls": [
     {
@@ -1269,49 +1270,73 @@
       "path": "test_soak.py",
       "id": "helper_suite.SoakTests.test_round_oracle_accepts_short_and_release_transition",
       "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
-      "rust": []
+      "rust": [
+        "soak::tests::round_oracle_accepts_short_and_release_transition"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_soak.py",
       "id": "helper_suite.SoakTests.test_incomplete_inconsistent_and_forged_round_records_rejected",
       "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
-      "rust": []
+      "rust": [
+        "soak::tests::incomplete_inconsistent_and_forged_round_records_reject"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_soak.py",
       "id": "helper_suite.SoakTests.test_existing_and_dangling_output_rejected_before_external_work",
       "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
-      "rust": []
+      "rust": [
+        "soak::tests::existing_and_dangling_output_reject_before_external_work"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_soak.py",
       "id": "helper_suite.SoakTests.test_setup_failure_keeps_terminal_evidence",
       "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
-      "rust": []
+      "rust": [
+        "soak::tests::failed_source_setup_keeps_terminal_evidence"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_soak.py",
       "id": "helper_suite.SoakTests.test_actual_complete_child_has_exact_round_oracle",
       "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
-      "rust": []
+      "rust": [
+        "soak::tests::real_children_need_complete_rounds_and_successful_exit"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_soak.py",
       "id": "helper_suite.SoakTests.test_zero_exit_incomplete_and_malformed_children_rejected",
       "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
-      "rust": []
+      "rust": [
+        "soak::tests::real_children_need_complete_rounds_and_successful_exit"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_soak.py",
       "id": "helper_suite.SoakTests.test_failed_rss_probe_terminates_and_reaps_real_child",
       "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
-      "rust": []
+      "rust": [
+        "supervise::unix::controls::probe_wait_sampler_and_combined_failures_still_reap"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_soak.py",
       "id": "helper_suite.SoakTests.test_rss_probe_timeout_preserves_child_status",
       "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
-      "rust": []
+      "rust": [
+        "supervise::unix::controls::probe_wait_sampler_and_combined_failures_still_reap"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_cli_upgrade.py",

@@ -40,6 +40,10 @@ pub struct Report {
     pub stdout_bytes: u64,
     pub stderr_bytes: u64,
     pub rss_samples_kib: Vec<u64>,
+    #[serde(default)]
+    pub rss_sample_count: u64,
+    #[serde(default)]
+    pub sampled_peak_rss_kib: u64,
     pub cleanup_verified: bool,
     pub owned_descendants: Vec<Identity>,
 }
@@ -72,14 +76,33 @@ fn new_file(path: &PathBuf) -> Result<File> {
         .open(path)
         .with_context(|| format!("new output {}", path.display()))
 }
+#[derive(Clone, Copy)]
+enum Sampling {
+    Full,
+    Peak,
+}
+
 pub fn run(request: &Request) -> Result<Report> {
+    run_sampled(request, Sampling::Full)
+}
+
+pub(crate) fn run_peak_rss(request: &Request) -> Result<Report> {
+    run_sampled(request, Sampling::Peak)
+}
+
+fn run_sampled(request: &Request, sampling: Sampling) -> Result<Report> {
     #[cfg(not(unix))]
     {
         let _ = request;
+        let _ = sampling;
         anyhow::bail!("bounded POSIX supervision is unavailable on this platform");
     }
     #[cfg(unix)]
     {
+        let maximum_deadline = match sampling {
+            Sampling::Full => 86_400.,
+            Sampling::Peak => 86_520.,
+        };
         ensure!(
             !request.argv.is_empty() && !request.argv[0].is_empty(),
             "empty command"
@@ -87,7 +110,7 @@ pub fn run(request: &Request) -> Result<Report> {
         ensure!(
             request.timeout_seconds.is_finite()
                 && request.timeout_seconds > 0.
-                && request.timeout_seconds <= 86400.,
+                && request.timeout_seconds <= maximum_deadline,
             "invalid deadline"
         );
         ensure!(
@@ -130,7 +153,7 @@ pub fn run(request: &Request) -> Result<Report> {
             } else {
                 new_file(&request.stderr)?
             };
-            unix::execute(request, stdout, stderr, &mut report)
+            unix::execute(request, stdout, stderr, &mut report, sampling)
         })();
         if let Err(error) = result {
             report.failure.get_or_insert(format!("{error:#}"));
@@ -608,14 +631,16 @@ mod unix {
         stdout: File,
         stderr: File,
         report: &mut Report,
+        sampling: Sampling,
     ) -> Result<()> {
-        execute_with(request, stdout, stderr, report, &mut System)
+        execute_with(request, stdout, stderr, report, sampling, &mut System)
     }
     fn execute_with(
         request: &Request,
         stdout: File,
         stderr: File,
         report: &mut Report,
+        sampling: Sampling,
         inspect: &mut impl Inspect,
     ) -> Result<()> {
         let signals = Signals::new()?;
@@ -674,7 +699,12 @@ mod unix {
             eof: false,
         };
         let started = Instant::now();
-        let mut next_sample = Instant::now();
+        let mut next_sample = started;
+        let mut next_journal = started;
+        let sample_interval = Duration::from_millis(match sampling {
+            Sampling::Full => 50,
+            Sampling::Peak => 200,
+        });
         let mut owned = BTreeMap::new();
         let observed = (|| -> Result<()> {
             let outer_journal = request
@@ -710,17 +740,22 @@ mod unix {
                     report.timed_out = true;
                     anyhow::bail!("command deadline");
                 }
+                if request.journal.is_some() && Instant::now() >= next_journal {
+                    descendants(&inspect.table()?, child.id() as i32, &mut owned);
+                    journal(request, &mut owned, false)?;
+                    next_journal = Instant::now() + Duration::from_millis(50);
+                }
                 if Instant::now() >= next_sample {
-                    if request.journal.is_some() {
-                        descendants(&inspect.table()?, child.id() as i32, &mut owned);
-                        journal(request, &mut owned, false)?;
-                    }
                     if request.sample_rss
                         && let Some(n) = inspect.rss(child.id())?
                     {
-                        report.rss_samples_kib.push(n);
+                        report.rss_sample_count += 1;
+                        report.sampled_peak_rss_kib = report.sampled_peak_rss_kib.max(n);
+                        if matches!(sampling, Sampling::Full) {
+                            report.rss_samples_kib.push(n);
+                        }
                     }
-                    next_sample = Instant::now() + Duration::from_millis(50);
+                    next_sample = Instant::now() + sample_interval;
                 }
                 thread::sleep(Duration::from_millis(10));
             }
@@ -791,6 +826,9 @@ mod unix {
                 Ok(())
             }
             fn rss(&mut self, _: u32) -> Result<Option<u64>> {
+                if self.mode == "sampler-exit" {
+                    anyhow::bail!("RSS probe failed");
+                }
                 anyhow::bail!("sampler timeout")
             }
         }
@@ -818,6 +856,7 @@ mod unix {
                 new_file(&request.stdout).unwrap(),
                 new_file(&request.stderr).unwrap(),
                 &mut report,
+                Sampling::Full,
                 &mut inspect,
             )
             .unwrap();
@@ -827,23 +866,42 @@ mod unix {
         }
         #[test]
         fn probe_wait_sampler_and_combined_failures_still_reap() {
-            for mode in ["exit", "timeout", "malformed", "wait", "sampler", "both"] {
+            for mode in [
+                "exit",
+                "timeout",
+                "malformed",
+                "wait",
+                "sampler",
+                "sampler-summary",
+                "sampler-exit",
+                "both",
+            ] {
                 let (_owned, mut request) = super::super::tests::fixture("exec sleep 30");
                 request.timeout_seconds = 0.1;
-                request.sample_rss = mode == "sampler";
+                request.sample_rss = mode.starts_with("sampler");
                 let mut report = Report::default();
                 execute_with(
                     &request,
                     new_file(&request.stdout).unwrap(),
                     new_file(&request.stderr).unwrap(),
                     &mut report,
+                    if matches!(mode, "sampler-summary" | "sampler-exit") {
+                        Sampling::Peak
+                    } else {
+                        Sampling::Full
+                    },
                     &mut Fault { mode },
                 )
                 .unwrap();
                 assert_eq!(report.returncode, Some(-9), "{mode}: {report:?}");
                 assert!(!report.success());
-                if mode == "sampler" {
-                    assert!(report.failure.as_ref().unwrap().contains("sampler timeout"));
+                if request.sample_rss {
+                    let diagnostic = if mode == "sampler-exit" {
+                        "RSS probe failed"
+                    } else {
+                        "sampler timeout"
+                    };
+                    assert!(report.failure.as_ref().unwrap().contains(diagnostic));
                     assert!(report.cleanup_verified);
                 } else {
                     assert!(report.cleanup_failure.is_some(), "{mode}: {report:?}");

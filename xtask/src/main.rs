@@ -54,6 +54,8 @@ mod sanitizers;
 #[cfg(unix)]
 mod serialization_scale;
 #[cfg(unix)]
+mod soak;
+#[cfg(unix)]
 mod sqlite_baseline;
 #[cfg(unix)]
 mod supervise;
@@ -86,6 +88,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Exercise a bounded native lifecycle workload on a frozen engine.
+    #[cfg(unix)]
+    Soak(soak::Options),
     /// Qualify storage or core snapshot compatibility between two archived revisions.
     #[cfg(unix)]
     Compatibility(compatibility::Options),
@@ -244,6 +249,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::Soak(options) => soak::run(&run, options),
         #[cfg(unix)]
         Task::Compatibility(options) => compatibility::run(&run, options),
         #[cfg(unix)]

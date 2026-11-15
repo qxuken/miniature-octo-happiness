@@ -4,26 +4,22 @@ This private, unpublished driver exercises a real native database in one
 long-lived process. It is an opt-in qualification tool, not a default test:
 
 ```sh
-python3 tools/soak.py /absolute/path/to/NEW-output-directory --seconds 600
+cargo xtask soak --output /absolute/path/to/NEW-output-directory --seconds 600
 ```
 
-Python 3.12+, Cargo/Rust and `ps` are required. The current driver supports macOS
-and Linux because it includes native file compaction. It does not qualify Windows.
+Git and the pinned Rust toolchain are required. The driver exercises native
+file compaction on macOS and Linux.
 The output directory must not exist and its parent must exist. The runner writes
 only into that directory, builds offline with a lockfile and incremental builds
 disabled, and never deletes caller files. Cargo's existing dependency cache is an
 input. No registry publication occurs.
 
-The runner archives the current **committed HEAD**, not uncommitted engine edits,
-and overlays precisely the driver's Cargo.toml, Cargo.lock and main.rs plus
-the active Python launcher and its shared compatibility helper from the workspace. `evidence.json` identifies the engine commit, every archived source
-file hash, driver overlay names, executable hash, OS, architecture, filesystem
-location/block size, toolchain and actual command. This explicit overlay permits
-qualification of an uncommitted harness against a frozen engine. The archive and
-build stay in the output directory; no dependency on changing source files remains
-after the copy. Source and binary hashes are checked after execution; active
-launcher/helper inputs must also stay unchanged. Review these identities before
-attributing results to a release.
+The runner archives committed HEAD by default. Use `--revision COMMIT` for
+another frozen engine. It copies the driver's Cargo.toml, Cargo.lock and main.rs
+into the archive and hashes the overlay separately. `evidence.json` identifies
+the engine commit, archived files, fixture, executable, OS, architecture,
+filesystem, toolchain and commands. The archive and build stay in the output.
+The controller checks source and binary hashes again after execution.
 
 Each round performs:
 
@@ -56,8 +52,9 @@ wall duration. Round duration may overshoot the deadline; the runner enforces a
 accepted wall duration is 1–86,400 seconds. At four tiny records this is a bounded
 small-state lifecycle/concurrency workload, not a throughput benchmark.
 
-`sampled_peak_rss_kib` is the maximum child RSS observed by `ps` at approximately
-200 ms intervals (KiB on these supported platforms). It can miss intermediate
+`sampled_peak_rss_kib` is the maximum child RSS observed at approximately 200 ms
+intervals through native process telemetry. The controller retains the peak
+and sample count. It can miss intermediate
 peaks, excludes build/launcher memory, and is a measurement, not a cap. The 16 MiB
 cap applies to requested core allocation layouts, excluding backend/application
 allocations, allocator overhead, foreign handles and the budget control block.
@@ -135,10 +132,8 @@ sampled RSS peak 3,664 KiB. Evidence: `target/soak-harness-032dadf-smoke/evidenc
 and adjacent logs/source. These observations qualify the corrected launcher
 for this short case, not a long-duration or different-platform soak.
 
-```sh
-mise exec python@3.14.8 -- python tools/test_soak.py
-mise exec python@3.14.8 -- python -O tools/test_soak.py
-```
+The maintained equivalents run with `cargo test --offline --locked -p xtask
+--bin xtask soak` and the shared supervisor's sampler-failure controls.
 
 
 ## Extended macOS and Linux controls at 7a9e661

@@ -44,6 +44,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "tools/serialization-scale",
         "tools/resource-envelope",
         "tools/sqlite-baseline",
+        "tools/soak",
     ] {
         walk(root, &root.join(name), &mut out, false)?;
     }
@@ -194,7 +195,6 @@ impl<'a> Campaign<'a> {
     pub fn unchanged(&self) -> Result<bool> {
         Ok(self.before == snapshot(&self.run.root)?)
     }
-    #[cfg(target_os = "linux")]
     pub fn cancelled(&self) -> bool {
         self.cancellation.requested()
     }
@@ -254,7 +254,7 @@ impl<'a> Campaign<'a> {
         two?;
         Ok(())
     }
-    fn request(
+    pub fn request(
         &self,
         args: Vec<OsString>,
         name: &str,

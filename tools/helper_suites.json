@@ -16,10 +16,6 @@
       "allowed_skips": []
     },
     {
-      "path": "test_soak.py",
-      "allowed_skips": []
-    },
-    {
       "path": "test_study_cli_upgrade.py",
       "allowed_skips": []
     },

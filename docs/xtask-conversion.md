@@ -692,3 +692,35 @@ Strict Clippy passed for macOS and the Linux and MSVC cross targets. The
 remaining legacy suites passed 108 checks with two registered skips across 12
 workers. Their evidence SHA-256 is
 `d80eb896ae899aee3e3b8c1ee750258161913654c7479cf01a54bc7513ed0d84`.
+
+## Native lifecycle soak
+
+`cargo xtask soak` runs the existing workload against a frozen engine. It
+streams the complete round log through an independent oracle and retains the
+sample count and peak RSS without storing the full sequence of RSS samples.
+The command preserves the 24-hour workload limit and the separate 120-second
+completion grace. The runtime log is bounded to 64 MiB per stream and the
+oracle accepts at most 100,000 rounds. Both injected sampler error paths
+retire and reap the real child and keep its status.
+
+At frozen `7a9e6611eaee911ae7477149cbcafaada8a65e47`, macOS/APFS completed the
+requested 30 seconds with 49 rounds, 29,534 reads and final revision 3,228.
+Docker Linux/ext4 reached the independent 12-round bound with 3,493 reads and
+final revision 786. Both checked current and retained roots after compaction,
+backup and restore. The macOS runner retained 142 RSS samples in the count,
+with sampled peak 4,016 KiB. Linux counted two samples with peak 2,684 KiB.
+Both recorded verified process cleanup, and the Docker container and volume
+were absent after evidence copyback.
+
+- macOS evidence SHA-256 `dcc6eacdba534edc54238b10a5a5b3590d6f88e9a34308d252717c9d2736eb14`.
+- Docker Linux evidence SHA-256 `7ca4ac651343f71c844c53416660d0b606327cf23bd7100ab6a70d65cffff18e`.
+
+The eight native soak controls map to Rust. The ledger now covers **132/179**
+controls, with **15** maintained Python files. Earlier 1,800-second proofs
+retain their historical workload and runner identities. [Soak runbook](soak.md)
+
+macOS passed all 150 xtask tests in debug and release. Docker Linux passed the
+focused soak and sampler tests. Strict Clippy passed on macOS and the Linux
+and MSVC cross targets. The five remaining legacy suites passed 92 checks
+with two registered skips across 10 workers. Their evidence SHA-256 is
+`df7a9247945d87c6abc3a7377f6948ef5d3fdf0d3e36fbb7ba882a7767c7d05e`.
