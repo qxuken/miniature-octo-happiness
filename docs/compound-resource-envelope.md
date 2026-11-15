@@ -216,3 +216,69 @@ cases per Mac/Linux platform. It verifies complete current/retained bytes and
 later successful retry in fresh processes. Every source/target sync is covered;
 large I/O is sampled. Earlier eight pressure cases, new composed failures and
 namespace/device persistence assumptions retain their separate scopes.
+
+## Repeated near-cap maintenance
+
+```sh
+cargo xtask resource compound-cycles --revision af91f05 --output target/resource-cycles
+```
+
+Use `--docker-image` with the recorded immutable Linux image to repeat the
+Docker ext4 profile. The controller first runs the original compound workload,
+independent reopening and simulator cases. A new process then copies the
+verified compacted fixture and continues for 24 cycles. Each cycle prepares
+eight simultaneous drafts in four rounds, checks 256 current and pinned
+reader observations, rejects a commit larger than remaining append headroom,
+rejects a backup under the 96 MiB copy budget, and retries backup, restore
+and in-place compaction with the 256 MiB copy budget.
+
+All 768 contended commits received consecutive revisions. Each rejected
+commit preserved physical length, and each failed backup preserved the full
+source bytes and left an empty destination. The worker verified all current
+and 64 retained roots in every phase and reopened each recovered or compacted
+copy. The independent controller verifies all seven phase records for each
+cycle, including revision arithmetic, byte digests and sample counts. It
+also checks continuity with the previous compacted image and verifies that
+only the canonical file remains. Both runs finish at revision 980, writer
+sequence 100, and 63,074,304 bytes. Post-write images reach 65,826,816 bytes
+every cycle, about 98.1% of the 64 MiB cap.
+
+| Observed metric | macOS arm64/APFS | Docker Linux arm64/ext4 |
+|---|---:|---:|
+| Cycle worker elapsed | 106.6 s | 95.1 s |
+| Sampled peak process RSS | 1,548,256 KiB | 192,216 KiB |
+| Peak requested core bytes | 57,794,708 | 57,794,708 |
+| Commit p50 / p95 / p99, 768 samples | 44.5 / 79.8 / 210.3 ms | 2.77 / 4.59 / 5.25 ms |
+| Reader p50 / p95 / p99, 6,144 samples | 0.934 / 2.10 / 79.3 ms | 0.907 / 0.940 / 4.91 ms |
+| Reopen p50 / max, 24 samples | 158.4 / 196.5 ms | 146.9 / 162.9 ms |
+| Backup p50 / max, 24 samples | 517.9 / 534.1 ms | 496.2 / 519.9 ms |
+| Restore p50 / max, 24 samples | 519.5 / 553.8 ms | 488.4 / 515.0 ms |
+| Compact p50 / max, 24 samples | 690.4 / 719.5 ms | 628.9 / 648.6 ms |
+
+RSS encompasses the whole worker, including the file-comparison buffers and
+copy domains. The core column measures the opened database's allocation
+domain at the recorded phases. macOS RSS rose and fell during the run. The
+post-compaction live core charge was 48,744,902 bytes in all 24 cycles on
+both hosts. The allocator and copy contributions to the macOS peak remain an
+open measurement. Timings are finite observations in the stated environments.
+
+| Platform | Controller proof SHA-256 | Worker proof SHA-256 |
+|---|---|---|
+| macOS | `cb3490625ee7c74f050a7d2c45b96950fe75c716a2f806b6cb1a1bad84c5dfb3` | `390766bd4779e4fa9928e5ba43e4aec8b6e5847837e6138c14fd0bb54178421e` |
+| Linux | `2891c5036f0490614ad8f1808f8137252fa00e42e1f899f53b595ce205fe3271` | `ce5730ccfbeddfb18b1557edfcf8f1d813ec62dbf47e0decb4565fd73370aaee` |
+
+The source-overlay inventories match, all 28 worker proof artifacts per
+platform were independently rehashed, and Docker resources were confirmed
+absent. The Rust controller tests reject omitted work, altered file length,
+incorrect revisions and stale state digests.
+
+A full repeat with the final controller passed again on both hosts, reaching
+the same revision, retained state, file lengths and core peak. The macOS
+worker's sampled RSS peak rose to 3,683,632 KiB (3.51 GiB). The Linux repeat
+peaked at 191,060 KiB. This spread makes the macOS process-memory observation
+a separate deployment gate from the configured core budget.
+
+| Repeat platform | Controller proof SHA-256 | Worker proof SHA-256 |
+|---|---|---|
+| macOS | `e0d2fabf1de6dec72b6db7debc1445e46753c3d6b0ea6f81a261e148e114f030` | `6ec3f9adc9a9939927b9cc8c5cbf6936fc12dc8971d645ca765d92d0510aad29` |
+| Linux | `c4f5317a76b5fd1172511b0c11b7420b0d27d408d30727acacb977d4646fbe17` | `0e9030f594e467c38baf17c679155775ec51babb0080ab377fdc5cdd6878bd37` |

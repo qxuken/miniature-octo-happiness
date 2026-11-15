@@ -36,6 +36,7 @@ const RESILIENCE_PROFILES: [&str; 8] = [
 pub enum Profile {
     Envelope,
     Compound,
+    CompoundCycles,
     Resilience,
 }
 impl Profile {
@@ -43,13 +44,14 @@ impl Profile {
         match self {
             Self::Envelope => "envelope",
             Self::Compound => "compound",
+            Self::CompoundCycles => "compound-cycles",
             Self::Resilience => "resilience",
         }
     }
     fn binary(self) -> &'static str {
         match self {
             Self::Envelope => "weekend-resource-envelope",
-            Self::Compound | Self::Resilience => "weekend-compound-resource",
+            Self::Compound | Self::CompoundCycles | Self::Resilience => "weekend-compound-resource",
         }
     }
 }
@@ -310,6 +312,32 @@ pub(crate) fn worker(
                 c.evidence["runs"][label] = value;
                 c.save()?;
             }
+            if profile == Profile::CompoundCycles {
+                let seed = output.join("native-data/compact.wdb");
+                let seed_hash = sha(&seed)?;
+                let report = output.join("cycles.json");
+                let data = output.join("cycles-data");
+                let value = observe(
+                    Observation {
+                        binary: &binary,
+                        data: &data,
+                        report: &report,
+                        args: &[path(&seed), "cycles".into()],
+                        context: &run,
+                        deadline: 480.,
+                        inspect_group: true,
+                    },
+                    |rows| resource_oracle::compound_cycles(rows, revision),
+                )?;
+                ensure!(sha(&seed)? == seed_hash, "cycle seed changed");
+                ensure!(
+                    fs::read_dir(&data)?.count() == 1 && data.join("cycles.wdb").is_file(),
+                    "cycle maintenance artifacts remain"
+                );
+                c.evidence["runs"]["cycles"] = value;
+                c.evidence["cycle_seed_sha256"] = json!(seed_hash);
+                c.save()?;
+            }
             if profile == Profile::Resilience {
                 let image_hash = sha(&source_image)?;
                 c.evidence["resilience_runs"] = json!({});
@@ -452,6 +480,7 @@ fn docker(
             match profile {
                 Profile::Envelope => 300.,
                 Profile::Compound => 600.,
+                Profile::CompoundCycles => 900.,
                 Profile::Resilience => 1200.,
             },
         );
@@ -522,7 +551,9 @@ fn check_proof(
         )?;
     } else {
         ensure!(
-            proof["runs"].as_object().is_some_and(|m| m.len() == 3),
+            proof["runs"].as_object().is_some_and(|m| {
+                m.len() == 3 + usize::from(profile == Profile::CompoundCycles)
+            }),
             "incomplete compound profiles"
         );
         for label in ["native", "inspect", "faults"] {
@@ -536,6 +567,25 @@ fn check_proof(
                 label,
                 revision,
             )?;
+        }
+        if profile == Profile::CompoundCycles {
+            let run = &proof["runs"]["cycles"];
+            ensure!(
+                run["passed"] == true && run["owned_live_processes_absent"] == true,
+                "unverified compound cycle run"
+            );
+            let rows = run["rows"]
+                .as_array()
+                .context("compound cycle rows missing")?;
+            resource_oracle::compound_cycles(rows, revision)?;
+            let data = output.join("cycles-data");
+            ensure!(
+                proof["cycle_seed_sha256"] == sha(&output.join("native-data/compact.wdb"))?
+                    && fs::read_dir(&data)?.count() == 1
+                    && fs::metadata(data.join("cycles.wdb"))?.len()
+                        == resource_oracle::number(&rows[rows.len() - 2], "file_bytes")?,
+                "compound cycle seed or compacted file changed"
+            );
         }
         if profile == Profile::Resilience {
             ensure!(

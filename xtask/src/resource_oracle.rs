@@ -67,12 +67,7 @@ fn fixed_digests() -> [u64; 3] {
     })
 }
 pub fn digests(seq: u64, changed: bool) -> [u64; 4] {
-    // The oracle only accepts reviewed fixture states, not attacker-selected
-    // epoch arithmetic or unbounded dimensions.
-    assert!(matches!(seq, 0 | 4));
-    static STATES: [OnceLock<[u64; 4]>; 4] = [const { OnceLock::new() }; 4];
-    let index = usize::from(seq == 4) * 2 + usize::from(changed);
-    *STATES[index].get_or_init(|| {
+    let generate = || {
         let [bulk, deep, retained] = fixed_digests();
         let writers = fnv((0..8).flat_map(|w| {
             let actual = seq + u64::from(changed && w == 0);
@@ -82,7 +77,15 @@ pub fn digests(seq: u64, changed: bool) -> [u64; 4] {
                 .chain(payload(1000 + w * 10 + actual, 65536))
         }));
         [bulk, deep, writers, retained]
-    })
+    };
+    // Only the fixed short-workload states are used throughout the fault suites.
+    if !matches!(seq, 0 | 4) {
+        assert!(seq <= 100);
+        return generate();
+    }
+    static STATES: [OnceLock<[u64; 4]>; 4] = [const { OnceLock::new() }; 4];
+    let index = usize::from(seq == 4) * 2 + usize::from(changed);
+    *STATES[index].get_or_init(generate)
 }
 pub fn completion(profile: &str, source: &str) -> Value {
     json!({"complete":true,"profile":profile,"source_id":source,"features":4,"abi":1,"format":2})
@@ -94,6 +97,7 @@ fn state_at(
     seq: u64,
     changed: bool,
     min_file: u64,
+    expected_digests: [u64; 4],
 ) -> Result<()> {
     ensure!(
         row["phase"] == phase && row["revision"] == revision,
@@ -104,7 +108,7 @@ fn state_at(
         "wrong root/current state: {phase}"
     );
     ensure!(
-        row["digests"] == json!(digests(seq, changed)),
+        row["digests"] == json!(expected_digests),
         "independent root byte oracle: {phase}"
     );
     let live = number(row, "live_bytes")?;
@@ -129,7 +133,15 @@ pub fn state(
     changed: bool,
     file_bytes: Option<u64>,
 ) -> Result<()> {
-    state_at(row, phase, revision, 4, changed, 60 * MIB)?;
+    state_at(
+        row,
+        phase,
+        revision,
+        4,
+        changed,
+        60 * MIB,
+        digests(4, changed),
+    )?;
     ensure!(
         file_bytes.is_none_or(|n| row["file_bytes"] == n),
         "wrong replacement image length"
@@ -158,7 +170,15 @@ pub fn compound(rows: &[Value], profile: &str, source: &str) -> Result<()> {
         } else {
             212
         };
-        state_at(row, phase, revision, seq, changed, 64 * MIB * 9 / 10)?;
+        state_at(
+            row,
+            phase,
+            revision,
+            seq,
+            changed,
+            64 * MIB * 9 / 10,
+            digests(seq, changed),
+        )?;
         let detail = &row["detail"];
         match *phase {
             "drafts_ready" => ensure!(
@@ -174,13 +194,7 @@ pub fn compound(rows: &[Value], profile: &str, source: &str) -> Result<()> {
                 detail["baseline_live"] == row["live_bytes"],
                 "draft charge not reclaimed"
             ),
-            "contended_commits" => ensure!(
-                detail["writers"] == 8
-                    && detail["rounds"] == 4
-                    && integers(&detail["commit_ns"], 32)
-                    && integers(&detail["reader_ns"], 256),
-                "incomplete concurrent samples"
-            ),
+            "contended_commits" => contention_samples(detail)?,
             "image_limit_rejected" => ensure!(
                 *detail == json!({"error":"Limit","new_payload_bytes":4*MIB}),
                 "missing image-limit rejection"
@@ -226,6 +240,87 @@ pub fn compound(rows: &[Value], profile: &str, source: &str) -> Result<()> {
             rows[0]["live_bytes"] == rows[3]["live_bytes"],
             "baseline charge not restored"
         );
+    }
+    Ok(())
+}
+
+fn contention_samples(detail: &Value) -> Result<()> {
+    ensure!(
+        detail["writers"] == 8
+            && detail["rounds"] == 4
+            && integers(&detail["commit_ns"], 32)
+            && integers(&detail["reader_ns"], 256),
+        "incomplete concurrent samples"
+    );
+    Ok(())
+}
+
+pub fn compound_cycles(rows: &[Value], source: &str) -> Result<()> {
+    const PHASES: [&str; 7] = [
+        "cycle_open",
+        "contended_commits",
+        "image_limit_rejected",
+        "cycle_backup_rejected",
+        "cycle_backup",
+        "cycle_restore",
+        "cycle_compact",
+    ];
+    let (terminal, events) = rows.split_last().context("missing cycle completion")?;
+    ensure!(
+        *terminal == completion("cycles", source) && events.len() == 24 * PHASES.len(),
+        "incomplete cycle sequence or wrong build identity"
+    );
+    let mut compacted = None;
+    let mut before = digests(4, false);
+    let (cycles, _) = events.as_chunks::<{ PHASES.len() }>();
+    for (index, cycle) in cycles.iter().enumerate() {
+        let revision = 212 + 32 * index as u64;
+        let seq = 4 + 4 * index as u64;
+        let after = digests(seq + 4, false);
+        let written = number(&cycle[1], "file_bytes")?;
+        for (i, (row, phase)) in cycle.iter().zip(PHASES).enumerate() {
+            let advance = u64::from(i != 0);
+            state_at(
+                row,
+                phase,
+                revision + 32 * advance,
+                seq + 4 * advance,
+                false,
+                60 * MIB,
+                if i == 0 { before } else { after },
+            )?;
+            let bytes = number(row, "file_bytes")?;
+            let detail = &row["detail"];
+            match phase {
+                "cycle_open" => ensure!(
+                    *detail == json!({"cycle": index + 1})
+                        && compacted.is_none_or(|previous| previous == bytes),
+                    "cycle did not resume the compacted file"
+                ),
+                "contended_commits" => {
+                    contention_samples(detail)?;
+                    ensure!(
+                        written > 64 * MIB * 96 / 100,
+                        "workload did not reach the image cap"
+                    );
+                }
+                "image_limit_rejected" => ensure!(
+                    bytes == written
+                        && *detail == json!({"error":"Limit","new_payload_bytes":4*MIB}),
+                    "wrong image-limit rejection"
+                ),
+                "cycle_backup_rejected" => ensure!(
+                    bytes == written && *detail == json!({"copy_budget":CORE,"error":"Limit"}),
+                    "wrong backup-budget rejection"
+                ),
+                _ => ensure!(
+                    bytes < written && *detail == json!({"copy_budget":256*MIB}),
+                    "maintenance did not reclaim space on the verified graph"
+                ),
+            }
+        }
+        compacted = Some(number(&cycle[6], "file_bytes")?);
+        before = after;
     }
     Ok(())
 }
@@ -542,6 +637,71 @@ mod tests {
             assert!(envelope(&corrupt).is_err(), "{field}");
         }
         assert!(envelope(&rows[..rows.len() - 1]).is_err());
+    }
+
+    #[test]
+    fn compound_cycle_oracle_rejects_missing_work_and_stale_files() {
+        let mut rows = Vec::new();
+        let phases = [
+            ("cycle_open", 61 * MIB, json!({})),
+            (
+                "contended_commits",
+                63 * MIB,
+                json!({
+                    "writers":8,"rounds":4,"commit_ns":vec![1;32],"reader_ns":vec![1;256]
+                }),
+            ),
+            (
+                "image_limit_rejected",
+                63 * MIB,
+                json!({"error":"Limit","new_payload_bytes":4*MIB}),
+            ),
+            (
+                "cycle_backup_rejected",
+                63 * MIB,
+                json!({"error":"Limit","copy_budget":CORE}),
+            ),
+            ("cycle_backup", 61 * MIB, json!({"copy_budget":256*MIB})),
+            ("cycle_restore", 61 * MIB, json!({"copy_budget":256*MIB})),
+            ("cycle_compact", 61 * MIB, json!({"copy_budget":256*MIB})),
+        ];
+        for cycle in 1..=24_u64 {
+            let before = digests(4 * cycle, false);
+            let after = digests(4 * (cycle + 1), false);
+            for (index, (phase, bytes, detail)) in phases.iter().enumerate() {
+                let completed = cycle - u64::from(index == 0);
+                let seq = 4 + 4 * completed;
+                let detail = if index == 0 {
+                    json!({"cycle":cycle})
+                } else {
+                    detail.clone()
+                };
+                rows.push(json!({
+                    "phase":phase,"revision":212+32*completed,"seq":seq,"changed":false,
+                    "roots":64,"digests":if index == 0 { before } else { after },"live_bytes":1,"peak_bytes":1,
+                    "cap_bytes":CORE,"rss_kib":1,"file_bytes":bytes,"elapsed_ns":1,
+                    "detail":detail,
+                }));
+            }
+        }
+        rows.push(completion("cycles", "fixture"));
+        compound_cycles(&rows, "fixture").unwrap();
+        assert!(compound_cycles(&rows[1..], "fixture").is_err());
+        for (index, field, value) in [
+            (
+                1,
+                "detail",
+                json!({"writers":8,"rounds":4,"commit_ns":vec![1;31],"reader_ns":vec![1;256]}),
+            ),
+            (2, "file_bytes", json!(62 * MIB)),
+            (3, "revision", json!(212)),
+            (4, "digests", json!(digests(4, false))),
+            (7, "file_bytes", json!(62 * MIB)),
+        ] {
+            let mut bad = rows.clone();
+            bad[index][field] = value;
+            assert!(compound_cycles(&bad, "fixture").is_err(), "{index}/{field}");
+        }
     }
 
     #[test]

@@ -1198,3 +1198,20 @@ Unix-only `keygen` command. Its fixture now shares credential provisioning with
 the Windows CLI tests. The revised CLI and cutover suites pass on macOS and
 Docker Linux, with hosted Windows rerunning.
 [Windows follower job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43705255065/job/132784834134)
+
+The [repeated near-cap workload](compound-resource-envelope.md#repeated-near-cap-maintenance)
+passed 24 cycles per platform on macOS and Docker Linux. All 768 contended
+commits per run, repeated image-limit and backup-budget failures, verified
+backup/restore/compaction and 64 retained roots passed through revision 980.
+Both runs held the same 57,794,708-byte recorded core peak. Sampled worker RSS
+reached 1,548,256 KiB on macOS and 192,216 KiB on Linux. The higher macOS RSS
+remains a resource investigation.
+
+Windows also passed the portable stopped-endpoint credential cutover and
+follower backup/reseed in both profiles at PR head `af91f05`. All 20 exact
+DLL cases passed against merge `fc31b9a3e0eafbf3c4387f37f1fde8b6cb432d4f`.
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43706610324/job/132788972396)
+
+The repeated near-cap workload passed a second time on both platforms.
+The macOS sampled RSS reached 3.51 GiB with the same recorded core peak and
+final physical file size. The repeat Linux RSS stayed about 187 MiB.

@@ -156,7 +156,7 @@ computed digest to the corresponding reopened durable receipt and retains
 the stale-pin, interrupted startup, retry and full retained-data checks.
 
 Both tests passed in debug and release on macOS/APFS and Docker Linux/ext4.
-The Windows-native result for the portable test is pending.
+The Windows result is recorded below.
 
 | Local proof | SHA-256 |
 |---|---|
@@ -168,7 +168,7 @@ The first hosted Windows run reached the `keygen` setup and correctly refused
 that Unix-only command. The Windows test now provisions test-only certificates
 and DER keys through the shared CLI fixture. Unix still exercises `keygen`.
 Both CLI suites passed again in debug and release on macOS and Docker Linux.
-The Windows rerun is pending.
+The native Windows rerun at `af91f05` passed the named cutover and reseed tests in debug and release. [Passing Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43706610324/job/132788972396)
 [Initial Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43705827453/job/132786560448)
 
 The rerun log SHA-256 values are

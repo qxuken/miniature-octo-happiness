@@ -20,6 +20,7 @@ const LARGE: usize = 896 * 1024;
 const ROOTS: u64 = 64;
 const WRITERS: usize = 8;
 const ROUNDS: u64 = 4;
+const CYCLES: u64 = 24;
 const CELL: usize = 64 * 1024;
 const BASE: u64 = 3 + BULK + 1;
 const FIXTURE: u64 = BASE + 2 * ROOTS;
@@ -294,7 +295,10 @@ fn pressure(db: &Database) {
         true,
     );
 }
-fn contended(db: &Database) {
+fn contended(db: &Database, start_seq: u64) {
+    let start_revision = db.snapshot().revision();
+    let end_seq = start_seq + ROUNDS;
+    let end_revision = start_revision + WRITERS as u64 * ROUNDS;
     let start = Barrier::new(WRITERS + 3);
     let prepared = Barrier::new(WRITERS);
     let done = Barrier::new(WRITERS);
@@ -306,7 +310,7 @@ fn contended(db: &Database) {
             writers.push(scope.spawn(move || {
                 start.wait();
                 let mut samples = Vec::new();
-                for seq in 1..=ROUNDS {
+                for seq in start_seq + 1..=end_seq {
                     let mut tx = db.begin();
                     tx.put(db.collection_id(3), &[writer as u8], &row(db, writer, seq))
                         .unwrap();
@@ -330,7 +334,7 @@ fn contended(db: &Database) {
                     let view = db.snapshot();
                     for writer in 0..WRITERS {
                         let (seq, _) = check_cell(&view, db, writer, None);
-                        assert!(seq <= ROUNDS);
+                        assert!((start_seq..=end_seq).contains(&seq));
                         check_cell(&old, db, writer, Some(0));
                     }
                     ns.push(now.elapsed().as_nanos());
@@ -353,21 +357,53 @@ fn contended(db: &Database) {
     });
     let mut revisions: Vec<_> = commits.iter().map(|sample| sample.0).collect();
     revisions.sort_unstable();
-    assert_eq!(revisions, (FIXTURE + 1..=FINAL).collect::<Vec<_>>());
+    assert_eq!(
+        revisions,
+        (start_revision + 1..=end_revision).collect::<Vec<_>>()
+    );
     let commits: Vec<_> = commits.into_iter().map(|sample| sample.1).collect();
     event(
         "contended_commits",
         db,
-        FINAL,
-        ROUNDS,
+        end_revision,
+        end_seq,
         false,
         0,
         &format!(
-            "{{\"commit_ns\":{commits:?},\"reader_ns\":{readers:?},\"writers\":8,\"rounds\":4}}"
+            "{{\"commit_ns\":{commits:?},\"reader_ns\":{readers:?},\"writers\":{WRITERS},\"rounds\":{ROUNDS}}}"
         ),
         true,
     );
 }
+fn reject_large_commit(db: &Database, revision: u64, seq: u64) {
+    let mut value = db.list().unwrap();
+    for key in 0..4 {
+        value = value
+            .list_push(&db.bytes(&payload(9000 + key, MIB)).unwrap())
+            .unwrap();
+    }
+    let before = db.storage_space().unwrap();
+    assert!(before.remaining_append_bytes < (4 * MIB) as u64);
+    let mut tx = db.begin();
+    tx.put(db.collection_id(3), b"image-limit", &value).unwrap();
+    let now = Instant::now();
+    assert_eq!(tx.commit(), Err(Error::Limit));
+    let elapsed = now.elapsed().as_nanos();
+    drop(tx);
+    drop(value);
+    assert_eq!(db.storage_space().unwrap(), before);
+    event(
+        "image_limit_rejected",
+        db,
+        revision,
+        seq,
+        false,
+        elapsed,
+        "{\"error\":\"Limit\",\"new_payload_bytes\":4194304}",
+        true,
+    );
+}
+
 fn native(dir: &Path) {
     fs::create_dir(dir).unwrap();
     let path = dir.join("source.wdb");
@@ -408,33 +444,8 @@ fn native(dir: &Path) {
     let db = Database::open_file(&path, limits(CORE)).unwrap();
     event("fixture", &db, FIXTURE, 0, false, 0, "{}", true);
     pressure(&db);
-    contended(&db);
-    let mut value = db.list().unwrap();
-    for key in 0..4 {
-        value = value
-            .list_push(&db.bytes(&payload(9000 + key, MIB)).unwrap())
-            .unwrap();
-    }
-    let before = db.storage_space().unwrap();
-    assert!(before.remaining_append_bytes < (4 * MIB) as u64);
-    let mut tx = db.begin();
-    tx.put(db.collection_id(3), b"image-limit", &value).unwrap();
-    let now = Instant::now();
-    assert_eq!(tx.commit(), Err(Error::Limit));
-    let elapsed = now.elapsed().as_nanos();
-    drop(tx);
-    drop(value);
-    assert_eq!(db.storage_space().unwrap(), before);
-    event(
-        "image_limit_rejected",
-        &db,
-        FINAL,
-        ROUNDS,
-        false,
-        elapsed,
-        "{\"error\":\"Limit\",\"new_payload_bytes\":4194304}",
-        true,
-    );
+    contended(&db, 0);
+    reject_large_commit(&db, FINAL, ROUNDS);
     drop(db);
     let now = Instant::now();
     let db = Database::open_file(&path, limits(CORE)).unwrap();
@@ -502,6 +513,91 @@ fn native(dir: &Path) {
     }
     complete("native");
 }
+
+fn cycles(dir: &Path, seed: &Path) {
+    fs::create_dir(dir).unwrap();
+    let source = dir.join("cycles.wdb");
+    fs::copy(seed, &source).unwrap();
+    let rejected = dir.join("rejected.wdb");
+    let backup = dir.join("backup.wdb");
+    let restored = dir.join("restored.wdb");
+    let copy_limits = limits(256 * MIB);
+    for cycle in 0..CYCLES {
+        let previous = FINAL + cycle * (WRITERS as u64 * ROUNDS);
+        let start_seq = (cycle + 1) * ROUNDS;
+        let revision = previous + WRITERS as u64 * ROUNDS;
+        let seq = start_seq + ROUNDS;
+        let now = Instant::now();
+        let db = Database::open_file(&source, limits(CORE)).unwrap();
+        event(
+            "cycle_open",
+            &db,
+            previous,
+            start_seq,
+            false,
+            now.elapsed().as_nanos(),
+            &format!("{{\"cycle\":{}}}", cycle + 1),
+            true,
+        );
+        contended(&db, start_seq);
+        reject_large_commit(&db, revision, seq);
+        drop(db);
+
+        let original = fs::read(&source).unwrap();
+        let now = Instant::now();
+        assert_eq!(
+            storage::backup_file(&source, &rejected, limits(CORE)),
+            Err(Error::Limit)
+        );
+        let rejected_ns = now.elapsed().as_nanos();
+        assert_eq!(fs::metadata(&rejected).unwrap().len(), 0);
+        assert_eq!(fs::read(&source).unwrap(), original);
+        drop(original);
+        let db = Database::open_file(&source, limits(CORE)).unwrap();
+        event(
+            "cycle_backup_rejected",
+            &db,
+            revision,
+            seq,
+            false,
+            rejected_ns,
+            "{\"copy_budget\":100663296,\"error\":\"Limit\"}",
+            true,
+        );
+        drop(db);
+        fs::remove_file(&rejected).unwrap();
+
+        for (phase, path) in [
+            ("cycle_backup", &backup),
+            ("cycle_restore", &restored),
+            ("cycle_compact", &source),
+        ] {
+            let now = Instant::now();
+            match phase {
+                "cycle_backup" => storage::backup_file(&source, path, copy_limits).unwrap(),
+                "cycle_restore" => storage::restore_file(&backup, path, copy_limits).unwrap(),
+                _ => Database::compact_file(path, copy_limits).unwrap(),
+            };
+            let elapsed = now.elapsed().as_nanos();
+            let db = Database::open_file(path, limits(CORE)).unwrap();
+            event(
+                phase,
+                &db,
+                revision,
+                seq,
+                false,
+                elapsed,
+                "{\"copy_budget\":268435456}",
+                true,
+            );
+        }
+        fs::remove_file(&backup).unwrap();
+        fs::remove_file(&restored).unwrap();
+    }
+    assert_eq!(fs::read_dir(dir).unwrap().count(), 1);
+    complete("cycles");
+}
+
 fn probe(db: &Database) -> weekend_db::Transaction<'_> {
     let mut tx = db.begin();
     tx.put(db.collection_id(3), &[0], &row(db, 0, ROUNDS + 1))
@@ -695,6 +791,10 @@ fn main() {
             return;
         }
         match args[3].to_str().unwrap() {
+            "cycles" => {
+                cycles(dir, source);
+                return;
+            }
             "maintenance-copy" => {
                 resilience::maintenance(dir, source, false);
                 return;
