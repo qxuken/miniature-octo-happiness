@@ -1972,3 +1972,15 @@ each partial present made retry succeed. The good backup stayed at 212 and
 the advanced source reopened at 213, both with all 64 retained roots.
 The audit verified the exact fixture, inputs, process identities and
 VHD cleanup. Linux quota and macOS disk exhaustion regressions also passed.
+
+## Global ext4 inode exhaustion during maintenance creation
+
+At `6a8bd8e`, the [global inode profile](maintenance-space-exhaustion.md#recorded-native-global-inode-exhaustion-result)
+passed on hosted Ubuntu x64 and Docker Linux arm64. Backup, restore and
+in-place compaction returned `ENOSPC` at creation while zero inodes and
+352,387,072 data bytes were available. No partial output appeared.
+Both images reopened at revision 212 with all 64 retained roots.
+Freeing one inode permitted byte-identical retries. The source later
+reopened at 213 with the same retained roots. The audit checked the exact
+fixture, source archive, final images and cleanup. This extends F10 to
+real global inode exhaustion at creation on ext4.

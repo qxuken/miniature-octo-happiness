@@ -247,6 +247,61 @@ each in debug and release. Local proofs are under
 | Backup at revision 212 | `5dde4f8628feda0cdc422362b9f92dcaf4c3f0bebdc5c533e7ccbb022df8c11e` |
 | Independent audit | `c8af1e112a3a9ef2619f3632e023436948550fb2d2e600fa5c7b831fa91970cb` |
 
+## Recorded native global inode exhaustion result
+
+The `quota --maintenance --inode-enospc` profile formats a private 512 MiB
+ext4 loop image with 128 inodes and quotas disabled. It uses the same build
+and source-binding procedure as the inode-quota profile above. Replace
+`--inode-quota` with `--inode-enospc` and choose a fresh output directory.
+The formatter sets the inode count explicitly. [e2fsprogs mke2fs manual](https://kernel.googlesource.com/pub/scm/fs/ext2/e2fsprogs/%2B/29cebc07bd8fa5ec30f75269183b1130861f3acc/misc/mke2fs.8.in)
+
+An unprivileged guest allocated the 113 remaining inodes in an owned sibling
+directory, leaving the database directory alone. It required a fresh creation
+to return Linux `ENOSPC` (28) and fsynced 4 KiB on an existing inode while
+global free inodes were zero. All three maintenance operations returned
+`Io / DiskFull / Create` without leaving a partial file. Directory entries
+and the bytes of both input files stayed unchanged. Separate processes verified
+revision 212 and all 64 retained roots for both images while free inodes
+remained at zero.
+
+Removing one owned ballast file left exactly one free inode. A same-UID
+control created and fsynced 4 KiB, then removed its file. Each maintenance
+retry used the available inode and produced the exact verified backup bytes,
+including the in-place replacement from compaction. The run reestablished
+zero free inodes before each subsequent fault. The final source reopened
+at revision 213 and the backup at 212, both with retained IDs 1 through 64
+covering revisions 53 through 179. This qualifies creation-time exhaustion
+on the tested ext4 profiles. Native failures during later namespace
+operations and physical power loss remain separate gates.
+
+The [hosted Ubuntu 24.04 x64 job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43749868875/job/132921247478)
+passed with Rust 1.99.1 at PR head `6a8bd8e` and tested merge
+`50a9fcc724207c40b83b2dc86c9f9632fb376285`. Docker Linux arm64/ext4 with
+Rust 1.99.0 passed at source `6a8bd8e356dfb7cd6171c2c95d9eaf804fb30951`.
+Both observed 389,963,776 bytes globally free and 352,387,072 bytes
+available at creation failure. Both retired the owned loop and mount.
+The hosted append and maintenance block-quota and inode-quota controls
+also passed. The Docker controller passed 21 quota tests and strict Clippy
+passed for the controller and near-cap fixture.
+
+The independent hosted audit matched 691 source files against the exact Git
+archive, verified 192 payload hashes and 63 command cleanup records, and
+recomputed the current and retained data digests for all 30 maintenance phase
+records. Read-only admin checks on the uploaded images confirmed both
+witnessed revisions and every retained ID and revision. Both image hashes
+matched before and after inspection. Local evidence is under
+`target/inode-enospc-build/`.
+
+| Evidence | SHA-256 |
+|---|---|
+| Hosted ZIP | `d7dfab69f71a6d29b3d34737d6c4d67567e9dcdc0d837c4371dc58b815a68aff` |
+| Hosted controller evidence | `44dd5483cb8b3bd2bf26a083929641eb0ba89c09a57e04507672875c54217b3f` |
+| Exact uploaded fixture | `ccc2558f1bacac51fee281b659a263bbeab4484f88aa23defafcad2dc90c920f` |
+| Advanced source at revision 213 | `6d3e46245c1d9c0664e083813eb6a8e27a7382b0c275f185dc94ebe177c3f7fa` |
+| Backup at revision 212 | `0606b5d2c21c82bef96eced555e498a1125c06d5ccdd853326ddc5b4a208289b` |
+| Hosted independent audit | `e445c334aadcc970cd3d48599cfc01d45437824ca0d6270ca3a925d350da2d2d` |
+| Docker Linux controller evidence | `0c525d81e79201fb3ee862c5ed2f00fd04364af8b0c8f8c9d1dc346485709758` |
+
 ## Native Windows near-cap copy profile
 
 Run from an elevated native x64 Windows session on fixed NTFS. The Windows
