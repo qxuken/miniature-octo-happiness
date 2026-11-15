@@ -624,15 +624,29 @@ fn admission(root: &Path, output: &Path) -> Result<std::path::PathBuf> {
     crate::notices::resolve(&output)
 }
 pub fn run(run: &mut crate::support::Run, opts: Options) -> Result<()> {
-    qualify(run, opts, false)
+    qualify(run, opts, Campaign::State)
 }
 
 #[cfg(windows)]
 pub fn run_faults(run: &mut crate::support::Run, opts: Options) -> Result<()> {
-    qualify(run, opts, true)
+    qualify(run, opts, Campaign::InjectedFaults)
 }
 
-fn qualify(run: &mut crate::support::Run, opts: Options, publication_errors: bool) -> Result<()> {
+#[cfg(windows)]
+pub fn run_disk_full(run: &mut crate::support::Run, opts: Options) -> Result<()> {
+    qualify(run, opts, Campaign::DiskFull)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Campaign {
+    State,
+    #[cfg(windows)]
+    InjectedFaults,
+    #[cfg(windows)]
+    DiskFull,
+}
+
+fn qualify(run: &mut crate::support::Run, opts: Options, campaign: Campaign) -> Result<()> {
     let output = admission(&run.root, &opts.output)?;
     let requested = if opts.package.is_absolute() {
         opts.package.clone()
@@ -641,7 +655,7 @@ fn qualify(run: &mut crate::support::Run, opts: Options, publication_errors: boo
     };
     let (info, bits) = verified(&requested, &opts.manifest_sha256)?;
     ensure!(
-        !publication_errors || bits == 3,
+        campaign == Campaign::State || bits == 3,
         "combined native package required"
     );
     let package = dunce::canonicalize(&requested)?;
@@ -663,7 +677,7 @@ fn qualify(run: &mut crate::support::Run, opts: Options, publication_errors: boo
             &opts.manifest_sha256,
             info,
             bits,
-            publication_errors,
+            campaign,
         )
     }
 }
@@ -675,7 +689,7 @@ fn write_proof(root: &Path, proof: &Value) -> Result<()> {
     Ok(())
 }
 #[cfg(windows)]
-fn call(
+pub(super) fn call(
     proof: &mut Value,
     output: &Path,
     argv: Vec<OsString>,
@@ -703,6 +717,7 @@ fn inputs(root: &Path) -> Result<BTreeMap<String, String>> {
         "xtask/src/main.rs",
         "xtask/src/windows_trace.rs",
         "xtask/src/windows_faults.rs",
+        "xtask/src/windows_volume.rs",
         "xtask/src/windows_process.rs",
         "xtask/src/trace_process.rs",
         "xtask/src/trace_model.rs",
@@ -744,15 +759,21 @@ fn native(
     pin: &str,
     info: Value,
     features: u32,
-    publication_errors: bool,
+    campaign: Campaign,
 ) -> Result<()> {
     fs::create_dir_all(output.parent().context("output parent")?)?;
     fs::create_dir(output)?;
     let before = inputs(&run.root)?;
-    let scope = if publication_errors {
-        "Delivered Windows x64 C publication errors and fresh-process recovery"
-    } else {
-        "Delivered Windows x64 C/C++ finite state trace; not full API, MC/DC or power loss"
+    let scope = match campaign {
+        Campaign::State => {
+            "Delivered Windows x64 C/C++ finite state trace; not full API, MC/DC or power loss"
+        }
+        Campaign::InjectedFaults => {
+            "Delivered Windows x64 C publication errors and fresh-process recovery"
+        }
+        Campaign::DiskFull => {
+            "Delivered Windows x64 C publication and recovery on a full private fixed NTFS virtual disk"
+        }
     };
     let mut proof = json!({"verified":false,"native_windows_verified":false,"scope":scope,"engine_source_id":info["source_id"],"features":features,"manifest_sha256":pin,"commands":[],"source_before":before,"runner_sha256":sha(&std::env::current_exe()?)?});
     write_proof(output, &proof)?;
@@ -831,7 +852,7 @@ fn native(
             "PATH".into(),
             std::env::join_paths([system.join("System32"), system])?,
         );
-        if publication_errors {
+        if campaign != Campaign::State {
             let driver = run.root.join("tools/delivered-faults");
             fs::copy(driver.join("consumer.c"), input.join("fault_consumer.c"))?;
             fs::copy(
@@ -849,6 +870,7 @@ fn native(
                     runtime: &runtime,
                 },
                 text(&info["source_id"])?,
+                campaign == Campaign::DiskFull,
             )?;
             verified(package, pin)?;
             verified(&relocated, pin)?;
@@ -1004,10 +1026,14 @@ fn native(
     }
     write_proof(output, &proof)?;
     result?;
-    let outcomes = if publication_errors {
-        json!({"cases":6,"disabled_injection_control":true,"dll_sha256":proof["dll_sha256"]})
-    } else {
-        json!({"cases":20,"cells":134,"dll_sha256":proof["c"]["dll_sha256"]})
+    let outcomes = match campaign {
+        Campaign::State => json!({"cases":20,"cells":134,"dll_sha256":proof["c"]["dll_sha256"]}),
+        Campaign::InjectedFaults => {
+            json!({"cases":6,"disabled_injection_control":true,"dll_sha256":proof["dll_sha256"]})
+        }
+        Campaign::DiskFull => {
+            json!({"cases":1,"dll_sha256":proof["dll_sha256"],"disk_full":proof["disk_full"],"volume_cleanup":proof["volume_cleanup"]})
+        }
     };
     let mut summary = json!({"verified":true,"output":output,"source_id":info["source_id"],
         "manifest_sha256":pin,"evidence_sha256":sha(&output.join("evidence.json"))?});

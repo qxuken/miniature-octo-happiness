@@ -241,3 +241,35 @@ The initial hosted run at `86ff6c6` stopped during compilation when MSVC
 `/W4 /WX` rejected shadowed fixture variables. `47915ea` corrected the
 names while preserving the compiler flags and the fault oracle.
 [Initial compiler evidence](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43722762171/artifacts/14165555158)
+
+## Actual NTFS disk exhaustion
+
+Run from an elevated x64 Windows session with the Windows Virtual Disk
+provider and DiskPart. Use a verified combined-feature package and a new
+evidence directory on fixed NTFS.
+
+```powershell
+$pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+cargo xtask windows-disk-full --package target/private-package --manifest-sha256 $pin --output target/windows-disk-full
+```
+
+The controller creates a fixed 64 MiB VHD in the evidence directory. It
+holds the attachment handle while DiskPart partitions and formats the disk
+number obtained from that handle. Before allocating ballast, it verifies
+that the new drive has one extent on the owned VHD and uses 4 KiB NTFS
+allocation units. The DLL, the executable and the logs stay on the host
+volume. The controller verifies detach, drive-letter disappearance and VHD
+file removal before marking the run successful.
+[Windows virtual disk attachment](https://learn.microsoft.com/en-us/windows/win32/api/virtdisk/ne-virtdisk-attach_virtual_disk_flag)
+· [Volume extent verification](https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_volume_get_volume_disk_extents)
+
+| Phase | Required observation |
+|---|---|
+| Exhaustion and commit | The volume rejects a 4 KiB ballast write. The DLL's positional append receives `STATUS_DISK_FULL` from NTFS. The C API reports `IO`, clears the output revision, and keeps live revision 3 with retained revision 2. The hook only observes the native return. |
+| Reopen with the ballast in place | A second process opens revision 3 and checks every current and retained payload byte. The database hash stays fixed and no allocation unit becomes free. |
+| Free space and retry | The controller deletes the ballast. A third process finds request 42 absent, retries once, and reopens revision 4 with the complete request and retained revision 2. |
+
+The Windows CI job archives both the independent process attestations and
+the volume cleanup result. Native execution is pending. The scope is the
+append failure on a bounded NTFS virtual volume. NTFS quota, maintenance
+exhaustion and physical power interruption retain their own gates.

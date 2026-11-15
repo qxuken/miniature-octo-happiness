@@ -23,7 +23,7 @@
 #elif defined(__APPLE__)
 #define LAST_MODE 4
 #elif defined(_WIN32)
-#define LAST_MODE 5
+#define LAST_MODE 6
 #else
 #error unsupported delivered fault fixture host
 #endif
@@ -107,8 +107,10 @@ int main(int argc,char **argv) {
     assert(setrlimit(RLIMIT_CORE, &no_core) == 0);
 #endif
     assert(argc==4 || argc==5);int recovering=argc==5;
-    if(recovering)assert(!strcmp(argv[1],"recover"));
+    int verify_only=recovering && !strcmp(argv[1],"full");
+    if(recovering)assert(verify_only || !strcmp(argv[1],"recover"));
     int mode=atoi(recovering?argv[4]:argv[1]);assert(mode>=0 && mode<=LAST_MODE);
+    assert(!verify_only || mode==6);
     if(!recovering) {
 #if defined(_WIN32)
         arm=windows_arm;
@@ -131,6 +133,11 @@ int main(int argc,char **argv) {
         OK(wdb_file_open((const uint8_t*)path,strlen(path),&reopened));
         int published=mode==0 || mode==2 || mode==3;
         verify(reopened,published?4:3,published);
+        if(verify_only) {
+            OK(wdb_close(reopened));
+            printf("{\"mode\":6,\"reopened\":3,\"retained_revision\":2,\"verified\":true}\n");
+            return 0;
+        }
         if(!published) {
             candidate(reopened,&retry);OK(wdb_tx_commit(retry,&revision));
             assert(revision==4);OK(wdb_tx_release(retry));
@@ -161,17 +168,18 @@ int main(int argc,char **argv) {
     char other[1024];assert(snprintf(other,sizeof other,"%s/unrelated",argv[2])>0);
 #if defined(_WIN32)
     windows_probe_unrelated(other);
+    if(mode==6)windows_fill(argv[2]);
 #else
     if(mode!=5) {int fd=open(other,O_WRONLY|O_CREAT|O_EXCL,0600);assert(fd>=0);assert(fsync(fd)==0);assert(close(fd)==0);}
 #endif
     assert(fault_count(1)==0 && fault_count(0)==0);
     revision=UINT64_C(0xdeadbeefcafebabe);int status=wdb_tx_commit(tx,&revision);
-    int expected=mode==0?WDB_OK:(mode==1 || mode==5?WDB_IO:WDB_OUTCOME_UNKNOWN);
+    int expected=mode==0?WDB_OK:(mode==1 || mode>=5?WDB_IO:WDB_OUTCOME_UNKNOWN);
     assert(status==expected && revision==(mode==0?4u:0u));
     int hits=fault_count(0),syncs=fault_count(1),roots=fault_count(2),witnesses=fault_count(3),native_error=fault_count(5);
 #if defined(_WIN32)
-    assert(hits==(mode!=0));
-    assert(native_error==(mode==0?0:(mode==5?ERROR_DISK_FULL:ERROR_IO_DEVICE)));
+    assert(hits==(mode>0 && mode<6));
+    assert(native_error==(mode==0?0:(mode>=5?ERROR_DISK_FULL:ERROR_IO_DEVICE)));
 #else
     assert(hits==((mode>=1 && mode<=4)?1:0));
 #endif
@@ -179,7 +187,7 @@ int main(int argc,char **argv) {
     if(mode==0)assert(syncs==3 && roots==1 && witnesses==1);
     if(mode>=1 && mode<=3)assert(syncs==mode && roots==(mode>=2) && witnesses==(mode>=3));
     if(mode==4)assert(syncs==1 && roots==1 && witnesses==0);
-    if(mode==5)assert(syncs==0 && roots==0 && witnesses==0);
+    if(mode>=5)assert(syncs==0 && roots==0 && witnesses==0);
 #if defined(__linux__)
     if(mode==5)assert(native_error==ENOSPC);
 #endif

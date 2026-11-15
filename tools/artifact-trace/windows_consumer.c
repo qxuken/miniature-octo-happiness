@@ -155,7 +155,10 @@ int wmain(int argc, wchar_t **wide_argv) {
     attest(wide_argv[6], "before", loaded, before, argv[3]);
 #if defined(WDB_WINDOWS_FAULTS)
     int result;
-    if (strncmp(argv[1], "recover-", 8) == 0) {
+    if (strcmp(argv[1], "verify-full") == 0) {
+        char *recovery[] = {argv[0], "full", argv[2], argv[3], "6"};
+        result = fault_main(5, recovery);
+    } else if (strncmp(argv[1], "recover-", 8) == 0) {
         char *recovery[] = {argv[0], "recover", argv[2], argv[3], argv[1] + 8};
         result = fault_main(5, recovery);
     } else {

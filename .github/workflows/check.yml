@@ -39,6 +39,22 @@ jobs:
           name: weekend-db-windows-faults-${{ runner.arch }}
           if-no-files-found: warn
           path: target/private-windows-faults/
+      - name: Verify real NTFS disk exhaustion and recovery against the exact DLL
+        if: runner.os == 'Windows'
+        id: delivered_windows_disk_full
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          cargo xtask windows-disk-full --package target/private-package --manifest-sha256 $pin --output target/private-windows-disk-full
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows NTFS exhaustion evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-disk-full-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-windows-disk-full/
       - name: Release configuration validation
         run: |
           cargo test --offline --locked -p xtask --bin xtask
@@ -85,8 +101,8 @@ jobs:
             target/release/*.dll
             target/release/*.dll.lib
             include/weekend_db.h
-      - name: Enforce the Windows exact-DLL fault result
-        if: always() && runner.os == 'Windows' && steps.delivered_windows_faults.outcome == 'failure'
+      - name: Enforce the Windows exact-DLL fault and disk exhaustion results
+        if: always() && runner.os == 'Windows' && (steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure')
         shell: pwsh
         run: exit 1
   helper-controls:

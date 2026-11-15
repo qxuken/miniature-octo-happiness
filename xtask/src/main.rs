@@ -84,6 +84,8 @@ mod trace_process;
 mod windows_process;
 #[cfg(any(windows, test))]
 mod windows_trace;
+#[cfg(windows)]
+mod windows_volume;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
@@ -161,6 +163,9 @@ enum Task {
     /// Verify publication errors and fresh recovery using the exact Windows DLL.
     #[cfg(windows)]
     WindowsFaults(windows_trace::Options),
+    /// Verify real NTFS exhaustion and fresh recovery using the exact Windows DLL.
+    #[cfg(windows)]
+    WindowsDiskFull(windows_trace::Options),
     /// Compare delivered Rust/C/Odin consumers with the independent operation model.
     #[cfg(unix)]
     ArtifactTrace(artifact_trace::Options),
@@ -346,6 +351,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::WindowsTrace(options) => windows_trace::run(&mut run, options),
         #[cfg(windows)]
         Task::WindowsFaults(options) => windows_trace::run_faults(&mut run, options),
+        #[cfg(windows)]
+        Task::WindowsDiskFull(options) => windows_trace::run_disk_full(&mut run, options),
         #[cfg(unix)]
         Task::Faults { task } => faults::run(&run, task),
         #[cfg(unix)]

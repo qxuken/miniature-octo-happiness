@@ -122,6 +122,11 @@ static NTSTATUS NTAPI observed_write(HANDLE handle, HANDLE event, PIO_APC_ROUTIN
             io->Information = 0;
             return io->Status;
         }
+        if (selected == 6) {
+            NTSTATUS actual = real_write(handle, event, apc, context, io, bytes, length, offset, key);
+            if (actual == (NTSTATUS)0xc000007fu) observations.win_error = ERROR_DISK_FULL;
+            return actual;
+        }
     }
     return real_write(handle, event, apc, context, io, bytes, length, offset, key);
 }
@@ -186,5 +191,41 @@ static void windows_probe_unrelated(const char *path) {
     free(name);
     assert(file != INVALID_HANDLE_VALUE);
     assert(observed_flush(file));
+    assert(CloseHandle(file));
+}
+
+static void windows_fill(const char *directory) {
+    const size_t limit = 64u * 1024u * 1024u;
+    wchar_t *dir = wide(directory);
+    ULARGE_INTEGER available, total, free_space;
+    assert(GetDiskFreeSpaceExW(dir, &available, &total, &free_space));
+    free(dir);
+    assert(total.QuadPart >= limit / 2 && total.QuadPart <= limit);
+    assert(available.QuadPart == free_space.QuadPart && available.QuadPart > limit / 2);
+
+    char path[1024];
+    assert(snprintf(path, sizeof path, "%s/ballast", directory) > 0);
+    wchar_t *name = wide(path);
+    HANDLE file = CreateFileW(name, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    free(name);
+    assert(file != INVALID_HANDLE_VALUE);
+    uint8_t block[65536];
+    memset(block, 0x5a, sizeof block);
+    size_t filled = 0;
+    DWORD request = sizeof block;
+    for (;;) {
+        DWORD written = 0;
+        assert(filled + request <= limit);
+        if (WriteFile(file, block, request, &written, NULL)) {
+            assert(written == request);
+            filled += written;
+        } else {
+            assert(GetLastError() == ERROR_DISK_FULL && written == 0);
+            if (request == 4096) break;
+            request = 4096;
+        }
+    }
+    assert(filled > limit / 2);
+    assert(FlushFileBuffers(file));
     assert(CloseHandle(file));
 }
