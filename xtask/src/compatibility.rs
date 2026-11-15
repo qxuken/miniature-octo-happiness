@@ -210,6 +210,32 @@ fn build_endpoint(
     c.evidence["sources"][name] = json!(commit);
     let manifest = source.join("Cargo.toml");
     let lock = source.join("Cargo.lock");
+    let original_lock = c.command(
+        cmd([
+            "git",
+            "rev-parse",
+            "--verify",
+            &format!("{commit}:Cargo.lock"),
+        ]),
+        &format!("{name}-lock-object"),
+        None,
+        30.,
+    )?;
+    let archived_lock = c.command(
+        vec![
+            "git".into(),
+            "hash-object".into(),
+            "--no-filters".into(),
+            path(&lock),
+        ],
+        &format!("{name}-lock-bytes"),
+        None,
+        30.,
+    )?;
+    ensure!(
+        archived_lock == original_lock,
+        "archived lock differs from committed bytes"
+    );
     let manifest_hash = sha(&manifest)?;
     let lock_hash = sha(&lock)?;
     fs::copy(&lock, c.output.join(format!("{name}-Cargo.lock")))?;
@@ -266,6 +292,7 @@ fn build_endpoint(
     c.evidence["builds"][name] = json!({
         "archive_sha256":archive, "original_manifest_sha256":manifest_hash,
         "overlaid_manifest_sha256":sha(&manifest)?, "original_lock_sha256":lock_hash,
+        "original_lock_object":original_lock,
         "binary_sha256":binary_sha256,"identity_binary_sha256":identity_sha256,
         "runtime_identity":identity,"identity_fixture_sha256":sha(&source.join("tools/qualification-identity.rs"))?,
         "source_sha256":sources,"source_directory":source,

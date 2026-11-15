@@ -56,9 +56,14 @@ pub fn revision(
         (output.join("source.tar"), output.join("source"))
     };
     fs::create_dir(&source)?;
+    // Git applies checkout line-ending settings when it writes an archive.
     command(
         vec![
             "git".into(),
+            "-c".into(),
+            "core.autocrlf=false".into(),
+            "-c".into(),
+            "core.eol=lf".into(),
             "archive".into(),
             "--format=tar".into(),
             "--output".into(),
