@@ -167,15 +167,20 @@ Single maintenance samples per round, in execution-round order:
 
 ## Reproduction and binding
 
-Use the README command with a new output path; existing files, directories and
+Use the [maintained Rust runbook](../tools/sqlite-baseline/README.md) with a new
+output path. Existing files, directories and
 dangling symlinks are rejected before any SQLite open. Invalid workload bounds
 reject before creating output. Existing backup destinations are never overwritten.
 Failed runs leave their newly created private output directory for inspection.
-The five Python tests exercise these rejection/no-write cases, a historical
+The original five Python tests exercised these rejection/no-write cases, a historical
 GC/VACUUM/reopen/backup/restore oracle with uneven key cycles, and negative
 controls for malformed short/extended keys, corrupted payloads and a wrong
 retained epoch. All five passed both normally and under Python `-O`;
-strict offline/locked Clippy passed for the isolated Rust harness.
+strict offline/locked Clippy passed for the isolated Rust harness. The current
+xtask controller and SQLite worker tests preserve all five controls.
+
+### Historical run provenance
+
 Production checks use explicit failures, so optimization cannot remove either
 the oracle checks or PRAGMA/checkpoint side effects. Independent review found
 and closed the malformed-key normalization gap before the final run: the SQLite

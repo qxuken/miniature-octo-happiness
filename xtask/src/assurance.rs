@@ -2,7 +2,7 @@
 //! process retirement and a specific stderr diagnostic, never just a nonzero exit.
 use crate::{
     supervise::{self, Request},
-    support::{Run, cmd, sha},
+    support::{Run, cmd, path, sha},
 };
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
@@ -41,6 +41,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "tools/atomic-model",
         "tools/serialization-scale",
         "tools/resource-envelope",
+        "tools/sqlite-baseline",
     ] {
         walk(root, &root.join(name), &mut out, false)?;
     }
@@ -111,6 +112,16 @@ pub fn fresh(root: &Path, path: &Path) -> Result<PathBuf> {
     fs::create_dir_all(path.parent().context("output parent")?)?;
     fs::create_dir(&path).with_context(|| format!("new evidence directory {}", path.display()))?;
     Ok(dunce::canonicalize(path)?)
+}
+pub fn fresh_output(root: &Path, path: &Path) -> Result<PathBuf> {
+    let output = absolute(root, path);
+    ensure!(
+        fs::symlink_metadata(&output)
+            .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+            && output.parent().is_some_and(Path::is_dir),
+        "fresh output with existing parent required"
+    );
+    crate::notices::resolve(&output)
 }
 pub struct Campaign<'a> {
     pub run: &'a Run,
@@ -335,6 +346,69 @@ pub fn host(version: &str) -> Result<&str> {
         .filter(|s| !s.is_empty())
         .context("rustc host missing")
 }
+pub fn archive_source(c: &mut Campaign<'_>, reference: &str) -> Result<(String, PathBuf)> {
+    let revision = c.command(
+        vec![
+            "git".into(),
+            "rev-parse".into(),
+            "--verify".into(),
+            "--end-of-options".into(),
+            format!("{reference}^{{commit}}").into(),
+        ],
+        "engine-revision",
+        None,
+        30.,
+    )?;
+    ensure!(
+        revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()),
+        "invalid engine revision"
+    );
+    let files = c.command(
+        cmd(["git", "ls-tree", "-r", &revision]),
+        "engine-files",
+        None,
+        30.,
+    )?;
+    ensure!(
+        !files.is_empty()
+            && files
+                .lines()
+                .all(|l| l.starts_with("100644 blob ") || l.starts_with("100755 blob ")),
+        "nonregular engine archive input"
+    );
+    let tar = c.output.join("source.tar");
+    let source = c.output.join("source");
+    fs::create_dir(&source)?;
+    c.command(
+        vec![
+            "git".into(),
+            "archive".into(),
+            "--format=tar".into(),
+            "--output".into(),
+            path(&tar),
+            revision.clone().into(),
+        ],
+        "engine-archive",
+        None,
+        30.,
+    )?;
+    c.command(
+        vec![
+            "tar".into(),
+            "-xf".into(),
+            path(&tar),
+            "-C".into(),
+            path(&source),
+        ],
+        "extract-source",
+        None,
+        30.,
+    )?;
+    c.evidence["engine_revision"] = json!(revision);
+    c.evidence["archive_sha256"] = json!(sha(&tar)?);
+    Ok((revision, source))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -613,3 +613,41 @@ macOS passed all 137 xtask tests in both debug and release. Strict Clippy passed
 on macOS and the x86-64 Linux and MSVC cross targets. The residual helper suite
 passed 132 checks with two registered skips across 16 workers. Its evidence
 SHA-256 is `81810801755892c7226304c7a3e9472ccfb91ecc3f01d379b49246b5898adba0`.
+
+## SQLite retained-history comparison
+
+`cargo xtask sqlite-baseline` builds two release workers from a frozen engine
+archive and separately hashed private fixtures. The SQLite worker links to the
+native library through the locked, opt-in `rusqlite` dependency. The main
+workspace and delivered engine packages have no new SQLite dependency. The
+controller checks the reported PRAGMAs, checkpoints and sample counts, compares
+each engine against independent forward replay, and records the actual SQLite
+runtime identity and linkage.
+
+Both macOS and isolated Docker Linux passed the three default rounds against
+`2490631dab43678279f8ba2c56458c8ea908c1b4`. The engine archive kept its original
+SHA-256 `8060e8e4178b2aa34459b05df8a722f7af977b7fb2d4f8d0d2649b8f7c4fba8d`.
+Each engine and each round matched the original digest `14964336404429242912`.
+Each SQLite round reduced 288 version rows to 128 and verified a completed
+truncate checkpoint. Current and all four retained states survived reopen,
+backup, restore and compaction. macOS loaded system SQLite 3.54.0 and Linux
+loaded SQLite 3.40.1. Their timing samples reflect the Rust worker and the
+recorded runtime.
+
+- macOS controller evidence SHA-256 `347130fd4e83be019b081f72c775ae694be22fb1e0416f730dde773c2ddc3d0f`.
+- Docker Linux controller evidence SHA-256 `04f7e6f2392ba966ee1a42cb8620abb2975bc2f0346f933b7c844fbf4e39303b`.
+
+All five retired controls map to the controller and the isolated comparator's
+libtest. CI tests the comparator in both debug and release on macOS and Linux.
+The standalone lockfile passed an offline check against 1,509 RustSec
+advisories at `4ef2df8e806a65e2f1ecc14f56f51249062b23d6`, with no warnings
+reported. That check excludes registry yanks and the native SQLite library.
+The conversion now accounts for **117/179** legacy controls and **18** Python
+files. [SQLite runbook](../tools/sqlite-baseline/README.md)
+
+On macOS, all 140 xtask tests and four comparator tests passed in both profiles.
+Docker Linux passed the focused controller and comparator tests. Strict Clippy
+passed for the comparator and for xtask on macOS, Linux x86-64 and MSVC cross
+targets. The residual suite passed 122 checks with two registered skips across
+14 workers. Its evidence SHA-256 is
+`2e17e593d366540267e7e7f99c51c332348a1739d6dae99ad7a61dd3a611611d`.

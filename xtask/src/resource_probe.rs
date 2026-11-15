@@ -1,7 +1,7 @@
 //! Disposable instrumentation of allocation and cache work on frozen copies.
 use crate::{
     artifact_trace::{copy_tree, inventory},
-    assurance::Campaign,
+    assurance::{self, Campaign},
     delivery,
     resource_campaign::{self, Profile},
     resource_oracle::{self, MIB},
@@ -330,7 +330,7 @@ fn compare_runs(measured: &Value, reference: &Value) -> Result<()> {
     Ok(())
 }
 pub fn run(run: &Run, opts: Options) -> Result<()> {
-    let output = resource_campaign::fresh_path(&run.root, &opts.output)?;
+    let output = assurance::fresh_output(&run.root, &opts.output)?;
     let source = dunce::canonicalize(&opts.source)?;
     ensure!(
         !output.starts_with(&source) && !source.starts_with(&output),

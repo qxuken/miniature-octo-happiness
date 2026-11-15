@@ -87,6 +87,16 @@ jobs:
           cargo fetch --locked
           cargo test --offline --locked -p xtask --target-dir target/xtask
           cargo xtask --help
+      - name: Test the private SQLite comparator
+        run: |
+          if [ "$RUNNER_OS" = Linux ] && ! pkg-config --exists sqlite3; then
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends libsqlite3-dev pkg-config
+          fi
+          manifest=tools/sqlite-baseline/Cargo.toml
+          cargo fetch --locked --manifest-path "$manifest"
+          cargo test --offline --locked --manifest-path "$manifest" --no-default-features --features sqlite-comparator --bin sqlite-comparator
+          cargo test --offline --locked --release --manifest-path "$manifest" --no-default-features --features sqlite-comparator --bin sqlite-comparator
       - name: Run all registered helper controls normally and under Python -O
         run: mise exec python@3.14.8 -- python tools/check_helpers.py --output target/helper-controls
       - name: Save private helper-control evidence

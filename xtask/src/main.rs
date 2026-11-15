@@ -52,6 +52,8 @@ mod sanitizers;
 #[cfg(unix)]
 mod serialization_scale;
 #[cfg(unix)]
+mod sqlite_baseline;
+#[cfg(unix)]
 mod supervise;
 mod support;
 mod toolchain;
@@ -82,6 +84,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Compare an archived engine with SQLite using a bounded history workload.
+    #[cfg(unix)]
+    SqliteBaseline(sqlite_baseline::Options),
     /// Qualify bounded resource and compound workloads on a frozen engine.
     #[cfg(unix)]
     Resource(resource_campaign::Options),
@@ -234,6 +239,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::SqliteBaseline(options) => sqlite_baseline::run(&run, options),
         #[cfg(unix)]
         Task::ResourceProbe(options) => resource_probe::run(&run, options),
         #[cfg(unix)]

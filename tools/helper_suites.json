@@ -2,10 +2,6 @@
   "version": 1,
   "suites": [
     {
-      "path": "sqlite-baseline/test_runner.py",
-      "allowed_skips": []
-    },
-    {
       "path": "test_check_helpers.py",
       "allowed_skips": []
     },

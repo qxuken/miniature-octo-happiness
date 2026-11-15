@@ -65,15 +65,6 @@ pub struct Options {
     #[arg(long, hide = true)]
     pub worker: Option<PathBuf>,
 }
-pub fn fresh_path(root: &Path, p: &Path) -> Result<PathBuf> {
-    let output = assurance::absolute(root, p);
-    ensure!(
-        fs::symlink_metadata(&output).is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound)
-            && output.parent().is_some_and(Path::is_dir),
-        "fresh resource output with existing parent required"
-    );
-    crate::notices::resolve(&output)
-}
 fn write_json(output: &Path, value: &Value) -> Result<()> {
     let mut bytes = serde_json::to_vec_pretty(value)?;
     bytes.push(b'\n');
@@ -221,7 +212,7 @@ pub(crate) fn worker(
     profile: Profile,
 ) -> Result<()> {
     let source = dunce::canonicalize(source)?;
-    let output = fresh_path(&run.root, output)?;
+    let output = assurance::fresh_output(&run.root, output)?;
     ensure!(
         !output.starts_with(&source) && !source.starts_with(&output),
         "resource source/output overlap"
@@ -363,65 +354,7 @@ pub(crate) fn worker(
     c.finish(result)
 }
 fn archive(c: &mut Campaign<'_>, reference: &str) -> Result<(String, PathBuf)> {
-    let revision = c.command(
-        vec![
-            "git".into(),
-            "rev-parse".into(),
-            "--verify".into(),
-            "--end-of-options".into(),
-            format!("{reference}^{{commit}}").into(),
-        ],
-        "engine-revision",
-        None,
-        30.,
-    )?;
-    ensure!(
-        revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()),
-        "invalid engine revision"
-    );
-    let files = c.command(
-        cmd(["git", "ls-tree", "-r", &revision]),
-        "engine-files",
-        None,
-        30.,
-    )?;
-    ensure!(
-        !files.is_empty()
-            && files
-                .lines()
-                .all(|l| l.starts_with("100644 blob ") || l.starts_with("100755 blob ")),
-        "nonregular resource archive input"
-    );
-    let tar = c.output.join("source.tar");
-    let source = c.output.join("source");
-    fs::create_dir(&source)?;
-    c.command(
-        vec![
-            "git".into(),
-            "archive".into(),
-            "--format=tar".into(),
-            "--output".into(),
-            path(&tar),
-            revision.clone().into(),
-        ],
-        "engine-archive",
-        None,
-        30.,
-    )?;
-    c.command(
-        vec![
-            "tar".into(),
-            "-xf".into(),
-            path(&tar),
-            "-C".into(),
-            path(&source),
-        ],
-        "extract-source",
-        None,
-        30.,
-    )?;
-    c.evidence["engine_revision"] = json!(revision);
-    c.evidence["archive_sha256"] = json!(sha(&tar)?);
+    let (revision, source) = assurance::archive_source(c, reference)?;
     let mut overlay = BTreeMap::new();
     for file in BASE.iter().chain(COMPOUND) {
         let name = PathBuf::from(DRIVER).join(file);
@@ -641,7 +574,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
             options.profile,
         );
     }
-    let output = fresh_path(&run.root, &options.output)?;
+    let output = assurance::fresh_output(&run.root, &options.output)?;
     let mut c = Campaign::new(run, &output, "frozen resource qualification")?;
     c.evidence["verified"] = json!(false);
     c.save()?;
@@ -723,7 +656,7 @@ mod tests {
         fs::remove_file(&fixture.report).unwrap();
         let target = fixture.dir.path().join("absent");
         symlink(&target, &fixture.report).unwrap();
-        assert!(fresh_path(&fixture.run.root, &fixture.report).is_err());
+        assert!(assurance::fresh_output(&fixture.run.root, &fixture.report).is_err());
         assert!(observe(fixture.request(3., &[]), |_| panic!("unexpected oracle")).is_err());
         assert!(!target.exists());
         assert!(!fixture.report.with_extension("jsonl").exists());

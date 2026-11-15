@@ -41,6 +41,12 @@ mod tests {
                     row["id"]
                 );
             }
+            if let Some(binary) = row["rust_binary"].as_str() {
+                assert_eq!(binary, "sqlite-comparator", "unknown control binary");
+                assert_eq!(row["path"], "sqlite-baseline/test_runner.py");
+                // The isolated comparator checks these names in its own libtest.
+                continue;
+            }
             for name in mapped {
                 if row["unix_only"].as_bool() == Some(true) && !cfg!(unix) {
                     continue;

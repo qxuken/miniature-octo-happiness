@@ -18,7 +18,8 @@
     "resource-envelope/test_compound.py",
     "resource-envelope/test_runner.py",
     "resource-envelope/test_cache_probe.py",
-    "resource-envelope/test_resilience.py"
+    "resource-envelope/test_resilience.py",
+    "sqlite-baseline/test_runner.py"
   ],
   "controls": [
     {
@@ -602,31 +603,49 @@
       "path": "sqlite-baseline/test_runner.py",
       "id": "helper_suite.BaselineTests.test_existing_outputs_and_symlinks_rejected_before_sqlite",
       "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
-      "rust": []
+      "rust": [
+        "sqlite_baseline::tests::existing_outputs_and_symlinks_reject_before_external_work"
+      ],
+      "unix_only": true
     },
     {
       "path": "sqlite-baseline/test_runner.py",
       "id": "helper_suite.BaselineTests.test_invalid_workload_rejects_before_output_creation",
       "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
-      "rust": []
+      "rust": [
+        "sqlite_baseline::tests::invalid_workload_rejects_before_output_and_replay"
+      ],
+      "unix_only": true
     },
     {
       "path": "sqlite-baseline/test_runner.py",
       "id": "helper_suite.BaselineTests.test_copy_destination_rejected_without_open_or_mutation",
       "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
-      "rust": []
+      "rust": [
+        "tests::existing_copy_targets_reject_before_opening_source"
+      ],
+      "rust_binary": "sqlite-comparator",
+      "unix_only": true
     },
     {
       "path": "sqlite-baseline/test_runner.py",
       "id": "helper_suite.BaselineTests.test_history_survives_reopen_gc_vacuum_backup_and_restore",
       "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
-      "rust": []
+      "rust": [
+        "tests::history_survives_reopen_gc_vacuum_backup_and_restore"
+      ],
+      "rust_binary": "sqlite-comparator",
+      "unix_only": true
     },
     {
       "path": "sqlite-baseline/test_runner.py",
       "id": "helper_suite.BaselineTests.test_full_oracle_rejects_noncanonical_keys_and_corrupted_state",
       "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
-      "rust": []
+      "rust": [
+        "tests::full_oracle_rejects_noncanonical_keys_and_corrupted_state"
+      ],
+      "rust_binary": "sqlite-comparator",
+      "unix_only": true
     },
     {
       "path": "test_c_sanitizers.py",

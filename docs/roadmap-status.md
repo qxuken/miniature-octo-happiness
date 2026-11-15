@@ -1024,3 +1024,10 @@ interruption matrix on Docker Linux/ext4. It verified 52 maintenance kills and
 cache probes reproduced the macOS clean state and byte observations. Eleven
 Python files were retired, bringing the conversion to 112/179 frozen controls
 and 20 maintained Python files. [Resource evidence](xtask-conversion.md#resource-workloads-and-instrumentation)
+
+The Rust SQLite comparator passed three alternating rounds on macOS and Docker
+Linux against historical engine source `2490631`. Both engines matched the
+original digest across current and retained states through reopen and
+maintenance. Five legacy controls map to Rust tests, bringing the conversion
+to 117/179 and 18 maintained Python files.
+[SQLite verification](xtask-conversion.md#sqlite-retained-history-comparison)

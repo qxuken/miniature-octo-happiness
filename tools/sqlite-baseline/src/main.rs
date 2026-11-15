@@ -1,4 +1,4 @@
-//! Private durable retained-history comparator. run.py supplies a fresh directory.
+//! Private durable retained-history fixture. The controller supplies a fresh directory.
 use std::{fs, path::Path, time::Instant};
 use weekend_db::{Database, Limits, Snapshot, storage};
 
