@@ -85,11 +85,21 @@ pub struct Options {
     pub library: PathBuf,
     #[arg(long)]
     pub expected_source: Option<String>,
+    #[arg(long)]
+    pub expected_features: Option<u32>,
 }
 pub fn run(options: Options) -> Result<()> {
-    smoke(&options.library, options.expected_source.as_deref())
+    smoke(
+        &options.library,
+        options.expected_source.as_deref(),
+        options.expected_features,
+    )
 }
-pub fn smoke(library: &Path, expected_source: Option<&str>) -> Result<()> {
+fn smoke(
+    library: &Path,
+    expected_source: Option<&str>,
+    expected_features: Option<u32>,
+) -> Result<()> {
     let library = dunce::canonicalize(library)?;
     // SAFETY: the user requests execution of this exact locally-built shared
     // artifact. Symbols below follow include/weekend_db.h, with no Rust ABI use.
@@ -108,10 +118,14 @@ pub fn smoke(library: &Path, expected_source: Option<&str>) -> Result<()> {
                 "ABI/format version mismatch"
             );
         }
-        ensure!(
-            api.symbol::<Version>(b"wdb_features\0")?() & !7 == 0,
-            "unknown feature mask"
-        );
+        let actual_features = api.symbol::<Version>(b"wdb_features\0")?();
+        ensure!(actual_features & !7 == 0, "unknown feature mask");
+        if let Some(expected) = expected_features {
+            ensure!(
+                actual_features == expected,
+                "feature mask mismatch: actual {actual_features}, expected {expected}"
+            );
+        }
         for name in [
             b"wdb_package_version\0".as_slice(),
             b"wdb_source_id\0".as_slice(),
@@ -322,6 +336,13 @@ mod tests {
     use super::*;
     #[test]
     fn missing_library_rejects_without_linking_engine() {
-        assert!(smoke(Path::new("/definitely/missing/weekend_db-library"), None).is_err());
+        assert!(
+            smoke(
+                Path::new("/definitely/missing/weekend_db-library"),
+                None,
+                None
+            )
+            .is_err()
+        );
     }
 }

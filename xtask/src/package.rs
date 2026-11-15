@@ -43,6 +43,32 @@ fn strings(v: &Value) -> Result<Vec<OsString>> {
         .collect()
 }
 
+fn library_feature_mask(features: &Value) -> Result<u32> {
+    let mut mask = 0;
+    for feature in features.as_array().context("library features missing")? {
+        // These are the feature bits exposed by src/version.rs and the C ABI.
+        mask |= match text(feature)? {
+            "replication" => 1,
+            "crdt" => 2,
+            "fault-injection" => 4,
+            name => bail!("unmapped weekend-db library feature {name:?}"),
+        };
+    }
+    Ok(mask)
+}
+
+fn verify_library(run: &mut Run, library: &Path, source_id: &str, features: u32) -> Result<()> {
+    run.task([
+        path("abi-smoke"),
+        path(library),
+        path("--expected-source"),
+        path(source_id),
+        path("--expected-features"),
+        path(features.to_string()),
+    ])
+    .context("verify delivered library identity and Cargo feature mask")
+}
+
 fn source_hashes(run: &mut Run, output: &Path) -> Result<BTreeMap<String, String>> {
     let names = run.capture(&cmd([
         "git",
@@ -266,12 +292,27 @@ fn qualify(
     command.insert(split, path("--message-format=json-render-diagnostics"));
     let built = run.capture(&command)?;
     let mut ids = BTreeSet::new();
+    let mut feature_mask = None;
+    let engine_manifest = root.join("Cargo.toml");
     for line in built.lines().filter(|line| line.starts_with('{')) {
         let v: Value = serde_json::from_str(line)?;
         if v["reason"] == "compiler-artifact" {
             ids.insert(text(&v["package_id"])?.to_owned());
+            if v["target"]["crate_types"]
+                .as_array()
+                .is_some_and(|types| types.iter().any(|kind| kind == "cdylib"))
+                && dunce::canonicalize(text(&v["manifest_path"])?)? == engine_manifest
+            {
+                ensure!(
+                    feature_mask.is_none(),
+                    "multiple weekend-db library artifacts"
+                );
+                feature_mask = Some(library_feature_mask(&v["features"])?);
+            }
         }
     }
+    let feature_mask = feature_mask.context("missing weekend-db library artifact")?;
+    e["cargo_feature_mask"] = json!(feature_mask);
     let mut command = cmd([
         "cargo",
         "metadata",
@@ -315,6 +356,7 @@ fn qualify(
     let symbols = run.capture(&strings(&plan["symbols"])?)?;
     fs::write(output.join("symbols.txt"), format!("{symbols}\n"))?;
     verify_exports(&fs::read_to_string(output.join("weekend_db.h"))?, &symbols)?;
+    verify_library(run, &library, &source_id, feature_mask)?;
     if platform == Platform::Windows {
         let dependencies = run.capture(&strings(&plan["runtime_dependencies"])?)?;
         fs::write(output.join("native-dependencies.txt"), dependencies)?;
@@ -345,12 +387,6 @@ fn qualify(
         }
         executables.push(exe);
     }
-    run.task([
-        path("abi-smoke"),
-        path(&library),
-        path("--expected-source"),
-        path(&source_id),
-    ])?;
     if args.odin {
         crate::odin::check(&root)?;
         copy_tree(&root.join("bindings/odin"), &output.join("bindings/odin"))?;
@@ -403,7 +439,14 @@ fn qualify(
             deps,
         )?;
     }
-    relocate(run, output, &executables, filename, &source_id)?;
+    relocate(
+        run,
+        output,
+        &executables,
+        filename,
+        &source_id,
+        feature_mask,
+    )?;
     e["relocation_verified"] = json!(true);
     if args.source {
         let tracked = run.capture(&cmd(["git", "ls-files", "--cached", "-z"]))?;
@@ -444,12 +487,7 @@ fn qualify(
         add_attribution(e, &notices)?;
         e["rust_source"] = profile.info;
     }
-    run.task([
-        path("abi-smoke"),
-        path(&library),
-        path("--expected-source"),
-        path(&source_id),
-    ])?;
+    verify_library(run, &library, &source_id, feature_mask)?;
     ensure!(
         source_hashes(run, output)? == *initial
             && run.capture(&cmd(["git", "rev-parse", "HEAD"]))? == source
@@ -457,6 +495,7 @@ fn qualify(
                 == e["effective_build_configuration"],
         "source or build configuration changed during packaging"
     );
+    e["runtime_feature_mask"] = json!(feature_mask);
     e["verified"] = json!(true);
     e["candidate_eligible"] = json!(crate::toolchain::candidate_eligible(
         text(&e["dirty_status"])?,
@@ -486,6 +525,7 @@ fn relocate(
     executables: &[PathBuf],
     filename: &str,
     source_id: &str,
+    feature_mask: u32,
 ) -> Result<()> {
     let mut scratch = Scratch::new(
         output.parent().context("package parent missing")?,
@@ -513,12 +553,7 @@ fn relocate(
             }
             run.status(&c)?;
         }
-        run.task([
-            path("abi-smoke"),
-            path(relocated.join(filename)),
-            path("--expected-source"),
-            path(source_id),
-        ])
+        verify_library(run, &relocated.join(filename), source_id, feature_mask)
     })();
     if let Err(error) = fs::rename(&relocated, output) {
         scratch.keep();
@@ -556,6 +591,21 @@ mod tests {
             assert!(verify_exports(header, symbols).is_err());
         }
         assert!(verify_exports("", "").is_err());
+    }
+    #[test]
+    fn core_cargo_features_map_to_the_delivered_abi_bits() {
+        for (features, mask) in [
+            (json!([]), 0),
+            (json!(["replication"]), 1),
+            (json!(["crdt"]), 2),
+            (json!(["fault-injection"]), 4),
+            (json!(["fault-injection", "crdt", "replication"]), 7),
+        ] {
+            assert_eq!(library_feature_mask(&features).unwrap(), mask);
+        }
+        for malformed in [Value::Null, json!([2]), json!(["unmapped"])] {
+            assert!(library_feature_mask(&malformed).is_err());
+        }
     }
     #[test]
     fn package_options_preserve_required_profiles() {
