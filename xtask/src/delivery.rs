@@ -85,7 +85,7 @@ pub fn read_json(file: &Path) -> Result<Value> {
     ensure!(bytes.len() <= 2 * 1024 * 1024, "JSON grew beyond limit");
     json(&bytes)
 }
-fn reparse(meta: &fs::Metadata) -> bool {
+pub(crate) fn reparse(meta: &fs::Metadata) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;

@@ -1,21 +1,29 @@
 //! Frozen storage, typed schema and wire-v1 snapshot compatibility.
+#[cfg(unix)]
+use crate::assurance::Campaign;
 use crate::{
-    artifact_trace::inventory,
-    assurance::{self, Campaign},
-    delivery, serialization_scale,
-    support::{Run, cmd, path, sha},
+    delivery, source_archive,
+    support::{Run, cargo_build_env, cmd, path, qualification_inventory as inventory, sha},
 };
+#[cfg(windows)]
+#[path = "windows_compatibility.rs"]
+mod windows;
 use anyhow::{Result, ensure};
 use clap::{Args, ValueEnum};
 use serde_json::{Value, json};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     collections::BTreeMap,
+    env::consts::EXE_SUFFIX,
     fs::{self, OpenOptions},
     io::Write,
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
+#[cfg(windows)]
+use windows::Campaign;
 
+#[cfg(unix)]
 const ENDPOINTS: [&str; 2] = ["historical", "current"];
 const NATIVE_IDENTITY: &str = r###"fn main() {
     println!(r#"{{"identity_kind":"engine_version_api","source_id":"{}","features":{},"abi_version":{},"format_version":{}}}"#,
@@ -65,7 +73,7 @@ impl Profile {
 
 #[derive(Args)]
 pub struct Options {
-    #[arg(long, value_enum, default_value = "storage")]
+    #[arg(long, value_enum, default_value = if cfg!(windows) { "typed" } else { "storage" })]
     profile: Profile,
     #[arg(long)]
     historical: Option<String>,
@@ -194,7 +202,11 @@ fn build_endpoint(
     profile: Profile,
     fixture: &[u8],
 ) -> Result<Endpoint> {
-    let (commit, source, archive) = assurance::archive_revision(c, revision, Some(name))?;
+    let output = c.output.clone();
+    let (commit, source, archive) =
+        source_archive::revision(&output, revision, Some(name), |args, label, timeout| {
+            c.command(args, label, None, timeout)
+        })?;
     c.evidence["sources"][name] = json!(commit);
     let manifest = source.join("Cargo.toml");
     let lock = source.join("Cargo.lock");
@@ -226,11 +238,19 @@ fn build_endpoint(
     } else {
         "debug/examples"
     });
-    let binary = c.output.join(format!("{name}-consumer"));
-    fs::copy(examples.join("qualification_fixture"), &binary)?;
+    let binary = c.output.join(format!("{name}-consumer{EXE_SUFFIX}"));
+    fs::copy(
+        examples.join(format!("qualification_fixture{EXE_SUFFIX}")),
+        &binary,
+    )?;
+    #[cfg(unix)]
     fs::set_permissions(&binary, fs::Permissions::from_mode(0o700))?;
     let binary_sha256 = sha(&binary)?;
-    let identity_binary = examples.join("qualification_identity");
+    let identity_binary = c.output.join(format!("{name}-identity{EXE_SUFFIX}"));
+    fs::copy(
+        examples.join(format!("qualification_identity{EXE_SUFFIX}")),
+        &identity_binary,
+    )?;
     let identity_sha256 = sha(&identity_binary)?;
     let result = c.command(
         vec![path(&identity_binary)],
@@ -262,6 +282,7 @@ fn build_endpoint(
     })
 }
 
+#[cfg(unix)]
 fn storage_cases(c: &mut Campaign<'_>, binaries: [&Path; 2]) -> Result<()> {
     for (writer, binary) in ENDPOINTS.into_iter().zip(binaries) {
         let name = format!("{writer}-writer");
@@ -318,6 +339,7 @@ fn storage_cases(c: &mut Campaign<'_>, binaries: [&Path; 2]) -> Result<()> {
     Ok(())
 }
 
+#[cfg(any(unix, test))]
 fn require_receipts(primary: &Value, follower: &Value, export: &Path) -> Result<String> {
     ensure!(primary == follower, "sender/receiver receipts differ");
     let hash = sha(export)?;
@@ -332,6 +354,7 @@ fn require_receipts(primary: &Value, follower: &Value, export: &Path) -> Result<
     Ok(hash)
 }
 
+#[cfg(unix)]
 fn snapshot_cases(c: &mut Campaign<'_>, binaries: [&Path; 2]) -> Result<()> {
     for (send, receive) in [(0, 1), (1, 0)] {
         let name = format!("{}-to-{}", ENDPOINTS[send], ENDPOINTS[receive]);
@@ -453,6 +476,11 @@ fn typed_cases(c: &mut Campaign<'_>, [old, new]: [&Path; 2]) -> Result<()> {
 }
 
 pub fn run(run: &Run, opts: Options) -> Result<()> {
+    #[cfg(windows)]
+    ensure!(
+        opts.profile == Profile::Typed,
+        "Windows qualifies only the typed profile"
+    );
     // This profile supports a new output hierarchy, retaining atomic
     // create-dir admission for the final path.
     let mut c = Campaign::new(
@@ -460,6 +488,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         &opts.output,
         "two frozen builds on native files or private loopback",
     )?;
+    #[cfg(unix)]
     c.limits(8 * 1024 * 1024, None)?;
     c.evidence["verified"] = json!(false);
     let historical = opts
@@ -473,7 +502,10 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
     } else {
         "debug"
     });
-    c.env = serialization_scale::clean_env(&c.env);
+    c.env = cargo_build_env(&c.env);
+    #[cfg(windows)]
+    c.env
+        .retain(|name, _| !name.eq_ignore_ascii_case("WEEKEND_DB_SOURCE_ID"));
     c.save()?;
     let result = (|| -> Result<()> {
         let [old_fixture, new_fixture] = opts.profile.fixtures().map(|name| run.root.join(name));
@@ -491,9 +523,13 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         c.env.remove(std::ffi::OsStr::new("WEEKEND_DB_SOURCE_ID"));
         let binaries = [old.binary.as_path(), new.binary.as_path()];
         match opts.profile {
-            Profile::Storage => storage_cases(&mut c, binaries)?,
-            Profile::Snapshot => snapshot_cases(&mut c, binaries)?,
             Profile::Typed => typed_cases(&mut c, binaries)?,
+            #[cfg(unix)]
+            Profile::Storage => storage_cases(&mut c, binaries)?,
+            #[cfg(unix)]
+            Profile::Snapshot => snapshot_cases(&mut c, binaries)?,
+            #[cfg(windows)]
+            _ => unreachable!("profile checked before creating evidence"),
         }
         for endpoint in [old, new] {
             ensure!(
@@ -519,6 +555,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
 mod tests {
     use super::*;
     use crate::support::Scratch;
+    #[cfg(unix)]
     use std::os::unix::fs::symlink;
 
     #[test]
@@ -527,27 +564,39 @@ mod tests {
         let root = tmp.path();
         let file = root.join("file");
         let directory = root.join("directory");
-        let link = root.join("link");
-        let bad = root.join("dangling");
         fs::write(&file, b"preserve").unwrap();
         fs::create_dir(&directory).unwrap();
-        symlink(&directory, &link).unwrap();
-        symlink(root.join("missing"), &bad).unwrap();
+        let outputs = vec![&file, &directory];
+        #[cfg(unix)]
+        let (link, bad) = (root.join("link"), root.join("dangling"));
+        #[cfg(unix)]
+        let outputs = {
+            symlink(&directory, &link).unwrap();
+            symlink(root.join("missing"), &bad).unwrap();
+            let mut outputs = outputs;
+            outputs.extend([&link, &bad]);
+            outputs
+        };
         let run = Run::new(root.to_owned());
-        for profile in [Profile::Storage, Profile::Snapshot, Profile::Typed] {
-            for output in [&file, &directory, &link, &bad] {
+        #[cfg(unix)]
+        let profiles = [Profile::Storage, Profile::Snapshot, Profile::Typed];
+        #[cfg(windows)]
+        let profiles = [Profile::Typed];
+        for profile in profiles {
+            for &output in &outputs {
                 let opts = Options {
                     profile,
                     historical: None,
                     current: "unused".into(),
                     output: output.clone(),
                 };
-                assert!(
-                    super::run(&run, opts)
-                        .unwrap_err()
-                        .to_string()
-                        .contains("new evidence directory")
-                );
+                assert!(super::run(&run, opts).unwrap_err().to_string().contains(
+                    if cfg!(windows) {
+                        "output already exists"
+                    } else {
+                        "new evidence directory"
+                    }
+                ));
             }
         }
         assert_eq!(fs::read(file).unwrap(), b"preserve");
@@ -555,6 +604,7 @@ mod tests {
         assert!(!root.join("missing").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn storage_matrix_preserves_both_writer_directions_and_rejects_mutating_readers() {
         let tmp = Scratch::new(&std::env::temp_dir(), "compatibility").unwrap();

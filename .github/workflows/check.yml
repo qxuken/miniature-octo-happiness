@@ -20,6 +20,28 @@ jobs:
         run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
+      - name: Verify frozen typed schema rollout and rollback on NTFS
+        if: runner.os == 'Windows'
+        id: windows_typed_schema
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $historical = '1ca5e5ab63a2772f679c7186e2d84fba3ac0a534'
+          $current = '6cc8ef3e60dcf406a272e3f176e83d3c5c83190a'
+          git fetch --no-tags --depth=1 origin $historical $current
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask compatibility --profile typed --historical $historical --current $current --output target/windows-typed-schema
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows typed schema rollout evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-typed-schema-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-typed-schema/**
+            !target/windows-typed-schema/source/**
+            !target/windows-typed-schema/build/**
       - name: Qualify the private Windows package and relocation
         if: runner.os == 'Windows'
         run: cargo xtask package --output target/private-package --features crdt,replication
@@ -165,8 +187,8 @@ jobs:
             target/release/*.dll
             target/release/*.dll.lib
             include/weekend_db.h
-      - name: Enforce the Windows publication and maintenance fault results
-        if: always() && runner.os == 'Windows' && (steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
+      - name: Enforce the Windows fault and compatibility results
+        if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
         shell: pwsh
         run: exit 1
       - name: Enforce the macOS maintenance fault result

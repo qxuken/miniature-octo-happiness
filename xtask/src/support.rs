@@ -335,3 +335,99 @@ pub fn hash_tree(root: &Path) -> Result<BTreeMap<String, String>> {
     visit(root, root, &mut out)?;
     Ok(out)
 }
+
+// Qualification trees include vendored crates, unlike the small delivered package.
+// Prune caches BEFORE visiting them, and reject aliases/nonregular inputs.
+pub(crate) fn qualification_inventory(
+    root: &Path,
+    skip: &[&str],
+) -> Result<BTreeMap<String, String>> {
+    fn walk(
+        root: &Path,
+        dir: &Path,
+        out: &mut BTreeMap<String, String>,
+        skip: &[&str],
+        depth: usize,
+        entries: &mut usize,
+        total: &mut u64,
+    ) -> Result<()> {
+        ensure!(depth <= 64, "trace directory depth budget");
+        let directory = fs::symlink_metadata(dir)?;
+        ensure!(
+            directory.is_dir()
+                && !directory.file_type().is_symlink()
+                && !crate::delivery::reparse(&directory),
+            "trace directory alias"
+        );
+        for entry in fs::read_dir(dir)? {
+            let file = entry?.path();
+            let name = file
+                .strip_prefix(root)?
+                .to_str()
+                .context("UTF-8 trace path")?
+                .replace('\\', "/");
+            if (skip.contains(&"cargo-target")
+                && file.file_name().is_some_and(|n| n == "cargo-target"))
+                || skip
+                    .iter()
+                    .any(|s| name == *s || name.starts_with(&format!("{s}/")))
+            {
+                continue;
+            }
+            *entries += 1;
+            ensure!(*entries <= 100_000, "trace entry budget");
+            let meta = fs::symlink_metadata(&file)?;
+            ensure!(
+                !meta.file_type().is_symlink() && !crate::delivery::reparse(&meta),
+                "trace input alias"
+            );
+            if meta.is_dir() {
+                walk(root, &file, out, skip, depth + 1, entries, total)?;
+            } else {
+                ensure!(
+                    meta.is_file() && meta.len() <= 512 * 1024 * 1024,
+                    "nonregular/oversized trace input"
+                );
+                *total = total
+                    .checked_add(meta.len())
+                    .context("trace byte overflow")?;
+                ensure!(*total <= 8 * 1024 * 1024 * 1024, "trace byte budget");
+                out.insert(name, sha(&file)?);
+            }
+        }
+        Ok(())
+    }
+    let mut out = BTreeMap::new();
+    walk(root, root, &mut out, skip, 0, &mut 0, &mut 0)?;
+    Ok(out)
+}
+
+pub(crate) fn cargo_build_env(
+    original: &BTreeMap<OsString, OsString>,
+) -> BTreeMap<OsString, OsString> {
+    let mut env = original.clone();
+    env.retain(|k, _| {
+        let k = k.to_string_lossy();
+        let k = if cfg!(windows) {
+            std::borrow::Cow::Owned(k.to_ascii_uppercase())
+        } else {
+            k
+        };
+        matches!(k.as_ref(), "RUSTUP_HOME" | "RUSTUP_TOOLCHAIN")
+            || !(k.starts_with("RUST")
+                || k.starts_with("CARGO_PROFILE_")
+                || k.starts_with("CARGO_TARGET_")
+                || k.starts_with("CARGO_BUILD_")
+                || matches!(
+                    k.as_ref(),
+                    "CARGO_ENCODED_RUSTFLAGS"
+                        | "CARGO_ENCODED_RUSTDOCFLAGS"
+                        | "CARGO_INCREMENTAL"
+                        | "LLVM_PROFILE_FILE"
+                        | "LD_PRELOAD"
+                        | "DYLD_INSERT_LIBRARIES"
+                ))
+    });
+    env.insert("CARGO_INCREMENTAL".into(), "0".into());
+    env
+}

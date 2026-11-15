@@ -11,7 +11,7 @@ mod benchmark;
 mod c_sanitizers;
 mod check;
 mod clean;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod compatibility;
 #[cfg(unix)]
 mod coverage;
@@ -73,6 +73,8 @@ mod serialization_scale;
 mod snapshot_upgrade;
 #[cfg(unix)]
 mod soak;
+#[cfg(any(unix, windows))]
+mod source_archive;
 #[cfg(unix)]
 mod sqlite_baseline;
 #[cfg(unix)]
@@ -139,7 +141,7 @@ enum Task {
     #[cfg(unix)]
     Soak(soak::Options),
     /// Qualify storage, typed schema, or core snapshot compatibility across archives.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     Compatibility(compatibility::Options),
     /// Compare an archived engine with SQLite using a bounded history workload.
     #[cfg(unix)]
@@ -327,7 +329,7 @@ fn execute(cli: Cli) -> Result<()> {
         Task::FollowerBackupRestore(options) => follower_backup::run(&run, options),
         #[cfg(unix)]
         Task::Soak(options) => soak::run(&run, options),
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         Task::Compatibility(options) => compatibility::run(&run, options),
         #[cfg(unix)]
         Task::SqliteBaseline(options) => sqlite_baseline::run(&run, options),

@@ -2,7 +2,7 @@
 //! process retirement and a specific stderr diagnostic, never just a nonzero exit.
 use crate::{
     supervise::{self, Request},
-    support::{Run, cmd, path, sha},
+    support::{Run, cmd, sha},
 };
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
@@ -586,86 +586,16 @@ pub fn archive_revision(
     reference: &str,
     label: Option<&str>,
 ) -> Result<(String, PathBuf, String)> {
-    let prefix = label.unwrap_or("engine");
-    ensure!(
-        !prefix.is_empty()
-            && prefix
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'-'),
-        "invalid archive label"
-    );
-    let revision = c.command(
-        vec![
-            "git".into(),
-            "rev-parse".into(),
-            "--verify".into(),
-            "--end-of-options".into(),
-            format!("{reference}^{{commit}}").into(),
-        ],
-        &format!("{prefix}-revision"),
-        None,
-        30.,
-    )?;
-    ensure!(
-        revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()),
-        "invalid engine revision"
-    );
-    let files = c.command(
-        cmd(["git", "ls-tree", "-r", &revision]),
-        &format!("{prefix}-files"),
-        None,
-        30.,
-    )?;
-    ensure!(
-        !files.is_empty()
-            && files
-                .lines()
-                .all(|l| l.starts_with("100644 blob ") || l.starts_with("100755 blob ")),
-        "nonregular engine archive input"
-    );
-    let (tar, source) = if let Some(label) = label {
-        let parent = c.output.join("source");
-        fs::create_dir_all(&parent)?;
-        (c.output.join(format!("{label}.tar")), parent.join(label))
-    } else {
-        (c.output.join("source.tar"), c.output.join("source"))
-    };
-    fs::create_dir(&source)?;
-    c.command(
-        vec![
-            "git".into(),
-            "archive".into(),
-            "--format=tar".into(),
-            "--output".into(),
-            path(&tar),
-            revision.clone().into(),
-        ],
-        &format!("{prefix}-archive"),
-        None,
-        30.,
-    )?;
-    c.command(
-        vec![
-            "tar".into(),
-            "-xf".into(),
-            path(&tar),
-            "-C".into(),
-            path(&source),
-        ],
-        &if label.is_none() {
-            "extract-source".to_owned()
-        } else {
-            format!("{prefix}-extract")
-        },
-        None,
-        30.,
-    )?;
-    Ok((revision, source, sha(&tar)?))
+    let output = c.output.clone();
+    crate::source_archive::revision(&output, reference, label, |args, name, timeout| {
+        c.command(args, name, None, timeout)
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::path;
     #[test]
     fn exact_expected_exit_rejects_success_and_another_failure() {
         let tmp = crate::support::Scratch::new(&std::env::temp_dir(), "expected-exit").unwrap();

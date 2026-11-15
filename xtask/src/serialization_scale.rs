@@ -207,27 +207,7 @@ fn instrument(root: &Path) -> Result<()> {
     fs::write(module, api)?;
     Ok(())
 }
-pub(crate) fn clean_env(original: &BTreeMap<OsString, OsString>) -> BTreeMap<OsString, OsString> {
-    let mut env = original.clone();
-    env.retain(|k, _| {
-        let k = k.to_string_lossy();
-        matches!(k.as_ref(), "RUSTUP_HOME" | "RUSTUP_TOOLCHAIN")
-            || !(k.starts_with("RUST")
-                || k.starts_with("CARGO_PROFILE_")
-                || k.starts_with("CARGO_TARGET_")
-                || k.starts_with("CARGO_BUILD_")
-                || matches!(
-                    k.as_ref(),
-                    "CARGO_ENCODED_RUSTFLAGS"
-                        | "CARGO_ENCODED_RUSTDOCFLAGS"
-                        | "LLVM_PROFILE_FILE"
-                        | "LD_PRELOAD"
-                        | "DYLD_INSERT_LIBRARIES"
-                ))
-    });
-    env.insert("CARGO_INCREMENTAL".into(), "0".into());
-    env
-}
+pub(crate) use crate::support::cargo_build_env as clean_env;
 fn observe(
     c: &mut Campaign<'_>,
     binary: &Path,
