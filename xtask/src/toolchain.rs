@@ -66,6 +66,27 @@ pub fn configuration(root: &Path, values: &BTreeMap<OsString, OsString>) -> Resu
             );
         }
     }
+    let cargo = cargo_home(root, values)?;
+    let mut locations: Vec<_> = root.ancestors().map(|p| p.join(".cargo")).collect();
+    locations.push(cargo);
+    let mut configs = BTreeMap::new();
+    for directory in locations {
+        let legacy = directory.join("config");
+        let file = if legacy.is_file() {
+            legacy
+        } else {
+            directory.join("config.toml")
+        };
+        if file.is_file() {
+            configs.insert(
+                dunce::canonicalize(&file)?.to_string_lossy().into_owned(),
+                sha(&file)?,
+            );
+        }
+    }
+    Ok(json!({"override_sha256":overrides,"cargo_config_sha256":configs}))
+}
+pub fn cargo_home(root: &Path, values: &BTreeMap<OsString, OsString>) -> Result<PathBuf> {
     let home = cargo_env(values, if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .map(PathBuf::from)
         .or_else(|| {
@@ -87,28 +108,11 @@ pub fn configuration(root: &Path, values: &BTreeMap<OsString, OsString>) -> Resu
         }
         None => home.join(".cargo"),
     };
-    let mut locations: Vec<_> = root.ancestors().map(|p| p.join(".cargo")).collect();
-    locations.push(if cargo.is_absolute() {
+    Ok(if cargo.is_absolute() {
         cargo
     } else {
         root.join(cargo)
-    });
-    let mut configs = BTreeMap::new();
-    for directory in locations {
-        let legacy = directory.join("config");
-        let file = if legacy.is_file() {
-            legacy
-        } else {
-            directory.join("config.toml")
-        };
-        if file.is_file() {
-            configs.insert(
-                dunce::canonicalize(&file)?.to_string_lossy().into_owned(),
-                sha(&file)?,
-            );
-        }
-    }
-    Ok(json!({"override_sha256":overrides,"cargo_config_sha256":configs}))
+    })
 }
 pub fn require_cfg(cfg: &str, platform: Platform) -> Result<()> {
     let strategies: Vec<_> = cfg

@@ -119,9 +119,8 @@ not demonstrate a DATA-cache performance problem. It also does not measure the
 ## Reproduction and provenance
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/serialization-scale/test_runner.py
-mise exec rust@1.99.1 python@3.14.8 -- python -O tools/serialization-scale/test_runner.py
-mise exec rust@1.99.1 python@3.14.8 -- python tools/serialization-scale/run.py \
+cargo test --offline --locked -p xtask --bin xtask serialization_scale::tests
+cargo xtask serialization-scale \
   --revision 032dadf591b0a0ded4894898e8208283c50425fb --output /absolute/new/output
 # Add --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08 for Linux.
 ```

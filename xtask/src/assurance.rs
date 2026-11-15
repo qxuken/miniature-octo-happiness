@@ -22,6 +22,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "include/weekend_db.h",
         ".cargo/config.toml",
         "tools/coverage-fixture.rs",
+        "tools/benchmark.rs",
     ] {
         let file = root.join(name);
         if file.is_file() {
@@ -38,6 +39,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "xtask",
         "probe",
         "tools/atomic-model",
+        "tools/serialization-scale",
     ] {
         walk(root, &root.join(name), &mut out, false)?;
     }
@@ -114,6 +116,7 @@ pub struct Campaign<'a> {
     pub output: PathBuf,
     pub env: BTreeMap<OsString, OsString>,
     pub evidence: Value,
+    pub sample_rss: bool,
     before: BTreeMap<String, String>,
     maximum_bytes: u64,
     file_limit: Option<u64>,
@@ -139,6 +142,7 @@ impl<'a> Campaign<'a> {
             maximum_bytes: 64 * 1024 * 1024,
             file_limit: None,
             cancellation: supervise::Cancellation::new()?,
+            sample_rss: false,
             evidence: json!({"passed":false,"scope":scope,"source_hashes":before,"commands":[]}),
         };
         campaign.save()?;
@@ -247,7 +251,7 @@ impl<'a> Campaign<'a> {
             exclusive_limit: false,
             file_limit: self.file_limit,
             journal: None,
-            sample_rss: false,
+            sample_rss: self.sample_rss,
         });
         let (report, invocation_error) = match report {
             Ok(r) => (Some(r), None),
@@ -270,6 +274,7 @@ impl<'a> Campaign<'a> {
                 self.before == snapshot(&self.run.root)?,
                 "source changed during diagnostic campaign"
             );
+            ensure!(!self.cancellation.requested(), "campaign cancelled");
             Ok(())
         });
         self.evidence["passed"] = json!(checked.is_ok());

@@ -90,13 +90,12 @@ qualification and fixed-identity byte/emission-order preservation.
 ## Reproduction and source binding
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/serialization-scale/run.py \
+cargo test --offline --locked -p xtask --bin xtask serialization_scale::tests
+cargo xtask serialization-scale \
   --revision a56083c --axis history --output target/history-mac-fresh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/serialization-scale/run.py \
+cargo xtask serialization-scale \
   --revision a56083c --axis history --output target/history-linux-fresh \
   --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
-mise exec python@3.14.8 -- python tools/serialization-scale/test_runner.py
-mise exec python@3.14.8 -- python -O tools/serialization-scale/test_runner.py
 ```
 
 Mac arm64 used Mise Rust 1.99.1/Python 3.14.8 and `/dev/disk3s5` (APFS).

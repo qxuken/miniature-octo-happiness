@@ -1509,7 +1509,7 @@ Native Linux/Windows runtime results were pending at this milestone; later
 checkpoint 4203e0a passed both. Rosetta execution remains unavailable on this host.
 
 **Benchmark policy and baseline.** `tools/benchmark.rs` is a dependency-free
-release binary, and `tools/benchmark.py` records three runs, raw CSV and
+release binary, and the benchmark runner records three runs, raw CSV and
 median/min/max summaries. The original pre-compaction implementation samples are
 saved in [`docs/benchmarks/milestone10-baseline.csv`](docs/benchmarks/milestone10-baseline.csv).
 They were captured before the engine changes in this milestone. The extended
@@ -1595,7 +1595,7 @@ throughput claim, or generalized regression attribution follows from these runs.
 Reproduce the current measurement pipeline with a **new** output directory:
 
 ```sh
-python3 tools/benchmark.py --output target/my-benchmark-run --compact
+cargo xtask benchmark --output target/my-benchmark-run --compact
 ```
 
 Milestones 1–10 now have implemented acceptance evidence for the stated scope.

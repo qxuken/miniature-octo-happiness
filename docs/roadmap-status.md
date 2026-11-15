@@ -982,3 +982,12 @@ workflow evidence. Twelve controls move to Rust; the old Windows controller,
 model, suite and compiler-environment transport are retired. The conversion
 now maps 67/179 controls, with 39 maintained Python files remaining. Crates
 remain unpublished.
+
+The release benchmark and paired serialization experiments now have Rust entry
+points. Three Mac release samples with compaction pass. Mac breadth/history and
+Linux/ext4 history pass against frozen `0f46c2a`; a Linux/ext4 breadth replay
+reproduces all original `032dadf` linear comparison counts and image sizes. No
+performance guarantee is inferred from the tooling check. Seven more controls
+map to Rust (74/179; 37 Python files remain). The archived serialization Python
+source remains an exact dependency of the pending compound/resilience conversion.
+See the [benchmark and serialization checkpoint](xtask-conversion.md#benchmark-and-paired-serialization-conversion).

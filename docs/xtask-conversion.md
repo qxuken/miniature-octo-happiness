@@ -463,3 +463,53 @@ Mac debug/release and native/MSVC cross-target Clippy also pass after removal.
 The residual Python helper registry passes **220 checks plus 4 registered skips
 across 32 workers** (evidence SHA-256 `b5af2429533b8090c2f7ff2287141b3cd1a8c8a7254a85f20f244bac4ee69824`).
 Hosted engine and fuzz runs for `b0e0d73` are fully green, including TSan.
+
+## Benchmark and paired serialization conversion
+
+`cargo xtask benchmark` replaces the release benchmark aggregation script. It
+keeps raw sample CSVs and the median/min/max output, rejects inconsistent case,
+operation and image-size inventories, and binds the benchmark binary and source.
+Three native macOS release samples with compaction pass. Final image sizes remain
+3,190,784 bytes before compaction, 86,016 with both roots and 45,056 after release.
+Timing samples are diagnostic; the concurrent qualification work used this
+execution as a runner check, not a fresh latency baseline.
+
+`cargo xtask serialization-scale` preserves both clean/instrumented lanes, current
+and retained-root checks, exact maintenance phase order, limit rejection and
+paired image sizes. It archives a selected commit, overlays the three private
+driver files, and modifies only the two codec/storage files in the instrumented
+copy. Original archive, driver, binaries, logs, actual filesystem and sampled RSS
+are recorded separately. The Rust supervisor now samples its owned main child
+(approximately 50 ms cadence rather than the former Python 20 ms loop); these
+observations are neither exact peaks nor measurements of every process.
+
+On macOS with frozen engine `0f46c2a`, all 12 breadth and 16 history executions
+pass. The distinct 2,048-row case rejects epoch eight at 7,806,976 bytes of
+remaining append headroom, preserving seven roots and the original physical
+sizes. Docker Linux/ext4 repeats all 16 history executions with this engine;
+image sizes and DATA counters match, while identity-index probe counts can vary
+with allocation addresses. A separate Docker Linux/ext4 run uses historical
+`032dadf` and exactly reproduces every original linear VALUE/DATA counter and
+before/after image size, including 440,169,243 VALUE comparisons in the limited
+case. Frozen inputs, copied result hashes and owned-resource removal verify.
+
+Seven legacy serialization controls now map to Rust (**74/179**). Two maintained
+Python files are removed, leaving **37**. The legacy serialization file is still
+required byte for byte by the existing compound/resilience runners: the residual
+helper check caught this import when it was temporarily removed. It is retained
+unmodified until those runners move, so existing frozen resource evidence and
+reproduction remain usable. Current serialization instructions use Rust.
+
+Mac release runner controls pass 125 tests (118 unit plus seven integration);
+strict native/MSVC cross-target Clippy passes. No crate is published. Local
+proof SHA-256 values:
+
+- Mac release benchmark: `49b38f2448aa0014b6bf91e6991bf11a1160b5f35b1efc4bacb14fd4ecdb7312`.
+- Mac breadth: `27368984b47f671836232a17e86e2d1f0d18d5351070d7a6cd5c0410a7a9d7dc`.
+- Mac history: `3d3d72cd5ac2b855faca7712a3258766bcaa321671c3ab9387a964bf03503d4d`.
+- Linux history controller: `29f505f40f8edd07f691bca1171076fbbaf6a7f8503b8fd4d0e958aa8f726e84`.
+- Linux historical breadth controller: `e97c9c194a41d29db25ec0d32160522380c92fad8cf6595630185a265a359fd6`.
+
+With the still-required shared file restored, the residual Python registry
+passes **206 checks plus four registered skips across 30 workers** (SHA-256
+`4114be98df0ad177b8657faacf829efec27d21cc94ba2ef51e842a6553d0e8fd`).

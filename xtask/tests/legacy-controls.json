@@ -10,7 +10,8 @@
     "test_native_faults.py",
     "delivered-faults/test_runner.py",
     "artifact-trace/test_runner.py",
-    "artifact-trace/test_windows_trace.py"
+    "artifact-trace/test_windows_trace.py",
+    "serialization-scale/test_runner.py"
   ],
   "controls": [
     {
@@ -433,43 +434,66 @@
       "path": "serialization-scale/test_runner.py",
       "id": "helper_suite.Controls.test_fresh_output_rejects_existing_and_dangling_before_commands",
       "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
-      "rust": []
+      "rust": [
+        "serialization_scale::tests::fresh_outputs_reject_existing_and_dangling_before_any_command"
+      ],
+      "unix_only": true
     },
     {
       "path": "serialization-scale/test_runner.py",
       "id": "helper_suite.Controls.test_build_overrides_removed_but_rustup_install_location_preserved",
       "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
-      "rust": []
+      "rust": [
+        "serialization_scale::tests::build_overrides_removed_but_rustup_selection_preserved"
+      ],
+      "unix_only": true
     },
     {
       "path": "serialization-scale/test_runner.py",
       "id": "helper_suite.Controls.test_outcome_and_maintenance_oracle_rejects_early_limit_or_skipped_work",
       "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
-      "rust": []
+      "rust": [
+        "serialization_scale::tests::breadth_rejects_early_limit_skipped_maintenance_and_wrong_result_types"
+      ],
+      "unix_only": true
     },
     {
       "path": "serialization-scale/test_runner.py",
       "id": "helper_suite.Controls.test_history_roots_require_complete_maintenance_and_exact_history",
       "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
-      "rust": []
+      "rust": [
+        "serialization_scale::tests::history_requires_all_roots_and_every_maintenance_phase"
+      ],
+      "unix_only": true
     },
     {
       "path": "serialization-scale/test_runner.py",
       "id": "helper_suite.Controls.test_container_removal_failure_still_cleans_volume_and_checks_absence",
       "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
-      "rust": []
+      "rust": [
+        "serialization_scale::tests::cleanup_targets_only_matching_owned_resources",
+        "faults::tests::cleanup_attempts_both_retirements_and_both_absence_probes",
+        "artifact_trace::tests::absence_cannot_hide_unbounded_or_unretired_cleanup_commands"
+      ],
+      "unix_only": true
     },
     {
       "path": "serialization-scale/test_runner.py",
       "id": "helper_suite.Controls.test_instrumentation_unique_exact_sites_and_reject_reapplication",
       "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
-      "rust": []
+      "rust": [
+        "serialization_scale::tests::instrumentation_targets_current_unique_sites_and_rejects_reapplication"
+      ],
+      "unix_only": true
     },
     {
       "path": "serialization-scale/test_runner.py",
       "id": "helper_suite.Controls.test_instrumentation_accepts_legacy_data_and_rejects_ambiguous_or_missing_sites",
       "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
-      "rust": []
+      "rust": [
+        "serialization_scale::tests::instrumentation_accepts_linear_or_indexed_and_rejects_missing_duplicate_sites"
+      ],
+      "unix_only": true
     },
     {
       "path": "sqlite-baseline/test_runner.py",

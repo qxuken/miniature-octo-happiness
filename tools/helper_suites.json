@@ -20,10 +20,6 @@
       ]
     },
     {
-      "path": "serialization-scale/test_runner.py",
-      "allowed_skips": []
-    },
-    {
       "path": "sqlite-baseline/test_runner.py",
       "allowed_skips": []
     },

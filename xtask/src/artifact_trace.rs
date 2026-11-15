@@ -77,7 +77,7 @@ fn output_path(root: &Path, requested: &Path) -> Result<PathBuf> {
 }
 // Qualification trees include vendored crates, unlike the small delivered package.
 // Prune caches BEFORE visiting them, and reject aliases/nonregular inputs.
-fn inventory(root: &Path, skip: &[&str]) -> Result<BTreeMap<String, String>> {
+pub(crate) fn inventory(root: &Path, skip: &[&str]) -> Result<BTreeMap<String, String>> {
     fn walk(
         root: &Path,
         dir: &Path,
@@ -127,7 +127,7 @@ fn inventory(root: &Path, skip: &[&str]) -> Result<BTreeMap<String, String>> {
     walk(root, root, &mut out, skip, 0, &mut 0, &mut 0)?;
     Ok(out)
 }
-fn copy_tree(from: &Path, to: &Path) -> Result<()> {
+pub(crate) fn copy_tree(from: &Path, to: &Path) -> Result<()> {
     // Validate every input before creating any destination, then verify the copy.
     let before = inventory(from, &[])?;
     fn copy(from: &Path, to: &Path) -> Result<()> {
@@ -457,7 +457,7 @@ fn local(c: &mut Campaign<'_>, work: &Path, source_id: &str, odin: Option<&Path>
         json!({"languages":binaries.iter().map(|(n,_)|n).collect::<Vec<_>>(),"consumer_profiles":{"rust":"cargo --release; runtime assert! enabled","c":"-O2 -UNDEBUG; assert enabled","odin":if odin.is_some(){json!("-o:speed; ODIN_DISABLE_ASSERT=false")}else{Value::Null}},"tool_binary_sha256":tools,"original_checkout_available":original.exists(),"overlay":{"path":"examples/rust_package/src/main.rs","original_sha256":original_main,"driver_sha256":sha(&driver)?,"original_lock_sha256":original_lock},"local_dependencies":local_dependencies,"consumer_sha256":hashes,"library_sha256":sha(&library)?,"transcript_sha256":transcripts}),
     )
 }
-fn nonce() -> Result<String> {
+pub(crate) fn nonce() -> Result<String> {
     let mut b = [0; 16];
     fs::File::open("/dev/urandom")?.read_exact(&mut b)?;
     Ok(b.iter().map(|n| format!("{n:02x}")).collect())
@@ -480,8 +480,16 @@ fn cleanup_commands(container: &str, volume: &str) -> Result<[Vec<OsString>; 2]>
     ])
 }
 fn cleanup(c: &mut Campaign<'_>, container: &str, volume: &str) -> Result<()> {
+    docker_retire(c, container, volume, cleanup_commands(container, volume)?)
+}
+pub(crate) fn docker_retire(
+    c: &mut Campaign<'_>,
+    container: &str,
+    volume: &str,
+    commands: [Vec<OsString>; 2],
+) -> Result<()> {
     let mut processes_retired = true;
-    for (i, args) in cleanup_commands(container, volume)?.into_iter().enumerate() {
+    for (i, args) in commands.into_iter().enumerate() {
         // Removal may return 1 for an already absent object. Successful absence
         // queries below, independently of removal's status, are mandatory.
         let label = format!("cleanup-{i}");
@@ -522,7 +530,6 @@ fn cleanup(c: &mut Campaign<'_>, container: &str, volume: &str) -> Result<()> {
                 json!({"error":format!("{e:#}")})
             }
         };
-        c.save()?;
     }
     let containers = c.retirement_command(
         cmd(["docker", "ps", "-a", "--format={{.Names}}"]),
@@ -532,6 +539,7 @@ fn cleanup(c: &mut Campaign<'_>, container: &str, volume: &str) -> Result<()> {
         cmd(["docker", "volume", "ls", "--format={{.Name}}"]),
         "volume-absence",
     );
+    c.save()?;
     ensure!(
         !containers?.lines().any(|s| s == container) && !volumes?.lines().any(|s| s == volume),
         "private Docker resource still exists"

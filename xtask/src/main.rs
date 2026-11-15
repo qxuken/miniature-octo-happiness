@@ -6,6 +6,8 @@ mod assurance;
 #[cfg(unix)]
 mod atomic_model;
 #[cfg(unix)]
+mod benchmark;
+#[cfg(unix)]
 mod c_sanitizers;
 mod check;
 mod clean;
@@ -33,6 +35,8 @@ mod probe;
 mod rust_source;
 #[cfg(unix)]
 mod sanitizers;
+#[cfg(unix)]
+mod serialization_scale;
 #[cfg(unix)]
 mod supervise;
 mod support;
@@ -64,6 +68,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Compare clean and instrumented serialization on an archived engine.
+    #[cfg(unix)]
+    SerializationScale(serialization_scale::Options),
+    /// Capture samples of the release benchmark and summarize median/range.
+    #[cfg(unix)]
+    Benchmark(benchmark::Options),
     /// Verify native x64 Windows C/C++ traces against a manifest-pinned DLL.
     #[cfg(windows)]
     WindowsTrace(windows_trace::Options),
@@ -191,6 +201,10 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::ArtifactTrace(options) => artifact_trace::run(&run, options),
+        #[cfg(unix)]
+        Task::Benchmark(options) => benchmark::run(&run, options),
+        #[cfg(unix)]
+        Task::SerializationScale(options) => serialization_scale::run(&run, options),
         #[cfg(unix)]
         Task::Probe(options) => probe::run(&run, options),
         #[cfg(unix)]

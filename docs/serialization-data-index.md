@@ -153,7 +153,7 @@ qualification for this runtime change. No crates are published.
 mise exec rust@1.99.1 -- cargo test --offline --locked -p weekend-db --all-features
 mise exec rust@1.99.1 -- cargo test --offline --locked -p weekend-db --all-features --release
 mise exec rust@1.99.1 -- cargo test --offline --locked --manifest-path fuzz/Cargo.toml --lib
-mise exec rust@1.99.1 python@3.14.8 -- python tools/serialization-scale/run.py --revision HEAD --axis history --output target/data-history-fresh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/serialization-scale/run.py --revision HEAD --output target/data-breadth-fresh
+cargo xtask serialization-scale --revision HEAD --axis history --output target/data-history-fresh
+cargo xtask serialization-scale --revision HEAD --output target/data-breadth-fresh
 mise exec rust@1.99.1 python@3.14.8 -- python tools/check_helpers.py --output target/data-helpers-fresh
 ```

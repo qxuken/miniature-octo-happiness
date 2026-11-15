@@ -170,10 +170,10 @@ write a verified compact copy to a new NTFS file.
 To record release microbenchmarks and before/after compaction results:
 
 ```sh
-python3 tools/benchmark.py --output target/my-benchmark-run --compact
+cargo xtask benchmark --output target/my-benchmark-run --compact
 ```
 
-The output directory must be new. The script records raw CSV and median/range
+The output directory must be new. The runner records raw CSV and median/range
 summaries; keep other test and I/O workloads idle during measurements.
 
 ## Raw and typed Rust
