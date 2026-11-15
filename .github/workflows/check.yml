@@ -147,6 +147,28 @@ jobs:
           path: |
             target/windows-replica-progress/**
             !target/windows-replica-progress/**/key.der
+      - name: Verify Windows follower manifest exhaustion, cleanup and reseeding
+        if: runner.os == 'Windows'
+        id: windows_follower_manifest
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $proof = New-Item -ItemType Directory target/windows-follower-manifest
+          git rev-parse HEAD | Set-Content (Join-Path $proof.FullName source.txt)
+          rustc -Vv | Set-Content (Join-Path $proof.FullName rustc.txt)
+          $env:WEEKEND_MANIFEST_ROTATION_EVIDENCE = Join-Path $proof.FullName images
+          cargo test --offline --locked --release -p weekend-db --features replication --test replication native_manifest_growth_and_reseed_preserve_receipts -- --exact --ignored --nocapture 2>&1 | Tee-Object -FilePath (Join-Path $proof.FullName rotation.log)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path (Join-Path $env:WEEKEND_MANIFEST_ROTATION_EVIDENCE 'replacement/replica-manifest.wdb'))) { exit 1 }
+          cargo test --offline --locked --release -p weekend-replicate --test cli native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime -- --exact --nocapture 2>&1 | Tee-Object -FilePath (Join-Path $proof.FullName cli.log)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows follower manifest evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-follower-manifest-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/windows-follower-manifest/
       - name: Qualify the private Windows package and relocation
         if: runner.os == 'Windows'
         run: cargo xtask package --output target/private-package --features crdt,replication
@@ -293,7 +315,7 @@ jobs:
             target/release/*.dll.lib
             include/weekend_db.h
       - name: Enforce the Windows fault and compatibility results
-        if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.windows_storage_wire.outcome == 'failure' || steps.windows_snapshot_upgrade.outcome == 'failure' || steps.windows_study_upgrade.outcome == 'failure' || steps.windows_replica_progress.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
+        if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.windows_storage_wire.outcome == 'failure' || steps.windows_snapshot_upgrade.outcome == 'failure' || steps.windows_study_upgrade.outcome == 'failure' || steps.windows_replica_progress.outcome == 'failure' || steps.windows_follower_manifest.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
         shell: pwsh
         run: exit 1
       - name: Enforce the macOS maintenance fault result

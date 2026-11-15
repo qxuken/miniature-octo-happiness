@@ -234,16 +234,16 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         b"keep"
     );
     assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    use weekend_db::replication::MANIFEST_LIMIT_BYTES;
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&manifest)
+        .unwrap()
+        .set_len(MANIFEST_LIMIT_BYTES)
+        .unwrap();
+    assert!(run(&["status", follower, stream, identity]).contains("maintenance_required=true"));
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
-        use weekend_db::replication::MANIFEST_LIMIT_BYTES;
-        fs::OpenOptions::new()
-            .write(true)
-            .open(&manifest)
-            .unwrap()
-            .set_len(MANIFEST_LIMIT_BYTES)
-            .unwrap();
-        assert!(run(&["status", follower, stream, identity]).contains("maintenance_required=true"));
         let compacted = run(&["compact-manifest", follower, stream, identity]);
         assert!(compacted.contains("maintenance_required=false"));
         assert!(compacted.lines().any(|line| line == ack));
@@ -259,6 +259,7 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         assert!(!rejected.status.success());
         assert!(String::from_utf8_lossy(&rejected.stderr).contains("unsupported on Windows"));
         assert_eq!(fs::read(&manifest).unwrap(), before);
+        assert!(run(&["status", follower, stream, identity]).contains("maintenance_required=true"));
     }
     assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
     assert!(

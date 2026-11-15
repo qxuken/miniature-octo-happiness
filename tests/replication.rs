@@ -575,3 +575,208 @@ fn manifest_admission_accepts_exact_reserved_headroom() {
     assert!(status.manifest_bytes <= MANIFEST_LIMIT_BYTES);
     assert!(status.maintenance_required);
 }
+
+#[test]
+#[ignore = "fills the native manifest and is run by the maintenance qualification"]
+fn native_manifest_growth_and_reseed_preserve_receipts() {
+    use sha2::{Digest, Sha256};
+    use std::{collections::BTreeMap, path::Path};
+    use weekend_db::{
+        replication::{DurableAck, MANIFEST_LIMIT_BYTES},
+        storage::{MemoryStore, REGION},
+    };
+
+    let dir = Directory::new();
+    let old_path = dir.0.join("old");
+    let replacement_path = dir.0.join("replacement");
+    fs::create_dir(&old_path).unwrap();
+    fs::create_dir(&replacement_path).unwrap();
+    let mut db = Database::create_file(dir.0.join("primary.wdb"), Limits::default()).unwrap();
+    let collection = db.create_collection().unwrap();
+    let mut tx = db.begin();
+    tx.put(collection, b"key", &db.unsigned(1).unwrap())
+        .unwrap();
+    assert_eq!(tx.commit().unwrap(), 2);
+    drop(tx);
+    assert_eq!(db.retain_snapshot(&db.snapshot()).unwrap(), 1);
+    let mut primary = Primary::new(&db, [74; 16]).unwrap();
+    let enrollment = primary.enrollment();
+    let mut old = Follower::create(&old_path, enrollment, Limits::default()).unwrap();
+    fs::write(old_path.join("operator-note"), b"preserve this file").unwrap();
+
+    let inventory = |path: &Path| {
+        fs::read_dir(path)
+            .unwrap()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                (
+                    PathBuf::from(entry.file_name()),
+                    fs::read(entry.path()).unwrap(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>()
+    };
+    let export = |db: &mut Database, primary: &mut Primary, value| {
+        let mut tx = db.begin();
+        tx.put(collection, b"key", &db.unsigned(value).unwrap())
+            .unwrap();
+        let revision = tx.commit().unwrap();
+        drop(tx);
+        let image = primary.export_to(db, MemoryStore::new().unwrap()).unwrap();
+        assert_eq!(image.revision(), revision);
+        image
+    };
+    let verify = |follower: &Follower, ack: DurableAck, value| {
+        assert_eq!(follower.progress(), Ok(Some(ack)));
+        let replica = follower.replica().unwrap();
+        let collection = replica.collection_id(collection.as_u64());
+        assert_eq!(replica.retained_ids().unwrap(), [1]);
+        for (snapshot, revision, number) in [
+            (replica.snapshot(), ack.revision, value),
+            (replica.retained_snapshot(1).unwrap(), 2, 1),
+        ] {
+            assert_eq!(snapshot.revision(), revision);
+            assert_eq!(snapshot.count(collection).unwrap(), 1);
+            assert_eq!(
+                snapshot.get(collection, b"key").unwrap().unwrap().as_u64(),
+                Ok(number)
+            );
+        }
+    };
+    let mut capped = None;
+    let mut previous_length = old.status().unwrap().manifest_bytes;
+    for installs in 1..=MANIFEST_LIMIT_BYTES / REGION as u64 {
+        let value = installs + 1;
+        let mut image = export(&mut db, &mut primary, value);
+        let (ack, served) = exchange(&mut old, |socket| primary.ship(&mut image, socket));
+        served.unwrap();
+        let ack = ack.unwrap();
+        let status = old.status().unwrap();
+        assert_eq!(ack.revision, image.revision());
+        assert_eq!(ack.digest, image.descriptor().digest);
+        assert_eq!(status.durable_ack, Some(ack));
+        assert!(
+            previous_length < status.manifest_bytes
+                && status.manifest_bytes <= MANIFEST_LIMIT_BYTES
+        );
+        previous_length = status.manifest_bytes;
+        if status.maintenance_required {
+            capped = Some((installs, value, image, ack, status));
+            break;
+        }
+    }
+    let (installs, value, mut capped_export, capped_ack, status) =
+        capped.expect("native manifest did not reach admission ceiling");
+    assert!(installs > 1);
+    assert!(status.manifest_bytes > MANIFEST_LIMIT_BYTES - 4 * REGION as u64);
+    verify(&old, capped_ack, value);
+    drop(old);
+    let slot = status.selected_slot.unwrap();
+    let selected = PathBuf::from(format!("replica-{slot}.wdb"));
+    let inactive = PathBuf::from(format!("replica-{}.wdb", 1 - slot));
+    let before = inventory(&old_path);
+    assert!(before.contains_key(&inactive));
+    assert_eq!(Sha256::digest(&before[&selected])[..], capped_ack.digest);
+
+    let mut next_export = export(&mut db, &mut primary, value + 1);
+    assert_eq!(next_export.revision(), capped_ack.revision + 1);
+    let mut old = Follower::open(&old_path, enrollment, Limits::default()).unwrap();
+    assert_eq!(old.status().unwrap(), status);
+    assert_eq!(
+        exchange(&mut old, |socket| primary.poll(socket)),
+        (Ok(Some(capped_ack)), Ok(()))
+    );
+    assert_eq!(
+        exchange(&mut old, |socket| primary.ship(&mut capped_export, socket)),
+        (Ok(capped_ack), Ok(()))
+    );
+    assert_eq!(
+        exchange(&mut old, |socket| primary.ship(&mut next_export, socket)),
+        (Err(Error::Limit), Err(Error::Limit))
+    );
+    verify(&old, capped_ack, value);
+    drop(old);
+    assert_eq!(
+        inventory(&old_path),
+        before,
+        "capped exchanges changed a follower file"
+    );
+
+    let mut old = Follower::open(&old_path, enrollment, Limits::default()).unwrap();
+    assert_eq!(old.cleanup_inactive(), Ok(1));
+    assert_eq!(old.cleanup_inactive(), Ok(0));
+    assert_eq!(old.status().unwrap(), status);
+    drop(old);
+    let mut expected = before.clone();
+    expected.remove(&inactive).unwrap();
+    assert_eq!(inventory(&old_path), expected);
+
+    let mut replacement =
+        Follower::create(&replacement_path, enrollment, Limits::default()).unwrap();
+    assert_eq!(
+        exchange(&mut replacement, |socket| primary
+            .ship(&mut capped_export, socket)),
+        (Ok(capped_ack), Ok(()))
+    );
+    verify(&replacement, capped_ack, value);
+    drop(replacement);
+    assert_eq!(
+        fs::read(replacement_path.join("replica-0.wdb")).unwrap(),
+        before[&selected]
+    );
+    let mut replacement = Follower::open(&replacement_path, enrollment, Limits::default()).unwrap();
+    let (next_ack, served) = exchange(&mut replacement, |socket| {
+        primary.ship(&mut next_export, socket)
+    });
+    served.unwrap();
+    let next_ack = next_ack.unwrap();
+    assert_eq!(next_ack.revision, next_export.revision());
+    assert_eq!(next_ack.digest, next_export.descriptor().digest);
+    drop(replacement);
+    let mut replacement = Follower::open(&replacement_path, enrollment, Limits::default()).unwrap();
+    assert_eq!(
+        exchange(&mut replacement, |socket| primary.poll(socket)),
+        (Ok(Some(next_ack)), Ok(()))
+    );
+    let new_status = replacement.status().unwrap();
+    assert!(!new_status.maintenance_required);
+    verify(&replacement, next_ack, value + 1);
+    drop(replacement);
+    let old = Follower::open(&old_path, enrollment, Limits::default()).unwrap();
+    verify(&old, capped_ack, value);
+    drop(old);
+    assert_eq!(
+        inventory(&old_path),
+        expected,
+        "reseeding modified the capped follower"
+    );
+    let new_files = inventory(&replacement_path);
+    let current = PathBuf::from(format!("replica-{}.wdb", new_status.selected_slot.unwrap()));
+    assert_eq!(Sha256::digest(&new_files[&current])[..], next_ack.digest);
+
+    println!(
+        "manifest_rotation installs={installs} limit={MANIFEST_LIMIT_BYTES} old_bytes={} old_revision={} old_slot={slot} old_digest={:x} new_bytes={} new_revision={} new_slot={} new_digest={:x} retained=2",
+        status.manifest_bytes,
+        capped_ack.revision,
+        Sha256::digest(&before[&selected]),
+        new_status.manifest_bytes,
+        next_ack.revision,
+        new_status.selected_slot.unwrap(),
+        Sha256::digest(&new_files[&current]),
+    );
+    if let Some(path) = std::env::var_os("WEEKEND_MANIFEST_ROTATION_EVIDENCE") {
+        let output = PathBuf::from(path);
+        fs::create_dir(&output).unwrap();
+        for (label, entries) in [
+            ("before", before),
+            ("old", expected),
+            ("replacement", new_files),
+        ] {
+            let destination = output.join(label);
+            fs::create_dir(&destination).unwrap();
+            for (name, bytes) in entries {
+                fs::write(destination.join(name), bytes).unwrap();
+            }
+        }
+    }
+}
