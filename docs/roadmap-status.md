@@ -1601,3 +1601,22 @@ remain open.
 | macOS delivered faults | `caafc20b75c52936c76546610f946b202303f2d8704a027cd4cbcc5e37496061` |
 | Linux delivered faults controller | `d180f762df945f3e8ee6b3291705f9db96d9b093cb131fe40eea9ce9a67027d0` |
 | Linux delivered faults worker | `5e6594f96bd7ca82afc12564a9164bdf78a677cd3d09f0f79a6f678c361e79f7` |
+
+## Near-cap native namespace failures
+
+The [namespace error campaign](maintenance-space-exhaustion.md#injected-namespace-and-sync-errors)
+passed seven syscall error cases per host on macOS/APFS and Docker
+Linux/ext4. Every case returned `OutcomeUnknown` with the injected errno and
+native operation. When exchange failed before invocation, the canonical path
+held the exact original bytes. After a successful exchange, including the
+case that returned EIO after the namespace changed, the canonical path held
+the exact compacted bytes. Both paths reopened revision 212 with all 64
+retained roots intact. Every retry produced the same compacted image and
+preserved any preexisting scratch file byte for byte.
+
+An uninjected calibration covered all six actual syscalls. The disabled
+injector failed the expected native error check on each platform. All 15
+fresh-image checks per host passed and the supervisors verified cleanup.
+This adds post-copy native error handling to the existing SIGKILL,
+simulated namespace and kernel copy-phase exhaustion evidence. Actual
+namespace exhaustion and device power-loss qualification remain open.

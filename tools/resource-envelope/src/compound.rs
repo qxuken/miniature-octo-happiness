@@ -822,6 +822,14 @@ fn main() {
                 resilience::maintenance(dir, source, true);
                 return;
             }
+            "namespace-failures" => {
+                resilience::native_failures(dir, source, Path::new(&args[4]));
+                return;
+            }
+            "namespace-failure-child" => {
+                resilience::namespace_child(source, args[4] == "0");
+                return;
+            }
             "resilience-recovery" => {
                 resilience::recovery(dir, source, args[4].to_str().unwrap().parse().unwrap());
                 return;

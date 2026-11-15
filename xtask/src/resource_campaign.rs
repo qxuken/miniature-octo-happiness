@@ -20,7 +20,12 @@ use std::{
 };
 const DRIVER: &str = "tools/resource-envelope";
 const BASE: &[&str] = &["Cargo.toml", "Cargo.lock", "src/main.rs"];
-const COMPOUND: &[&str] = &["src/compound.rs", "src/resilience.rs", "src/space.rs"];
+const COMPOUND: &[&str] = &[
+    "src/compound.rs",
+    "src/resilience.rs",
+    "src/space.rs",
+    "namespace_fault.c",
+];
 const MAX_STREAM: u64 = 8 * 1024 * 1024;
 const RESILIENCE_PROFILES: [&str; 8] = [
     "maintenance-copy",
@@ -38,6 +43,7 @@ pub enum Profile {
     Compound,
     CompoundCycles,
     Resilience,
+    NamespaceFailures,
 }
 impl Profile {
     fn name(self) -> &'static str {
@@ -46,12 +52,15 @@ impl Profile {
             Self::Compound => "compound",
             Self::CompoundCycles => "compound-cycles",
             Self::Resilience => "resilience",
+            Self::NamespaceFailures => "namespace-failures",
         }
     }
     fn binary(self) -> &'static str {
         match self {
             Self::Envelope => "weekend-resource-envelope",
-            Self::Compound | Self::CompoundCycles | Self::Resilience => "weekend-compound-resource",
+            Self::Compound | Self::CompoundCycles | Self::Resilience | Self::NamespaceFailures => {
+                "weekend-compound-resource"
+            }
         }
     }
 }
@@ -370,6 +379,51 @@ pub(crate) fn worker(
                 );
                 c.evidence["image_sha256"] = json!(image_hash);
             }
+            if profile == Profile::NamespaceFailures {
+                let shim = output.join("namespace-shim");
+                let mut build = cmd(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2"]);
+                if cfg!(target_os = "macos") {
+                    build.push("-dynamiclib".into());
+                } else {
+                    build.extend(cmd(["-shared", "-fPIC"]));
+                }
+                build.extend([
+                    path(source.join(DRIVER).join("namespace_fault.c")),
+                    "-o".into(),
+                    path(&shim),
+                ]);
+                if cfg!(target_os = "linux") {
+                    build.push("-ldl".into());
+                }
+                c.command_at(build, "namespace-build", None, 30., &source)?;
+                let shim_hash = sha(&shim)?;
+                let image_hash = sha(&source_image)?;
+                let value = observe(
+                    Observation {
+                        binary: &binary,
+                        data: &output.join("namespace-data"),
+                        report: &output.join("namespace.json"),
+                        args: &[path(&source_image), profile.name().into(), path(&shim)],
+                        context: &run,
+                        deadline: 240.,
+                        inspect_group: true,
+                    },
+                    |rows| {
+                        resource_oracle::namespace_failures(
+                            rows,
+                            revision,
+                            cfg!(target_os = "macos"),
+                        )
+                    },
+                )?;
+                ensure!(
+                    sha(&shim)? == shim_hash && sha(&source_image)? == image_hash,
+                    "namespace shim or source image changed"
+                );
+                c.evidence["namespace_run"] = value;
+                c.evidence["namespace_shim_sha256"] = json!(shim_hash);
+                c.evidence["image_sha256"] = json!(image_hash);
+            }
         }
         ensure!(
             sha(&binary)? == binary_hash && inventory(&source, &[])? == source_hashes,
@@ -479,7 +533,7 @@ fn docker(
             None,
             match profile {
                 Profile::Envelope => 300.,
-                Profile::Compound => 600.,
+                Profile::Compound | Profile::NamespaceFailures => 600.,
                 Profile::CompoundCycles => 900.,
                 Profile::Resilience => 1200.,
             },
@@ -521,6 +575,7 @@ fn check_proof(
     source: &BTreeMap<String, String>,
     revision: &str,
     profile: Profile,
+    macos: bool,
 ) -> Result<Value> {
     let proof = delivery::read_json(&output.join("evidence.json"))?;
     ensure!(
@@ -611,6 +666,28 @@ fn check_proof(
                 "resilience image changed after copyback"
             );
         }
+        if profile == Profile::NamespaceFailures {
+            let run = &proof["namespace_run"];
+            ensure!(
+                run["passed"] == true && run["owned_live_processes_absent"] == true,
+                "unverified namespace failure run"
+            );
+            resource_oracle::namespace_failures(
+                run["rows"].as_array().context("namespace rows missing")?,
+                revision,
+                macos,
+            )?;
+            let data = output.join("namespace-data");
+            let control = data.join("control");
+            ensure!(
+                proof["namespace_shim_sha256"] == sha(&output.join("namespace-shim"))?
+                    && proof["image_sha256"] == sha(&output.join("native-data/source.wdb"))?
+                    && fs::read_dir(&data)?.count() == 1
+                    && fs::read_dir(&control)?.count() == 1
+                    && fs::metadata(control.join("store.wdb"))?.len() == 63_074_304,
+                "namespace shim, seed or compacted control changed"
+            );
+        }
     }
     Ok(proof)
 }
@@ -633,12 +710,18 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         let hashes = inventory(&source, &[])?;
         c.evidence["source_sha256"] = json!(hashes);
         let run_path = output.join("run");
-        if let Some(image) = options.docker_image {
-            docker(&mut c, &source, &revision, &image, options.profile)?;
+        if let Some(image) = options.docker_image.as_deref() {
+            docker(&mut c, &source, &revision, image, options.profile)?;
         } else {
             worker(run, &source, &run_path, &revision, options.profile)?;
         }
-        let proof = check_proof(&run_path, &hashes, &revision, options.profile)?;
+        let proof = check_proof(
+            &run_path,
+            &hashes,
+            &revision,
+            options.profile,
+            options.docker_image.is_none() && cfg!(target_os = "macos"),
+        )?;
         ensure!(
             inventory(&source, &[])? == hashes,
             "archived resource source changed"

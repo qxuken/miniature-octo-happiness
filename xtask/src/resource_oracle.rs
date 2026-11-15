@@ -439,6 +439,71 @@ pub fn envelope(rows: &[Value]) -> Result<()> {
     Ok(())
 }
 
+/// Check adapter diagnostics and recovered data against the public operation
+/// order. Each failure is followed by a separate reopen and retry checker.
+pub fn namespace_failures(rows: &[Value], source: &str, macos: bool) -> Result<()> {
+    const PROFILE: &str = "namespace-failures";
+    let quota = if macos { 69 } else { 122 };
+    let schedule = [
+        (28, "Exchange", "DiskFull", false, true),
+        (quota, "Sync", "Quota", true, true),
+        (5, "Sync", "Other", true, true),
+        (28, "Remove", "DiskFull", true, true),
+        (quota, "Sync", "Quota", true, false),
+        (5, "Sync", "Other", true, false),
+        (5, "Exchange", "Other", true, true),
+    ];
+    ensure!(
+        rows.len() == 2 + 3 * schedule.len() + 2
+            && rows.last() == Some(&completion(PROFILE, source))
+            && rows[1] == json!({"disabled_injection_rejected":true,"calibrated_calls":6}),
+        "incomplete namespace reports or missing injector control"
+    );
+    let fresh = json!({"fresh_process":true});
+    state(&rows[0], "namespace_control", 212, false, Some(63_074_304))?;
+    ensure!(
+        rows[0]["detail"] == fresh,
+        "missing fresh namespace control"
+    );
+    for ((index, (raw, operation, category, exchanged, orphan)), [fail, reopen, retry]) in schedule
+        .into_iter()
+        .enumerate()
+        .zip(rows[2..].as_chunks::<3>().0)
+    {
+        let mode = index + 1;
+        ensure!(
+            *fail
+                == json!({"mode":mode,"calls":if mode == 7 {1} else {mode},
+                "raw":raw,"operation":operation,"category":category,
+                "error":"OutcomeUnknown","exchanged":exchanged,"orphan":orphan}),
+            "namespace diagnostic mismatch in case {mode}"
+        );
+        state(
+            reopen,
+            &format!("namespace_reopen_{mode}"),
+            212,
+            false,
+            Some(if exchanged { 63_074_304 } else { 66_154_496 }),
+        )?;
+        state(
+            retry,
+            &format!("namespace_retry_{mode}"),
+            212,
+            false,
+            Some(63_074_304),
+        )?;
+        ensure!(
+            reopen["detail"] == fresh && retry["detail"] == fresh,
+            "missing fresh namespace reopen or retry"
+        );
+    }
+    ensure!(
+        rows[rows.len() - 2] == json!({"cleanup":true,"cases":7,"source_unchanged":true}),
+        "namespace case cleanup incomplete"
+    );
+    Ok(())
+}
+
 /// Independent schedule/outcome oracle for the injected second failures and
 /// the killed native maintenance worker on both sides of selected boundaries.
 pub fn resilience(rows: &[Value], profile: &str, source: &str) -> Result<()> {
@@ -762,6 +827,66 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn namespace_oracle_requires_the_native_error_and_both_fresh_checks() {
+        let fixture = fixtures();
+        let source = fixture["source"].as_str().unwrap();
+        let status = &fixture["resilience"]["maintenance-publish"][0];
+        let state = |phase: String, bytes: u64| {
+            let mut state = status.clone();
+            state["phase"] = json!(phase);
+            state["file_bytes"] = json!(bytes);
+            state
+        };
+        let mut rows = vec![
+            state("namespace_control".into(), 63_074_304),
+            json!({"disabled_injection_rejected":true,"calibrated_calls":6}),
+        ];
+        for (i, (raw, operation, category, orphan)) in [
+            (28, "Exchange", "DiskFull", true),
+            (69, "Sync", "Quota", true),
+            (5, "Sync", "Other", true),
+            (28, "Remove", "DiskFull", true),
+            (69, "Sync", "Quota", false),
+            (5, "Sync", "Other", false),
+            (5, "Exchange", "Other", true),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mode = i + 1;
+            rows.push(json!({"mode":mode,"calls":if mode == 7 {1} else {mode},
+                "raw":raw,"operation":operation,"category":category,
+                "error":"OutcomeUnknown","exchanged":mode != 1,"orphan":orphan}));
+            rows.push(state(
+                format!("namespace_reopen_{mode}"),
+                if mode == 1 { 66_154_496 } else { 63_074_304 },
+            ));
+            rows.push(state(format!("namespace_retry_{mode}"), 63_074_304));
+        }
+        rows.push(json!({"cleanup":true,"cases":7,"source_unchanged":true}));
+        rows.push(completion("namespace-failures", source));
+        namespace_failures(&rows, source, true).unwrap();
+        assert!(namespace_failures(&rows, source, false).is_err());
+        for (row, field, value) in [
+            (1, "disabled_injection_rejected", json!(false)),
+            (2, "error", json!("Io")),
+            (2, "exchanged", json!(true)),
+            (3, "file_bytes", json!(63_074_304)),
+            (4, "detail", json!({"fresh_process":false})),
+            (14, "orphan", json!(true)),
+            (20, "calls", json!(7)),
+            (23, "source_unchanged", json!(false)),
+        ] {
+            let mut broken = rows.clone();
+            broken[row][field] = value;
+            assert!(
+                namespace_failures(&broken, source, true).is_err(),
+                "{field}"
+            );
+        }
+    }
+
     #[test]
     fn complete_resilience_matrix_rejects_omitted_cases_wrong_roots_and_wrong_cut_edges() {
         let fixture = fixtures();

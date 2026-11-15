@@ -168,6 +168,163 @@ pub(super) fn maintenance(dir: &Path, source: &Path, publish: bool) {
         "maintenance-copy"
     });
 }
+
+pub(super) fn namespace_child(image: &Path, control: bool) {
+    let result = Database::compact_file_with_diagnostics(image, limits(COPY));
+    if control {
+        result.expect("uninjected namespace compaction");
+        println!("namespace compaction completed");
+        return;
+    }
+    let failure = result.expect_err("expected injected namespace failure");
+    assert!(failure.verification.is_none());
+    let native = failure.native.expect("injected syscall returned errno");
+    println!(
+        "{:?} {:?} {:?} {}",
+        failure.error,
+        native.operation,
+        native.category,
+        native.raw_os_error.unwrap()
+    );
+}
+
+pub(super) fn native_failures(dir: &Path, source: &Path, shim: &Path) {
+    use std::os::unix::fs::MetadataExt;
+    fs::create_dir(dir).unwrap();
+    let original = fs::read(source).unwrap();
+    assert_eq!(original.len(), 66_154_496);
+    let loader = if cfg!(target_os = "macos") {
+        "DYLD_INSERT_LIBRARIES"
+    } else {
+        "LD_PRELOAD"
+    };
+    let scratch = |case: &Path| {
+        let mut paths = fs::read_dir(case)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.file_name().unwrap() != "store.wdb");
+        let found = paths.next();
+        assert!(paths.next().is_none());
+        if let Some(path) = &found {
+            let name = path.file_name().unwrap().to_str().unwrap();
+            let id = name
+                .strip_prefix(".wdb-compact-")
+                .and_then(|n| n.strip_suffix(".tmp"))
+                .unwrap();
+            assert_eq!(id.len(), 32);
+            assert!(id.bytes().all(|b| b.is_ascii_hexdigit()));
+        }
+        found
+    };
+    let exercise = |case: &Path, image: &Path, expected: u8, inject: u8, name: &str| {
+        command(case, image, "namespace-failure-child")
+            .arg(expected.to_string())
+            .env_remove("DYLD_INSERT_LIBRARIES")
+            .env_remove("LD_PRELOAD")
+            .env(loader, shim)
+            .env("WDB_NAMESPACE_DIRECTORY", case)
+            .env("WDB_NAMESPACE_STEP", inject.to_string())
+            .env("WDB_NAMESPACE_ERRNO", name)
+            .output()
+            .unwrap()
+    };
+    let setup = |name: &str| {
+        let case = dir.join(name);
+        fs::create_dir(&case).unwrap();
+        let image = case.join("store.wdb");
+        fs::write(&image, &original).unwrap();
+        (case, image)
+    };
+    let syscall_prefix = |last: u8| {
+        (1..=last)
+            .map(|n| format!("namespace syscall {n}\n"))
+            .collect::<String>()
+    };
+    let (case, control) = setup("control");
+    let output = exercise(&case, &control, 0, 0, "EIO");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"namespace compaction completed\n");
+    assert_eq!(output.stderr, syscall_prefix(6).as_bytes());
+    assert!(scratch(&case).is_none());
+    let compacted = fs::read(&control).unwrap();
+    assert_eq!(compacted.len(), 63_074_304);
+    fresh_check(&case, &control, "namespace_control", FINAL, false);
+
+    let (case, image) = setup("disabled");
+    let output = exercise(&case, &image, 1, 0, "ENOSPC");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.starts_with(&syscall_prefix(6)));
+    assert!(stderr.contains("expected injected namespace failure"));
+    assert_eq!(fs::read(&image).unwrap(), compacted);
+    assert!(scratch(&case).is_none());
+    fs::remove_dir_all(&case).unwrap();
+    println!("{{\"disabled_injection_rejected\":true,\"calibrated_calls\":6}}");
+
+    let quota = if cfg!(target_os = "macos") { 69 } else { 122 };
+    for (mode, errno, raw, operation, category) in [
+        (1, "ENOSPC", 28, "Exchange", "DiskFull"),
+        (2, "EDQUOT", quota, "Sync", "Quota"),
+        (3, "EIO", 5, "Sync", "Other"),
+        (4, "ENOSPC", 28, "Remove", "DiskFull"),
+        (5, "EDQUOT", quota, "Sync", "Quota"),
+        (6, "EIO", 5, "Sync", "Other"),
+        (7, "EIO", 5, "Exchange", "Other"),
+    ] {
+        let (case, image) = setup(&format!("error-{mode}"));
+        let inode = fs::metadata(&image).unwrap().ino();
+        let output = exercise(&case, &image, mode, mode, errno);
+        assert!(output.status.success(), "phase {mode}: {output:?}");
+        let calls = if mode == 7 { 1 } else { mode };
+        assert_eq!(
+            output.stderr,
+            format!("{}namespace fault {mode} {raw}\n", syscall_prefix(calls)).as_bytes()
+        );
+        assert_eq!(
+            output.stdout,
+            format!("OutcomeUnknown {operation} {category} {raw}\n").as_bytes()
+        );
+        let exchanged = mode != 1;
+        assert_eq!(inode != fs::metadata(&image).unwrap().ino(), exchanged);
+        let canonical = if exchanged { &compacted } else { &original };
+        assert_eq!(fs::read(&image).unwrap(), canonical.as_slice());
+        let orphan = scratch(&case);
+        assert_eq!(orphan.is_some(), !matches!(mode, 5 | 6));
+        let orphan_bytes = if exchanged { &original } else { &compacted };
+        if let Some(path) = &orphan {
+            assert_eq!(fs::read(path).unwrap(), orphan_bytes.as_slice());
+        }
+        println!(
+            "{{\"mode\":{mode},\"calls\":{calls},\"raw\":{raw},\"operation\":\"{operation}\",\"category\":\"{category}\",\"error\":\"OutcomeUnknown\",\"exchanged\":{exchanged},\"orphan\":{}}}",
+            orphan.is_some(),
+        );
+        fresh_check(
+            &case,
+            &image,
+            &format!("namespace_reopen_{mode}"),
+            FINAL,
+            false,
+        );
+        Database::compact_file(&image, limits(COPY)).unwrap();
+        assert_eq!(fs::read(&image).unwrap(), compacted);
+        fresh_check(
+            &case,
+            &image,
+            &format!("namespace_retry_{mode}"),
+            FINAL,
+            false,
+        );
+        assert_eq!(scratch(&case), orphan);
+        if let Some(path) = orphan {
+            assert_eq!(fs::read(path).unwrap(), orphan_bytes.as_slice());
+        }
+        fs::remove_dir_all(&case).unwrap();
+    }
+    assert_eq!(fs::read(source).unwrap(), original);
+    println!("{{\"cleanup\":true,\"cases\":7,\"source_unchanged\":true}}");
+    complete("namespace-failures");
+}
+
 fn first(image: &[u8], initial: usize, syncs: &[usize]) -> SimulatedDisk {
     let disk = SimulatedDisk::from_image(image).unwrap();
     let db = Database::open_on(disk.clone(), limits(CORE)).unwrap();

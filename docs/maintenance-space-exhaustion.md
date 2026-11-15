@@ -178,9 +178,82 @@ combined with `--maintenance`.
 ## Remaining scope
 
 This closes the named near-cap **copy-phase** ENOSPC/EDQUOT maintenance gate.
-It does not cover delayed-writeback errors, exhaustion during namespace exchange
-or cleanup, inode quotas, physical power interruption, full ext4 devices, other
-filesystems or native Mac/Windows exhaustion. Earlier process-kill and simulated
-namespace/recovery matrices retain their separate scope. No production-code AST
-or MC/DC denominator changes, crate publication or release qualification follows.
-All 19 Cargo manifests retain `publish=false`.
+Actual filesystem exhaustion during exchange, cleanup, and delayed writeback,
+inode quotas, physical power interruption, full ext4 devices and native
+Mac/Windows exhaustion remain separate gates. Earlier process-kill and simulated
+namespace/recovery matrices retain their separate scope. All 19 Cargo
+manifests retain `publish=false`.
+
+## Injected namespace and sync errors
+
+The `namespace-failures` resource profile runs the production
+`Database::compact_file_with_diagnostics` API in a fresh native child. A
+private interposer targets the case directory and its original/replacement
+inodes. The calibration observes the exchange, both directory syncs, both
+replacement syncs and old-file removal in the required order. The shim hooks
+`renameatx_np`, `unlinkat` and `fcntl(F_FULLFSYNC)` on macOS, and
+`renameat2`, `unlinkat` and `fsync` on Linux. On the selected macOS Rust
+toolchain, directory `File::sync_all` also calls `F_FULLFSYNC`. A control
+with injection disabled must fail the child's expected-error assertion.
+
+All injected cases expect `OutcomeUnknown` with the named native operation
+and errno. The scenario that runs the exchange and then surfaces EIO
+exercises an ambiguous result with a changed namespace.
+
+| Case | Injected errno | Native diagnostic | Canonical file after error | Scratch file after error |
+|---|---|---|---|---|
+| Exchange before the syscall | ENOSPC | Exchange / DiskFull | Original | Compacted |
+| First directory sync | EDQUOT | Sync / Quota | Compacted | Original |
+| First replacement sync | EIO | Sync / Other | Compacted | Original |
+| Old-file removal | ENOSPC | Remove / DiskFull | Compacted | Original |
+| Cleanup directory sync | EDQUOT | Sync / Quota | Compacted | Absent |
+| Cleanup replacement sync | EIO | Sync / Other | Compacted | Absent |
+| Exchange returns EIO after real syscall succeeds | EIO | Exchange / Other | Compacted | Original |
+
+The fixture compares inode and exact canonical and scratch bytes with the
+66,154,496-byte original and 63,074,304-byte compacted control. A fresh
+process checks current revision 212 and every byte of all 64 retained roots.
+The uninjected retry produces the exact compacted image and a second fresh
+checker verifies the same complete state. Any scratch name already present
+survives retry with identical bytes. Only the private test case retires it
+after verification. A Rust controller independently checks the observed
+diagnostic, selected revision, state fingerprints and fresh process records
+for every case. It also checks that the source and shim hashes stay stable.
+
+```sh
+cargo xtask resource namespace-failures --revision 17135d56f722aa9aebb06368ce2abb530df91722 \
+  --output target/namespace-failures-mac
+cargo xtask resource namespace-failures --revision 17135d56f722aa9aebb06368ce2abb530df91722 \
+  --output target/namespace-failures-linux \
+  --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
+```
+
+The syscall returns are injected. The pathname changes, sync calls preceding
+the error, reopening, verification and retry use the real filesystem. This
+profile provides native error propagation and retry evidence. Actual
+filesystem exhaustion at the named phase and physical persistence on power
+loss still require their own evidence.
+
+### Native results
+
+macOS arm64/APFS and Docker Linux arm64/ext4 passed all seven errors and
+the disabled-injection control on Rust 1.99.1. Both hosts reported errno
+28 for ENOSPC and 5 for EIO. EDQUOT reported 69 on macOS and 122 on Linux.
+Each host passed 15 fresh-image checks, including the compacted control.
+Each worker verified process retirement, complete current and retained data,
+and source stability. Docker also verified its container and volume were
+absent after copying the evidence. The full macOS xtask debug suite passed
+185 tests with one default ignore. The six resource oracle tests passed in
+debug and release. Strict Clippy passed for xtask and the compound fixture.
+
+The engine archive uses `17135d56f722aa9aebb06368ce2abb530df91722`. The
+resource campaign overlays the current private fixture and shim onto that
+archive, then records their hashes. Evidence is under
+`target/namespace-proof/full-mac` and `target/namespace-proof/full-linux`.
+
+| Evidence | macOS SHA-256 | Linux SHA-256 |
+|---|---|---|
+| Controller | `060d443fbba18144208fdc2732a7fb1240e733577489b92e705f752346e80c92` | `51659d91b6c93401d8a4f025d18c7dbc98ec8d46bfef3d15324707e48b170053` |
+| Worker | `6b0869a7fba40964962e3b9a21353fbc21b0499f67d5703f1fd47a383bb829fc` | `aea9c9c9680b02c6935326cf68675991cc1c1a3a0c8c9425d35aaccee212d674` |
+| Namespace observation | `82ccc43ae4259c8a5f09d9bd5eff28602a9680e4286715401078d3c906e71ab4` | `8dcd1c3e88adeb4429739c9e434db24b1a435cdc71b25dfe26ba47fc7d3881a5` |
+| Shared shim source | `b65034ea3c5d70ad0920a7028ecc2b699c7f6fa4a1550c7f38cb2f5337606230` | `b65034ea3c5d70ad0920a7028ecc2b699c7f6fa4a1550c7f38cb2f5337606230` |
