@@ -13,6 +13,7 @@ use std::{
     path::PathBuf,
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
+        Mutex,
         atomic::{AtomicU64, Ordering},
         mpsc::{self, Receiver},
     },
@@ -21,6 +22,8 @@ use std::{
 
 const BIN: &str = env!("CARGO_BIN_EXE_write-coordinator");
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+// Keep the capacity workload out of the journal CLI's socket deadline.
+static STORAGE_WORKLOAD: Mutex<()> = Mutex::new(());
 
 struct Directory(PathBuf);
 impl Directory {
@@ -454,6 +457,10 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
     use std::net::{TcpListener, TcpStream};
     use weekend_db::{Limits, storage};
 
+    let _exclusive = STORAGE_WORKLOAD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
     fn relay(
         listener: &TcpListener,
         client: &AuthenticatedClient,
@@ -519,8 +526,9 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
             .output()
             .unwrap()
     };
-    let stdout = |output: std::process::Output| {
-        assert!(output.status.success(), "{:?}", output);
+    let checked = |action, tail: &[&str]| {
+        let output = run(action, tail);
+        assert!(output.status.success(), "journal {action}: {output:?}");
         String::from_utf8(output.stdout).unwrap()
     };
     let (mut primary, client) =
@@ -529,7 +537,7 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
     let identity = client.request("identity");
     let identity = identity.strip_prefix("identity ").unwrap();
     assert_eq!(
-        stdout(run("init", &[&port, "0", "--secret-file", key])),
+        checked("init", &[&port, "0", "--secret-file", key]),
         format!("journal {identity} 0\nreceipt 0\n")
     );
 
@@ -555,7 +563,7 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
     interrupted.stop();
     drop(withheld);
     let pending = format!("journal {identity} 0\nreceipt 0\npending 1 3 42\n");
-    assert_eq!(stdout(run("status", &[])), pending);
+    assert_eq!(checked("status", &[]), pending);
     assert_eq!(client.request("receipt 0"), "receipt 1 3 42 4");
     primary.stop();
 
@@ -568,7 +576,7 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
             .success()
     );
     assert_eq!(other_client.request("get"), "value 3 0");
-    assert_eq!(stdout(run("status", &[])), pending);
+    assert_eq!(checked("status", &[]), pending);
     other.stop();
 
     let (_primary, client) =
@@ -576,13 +584,13 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
     let port = client.address.port().to_string();
     for _ in 0..2 {
         assert_eq!(
-            stdout(run("resume", &[&port, "--secret-file", key])),
+            checked("resume", &[&port, "--secret-file", key]),
             "committed 4\n"
         );
     }
     assert_eq!(client.request("get"), "value 4 42");
     assert_eq!(
-        stdout(run("status", &[])),
+        checked("status", &[]),
         format!("journal {identity} 0\nreceipt 1 3 42 4\n")
     );
 
@@ -600,13 +608,13 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
             .success()
     );
     assert_eq!(
-        stdout(run("status", &[])),
+        checked("status", &[]),
         format!("journal {identity} 0\nreceipt 1 3 42 4\npending 2 4 99\n")
     );
     assert_eq!(other_client.request("get"), "value 4 777");
     assert_eq!(client.request("get"), "value 4 42");
     assert_eq!(
-        stdout(run("resume", &[&port, "--secret-file", key])),
+        checked("resume", &[&port, "--secret-file", key]),
         "committed 5\n"
     );
     assert_eq!(client.request("receipt 0"), "receipt 2 4 99 5");
@@ -954,6 +962,10 @@ fn full_service_replays_without_new_revision(client: &AuthenticatedClient) {
 fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
     use std::net::Shutdown;
     use weekend_db::{Limits, storage};
+
+    let _exclusive = STORAGE_WORKLOAD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
 
     let dir = Directory::new();
     let file = dir.0.join("capacity.db");

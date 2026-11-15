@@ -1704,9 +1704,8 @@ conversion. macOS arm64/APFS and Docker Linux arm64/ext4 passed all 17
 `study-peer` tests per debug and release profile, including the existing
 credential interruption test. Strict Clippy passed on both hosts. The
 roster process test passed on macOS ASan and TSan with rebuilt std at
-`nightly-2026-11-12`. Native Windows execution of this roster scenario
-remains due. Routing authority and stopping copies on remote hosts remain
-operator responsibilities.
+`nightly-2026-11-12`. Routing authority and stopping copies on remote hosts
+remain operator responsibilities.
 
 The table below records the initial `9aab470` implementation. That head
 also cross-linked both apps' seven Windows MSVC test executables in debug
@@ -1758,3 +1757,32 @@ the explicit fresh-roster workflow.
 | macOS legacy-upgrade worker | `f466e899531b9ae4a5225b1fe90d684249add61436526282e249e6ad7e46b798` |
 | Docker Linux legacy-upgrade controller | `333b570d031522d9a0ae4c75cc18116052ec4ddc785259d07813c8914bad5e03` |
 | Docker Linux legacy-upgrade worker | `c41a73015ffa80fcb51be4e694f898291f4df696f6ca67ab283c154f1d9713cd` |
+
+The [Windows job for `85853c7`](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43721267623/job/132833559162)
+passed the roster cutover and the fixture-directory collision regression in
+debug and release. A later coordinator journal case timed out while the
+1,024-receipt workload was running. The two tests now run separately within
+the suite and journal failures report the command. The CLI deadline stays at
+three seconds. The Windows job log SHA-256 is
+`0172854294e86a9b84193cd057deb1fcf8ba414aea0a306c8aad86a95ffcfbd1`.
+
+## Windows exact-DLL publication faults
+
+`3efda17` adds the [six-case Windows exact-DLL gate](delivered-c-faults.md#native-windows-delivered-c-gate).
+An optimized C11 consumer injects write and flush errors into the loaded
+DLL. A fresh process verifies the reopened revision, reconciles request 42
+and reads retained revision 2. The CI job saves this evidence before the
+longer workspace suite and enforces the fault result at the end of the job.
+
+The Windows C11 fault consumer, its disabled-injection control and the
+normal C11/C++17 trace consumers all cross-linked against the Windows import
+library. The xtask Windows test binary also cross-linked, and strict Clippy
+passed on the host and Windows targets. Native Windows fault execution is
+pending. The shared fault consumer rerun against the exact `f70e405`
+packages passed all five macOS/APFS and all six Docker Linux/ext4 cases,
+including the Linux tmpfs exhaustion case.
+
+| Evidence | SHA-256 |
+|---|---|
+| macOS delivered C regression report | `50521444b0be82fe0fa6185c0dac7b0519f6d62d174d3aa2a62e502a111663e7` |
+| Linux delivered C regression report | `709dfcb0b6aa0a7eec7496975602f7122a19ff1c01c0f25cf6dd35698275419b` |

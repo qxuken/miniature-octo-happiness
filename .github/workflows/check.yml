@@ -20,28 +20,13 @@ jobs:
         run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
-      - name: Release configuration validation
-        run: |
-          cargo test --offline --locked -p xtask --bin xtask
-      - name: Rust debug/release and interruption checks; C consumers on macOS/Linux
-        run: cargo xtask check --skip-odin
-      - name: Compile Windows C and C++ consumers against both DLL builds
+      - name: Qualify the private Windows package and relocation
         if: runner.os == 'Windows'
-        run: |
-          cargo xtask windows-consumers --library target/debug/weekend_db.dll
-          cargo xtask windows-consumers --library target/release/weekend_db.dll
-      - name: Qualify private native package and relocation (no publication)
         run: cargo xtask package --output target/private-package --features crdt,replication
-      - name: Verify all 20 Windows C/C++ cases against the exact delivered DLL
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
-          Write-Output "Delivered manifest SHA-256: $pin"
-          cargo xtask windows-trace --package target/private-package --manifest-sha256 $pin --output target/private-windows-trace
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify Windows exact-DLL publication failures and reopening
         if: runner.os == 'Windows'
+        id: delivered_windows_faults
+        continue-on-error: true
         shell: pwsh
         run: |
           $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -54,6 +39,27 @@ jobs:
           name: weekend-db-windows-faults-${{ runner.arch }}
           if-no-files-found: warn
           path: target/private-windows-faults/
+      - name: Release configuration validation
+        run: |
+          cargo test --offline --locked -p xtask --bin xtask
+      - name: Rust debug/release and interruption checks; C consumers on macOS/Linux
+        run: cargo xtask check --skip-odin
+      - name: Compile Windows C and C++ consumers against both DLL builds
+        if: runner.os == 'Windows'
+        run: |
+          cargo xtask windows-consumers --library target/debug/weekend_db.dll
+          cargo xtask windows-consumers --library target/release/weekend_db.dll
+      - name: Qualify private native package and relocation (no publication)
+        if: runner.os != 'Windows'
+        run: cargo xtask package --output target/private-package --features crdt,replication
+      - name: Verify all 20 Windows C/C++ cases against the exact delivered DLL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Output "Delivered manifest SHA-256: $pin"
+          cargo xtask windows-trace --package target/private-package --manifest-sha256 $pin --output target/private-windows-trace
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save Windows exact-DLL trace evidence
         if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@v7
@@ -79,6 +85,10 @@ jobs:
             target/release/*.dll
             target/release/*.dll.lib
             include/weekend_db.h
+      - name: Enforce the Windows exact-DLL fault result
+        if: always() && runner.os == 'Windows' && steps.delivered_windows_faults.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
   helper-controls:
     name: POSIX qualification helper controls
     strategy:
