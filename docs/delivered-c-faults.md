@@ -202,6 +202,37 @@ revision 4 with retained revision 2. Only the exercise process loads the
 shim. The loader log binds each phase to the exact relocated dylib, and the
 controller verifies disk-image detachment and removal.
 
+All six cases passed with the clean combined `6053e8c` release package on
+macOS 27.0.1 arm64, Rust 1.99.1 and Apple clang 21.0.0. For the append
+case, APFS reported 5,849,088 available bytes before and after the fresh
+open, with a real `ENOSPC` on the 4 KiB ballast probe. The file hash stayed
+identical from seed through the failed commit and full-volume reopen.
+Removing the ballast restored 266,764,288 available bytes. The retry
+reopened 4 with retained revision 2. All four consumer processes loaded the
+same artifact, and only the exercise loaded the observer. The volume and
+process cleanup checks passed.
+
+Independent review rehashed all 103 listed files, checked the loader logs
+and outcomes, and compared the original and relocated dylib and manifest
+byte for byte. The local proof is `target/macos-append-proof/local`. The
+same shared fixture passed all six Linux regressions against exact `f70e405`,
+including kernel tmpfs exhaustion. The hosted Windows rerun for `6053e8c`
+passed the six injected DLL cases and the actual NTFS exhaustion case.
+All 211 listed Windows files rehashed and the two DLL copies matched.
+[Windows injected cases](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43728606525/artifacts/14167139786)
+· [Windows exhaustion case](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43728606525/artifacts/14167656243)
+
+| Evidence | SHA-256 |
+|---|---|
+| Dylib | `839bdb55ba9d4d7a874b24963b3921f60aa2615b72739ff8f5bf33aefe5fea5f` |
+| Package manifest | `e0063b6297260b42d59a51f5ecbd3fafabe9c15a837dbd623a9246835192a653` |
+| Combined macOS evidence | `84609b4f136affecbee3a243faf280a7916ea433688b86d66ed348e05855cb8a` |
+| APFS phase evidence | `0cd9c2d2e63297cb9d9d71c96d9a5d2c9c529f4c59383a0db15de459ed832785` |
+| Independent rehash | `7f9b8af10c1c09851f3267deb9b038d8d30a1da11159269cd16e357198ac82f8` |
+| Seed, failed commit and full reopen image | `077f9eb0545e4c5dc02af46c06b06604d034073838d045874e50860d5a04886b` |
+| Retry image | `8397e1f8bb05e6caf2e30278b9f27cfe9e983b5c8f61a1153aea0d1a551c6812` |
+| Linux regression evidence | `b13a52f29771e90d1ba69912435ac7e0149eb67d1188710736bd77e49805a196` |
+
 ## Native Windows delivered C gate
 
 Use a manifest-pinned combined-feature package and a fresh output path on

@@ -1848,3 +1848,16 @@ available at that boundary. All three retries matched the verified backup.
 The source subsequently reopened at revision 213, and the bounded 256 MiB
 disk image was detached and removed. The hosted macOS job now includes the
 same gate. Actual namespace exhaustion and physical power loss remain open.
+
+## macOS APFS append exhaustion against the delivered dylib
+
+The [C ABI append gate](delivered-c-faults.md#actual-apfs-append-exhaustion-against-the-dylib)
+passed all six cases against the clean release dylib at `6053e8c`. The
+actual append received kernel `ENOSPC` and returned `IO` before any root
+write, witness write or publication flush. A fresh process reopened revision
+3 and verified retained revision 2 while the image still rejected writes.
+The failed commit and full-space reopen preserved the seeded image hash.
+After freeing space, retry of request 42 reopened revision 4 with retained
+revision 2. The disk image detached and was removed. The shared C fixture
+also passed the Linux regression against `f70e405`. The macOS workflow
+archives the combined package fault results.
