@@ -21,7 +21,7 @@
 #include <sys/statvfs.h>
 #define LAST_MODE 5
 #elif defined(__APPLE__)
-#define LAST_MODE 4
+#define LAST_MODE 5
 #elif defined(_WIN32)
 #define LAST_MODE 6
 #else
@@ -80,6 +80,15 @@ static void candidate(wdb_database *db,wdb_tx **tx) {
     put(*tx,"row",row);put(*tx,"payload",payload);put(*tx,"request",request);
     OK(wdb_value_release(row));OK(wdb_value_release(payload));OK(wdb_value_release(request));
 }
+static wdb_database *seed_database(const char *path) {
+    wdb_database *db=NULL;OK(wdb_file_create((const uint8_t*)path,strlen(path),&db));
+    uint64_t collection=0,revision=99,id=0;OK(wdb_collection_create(db,&collection));assert(collection==1);
+    wdb_tx *tx=NULL;OK(wdb_tx_begin(db,WDB_RECORDS,&tx));wdb_value *one=bytes(db,1,32768);
+    put(tx,"row",one);OK(wdb_value_release(one));OK(wdb_tx_commit(tx,&revision));assert(revision==2);OK(wdb_tx_release(tx));
+    wdb_snapshot *old=NULL;OK(wdb_snapshot_acquire(db,&old));OK(wdb_snapshot_retain(db,old,&id));assert(id==1);
+    OK(wdb_snapshot_release(old));verify(db,3,0);
+    return db;
+}
 #if defined(__linux__)
 static void fill(const char *directory,char *ballast,size_t capacity) {
     assert(getenv("QUALIFICATION_PRIVATE_TMPFS") && !strcmp(getenv("QUALIFICATION_PRIVATE_TMPFS"),"1"));
@@ -109,9 +118,17 @@ int main(int argc,char **argv) {
     assert(argc==4 || argc==5);int recovering=argc==5;
     int verify_only=recovering && !strcmp(argv[1],"full");
     if(recovering)assert(verify_only || !strcmp(argv[1],"recover"));
-    int mode=atoi(recovering?argv[4]:argv[1]);assert(mode>=0 && mode<=LAST_MODE);
+    int seed_only=0;
+#if defined(__APPLE__)
+    seed_only=!recovering && !strcmp(argv[1],"seed");
+#endif
+    int mode=seed_only?5:atoi(recovering?argv[4]:argv[1]);assert(mode>=0 && mode<=LAST_MODE);
+#if defined(__APPLE__)
+    assert(!verify_only || mode==5);
+#else
     assert(!verify_only || mode==6);
-    if(!recovering) {
+#endif
+    if(!recovering && !seed_only) {
 #if defined(_WIN32)
         arm=windows_arm;
         disarm=windows_disarm;
@@ -127,6 +144,11 @@ int main(int argc,char **argv) {
     assert(wdb_abi_version()==1 && wdb_format_version()==2 && wdb_features()==3);
     char path[1024];assert(strlen(argv[2])<900);
     assert(snprintf(path,sizeof path,"%s/database.wdb",argv[2])>0);
+    if(seed_only) {
+        OK(wdb_close(seed_database(path)));
+        printf("{\"mode\":5,\"seeded\":3,\"retained_revision\":2,\"verified\":true}\n");
+        return 0;
+    }
     if(recovering) {
         /* A fresh, uninstrumented process reconciles the marker before retry. */
         wdb_database *reopened=NULL;wdb_tx *retry=NULL;uint64_t revision=99;
@@ -135,7 +157,7 @@ int main(int argc,char **argv) {
         verify(reopened,published?4:3,published);
         if(verify_only) {
             OK(wdb_close(reopened));
-            printf("{\"mode\":6,\"reopened\":3,\"retained_revision\":2,\"verified\":true}\n");
+            printf("{\"mode\":%d,\"reopened\":3,\"retained_revision\":2,\"verified\":true}\n",mode);
             return 0;
         }
         if(!published) {
@@ -148,12 +170,16 @@ int main(int argc,char **argv) {
         printf("{\"mode\":%d,\"reopened\":%d,\"final\":4,\"retained_revision\":2,\"verified\":true}\n",mode,published?4:3);
         return 0;
     }
-    wdb_database *db=NULL;OK(wdb_file_create((const uint8_t*)path,strlen(path),&db));
-    uint64_t collection=0,revision=99,id=0;OK(wdb_collection_create(db,&collection));assert(collection==1);
-    wdb_tx *tx=NULL;OK(wdb_tx_begin(db,WDB_RECORDS,&tx));wdb_value *one=bytes(db,1,32768);
-    put(tx,"row",one);OK(wdb_value_release(one));OK(wdb_tx_commit(tx,&revision));assert(revision==2);OK(wdb_tx_release(tx));
-    wdb_snapshot *old=NULL;OK(wdb_snapshot_acquire(db,&old));OK(wdb_snapshot_retain(db,old,&id));assert(id==1);
-    OK(wdb_snapshot_release(old));verify(db,3,0);
+    wdb_database *db=NULL;
+#if defined(__APPLE__)
+    if(mode==5) {
+        OK(wdb_file_open((const uint8_t*)path,strlen(path),&db));
+        verify(db,3,0);
+    } else
+#endif
+    db=seed_database(path);
+    uint64_t revision;
+    wdb_tx *tx=NULL;
 #if defined(__linux__)
     char ballast[1024];
     if(mode==5)fill(argv[2],ballast,sizeof ballast);
@@ -188,7 +214,7 @@ int main(int argc,char **argv) {
     if(mode>=1 && mode<=3)assert(syncs==mode && roots==(mode>=2) && witnesses==(mode>=3));
     if(mode==4)assert(syncs==1 && roots==1 && witnesses==0);
     if(mode>=5)assert(syncs==0 && roots==0 && witnesses==0);
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
     if(mode==5)assert(native_error==ENOSPC);
 #endif
     verify(db,mode==0?4:3,mode==0);

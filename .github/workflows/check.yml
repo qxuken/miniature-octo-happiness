@@ -103,6 +103,16 @@ jobs:
       - name: Qualify private native package and relocation (no publication)
         if: runner.os != 'Windows'
         run: cargo xtask package --output target/private-package --features crdt,replication
+      - name: Verify native macOS publication faults and actual APFS exhaustion against the exact dylib
+        if: runner.os == 'macOS'
+        run: cargo xtask faults delivered --macos --apfs-full --package target/private-package --output target/private-macos-faults
+      - name: Save macOS exact-dylib fault evidence
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-macos-faults-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-macos-faults/
       - name: Verify all 20 Windows C/C++ cases against the exact delivered DLL
         if: runner.os == 'Windows'
         shell: pwsh

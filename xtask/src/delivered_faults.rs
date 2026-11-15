@@ -17,6 +17,16 @@ fn validate(row: &Value, mode: u32) -> Result<Value> {
     ensure!(*row == expected, "unexpected ABI/state/fault outcome");
     Ok(row.clone())
 }
+
+#[cfg(any(test, target_os = "macos"))]
+pub fn apfs_phase(row: &Value, full: bool) -> Result<()> {
+    let key = if full { "reopened" } else { "seeded" };
+    ensure!(
+        *row == json!({"mode":5,(key):3,"retained_revision":2,"verified":true}),
+        "invalid APFS seed or full-space reopen observation"
+    );
+    Ok(())
+}
 pub fn combine(exercise: &Value, recovery: &Value, mode: u32) -> Result<Value> {
     fn keys(row: &Value) -> Option<BTreeSet<&str>> {
         row.as_object()
@@ -158,5 +168,20 @@ mod tests {
     #[test]
     fn exercise_cannot_assert_independent_recovery() {
         phase_controls().unwrap();
+    }
+    #[test]
+    fn apfs_seed_and_full_space_reopen_are_distinct_from_retry() {
+        let mut full = json!({"mode":5,"reopened":3,"retained_revision":2,"verified":true});
+        assert!(apfs_phase(&full, true).is_ok());
+        assert!(apfs_phase(&full, false).is_err());
+        full["final"] = json!(4);
+        assert!(apfs_phase(&full, true).is_err());
+        assert!(
+            apfs_phase(
+                &json!({"mode":5,"seeded":3,"retained_revision":2,"verified":true}),
+                false
+            )
+            .is_ok()
+        );
     }
 }

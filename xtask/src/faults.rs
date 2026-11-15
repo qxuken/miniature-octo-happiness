@@ -14,6 +14,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 const IMAGE: &str = "sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08";
+#[cfg(target_os = "macos")]
+#[path = "apfs_exhaustion.rs"]
+mod apfs_exhaustion;
 #[derive(Subcommand)]
 pub enum Task {
     Native(Native),
@@ -39,6 +42,9 @@ pub struct Delivered {
     /// Run five native F_FULLFSYNC and root-write cases on macOS/APFS.
     #[arg(long, conflicts_with = "worker")]
     macos: bool,
+    /// Include real append ENOSPC on an owned APFS disk image.
+    #[arg(long, requires = "macos")]
+    apfs_full: bool,
     #[arg(long, hide = true)]
     worker: bool,
 }
@@ -407,7 +413,7 @@ fn finish(mut c: Campaign, result: Result<()>, retired: Result<bool>) -> Result<
     c.evidence["verified"] = json!(result.is_ok() && retired.as_ref().is_ok_and(|v| *v));
     c.save()?;
     result?;
-    ensure!(retired?, "owned Docker resources remain");
+    ensure!(retired?, "owned fault-test resources remain");
     println!("{}", c.output.join("evidence.json").display());
     Ok(())
 }
@@ -489,6 +495,7 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
             &package,
             &run.root.join("tools/delivered-faults"),
             true,
+            opts.apfs_full,
         );
     }
     let mut c = Campaign::new(&run.root, output.clone())?;
@@ -635,6 +642,7 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
         Path::new("/seed/package"),
         Path::new("/seed/inputs"),
         false,
+        false,
     )
 }
 
@@ -690,6 +698,7 @@ fn exercise_package(
     package_seed: &Path,
     input_seed: &Path,
     macos: bool,
+    apfs_full: bool,
 ) -> Result<()> {
     let (library, suffix, injector, loader_flag, loader_value, modes) = if macos {
         (
@@ -799,8 +808,7 @@ fn exercise_package(
         };
         c.evidence["filesystem"] = json!(filesystem);
         crate::delivered_faults::self_check()?;
-        c.evidence["oracle_controls"] =
-            json!({"implementation":"independent Rust", "passed":true, "modes":modes});
+        c.evidence["oracle_controls"] = json!({"implementation":"independent Rust", "passed":true, "modes":modes+u32::from(apfs_full)});
         for (variant, extra) in [
             ("", None),
             ("-disabled", Some("-DQUALIFICATION_BYPASS_INJECTION=1")),
@@ -922,6 +930,23 @@ fn exercise_package(
                 mode,
             )?);
         }
+        if apfs_full {
+            #[cfg(target_os = "macos")]
+            {
+                let mut evidence = json!({"verified":false,"commands":[]});
+                let result = apfs_exhaustion::run(
+                    &output,
+                    &package.join(library),
+                    source,
+                    &env,
+                    &mut evidence,
+                );
+                c.evidence["apfs_exhaustion"] = evidence;
+                rows.push(result?);
+            }
+            #[cfg(not(target_os = "macos"))]
+            anyhow::bail!("actual APFS exhaustion requires macOS");
+        }
         let data = output.join("disabled-case");
         fs::create_dir(&data)?;
         let mut disabled = env.clone();
@@ -968,7 +993,10 @@ fn exercise_package(
     let mut artifacts = inventory(&output)?;
     artifacts.remove("evidence.json");
     c.evidence["artifact_sha256"] = json!(artifacts);
-    finish(c, result, Ok(true))
+    let retired = !apfs_full
+        || !output.join("apfs-exhaustion/volume").exists()
+        || c.evidence["apfs_exhaustion"]["volume_cleanup"]["verified"] == true;
+    finish(c, result, Ok(retired))
 }
 
 #[cfg(test)]

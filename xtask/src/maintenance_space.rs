@@ -233,7 +233,7 @@ mod native {
             .collect()
     }
 
-    fn bounded_fill(dir: &Path, ballast: &Path, new: bool) -> Result<(u64, u64)> {
+    pub fn bounded_fill(dir: &Path, ballast: &Path, new: bool) -> Result<(u64, u64)> {
         let free = free_space(dir)?;
         let mut file = OpenOptions::new()
             .write(true)
@@ -620,6 +620,8 @@ mod native {
     }
 }
 
+#[cfg(target_os = "macos")]
+pub use native::bounded_fill;
 #[cfg(any(windows, target_os = "macos"))]
 pub use native::{Options, run};
 

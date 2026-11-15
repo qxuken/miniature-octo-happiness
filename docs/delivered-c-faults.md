@@ -172,9 +172,35 @@ including the kernel tmpfs ENOSPC control. Its reopened revisions remain
 | macOS evidence | `0658490f36a72616482559b9e70306d184374ca86e1d267e32b9a3aa888a66fa` |
 | Linux evidence | `eda1ec9681de28a05d24db3278521a9fb805e5ac1c31259ec214c66f6342588a` |
 
-The macOS case injects single syscall returns and recovers through independent
-processes on a running kernel. Physical power interruption and Darwin kernel
-ENOSPC need separate evidence.
+The original five macOS cases inject single syscall returns and recover
+through independent processes on a running kernel. Physical power
+interruption remains a separate gate.
+
+### Actual APFS append exhaustion against the dylib
+
+Add `--apfs-full` to run all five existing cases and the actual disk-full
+case against the same verified package:
+
+```sh
+cargo xtask faults delivered --macos --apfs-full \
+  --package target/private-package --output target/macos-delivered-apfs
+```
+
+The controller uses the [owned 256 MiB APFS image](maintenance-space-exhaustion.md#native-macos-near-cap-copy-profile).
+The consumer seeds current revision 3 and retained revision 2. The controller
+fills its own ballast until kernel `ENOSPC`. The exercising process loads the
+existing shim in observation mode and checks what the dylib actually receives
+from `pwrite`. The independent oracle requires error 28, zero synthetic hits,
+no root or witness write, no publication flush, `IO` and a cleared output
+revision. The exercising process still reads the acknowledged revision 3.
+
+A fresh consumer opens the database with the ballast in place and verifies
+every current and retained payload byte. The controller checks the file hash
+and kernel exhaustion before and after that open. After it removes only the
+ballast, a fourth process finds request 42 absent, retries once and reopens
+revision 4 with retained revision 2. Only the exercise process loads the
+shim. The loader log binds each phase to the exact relocated dylib, and the
+controller verifies disk-image detachment and removal.
 
 ## Native Windows delivered C gate
 
