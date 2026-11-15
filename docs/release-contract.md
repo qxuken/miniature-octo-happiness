@@ -17,7 +17,15 @@ cargo xtask package --output /absolute/new/package-directory --features replicat
 The tool builds with the lockfile, checks exports against the header,
 compiles/runs C and C++ consumers, exercises the delivered ABI, checks
 identity and records hashes and commands. Source changes during packaging
-reject. The tool forces the release profile to unwind and queries the
+reject. The packager reads the enabled features from the Cargo artifact
+message for the engine's shared library. The original and relocated library
+must report the same mask through `wdb_features`. The manifest records
+`cargo_feature_mask` from the build and `runtime_feature_mask` after
+successful verification.
+The bits are replication `1`, CRDT `2` and fault injection `4`.
+[Cargo artifact messages](https://doc.rust-lang.org/cargo/reference/external-tools.html#artifact-messages)
+
+The tool forces the release profile to unwind and queries the
 actual compiler's panic configuration before building. A remaining
 `panic=abort` from Rust flags or Cargo configuration rejects the package.
 The manifest records the selected panic strategy and SHA-256 hashes of

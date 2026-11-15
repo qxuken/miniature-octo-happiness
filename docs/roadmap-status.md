@@ -1338,3 +1338,37 @@ single-change mutations failed the new test on its intended assertion.
 | macOS TSan | `4618f511d71a3f3fb48c80bd581f29d4edbc297575e24d1ca13701d35322af80` |
 | Witness-report mutation | `2d2d52d3b1f83d4056fdc516e1dce3e3f8ea4a0d3bf5b68a5d31c045d388024d` |
 | Checksum-rejection mutation | `d0bfc1439315a057252f2dd66120a5eac84ed2606a46ba056cfdc4a2dcc26586` |
+
+## Package feature identity qualification
+
+At `025b87f`, a clean `--features crdt` build with
+`RUSTFLAGS='--cfg feature="fault-injection"'` produced a manifest marked
+verified and candidate-eligible. An independent C process linked against that
+packaged dylib returned `6` from `wdb_features`, while the Cargo profile was
+CRDT only. The original manifest SHA-256 is
+`d46a498b0f7c45b5edb5653a00bb948a231fe4d7364ad8e856158b2c0990f8e3`.
+
+`2e7ca9a` now checks the mask reported by the delivered and relocated library
+against the features Cargo selected for its engine library artifact. The
+packager passes the expectation to `abi-smoke` alongside the source ID.
+On macOS and Docker Linux, the injected feature build now rejects with
+`actual 6, expected 2` and retains an ineligible, unverified manifest.
+Requesting both features from a CRDT-only artifact also rejects with
+`actual 2, expected 3`. [Package contract](release-contract.md)
+
+Both platforms built from a clean `2e7ca9a` checkout with Rust 1.99.1 and
+locked cached dependencies. Each package passed the C/C++ consumers,
+relocation and exact mask checks below. The CRDT-only check used the
+qualified Cargo spelling `weekend-db/crdt`. Independent verification
+matched every listed file hash and confirmed Docker resource retirement.
+Strict macOS and Windows MSVC cross-target Clippy passed. The fresh native
+Windows package still needs to execute the new mask gate.
+
+| Build | Runtime mask | macOS manifest SHA-256 | Linux manifest SHA-256 |
+|---|---:|---|---|
+| Default | 0 | `13b8d2119b6c5b38b3206ddf031a99dbb9b2c1ab6c7a367842cb578e5035b2eb` | `eddfe2fa59c667f35b1df609d0a912c61b21ad70516394ee0746d51afcb93042` |
+| Replication | 1 | `6647b4c294066b85aebb1b60c70105a768ad0d90de889855f7c855ef2eb7534f` | `077ba1cc0b73e2816113fc2592168c4d6921e3da5a7c00a5739c6b26a869e50e` |
+| CRDT | 2 | `a7e938497f8304e37921ed3a31e1ee15d5a217c8c0dab47e8f1d77f7897a45a2` | `48556087f5c1e2c7dfb58c3671a507abeb1405dbbb4a8938caf07229819e51f2` |
+| CRDT and replication | 3 | `747f0ba36eeac6855f322b094f406adb71b8fdf0f523b209cebeae2251e4004e` | `312669d0fd36a1f73ef464729e9ddbdc705cc93570024f74ebce75619c74c7e7` |
+| Explicit fault-injection profile | 4 | `9f0db490bd11d3de16d0243b254e495a1d262d1769c4714e8eab2e1f27e40b4a` | `1041d74e09e8bb38b670959a9ca20132cede4b4a89290d8d987eb6161a85f368` |
+| Rejected extra feature | 6 | `fb7d9d73782f36652f239b334f05b282e7c9379b9221aa55a98a50ca4154700c` | `9e4b4c164bb870ac7b9344331cf924df5a8e2a316a9df630ebb5dfd8281bfa1c` |
