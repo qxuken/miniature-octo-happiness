@@ -268,6 +268,36 @@ jobs:
       - name: Enforce the macOS maintenance fault result
         if: always() && runner.os == 'macOS' && steps.macos_maintenance_space.outcome == 'failure'
         run: exit 1
+  windows-msrv:
+    name: Windows MSVC minimum Rust
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Preserve committed file bytes
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - uses: actions/checkout@v7
+      - name: Install Rust 1.99.0 and cache the locked inputs
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.99.0
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
+          cargo fetch --locked --manifest-path examples/rust_package/Cargo.toml
+      - name: Verify the minimum compiler, workspace and exact delivered artifacts
+        run: cargo xtask windows-msrv --output target/windows-msrv
+      - name: Save Windows minimum-compiler evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-msrv-${{ runner.arch }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            target/windows-msrv/**
+            !target/windows-msrv/build/**
+            !target/windows-msrv/.weekend-msrv-native-*/**
   helper-controls:
     name: POSIX qualification helper controls
     strategy:

@@ -19,8 +19,10 @@ use std::{
 };
 
 const INPUTS: &[&str] = &[
+    "Cargo.toml",
     "Cargo.lock",
     "xtask/Cargo.toml",
+    "xtask/src/check.rs",
     "xtask/src/compatibility.rs",
     "xtask/src/qualification_net.rs",
     "xtask/src/snapshot_proof.rs",
@@ -30,6 +32,7 @@ const INPUTS: &[&str] = &[
     "xtask/src/support.rs",
     "xtask/src/trace_process.rs",
     "xtask/src/windows_compatibility.rs",
+    "xtask/src/windows_msrv.rs",
     "xtask/src/windows_process.rs",
     "tools/compatibility-driver.rs",
     "tools/compatibility-snapshot.rs",
