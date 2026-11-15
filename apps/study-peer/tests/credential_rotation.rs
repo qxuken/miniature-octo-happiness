@@ -1,14 +1,17 @@
-#![cfg(any(target_os = "macos", target_os = "linux"))]
+#![cfg(any(target_os = "macos", target_os = "linux", windows))]
 
 #[allow(dead_code)]
 #[path = "../../../examples/support/study.rs"]
 mod study;
 
+use sha2::{Digest, Sha256};
+#[cfg(unix)]
+use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::{
+    collections::BTreeSet,
     fs::{self, File},
     io::{BufRead, BufReader, Write},
     net::{Shutdown, SocketAddr, TcpListener, TcpStream},
-    os::unix::fs::{DirBuilderExt, PermissionsExt},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, ExitStatus, Stdio},
     sync::{
@@ -36,6 +39,13 @@ fn event(log: &Log, text: impl std::fmt::Display) {
     file.flush().unwrap();
 }
 
+fn private_dir(path: &Path) {
+    #[cfg(unix)]
+    fs::DirBuilder::new().mode(0o700).create(path).unwrap();
+    #[cfg(windows)]
+    fs::create_dir(path).unwrap();
+}
+
 struct Private(PathBuf);
 impl Private {
     fn new() -> Self {
@@ -45,7 +55,7 @@ impl Private {
             .as_nanos();
         let path =
             std::env::temp_dir().join(format!("study-cutover-{}-{nonce}", std::process::id()));
-        fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
+        private_dir(&path);
         Self(path)
     }
 }
@@ -446,7 +456,7 @@ fn activate(root: &Path, actor: &str, generation: &str, log: &Log) {
     if active.exists() {
         fs::remove_dir_all(&active).unwrap();
     }
-    fs::DirBuilder::new().mode(0o700).create(&active).unwrap();
+    private_dir(&active);
     for name in ["cert.der", "key.der"] {
         fs::copy(
             root.join(format!("{actor}-{generation}")).join(name),
@@ -454,6 +464,7 @@ fn activate(root: &Path, actor: &str, generation: &str, log: &Log) {
         )
         .unwrap();
     }
+    #[cfg(unix)]
     fs::set_permissions(active.join("key.der"), fs::Permissions::from_mode(0o600)).unwrap();
     let other = if actor == "a" { "b" } else { "a" };
     let temporary = root.join(format!("{actor}-pin.next"));
@@ -477,7 +488,7 @@ fn persistent_study_progress_survives_interrupted_credential_cutover() {
     let root = &private.0;
     let logs = if let Some(path) = std::env::var_os("STUDY_CUTOVER_EVIDENCE") {
         let path = PathBuf::from(path);
-        fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
+        private_dir(&path);
         path
     } else {
         let path = root.join("logs");
@@ -485,31 +496,32 @@ fn persistent_study_progress_survives_interrupted_credential_cutover() {
         path
     };
     let log = Arc::new(Mutex::new(File::create(logs.join("events.log")).unwrap()));
+    let mut fingerprints = BTreeSet::new();
     for actor in ["a", "b"] {
         for generation in ["old", "new"] {
             let credentials = root.join(format!("{actor}-{generation}"));
+            #[cfg(unix)]
             once(
                 BIN,
                 &["keygen".as_ref(), credentials.as_os_str()],
                 &logs,
                 &format!("keygen-{actor}-{generation}"),
             );
-            let fingerprint = once(
-                "openssl",
-                &[
-                    "dgst".as_ref(),
-                    "-sha256".as_ref(),
-                    credentials.join("cert.der").as_os_str(),
-                ],
-                &logs,
-                &format!("fingerprint-{actor}-{generation}"),
-            );
+            #[cfg(windows)]
+            {
+                // Use the Windows operator provisioning path for synthetic keys.
+                private_dir(&credentials);
+                let rcgen::CertifiedKey { cert, signing_key } =
+                    rcgen::generate_simple_self_signed(["study-peer".into()]).unwrap();
+                fs::write(credentials.join("cert.der"), cert.der()).unwrap();
+                fs::write(credentials.join("key.der"), signing_key.serialize_der()).unwrap();
+            }
+            let certificate = fs::read(credentials.join("cert.der")).unwrap();
+            let fingerprint = Sha256::digest(certificate);
+            assert!(fingerprints.insert(fingerprint));
             event(
                 &log,
-                format!(
-                    "public certificate fingerprint {actor}-{generation}: {}",
-                    fingerprint.trim()
-                ),
+                format!("public certificate fingerprint {actor}-{generation}: {fingerprint:x}"),
             );
         }
     }
