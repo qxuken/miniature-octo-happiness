@@ -688,7 +688,8 @@ copy of the 58,523,648-byte compacted seed. The test opens the file normally,
 then arms a wrapper that pauses the first writer after the real append sync.
 While the writer holds the publication mutex, a second writer enters the
 commit path and the reader checks all records and nested leaves in the 65
-pre-acquired views. Fresh snapshot acquisition uses the publication mutex.
+pre-acquired views. In this revision, fresh snapshot acquisition uses the
+publication mutex. [Fresh snapshot follow-up](#fresh-snapshots-during-durable-publication)
 
 The first writer receives local acknowledgment for revision 134. The
 overlapping writer returns `Conflict` and aborts. The disjoint draft stays
@@ -759,3 +760,46 @@ Clippy passed on both platforms.
 | Controller evidence | `f5d08cb0756c987615eaf5fb3f8e9bd29d5bbb90200ab8b8b4e484c76707f115` | `8031208b2e387f27e0b2e62e02318a506927e1a53e4e5b3a1af1c108557b78ac` |
 | Worker evidence | `a4dcc4474d50116708d06e1a93bd0720b31ad34b6e4b73733e465694f2ab9e33` | `27a166ce9e266dcc765797c09a35484188e10cfa0109c94b0ecf02ea43e04a22` |
 | Final concurrent image | `30c94db33ba5c33927ad95c3551ef99166811462bbd6116aab34683b64498915` | `ecedae08e95b22a28553d60f45a9d6918e4d9bffa7806c5f7fed01b249e670cd` |
+
+## Fresh snapshots during durable publication
+
+At `17f7c47`, the concurrent profile acquires the current snapshot and all
+64 retained views after the first writer pauses inside the native append
+sync call. The reader finishes acquiring and checking all 65 views before
+the writer resumes. The revision it sees is 133. The first commit still
+acknowledges 134, the competing draft conflicts, the disjoint batch leaves
+the 62,840,832-byte file intact at the image cap, and the shared-value batch
+reopens at 135 with all retained roots.
+
+The 18 phases match the earlier runs' recorded digests, revisions, file
+lengths, witness states and requested core peaks on each platform. The
+existing serialization controls independently compare ten lifecycle and
+seven DATA history images captured at `b131f84` and `17f7c47`. All 17 pairs
+match byte for byte. The binaries use different source revisions and the
+fixture uses fixed lineage identities for these byte comparisons.
+
+| Single observation | macOS arm64/APFS | Docker Linux arm64/ext4 |
+|---|---:|---:|
+| Acquire current snapshot, retained IDs and 64 retained snapshots | 2.8 µs | 26.1 µs |
+| Acquire and verify all 65 views during the pause | 56.2 ms | 71.6 ms |
+| Requested core peak around the concurrent limit rejection | 93,685,728 B | 93,685,728 B |
+| Sampled peak worker RSS, including simulator | 525,984 KiB | 418,076 KiB |
+
+These are single observations. Contention at installation, sustained
+reader/writer schedules and deployment-level latency bounds remain open.
+The exact lock ordering and acknowledgment point are documented in the
+[design](../DESIGN.md).
+
+```sh
+cargo xtask resource compound-breadth --revision 17f7c47 \
+  --output target/fresh-snapshot-qualified-macos
+cargo xtask resource compound-breadth --revision 17f7c47 \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/fresh-snapshot-qualified-linux
+```
+
+| Evidence in the corresponding output directory | macOS SHA-256 | Docker Linux SHA-256 |
+|---|---|---|
+| Release driver | `b4d8ec26675b5fe8c1db84e4bc432f1a2143378042b5a3bd6d8fe9a76c3ccc9b` | `f13d82d87964a9fede946684e660d8f26cb35993dd2546c96050af2228fb7dc9` |
+| Controller evidence | `559bb31f62733d43e77a97e7b1ce9e5a1cba16db7fde30d44a144dcbda11ec86` | `149dd3613afa854b4f7e197da9badb3d2e5254ec7dd9c09ee08b905fa2daf264` |
+| Worker evidence | `02d9bc43ec8f423036d12971752636e821f118caa618a440a892ee079267c64b` | `23743e9cde407d98b6fc879262b83ad1bfdb60f523f39792f0514c4276ca601b` |

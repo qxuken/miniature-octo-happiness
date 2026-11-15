@@ -198,7 +198,7 @@ C contract rejects close while handles remain and requires external quiescence
 for close and exclusive access for handle release. Transactions have one owner,
 can transfer between threads, and distinct drafts prepare concurrently. Database,
 snapshot, immutable value, and materialized scan handles can be shared. Head
-acquisition uses a mutex; traversal uses immutable, atomically counted nodes.
+acquisition takes a shared lock. Traversal uses immutable, atomically counted nodes.
 Coordination is in one process under one writer authority per store; a file
 adapter must not permit an uncoordinated second writer. Multi-process protocols
 and lock-free publication are later work.
@@ -1142,8 +1142,9 @@ The C interface uses opaque handles with matching status codes.
   key order. Historical snapshot reads are untracked and cannot be used as
   transactional observations. Nested reads track their containing record only.
 - **Publication:** `Validation::Records` is the default; `WholeDatabase` preserves
-  the milestone-4 baseline. One mutex covers validation, rebasing final
-  assignments onto the current state, persistence, and head replacement.
+  the milestone-4 baseline. The writer mutex covers validation, rebasing final
+  assignments, persistence and head replacement. The acknowledged state takes
+  an exclusive lock only for installation.
   Deletions materialize before puts so a final batch can replace entries at the
   collection limit. Every accepted assignment, including equal-value puts and
   absent deletes, stamps the collection revision. Present records receive the
@@ -1200,8 +1201,8 @@ negative bound. A caller can put a transaction behind its own mutex if needed.
 
 | Shared mutable bookkeeping | Synchronization / owner |
 | --- | --- |
-| Current head, next collection ID, retention catalog and next retained ID | One `Mutex<State>` per database |
-| Storage backend, accepted slot/revision/end, value/data caches and recovery flag | Same state mutex; `ByteStore: Send`, serialized exclusive calls |
+| Acknowledged head, next collection ID, retention catalog and next retained ID | `RwLock<State>` shared for reads and publication preparation, exclusive for installation |
+| Storage backend, accepted slot/revision/end, value/data caches and recovery flag | Writer mutex per database, with serialized exclusive calls to `ByteStore: Send` |
 | Shared node and memory-context lifetime counts | `AtomicUsize`; relaxed increment, acquire/release decrement, checked overflow abort |
 | Fault-injection allocation budget | Atomic compare/update; one budget across threads, MAX means unlimited |
 | Process-local store identity counter | Checked `AtomicU64` allocation |
@@ -1218,28 +1219,32 @@ cross-thread access and exactly-once final destruction. Allocation-failure
 injection uses one atomic budget; concurrent callers race for that budget,
 not for a deterministic assignment of failure to a particular thread.
 
-Head acquisition briefly holds the state mutex. Existing snapshot traversal,
-value reads/edits, and transaction observation/overlay preparation do not hold
-the publication mutex. Commit waits for that mutex, validates against its
-current head, rebases final assignments, builds/serializes the candidate,
-performs all storage syncs, and only then installs the acknowledged head.
-Retain/release and collection create/drop use the same gate. Ordinary contention
-waits rather than returning `Busy`; `Busy` still describes store leases and
-quiescent C close with live handles. No fairness or latency bound is promised;
-acquiring a new head can wait behind file sync. Already acquired snapshots stay
-readable during that sync. Shortening the persistence critical section remains
-future measured work.
+Snapshot acquisition, opening a draft, retained-root lookup and retained ID
+listing take the shared state lock. Snapshots traverse immutable nodes after
+releasing it. A writer locks the writer mutex first and holds the state lock
+in shared mode while validating, rebasing, encoding and persisting. Readers that
+acquire the state in this interval see the last acknowledged revision.
+After the witness sync succeeds, the writer releases its shared state guard
+and takes the exclusive state lock. It installs the head, collection cursor and
+retention change together. The writer mutex stays held through installation.
+Displaced roots are dropped after releasing the exclusive state lock.
 
-A custom `ByteStore` must not re-enter its database from any method: the mutex
-is not reentrant. If an adapter panics while publication holds the gate, Rust
-unwinds (the C boundary returns `Panic`) and the mutex remains poisoned. Last
+Retain/release and collection create/drop use the same publication path.
+Storage identity, health, headroom and replication-head queries synchronize
+with the writer. New snapshot acquisition can wait for installation. The lock
+has no stated fairness or latency bound. `Busy` still describes store leases
+and quiescent C close with live handles.
+
+A custom `ByteStore` must avoid reentering its database from any method.
+If an adapter panics while publication holds the writer mutex, Rust unwinds
+(the C boundary returns `Panic`) and the writer mutex remains poisoned. Last
 acknowledged immutable heads remain readable; every later publication returns
 `RecoveryRequired`, and `requires_recovery()` includes mutex poison. Close and
 reopen to run recovery and determine disk state; never clear poison and resume
-writes silently. The paused-sync regression unwinds after each of append, root-slot and witness
-sync, checks the recovered old/new root, and proves a pinned reader proceeds
-while the writer holds the gate. Adapter
-implementations must also make unwinding cleanup safe.
+writes silently. The paused-sync regression acquires new views and a draft
+while the writer is stopped inside sync. It also tests an unwind after each of
+append, root-slot and witness sync and checks the recovered revision. Adapter
+implementations must make unwinding cleanup safe.
 
 C/Odin callers may share the database and immutable value/snapshot/scan handles.
 A transaction requires exclusive access, and its ownership may transfer with

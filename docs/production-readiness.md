@@ -141,6 +141,9 @@ qualification is a separate release-candidate requirement.
   The [concurrent follow-up](compound-resource-envelope.md#full-width-drafts-during-a-native-commit)
   checks three maximum-write drafts, pinned reads during native publication,
   and simulated tears at all three publication barriers.
+  With the writer and acknowledged-state locks split, fresh snapshot and
+  retained-root acquisition also proceed during publication I/O.
+  [Near-cap acquisition results](compound-resource-envelope.md#fresh-snapshots-during-durable-publication)
   Windows compact copy is an existing capability.
   Qualify in-place Windows replacement independently if it becomes part
   of the release.

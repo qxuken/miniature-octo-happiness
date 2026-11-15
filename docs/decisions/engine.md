@@ -424,3 +424,25 @@ results are described in T9. RNG delegation remains a native qualification task.
 
 The final real-DAG transaction case also passed nightly Miri; strict all-feature
 Clippy passed for the library and engine integration target.
+
+## Writer gate and acknowledged-state lock
+
+The lock split at `17f7c47` moves the backend into the writer mutex. The
+published head and catalogs use a shared lock during persistence and an
+exclusive lock at installation. The earlier line-numbered ledger describes
+its original source. The regenerated inventory reports 141 engine records
+and zero parser failures, with engine SHA-256
+`02f9d522ce560a13d62fb4c26ba746185b22df87c7dc1cb7ef9b76890b115291`.
+
+| Decision or transition | Verified outcomes |
+|---|---|
+| Writer lock is healthy or poisoned | Ordinary writes serialize. Adapter unwind blocks later writes, compaction and replication-head use. Fresh readers acquire the last acknowledged state. |
+| Backend is absent, healthy or requires recovery | In-memory commits publish under the writer gate. Healthy storage runs the three syncs. A poisoned backend rejects later publication. The engine and storage decision suites exercise both absence and poisoning. |
+| Persistence succeeds, errors, or unwinds before installation | Success installs the new state. The allocation and injected-I/O suites verify rejected candidates leave the visible head and retention unchanged. The paused-sync regression verifies fresh reads during the pause and reopens the expected revision after unwind at each barrier. |
+| A successful publication replaces retention or reuses it | Retain/release install matching head and catalog revisions. Record commits preserve the current catalog, including when their draft began before a retained root was released. |
+
+The candidate passed the all-feature workspace suite on macOS, the
+instrumented macOS concurrency suite and 57 targeted controls on Docker
+Linux. The fresh-reader schedule, retained roots and exact serialized
+bytes are recorded with the resource evidence.
+[Fresh snapshots during durable publication](../compound-resource-envelope.md#fresh-snapshots-during-durable-publication)

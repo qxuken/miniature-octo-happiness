@@ -2181,4 +2181,24 @@ new breadth oracle was compiled into a binary that never uses it.
 The oracle now compiles on Unix alongside its caller and tests.
 The warning failure was reproduced locally. Workspace Clippy with all
 features and targets passes for the MSVC target with Rust 1.99.0.
-The replacement hosted jobs still need to run.
+The hosted minimum-Rust rerun passed at `b131f84`.
+
+## Snapshot acquisition during durable publication
+
+At `17f7c47`, the writer mutex remains held through durable installation.
+Snapshot acquisition, retained lookups and new draft acquisition use the
+acknowledged-state lock in shared mode during I/O. The regression first
+reproduced the old reader timeout, then verifies the old visible state
+while the writer is paused and the reopened state after an adapter unwind.
+The native near-cap fixture acquires all 65 views after pausing the writer
+and verifies them before resuming it. It still reopens revision 135 with
+all 64 retained roots. The 17 fixed-identity images match the earlier
+revision byte for byte. [Measurements and reproduced cases](compound-resource-envelope.md#fresh-snapshots-during-durable-publication)
+
+The macOS workspace passed 653 tests with six registered ignores.
+The macOS ThreadSanitizer concurrency run passed all eight tests with
+nightly-2026-11-12 and an instrumented standard library. Docker Linux
+passed 57 targeted tests with one registered ignore, including the
+separate follower durable acknowledgment case. Strict Clippy passed
+locally and for the Rust 1.99.0 MSVC cross-target. Native Windows evidence
+for this lock change remains pending.
