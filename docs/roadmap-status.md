@@ -1185,3 +1185,9 @@ The [snapshot credential cutover regression](snapshot-credential-cutover.md#port
 now computes the export digest portably and is enabled in the Windows-native
 suite. Debug/release passed on macOS/APFS and Docker Linux/ext4. The Windows
 result is pending.
+
+The [CRDT record law helper](crdt-operations.md#check-an-applications-record-laws)
+checks all pairs and triples of seven reachable StudyProgress states, including
+two offline writers, an observed removal, two policy resolutions and a later
+edit. A left-biased record fails the helper. All 13 integration tests passed
+in debug and release on macOS and Docker Linux.

@@ -1,5 +1,7 @@
 #![cfg(feature = "crdt")]
 
+#[path = "../examples/support/record_laws.rs"]
+mod record_laws;
 #[path = "../examples/support/study.rs"]
 mod study;
 
@@ -22,6 +24,116 @@ const POLICY: CounterPolicy = CounterPolicy {
     generation: 1,
     actors: [[1; 16], [2; 16]],
 };
+
+#[test]
+fn study_progress_merge_laws_hold_across_reachable_history() {
+    let db_a = Database::new().unwrap();
+    let db_b = Database::new().unwrap();
+    let a = Replica::<StudyProgress>::enroll(
+        &db_a,
+        db_a.create_collection().unwrap(),
+        POLICY,
+        POLICY.actors[0],
+    )
+    .unwrap();
+    let b = Replica::<StudyProgress>::enroll(
+        &db_b,
+        db_b.create_collection().unwrap(),
+        POLICY,
+        POLICY.actors[1],
+    )
+    .unwrap();
+    let empty = a.read().unwrap();
+    a.update(|state, actor| {
+        state.planned.insert(7, actor)?;
+        state.completed.insert(1)?;
+        state.practice_minutes.increment(actor, 20)?;
+        state.weekly_goal.assign(actor, 60)?;
+        state.session_limit.assign(actor, 20)
+    })
+    .unwrap();
+    let a_offline = a.read().unwrap();
+    b.update(|state, actor| {
+        state.planned.insert(7, actor)?;
+        state.completed.insert(2)?;
+        state.practice_minutes.increment(actor, 12)?;
+        state.weekly_goal.assign(actor, 90)?;
+        state.session_limit.assign(actor, 30)
+    })
+    .unwrap();
+    let b_offline = b.read().unwrap();
+    a.update(|state, _| {
+        assert!(state.planned.remove(7)?);
+        Ok(())
+    })
+    .unwrap();
+    let a_removed = a.read().unwrap();
+    let mut conflicted = a_removed;
+    conflicted.merge(b_offline);
+    assert!(conflicted.planned.contains(7));
+    assert_eq!(
+        conflicted.weekly_goal.values().collect::<Vec<_>>(),
+        [60, 90]
+    );
+    assert_eq!(
+        conflicted.session_limit.values().collect::<Vec<_>>(),
+        [20, 30]
+    );
+
+    let (sent, served) = exchange(
+        |stream| a.push_authenticated(stream),
+        |stream| b.serve_authenticated(stream),
+    );
+    served.unwrap();
+    let resolved = sent.unwrap().state;
+    assert_eq!(b.read().unwrap(), resolved);
+    assert_eq!(resolved.weekly_goal.values().collect::<Vec<_>>(), [90]);
+    assert_eq!(resolved.session_limit.values().collect::<Vec<_>>(), [20]);
+    assert_eq!(resolved.practice_minutes.total(), 32);
+
+    b.update(|state, actor| state.weekly_goal.assign(actor, 75))
+        .unwrap();
+    let edited = b.read().unwrap();
+    record_laws::assert_merge_laws(&[
+        empty, a_offline, b_offline, a_removed, conflicted, resolved, edited,
+    ]);
+}
+
+#[test]
+#[should_panic(expected = "merge is not commutative")]
+fn record_law_check_rejects_a_left_biased_merge() {
+    #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+    struct LeftBiased(u8);
+
+    impl Record for LeftBiased {
+        const KEY: &'static [u8] = b"left-biased";
+        const FORMAT: &'static [u8; 8] = b"LEFTBIAS";
+        const SIZE: usize = 1;
+
+        fn encode(self, bytes: &mut [u8]) -> weekend_db::Result<()> {
+            let [byte] = bytes else {
+                return Err(Error::Buffer);
+            };
+            *byte = self.0;
+            Ok(())
+        }
+
+        fn decode(bytes: &[u8]) -> weekend_db::Result<Self> {
+            let [byte] = bytes else {
+                return Err(Error::Corrupt);
+            };
+            Ok(Self(*byte))
+        }
+
+        fn merge(&mut self, _: Self) {}
+
+        fn check_peer(self, _: Self, _: weekend_db::crdt::Actor) -> weekend_db::Result<()> {
+            Ok(())
+        }
+    }
+
+    record_laws::assert_merge_laws(&[LeftBiased(1), LeftBiased(2)]);
+}
 
 fn exchange<T, U>(
     sender: impl FnOnce(TcpStream) -> T,

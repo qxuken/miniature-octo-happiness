@@ -125,3 +125,23 @@ CRDT fuzz targets completed 5,000 AddressSanitizer executions with seed 1
 and maximum input length 128 without findings. These are smoke results
 for the initial corpora. All-feature test cross-compilation passed for
 x86_64 Windows MSVC and x86_64 Linux GNU.
+
+## Check an application's record laws
+
+Copy [the record law helper](../examples/support/record_laws.rs) into an
+integration test and call `assert_merge_laws(&states)` with snapshots from
+one compatible history. Include stale states, independent offline edits and
+their joins. Keep divergent actor histories and admission tests separate.
+
+The [StudyProgress test](../tests/crdt.rs) supplies seven reachable states.
+They include a concurrent observed removal and addition, conflicts in both
+registers, the committed maximum and minimum resolutions, and a subsequent
+assignment. The helper checks idempotence, deterministic and commutative
+pairwise merges, associativity over every triple, and codec round trips
+for the inputs and merge results. A deliberately left-biased merge fails
+the same helper. The sample covers this history and its tested joins.
+
+Run these tests with `cargo test --offline --locked --features crdt --test crdt`.
+All 13 tests passed in debug and release on macOS and Docker Linux. The log
+SHA-256 values are `6e4b2b673b230e77301b313f7d82c7fff612724a2d573f8c41004528f1f01e47`
+and `52ae5b5e113b1d5e180e3c8560bfe3d7d556fb9640308a42f99cc83b68d73c46`.
