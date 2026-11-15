@@ -207,9 +207,9 @@ fail the expected-status assertion.
 | Append write | `NtWriteFile` returns disk full before appending | IO | 3 | 3 |
 
 Each recovery reconciles request 42, finishes at revision 4 and verifies
-retained revision 2. The gate covers injected write/flush returns on the
-real native filesystem. Physical device persistence and actual Windows
-volume exhaustion retain separate qualification gates.
+retained revision 2. The gate covers injected write and flush returns on the
+native filesystem. [Actual NTFS exhaustion](#actual-ntfs-disk-exhaustion)
+has a separate execution below. Physical device persistence remains open.
 
 All six cases passed on Windows Server 2025 x64 on fixed NTFS at PR head
 `47915eaac4a21ef4e6dd450929e0c8925f3533e8`. The packaged DLL identifies the
@@ -269,7 +269,29 @@ file removal before marking the run successful.
 | Reopen with the ballast in place | A second process opens revision 3 and checks every current and retained payload byte. The database hash stays fixed and no allocation unit becomes free. |
 | Free space and retry | The controller deletes the ballast. A third process finds request 42 absent, retries once, and reopens revision 4 with the complete request and retained revision 2. |
 
-The Windows CI job archives both the independent process attestations and
-the volume cleanup result. Native execution is pending. The scope is the
-append failure on a bounded NTFS virtual volume. NTFS quota, maintenance
+The gate passed on Windows Server 2025 x64 at PR head `ebfd099`, with
+MSVC 14.51.36231, SDK 10.0.26100.0 and DiskPart 10.0.26100.1150. The
+packaged DLL identifies the tested PR merge as
+`ac1bc1a68b722423bacd1284aa77f012ad827a50`. The exercise observed native
+error 112 with zero injected hits and no root write, witness write or
+publication flush. Windows reported zero free bytes at the failure and
+after the fresh reopen. The ballast removal restored 53,506,048 free bytes.
+The third process retried and reopened revision 4 with retained revision 2.
+
+The volume and image cleanup checks passed. The archive rehash verified
+all 79 listed files and six DLL attestations across the three processes.
+The packaged DLL and manifest compared byte for byte with the ones used by
+the six injected-fault cases in the same job. NTFS quota, maintenance
 exhaustion and physical power interruption retain their own gates.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43724963499/job/132844797192)
+· [NTFS exhaustion archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43724963499/artifacts/14165178920)
+
+| Evidence | SHA-256 |
+|---|---|
+| Hosted ZIP | `8fe5c81ff236d458e460da34b5643b3cec2cf854ff2034bed49f8dfaf55889f8` |
+| Evidence JSON | `eb4f24e9e0b11c4c2499e3c1be593548088c72d738bddfe788dc9ad50325a11e` |
+| Delivered DLL | `d5dc3f7970b6ac5a02caffd91430478d11ae023557b17388b06647245faec71b` |
+| Delivered manifest | `d7cc4a4541f26ccc0b1ac851ce5854132e798c459a98422f87e3b618deed5838` |
+| Database after failure and full-space reopen | `b217d3d57f129c8f795ed645c68272557073af5bc0cf4399b432d62188806949` |
+| Database after retry | `85a55ef35281bb798339d88febe87ffb1f1435116ab652a2bb28d79008b406ec` |
+| Independent archive rehash | `36a3dc1a4e302daf9a420f36f905034095dae12f0e3c27aae9fceb65c8db1209` |

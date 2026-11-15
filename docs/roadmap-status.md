@@ -1800,3 +1800,25 @@ the exact `f70e405` packages, including the Linux tmpfs exhaustion case.
 | Native Windows delivered C report | `ba515c5b949a3013771c05f1cf9f9a61d123d40dd6210e35f5019e949628f26b` |
 | macOS coordinator debug and release | `baa44b2d3d292b885d502dddbdafdca8c3674762f01379fbf2134c8ea256c4e7`, `7d164cda671a4dfeb23667d6943c2d1da1ead9fb03c1c73269ba9195f149a7ee` |
 | Docker Linux/ext4 coordinator release | `67d72baea332f29b6ab2a93f87cc9651956d685be15f9dddf0c2cdadf7d111ac` |
+
+## Windows NTFS append exhaustion
+
+The [native exhaustion gate](delivered-c-faults.md#actual-ntfs-disk-exhaustion)
+passed at `ebfd099` against the manifest-pinned DLL from PR merge `ac1bc1a`.
+The disposable fixed 64 MiB VHD reached zero free bytes. The DLL observed
+Windows error 112 on append with no injected failure, and a fresh process
+reopened current revision 3 and retained revision 2 while the volume was
+still full. After freeing space, a third process retried request 42 and
+reopened revisions 4 and 2. The verified volume and file cleanup passed.
+
+Strict host and Windows-target xtask Clippy passed. Windows cross-linking
+and the native MSVC consumers passed. The macOS and Docker Linux exact
+`f70e405` package regressions passed five and six cases respectively with
+the updated shared C fixture. The scope of the new evidence is append
+exhaustion. NTFS quota and maintenance exhaustion remain open.
+
+| Evidence | SHA-256 |
+|---|---|
+| Native Windows NTFS exhaustion report | `eb4f24e9e0b11c4c2499e3c1be593548088c72d738bddfe788dc9ad50325a11e` |
+| macOS delivered C regression report | `b154ef1230cfa872540edef877793f79226d14264f2cb58c7b4da7c38af47358` |
+| Linux delivered C regression report | `3d1279e974e17fbc0a7c38743394f9734831f19f0a056c759c9909c0874d3241` |
