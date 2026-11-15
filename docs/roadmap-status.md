@@ -2020,3 +2020,17 @@ revision 4 with no repeated mutation. Retained revision 2 survived all
 cases. The independent checks confirmed the raw images, exact source,
 fixture and resource cleanup. Native maintenance writeback and physical
 interruption remain open.
+
+## Native near-cap maintenance copy writeback
+
+At `e21d081`, the [maintenance ext4 writeback profile](maintenance-space-exhaustion.md#kernel-writeback-eio-during-near-cap-maintenance)
+passed on Docker Linux arm64 and hosted Ubuntu x64. Backup, restore and
+in-place compaction returned kernel `EIO` at the first copy-data `fsync`.
+The failed destinations had full length with invalid header, slot and
+witness regions. Both input images reopened at revision 212 after
+remount, with all 64 retained roots. Retrying produced the exact verified
+backup bytes and preserved the failed outputs. A final remount verified
+source revision 213 and backup revision 212, each with retained history.
+The audit checked the exact input source, fixture, preload library and
+output images. Later maintenance sync errors, namespace space exhaustion
+and physical power interruption remain open.

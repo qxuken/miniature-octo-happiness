@@ -149,5 +149,7 @@ The hosted ZIP SHA-256 is
 `7d0f475a7a56a6d5a3c7989134deaeddf7fac289bbf542673de46b2d5fff6205`.
 
 The results qualify the precise sectors denied by the `error` target on
-ext4. The simulator covers other slot-survival outcomes. Native writeback
-faults during maintenance and physical power interruption remain open.
+ext4. The simulator covers other slot-survival outcomes. The
+[maintenance writeback profile](maintenance-space-exhaustion.md#kernel-writeback-eio-during-near-cap-maintenance)
+qualifies the first copy-data flush. Later maintenance sync failures and
+physical power interruption remain open.

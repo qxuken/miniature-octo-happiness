@@ -117,9 +117,11 @@ qualification is a separate release-candidate requirement.
   with new bounds and evidence. Account for headroom needed by recovery
   and interrupted replacement files. The [ext4 inode-exhaustion test](maintenance-space-exhaustion.md#recorded-native-global-inode-exhaustion-result)
   verifies create-time recovery with one freed inode. The [kernel permission test](maintenance-space-exhaustion.md#kernel-permission-denial-at-exchange-and-cleanup)
-  verifies reopen and retry after exchange and unlink failures. Actual
-  namespace space exhaustion and delayed writeback faults still need
-  qualification. Verify the canonical image before
+  verifies reopen and retry after exchange and unlink failures. The
+  [maintenance writeback test](maintenance-space-exhaustion.md#kernel-writeback-eio-during-near-cap-maintenance)
+  verifies recovery after the first copy-data flush fails. Actual
+  namespace space exhaustion and errors at later maintenance syncs still
+  need qualification. Verify the canonical image before
   removing any orphan. Windows compact copy is an existing capability.
   Qualify in-place Windows replacement independently if it becomes part
   of the release.

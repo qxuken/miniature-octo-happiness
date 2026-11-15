@@ -616,3 +616,84 @@ remain separate qualification cases.
 | Controller | `987829b4a88e7cfb5782cdf53c8d1e7a7bc6186b3f7f86e0165a12c43caeaa6f` | `cee0fc78bf5a5b71e6eaf6609a880355e3b1b76079d249090d531f23cbfb5b12` |
 | Worker | `f17076659cd89ca3c9b0fb443d4df75614106458b1f1d1e5253fa81eca28b307` | `36ee6ab2fe319c0cdeaab22d88ddaf3df04370c7ddeb7e0e47ed5f335d72221d` |
 | Namespace observation | `bf04add8a524f083dae2c38652a0f44ff927c2529feea97526312c2d97f5b2fc` | `fe74c738d1e2b3fcde727e6b335245cb42bc6f9ab6b149af59108e1bbf9fabcd` |
+
+## Kernel writeback EIO during near-cap maintenance
+
+The `quota --maintenance --writeback` profile runs the same near-cap
+workload as the space-exhaustion profiles on a private 512 MiB ext4 volume.
+The controller reuses the [commit writeback profile](native-writeback.md)
+to verify the loop, device-mapper table, mount and process identities.
+
+The fixture runs `backup_file`, `restore_file` and in-place
+`compact_file` as an unprivileged UID. A small preload library pauses
+the operation after creating its exclusive destination or compaction
+scratch file. It preallocates one 4 KiB block at offset zero and leaves the
+file's logical size at zero. The controller checks the inode and its FIEMAP
+extent, then routes just that block's eight sectors to the kernel
+`error` target and releases the process. The shim gates creation. The
+kernel supplies the error at the first destination `fsync`.
+[Linux preallocation semantics](https://man7.org/linux/man-pages/man2/fallocate.2.html)
+
+| Operation | Native result | Failed output | Successful retry |
+|---|---|---|---|
+| Backup | `Io / Sync / Other / EIO (5)` | Full-length invalid backup destination | New destination, exact verified backup bytes |
+| Restore | `Io / Sync / Other / EIO (5)` | Full-length invalid restore destination | New destination, exact verified backup bytes |
+| In-place compaction | `Io / Sync / Other / EIO (5)` | Full-length invalid scratch file, original canonical file | Canonical image replaced with exact verified backup bytes |
+
+After each fault, the controller restores the linear mapping and remounts
+ext4. The 63,074,304-byte failed outputs have zero-filled header, root-slot
+and witness regions. Their payload bytes match the good compacted backup.
+Read-only inspection returns `UnsupportedFormat` at the header. The source
+and good backup reopen at revision 212 with every current value and all
+64 retained roots intact.
+Their failure-time hashes match the pre-fault files. The retry preserves
+the failed output, and the controller remounts again to verify the exact
+retry bytes. The fixture then removes its own failed outputs. A final
+commit and remount reopen the source at revision 213 with all retained
+roots and the preserved backup at revision 212.
+
+To reproduce on privileged Linux with ext4 and device mapper, install the
+tools listed in the [commit writeback instructions](native-writeback.md#reproduction)
+and a C compiler. Use an exact source checkout.
+
+```sh
+revision=$(git rev-parse HEAD)
+cargo build --locked --offline --release -p xtask --target-dir target/xtask
+WEEKEND_DB_SOURCE_ID="$revision" cargo build --locked --offline --release \
+  --manifest-path tools/resource-envelope/Cargo.toml --features compound \
+  --bin weekend-compound-resource --target-dir target/maintenance-quota-build
+sudo "$PWD/target/xtask/release/xtask" quota --maintenance --writeback \
+  --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" \
+  --source "$revision" --output "$PWD/target/maintenance-writeback"
+```
+
+Docker Linux arm64/ext4 passed at `e21d081f5dabe4c2d40b7b8450003867dca40399`
+using Rust 1.99.0. Hosted Ubuntu 24.04 x64/ext4 passed at the same PR head
+with Rust 1.99.1 and tested merge `7a7dd2a399befb5cef578ea1db2a90b41b89b6cb`.
+Both ran the three commit writeback cases. The hosted job also passed the
+append quota, maintenance block and inode quota, and global inode
+exhaustion profiles. [Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43755114238/job/132937387945), [Hosted artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43755114238/artifacts/14178041975)
+
+On each platform the audit matched the exact Git archive with 694 source
+files, checked all 532 payload hashes, 175 bounded command records,
+30 maintenance phase records, and the exact compiled preload library.
+It independently compared the failed targets and recomputed current and
+retained data digests. Admin checks confirmed all five image outcomes and
+preserved their hashes. The owned mapper, mount and loop were removed.
+Strict Clippy passed for the Linux controller and Linux and Windows-target
+compound fixtures. All 28 Linux quota tests and 18 macOS compaction,
+inspection and retention tests passed. Evidence is under
+`target/maintenance-writeback-validation/`.
+
+| Evidence | Docker Linux SHA-256 | Hosted Ubuntu SHA-256 |
+|---|---|---|
+| Controller | `9101a0673bf51994d74e1936ae0cdbf6ab95494acc0eb6cb4f411d834deec6f6` | `a2e0b83c3730e1af50330e22c53b7ec1ff3503463a7ab87729992945be54e56d` |
+| Fixture | `eb547aebb3cdd8fd56d61e0e9a7047d26f663286d5b8b6a67487f79a85a6eefd` | `89fb0b2f4450d2cf46557f7b10614625fce74d34385ffb8fd4eca9efe30b1b1e` |
+| Independent audit | `7f4b98d86d04599570fc006422fca7271a8b1bb1e0490eb1783df90b4991ea14` | `e84b03d144cfd47b4b809e5dfebb3381759490ab3b25e43cfc9cc81476f8e3a7` |
+
+The hosted ZIP SHA-256 is
+`072d21b3b23a6e0251dbdd113b4fa94507205c2a3dd0f188f29d332631a06a5e`.
+
+This profile covers the first copy-data flush. Native faults at later
+maintenance syncs, actual namespace space exhaustion, and physical
+power interruption remain separate qualification cases.
