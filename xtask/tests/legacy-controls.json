@@ -9,7 +9,8 @@
     "test_coverage_executables.py",
     "test_native_faults.py",
     "delivered-faults/test_runner.py",
-    "artifact-trace/test_runner.py"
+    "artifact-trace/test_runner.py",
+    "artifact-trace/test_windows_trace.py"
   ],
   "controls": [
     {
@@ -132,73 +133,97 @@
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_qualified_oracle_is_reused_byte_for_byte",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::qualified_oracle_bytes_and_hand_computed_cases_are_preserved"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_both_optimized_languages_use_delivered_import_library",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::optimized_c_and_cpp_link_only_the_delivered_import_library"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_manifest_pin_payload_and_complete_inventory_required",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::manifest_pin_payload_and_complete_inventory_are_required"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_manifest_rejects_dirty_wrong_target_and_unknown_features",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::dirty_wrong_target_unknown_and_duplicate_features_reject"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_windows_path_escapes_devices_and_aliases_rejected",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::windows_path_escapes_devices_and_aliases_reject"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_backslash_payload_keys_and_reparse_rejection",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::backslash_payload_keys_are_accepted_and_package_aliases_reject"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_actual_loaded_path_hash_source_features_and_pid_required",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::actual_loaded_path_hash_identity_features_pid_and_types_are_required"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_duplicate_and_oversized_json_rejected",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::duplicate_and_oversized_loader_json_reject"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_existing_output_is_rejected_before_inputs_or_processes",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::existing_output_rejects_before_inputs_or_processes"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_compile_environment_overrides_removed_case_insensitively",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "windows_trace::tests::compiler_environment_overrides_are_removed_case_insensitively"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_real_child_output_limit_and_timeout_are_not_false_green",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "trace_process::tests::output_overflow_and_deadline_never_qualify_as_expected_failures"
+      ]
     },
     {
       "path": "artifact-trace/test_windows_trace.py",
       "id": "helper_suite.WindowsTraceControls.test_real_success_and_nonzero_child",
       "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
-      "rust": []
+      "rust": [
+        "trace_process::tests::real_success_and_nonzero_status_preserve_cleanup"
+      ]
     },
     {
       "path": "delivered-faults/test_runner.py",

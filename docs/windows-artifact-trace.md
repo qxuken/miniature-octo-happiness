@@ -1,12 +1,11 @@
 # Windows C/C++ delivered-artifact trace handoff
 
-Status: **native x64 Windows/MSVC qualification passed at harness `80eb0c2`**.
+Status: **native x64 Windows/MSVC qualification passed with the Rust `xtask` runner**. See the [current command and CI proof](#rust-runner-and-native-ci-2026-11-15). The earlier native handoff also passed at harness `80eb0c2`.
 The original preparation record and commands below are retained; see the actual
 source-bound [native results](#native-results-2026-11-13) at the end.
 This is the next F15 qualification batch. The existing model, 134 cells,
 expected transcript and common C consumer remain unchanged. No engine or public
-API changes are required. This gate is not enabled as an automatic Windows CI
-job until the native handoff establishes that the runner works there.
+API changes are required. The plan and Python command block describe the historical handoff; Windows CI now runs the Rust command.
 
 ## Plan and acceptance
 
@@ -78,7 +77,9 @@ be built from a clean checkout with `tools/release.py --features crdt,replicatio
 using Rust 1.99.1, but that is a separate input preparation step. No Cargo
 publication is needed or allowed.
 
-## Windows agent commands
+## Historical Windows agent commands
+
+These commands apply to the archived `80eb0c2` checkout. For current work use the Rust command below.
 
 Use native x64 Windows 10 (1709+) or Windows 11, writable local fixed NTFS storage, Visual Studio
 2022-or-newer C/C++ build tools with a Windows SDK, and the compatible MSVC
@@ -277,3 +278,35 @@ No rerun is requested for this checkpoint. Repeat the native gate and retain
 its full evidence when qualifying a later immutable candidate, including the
 new serialization identity index. The previous delivered DLL does not qualify
 that subsequent runtime change.
+
+## Rust runner and native CI, 2026-11-15
+
+The maintained entry point is now `cargo xtask windows-trace`. Use native x64
+Windows/MSVC, a fixed NTFS volume, a fresh output path and an independently
+obtained pin for the verified clean package. Obtain dependencies before offline
+execution. For example, with `$package`, `$pin` and `$output` already set:
+
+```powershell
+cargo +1.99.1 fetch --locked
+cargo +1.99.1 test --offline --locked -p xtask --bin xtask windows_trace::tests
+cargo +1.99.1 test --offline --locked -p xtask --bin xtask trace_process::tests
+cargo +1.99.1 xtask windows-trace --package $package --manifest-sha256 $pin --output $output
+```
+
+The [native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43670676209/job/132679794972)
+for PR head `b0e0d73` ran all 20 cases, verified the exact loaded DLL and uploaded
+`weekend-db-windows-trace-X64`. Its package is from Actions' actual PR merge
+checkout, not the nominal branch tip or the prior agent's separate DLL.
+
+| Observed result | Value |
+| --- | --- |
+| Package source ID | `daec3da76002b234f474c41e724f2f194f1cf797` |
+| Manifest SHA-256 | `a8dc73aa73b232ea4ef6cdb4b07ef01c9278d067ebd410974cd4091fed704e78` |
+| Loaded DLL SHA-256 | `4153cc5a70c6906aa46c7863bbe1b9f65432c86279575a08f5d18d2519db3798` |
+| Evidence SHA-256 | `f9bca221a8794683ee0bc1dac03d21ec51b4922649bb7a059a05714295c35241` |
+| Executions | 20 verified: five exact transcripts plus five rejections per language |
+
+Both frozen trace formats and expected hashes are unchanged. The native job
+also passed runner controls, workspace checks and private package qualification.
+This pass is finite delivered-artifact qualification on the recorded Windows
+configuration. It does not advance device power-loss or measured MC/DC gates.

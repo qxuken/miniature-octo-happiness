@@ -466,6 +466,30 @@ mod tests {
             std::os::unix::fs::symlink("weekend_db.dll", alias).unwrap();
             assert!(verified(t.path(), &pin).is_err());
         }
+        #[cfg(windows)]
+        {
+            let alias = t.path().join("alias");
+            let folder = t.path().join("folder");
+            let mut context = crate::support::Run::new(t.path().to_owned());
+            context
+                .capture_private(&crate::support::cmd([
+                    OsStr::new("cmd.exe"),
+                    OsStr::new("/D"),
+                    OsStr::new("/Q"),
+                    OsStr::new("/C"),
+                    OsStr::new("mklink"),
+                    OsStr::new("/J"),
+                    alias.as_os_str(),
+                    folder.as_os_str(),
+                ]))
+                .unwrap();
+            // An explicitly hashed in-tree junction must reject too.
+            v["sha256"]["alias/payload"] = v["sha256"]["folder\\payload"].clone();
+            let pin = write(t.path(), &v);
+            let result = verified(t.path(), &pin);
+            fs::remove_dir(alias).unwrap();
+            assert!(result.is_err());
+        }
     }
     fn proof() -> Value {
         json!({"schema":1,"phase":"before","pid":123,"loaded_dll":r"C:\proof\weekend_db.dll","sha256":"b".repeat(64),"source_id":"a".repeat(40),"abi":1,"format":2,"features":3})

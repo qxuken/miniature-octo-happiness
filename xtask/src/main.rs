@@ -94,11 +94,6 @@ enum Task {
     /// Run discovered fuzz targets with bounded ASan execution and evidence.
     #[cfg(unix)]
     Fuzz(fuzz::Options),
-    #[command(hide = true)]
-    CompilerEnvironment {
-        #[arg(long)]
-        directory: PathBuf,
-    },
     /// Dynamically load the exact shared library and verify its C ABI.
     AbiSmoke(abi::Options),
     /// Generate raw Odin bindings, or verify them against the C header.
@@ -212,22 +207,6 @@ fn execute(cli: Cli) -> Result<()> {
         Task::AtomicModel(options) => atomic_model::run(&run, options),
         #[cfg(unix)]
         Task::Fuzz(options) => fuzz::run(&run, options),
-        Task::CompilerEnvironment { directory } => {
-            let env = toolchain::compiler_environment(&mut run, &directory)?;
-            let strings: std::collections::BTreeMap<String, String> = env
-                .into_iter()
-                .map(|(k, v)| {
-                    Ok((
-                        k.into_string()
-                            .map_err(|_| anyhow::anyhow!("non-UTF-8 environment name"))?,
-                        v.into_string()
-                            .map_err(|_| anyhow::anyhow!("non-UTF-8 environment value"))?,
-                    ))
-                })
-                .collect::<Result<_>>()?;
-            serde_json::to_writer(std::io::stdout(), &strings)?;
-            Ok(())
-        }
         Task::AbiSmoke(options) => abi::run(options),
         Task::OdinBindings { check } => odin::run(&root, check),
         Task::WindowsConsumers(options) => toolchain::windows_consumers(&mut run, options),

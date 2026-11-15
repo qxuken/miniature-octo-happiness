@@ -439,3 +439,27 @@ native gate passes, so the retirement ledger remains 55/179 with 43 Python files
 The preceding LF-fixture fix at `cad7154` has now passed the actual Windows
 validation, full checks, C/C++ consumers and clean private package/relocation job.
 Its fuzz job also passes; the hosted TSan job was still pending at this observation.
+
+## Windows artifact trace migration verified
+
+The native Windows job for PR head `b0e0d73` passed Rust process/private-capture
+controls, engine checks, private exact-package relocation and all **20 actual
+C/C++ executions** on x64 NTFS. The job emitted the exact manifest pin, DLL hash,
+source identity and proof hash and uploaded the separate trace evidence. Those
+values and the reproduction command are in the
+[Windows trace report](windows-artifact-trace.md#rust-runner-and-native-ci-2026-11-15).
+The actual package source is the CI PR merge checkout. This proof does not replace
+or recreate the earlier Windows agent's archived package proof.
+
+The 12 legacy controls now map to Rust, including exact model bytes, native
+process limits/exit classification, compiler isolation and package/attestation
+rejections. The regression suite also tests a real hashed junction on Windows.
+The old Windows Python controller, model, controls and MSVC JSON transport are
+removed, together with the now-unneeded hidden environment-dump CLI. The frozen
+ledger tracks **67/179** controls mapped; **39** maintained Python files remain.
+The remaining controller families retain their existing gates until converted.
+
+Mac debug/release and native/MSVC cross-target Clippy also pass after removal.
+The residual Python helper registry passes **220 checks plus 4 registered skips
+across 32 workers** (evidence SHA-256 `b5af2429533b8090c2f7ff2287141b3cd1a8c8a7254a85f20f244bac4ee69824`).
+Hosted engine and fuzz runs for `b0e0d73` are fully green, including TSan.

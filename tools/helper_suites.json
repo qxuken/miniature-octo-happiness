@@ -2,10 +2,6 @@
   "version": 1,
   "suites": [
     {
-      "path": "artifact-trace/test_windows_trace.py",
-      "allowed_skips": []
-    },
-    {
       "path": "quota/test_runner.py",
       "allowed_skips": []
     },

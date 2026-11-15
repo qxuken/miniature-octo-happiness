@@ -220,6 +220,30 @@ mod tests {
         );
         assert_eq!(commands.len(), 1);
         assert_eq!(commands[0]["stdout_sha256"].as_str().unwrap().len(), 64);
+        assert!(
+            execute(
+                fixture("bad"),
+                t.path(),
+                "rejected",
+                &env,
+                &mut commands,
+                false
+            )
+            .is_err()
+        );
+        assert_eq!(commands.last().unwrap()["report"]["exit"], 2);
+        assert!(
+            execute(
+                fixture("bad"),
+                t.path(),
+                "allowed",
+                &env,
+                &mut commands,
+                true
+            )
+            .unwrap()
+            .qualifies(true)
+        );
     }
     #[test]
     fn output_overflow_and_deadline_never_qualify_as_expected_failures() {
@@ -228,6 +252,13 @@ mod tests {
         assert!(!overflow.qualifies(true));
         assert!(overflow.cleanup_verified, "{overflow:?}");
         assert!(overflow.exit.is_some());
+        assert!(
+            overflow
+                .failure
+                .as_deref()
+                .is_some_and(|s| s.contains("output limit")),
+            "{overflow:?}"
+        );
         assert!(
             fs::metadata(t.path().join("overflow.stdout"))
                 .unwrap()
@@ -238,5 +269,12 @@ mod tests {
         assert!(!timeout.qualifies(true));
         assert!(timeout.cleanup_verified, "{timeout:?}");
         assert!(timeout.exit.is_some());
+        assert!(
+            timeout
+                .failure
+                .as_deref()
+                .is_some_and(|s| s.contains("deadline")),
+            "{timeout:?}"
+        );
     }
 }

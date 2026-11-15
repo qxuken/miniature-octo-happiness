@@ -1,6 +1,6 @@
 # Exact-package deterministic operation trace
 
-`cargo xtask artifact-trace` supplies the current finite F03/F15 semantic qualification: native Rust, C and Odin interpret one versioned binary operation trace and each transcript must equal an independent Rust contract model. The POSIX Python controller, Docker worker and boundary suite have been retired; the separate Windows controller still uses the frozen Python model until its conversion. It never publishes, pushes, commits, or invokes remote CI. All inputs and database paths are synthetic and private.
+`cargo xtask artifact-trace` supplies the current finite F03/F15 semantic qualification: native Rust, C and Odin interpret one versioned binary operation trace and each transcript must equal an independent Rust contract model. The POSIX Python controller, Docker worker and boundary suite have been retired. The [Windows runner](windows-artifact-trace.md#rust-runner-and-native-ci-2026-11-15) uses the same independent Rust model. It never publishes, pushes, commits, or invokes remote CI. All inputs and database paths are synthetic and private.
 
 This report preserves the v1 59-cell results. The current default is the
 [v2 134-cell validation-mode trace](artifact-trace-validation-modes.md), which
@@ -28,7 +28,7 @@ The Linux package has no Odin bindings or Rust source payload. Its Rust consumer
 
 ## Shared trace and independent oracle
 
-The historical `model.py` defines the trace and its independent model without importing or invoking the engine. The current POSIX runner uses `xtask/src/trace_model.rs`, with frozen operation fixtures, explicit hand-computed controls and unchanged v1/v2 byte and transcript hashes. The runner emits `trace.bin` and `expected.txt` before compiling any consumer. Each consumer reads `trace.bin`; no expected values or transcript are linked into a consumer.
+The historical `model.py` defined the trace and its independent model without importing or invoking the engine. The current POSIX runner uses `xtask/src/trace_model.rs`, with frozen operation fixtures, explicit hand-computed controls and unchanged v1/v2 byte and transcript hashes. The runner emits `trace.bin` and `expected.txt` before compiling any consumer. Each consumer reads `trace.bin`; no expected values or transcript are linked into a consumer.
 
 The binary format is explicitly little-endian:
 

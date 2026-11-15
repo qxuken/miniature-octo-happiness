@@ -974,3 +974,11 @@ requires 20 actual C/C++ executions with exact DLL attestations. Native process
 ownership and private MSVC-discovery controls still require that hosted Windows
 run. Legacy Windows tooling remains until it passes; no retirement count or
 production qualification is advanced ahead of execution.
+
+The Rust Windows trace passed all 20 exact-DLL C/C++ executions at `b0e0d73`'s
+native PR job. The [Windows report](windows-artifact-trace.md#rust-runner-and-native-ci-2026-11-15)
+records the actual merge-checkout package source, manifest/DLL/proof hashes and
+workflow evidence. Twelve controls move to Rust; the old Windows controller,
+model, suite and compiler-environment transport are retired. The conversion
+now maps 67/179 controls, with 39 maintained Python files remaining. Crates
+remain unpublished.
