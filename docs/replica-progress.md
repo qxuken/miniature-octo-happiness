@@ -1,20 +1,20 @@
 # Private replica progress observations
 
-`tools/replica_progress.py` produces version-1 JSON around the existing
+`cargo xtask replica-progress` produces version-1 JSON around the existing
 `weekend-replicate describe`, `ship` and `poll` commands. It adds no core protocol,
 application API or stable Rust CLI JSON contract. It parses the current text
 output strictly and rejects changed/unexpected output. Use the helper with the
 matching verified private CLI binary; its SHA256 is recorded in each observation.
 
 ```sh
-python3 tools/replica_progress.py \
+cargo xtask replica-progress \
   --binary /private/bin/weekend-replicate --source primary.wdb \
   --stream 11111111111111111111111111111111 --peer 127.0.0.1:8400 \
   --credentials primary-credentials --pin follower-cert.der \
   --ship new-export.wdb --save new-observation.json
 
 # After restarting/reopening the follower, reconcile through a fresh mTLS poll.
-python3 tools/replica_progress.py \
+cargo xtask replica-progress \
   --binary /private/bin/weekend-replicate --source primary.wdb \
   --stream 11111111111111111111111111111111 --peer 127.0.0.1:8400 \
   --credentials primary-credentials --pin follower-cert.der \
@@ -75,7 +75,7 @@ be interpreted as counts of missing application edits.
 
 ## Failures, retry and observation files
 
-Syntax and argument-admission errors use argparse diagnostics and a nonzero
+Syntax and argument-admission errors use CLI diagnostics and a nonzero
 exit, without JSON. After argument admission, operational failures produce a
 nonzero exit with a JSON error observation: failed CLI execution, timeout,
 unexpected CLI output, incompatible capture or invalid prior state.
@@ -91,11 +91,11 @@ helper's failure exit status.
 same-export retry behavior. The helper does not retry an old saved file as a new
 `Export` after a process restart. `--timeout` defaults to 110 seconds (range
 1–600); all child CLI invocations share that deadline. On timeout the helper
-kills/reaps its child process group. CLI stdout is read incrementally through
-a selector into at most 8,193 bytes; exceeding the 8,192-byte contract rejects
-promptly and kills/reaps the child, rather than buffering until timeout. A timed-out ship can therefore interrupt
+kills and reaps its child process group. The supervisor drains output
+incrementally under an 8,192-byte per-stream ceiling. Exceeding it rejects
+promptly and reaps the child. A timed-out ship can interrupt
 local or remote work and must be reconciled. Local filesystem/kernel stalls
-are not bounded by Python scheduling. No helper operation kills the independently
+are outside the subprocess deadline. No helper operation kills the independently
 running follower server.
 
 `--save` uses create-new mode 0600 and rejects an existing file or dangling
@@ -112,7 +112,30 @@ separate process/ACL qualification; do not infer it from the core CLI's native
 Windows support. The fixed text grammar is intentionally private and must be
 requalified if CLI output changes.
 
-## Native qualification
+## Rust controller qualification
+
+Run the normal controls with `cargo test --offline --locked -p xtask --bin
+xtask replica_progress`. To execute the separate authenticated scenario, use
+the exact native `weekend-replicate` and `replica-progress-fixture` release
+executables built from the same archived revision and original locks.
+
+```sh
+REPLICA_PROGRESS_BIN=/absolute/path/to/weekend-replicate \
+REPLICA_PROGRESS_FIXTURE=/absolute/path/to/replica-progress-fixture \
+cargo test --offline --locked -p xtask --bin xtask \
+  authenticated_observations_restarts_dropped_reply_and_stale_capture -- --ignored
+```
+
+The Rust test exercises the same response-loss, restart, exact receipt,
+stale-capture, foreign enrollment and final retained-state checks described
+below. macOS/APFS and Docker Linux/ext4 passed against `0647a51`.
+The response-loss relay explicitly sets accepted sockets to blocking mode.
+The first macOS run exited the relay before dropping an acknowledgment,
+which exposed the platform difference. The corrected run reopened at
+durable revision 3 after loss of the response, and finished at 4 with
+retained revision 2. [Migration evidence](xtask-conversion.md#replica-progress-observations)
+
+## Historical native qualification
 
 Exact archived engine/application source
 `032dadf591b0a0ded4894898e8208283c50425fb` plus only this helper, its tests and the

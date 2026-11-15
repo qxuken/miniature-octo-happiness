@@ -142,6 +142,14 @@ pub struct Campaign<'a> {
     file_limit: Option<u64>,
     cancellation: supervise::Cancellation,
 }
+struct StopOnUnwind<'a>(&'a AtomicBool);
+impl Drop for StopOnUnwind<'_> {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
+}
 impl<'a> Campaign<'a> {
     pub fn new(run: &'a Run, output: &Path, scope: &str) -> Result<Self> {
         Self::create(run, output, scope, true)
@@ -274,6 +282,7 @@ impl<'a> Campaign<'a> {
         let request = self.request(arguments, label, deadline, &self.run.root)?;
         let stop = AtomicBool::new(false);
         let (outcome, report) = std::thread::scope(|scope| {
+            let _stop_on_unwind = StopOnUnwind(&stop);
             let worker = scope.spawn(|| supervise::run_stoppable(&request, &stop));
             let outcome = (|| -> Result<T> {
                 let started = Instant::now();
@@ -644,6 +653,31 @@ mod tests {
                 assert_eq!(proof["passed"], true);
             }
         }
+    }
+    #[test]
+    fn loopback_unwind_retires_live_server_without_waiting_for_deadline() {
+        let tmp = crate::support::Scratch::new(&std::env::temp_dir(), "loopback-unwind").unwrap();
+        let run = Run::new(tmp.path().to_owned());
+        let output = tmp.path().join("output");
+        let mut campaign = Campaign::detached(&run, &output, "loopback unwind control").unwrap();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = campaign.loopback(
+                cmd([
+                    "sh",
+                    "-c",
+                    "printf 'ready 127.0.0.1:51111\n'; exec sleep 30",
+                ]),
+                "server",
+                (Duration::from_secs(3), 5.),
+                false,
+                |_, _| -> Result<()> { panic!("fixture action panicked") },
+            );
+        }));
+        assert!(result.is_err());
+        let report = crate::delivery::read_json(&output.join("server.process.json")).unwrap();
+        assert_eq!(report["stopped"], true);
+        assert_eq!(report["timed_out"], false);
+        assert_eq!(report["cleanup_verified"], true);
     }
     #[test]
     fn paired_commands_overlap_and_both_reports_survive_failure() {

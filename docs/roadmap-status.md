@@ -1059,3 +1059,10 @@ follower at 3 while the local capture was 4. Retry advanced follower
 durability and repeat polls at 5 preserved exact files. The conversion now
 covers 139/179 controls and 12 maintained Python files.
 [Snapshot upgrade verification](xtask-conversion.md#mixed-version-authenticated-snapshot-cli)
+
+The Rust replica progress observer passed native TLS response-loss and restart
+checks on macOS and Docker Linux/ext4. Fresh polling verified durable revision
+3 after a lost response. The final source and follower reopened at 4 with
+retained revision 2. The conversion now covers 153/179 legacy controls and
+10 maintained Python files.
+[Progress observer verification](xtask-conversion.md#replica-progress-observations)

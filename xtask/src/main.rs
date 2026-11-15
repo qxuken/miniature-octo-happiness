@@ -45,6 +45,8 @@ mod quota_host;
 #[cfg(target_os = "linux")]
 mod quota_oracle;
 #[cfg(unix)]
+mod replica_progress;
+#[cfg(unix)]
 mod resource_campaign;
 #[cfg(unix)]
 mod resource_oracle;
@@ -92,6 +94,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Observe local, captured and follower progress through the native replication CLI.
+    #[cfg(unix)]
+    ReplicaProgress(replica_progress::Options),
     /// Qualify the actual authenticated snapshot CLIs across two frozen revisions.
     #[cfg(unix)]
     SnapshotCliUpgrade(snapshot_upgrade::Options),
@@ -259,6 +264,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::ReplicaProgress(options) => replica_progress::run(options),
         #[cfg(unix)]
         Task::SnapshotCliUpgrade(options) => snapshot_upgrade::run(&run, options),
         #[cfg(unix)]

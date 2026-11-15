@@ -22,7 +22,8 @@
     "sqlite-baseline/test_runner.py",
     "test_compatibility.py",
     "test_soak.py",
-    "test_snapshot_cli_upgrade.py"
+    "test_snapshot_cli_upgrade.py",
+    "test_replica_progress.py"
   ],
   "controls": [
     {
@@ -1145,85 +1146,127 @@
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_relations_are_not_false_exact_acknowledgments",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::relations_and_prior_never_fabricate_durable_progress"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_previous_never_substitutes_for_unknown_receipt",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::relations_and_prior_never_fabricate_durable_progress"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_strict_saved_schema_and_parser",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::saved_schema_validates_nullable_fields_identifiers_timestamps_and_relation"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_zero_file_identity_in_describe_is_sanitized_before_poll",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::invalid_identity_and_oversized_revision_reject_before_poll"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_saved_field_types_nonzero_ids_and_secondary_timestamp",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::saved_schema_validates_nullable_fields_identifiers_timestamps_and_relation"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_oversized_revision_in_actual_observe_parse_is_sanitized",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::invalid_identity_and_oversized_revision_reject_before_poll"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_deep_json_is_a_sanitized_invalid_prior",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::saved_schema_validates_nullable_fields_identifiers_timestamps_and_relation"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_selector_creation_failure_spawns_no_child",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::observer_log_setup_failure_launches_no_child"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_selector_registration_failure_kills_and_reaps_actual_child",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "supervise::tests::malformed_journal_fails_after_direct_worker_cleanup"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_excess_output_rejected_before_sleep_deadline",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::excessive_output_is_rejected_before_the_child_deadline"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_observe_timeout_preserves_valid_prior_as_historical",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::timeout_keeps_valid_prior_as_historical_only"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_existing_observation_rejected_before_replication",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::existing_or_dangling_observation_rejects_before_replication"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.Contracts.test_lost_reply_keeps_verified_capture_but_no_remote_ack",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::failed_ship_preserves_verified_local_capture_without_acknowledgment"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_replica_progress.py",
       "id": "helper_suite.NativeTLS.test_authenticated_observations_restarts_dropped_reply_and_stale_capture",
       "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
-      "rust": []
+      "rust": [
+        "replica_progress::tests::authenticated_observations_restarts_dropped_reply_and_stale_capture"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_snapshot_cli_upgrade.py",

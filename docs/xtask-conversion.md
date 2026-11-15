@@ -790,3 +790,42 @@ the focused controller tests. Strict Clippy passed on macOS and the Linux
 and MSVC cross targets. The four remaining suites passed 78 checks with two
 registered skips across eight workers. Their evidence SHA-256 is
 `9256db5d279c8578246c9a34f55c9e46f83a2decb37bce0de77e6da109c552d4`.
+
+## Replica progress observations
+
+`cargo xtask replica-progress` preserves the version-1 observation schema.
+It validates saved JSON, bounds child output under a shared deadline, and
+checks the exported file's metadata and digest. Prior receipts remain
+historical when a fresh exchange fails. The CLI control saved the same JSON
+bytes it emitted on stdout in a mode-0600 file, with a verified local revision
+and unavailable follower after failure.
+
+The separate native TLS scenario passed on macOS/APFS and Docker Linux/ext4
+against the CLI and fixture built from `0647a5135664be025a86c9f2b87a5a438e05074e`.
+The initial macOS relay inherited nonblocking mode and closed before dropping
+any response bytes. The corrected relay selects blocking mode explicitly.
+Three debug repeats and an optimized macOS run passed, as did Docker Linux.
+On application unwind the shared harness now stops and reaps an owned server.
+A real control verifies the stop report before the server deadline.
+
+The dropped response yielded unknown follower state. Fresh polling after
+restart verified revision 3 and its exact export digest. A later shipment
+advanced the follower to 4. The stale capture remained distinct, a same-revision
+digest conflict rejected, and both source and follower verified retained
+revision 2. The native test runs explicitly with both release executables.
+
+| Proof | Bound binary inventory SHA-256 | Native test log SHA-256 |
+|---|---|---|
+| macOS | `004d8b1e9e1a99e76fb49a2fc9a9b7283511957c7bb56a4dfd666494dc6242de` | `898ef1602760e9ee6c1cd2a7d28348bc013176e5534d4f908eb936ffc1075c1e` |
+| Docker Linux | `d141032746344ae52d1996955ba892d6e7fa6d56c3bebf8542fa8c9af671e07b` | `29c5d02221d44a0e8af0fba848f5274de01aeced47ab1f2539e2b58ceddc300c` |
+
+Fourteen legacy controls map to Rust, including the explicit native TLS test.
+The conversion now covers **153/179** controls and **10** maintained Python
+files. macOS passed 165 ordinary xtask tests in debug and release, with the
+native test selected separately. Docker Linux passed the focused controller,
+unwind and native TLS tests. Strict Clippy passed on macOS and the Linux and
+MSVC cross targets. [Observer runbook](replica-progress.md)
+
+The three remaining legacy suites passed all 52 checks across six workers.
+Their evidence SHA-256 is
+`bf6177fbcd6f271fc1f954a5d45fcde9c2fa78c6918fdece704a554201511de5`.
