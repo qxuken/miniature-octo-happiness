@@ -383,6 +383,7 @@ mod unix {
     }
     // A trusted non-forking OS probe. Its two pipes and wall time are bounded;
     // it cannot recursively depend on the ownership inspection it provides.
+    #[cfg(not(target_os = "linux"))]
     fn probe(args: &[&str]) -> Result<String> {
         let mut child = Command::new("/bin/ps")
             .args(args)
@@ -442,15 +443,111 @@ mod unix {
         }
         result
     }
+    #[cfg(target_os = "linux")]
+    fn proc_identity(bytes: &[u8], pid: i32) -> Result<Option<Identity>> {
+        // comm is parenthesized but can itself contain spaces, newlines and
+        // parentheses. Only the numeric prefix and fields after comm are UTF-8.
+        let begin = bytes
+            .iter()
+            .position(|&b| b == b'(')
+            .context("missing comm")?;
+        let end = bytes
+            .iter()
+            .rposition(|&b| b == b')')
+            .context("missing comm end")?;
+        ensure!(
+            begin < end && bytes.get(end + 1) == Some(&b' '),
+            "invalid process name delimiters"
+        );
+        let reported: i32 = std::str::from_utf8(&bytes[..begin])?.trim_end().parse()?;
+        ensure!(reported == pid && pid > 0, "process ID changed");
+        let mut fields = std::str::from_utf8(&bytes[end + 2..])?.split_ascii_whitespace();
+        let state = fields.next().context("missing process state")?;
+        ensure!(
+            state.len() == 1 && state.as_bytes()[0].is_ascii_alphabetic(),
+            "invalid process state"
+        );
+        let parent: i32 = fields.next().context("missing parent PID")?.parse()?;
+        let group: i32 = fields.next().context("missing process group")?.parse()?;
+        // Fields 6–21 precede starttime at position 22 in proc_pid_stat(5).
+        let start: u64 = fields
+            .nth(16)
+            .context("missing process starttime")?
+            .parse()?;
+        // do_task_stat can keep its initial PPID and PGID after reaping clears
+        // the signal handler. The state was sampled before that check.
+        if parent == 0 && group == -1 {
+            return Ok(None);
+        }
+        ensure!(parent >= 0 && group >= 0, "negative process identity");
+        Ok(Some(Identity {
+            pid,
+            parent,
+            group,
+            start: start.to_string(),
+            state: state.to_owned(),
+        }))
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn table() -> Result<BTreeMap<i32, Identity>> {
+        const STAT_LIMIT: usize = 4096;
+        let started = Instant::now();
+        let mut bytes = Vec::new();
+        let mut total = 0;
+        let mut table = BTreeMap::new();
+        for entry in fs::read_dir("/proc")? {
+            ensure!(
+                started.elapsed() < Duration::from_secs(2),
+                "process inventory deadline"
+            );
+            let entry = entry?;
+            let name = entry.file_name();
+            let Some(pid) = name.to_str().and_then(|name| name.parse::<i32>().ok()) else {
+                continue;
+            };
+            bytes.clear();
+            let stat = entry.path().join("stat");
+            let read = File::open(&stat)
+                .and_then(|file| file.take((STAT_LIMIT + 1) as u64).read_to_end(&mut bytes));
+            match read {
+                Ok(0) => continue,
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound
+                        || error.raw_os_error() == Some(libc::ESRCH) =>
+                {
+                    continue;
+                }
+                other => {
+                    other.with_context(|| format!("read process {pid} stat"))?;
+                }
+            }
+            ensure!(bytes.len() <= STAT_LIMIT, "process stat length limit");
+            total += bytes.len() as u64;
+            ensure!(total <= PROBE_LIMIT, "process inventory byte limit");
+            if let Some(row) =
+                proc_identity(&bytes, pid).with_context(|| format!("process {pid} stat"))?
+            {
+                table.insert(pid, row);
+            }
+        }
+        ensure!(
+            table.contains_key(&(std::process::id() as i32)),
+            "process inventory omits observer"
+        );
+        Ok(table)
+    }
+
+    #[cfg(not(target_os = "linux"))]
     pub(super) fn table() -> Result<BTreeMap<i32, Identity>> {
         let mut table = BTreeMap::new();
         for line in probe(&["-axo", "pid=,ppid=,pgid=,lstart=,stat="])?.lines() {
             let parts: Vec<_> = line.split_whitespace().collect();
             ensure!(parts.len() == 9, "invalid process identity");
             let row = Identity {
-                pid: parts[0].parse()?,
-                parent: parts[1].parse()?,
-                group: parts[2].parse()?,
+                pid: parts[0].parse().context("invalid process ID")?,
+                parent: parts[1].parse().context("invalid parent process ID")?,
+                group: parts[2].parse().context("invalid process group ID")?,
                 start: parts[3..8].join(" "),
                 state: parts[8].to_owned(),
             };
@@ -899,6 +996,33 @@ mod unix {
             descendants(&table, None, &mut owned);
             assert_eq!(owned.keys().copied().collect::<Vec<_>>(), [101, 102, 103]);
             assert_eq!(owned[&101].start, "known");
+        }
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn proc_stat_reads_exact_start_ticks_and_ignores_the_process_name() {
+            let mut bytes = b"42 (name (with) spaces\xff\n) Z 7 42".to_vec();
+            for _ in 0..16 {
+                bytes.extend_from_slice(b" 0");
+            }
+            bytes.extend_from_slice(b" 4294967598 33\n");
+            let row = proc_identity(&bytes, 42).unwrap().unwrap();
+            assert_eq!((row.pid, row.parent, row.group), (42, 7, 42));
+            assert_eq!(row.state, "Z");
+            assert_eq!(row.start, "4294967598");
+            assert!(proc_identity(&bytes, 41).is_err());
+            assert!(proc_identity(b"42 (short) Z 7 42", 42).is_err());
+            assert!(proc_identity(b"42 (no end Z 7 42", 42).is_err());
+        }
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn proc_stat_skips_a_row_reaped_after_the_state_sample() {
+            let fields = " 0".repeat(16);
+            let reaped = format!("42 (short lived) R 0 -1{fields} 12003\n");
+            assert!(proc_identity(reaped.as_bytes(), 42).unwrap().is_none());
+            let malformed = format!("42 (short lived) R 1 -1{fields} 12003\n");
+            assert!(proc_identity(malformed.as_bytes(), 42).is_err());
         }
 
         struct Fault {

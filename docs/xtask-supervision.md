@@ -35,12 +35,13 @@ Rust owns pipes, deadlines, output accounting, signals, RSS probes and retiremen
 * `waitid(WNOWAIT)` observes exit without releasing the leader PID. Its group is
   retired even if the leader exited while descendants hold pipes open. Only then
   is the leader reaped. Cleanup is bounded and failure cannot qualify a run.
-* Helper journals record PID, parent, group, `ps lstart` and state. Known detached
-  sessions and reparented descendants are retired after their leader exits.
-  Nested Rust-supervised fixtures append their identities to the outer journal.
-  Recycled identities are excluded. This is trusted-suite ownership tracking,
-  **not an adversarial process sandbox**.
-* Trusted `/bin/ps` probes have a two-second deadline and an 8 MiB ceiling.
+* Helper journals record PID, parent, group, start identity and state. Linux
+  records boot clock ticks from procfs. Other Unix targets use `ps lstart`.
+  Known detached sessions and reparented descendants are retired after their
+  leader exits. Nested Rust-supervised fixtures append their identities to the
+  outer journal. Recycled identities are excluded within the precision of the
+  platform's start identity. This is trusted-suite ownership tracking.
+* Process inventories enforce a two-second budget and an 8 MiB ceiling.
   Permission errors retiring a macOS zombie-only group are accepted only after
   proving leader exit and absence of live group members. Probe/journal errors
   still attempt direct group retirement and reaping, then fail qualification.
@@ -54,11 +55,9 @@ Rust owns pipes, deadlines, output accounting, signals, RSS probes and retiremen
   process killed with SIGKILL, an unwritable report filesystem or machine failure
   can prevent report completion; an initial marker never qualifies that run.
 
-The process table has a finite lifetime/second-resolution start-time assumption,
-matching the previous trusted helper model. RSS still samples the main worker
-about every 50 ms; it is not a process-tree memory cap. Bounded pipes can add
-backpressure to verbose helpers, so this is tooling qualification, not a new
-engine performance measurement or product MC/DC denominator.
+Start identity has clock-tick precision on Linux and second precision on other
+Unix targets. RSS samples the main worker about every 50 ms. Bounded pipes can
+add backpressure to verbose helpers. This qualification covers tooling.
 
 ## Historical supervision checkpoint
 
@@ -245,3 +244,46 @@ tests per profile with eight clean worker retirements across both profiles.
 The explicit TLS fixture skip remains one per profile. Docker resources were
 confirmed absent. The Linux helper evidence SHA-256 is
 `17da639746e8bddef40fcc6af358404d3732f531f1f1a165b4db247fc5d14ee7`.
+
+## Linux process inventory under churn
+
+The hosted Linux release helper at `5be73db` failed the campaign source-drift
+and timeout control. Its retained stdout reports a numeric parse overflow and
+lacks the original process row. [Hosted helper job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43705255065/job/132784834094)
+
+Linux now reads `/proc/<pid>/stat` directly. Each row is capped at 4 KiB and
+the combined inventory at 8 MiB. The parser reads the PID and the fields after
+the parenthesized command name, including the unsigned start clock ticks. The
+directed test covers parentheses, non-UTF-8 bytes and a newline in the name,
+a start time above 32 bits, malformed delimiters, truncated input and a
+mismatched PID. [proc_pid_stat(5)](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html)
+
+A churn run of the first parser reproduced a separate failure when it read
+a row while Linux was reaping the process. The kernel can sample a state and
+then lose access to the signal handler, leaving PPID 0 and PGID -1. The
+observer skips this pair and rows that disappear while being read. It still
+rejects malformed negative identities and verifies that the inventory includes
+the observer. The regression uses a running-state sample to exercise the race.
+[Linux kernel procfs implementation](https://github.com/torvalds/linux/blob/master/fs/proc/array.c)
+
+The macOS xtask suite passed 183 tests in each profile. On Docker Linux
+arm64/ext4, `cargo xtask helper-controls --output NEW` passed 206 tests in
+each profile, with the registered native TLS control skipped in each profile.
+All eight workers retired cleanly and all 70 recorded artifact hashes matched.
+A second pass used the release test executable emitted by the registry. With
+`HELPER_PROCESS_JOURNAL` set and two shell loops creating short child processes,
+it ran `campaign_source_drift_and_timeout_never_qualify` and
+`paired_commands_overlap_and_both_reports_survive_failure` 60 times each using
+libtest `--exact`. All 120 invocations passed and the container and volume were
+absent after cleanup.
+
+| Linux artifact | SHA-256 |
+|---|---|
+| Helper evidence | `b576e08ab628a9f7769fd9f96dbd5733f678f6e76bfa10d95f75906eff300fdf` |
+| Churn run stdout | `264f2c1da3ad13d9db2a4da5b880834f1d90bf2963ef7beff7cbff5fbe802934` |
+
+The updated supervisor also ran all six [delivered C fault cases](delivered-c-faults.md)
+against the existing exact Linux package from `bc56084`. The controller
+verified the inner evidence SHA-256
+`d3aa5dc269d1d5cf9820dee347c1abb09d07e522e1c15a6ee4bf40fce892872c`
+and confirmed that its owned container and volume were absent.
