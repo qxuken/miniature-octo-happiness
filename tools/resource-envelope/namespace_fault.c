@@ -39,6 +39,10 @@ __attribute__((constructor)) static void arm(void) {
     selected = phase[0] - '0';
     if (strcmp(name, "ENOSPC") == 0) fault = ENOSPC;
     else if (strcmp(name, "EDQUOT") == 0) fault = EDQUOT;
+    else if (strcmp(name, "EACCES") == 0) {
+        assert(selected == 1 || selected == 4);
+        fault = EACCES;
+    }
     else {
         assert(strcmp(name, "EIO") == 0);
         fault = EIO;
@@ -58,6 +62,23 @@ static int inject(void) {
     fprintf(stderr, "namespace fault %d %d\n", selected, fault);
     errno = fault;
     return -1;
+}
+
+/* Leave the test directory searchable for the fresh-process reopen. Only the
+ * parent fixture restores its write bit, between that reopen and the retry. */
+static void deny_directory_write(int fd) {
+    struct stat info;
+    assert(fstat(fd, &info) == 0 && same(&info, &directory));
+    assert((info.st_mode & 07777) == 0700);
+    assert(fchmod(fd, 0500) == 0);
+}
+
+static int kernel_denial(int result) {
+    int saved = errno;
+    assert(result == -1 && saved == EACCES);
+    fprintf(stderr, "namespace kernel %d %d\n", selected, saved);
+    errno = saved;
+    return result;
 }
 
 /* Reject wrong order even when the target operation returned success. */
@@ -87,7 +108,11 @@ static int observed_exchange(exchange_fn next, int from_fd, const char *from,
     assert(fstatat(from_fd, from, &current, AT_SYMLINK_NOFOLLOW) == 0);
     assert(fstatat(to_fd, to, &replacement, AT_SYMLINK_NOFOLLOW) == 0);
     assert(same(&current, &original) && !same(&current, &replacement));
-    if (observe(1)) return inject();
+    if (observe(1)) {
+        if (fault != EACCES) return inject();
+        deny_directory_write(from_fd);
+        return kernel_denial(next(from_fd, from, to_fd, to, flags));
+    }
     int result = next(from_fd, from, to_fd, to, flags);
     if (result == 0) {
         exchanged = 1;
@@ -102,7 +127,11 @@ static int observed_remove(remove_fn next, int fd, const char *name, int flags) 
         struct stat old;
         assert(flags == 0 && fstatat(fd, name, &old, AT_SYMLINK_NOFOLLOW) == 0);
         assert(same(&old, &original));
-        if (observe(4)) return inject();
+        if (observe(4)) {
+            if (fault != EACCES) return inject();
+            deny_directory_write(fd);
+            return kernel_denial(next(fd, name, flags));
+        }
     }
     return next(fd, name, flags);
 }

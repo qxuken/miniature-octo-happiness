@@ -448,13 +448,15 @@ pub fn namespace_failures(rows: &[Value], source: &str, macos: bool) -> Result<(
     const PROFILE: &str = "namespace-failures";
     let quota = if macos { 69 } else { 122 };
     let schedule = [
-        (28, "Exchange", "DiskFull", false, true),
-        (quota, "Sync", "Quota", true, true),
-        (5, "Sync", "Other", true, true),
-        (28, "Remove", "DiskFull", true, true),
-        (quota, "Sync", "Quota", true, false),
-        (5, "Sync", "Other", true, false),
-        (5, "Exchange", "Other", true, true),
+        (1, 28, "Exchange", "DiskFull", false, true, false),
+        (2, quota, "Sync", "Quota", true, true, false),
+        (3, 5, "Sync", "Other", true, true, false),
+        (4, 28, "Remove", "DiskFull", true, true, false),
+        (5, quota, "Sync", "Quota", true, false, false),
+        (6, 5, "Sync", "Other", true, false, false),
+        (1, 5, "Exchange", "Other", true, true, false),
+        (1, 13, "Exchange", "Permission", false, true, true),
+        (4, 13, "Remove", "Permission", true, true, true),
     ];
     ensure!(
         rows.len() == 2 + 3 * schedule.len() + 2
@@ -468,7 +470,10 @@ pub fn namespace_failures(rows: &[Value], source: &str, macos: bool) -> Result<(
         rows[0]["detail"] == fresh,
         "missing fresh namespace control"
     );
-    for ((index, (raw, operation, category, exchanged, orphan)), [fail, reopen, retry]) in schedule
+    for (
+        (index, (calls, raw, operation, category, exchanged, orphan, kernel)),
+        [fail, reopen, retry],
+    ) in schedule
         .into_iter()
         .enumerate()
         .zip(rows[2..].as_chunks::<3>().0)
@@ -476,9 +481,9 @@ pub fn namespace_failures(rows: &[Value], source: &str, macos: bool) -> Result<(
         let mode = index + 1;
         ensure!(
             *fail
-                == json!({"mode":mode,"calls":if mode == 7 {1} else {mode},
+                == json!({"mode":mode,"calls":calls,
                 "raw":raw,"operation":operation,"category":category,
-                "error":"OutcomeUnknown","exchanged":exchanged,"orphan":orphan}),
+                "error":"OutcomeUnknown","exchanged":exchanged,"orphan":orphan,"kernel_denial":kernel}),
             "namespace diagnostic mismatch in case {mode}"
         );
         state(
@@ -501,7 +506,8 @@ pub fn namespace_failures(rows: &[Value], source: &str, macos: bool) -> Result<(
         );
     }
     ensure!(
-        rows[rows.len() - 2] == json!({"cleanup":true,"cases":7,"source_unchanged":true}),
+        rows[rows.len() - 2]
+            == json!({"cleanup":true,"cases":schedule.len(),"source_unchanged":true}),
         "namespace case cleanup incomplete"
     );
     Ok(())
@@ -846,29 +852,32 @@ mod tests {
             state("namespace_control".into(), 63_074_304),
             json!({"disabled_injection_rejected":true,"calibrated_calls":6}),
         ];
-        for (i, (raw, operation, category, orphan)) in [
-            (28, "Exchange", "DiskFull", true),
-            (69, "Sync", "Quota", true),
-            (5, "Sync", "Other", true),
-            (28, "Remove", "DiskFull", true),
-            (69, "Sync", "Quota", false),
-            (5, "Sync", "Other", false),
-            (5, "Exchange", "Other", true),
+        for (i, (calls, raw, operation, category, orphan)) in [
+            (1, 28, "Exchange", "DiskFull", true),
+            (2, 69, "Sync", "Quota", true),
+            (3, 5, "Sync", "Other", true),
+            (4, 28, "Remove", "DiskFull", true),
+            (5, 69, "Sync", "Quota", false),
+            (6, 5, "Sync", "Other", false),
+            (1, 5, "Exchange", "Other", true),
+            (1, 13, "Exchange", "Permission", true),
+            (4, 13, "Remove", "Permission", true),
         ]
         .into_iter()
         .enumerate()
         {
             let mode = i + 1;
-            rows.push(json!({"mode":mode,"calls":if mode == 7 {1} else {mode},
+            let exchanged = !matches!(mode, 1 | 8);
+            rows.push(json!({"mode":mode,"calls":calls,
                 "raw":raw,"operation":operation,"category":category,
-                "error":"OutcomeUnknown","exchanged":mode != 1,"orphan":orphan}));
+                "error":"OutcomeUnknown","exchanged":exchanged,"orphan":orphan,"kernel_denial":mode >= 8}));
             rows.push(state(
                 format!("namespace_reopen_{mode}"),
-                if mode == 1 { 66_154_496 } else { 63_074_304 },
+                if exchanged { 63_074_304 } else { 66_154_496 },
             ));
             rows.push(state(format!("namespace_retry_{mode}"), 63_074_304));
         }
-        rows.push(json!({"cleanup":true,"cases":7,"source_unchanged":true}));
+        rows.push(json!({"cleanup":true,"cases":9,"source_unchanged":true}));
         rows.push(completion("namespace-failures", source));
         namespace_failures(&rows, source, true).unwrap();
         assert!(namespace_failures(&rows, source, false).is_err());
@@ -880,7 +889,10 @@ mod tests {
             (4, "detail", json!({"fresh_process":false})),
             (14, "orphan", json!(true)),
             (20, "calls", json!(7)),
-            (23, "source_unchanged", json!(false)),
+            (23, "kernel_denial", json!(false)),
+            (24, "file_bytes", json!(63_074_304)),
+            (26, "calls", json!(1)),
+            (29, "source_unchanged", json!(false)),
         ] {
             let mut broken = rows.clone();
             broken[row][field] = value;

@@ -176,9 +176,9 @@ pub(super) fn namespace_child(image: &Path, control: bool) {
         println!("namespace compaction completed");
         return;
     }
-    let failure = result.expect_err("expected injected namespace failure");
+    let failure = result.expect_err("expected namespace failure");
     assert!(failure.verification.is_none());
-    let native = failure.native.expect("injected syscall returned errno");
+    let native = failure.native.expect("namespace syscall returned errno");
     println!(
         "{:?} {:?} {:?} {}",
         failure.error,
@@ -189,7 +189,7 @@ pub(super) fn namespace_child(image: &Path, control: bool) {
 }
 
 pub(super) fn native_failures(dir: &Path, source: &Path, shim: &Path) {
-    use std::os::unix::fs::MetadataExt;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
     fs::create_dir(dir).unwrap();
     let original = fs::read(source).unwrap();
     assert_eq!(original.len(), 66_154_496);
@@ -255,14 +255,14 @@ pub(super) fn native_failures(dir: &Path, source: &Path, shim: &Path) {
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).unwrap();
     assert!(stderr.starts_with(&syscall_prefix(6)));
-    assert!(stderr.contains("expected injected namespace failure"));
+    assert!(stderr.contains("expected namespace failure"));
     assert_eq!(fs::read(&image).unwrap(), compacted);
     assert!(scratch(&case).is_none());
     fs::remove_dir_all(&case).unwrap();
     println!("{{\"disabled_injection_rejected\":true,\"calibrated_calls\":6}}");
 
     let quota = if cfg!(target_os = "macos") { 69 } else { 122 };
-    for (mode, errno, raw, operation, category) in [
+    for (index, (phase, errno, raw, operation, category)) in [
         (1, "ENOSPC", 28, "Exchange", "DiskFull"),
         (2, "EDQUOT", quota, "Sync", "Quota"),
         (3, "EIO", 5, "Sync", "Other"),
@@ -270,32 +270,50 @@ pub(super) fn native_failures(dir: &Path, source: &Path, shim: &Path) {
         (5, "EDQUOT", quota, "Sync", "Quota"),
         (6, "EIO", 5, "Sync", "Other"),
         (7, "EIO", 5, "Exchange", "Other"),
-    ] {
+        (1, "EACCES", 13, "Exchange", "Permission"),
+        (4, "EACCES", 13, "Remove", "Permission"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mode = index + 1;
+        let kernel = errno == "EACCES";
         let (case, image) = setup(&format!("error-{mode}"));
+        if kernel {
+            fs::set_permissions(&case, fs::Permissions::from_mode(0o700)).unwrap();
+        }
         let inode = fs::metadata(&image).unwrap().ino();
-        let output = exercise(&case, &image, mode, mode, errno);
+        let output = exercise(&case, &image, phase, phase, errno);
         assert!(output.status.success(), "phase {mode}: {output:?}");
-        let calls = if mode == 7 { 1 } else { mode };
+        let calls = if phase == 7 { 1 } else { phase };
+        let origin = if kernel { "kernel" } else { "fault" };
         assert_eq!(
             output.stderr,
-            format!("{}namespace fault {mode} {raw}\n", syscall_prefix(calls)).as_bytes()
+            format!(
+                "{}namespace {origin} {phase} {raw}\n",
+                syscall_prefix(calls)
+            )
+            .as_bytes()
         );
         assert_eq!(
             output.stdout,
             format!("OutcomeUnknown {operation} {category} {raw}\n").as_bytes()
         );
-        let exchanged = mode != 1;
+        let exchanged = phase != 1;
         assert_eq!(inode != fs::metadata(&image).unwrap().ino(), exchanged);
         let canonical = if exchanged { &compacted } else { &original };
         assert_eq!(fs::read(&image).unwrap(), canonical.as_slice());
         let orphan = scratch(&case);
-        assert_eq!(orphan.is_some(), !matches!(mode, 5 | 6));
+        assert_eq!(orphan.is_some(), !matches!(phase, 5 | 6));
         let orphan_bytes = if exchanged { &original } else { &compacted };
         if let Some(path) = &orphan {
             assert_eq!(fs::read(path).unwrap(), orphan_bytes.as_slice());
         }
+        if kernel {
+            assert_eq!(fs::metadata(&case).unwrap().mode() & 0o7777, 0o500);
+        }
         println!(
-            "{{\"mode\":{mode},\"calls\":{calls},\"raw\":{raw},\"operation\":\"{operation}\",\"category\":\"{category}\",\"error\":\"OutcomeUnknown\",\"exchanged\":{exchanged},\"orphan\":{}}}",
+            "{{\"mode\":{mode},\"calls\":{calls},\"raw\":{raw},\"operation\":\"{operation}\",\"category\":\"{category}\",\"error\":\"OutcomeUnknown\",\"exchanged\":{exchanged},\"orphan\":{},\"kernel_denial\":{kernel}}}",
             orphan.is_some(),
         );
         fresh_check(
@@ -305,6 +323,10 @@ pub(super) fn native_failures(dir: &Path, source: &Path, shim: &Path) {
             FINAL,
             false,
         );
+        if kernel {
+            assert_eq!(fs::metadata(&case).unwrap().mode() & 0o7777, 0o500);
+            fs::set_permissions(&case, fs::Permissions::from_mode(0o700)).unwrap();
+        }
         Database::compact_file(&image, limits(COPY)).unwrap();
         assert_eq!(fs::read(&image).unwrap(), compacted);
         fresh_check(
@@ -321,7 +343,7 @@ pub(super) fn native_failures(dir: &Path, source: &Path, shim: &Path) {
         fs::remove_dir_all(&case).unwrap();
     }
     assert_eq!(fs::read(source).unwrap(), original);
-    println!("{{\"cleanup\":true,\"cases\":7,\"source_unchanged\":true}}");
+    println!("{{\"cleanup\":true,\"cases\":9,\"source_unchanged\":true}}");
     complete("namespace-failures");
 }
 

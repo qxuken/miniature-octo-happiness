@@ -488,47 +488,55 @@ fn docker(
             "/owned/result"
         };
         let script = "set -eu; mkdir -p \"$(dirname \"$3\")\"; cargo build --offline --locked --manifest-path /runner/Cargo.toml -p xtask --target-dir /owned/runner-target; exec /owned/runner-target/debug/xtask resource \"$1\" --revision \"$2\" --worker /source --output \"$3\"";
+        let mut args: Vec<OsString> = vec![
+            "docker".into(),
+            "run".into(),
+            "--pull=never".into(),
+            "--network=none".into(),
+            "--memory=2g".into(),
+            "--cpus=2".into(),
+            "--pids-limit=256".into(),
+            "--ulimit=core=0".into(),
+        ];
+        if profile == Profile::NamespaceFailures {
+            // The worker owns the case directories. Capabilities would allow
+            // root to bypass the mode change under test.
+            args.push("--cap-drop=ALL".into());
+        }
+        args.extend([
+            "--name".into(),
+            container.clone().into(),
+            "--mount".into(),
+            format!("type=volume,source={volume},target=/owned").into(),
+            "--mount".into(),
+            format!(
+                "type=bind,source={},target=/runner,readonly",
+                runner.display()
+            )
+            .into(),
+            "--mount".into(),
+            format!(
+                "type=bind,source={},target=/source,readonly",
+                source.display()
+            )
+            .into(),
+            "--mount".into(),
+            format!(
+                "type=bind,source={},target=/usr/local/cargo/registry,readonly",
+                registry.display()
+            )
+            .into(),
+            image.into(),
+            "sh".into(),
+            "-c".into(),
+            script.into(),
+            "resource".into(),
+            profile.name().into(),
+            revision.into(),
+            worker_output.into(),
+        ]);
         let executed = c.command(
-            vec![
-                "docker".into(),
-                "run".into(),
-                "--pull=never".into(),
-                "--network=none".into(),
-                "--memory=2g".into(),
-                "--cpus=2".into(),
-                "--pids-limit=256".into(),
-                "--ulimit=core=0".into(),
-                "--name".into(),
-                container.clone().into(),
-                "--mount".into(),
-                format!("type=volume,source={volume},target=/owned").into(),
-                "--mount".into(),
-                format!(
-                    "type=bind,source={},target=/runner,readonly",
-                    runner.display()
-                )
-                .into(),
-                "--mount".into(),
-                format!(
-                    "type=bind,source={},target=/source,readonly",
-                    source.display()
-                )
-                .into(),
-                "--mount".into(),
-                format!(
-                    "type=bind,source={},target=/usr/local/cargo/registry,readonly",
-                    registry.display()
-                )
-                .into(),
-                image.into(),
-                "sh".into(),
-                "-c".into(),
-                script.into(),
-                "resource".into(),
-                profile.name().into(),
-                revision.into(),
-                worker_output.into(),
-            ],
+            args,
             "docker-run",
             None,
             match profile {
