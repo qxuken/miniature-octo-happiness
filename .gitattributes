@@ -1,3 +1,6 @@
 fuzz/seeds/** binary
 tests/fixtures/*.wdb binary
 tests/fixtures/*.bin binary
+
+# Frozen oracle transcripts are byte fixtures on every checkout.
+xtask/tests/*.expected text eol=lf

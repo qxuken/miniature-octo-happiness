@@ -399,3 +399,12 @@ Clean `0ccdb2b` subsequently passed all hosted engine/fuzz jobs, including
 TSan, Rust coverage and native Windows/private packaging. This new trace port
 retains its own pending hosted gates. Earlier local development invocations and
 failed command logs remain separate from the final qualified proofs.
+
+Hosted `fec3bcf` passed native Mac/Linux, both POSIX helper jobs, address sanitizers,
+C-ASan/models, quota and coverage. Native Windows exposed CRLF conversion of the
+two frozen `.expected` fixtures, causing exactly the v1/v2 fixture comparisons to
+fail while independently rendered hashes and hand-computed cases passed. The
+fixtures now have an explicit Git `eol=lf` policy; their bytes and expected hashes
+are unchanged. A fresh Git index/checkout regression with `core.autocrlf=true`
+verifies both original hashes and absence of CR bytes. All nine model controls
+pass locally. The new Windows hosted rerun remains the native execution gate.

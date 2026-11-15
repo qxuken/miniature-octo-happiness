@@ -297,6 +297,56 @@ mod tests {
         }
     }
     #[test]
+    fn autocrlf_checkout_preserves_frozen_transcript_bytes() {
+        use crate::support::{Run, Scratch, cmd, sha};
+        let dir = Scratch::new(&std::env::temp_dir(), "trace-lf-checkout").unwrap();
+        std::fs::create_dir_all(dir.path().join("xtask/tests")).unwrap();
+        std::fs::write(
+            dir.path().join(".gitattributes"),
+            include_bytes!("../../.gitattributes"),
+        )
+        .unwrap();
+        for (name, bytes) in [
+            (
+                "trace-v1.expected",
+                include_bytes!("../tests/trace-v1.expected").as_slice(),
+            ),
+            (
+                "trace-v2.expected",
+                include_bytes!("../tests/trace-v2.expected").as_slice(),
+            ),
+        ] {
+            std::fs::write(dir.path().join("xtask/tests").join(name), bytes).unwrap();
+        }
+        let mut run = Run::new(dir.path().to_owned());
+        run.capture(&cmd(["git", "init", "--quiet"])).unwrap();
+        run.capture(&cmd(["git", "-c", "core.autocrlf=true", "add", "."]))
+            .unwrap();
+        for name in ["trace-v1.expected", "trace-v2.expected"] {
+            std::fs::remove_file(dir.path().join("xtask/tests").join(name)).unwrap();
+        }
+        run.capture(&cmd([
+            "git",
+            "-c",
+            "core.autocrlf=true",
+            "checkout",
+            "--",
+            "xtask/tests",
+        ]))
+        .unwrap();
+        for (name, expected) in [
+            (
+                "trace-v1.expected",
+                "5997dbaa08eef5bc3c98e6bdcea55f991da09d8d8d2693e5b73f5c5045e295ff",
+            ),
+            ("trace-v2.expected", EXPECTED_SHA256),
+        ] {
+            let file = dir.path().join("xtask/tests").join(name);
+            assert_eq!(sha(&file).unwrap(), expected);
+            assert!(!std::fs::read(file).unwrap().contains(&b'\r'));
+        }
+    }
+    #[test]
     fn binary_bounds_and_round_trip() {
         let fixed = fixed(2).unwrap();
         let encoded = fixed.encode().unwrap();

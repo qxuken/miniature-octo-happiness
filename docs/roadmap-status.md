@@ -960,3 +960,9 @@ the residual helper registry passes 244 checks plus four registered skips. The
 Windows trace port and remaining state/distributed/workload/quota/helper tools
 remain open. Exact provenance and proof hashes are in the
 [conversion ledger](xtask-conversion.md#independent-posix-delivered-trace-conversion).
+
+Hosted `fec3bcf` then passed the Mac/Linux native and helper jobs, address gates,
+quota and coverage; Windows caught CRLF-converted oracle fixtures. Explicit LF
+attributes and a real `core.autocrlf=true` checkout regression preserve the exact
+frozen hashes. All nine focused model controls pass locally; the Windows CI
+rerun remains pending rather than being counted as a native pass.
