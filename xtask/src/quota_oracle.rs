@@ -14,23 +14,24 @@ pub const LOG_BYTES: u64 = MIB;
 pub enum Space {
     Quota,
     Enospc,
+    InodeQuota,
 }
 impl Space {
     pub fn errno(self) -> i32 {
-        if self == Self::Quota { 122 } else { 28 }
+        if self == Self::Enospc { 28 } else { 122 }
     }
     pub fn profile(self) -> &'static str {
-        if self == Self::Quota {
-            "quota"
-        } else {
-            "enospc"
+        match self {
+            Self::Quota => "quota",
+            Self::Enospc => "enospc",
+            Self::InodeQuota => "inode-quota",
         }
     }
     pub fn category(self) -> &'static str {
-        if self == Self::Quota {
-            "Quota"
-        } else {
+        if self == Self::Enospc {
             "DiskFull"
+        } else {
+            "Quota"
         }
     }
 }
@@ -49,7 +50,7 @@ pub fn verify_probe(row: &Value, uid: u32, mode: &str, ceiling: u64, space: Spac
     for field in ["global_free_bytes", "available_bytes"] {
         let bytes = number(row, field)?;
         ensure!(
-            space != Space::Quota || bytes > 16 * MIB,
+            space == Space::Enospc || bytes > 16 * MIB,
             "global space too low to distinguish quota"
         );
     }
@@ -59,6 +60,13 @@ pub fn verify_probe(row: &Value, uid: u32, mode: &str, ceiling: u64, space: Spac
                 && row["ceiling"] == ceiling
                 && number(row, "written")? <= ceiling,
             "actual bounded expected kernel space error required"
+        ),
+        "inode-fill" => ensure!(
+            space == Space::InodeQuota
+                && row["errno"] == 122
+                && row["fsynced_bytes"] == 4096
+                && number(row, "global_free_inodes")? > 16,
+            "actual inode quota with global inode and data headroom required"
         ),
         "headroom" => ensure!(
             row["released_bytes"] == CHUNK,
@@ -114,6 +122,9 @@ pub fn maintenance<'a>(
         "invalid maintenance expectation"
     );
     let expected = match mode {
+        "space-fail" if space == Space::InodeQuota => {
+            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":"Quota","raw":122,"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
+        }
         "space-fail" => {
             let partial = number(row, "partial_bytes")?;
             ensure!(
@@ -122,6 +133,9 @@ pub fn maintenance<'a>(
                 "not a partial-copy exhaustion"
             );
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":row["native_operation"],"partial_bytes":partial,"source_unchanged":true,"backup_unchanged":true})
+        }
+        "space-retry" if space == Space::InodeQuota => {
+            json!({"stage":"retry","operation":label,"pid":pid,"no_partial":true,"matches_backup":true})
         }
         "space-retry" => {
             json!({"stage":"retry","operation":label,"pid":pid,"partial_rejected":true,"existing_rejected":label!="compact","partial_preserved":true,"matches_backup":true})
@@ -333,6 +347,47 @@ mod tests {
     }
     fn failure(space: Space) -> Value {
         json!({"stage":"fail","operation":"backup","pid":12,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Write","partial_bytes":8*MIB,"source_unchanged":true,"backup_unchanged":true})
+    }
+    #[test]
+    fn inode_quota_needs_a_create_error_with_no_partial_and_independent_headroom() {
+        let space = Space::InodeQuota;
+        let full = json!({"mode":"inode-fill","pid":42,"identity":identity(UID),"global_free_bytes":32*MIB,"available_bytes":32*MIB,"errno":122,"global_free_inodes":256,"fsynced_bytes":4096});
+        verify_probe(&full, UID, "inode-fill", CEILING, space).unwrap();
+        for (key, value) in [
+            ("errno", json!(28)),
+            ("global_free_inodes", json!(0)),
+            ("fsynced_bytes", json!(0)),
+        ] {
+            assert!(
+                verify_probe(
+                    &mutate(&full, key, value),
+                    UID,
+                    "inode-fill",
+                    CEILING,
+                    space
+                )
+                .is_err()
+            );
+        }
+        let mut fail = failure(space);
+        fail["native_operation"] = json!("Create");
+        fail["partial_bytes"] = json!(0);
+        fail["inventory_unchanged"] = json!(true);
+        let check = |row| {
+            maintenance(
+                &[row, resource_oracle::completion("space-fail", SOURCE)],
+                "space-fail",
+                "backup",
+                SOURCE,
+                space,
+                12,
+            )
+            .is_ok()
+        };
+        assert!(check(fail.clone()));
+        assert!(!check(mutate(&fail, "native_operation", json!("Write"))));
+        assert!(!check(mutate(&fail, "partial_bytes", json!(4096))));
+        assert!(!check(mutate(&fail, "inventory_unchanged", json!(false))));
     }
     #[test]
     fn maintenance_partial_copy_requires_classified_errno_and_unchanged_inputs() {

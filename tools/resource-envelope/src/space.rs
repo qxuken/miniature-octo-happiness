@@ -63,9 +63,10 @@ pub(super) fn compact_copy(
 pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::OsString]) {
     let kind = std::env::var("WEEKEND_PRIVATE_MAINTENANCE").unwrap();
     #[cfg(unix)]
-    assert!(matches!(kind.as_str(), "enospc" | "quota"));
+    assert!(matches!(kind.as_str(), "enospc" | "quota" | "inode-quota"));
     #[cfg(windows)]
     assert_eq!(kind, "ntfs-enospc");
+    let inode = kind == "inode-quota";
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
@@ -110,35 +111,54 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             assert_eq!(failure.error, Error::Io);
             let native = failure.native.unwrap();
             let errno = match kind.as_str() {
-                "quota" => 122,
+                "quota" | "inode-quota" => 122,
                 "enospc" => 28,
                 "ntfs-enospc" => 112,
                 _ => unreachable!(),
             };
             assert_eq!(
                 native.category,
-                if kind == "quota" {
+                if errno == 122 {
                     NativeIoCategory::Quota
                 } else {
                     NativeIoCategory::DiskFull
                 }
             );
             assert_eq!(native.raw_os_error, Some(errno));
-            assert!(matches!(
-                native.operation,
-                NativeIoOperation::Write | NativeIoOperation::Sync
-            ));
             assert_eq!(fs::read(source).unwrap(), before);
-            assert_eq!(fs::read(backup).unwrap(), good);
+            assert_eq!(fs::read(&backup).unwrap(), good);
             let now = names(dir);
-            let created: Vec<_> = now.difference(&entries).collect();
-            assert_eq!(created.len(), 1);
-            assert_eq!(**created.first().unwrap(), partial(dir, op));
-            let size = fs::metadata(partial(dir, op)).unwrap().len();
-            assert!((MIB as u64..COMPACTED).contains(&size));
+            let (size, inventory) = if inode {
+                assert_eq!(native.operation, NativeIoOperation::Create);
+                assert_eq!(now, entries);
+                (0, ",\"inventory_unchanged\":true")
+            } else {
+                assert!(matches!(
+                    native.operation,
+                    NativeIoOperation::Write | NativeIoOperation::Sync
+                ));
+                let partial = partial(dir, op);
+                assert!(now.difference(&entries).eq([&partial]));
+                let size = fs::metadata(partial).unwrap().len();
+                assert!((MIB as u64..COMPACTED).contains(&size));
+                (size, "")
+            };
             println!(
-                "{{\"stage\":\"fail\",\"operation\":\"{op}\",\"pid\":{pid},\"error\":14,\"category\":\"{:?}\",\"raw\":{errno},\"native_operation\":\"{:?}\",\"partial_bytes\":{size},\"source_unchanged\":true,\"backup_unchanged\":true}}",
+                "{{\"stage\":\"fail\",\"operation\":\"{op}\",\"pid\":{pid},\"error\":14,\"category\":\"{:?}\",\"raw\":{errno},\"native_operation\":\"{:?}\",\"partial_bytes\":{size},\"source_unchanged\":true,\"backup_unchanged\":true{inventory}}}",
                 native.category, native.operation
+            );
+        } else if mode == "space-retry" && inode {
+            assert_eq!(names(dir), [source.to_path_buf(), backup.clone()].into());
+            let destination = dir.join(format!("failed-{op}.wdb"));
+            operation(dir, source, op, &destination).unwrap();
+            let actual = if replaces_source(op) {
+                source
+            } else {
+                &destination
+            };
+            assert_eq!(fs::read(actual).unwrap(), fs::read(backup).unwrap());
+            println!(
+                "{{\"stage\":\"retry\",\"operation\":\"{op}\",\"pid\":{pid},\"no_partial\":true,\"matches_backup\":true}}"
             );
         } else if mode == "space-retry" {
             let partial = partial(dir, op);
@@ -170,9 +190,12 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 "{{\"stage\":\"retry\",\"operation\":\"{op}\",\"pid\":{pid},\"partial_rejected\":true,\"existing_rejected\":{existing},\"partial_preserved\":true,\"matches_backup\":true}}"
             );
         } else if mode == "space-retire" {
-            fs::remove_file(partial(dir, op)).unwrap();
+            if !inode {
+                fs::remove_file(partial(dir, op)).unwrap();
+            }
             if !replaces_source(op) {
-                fs::remove_file(dir.join(format!("retry-{op}.wdb"))).unwrap();
+                let prefix = if inode { "failed" } else { "retry" };
+                fs::remove_file(dir.join(format!("{prefix}-{op}.wdb"))).unwrap();
             }
             assert_eq!(
                 names(dir),

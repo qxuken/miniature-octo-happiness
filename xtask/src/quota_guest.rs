@@ -21,6 +21,7 @@ use std::{
 pub enum Mode {
     Identity,
     Fill,
+    InodeFill,
     Remove,
     WriteControl,
     Headroom,
@@ -31,6 +32,7 @@ impl Mode {
         match self {
             Self::Identity => "identity",
             Self::Fill => "fill",
+            Self::InodeFill => "inode-fill",
             Self::Remove => "remove",
             Self::WriteControl => "write-control",
             Self::Headroom => "headroom",
@@ -75,13 +77,13 @@ fn identity(status: &str, uid: u32) -> Result<Value> {
     }
     Ok(quota_oracle::identity(uid))
 }
-fn output(path: &Path) -> Result<File> {
-    Ok(OpenOptions::new()
+fn output(path: &Path) -> io::Result<File> {
+    OpenOptions::new()
         .write(true)
         .create_new(true)
         .mode(0o600)
         .custom_flags(libc::O_NOFOLLOW)
-        .open(path)?)
+        .open(path)
 }
 fn fill(file: &mut File, ceiling: u64) -> Result<(u64, Option<i32>)> {
     let block = [0x5a; 65536];
@@ -110,7 +112,7 @@ fn fill(file: &mut File, ceiling: u64) -> Result<(u64, Option<i32>)> {
     }
     Ok((written, None))
 }
-pub fn space(path: &Path) -> Result<(u64, u64, u64)> {
+fn statvfs(path: &Path) -> Result<libc::statvfs> {
     let c = std::ffi::CString::new(path.as_os_str().as_bytes())?;
     let mut info = std::mem::MaybeUninit::<libc::statvfs>::uninit();
     // SAFETY: valid NUL-terminated path and writable statvfs output; use only on success.
@@ -119,7 +121,10 @@ pub fn space(path: &Path) -> Result<(u64, u64, u64)> {
         "statvfs: {}",
         io::Error::last_os_error()
     );
-    let info = unsafe { info.assume_init() };
+    Ok(unsafe { info.assume_init() })
+}
+pub fn space(path: &Path) -> Result<(u64, u64, u64)> {
+    let info = statvfs(path)?;
     fn bytes(blocks: u64, unit: u64) -> Result<u64> {
         blocks.checked_mul(unit).context("filesystem size overflow")
     }
@@ -152,6 +157,25 @@ pub fn run(opts: Options) -> Result<()> {
             row["errno"] = json!(errno);
             row["written"] = json!(written);
             row["ceiling"] = json!(opts.ceiling);
+        }
+        Mode::InodeFill => {
+            let mut file = output(&ballast)?;
+            let candidate = data.join("calibration-inode");
+            let err = match output(&candidate) {
+                Err(err) => err,
+                Ok(extra) => {
+                    drop(extra);
+                    fs::remove_file(candidate)?;
+                    anyhow::bail!("inode limit failed to reject file creation");
+                }
+            };
+            let bytes = [0x5a; 4096];
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+            ensure!(fs::read(&ballast)? == bytes, "existing inode write changed");
+            row["errno"] = json!(err.raw_os_error());
+            row["fsynced_bytes"] = json!(bytes.len());
+            row["global_free_inodes"] = json!(statvfs(data)?.f_ffree);
         }
         Mode::Headroom => {
             let file = OpenOptions::new()

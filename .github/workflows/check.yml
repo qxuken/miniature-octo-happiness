@@ -486,6 +486,11 @@ jobs:
           sudo "$PWD/target/xtask/release/xtask" quota --maintenance --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-quota"
           sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, bytes: .failure.partial_bytes}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified}' target/maintenance-quota/evidence.json
           sudo sha256sum target/maintenance-quota/evidence.json
+      - name: Verify maintenance creation failures at the inode quota and retry
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --inode-quota --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-inode-quota"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, phase: .failure.native_operation, free_inodes: .full.global_free_inodes}], cleanup: .cleanup.verified}' target/maintenance-inode-quota/evidence.json
+          sudo sha256sum target/maintenance-inode-quota/evidence.json
       - name: Transfer private evidence ownership for upload
         if: always()
         run: |
@@ -494,6 +499,9 @@ jobs:
           fi
           if test -d target/maintenance-quota; then
             sudo chown -R --reference=. target/maintenance-quota
+          fi
+          if test -d target/maintenance-inode-quota; then
+            sudo chown -R --reference=. target/maintenance-inode-quota
           fi
       - name: Save quota test evidence (no crate or container publication)
         if: always()
@@ -505,6 +513,7 @@ jobs:
             target/native-quota/
             target/quota-host/
             target/maintenance-quota/
+            target/maintenance-inode-quota/
             target/maintenance-quota-build/release/weekend-compound-resource
             target/quota-build/release/examples/native_quota
   sanitizers:

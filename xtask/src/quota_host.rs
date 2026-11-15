@@ -46,6 +46,9 @@ pub struct Options {
     pub probe_only: bool,
     #[arg(long)]
     pub maintenance: bool,
+    /// Exhaust the user inode quota during maintenance, with no block quota.
+    #[arg(long, requires = "maintenance")]
+    pub inode_quota: bool,
 }
 #[derive(Debug)]
 struct Unsupported(String);
@@ -621,6 +624,12 @@ struct Guest {
     drop: Vec<OsString>,
 }
 impl Guest {
+    fn data_names(&self) -> Result<BTreeSet<OsString>> {
+        Ok(fs::read_dir(&self.data)?
+            .map(|r| r.map(|e| e.file_name()))
+            .collect::<std::io::Result<_>>()?)
+    }
+
     fn probe(
         &self,
         c: &mut Calls<'_, '_>,
@@ -818,19 +827,27 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let uid = guest_uid()?;
         let data = s.mount.join("data");
         private_directory(&data, uid)?;
-        let hard = if opts.maintenance { 256 * 1024 } else { 4096 };
-        call.c.evidence["quota"] = json!({"uid":uid,"gid":uid,"type":"user","soft_kib":hard,"hard_kib":hard,"inode_soft":0,"inode_hard":0,"image_bytes":bytes});
+        let (hard, inodes, space) = if opts.inode_quota {
+            // The guest owns the directory, source, backup and one ballast inode.
+            (0, 4, Space::InodeQuota)
+        } else if opts.maintenance {
+            (256 * 1024, 0, Space::Quota)
+        } else {
+            (4096, 0, Space::Quota)
+        };
+        call.c.evidence["quota"] = json!({"uid":uid,"gid":uid,"type":"user","soft_kib":hard,"hard_kib":hard,"inode_soft":inodes,"inode_hard":inodes,"image_bytes":bytes});
         call.verify_mount(s, &device)?;
         let id = uid.to_string();
         let cap = hard.to_string();
+        let inode_cap = inodes.to_string();
         call.exec(cmd([
             OsStr::new("setquota"),
             OsStr::new("-u"),
             OsStr::new(&id),
             OsStr::new(&cap),
             OsStr::new(&cap),
-            OsStr::new("0"),
-            OsStr::new("0"),
+            OsStr::new(&inode_cap),
+            OsStr::new(&inode_cap),
             s.mount.as_os_str(),
         ]))
         .map_err(|e| unsupported(e, "private quota configuration unavailable"))?;
@@ -850,11 +867,11 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         call.c.evidence["guest_runner_sha256"] = json!(runner_hash);
         call.c.evidence["fixture_sha256"] = json!(fixture_hash);
         call.c.evidence["guest_identity"] =
-            guest.probe(&mut call, "identity", CHUNK, Space::Quota, None)?;
+            guest.probe(&mut call, "identity", CHUNK, space, None)?;
         if opts.maintenance {
             let seed = s.directory.join("seed-parent");
             private_directory(&seed, uid)?;
-            guest.maintenance(&mut call, &opts.source, Space::Quota, &seed.join("seed"))?;
+            guest.maintenance(&mut call, &opts.source, space, &seed.join("seed"))?;
         } else {
             guest.normal(&mut call, &opts.source, opts.probe_only)?;
         }
@@ -1052,9 +1069,27 @@ impl Guest {
         for op in ["backup", "restore", "compact"] {
             let a = sha(&original)?;
             let b = sha(&backup)?;
-            let full = self.probe(c, "fill", CEILING, space, None)?;
-            let headroom = self.probe(c, "headroom", CEILING, space, None)?;
+            let (full, headroom) = if space == Space::InodeQuota {
+                (
+                    self.probe(c, "inode-fill", CEILING, space, None)?,
+                    Value::Null,
+                )
+            } else {
+                (
+                    self.probe(c, "fill", CEILING, space, None)?,
+                    self.probe(c, "headroom", CEILING, space, None)?,
+                )
+            };
             let fail = data.phase(c, "space-fail", op, &original, false)?;
+            if space == Space::InodeQuota {
+                ensure!(
+                    self.data_names()?
+                        == ["backup.wdb", "ballast", "source.wdb"]
+                            .map(OsString::from)
+                            .into(),
+                    "inode refusal left an unexpected directory entry"
+                );
+            }
             ensure!(
                 sha(&original)? == a && sha(&backup)? == b,
                 "independent failure source hash changed"
@@ -1086,7 +1121,12 @@ impl Guest {
             let retried = if op == "compact" {
                 original.clone()
             } else {
-                self.data.join(format!("retry-{op}.wdb"))
+                let prefix = if space == Space::InodeQuota {
+                    "failed"
+                } else {
+                    "retry"
+                };
+                self.data.join(format!("{prefix}-{op}.wdb"))
             };
             ensure!(
                 sha(&retried)? == b && sha(&backup)? == b,
@@ -1112,11 +1152,8 @@ impl Guest {
         data.phase(c, "space-advance", "advanced", &original, false)?;
         data.phase(c, "space-check", "advanced-source", &original, true)?;
         data.phase(c, "space-check", "final-backup", &backup, false)?;
-        let files = fs::read_dir(&self.data)?
-            .map(|r| r.map(|e| e.file_name()))
-            .collect::<std::io::Result<BTreeSet<_>>>()?;
         ensure!(
-            files == [OsString::from("backup.wdb"), OsString::from("source.wdb")].into(),
+            self.data_names()? == ["backup.wdb", "source.wdb"].map(OsString::from).into(),
             "unretired outputs or ballast"
         );
         let images = c.c.output.join("images");
@@ -1447,6 +1484,7 @@ mod tests {
                 output: output.to_owned(),
                 probe_only: false,
                 maintenance: false,
+                inode_quota: false,
             };
             assert!(
                 super::run(&run, opts)

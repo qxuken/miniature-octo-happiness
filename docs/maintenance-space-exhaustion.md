@@ -184,6 +184,30 @@ separate gates. Earlier process-kill and simulated
 namespace/recovery matrices retain their separate scope. All 19 Cargo
 manifests retain `publish=false`.
 
+## Native Linux inode quota at file creation
+
+The `--maintenance --inode-quota` profile uses the same near-cap images,
+private 512 MiB ext4 loop mount, unprivileged UID, and complete reopen
+oracle. It sets a four-inode user limit with unrestricted block usage.
+The data directory, source, backup and one owned ballast exhaust the
+UID's inode allowance. A separate exclusive create must return kernel
+`EDQUOT` while global free inodes and data blocks remain available. The
+same UID must still write and fsync 4 KiB in the existing ballast file.
+
+Backup, restore and in-place compaction must return `Io` with native
+`Quota` and operation `Create`. The controller checks that the directory
+still contains only the source, good backup and ballast, and compares
+the exact source and backup bytes. A fresh process opens each image
+while the limit is active. After removing its ballast, the same UID
+checks exclusive creation again and retries maintenance. Backup and
+restore retry at the original destination name. The compact retry uses
+the original canonical file. Each successful image must match the good
+backup's bytes and reopen with the complete retained history.
+
+Build the controller and compound fixture as in the block-quota profile
+above, then run the same `quota --maintenance` command with `--inode-quota`
+and a fresh output directory. The hosted quota job runs both profiles.
+
 ## Native Windows near-cap copy profile
 
 Run from an elevated native x64 Windows session on fixed NTFS. The Windows
