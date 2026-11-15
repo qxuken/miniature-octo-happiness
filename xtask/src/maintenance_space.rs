@@ -167,7 +167,7 @@ mod native {
         #[arg(long)]
         output: PathBuf,
         #[cfg(windows)]
-        /// Apply an enforced owner quota to the restricted copy fixture.
+        /// Apply an enforced quota to the copy fixture's own user SID.
         #[arg(long)]
         owner_quota: bool,
     }
@@ -370,29 +370,6 @@ mod native {
                 code: 0,
             };
             let preserved = windows_quota::Owner::local_service()?;
-            Self::tool(
-                fixture,
-                proof,
-                "icacls.exe",
-                "grant-drive-traverse",
-                &[
-                    root.into(),
-                    "/grant".into(),
-                    format!("{}:(RX)", quota.owner.account).into(),
-                ],
-            )?;
-            Self::tool(
-                fixture,
-                proof,
-                "icacls.exe",
-                "grant-copy-user",
-                &[
-                    path(data),
-                    "/grant".into(),
-                    format!("{}:(OI)(CI)F", quota.owner.account).into(),
-                    "/T".into(),
-                ],
-            )?;
             for (file, label) in [(source, "own-source"), (backup, "own-backup")] {
                 Self::tool(
                     fixture,

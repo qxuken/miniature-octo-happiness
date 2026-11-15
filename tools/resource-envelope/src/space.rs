@@ -70,8 +70,9 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     #[cfg(windows)]
     assert!(matches!(kind.as_str(), "ntfs-enospc" | "ntfs-quota"));
     #[cfg(windows)]
-    let _restricted = (kind == "ntfs-quota")
-        .then(|| quota_token::Restricted::enter().expect("restrict maintenance fixture token"));
+    if kind == "ntfs-quota" {
+        quota_token::set_copy_owner().expect("set quota owner in the fixture token");
+    }
     let inode = kind == "inode-quota";
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
@@ -87,7 +88,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             .write(true)
             .create_new(true)
             .open(source)
-            .expect("create file under the restricted token");
+            .expect("create file with the selected quota owner");
     } else if mode == "space-check" {
         let changed = arguments.get(1).is_some_and(|v| v == "changed");
         let db = Database::open_file(source, limits(CORE)).unwrap();
