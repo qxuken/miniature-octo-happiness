@@ -91,15 +91,17 @@ helper's failure exit status.
 same-export retry behavior. The helper does not retry an old saved file as a new
 `Export` after a process restart. `--timeout` defaults to 110 seconds (range
 1–600); all child CLI invocations share that deadline. On timeout the helper
-kills and reaps its child process group. The supervisor drains output
+retires its child process group on POSIX or its owned job on Windows. The supervisor drains output
 incrementally under an 8,192-byte per-stream ceiling. Exceeding it rejects
 promptly and reaps the child. A timed-out ship can interrupt
 local or remote work and must be reconciled. Local filesystem/kernel stalls
 are outside the subprocess deadline. No helper operation kills the independently
 running follower server.
 
-`--save` uses create-new mode 0600 and rejects an existing file or dangling
-symlink before invoking replication. A write interrupted during observation
+`--save` uses create-new mode and rejects an existing destination before
+invoking replication. On POSIX it uses mode 0600. On Windows choose an
+ACL-protected parent directory for saved observations and a private temporary
+directory for captured child output. A write interrupted during observation
 saving can leave an incomplete JSON file; strict loading rejects it. File sync
 is performed, but the observation file is not a durable database receipt or a
 namespace-persistence guarantee. Store paths/directories and executable/config
@@ -107,9 +109,9 @@ files must remain trusted; this is not hostile-path race protection. Saved JSON
 contains stream/file identities and digests, so protect it as operational
 metadata even though credentials and record contents are absent.
 
-This version qualifies POSIX subprocess behavior only. Windows use requires
-separate process/ACL qualification; do not infer it from the core CLI's native
-Windows support. The fixed text grammar is intentionally private and must be
+Windows hashes regular disk files, rejects reparse-point files, and checks
+that the held handle and reopened path still identify the same file, length
+and last-write time. The fixed text grammar is private and must be
 requalified if CLI output changes.
 
 ## Rust controller qualification
@@ -134,6 +136,65 @@ The first macOS run exited the relay before dropping an acknowledgment,
 which exposed the platform difference. The corrected run reopened at
 durable revision 3 after loss of the response, and finished at 4 with
 retained revision 2. [Migration evidence](xtask-conversion.md#replica-progress-observations)
+
+### Native Windows run
+
+The CI scenario invokes the actual helper executable and the release
+`weekend-replicate` binary. The test fixture generates external credentials
+inside the runner's ACL-restricted work directory before any connections are
+opened. The evidence retains both the successful JSON and the rejected
+observations' JSON and exit codes. Reproduce on native x64 MSVC and fixed NTFS
+after caching the locked dependencies.
+
+```powershell
+cargo build --offline --locked --release -p weekend-replicate
+cargo build --offline --locked -p xtask
+cargo build --offline --locked --release --manifest-path tools/replica-progress-fixture/Cargo.toml --target-dir target/replica-progress-fixture
+$env:REPLICA_PROGRESS_BIN = (Resolve-Path target/release/weekend-replicate.exe).Path
+$env:REPLICA_PROGRESS_XTASK = (Resolve-Path target/debug/xtask.exe).Path
+$env:REPLICA_PROGRESS_FIXTURE = (Resolve-Path target/replica-progress-fixture/release/replica-progress-fixture.exe).Path
+$env:REPLICA_PROGRESS_EVIDENCE = 'target/windows-replica-progress'
+cargo test --offline --locked -p xtask --bin xtask authenticated_observations_restarts_dropped_reply_and_stale_capture -- --ignored --nocapture
+```
+
+### Recorded native Windows result
+
+On 2026-11-15, PR head `da04423` passed on native Windows x64 and fixed
+NTFS with Rust 1.99.1. The runner used the clean PR test merge
+`0657239e92424891605a863d8b382825d2a30140`. The source, follower, and
+temporary credentials used the ACL-restricted work directory.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43736990618/job/132881665451)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43736990618/artifacts/14170443630).
+
+| Observation | Result |
+|---|---|
+| Before shipment | A fresh authenticated poll reported an empty follower. |
+| Lost TLS response | The relay discarded 79 response bytes. The helper exited 1 with `timeout` and marked capture and follower progress unknown. |
+| Restart and fresh poll | The follower reported durable revision 3 and the digest matched the saved export. Saving and reloading the observation marked the prior receipt consistent on a repeat poll. |
+| Next shipment | A separate local commit and shipment advanced the follower to revision 4. Polling with the revision-3 export reported `newer_than_capture`. |
+| Changed export and foreign prior | The helper exited 1 with `digest_conflict` for changed bytes at revision 4, and with `identity_mismatch` for the foreign saved observation. |
+| Follower unavailable | The helper exited 1 and marked the prior receipt historical-only. The current follower revision and digest were null. |
+
+Independent checks matched all nine JSON observations against their recorded
+exit statuses, the exact binaries and the exported bytes. The final reopened
+follower image matched the revision-4 export. The fixture also reopened the
+primary and follower and verified the complete 32 KiB values at current
+revision 4 and retained revision 2. All 62 artifact hashes and 24 process
+cleanup records matched, including two intentional server stops. The archive
+contained no generated private keys.
+
+The macOS rerun passed the runner unit tests and the authenticated scenario.
+The Docker Linux/ext4 run of the same source passed all eight progress controls
+and the authenticated scenario. The Linux workspace and fixture locks stayed
+unchanged, and the owned container and volume were confirmed absent.
+
+| Evidence | SHA-256 |
+|---|---|
+| Windows ZIP | `22afad090011b6408ceabf75a7204abfa1d970e2f717393cea94193a486d44b1` |
+| Windows evidence | `552427ef0f733de2e22e03cfb1a481be646c952262325ba7ee2fe09676ca00d5` |
+| Windows revision-3 export | `88c7b88a1068c8f13debddc0cab44b438d858a0f54be844be3505e47a4c450d1` |
+| Windows revision-4 export | `0886de961e685be0e96fb22ba339408812926bf3fee44ac56fba1b9018f928cf` |
+| Docker Linux test log | `cb3a2c6b6796ebb0dc9b78c3a87422c82e23bdb35540921dc45691487af35557` |
 
 ## Historical native qualification
 

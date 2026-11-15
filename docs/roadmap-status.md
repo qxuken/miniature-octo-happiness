@@ -1929,3 +1929,14 @@ Git blobs, and all 1,734 downloaded payload hashes and 37 command records
 were verified. macOS also passed the minimum-compiler workspace checks and
 its private package with C/C++/Odin and the copied-source Rust consumer.
 This advances F15 and F16 for the named platforms and artifacts.
+
+## Native Windows replica progress after response loss
+
+At `da04423`, the [Windows JSON progress helper](replica-progress.md#recorded-native-windows-result)
+timed out after loss of a TLS response with unknown follower progress.
+After restart, a fresh poll matched durable revision 3 to its exact export.
+The follower ended at revision 4 with retained revision 2. The run rejected
+changed export bytes and foreign saved state, and kept the prior receipt
+historical-only when the follower was unavailable. The audit matched 62
+artifact hashes and 24 cleanup records. macOS and Docker Linux/ext4 regressions
+passed. This advances R04 for the Windows x64/NTFS loopback profile.
