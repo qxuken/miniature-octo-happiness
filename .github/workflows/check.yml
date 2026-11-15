@@ -328,6 +328,10 @@ jobs:
     env:
       WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
     steps:
+      - name: Preserve committed file bytes
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
       - uses: actions/checkout@v7
       - name: Build the private controller and near-cap fixture
         shell: pwsh

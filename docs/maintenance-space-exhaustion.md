@@ -295,6 +295,28 @@ provides the [maintenance evidence archive](https://github.com/qxuken/miniature-
 | Windows advanced source | `4c9982b7f4caa6e687118458112cf0131fba71221b56868e686c1eecd9086bc3` |
 | Windows preserved backup | `7bb1f25890ca7281c1e7d084bb7b6eb45940be2f52c057915403b35d8d83ddbe` |
 
+### NTFS owner quota during maintenance copies
+
+The owner-quota profile uses a separate fixed 256 MiB VHD and the same
+near-cap seed. The controller assigns both seed images to Local Service.
+Each dedicated fixture process sets its token's default file owner to
+its own user SID. The controller verifies that SID on a calibration file,
+the partial image and the retry image. It configures an 8 MiB hard quota
+for the copy owner on the bound test drive only. The elevated fixture
+and controller share the hosted runner account. This requires no host
+account provisioning. [NTFS disk quota limits](https://learn.microsoft.com/en-us/windows/win32/fileio/disk-quota-limits)
+
+The fixture must receive the same Win32 write error as the bounded
+calibration while the volume still has physical space for a complete copy.
+After fresh opens verify the source and backup, a same-owner probe must
+still hit the quota. The controller raises only the owner limit to 80 MiB
+with the partial file present. A same-owner 4 KiB fsynced write must now
+succeed. The copy retries at a new path while the original partial and
+both good images remain byte-identical.
+
+Build the Windows fixture as above from a byte-preserving checkout and
+run the same command with `--owner-quota` and a new output directory.
+
 At `cd3d14a`, the macOS/APFS seed rerun passed all 11 phases, including
 native in-place compaction. The Docker Linux ENOSPC controller and worker
 passed backup, restore and in-place compaction, full-volume reopen and
