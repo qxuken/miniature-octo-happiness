@@ -1080,6 +1080,9 @@ mod tests {
     fn failed_ship_preserves_verified_local_capture_without_acknowledgment() {
         let tmp = Scratch::new(&std::env::temp_dir(), "replica-ship").unwrap();
         let mut options = options(tmp.path());
+        // This exercises a failed reply after several real child invocations.
+        // Keep sanitizer startup overhead out of the result being asserted.
+        options.timeout = 90.;
         options.ship = Some(tmp.path().join("export"));
         options.poll = false;
         let output = describe_rows("3", IDENTITY);

@@ -1093,3 +1093,12 @@ explicit separately qualified TLS skip per profile. All 179 frozen controls
 now map to Rust tests and zero maintained Python files remain. CI uses the
 same Rust helper command. Crates stay private.
 [Final xtask retirement](xtask-conversion.md#final-helper-retirement)
+
+Hosted macOS ThreadSanitizer runs `43700106330` and `43700707072` failed
+the replica-progress failed-ship fixture. Both retained reports show that
+the fixture returned `Timeout` rather than the expected `CliFailure` with
+the former three-second aggregate test budget. The test now gives its real
+subprocesses 90 seconds. The separate timeout control still uses 1.5 seconds,
+and both tests pass on macOS debug, release and with instrumented std on
+nightly `2026-11-12`. This evidence concerns the fixture. Hosted rerun
+results are tracked separately.
