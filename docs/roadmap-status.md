@@ -2115,3 +2115,16 @@ at 212. This is scoped to ext4 and to an already-durable replacement.
 A preliminary macOS APFS probe on a private 256 MiB image received kernel
 `ENOSPC` from the real exchange syscall. The near-cap engine case still
 needs to verify both images after the refusal, release space and retry.
+
+## APFS kernel ENOSPC during compaction exchange
+
+The [near-cap APFS profile](maintenance-space-exhaustion.md#apfs-enospc-at-compaction-exchange)
+at `9fe5035` receives `OutcomeUnknown / Exchange / DiskFull / 28` after
+the replacement is durable. The canonical inode and the scratch retain
+their exact bytes. The full-volume reopens verify all 64 retained roots.
+After releasing ballast, retry publishes the exact compacted bytes in a
+fresh canonical inode. The scratch and canonical image verify again after
+reattach. A fresh commit reaches revision 213. The native arm64 check passed
+and hosted macOS was queued. A separate small APFS pilot completed unlink
+and directory sync after filling the volume after exchange. Near-cap APFS
+cleanup remains open.

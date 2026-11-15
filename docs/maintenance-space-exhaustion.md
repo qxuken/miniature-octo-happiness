@@ -933,5 +933,66 @@ and loop device retired.
 The hosted ZIP SHA-256 is
 `332b5136eec623683b47a7d8b15522719a288fcb9edecbb86daef334db0a0176`.
 
-Native namespace `ENOSPC` during publication on other filesystems, faults
-at the later file syncs, and physical power interruption remain open.
+The next profile exercises a native namespace refusal on APFS.
+
+## APFS ENOSPC at compaction exchange
+
+Run the exchange profile on a Mac with room for a private 256 MiB APFS disk
+image and the evidence files. The fixture and controller use the same source
+checkout. Choose a fresh output directory.
+
+```sh
+export WEEKEND_DB_SOURCE_ID=$(git rev-parse HEAD)
+cargo build --offline --locked --release \
+  --manifest-path tools/resource-envelope/Cargo.toml --features compound \
+  --bin weekend-compound-resource --target-dir target/maintenance-mac-build
+cargo xtask macos-maintenance-space --namespace-enospc \
+  --fixture target/maintenance-mac-build/release/weekend-compound-resource \
+  --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-namespace-enospc
+```
+
+The fixture pauses at the compaction exchange hook after synchronizing the
+replacement data, witness and copied file metadata. The controller verifies
+that the scratch inode holds the exact bytes of the trusted backup and that
+the canonical inode still holds the original image. It fills an owned ballast
+file until APFS returns `ENOSPC` and releases the child. The existing exchange
+call gets kernel `ENOSPC (28)`, and compaction reports
+`OutcomeUnknown / Exchange / DiskFull`. The hook only coordinates timing.
+
+The canonical inode keeps the original bytes and the scratch inode keeps the
+verified compacted bytes. With the ballast still in place, separate processes
+reopen both and the backup at revision 212 with all 64 retained roots. After
+the controller removes the ballast, a fresh compaction publishes the exact
+backup bytes in a new canonical inode with mode `0640`. Detach and reattach
+verify the canonical file and the single preserved scratch under the original
+scratch name. A fresh commit reaches revision 213 with all retained roots.
+The backup stays at 212.
+
+The local macOS arm64/APFS run passed at
+`9fe5035d2493c95f050a3a84b231fb49dbb3d00f` with Rust 1.99.1. The controller
+wrote 68,706,304 ballast bytes. APFS reported 5,849,088 available bytes after
+the fill and 74,555,392 bytes after ballast removal. The original, scratch,
+and retry inodes were 19, 21, and 23. The same fixture passed the existing
+three copy-exhaustion cases. The macOS xtask unit suite passed 188 tests with
+one registered ignore. Strict Clippy passed for xtask on macOS and for the
+compound fixture on macOS and the Windows x64 cross-target. The hosted macOS
+run was queued when this evidence was recorded.
+[Hosted run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43765323051/job/132969001635)
+
+The independent audit matched 305 source hashes against the Git archive,
+rehashed all 44 evidence payloads, bound the exact fixture and runner, and
+checked process retirement for 17 outer commands and the gated child.
+It verified all 11 phase records. Read-only admin checked each archived
+image and all 64 retained revisions without changing their hashes. The
+private APFS image was detached and removed.
+
+| Evidence under `target/apfs-namespace-validation/` | SHA-256 |
+|---|---|
+| Exchange controller | `13ddcafbc875bc52de129c0a759a80de191b56f8e20087f75d812aba4333d4b2` |
+| Gated child controller | `20a1f2579534798d634f7b23e3b1ccb1adf585d05d715dcc632ff1d4a7c49dfe` |
+| Exact fixture | `7d519e3bb05673a8e03bfc0c73f12b6a4836752291db9ecd69ec0eca62f087cd` |
+| Existing copy-exhaustion regression | `b527aea73ed1d83a279dcfa8e321f8658740c1bb5d720f952e226976a476c0b4` |
+| Independent audit | `68a4150ef005fefab68d00d72a4830717f6594a1deb9ae170f28a22f9e42d878` |
+
+Native namespace exhaustion during APFS cleanup, later file sync faults,
+and physical power interruption remain open.
