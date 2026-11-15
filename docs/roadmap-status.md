@@ -1766,6 +1766,12 @@ the suite and journal failures report the command. The CLI deadline stays at
 three seconds. The Windows job log SHA-256 is
 `0172854294e86a9b84193cd057deb1fcf8ba414aea0a306c8aad86a95ffcfbd1`.
 
+The separated journal and capacity tests both passed in debug and release
+in the [Windows job for `86ff6c6`](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43722762171/job/132838097838).
+Its overall failure came from the new fault consumer's compiler check. The
+20-case normal C/C++ DLL trace passed. The job log SHA-256 is
+`7939197f9012c121519011f8a37fa2627008d06c2e8332a678a754180ce77bca`.
+
 ## Windows exact-DLL publication faults
 
 `3efda17` adds the [six-case Windows exact-DLL gate](delivered-c-faults.md#native-windows-delivered-c-gate).
@@ -1777,12 +1783,20 @@ longer workspace suite and enforces the fault result at the end of the job.
 The Windows C11 fault consumer, its disabled-injection control and the
 normal C11/C++17 trace consumers all cross-linked against the Windows import
 library. The xtask Windows test binary also cross-linked, and strict Clippy
-passed on the host and Windows targets. Native Windows fault execution is
-pending. The shared fault consumer rerun against the exact `f70e405`
-packages passed all five macOS/APFS and all six Docker Linux/ext4 cases,
-including the Linux tmpfs exhaustion case.
+passed on the host and Windows targets. Native MSVC caught shadowed fixture
+variables in the first run. `47915ea` corrected them and passed all six native
+Windows cases against DLL source `e4be226`. The independent archive check
+verified the DLL, compiler and consumer evidence. The Windows job passed
+the normal 20-case DLL trace using the same artifact. The coordinator journal
+and capacity tests passed in debug and release. The shared fault consumer
+also passed all five macOS/APFS and all six Docker Linux/ext4 cases against
+the exact `f70e405` packages, including the Linux tmpfs exhaustion case.
+[Windows results and evidence](delivered-c-faults.md#native-windows-delivered-c-gate)
 
 | Evidence | SHA-256 |
 |---|---|
-| macOS delivered C regression report | `50521444b0be82fe0fa6185c0dac7b0519f6d62d174d3aa2a62e502a111663e7` |
-| Linux delivered C regression report | `709dfcb0b6aa0a7eec7496975602f7122a19ff1c01c0f25cf6dd35698275419b` |
+| macOS delivered C regression report | `6038e0eb0106496759ad83f193b26298ce98489bfe0831f7865e1e63f6ffb8ff` |
+| Linux delivered C regression report | `221691fe548a9eb27b1908a31741fe5089ec8e0deaa440d636d95111d18b0656` |
+| Native Windows delivered C report | `ba515c5b949a3013771c05f1cf9f9a61d123d40dd6210e35f5019e949628f26b` |
+| macOS coordinator debug and release | `baa44b2d3d292b885d502dddbdafdca8c3674762f01379fbf2134c8ea256c4e7`, `7d164cda671a4dfeb23667d6943c2d1da1ead9fb03c1c73269ba9195f149a7ee` |
+| Docker Linux/ext4 coordinator release | `67d72baea332f29b6ab2a93f87cc9651956d685be15f9dddf0c2cdadf7d111ac` |

@@ -175,6 +175,7 @@ including the kernel tmpfs ENOSPC control. Its reopened revisions remain
 The macOS case injects single syscall returns and recovers through independent
 processes on a running kernel. Physical power interruption and Darwin kernel
 ENOSPC need separate evidence.
+
 ## Native Windows delivered C gate
 
 Use a manifest-pinned combined-feature package and a fresh output path on
@@ -196,16 +197,47 @@ both slots before normal exit. The fresh recovery process opens the tested
 file with its original import table. A disabled-injection executable must
 fail the expected-status assertion.
 
-| Windows case | Injection | Expected API result | Expected fresh reopen |
-|---|---|---|---:|
-| Baseline | Observe all three publication flushes | OK | 4 |
-| Append flush | `FlushFileBuffers` reports an I/O device error | IO | 3 |
-| Root flush | `FlushFileBuffers` reports an I/O device error after the root write | OUTCOME_UNKNOWN | 4 |
-| Witness flush | `FlushFileBuffers` reports an I/O device error after the witness write | OUTCOME_UNKNOWN | 4 |
-| Root write | `NtWriteFile` returns the I/O device error before writing the slot | OUTCOME_UNKNOWN | 3 |
-| Append write | `NtWriteFile` returns disk full before appending | IO | 3 |
+| Windows case | Injection | API result | Visible revision | Fresh process reopens |
+|---|---|---|---:|---:|
+| Baseline | Observe all three publication flushes | OK | 4 | 4 |
+| Append flush | `FlushFileBuffers` reports an I/O device error | IO | 3 | 3 |
+| Root flush | `FlushFileBuffers` reports an I/O device error after the root write | OUTCOME_UNKNOWN | 3 | 4 |
+| Witness flush | `FlushFileBuffers` reports an I/O device error after the witness write | OUTCOME_UNKNOWN | 3 | 4 |
+| Root write | `NtWriteFile` returns the I/O device error before writing the slot | OUTCOME_UNKNOWN | 3 | 3 |
+| Append write | `NtWriteFile` returns disk full before appending | IO | 3 | 3 |
 
 Each recovery reconciles request 42, finishes at revision 4 and verifies
 retained revision 2. The gate covers injected write/flush returns on the
 real native filesystem. Physical device persistence and actual Windows
 volume exhaustion retain separate qualification gates.
+
+All six cases passed on Windows Server 2025 x64 on fixed NTFS at PR head
+`47915eaac4a21ef4e6dd450929e0c8925f3533e8`. The packaged DLL identifies the
+tested PR merge as `e4be226fc3eb0683876f302e950ac61cbfbb8d6e`. The consumer
+used MSVC 14.51.36231 and SDK 10.0.26100.0. The disabled-injection control
+failed the required status assertion. An independent archive check rehashed
+all 132 listed files, confirmed byte equality of both DLL copies, and checked
+the 24 before/after DLL records in the 12 exercise and recovery processes.
+All 15 compiler and fixture command reports verified process cleanup. The
+normal 20-case, 134-cell C/C++ trace passed with the same DLL and manifest.
+The downloaded package, fault and trace DLL copies compared byte for byte.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43723029255/job/132838901168)
+· [Windows fault evidence](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43723029255/artifacts/14165960124)
+· [C/C++ trace evidence](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43723029255/artifacts/14165267291)
+
+| Evidence | SHA-256 |
+|---|---|
+| Hosted ZIP | `9ae2800858357153741d309a560dcfd68dbe79f1b17c0e412e768b29a67ced36` |
+| Evidence JSON | `ba515c5b949a3013771c05f1cf9f9a61d123d40dd6210e35f5019e949628f26b` |
+| Delivered DLL | `a5b64177bd021ced37096fd4f881455fd2e66799868753dab172af899636a16b` |
+| Package manifest | `883f69927be6dd114599d42e9405892d9746ccb5fb091ecb80819b2306f72c22` |
+| Exercise and recovery executable | `875d39bd649fd5f65fa16afe26cd32777d61280e24da7b659cccdbcaaecf78ac` |
+| Disabled-injection executable | `801ccc62637e6c9d82581537c8a57ccd90a66a36f2a42568b7c91800cc553606` |
+| Independent archive rehash | `66b24f762730486b172ba91b067c8d24b9c4b33f5135dcdfffaf39ed87180184` |
+| Normal C/C++ trace evidence JSON | `9e98a5b2c9ad64ae442823a05b1712db8de670e8bdc2954b0ffa75dd58b418d9` |
+| Windows job log | `4a05ef5c41aec0a4968db0473af333c5b23ce6d4f42a5b6c7683691187070514` |
+
+The initial hosted run at `86ff6c6` stopped during compilation when MSVC
+`/W4 /WX` rejected shadowed fixture variables. `47915ea` corrected the
+names while preserving the compiler flags and the fault oracle.
+[Initial compiler evidence](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43722762171/artifacts/14165555158)
