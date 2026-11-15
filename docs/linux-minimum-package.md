@@ -93,6 +93,8 @@ combined-feature package, original root lock, packaged Rust source,
 relocated `.so` and common 134-cell trace in one report. With `--odin`, the
 trace must use the same Odin binary as the package. Compilation and
 execution of the workspace tests have separate deadlines.
+Let `TMPDIR` point to an existing ext4 directory outside the checkout.
+The runner creates and retires its own child directory there.
 
 On a clean x86_64 Linux checkout, install the pinned `dev-2026-10` Odin
 toolchain from the upstream `odin-linux-amd64-dev-2026-10.tar.gz`

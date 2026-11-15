@@ -85,9 +85,15 @@ fn committed_locks(
         .collect()
 }
 
-fn run_checks(c: &mut Campaign<'_>, root: &Path, target: &Path, xtask: &Path) -> Result<()> {
+fn run_checks(
+    c: &mut Campaign<'_>,
+    root: &Path,
+    target: &Path,
+    runtime_parent: &Path,
+    xtask: &Path,
+) -> Result<()> {
     let platform = Platform::host()?;
-    let mut scratch = Scratch::new(&c.output, "msrv-native")?;
+    let mut scratch = Scratch::new(runtime_parent, "msrv-native")?;
     let run = |c: &mut Campaign<'_>, prefix: &str, commands: Vec<Vec<OsString>>| -> Result<()> {
         for (index, mut args) in commands.into_iter().enumerate() {
             if args[0] == "cargo"
@@ -317,8 +323,20 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         c.env.insert("CARGO_TARGET_DIR".into(), path(&target));
         #[cfg(windows)]
         let host = "x86_64-pc-windows-msvc";
+        #[cfg(windows)]
+        let runtime_parent = c.output.clone();
         #[cfg(target_os = "linux")]
-        let mut runtime = Scratch::new(&c.output, "msrv-runtime")?;
+        let mut runtime = {
+            // The copied-source build rejects compiler references to the original tree.
+            let temp = dunce::canonicalize(std::env::temp_dir())?;
+            ensure!(
+                !temp.starts_with(&run.root),
+                "TMPDIR must be outside the source checkout"
+            );
+            Scratch::new(&temp, "msrv-runtime")?
+        };
+        #[cfg(target_os = "linux")]
+        let runtime_parent = runtime.path().to_owned();
         #[cfg(target_os = "linux")]
         let host = {
             let arch = std::env::consts::ARCH;
@@ -371,7 +389,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let xtask = std::env::current_exe()?;
         run_delivery(&mut c, &xtask, &rustc, &locks["Cargo.lock"], opts.odin)?;
         c.save()?;
-        run_checks(&mut c, &run.root, &target, &xtask)?;
+        run_checks(&mut c, &run.root, &target, &runtime_parent, &xtask)?;
         #[cfg(target_os = "linux")]
         runtime.close()?;
         ensure!(

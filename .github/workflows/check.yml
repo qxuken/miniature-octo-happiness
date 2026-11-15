@@ -390,6 +390,8 @@ jobs:
           printf '%s\n' "$compiler" >> "$GITHUB_PATH"
           printf 'ODIN_ROOT=%s\n' "$compiler" >> "$GITHUB_ENV"
       - name: Verify the minimum compiler, workspace and exact delivered artifacts
+        env:
+          TMPDIR: ${{ runner.temp }}
         run: cargo xtask linux-msrv --odin --output target/linux-msrv
       - name: Save Linux minimum-compiler evidence
         if: always()
