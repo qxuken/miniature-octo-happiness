@@ -2074,3 +2074,15 @@ worker sampled 69,300 KiB versus 127,032 KiB. The largest helper high-water
 mark was 112.0 MiB. The Linux runs ended at the same revision and root
 count within 0.35 s of each other. Aggregate memory and deployment budgets
 remain open.
+
+## Ext4 compaction file metadata writeback
+
+At `47f674c`, the [ext4 journal fault](maintenance-space-exhaustion.md#kernel-eio-at-compaction-file-metadata-sync)
+returns kernel EIO at the file metadata sync before in-place exchange
+on Docker arm64 and hosted Ubuntu x64.
+The canonical file and backup keep their bytes, and the scratch reopens
+witnessed at revision 212 with all 64 retained roots. After remount the
+scratch has its previous mode `0600`. The exact retry preserves the
+canonical mode `0640` and the failed scratch. The final source reopens
+at revision 213 and the backup at 212. Namespace replacement, cleanup
+and physical device faults remain outside this result.

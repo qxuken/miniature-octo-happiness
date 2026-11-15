@@ -758,6 +758,56 @@ cross-target Clippy check passed. Local evidence is under
 The hosted ZIP SHA-256 is
 `fc3c4a4da9808f2903a1b098ead3d8018190164108c687929f7ec8b7615862df`.
 
-Native failures during the subsequent metadata sync, namespace replacement
-and cleanup phases, actual namespace space exhaustion, and physical power
-interruption remain separate qualification cases.
+The next profile exercises the subsequent replacement file metadata sync.
+
+## Kernel EIO at compaction file metadata sync
+
+Add `--copy-barrier file-metadata` to the [writeback reproduction](#kernel-writeback-eio-during-near-cap-maintenance)
+and choose a fresh output directory. This profile runs in-place compaction
+on an owned ext4 image with `debugfs` from e2fsprogs. The controller sets
+and synchronizes source mode `0640`. It validates the internal journal's
+single contiguous extent and leaves the journal superblock addressable.
+The target's data, root slot and witness are synchronized before the
+shim pauses at the requested scratch-file mode change from `0600` to
+`0640`. The controller routes the owned journal transaction sectors to
+the kernel device-mapper `error` target. The shim confirms that the actual
+mode change succeeded. The following `fsync` returns kernel `EIO`.
+[Ext4 journal format](https://www.kernel.org/doc/html/latest/filesystems/ext4/journal.html)
+
+The compaction call returns `Io / Sync / Other / EIO (5)` before exchange.
+The canonical path and known backup match their pre-fault bytes. After
+restoring linear I/O and remounting, the canonical file retains mode
+`0640` and the original scratch inode has mode `0600`. Fresh checks verify
+revision 212 and all 64 retained roots in the canonical file, backup and
+scratch. The scratch image is witnessed and byte-identical to the verified
+backup. A retry publishes another byte-identical copy with mode `0640`,
+preserves the failed scratch, and reopens after remount. The final commit
+and remount leave the canonical file at revision 213 and backup at 212.
+
+Docker Linux arm64/ext4 on Rust 1.99.0 passed at
+`47f674c37ce6aa6663f79c83f18330b9d1d80f8d`. The same fixture also passed
+the existing slot and witness cases. All 31 Linux quota unit tests and 23
+macOS admin, compaction, inspection and retention tests passed. Strict
+Clippy passed for the Linux controller and the compound fixture on Linux,
+macOS and the Windows x64 cross-target.
+
+Hosted Ubuntu x64/ext4 passed with Rust 1.99.1 at tested merge
+`0ee2da664b0da1c76914181a0872cd5a48dda31f`. The independent audit on each
+platform checked 694 source hashes, 299 payload hashes, cleanup for 98
+command records, the exact fixture and the exact gate library. Read-only
+admin verified all three archived images and kept their hashes. The owned
+mapper, mount and loop were removed.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43761010174/job/132955605814), [Hosted artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43761010174/artifacts/14179923400)
+
+| Evidence under `target/maintenance-journal-validation/` | Docker arm64 SHA-256 | Hosted x64 SHA-256 |
+|---|---|---|
+| Controller | `440a0905c2ba6d8373a1428130bf7946cbd9cbd8d3beff22dca2e1716d775bfa` | `0f23155b9191fd7b2422e4045f67335e13fba33516fbec949e99f0e79089e98d` |
+| Exact fixture | `6514fecc22a55bacc430d984cb3f1f70d3228a1cf8a4552332c8c20f29902f0a` | `47c65bf14bad9d41b6fa343c1c3266bcb32170c37dea2a2c42c6e8f35dc03660` |
+| Exact gate library | `375010e9f05370fd91f1fb1a3e78dec8a6ddd99265471f85f64595a1bf1aab58` | `54ea2d68e6d2d196ea14fcd6d47c3149f7c751e36b9ac2d3dc9d5885c3962eb3` |
+| Independent audit | `d7b7c4f29385a3cd548fb50f2b993c7bbd8ebb300ea69eaaf82ac31ae243a052` | `0a1e857207a54f54f477cfe1f5c583c18c24d2c650482983120b36fe58db31e2` |
+
+The hosted ZIP SHA-256 is
+`2c7a437acfae4fa1df05efee0f744de6dc75f20f16e8299c7d1e8ee7db971758`.
+
+Native faults at namespace replacement and cleanup barriers, actual
+namespace space exhaustion and physical power interruption remain open.
