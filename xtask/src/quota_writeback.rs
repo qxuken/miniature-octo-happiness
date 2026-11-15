@@ -80,6 +80,27 @@ pub(super) struct Mapping {
     fault: Option<String>,
 }
 
+fn mapper_identity(
+    report: &str,
+    expected_name: &str,
+    expected_uuid: &str,
+) -> Result<Option<(u32, u32)>> {
+    let report = report.trim();
+    if report.is_empty() || report == "No devices found" {
+        return Ok(None);
+    }
+    let mut fields = report.split(':').map(str::trim);
+    let name = fields.next().context("missing mapper name")?;
+    let uuid = fields.next().context("missing mapper UUID")?;
+    let major = fields.next().context("missing mapper major")?.parse()?;
+    let minor = fields.next().context("missing mapper minor")?.parse()?;
+    ensure!(
+        fields.next().is_none() && name == expected_name && uuid == expected_uuid,
+        "foreign device mapper identity"
+    );
+    Ok(Some((major, minor)))
+}
+
 impl Mapping {
     pub(super) fn new(scratch: &Scratch, loop_device: &str, bytes: u64) -> Result<Self> {
         let loop_info = fs::symlink_metadata(loop_device)?;
@@ -144,18 +165,7 @@ impl Mapping {
             ],
             cleanup,
         )?;
-        if output.trim().is_empty() {
-            return Ok(None);
-        }
-        let fields: Vec<_> = output.trim().split(':').map(str::trim).collect();
-        let [name, uuid, major, minor] = fields.as_slice() else {
-            anyhow::bail!("invalid mapper identity");
-        };
-        ensure!(
-            *name == self.name && *uuid == self.uuid,
-            "foreign device mapper identity"
-        );
-        Ok(Some((major.parse()?, minor.parse()?)))
+        mapper_identity(&output, &self.name, &self.uuid)
     }
 
     fn table(&self, calls: &mut Calls<'_, '_>, cleanup: bool) -> Result<String> {
@@ -430,5 +440,23 @@ mod tests {
         }
         assert!(exact_block(row, 8, 53456).is_err());
         assert!(exact_block(row, 16, 262144).is_err());
+    }
+
+    #[test]
+    fn empty_mapper_reports_are_distinct_from_invalid_or_foreign_devices() {
+        for output in ["", "No devices found\n"] {
+            assert_eq!(mapper_identity(output, "map", "uuid").unwrap(), None);
+        }
+        assert_eq!(
+            mapper_identity("map:uuid:253:0\n", "map", "uuid").unwrap(),
+            Some((253, 0))
+        );
+        for output in [
+            "No devices found\nmap:uuid:253:0",
+            "map:other:253:0",
+            "map:uuid:253:0\nforeign:uuid:253:1",
+        ] {
+            assert!(mapper_identity(output, "map", "uuid").is_err(), "{output}");
+        }
     }
 }

@@ -1001,6 +1001,9 @@ fn finish_qualification(
     campaign.evidence["status"] = json!(status);
     campaign.evidence["verified"] = json!(status == "qualified");
     let mut finished = if !cleanup_verified {
+        if let Err(error) = &result {
+            campaign.evidence["operation_error"] = json!(format!("{error:#}"));
+        }
         Err(anyhow::anyhow!("owned quota resources remain"))
     } else if probe_only && status == "unsupported" {
         campaign.evidence["unsupported_reason"] = json!(format!("{:#}", result.unwrap_err()));

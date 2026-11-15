@@ -471,7 +471,7 @@ jobs:
             target/helper-controls/
             !target/helper-controls/cargo-target/**
   linux-quota:
-    name: Native Linux quota, exhaustion and writeback recovery
+    name: Native Linux quota exhaustion and recovery
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
