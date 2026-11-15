@@ -51,8 +51,17 @@ impl Private {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path =
-            std::env::temp_dir().join(format!("study-cutover-{}-{nonce}", std::process::id()));
+        Self::at(nonce)
+    }
+
+    fn at(nonce: u128) -> Self {
+        use std::sync::atomic::AtomicU64;
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let sequence = NEXT.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "study-cutover-{}-{nonce}-{sequence}",
+            std::process::id(),
+        ));
         private_dir(&path);
         Self(path)
     }
@@ -659,6 +668,14 @@ fn persistent_study_progress_survives_interrupted_credential_cutover() {
 
 // Keep new scenarios after the credential cutover test. The upgrade fixture
 // extracts the shared helpers before that test as a standalone source file.
+#[test]
+fn private_directories_are_distinct_at_the_same_clock_tick() {
+    let a = Private::at(0);
+    let b = Private::at(0);
+    assert_ne!(a.0, b.0);
+    assert!(a.0.is_dir() && b.0.is_dir());
+}
+
 #[test]
 fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
     let private = Private::new();

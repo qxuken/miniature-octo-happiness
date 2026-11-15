@@ -1733,3 +1733,28 @@ cargo test --offline --locked --release -p study-peer --all-targets
 | Docker Linux subprocess event archive | `643d597814c5f1024d1e67ccb3fe3c11c7204dc436e90a7267b40a7c1b5c29e7` |
 | Windows application debug cross-link log | `709d46d9a3e44abc56886cb8ad9cb0a79fa74ae609e7b25538a1f459fadc25d1` |
 | Windows application release cross-link log | `8348ea7078e4fbd39c5077662ca36c8c8549e84b26d4e5b20c5974b102983994` |
+
+The Mac workspace rerun after the fixture boundary fix passed 637 tests
+with five default ignores. A later parallel test exposed that the native
+fixture's timestamp-based directory names could collide at one clock tick.
+The fixture now adds a per-process sequence. A directed test creates two
+directories at the exact same timestamp. The corrected macOS app suite
+passed all 18 tests and strict Clippy.
+
+The exact historical pair `fb80989d98bd977743168ee10418a434a67a0261` and
+`ebc1eca779d7827e1a19a4a8742cd047ff856e49` passed the
+[legacy upgrade scenario](study-cli-upgrade.md) on macOS/APFS and Docker
+Linux/ext4. Both generated fixtures passed strict release Clippy. Mixed
+endpoints reached each other and rejected at ALPN with zero covering
+acknowledgments. The coordinated upgrade preserved both retained roots,
+converged to 36 minutes and made no new commits during repeated sync and
+restart. This exercises legacy routing on the new app build separately from
+the explicit fresh-roster workflow.
+
+| Additional evidence | SHA-256 |
+|---|---|
+| macOS workspace log after the boundary fix | `3e7d06bdc1d1f4c94dafae2d3b454cfb5b5c8f415759a9f3dc33944d57c0ed5e` |
+| macOS legacy-upgrade controller | `353dddd738122d63cbbe853df09e3fa90ba9b69190b63afb4902b0c91257c77e` |
+| macOS legacy-upgrade worker | `f466e899531b9ae4a5225b1fe90d684249add61436526282e249e6ad7e46b798` |
+| Docker Linux legacy-upgrade controller | `333b570d031522d9a0ae4c75cc18116052ec4ddc785259d07813c8914bad5e03` |
+| Docker Linux legacy-upgrade worker | `c41a73015ffa80fcb51be4e694f898291f4df696f6ca67ab283c154f1d9713cd` |
