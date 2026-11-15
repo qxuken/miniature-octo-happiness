@@ -7,6 +7,39 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub fn lock_object(
+    commit: &str,
+    lock: &Path,
+    label: &str,
+    mut command: impl FnMut(Vec<OsString>, &str, f64) -> Result<String>,
+) -> Result<String> {
+    let original = command(
+        cmd([
+            "git",
+            "rev-parse",
+            "--verify",
+            &format!("{commit}:Cargo.lock"),
+        ]),
+        &format!("{label}-lock-object"),
+        30.,
+    )?;
+    let extracted = command(
+        vec![
+            "git".into(),
+            "hash-object".into(),
+            "--no-filters".into(),
+            path(lock),
+        ],
+        &format!("{label}-lock-bytes"),
+        30.,
+    )?;
+    ensure!(
+        extracted == original,
+        "archived lock differs from committed bytes"
+    );
+    Ok(original)
+}
+
 pub fn revision(
     output: &Path,
     reference: &str,

@@ -1,5 +1,6 @@
 //! Native process adapter for the frozen compatibility oracles.
 use crate::{
+    qualification_net::{loopback_address, ready_line},
     support::{Run, cmd, sha},
     trace_process::{self, Request},
     windows_process,
@@ -10,13 +11,20 @@ use std::{
     collections::BTreeMap,
     ffi::OsString,
     fs,
+    net::SocketAddr,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
+    thread,
+    time::{Duration, Instant},
 };
 
 const INPUTS: &[&str] = &[
     "Cargo.lock",
     "xtask/Cargo.toml",
     "xtask/src/compatibility.rs",
+    "xtask/src/qualification_net.rs",
+    "xtask/src/snapshot_proof.rs",
+    "xtask/src/snapshot_upgrade.rs",
     "xtask/src/source_archive.rs",
     "xtask/src/support.rs",
     "xtask/src/trace_process.rs",
@@ -26,11 +34,37 @@ const INPUTS: &[&str] = &[
     "tools/compatibility-snapshot.rs",
     "tools/compatibility-typed-v1.rs",
     "tools/compatibility-typed-v2.rs",
+    "tools/snapshot-cli-upgrade-fixture.rs",
 ];
 
 struct Capture {
     record: Value,
     output: Result<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Exit<'a> {
+    Code(i64),
+    Rejected(&'a str),
+    StoppedOrSuccess,
+}
+
+struct Invocation<'a> {
+    args: Vec<OsString>,
+    name: &'a str,
+    cwd: PathBuf,
+    stdout: PathBuf,
+    stderr: PathBuf,
+    timeout: f64,
+}
+
+struct StopOnUnwind<'a>(&'a AtomicBool);
+impl Drop for StopOnUnwind<'_> {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
 }
 
 fn input_hashes(root: &Path) -> Result<BTreeMap<&'static str, String>> {
@@ -95,11 +129,8 @@ impl<'a> Campaign<'a> {
         timeout: f64,
         cwd: &Path,
     ) -> Result<String> {
-        ensure!(
-            expected.is_none(),
-            "Windows compatibility checks exact exits and stdout"
-        );
-        self.execute(args, name, 0, timeout, cwd)
+        let expected = expected.map_or(Exit::Code(0), Exit::Rejected);
+        self.execute(args, name, expected, timeout, cwd)
     }
 
     pub fn command_exit(
@@ -109,18 +140,26 @@ impl<'a> Campaign<'a> {
         code: i32,
         timeout: f64,
     ) -> Result<String> {
-        self.execute(args, name, i64::from(code), timeout, &self.run.root)
+        self.execute(
+            args,
+            name,
+            Exit::Code(i64::from(code)),
+            timeout,
+            &self.run.root,
+        )
     }
 
     fn execute(
         &mut self,
         args: Vec<OsString>,
         name: &str,
-        code: i64,
+        expected: Exit<'_>,
         timeout: f64,
         cwd: &Path,
     ) -> Result<String> {
-        let captured = self.capture(args, name, code, timeout, cwd)?;
+        let captured = self
+            .invocation(args, name, timeout, cwd)?
+            .capture(&self.env, expected, None)?;
         self.record(captured)
     }
 
@@ -130,11 +169,11 @@ impl<'a> Campaign<'a> {
             !first.eq_ignore_ascii_case(second),
             "parallel command names must differ"
         );
-        let cwd = &self.run.root;
-        let (one, two) = std::thread::scope(|scope| {
-            let campaign = &*self;
-            let worker = scope.spawn(|| campaign.capture(a, first, 0, timeout, cwd));
-            let two = campaign.capture(b, second, 0, timeout, cwd);
+        let a = self.invocation(a, first, timeout, &self.run.root)?;
+        let b = self.invocation(b, second, timeout, &self.run.root)?;
+        let (one, two) = thread::scope(|scope| {
+            let worker = scope.spawn(|| a.capture(&self.env, Exit::Code(0), None));
+            let two = b.capture(&self.env, Exit::Code(0), None);
             let one = worker
                 .join()
                 .unwrap_or_else(|_| Err(anyhow!("compatibility supervisor thread panicked")));
@@ -147,57 +186,74 @@ impl<'a> Campaign<'a> {
         Ok(())
     }
 
-    fn capture(
-        &self,
+    pub fn loopback<T>(
+        &mut self,
         args: Vec<OsString>,
         name: &str,
-        code: i64,
+        (readiness, timeout): (Duration, f64),
+        wait_for_exit: bool,
+        action: impl FnOnce(&mut Self, SocketAddr) -> Result<T>,
+    ) -> Result<T> {
+        let invocation = self.invocation(args, name, timeout, &self.run.root)?;
+        let env = self.env.clone();
+        let stop = AtomicBool::new(false);
+        let (outcome, captured) = thread::scope(|scope| {
+            let worker = scope.spawn(|| {
+                let expected = if wait_for_exit {
+                    Exit::Code(0)
+                } else {
+                    Exit::StoppedOrSuccess
+                };
+                invocation.capture(&env, expected, Some(&stop))
+            });
+            let _stop_on_unwind = StopOnUnwind(&stop);
+            let outcome = (|| {
+                let started = Instant::now();
+                let address = loop {
+                    ensure!(!worker.is_finished(), "server exited before readiness");
+                    if let Some(line) = ready_line(&invocation.stdout)? {
+                        break loopback_address(&line)?;
+                    }
+                    ensure!(started.elapsed() < readiness, "server readiness deadline");
+                    thread::sleep(Duration::from_millis(15));
+                };
+                action(self, address)
+            })();
+            if outcome.is_err() || !wait_for_exit {
+                stop.store(true, Ordering::Relaxed);
+            }
+            let captured = worker
+                .join()
+                .unwrap_or_else(|_| Err(anyhow!("server supervisor thread panicked")));
+            (outcome, captured)
+        });
+        let observed = captured.and_then(|capture| self.record(capture));
+        match (outcome, observed) {
+            (Ok(value), Ok(_)) => Ok(value),
+            (Err(error), Ok(_)) | (Ok(_), Err(error)) => Err(error),
+            (Err(client), Err(server)) => anyhow::bail!("{client:#}; {server:#}"),
+        }
+    }
+
+    fn invocation<'b>(
+        &self,
+        args: Vec<OsString>,
+        name: &'b str,
         timeout: f64,
         cwd: &Path,
-    ) -> Result<Capture> {
+    ) -> Result<Invocation<'b>> {
         ensure!(
             !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'),
             "invalid compatibility log label"
         );
-        let argv = args
-            .iter()
-            .map(|arg| arg.to_str().context("UTF-8 recorded command"))
-            .collect::<Result<Vec<_>>>()?;
-        let stdout = self.output.join(format!("{name}.stdout"));
-        let stderr = self.output.join(format!("{name}.stderr"));
-        let result = trace_process::run(&Request {
-            argv: &args,
-            cwd,
-            env: &self.env,
-            stdout: &stdout,
-            stderr: &stderr,
+        Ok(Invocation {
+            args,
+            name,
             timeout,
-            maximum: 8 * 1024 * 1024,
-        });
-        let passed = result
-            .as_ref()
-            .is_ok_and(|r| r.qualifies(true) && r.exit == Some(code));
-        let mut record = json!({
-            "label":name,"argv":argv,"cwd":cwd,"expected_exit_code":code,"passed":passed,
-            "stdout_sha256":sha(&stdout).ok(),"stderr_sha256":sha(&stderr).ok(),
-        });
-        match &result {
-            Ok(report) => {
-                record["pid"] = json!(report.pid);
-                record["exit_code"] = json!(report.exit);
-                record["cleanup_verified"] = json!(report.cleanup_verified);
-                record["report"] = json!(report);
-            }
-            Err(error) => record["error"] = json!(format!("{error:#}")),
-        }
-        let output = result.and_then(|report| {
-            ensure!(
-                passed,
-                "compatibility command {name} expected exit {code}: {report:?}"
-            );
-            Ok(fs::read_to_string(stdout)?.trim().into())
-        });
-        Ok(Capture { record, output })
+            cwd: cwd.to_owned(),
+            stdout: self.output.join(format!("{name}.stdout")),
+            stderr: self.output.join(format!("{name}.stderr")),
+        })
     }
 
     fn record(&mut self, capture: Capture) -> Result<String> {
@@ -227,21 +283,94 @@ impl<'a> Campaign<'a> {
     }
 }
 
+impl Invocation<'_> {
+    fn capture(
+        &self,
+        env: &BTreeMap<OsString, OsString>,
+        expected: Exit<'_>,
+        stop: Option<&AtomicBool>,
+    ) -> Result<Capture> {
+        let argv = self
+            .args
+            .iter()
+            .map(|arg| arg.to_str().context("UTF-8 recorded command"))
+            .collect::<Result<Vec<_>>>()?;
+        let request = Request {
+            argv: &self.args,
+            cwd: &self.cwd,
+            env,
+            stdout: &self.stdout,
+            stderr: &self.stderr,
+            timeout: self.timeout,
+            maximum: 8 * 1024 * 1024,
+        };
+        let result = match stop {
+            Some(flag) => trace_process::run_stoppable(&request, flag),
+            None => trace_process::run(&request),
+        };
+        let passed = result.as_ref().is_ok_and(|report| match expected {
+            Exit::Code(code) => report.qualifies(true) && report.exit == Some(code),
+            Exit::Rejected(marker) => {
+                report.qualifies(true)
+                    && report.exit == Some(1)
+                    && fs::read_to_string(&self.stderr).is_ok_and(|text| text.contains(marker))
+            }
+            Exit::StoppedOrSuccess => report.qualifies(false) || report.stopped_cleanly(),
+        });
+        let code = if let Exit::Code(code) = expected {
+            Some(code)
+        } else {
+            None
+        };
+        let marker = if let Exit::Rejected(marker) = expected {
+            Some(marker)
+        } else {
+            None
+        };
+        let name = self.name;
+        let mut record = json!({
+            "label":name,"argv":argv,"cwd":self.cwd,"expected_exit_code":code,"expected_assertion":marker,"passed":passed,
+            "stdout_sha256":sha(&self.stdout).ok(),"stderr_sha256":sha(&self.stderr).ok(),
+        });
+        match &result {
+            Ok(report) => {
+                record["pid"] = json!(report.pid);
+                record["exit_code"] = json!(report.exit);
+                record["cleanup_verified"] = json!(report.cleanup_verified);
+                record["report"] = json!(report);
+            }
+            Err(error) => record["error"] = json!(format!("{error:#}")),
+        }
+        let output = result.and_then(|report| {
+            ensure!(
+                passed,
+                "compatibility command {name} expected {expected:?}: {report:?}"
+            );
+            Ok(fs::read_to_string(&self.stdout)?.trim().into())
+        });
+        Ok(Capture { record, output })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::support::Scratch;
 
+    fn detached(run: &Run) -> Campaign<'_> {
+        Campaign {
+            run,
+            output: run.root.clone(),
+            env: run.env.clone(),
+            evidence: json!({"commands":[]}),
+        }
+    }
+
     #[test]
     fn parallel_command_failure_keeps_both_retired_jobs() {
         let scratch = Scratch::new(&std::env::temp_dir(), "windows-compatibility-pair").unwrap();
         let run = Run::new(scratch.path().to_owned());
-        let mut campaign = Campaign {
-            run: &run,
-            output: run.root.clone(),
-            env: run.env.clone(),
-            evidence: json!({"commands":[]}),
-        };
+        let mut campaign = detached(&run);
         let first = cmd(["cmd.exe", "/D", "/Q", "/C", "exit /b 9"]);
         let second = cmd(["cmd.exe", "/D", "/Q", "/C", "exit /b 0"]);
         assert!(
@@ -255,5 +384,34 @@ mod tests {
         assert_eq!(rows[0]["exit_code"], 9);
         assert_eq!(rows[1]["exit_code"], 0);
         assert!(rows.iter().all(|row| row["cleanup_verified"] == true));
+    }
+
+    #[test]
+    fn failed_action_retires_the_ready_server_job() {
+        let scratch = Scratch::new(&std::env::temp_dir(), "windows-compatibility-server").unwrap();
+        let run = Run::new(scratch.path().to_owned());
+        let mut campaign = detached(&run);
+        let server = cmd([
+            "cmd.exe",
+            "/D",
+            "/Q",
+            "/C",
+            "echo ready 127.0.0.1:45000&ping -n 30 127.0.0.1 >nul",
+        ]);
+        let result: Result<()> = campaign.loopback(
+            server,
+            "server",
+            (Duration::from_secs(5), 20.),
+            false,
+            |_, addr| {
+                assert_eq!(addr, "127.0.0.1:45000".parse().unwrap());
+                anyhow::bail!("client negative control")
+            },
+        );
+        assert_eq!(result.unwrap_err().to_string(), "client negative control");
+        let row = &campaign.evidence["commands"][0];
+        assert_eq!(row["passed"], true);
+        assert_eq!(row["cleanup_verified"], true);
+        assert_eq!(row["report"]["stopped"], true);
     }
 }

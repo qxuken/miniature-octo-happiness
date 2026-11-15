@@ -46,6 +46,8 @@ mod odin;
 mod package;
 #[cfg(unix)]
 mod probe;
+#[cfg(any(unix, windows))]
+mod qualification_net;
 #[cfg(any(target_os = "linux", windows, test))]
 mod quota_append;
 #[cfg(unix)]
@@ -69,7 +71,9 @@ mod rust_source;
 mod sanitizers;
 #[cfg(unix)]
 mod serialization_scale;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
+mod snapshot_proof;
+#[cfg(any(unix, windows))]
 mod snapshot_upgrade;
 #[cfg(unix)]
 mod soak;
@@ -88,6 +92,8 @@ mod toolchain;
 mod trace_model;
 #[cfg(any(target_os = "macos", windows, test))]
 mod trace_process;
+#[cfg(windows)]
+mod windows_compatibility;
 #[cfg(windows)]
 mod windows_process;
 #[cfg(windows)]
@@ -132,7 +138,7 @@ enum Task {
     #[cfg(unix)]
     ReplicaProgress(replica_progress::Options),
     /// Qualify the actual authenticated snapshot CLIs across two frozen revisions.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     SnapshotCliUpgrade(snapshot_upgrade::Options),
     /// Verify native follower backup, restore and fresh-stream reseeding.
     #[cfg(unix)]
@@ -323,7 +329,7 @@ fn execute(cli: Cli) -> Result<()> {
         Task::MonthlyWorkload(options) => monthly_workload::run(&run, options),
         #[cfg(unix)]
         Task::ReplicaProgress(options) => replica_progress::run(options),
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         Task::SnapshotCliUpgrade(options) => snapshot_upgrade::run(&run, options),
         #[cfg(unix)]
         Task::FollowerBackupRestore(options) => follower_backup::run(&run, options),

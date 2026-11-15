@@ -1,6 +1,7 @@
 //! Source-bound diagnostic campaigns. Expected failures still require verified
 //! process retirement and a specific stderr diagnostic, never just a nonzero exit.
 use crate::{
+    qualification_net::{loopback_address, ready_line},
     supervise::{self, Request},
     support::{Run, cmd, sha},
 };
@@ -10,7 +11,6 @@ use std::{
     collections::BTreeMap,
     ffi::OsString,
     fs,
-    io::{BufRead, BufReader, Read},
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
@@ -513,38 +513,6 @@ impl<'a> Campaign<'a> {
     }
 }
 
-fn ready_line(output: &Path) -> Result<Option<String>> {
-    let file = match fs::File::open(output) {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.into()),
-    };
-    let mut bytes = Vec::new();
-    BufReader::new(file)
-        .take(512)
-        .read_until(b'\n', &mut bytes)?;
-    ensure!(bytes.len() < 512, "oversized server readiness");
-    if !bytes.ends_with(b"\n") {
-        return Ok(None);
-    }
-    Ok(Some(
-        std::str::from_utf8(&bytes)?
-            .trim_end_matches(['\r', '\n'])
-            .to_owned(),
-    ))
-}
-
-fn loopback_address(line: &str) -> Result<SocketAddr> {
-    let address: SocketAddr = line
-        .strip_prefix("ready ")
-        .context("server readiness missing")?
-        .parse()?;
-    ensure!(
-        address.ip().is_loopback() && address.port() != 0,
-        "server advertised an invalid loopback address"
-    );
-    Ok(address)
-}
 pub fn qualifies(report: &supervise::Report, stderr: &str, expected: Option<&str>) -> bool {
     // The shared supervisor reports an ordinary nonzero exit as a failure too.
     // Only its exact exit-only diagnostic can be accepted by a negative control;

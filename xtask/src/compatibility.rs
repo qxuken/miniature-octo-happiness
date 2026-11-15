@@ -1,13 +1,12 @@
 //! Frozen storage, typed schema and wire-v1 snapshot compatibility.
 #[cfg(unix)]
 use crate::assurance::Campaign;
+#[cfg(windows)]
+use crate::windows_compatibility::Campaign;
 use crate::{
     delivery, source_archive,
     support::{Run, cargo_build_env, cmd, path, qualification_inventory as inventory, sha},
 };
-#[cfg(windows)]
-#[path = "windows_compatibility.rs"]
-mod windows;
 use anyhow::{Result, ensure};
 use clap::{Args, ValueEnum};
 use serde_json::{Value, json};
@@ -20,8 +19,6 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-#[cfg(windows)]
-use windows::Campaign;
 
 const ENDPOINTS: [&str; 2] = ["historical", "current"];
 const NATIVE_IDENTITY: &str = r###"fn main() {
@@ -209,32 +206,10 @@ fn build_endpoint(
     c.evidence["sources"][name] = json!(commit);
     let manifest = source.join("Cargo.toml");
     let lock = source.join("Cargo.lock");
-    let original_lock = c.command(
-        cmd([
-            "git",
-            "rev-parse",
-            "--verify",
-            &format!("{commit}:Cargo.lock"),
-        ]),
-        &format!("{name}-lock-object"),
-        None,
-        30.,
-    )?;
-    let archived_lock = c.command(
-        vec![
-            "git".into(),
-            "hash-object".into(),
-            "--no-filters".into(),
-            path(&lock),
-        ],
-        &format!("{name}-lock-bytes"),
-        None,
-        30.,
-    )?;
-    ensure!(
-        archived_lock == original_lock,
-        "archived lock differs from committed bytes"
-    );
+    let original_lock =
+        source_archive::lock_object(&commit, &lock, name, |args, label, timeout| {
+            c.command(args, label, None, timeout)
+        })?;
     let manifest_hash = sha(&manifest)?;
     let lock_hash = sha(&lock)?;
     fs::copy(&lock, c.output.join(format!("{name}-Cargo.lock")))?;

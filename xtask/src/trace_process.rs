@@ -12,9 +12,23 @@ pub struct Report {
     pub seconds: f64,
     pub cleanup_verified: bool,
     pub failure: Option<String>,
+    #[cfg(windows)]
+    pub stopped: bool,
 }
 impl Report {
+    #[cfg(windows)]
+    pub fn stopped_cleanly(&self) -> bool {
+        self.stopped
+            && self.exit == Some(i64::from(crate::windows_process::JOB_TERMINATION_EXIT))
+            && self.cleanup_verified
+            && self.failure.is_none()
+    }
+
     pub fn qualifies(&self, any_exit: bool) -> bool {
+        #[cfg(windows)]
+        if self.stopped {
+            return false;
+        }
         self.exit.is_some_and(|n| any_exit || n == 0)
             && self.cleanup_verified
             && self.failure.is_none()
@@ -29,7 +43,7 @@ pub struct Request<'a> {
     pub timeout: f64,
     pub maximum: u64,
 }
-pub fn run(request: &Request<'_>) -> Result<Report> {
+fn admit(request: &Request<'_>) -> Result<()> {
     ensure!(
         !request.argv.is_empty()
             && request.timeout.is_finite()
@@ -50,9 +64,23 @@ pub fn run(request: &Request<'_>) -> Result<Report> {
         request.stdout != request.stderr,
         "separate trace streams required"
     );
+    Ok(())
+}
+
+#[cfg(windows)]
+pub fn run_stoppable(
+    request: &Request<'_>,
+    stop: &std::sync::atomic::AtomicBool,
+) -> Result<Report> {
+    admit(request)?;
+    crate::windows_process::run(request, Some(stop))
+}
+
+pub fn run(request: &Request<'_>) -> Result<Report> {
+    admit(request)?;
     #[cfg(windows)]
     {
-        crate::windows_process::run(request)
+        crate::windows_process::run(request, None)
     }
     #[cfg(unix)]
     {

@@ -1176,7 +1176,7 @@ mod tests {
     fn authenticated_observations_restarts_dropped_reply_and_stale_capture() {
         use crate::{
             assurance::Campaign,
-            follower_backup::{description_identity, receipt, scrub_keys, selected_slot},
+            snapshot_proof::{description_identity, receipt, scrub_keys, selected_slot},
             support::{Run, path},
         };
         let binary = fs::canonicalize(std::env::var_os("REPLICA_PROGRESS_BIN").unwrap()).unwrap();

@@ -36,6 +36,8 @@ use windows_sys::Win32::{
         },
     },
 };
+pub(crate) const JOB_TERMINATION_EXIT: u32 = 0xEE;
+
 struct Handle(HANDLE);
 impl Handle {
     fn new(value: HANDLE) -> Result<Self> {
@@ -115,7 +117,7 @@ impl Job {
     fn retire(&self) -> Result<()> {
         // SAFETY: the live job owns all descendants; termination is unconditional.
         ensure!(
-            unsafe { TerminateJobObject(self.0.0, 0xEE) } != 0,
+            unsafe { TerminateJobObject(self.0.0, JOB_TERMINATION_EXIT) } != 0,
             "terminate job: {}",
             std::io::Error::last_os_error()
         );
@@ -148,7 +150,7 @@ impl Drop for Job {
     fn drop(&mut self) {
         // SAFETY: best-effort fallback, then KILL_ON_JOB_CLOSE closes the job.
         unsafe {
-            TerminateJobObject(self.0.0, 0xEE);
+            TerminateJobObject(self.0.0, JOB_TERMINATION_EXIT);
         }
     }
 }
@@ -188,7 +190,7 @@ fn drain(
         }
     })
 }
-pub fn run(request: &Request<'_>) -> Result<Report> {
+pub fn run(request: &Request<'_>, stop: Option<&AtomicBool>) -> Result<Report> {
     let stdout = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -197,12 +199,13 @@ pub fn run(request: &Request<'_>) -> Result<Report> {
         .write(true)
         .create_new(true)
         .open(request.stderr)?;
-    owned(request, stdout, stderr)
+    owned(request, stdout, stderr, stop)
 }
 fn owned(
     request: &Request<'_>,
     stdout: impl Write + Send + 'static,
     stderr: impl Write + Send + 'static,
+    stop: Option<&AtomicBool>,
 ) -> Result<Report> {
     let started = Instant::now();
     let mut child = Command::new(&request.argv[0])
@@ -253,6 +256,10 @@ fn owned(
                 started.elapsed().as_secs_f64() < request.timeout,
                 "command deadline"
             );
+            if stop.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+                report.stopped = true;
+                break;
+            }
             thread::sleep(Duration::from_millis(10));
         }
         Ok(())
@@ -353,7 +360,7 @@ pub fn capture_private(
         timeout,
         maximum: 4 * 1024 * 1024,
     };
-    let report = owned(&request, Memory(bytes.clone()), std::io::sink())?;
+    let report = owned(&request, Memory(bytes.clone()), std::io::sink(), None)?;
     ensure!(
         report.qualifies(false),
         "private toolchain process failed: {report:?}"

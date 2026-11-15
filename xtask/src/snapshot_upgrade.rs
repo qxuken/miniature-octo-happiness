@@ -1,16 +1,21 @@
 //! Mixed-version authenticated snapshot CLI qualification.
+#[cfg(unix)]
+use crate::assurance::Campaign;
+#[cfg(windows)]
+use crate::windows_compatibility::Campaign;
 use crate::{
-    artifact_trace::inventory,
-    assurance::{self, Campaign},
-    follower_backup::{self, Receipt, description_identity, receipt, selected_slot},
-    serialization_scale,
-    support::{Run, cmd, path, sha},
+    snapshot_proof::{
+        Receipt, description_identity, finish_with_key_cleanup, receipt, selected_slot,
+    },
+    source_archive,
+    support::{Run, cargo_build_env, cmd, path, qualification_inventory as inventory, sha},
 };
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use serde_json::json;
 use std::{
     collections::BTreeMap,
+    env::consts::EXE_SUFFIX,
     ffi::OsString,
     fs,
     net::SocketAddr,
@@ -59,33 +64,44 @@ impl Endpoint {
     }
 }
 
-fn single_rlib(folder: &Path) -> Result<PathBuf> {
+fn single_rlib(folder: &Path, library: &str) -> Result<PathBuf> {
     let mut matches = Vec::new();
+    let bare = format!("lib{library}");
+    let with_disambiguator = format!("{bare}-");
     for item in fs::read_dir(folder)? {
         let item = item?;
         let name = item.file_name();
         if name
             .to_str()
-            .is_some_and(|name| name.starts_with("libweekend_db") && name.ends_with(".rlib"))
+            .and_then(|name| name.strip_suffix(".rlib"))
+            .is_some_and(|name| name == bare || name.starts_with(&with_disambiguator))
         {
-            ensure!(item.file_type()?.is_file(), "nonregular linked core rlib");
+            ensure!(item.file_type()?.is_file(), "nonregular linked rlib");
             matches.push(item.path());
         }
     }
     ensure!(
         matches.len() == 1,
-        "one exact core rlib required, found {}",
+        "one exact {library} rlib required, found {}",
         matches.len()
     );
     Ok(matches.pop().unwrap())
 }
 
 fn endpoint(c: &mut Campaign<'_>, name: &str, reference: &str, fixture: &Path) -> Result<Endpoint> {
-    let (commit, source, archive) = assurance::archive_revision(c, reference, Some(name))?;
+    let output = c.output.clone();
+    let (commit, source, archive) =
+        source_archive::revision(&output, reference, Some(name), |args, label, timeout| {
+            c.command(args, label, None, timeout)
+        })?;
     let sources = inventory(&source, &[])?;
     c.evidence["sources"][name] = json!({"commit":commit,"archive_sha256":archive,"files":sources});
     let lock = source.join("Cargo.lock");
+    let lock_object = source_archive::lock_object(&commit, &lock, name, |args, label, timeout| {
+        c.command(args, label, None, timeout)
+    })?;
     let lock_hash = sha(&lock)?;
+    fs::copy(&lock, output.join(format!("{name}-Cargo.lock")))?;
     let manifest = source.join("Cargo.toml");
     let original: toml::Value = toml::from_str(&fs::read_to_string(manifest)?)?;
     ensure!(
@@ -107,32 +123,41 @@ fn endpoint(c: &mut Campaign<'_>, name: &str, reference: &str, fixture: &Path) -
     ]);
     build.push(path(&target));
     c.command_at(build, &format!("{name}-build"), None, 240., &source)?;
-    let cli = target.join("release/weekend-replicate");
+    let cli = output.join(format!("{name}-weekend-replicate{EXE_SUFFIX}"));
+    fs::copy(
+        target
+            .join("release")
+            .join(format!("weekend-replicate{EXE_SUFFIX}")),
+        &cli,
+    )?;
     let deps = target.join("release/deps");
-    let rlib = single_rlib(&deps)?;
+    let rlib = single_rlib(&deps, "weekend_db")?;
     let linked_sha256 = sha(&rlib)?;
-    let fixture_bin = c.output.join(format!("{name}-fixture"));
+    let fixture_bin = output.join(format!("{name}-fixture{EXE_SUFFIX}"));
     let mut external = OsString::from("weekend_db=");
     external.push(&rlib);
     let mut dependencies = OsString::from("dependency=");
     dependencies.push(&deps);
-    c.command(
-        vec![
-            "rustc".into(),
-            "--edition=2024".into(),
-            "-O".into(),
-            path(fixture),
-            "--extern".into(),
-            external,
-            "-L".into(),
-            dependencies,
-            "-o".into(),
-            path(&fixture_bin),
-        ],
-        &format!("{name}-fixture-build"),
-        None,
-        90.,
-    )?;
+    let mut fixture_build = vec![
+        "rustc".into(),
+        "--edition=2024".into(),
+        "-O".into(),
+        path(fixture),
+        "--extern".into(),
+        external,
+        "-L".into(),
+        dependencies,
+    ];
+    #[cfg(windows)]
+    let rcgen = {
+        let rlib = single_rlib(&deps, "rcgen")?;
+        let mut external = OsString::from("rcgen=");
+        external.push(&rlib);
+        fixture_build.extend(["--extern".into(), external]);
+        (sha(&rlib)?, rlib)
+    };
+    fixture_build.extend(["-o".into(), path(&fixture_bin)]);
+    c.command(fixture_build, &format!("{name}-fixture-build"), None, 90.)?;
     ensure!(
         sha(&rlib)? == linked_sha256,
         "linked core rlib changed during fixture build"
@@ -147,7 +172,15 @@ fn endpoint(c: &mut Campaign<'_>, name: &str, reference: &str, fixture: &Path) -
     let cli_hash = sha(&cli)?;
     let fixture_hash = sha(&fixture_bin)?;
     c.evidence["binaries"][name] = json!({"cli":cli_hash,"fixture":fixture_hash,
-          "runtime_source_id":identity,"rlib":linked_sha256,"lock_sha256":lock_hash});
+          "runtime_source_id":identity,"rlib":linked_sha256,"lock_sha256":lock_hash,"lock_object":lock_object});
+    #[cfg(windows)]
+    {
+        ensure!(
+            sha(&rcgen.1)? == rcgen.0,
+            "fixture credential library changed"
+        );
+        c.evidence["binaries"][name]["credential_rlib"] = json!(rcgen.0);
+    }
     ensure!(
         inventory(&source, &[])? == sources,
         "prepared source changed during build"
@@ -173,6 +206,72 @@ struct Scenario<'a> {
     wrong: PathBuf,
 }
 impl Scenario<'_> {
+    #[cfg(windows)]
+    fn prepare_credentials(&self, c: &mut Campaign<'_>) -> Result<()> {
+        let identity = c.command(
+            cmd(["whoami.exe", "/user", "/fo", "csv", "/nh"]),
+            "credential-owner",
+            None,
+            30.,
+        )?;
+        let sid = identity
+            .rsplit_once(',')
+            .context("Windows user SID missing")?
+            .1
+            .trim_matches('"');
+        let numbers = sid
+            .strip_prefix("S-1-")
+            .context("invalid Windows user SID")?;
+        ensure!(
+            numbers
+                .split('-')
+                .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit())),
+            "invalid Windows user SID"
+        );
+        let grant = format!("*{sid}:(OI)(CI)F");
+        for (name, dir) in [
+            ("client", &self.client),
+            ("server", &self.server),
+            ("wrong", &self.wrong),
+        ] {
+            fs::create_dir(dir)?;
+            c.command(
+                vec![
+                    "icacls.exe".into(),
+                    path(dir),
+                    "/inheritance:r".into(),
+                    "/grant:r".into(),
+                    grant.clone().into(),
+                ],
+                &format!("{name}-restrict-acl"),
+                None,
+                30.,
+            )?;
+            self.client_call(
+                c,
+                vec![path(&self.endpoints[0].fixture), "keygen".into(), path(dir)],
+                &format!("{name}-keygen"),
+            )?;
+        }
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    fn prepare_credentials(&self, c: &mut Campaign<'_>) -> Result<()> {
+        for (name, dir) in [
+            ("client", &self.client),
+            ("server", &self.server),
+            ("wrong", &self.wrong),
+        ] {
+            self.client_call(
+                c,
+                vec![path(&self.endpoints[0].cli), "keygen".into(), path(dir)],
+                &format!("{name}-keygen"),
+            )?;
+        }
+        Ok(())
+    }
+
     fn client_call(
         &self,
         c: &mut Campaign<'_>,
@@ -350,17 +449,7 @@ impl Scenario<'_> {
             ],
             "follower-init",
         )?;
-        for (name, dir) in [
-            ("client", &self.client),
-            ("server", &self.server),
-            ("wrong", &self.wrong),
-        ] {
-            self.client_call(
-                c,
-                vec![path(&old.cli), "keygen".into(), path(dir)],
-                &format!("{name}-keygen"),
-            )?;
-        }
+        self.prepare_credentials(c)?;
         let (first, export3) = self.serve(c, 0, "old-server", |c, address| {
             let result = self
                 .ship(c, 0, address, 3, false)?
@@ -450,13 +539,17 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         &opts.output,
         "mixed-version authenticated snapshot CLI qualification",
     )?;
+    #[cfg(unix)]
     c.limits(8 * 1024 * 1024, None)?;
     c.evidence["verified"] = json!(false);
     let work = c.output.join("work");
     let client = work.join("client");
     let server = work.join("server");
     let wrong = work.join("wrong");
-    c.env = serialization_scale::clean_env(&c.env);
+    c.env = cargo_build_env(&c.env);
+    #[cfg(windows)]
+    c.env
+        .retain(|name, _| !name.eq_ignore_ascii_case("WEEKEND_DB_SOURCE_ID"));
     c.save()?;
     let result = (|| -> Result<()> {
         let fixture = run.root.join(FIXTURE);
@@ -503,12 +596,19 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         );
         Ok(())
     })();
-    follower_backup::finish_with_key_cleanup(c, result, &[&client, &server, &wrong])
+    let result = finish_with_key_cleanup(
+        &mut c.evidence,
+        &c.output,
+        result,
+        &[&client, &server, &wrong],
+    );
+    c.finish(result)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::{delivery, support::Scratch};
 
     #[test]
@@ -534,7 +634,7 @@ mod tests {
             ("RUSTFLAGS".into(), "bad".into()),
             ("CARGO_BUILD_RUSTFLAGS".into(), "bad".into()),
         ]);
-        let clean = serialization_scale::clean_env(&original);
+        let clean = cargo_build_env(&original);
         assert_eq!(
             clean,
             BTreeMap::from([
@@ -545,6 +645,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn failed_setup_scrubs_private_keys_and_records_failure() {
         let tmp = Scratch::new(&std::env::temp_dir(), "snapshot-upgrade").unwrap();
         let run = Run::new(tmp.path().to_owned());
@@ -555,7 +656,8 @@ mod tests {
         fs::create_dir_all(&private).unwrap();
         fs::write(private.join("key.der"), b"private").unwrap();
         let result = Err(anyhow::anyhow!("fixture setup failed"));
-        assert!(follower_backup::finish_with_key_cleanup(c, result, &[&private]).is_err());
+        let result = finish_with_key_cleanup(&mut c.evidence, &c.output, result, &[&private]);
+        assert!(c.finish(result).is_err());
         let proof = delivery::read_json(&output.join("evidence.json")).unwrap();
         assert_eq!(proof["verified"], false);
         assert_eq!(proof["error"], "fixture setup failed");
