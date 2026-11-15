@@ -42,12 +42,22 @@ pub struct Report {
     pub stdout_bytes: u64,
     pub stderr_bytes: u64,
     pub rss_samples_kib: Vec<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub group_rss_samples: Vec<GroupRssSample>,
     #[serde(default)]
     pub rss_sample_count: u64,
     #[serde(default)]
     pub sampled_peak_rss_kib: u64,
     pub cleanup_verified: bool,
     pub owned_descendants: Vec<Identity>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GroupRssSample {
+    pub leader_kib: u64,
+    pub group_kib: u64,
+    pub members: u32,
 }
 impl Report {
     pub fn success(&self) -> bool {
@@ -90,6 +100,8 @@ enum Sampling {
     #[default]
     Full,
     Peak,
+    #[cfg(unix)]
+    Group,
 }
 
 #[derive(Default)]
@@ -108,6 +120,17 @@ pub(crate) fn run_peak_rss(request: &Request) -> Result<Report> {
         request,
         Execution {
             sampling: Sampling::Peak,
+            ..Execution::default()
+        },
+    )
+}
+
+#[cfg(unix)]
+pub(crate) fn run_group_rss(request: &Request) -> Result<Report> {
+    run_controlled(
+        request,
+        Execution {
+            sampling: Sampling::Group,
             ..Execution::default()
         },
     )
@@ -151,7 +174,7 @@ fn run_controlled(request: &Request, execution: Execution<'_>) -> Result<Report>
     #[cfg(unix)]
     {
         let maximum_deadline = match execution.sampling {
-            Sampling::Full => 86_400.,
+            Sampling::Full | Sampling::Group => 86_400.,
             Sampling::Peak => 86_520.,
         };
         ensure!(
@@ -490,12 +513,11 @@ mod unix {
     }
 
     #[cfg(target_os = "linux")]
-    pub(super) fn table() -> Result<BTreeMap<i32, Identity>> {
+    fn proc_stats(mut observe: impl FnMut(i32, &[u8]) -> Result<()>) -> Result<()> {
         const STAT_LIMIT: usize = 4096;
         let started = Instant::now();
         let mut bytes = Vec::new();
         let mut total = 0;
-        let mut table = BTreeMap::new();
         for entry in fs::read_dir("/proc")? {
             ensure!(
                 started.elapsed() < Duration::from_secs(2),
@@ -525,12 +547,20 @@ mod unix {
             ensure!(bytes.len() <= STAT_LIMIT, "process stat length limit");
             total += bytes.len() as u64;
             ensure!(total <= PROBE_LIMIT, "process inventory byte limit");
-            if let Some(row) =
-                proc_identity(&bytes, pid).with_context(|| format!("process {pid} stat"))?
-            {
+            observe(pid, &bytes).with_context(|| format!("process {pid} stat"))?;
+        }
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn table() -> Result<BTreeMap<i32, Identity>> {
+        let mut table = BTreeMap::new();
+        proc_stats(|pid, bytes| {
+            if let Some(row) = proc_identity(bytes, pid)? {
                 table.insert(pid, row);
             }
-        }
+            Ok(())
+        })?;
         ensure!(
             table.contains_key(&(std::process::id() as i32)),
             "process inventory omits observer"
@@ -558,6 +588,70 @@ mod unix {
             "process inventory omits observer"
         );
         Ok(table)
+    }
+
+    fn add_group_member(sample: &mut GroupRssSample, leader: bool, kib: u64) -> Result<()> {
+        sample.members = sample
+            .members
+            .checked_add(1)
+            .context("RSS group count overflow")?;
+        sample.group_kib = sample
+            .group_kib
+            .checked_add(kib)
+            .context("RSS group total overflow")?;
+        if leader {
+            sample.leader_kib = kib;
+        }
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn group_rss(group: i32) -> Result<Option<GroupRssSample>> {
+        // SAFETY: sysconf takes a constant with no pointers or side effects.
+        let page_bytes = u64::try_from(unsafe { libc::sysconf(libc::_SC_PAGESIZE) })?;
+        ensure!(page_bytes > 0, "invalid process resident page size");
+        let mut sample = GroupRssSample::default();
+        proc_stats(|pid, bytes| {
+            if let Some(row) = proc_identity(bytes, pid)?
+                && row.group == group
+                && !matches!(row.state.as_str(), "Z" | "X" | "x")
+            {
+                // Fields 3 through 24 follow comm. RSS is in resident pages.
+                let end = bytes
+                    .iter()
+                    .rposition(|&b| b == b')')
+                    .context("missing comm end")?;
+                let pages: u64 = std::str::from_utf8(&bytes[end + 2..])?
+                    .split_ascii_whitespace()
+                    .nth(21)
+                    .context("missing resident pages")?
+                    .parse()?;
+                let kib = pages
+                    .checked_mul(page_bytes)
+                    .context("RSS page conversion overflow")?
+                    / 1024;
+                add_group_member(&mut sample, pid == group, kib)?;
+            }
+            Ok(())
+        })?;
+        Ok((sample.leader_kib > 0).then_some(sample))
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn group_rss(group: i32) -> Result<Option<GroupRssSample>> {
+        let mut sample = GroupRssSample::default();
+        for line in probe(&["-axo", "pid=,pgid=,rss=,stat="])?.lines() {
+            let mut parts = line.split_ascii_whitespace();
+            let pid: i32 = parts.next().context("missing RSS PID")?.parse()?;
+            let pgid: i32 = parts.next().context("missing RSS process group")?.parse()?;
+            let kib: u64 = parts.next().context("missing resident size")?.parse()?;
+            let state = parts.next().context("missing RSS process state")?;
+            ensure!(parts.next().is_none(), "invalid process RSS record");
+            if pgid == group && !state.starts_with('Z') {
+                add_group_member(&mut sample, pid == group, kib)?;
+            }
+        }
+        Ok((sample.leader_kib > 0).then_some(sample))
     }
     fn journal(request: &Request, owned: &mut BTreeMap<i32, Identity>, strict: bool) -> Result<()> {
         let Some(path) = &request.journal else {
@@ -866,7 +960,7 @@ mod unix {
         let mut next_sample = started;
         let mut next_journal = started;
         let sample_interval = Duration::from_millis(match sampling {
-            Sampling::Full => 50,
+            Sampling::Full | Sampling::Group => 50,
             Sampling::Peak => 200,
         });
         let mut owned = BTreeMap::new();
@@ -914,12 +1008,20 @@ mod unix {
                     next_journal = Instant::now() + Duration::from_millis(50);
                 }
                 if Instant::now() >= next_sample {
-                    if request.sample_rss
-                        && let Some(n) = inspect.rss(child.id())?
-                    {
+                    let resident = if !request.sample_rss {
+                        None
+                    } else if matches!(sampling, Sampling::Group) {
+                        group_rss(child.id() as i32)?.map(|sample| {
+                            report.group_rss_samples.push(sample);
+                            sample.leader_kib
+                        })
+                    } else {
+                        inspect.rss(child.id())?
+                    };
+                    if let Some(n) = resident {
                         report.rss_sample_count += 1;
                         report.sampled_peak_rss_kib = report.sampled_peak_rss_kib.max(n);
-                        if matches!(sampling, Sampling::Full) {
+                        if !matches!(sampling, Sampling::Peak) {
                             report.rss_samples_kib.push(n);
                         }
                     }

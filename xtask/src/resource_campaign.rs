@@ -3,7 +3,7 @@ use crate::{
     artifact_trace::{docker_retire, inventory, nonce},
     assurance::{self, Campaign},
     delivery, faults, resource_oracle, serialization_scale,
-    supervise::{self, Report, Request},
+    supervise::{self, GroupRssSample, Report, Request},
     support::{Run, cmd, path, sha},
     toolchain,
 };
@@ -111,7 +111,40 @@ fn process_evidence(value: &mut Value, result: &Report) -> Result<()> {
     value["rss_sample_count"] = json!(result.rss_samples_kib.len());
     value["sampled_peak_rss_kib"] =
         json!(result.rss_samples_kib.iter().copied().max().unwrap_or(0));
+    if !result.group_rss_samples.is_empty() {
+        value["rss_scope"] = json!(
+            "leader and sum of RSS in its owned process group, sampled together about every 50ms"
+        );
+        value["group_rss"] = group_rss_summary(&result.group_rss_samples, &result.rss_samples_kib)?;
+    }
     Ok(())
+}
+
+fn group_rss_summary(samples: &[GroupRssSample], leaders: &[u64]) -> Result<Value> {
+    ensure!(
+        !samples.is_empty() && samples.len() == leaders.len(),
+        "missing paired process group RSS samples"
+    );
+    let mut peak = 0;
+    let mut overlap = 0;
+    let mut largest_non_leader = 0;
+    for (sample, &leader) in samples.iter().zip(leaders) {
+        ensure!(
+            leader > 0
+                && sample.leader_kib == leader
+                && sample.group_kib >= leader
+                && sample.members > 0
+                && (sample.members > 1 || sample.group_kib == leader),
+            "invalid process group RSS sample"
+        );
+        peak = peak.max(sample.group_kib);
+        overlap += usize::from(sample.group_kib > leader);
+        largest_non_leader = largest_non_leader.max(sample.group_kib - leader);
+    }
+    Ok(
+        json!({"samples":samples.len(),"sampled_peak_kib":peak,"overlap_samples":overlap,
+        "sampled_peak_non_leader_kib":largest_non_leader}),
+    )
 }
 struct Observation<'a> {
     binary: &'a Path,
@@ -337,7 +370,13 @@ pub(crate) fn worker(
                 let seed_hash = sha(&seed)?;
                 let report = output.join(format!("{mode}.json"));
                 let data = output.join(format!("{mode}-data"));
-                let value = observe(
+                let execute: fn(&Request) -> Result<Report> =
+                    if profile == Profile::CompoundIsolation {
+                        supervise::run_group_rss
+                    } else {
+                        supervise::run
+                    };
+                let value = observe_with(
                     Observation {
                         binary: &binary,
                         data: &data,
@@ -347,6 +386,7 @@ pub(crate) fn worker(
                         deadline: 480.,
                         inspect_group: true,
                     },
+                    execute,
                     |rows| {
                         resource_oracle::compound_cycles(rows, revision, mode == "cycles-isolated")
                     },
@@ -655,6 +695,18 @@ fn check_proof(
                 .as_array()
                 .context("compound cycle rows missing")?;
             resource_oracle::compound_cycles(rows, revision, mode == "cycles-isolated")?;
+            if profile == Profile::CompoundIsolation {
+                let samples: Vec<GroupRssSample> =
+                    serde_json::from_value(run["group_rss_samples"].clone())?;
+                let leaders: Vec<u64> = serde_json::from_value(run["rss_samples_kib"].clone())?;
+                let summary = group_rss_summary(&samples, &leaders)?;
+                ensure!(
+                    run["group_rss"] == summary
+                        && (mode != "cycles-isolated"
+                            || summary["overlap_samples"].as_u64().is_some_and(|n| n > 0)),
+                    "missing or inconsistent process group RSS evidence"
+                );
+            }
             let data = output.join(format!("{mode}-data"));
             ensure!(
                 proof["cycle_seed_sha256"] == sha(&output.join("native-data/compact.wdb"))?
@@ -798,6 +850,30 @@ mod tests {
             delivery::read_json(&self.report).unwrap()
         }
     }
+    #[test]
+    fn group_rss_accounts_for_a_live_child_and_rejects_impossible_samples() {
+        let fixture = Fixture::new("sleep 0.8 & wait; printf '{}\\n'");
+        let evidence = observe_with(fixture.request(4., &[]), supervise::run_group_rss, |rows| {
+            ensure!(rows == [json!({})], "missing worker completion");
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(evidence["owned_live_processes_absent"], true);
+        assert!(evidence["group_rss"]["overlap_samples"].as_u64().unwrap() > 0);
+        let mut sample = GroupRssSample {
+            leader_kib: 8,
+            group_kib: 19,
+            members: 2,
+        };
+        let summary = group_rss_summary(&[sample], &[8]).unwrap();
+        assert_eq!(summary["sampled_peak_kib"], 19);
+        assert_eq!(summary["sampled_peak_non_leader_kib"], 11);
+        assert!(group_rss_summary(&[sample], &[]).is_err());
+        assert!(group_rss_summary(&[sample], &[9]).is_err());
+        sample.members = 1;
+        assert!(group_rss_summary(&[sample], &[8]).is_err());
+    }
+
     #[test]
     fn existing_and_dangling_outputs_reject_before_creating_logs() {
         let fixture = Fixture::new("exit 42");
