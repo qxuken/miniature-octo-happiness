@@ -994,5 +994,52 @@ private APFS image was detached and removed.
 | Existing copy-exhaustion regression | `b527aea73ed1d83a279dcfa8e321f8658740c1bb5d720f952e226976a476c0b4` |
 | Independent audit | `68a4150ef005fefab68d00d72a4830717f6594a1deb9ae170f28a22f9e42d878` |
 
-Native namespace exhaustion during APFS cleanup, later file sync faults,
-and physical power interruption remain open.
+The next profile fills the volume after exchange, before unlinking the old image.
+
+## APFS compaction cleanup after allocation reaches ENOSPC
+
+Follow the [APFS exchange reproduction](#apfs-enospc-at-compaction-exchange)
+with `--cleanup-enospc` and choose a fresh output directory. The fixture
+pauses immediately before removing the old image, after the exchange,
+directory sync and replacement-file sync. The controller confirms that the
+canonical inode contains the exact compacted bytes and that the original
+inode and bytes are under the scratch name. It fills the private volume
+until APFS returns `ENOSPC` on the ballast allocation, then releases the
+child. Unlink and both cleanup syncs complete successfully.
+
+After detach and reattach, the canonical inode still matches the verified
+backup byte for byte, retains mode `0640`, and the old scratch name is
+absent. The controller verifies both canonical and backup images at
+revision 212 with all 64 retained roots. Compaction reclaims enough space
+for another commit with the ballast still in place. The source then
+reopens at revision 213 with all 64 retained roots and the backup at 212.
+
+The local macOS arm64/APFS run at
+`e9cd705283d5bc29c99e655fd6cb09ebec4d4b62` passed with Rust 1.99.1. The fill
+wrote 68,706,304 bytes before the 4 KiB allocation failed. APFS reported
+5,849,088 available bytes before unlink and 71,970,816 after remount with
+the same ballast. The old inode was 19 and the canonical inode was 21.
+The exchange refusal profile passed again with the same fixture. The
+macOS xtask suite passed 189 tests with one registered ignore, and all
+22 compaction, inspection and retention tests passed. Strict Clippy
+passed for xtask on macOS and the compound fixture on macOS and the
+Windows x64 cross-target. Hosted macOS was queued when this was recorded.
+[Hosted run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43766087115/job/132971377005)
+
+The independent audit matched 305 source hashes to the Git archive,
+rehashed 35 evidence payloads, bound the fixture and runner binaries and
+checked retirement of 13 outer commands and the gated child. It verified
+all eight phase records. Read-only admin independently checked the archived
+original, backup and advanced source, including all 64 retained revisions,
+and preserved their hashes. The private disk image was detached and removed.
+
+| Evidence under `target/apfs-cleanup-validation/` | SHA-256 |
+|---|---|
+| Cleanup controller | `dfb7be5908b428a8eb75ec690be44c37b86842654b17d6510a101af0db0cc239` |
+| Gated child controller | `0077378cacd8cc88e0899a269866b1ebb8c8e6566927f6814491f9d1c8e5e3a3` |
+| Exact fixture | `bb58a934e7b53f63cf3cd603a76aa5b2213c04b59f0c2a6d96c960b7d41c378a` |
+| Exchange refusal regression | `08bb55a8de3bf25ba4e78da530107a6a84017bbd85de23a0f5fe98499c94eb1a` |
+| Independent audit | `32f57a8f20de577611909c58e571aa9c33abbd71bd2816d272d283c24297e484` |
+
+Native device failures at the later file syncs and physical power
+interruption remain open.

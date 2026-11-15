@@ -126,9 +126,10 @@ qualification is a separate release-candidate requirement.
   verifies successful publication with zero available user blocks and
   inodes after the replacement is durable. The [APFS exchange exhaustion profile](maintenance-space-exhaustion.md#apfs-enospc-at-compaction-exchange)
   verifies the canonical file and complete scratch after kernel `ENOSPC`
-  and a byte-identical retry after freeing space. Namespace failures at
-  APFS cleanup and faults at the subsequent file syncs still need
-  qualification. Verify the canonical image before
+  and a byte-identical retry after freeing space. The [APFS cleanup profile](maintenance-space-exhaustion.md#apfs-compaction-cleanup-after-allocation-reaches-enospc)
+  verifies successful unlink and cleanup syncs after exhausting space past
+  durable exchange. Native device faults at the later file syncs still
+  need qualification. Verify the canonical image before
   removing any orphan. The [admin CLI](operations.md) can compact in place
   with exclusive leases on macOS and Linux. The [paired isolation workload](compound-resource-envelope.md#short-lived-maintenance-processes)
   measures the process-memory effect with the same copy budgets and seed.

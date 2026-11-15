@@ -2128,3 +2128,14 @@ reattach. A fresh commit reaches revision 213. The native arm64 check passed
 and hosted macOS was queued. A separate small APFS pilot completed unlink
 and directory sync after filling the volume after exchange. Near-cap APFS
 cleanup remains open.
+
+## APFS compaction cleanup at allocation exhaustion
+
+At `e9cd705`, the [near-cap cleanup profile](maintenance-space-exhaustion.md#apfs-compaction-cleanup-after-allocation-reaches-enospc)
+fills a private APFS volume after durable exchange. The allocator returns
+kernel ENOSPC before unlink. Unlink and the final syncs succeed. After
+remount the compacted image is canonical, matches the backup byte for
+byte, and has no old scratch entry. The volume gains 66,121,728 available
+bytes with the ballast still in place. The next commit reaches revision
+213 with all 64 retained roots. The native arm64 run and the exchange
+refusal regression passed. Hosted macOS was queued.
