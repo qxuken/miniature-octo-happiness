@@ -4,11 +4,9 @@
 #[path = "../../../examples/support/study.rs"]
 mod study;
 
-use sha2::{Digest, Sha256};
 #[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::{
-    collections::BTreeSet,
     fs::{self, File},
     io::{BufRead, BufReader, Write},
     net::{Shutdown, SocketAddr, TcpListener, TcpStream},
@@ -512,6 +510,9 @@ fn provision(root: &Path, actor: &str, label: &str, logs: &Path) -> Vec<u8> {
 
 #[test]
 fn persistent_study_progress_survives_interrupted_credential_cutover() {
+    use sha2::{Digest, Sha256};
+    use std::collections::BTreeSet;
+
     let private = Private::new();
     let root = &private.0;
     let logs = if let Some(path) = std::env::var_os("STUDY_CUTOVER_EVIDENCE") {
