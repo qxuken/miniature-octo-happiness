@@ -31,6 +31,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "tools/compatibility-snapshot.rs",
         "tools/snapshot-cli-upgrade-fixture.rs",
         "tools/monthly_workload.rs",
+        "tools/study-cli-upgrade-fixture.rs",
     ] {
         let file = root.join(name);
         if file.is_file() {

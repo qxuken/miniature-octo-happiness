@@ -23,7 +23,8 @@
     "test_compatibility.py",
     "test_soak.py",
     "test_snapshot_cli_upgrade.py",
-    "test_replica_progress.py"
+    "test_replica_progress.py",
+    "test_study_cli_upgrade.py"
   ],
   "controls": [
     {
@@ -1408,43 +1409,65 @@
       "path": "test_study_cli_upgrade.py",
       "id": "helper_suite.Controls.test_output_admission_before_external_work",
       "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
-      "rust": []
+      "rust": [
+        "soak::tests::existing_and_dangling_output_reject_before_external_work"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_cli_upgrade.py",
       "id": "helper_suite.Controls.test_preserve_selector_remove_overrides",
       "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
-      "rust": []
+      "rust": [
+        "serialization_scale::tests::build_overrides_removed_but_rustup_selection_preserved"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_cli_upgrade.py",
       "id": "helper_suite.Controls.test_real_failed_child_and_timeout_are_reaped",
       "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
-      "rust": []
+      "rust": [
+        "assurance::tests::expected_failure_needs_stderr_marker_and_successful_retirement",
+        "supervise::tests::timeout_reaps_leader_and_cleans_descendants"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_cli_upgrade.py",
       "id": "helper_suite.Controls.test_exited_leader_cannot_leave_live_descendant",
       "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
-      "rust": []
+      "rust": [
+        "supervise::tests::exited_leader_does_not_wait_for_descendant_pipe_eof"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_cli_upgrade.py",
       "id": "helper_suite.Controls.test_copied_artifact_and_source_mismatch_reject",
       "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
-      "rust": []
+      "rust": [
+        "study_upgrade::tests::copied_study_evidence_rejects_mutated_artifact_source_or_fixture"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_cli_upgrade.py",
       "id": "helper_suite.Controls.test_cleanup_attempts_volume_after_container_error",
       "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
-      "rust": []
+      "rust": [
+        "faults::tests::cleanup_attempts_both_retirements_and_both_absence_probes"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_cli_upgrade.py",
       "id": "helper_suite.Controls.test_fixture_uses_real_binary_seam_and_public_oracles",
       "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
-      "rust": []
+      "rust": [
+        "study_upgrade::tests::fixture_requires_one_native_binary_seam_and_preserves_public_oracles"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_peer_soak.py",

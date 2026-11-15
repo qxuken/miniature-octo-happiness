@@ -865,3 +865,34 @@ Linux and MSVC cross targets. The exact-exit control admits exit 70 and
 rejects both success and a different failure status.
 
 [Month workload runbook](monthly-workload.md)
+
+## Coordinated StudyProgress CLI upgrade
+
+`cargo xtask study-cli-upgrade` builds the original `fb80989` and `365daf6`
+release CLIs with their locked dependencies. The controller verifies their
+model and protocol source bytes, extracts the native test helper at its
+unique executable seam, and builds the existing public-API scenario.
+The Docker worker copies only verified proof and executables. The host
+rehashes the copied inventory, linked fixture and each source identity.
+
+Both release scenarios and strict generated-test Clippy passed on macOS/APFS
+and Docker Linux/ext4. The reachable mixed-version endpoints rejected ALPN,
+reported zero covering peer replies, and preserved both local histories. The
+coordinated upgrade converged to total 36, weekly goal 80, session limit 20
+and lessons 1–4, with two retained roots preserved. Repeat sync and restart
+kept the converged revisions at 7 on macOS and 9 on Linux for each peer.
+Private runtime cleanup and Docker resource absence passed.
+
+| Platform | Controller proof SHA-256 | Worker proof SHA-256 |
+|---|---|---|
+| macOS | `faec47dff701b3546f0c44032d164c3a822acfc68d3b89c0a2698ec6632bfc23` | `519ecd63e6b46b9985ca44316bebcc39c3ca8757c28419202a3c5e5c5f8c4435` |
+| Docker Linux | `61eb0c905035f9af8e27a1666685411df536a196f317b9b6a60ca57c3a6d8784` | `7307a68b1e006f0c507066c9d3fec7257eb43ccce76c23b88642b8411b9cea1d` |
+
+All seven old upgrade controls map to Rust. The conversion accounts for
+**160/179** controls and **6** maintained Python files.
+[Study CLI upgrade runbook](study-cli-upgrade.md)
+
+macOS passed 170 ordinary xtask tests in both profiles. Strict Clippy passed
+on macOS and the Linux and MSVC cross targets. The two residual legacy suites
+passed all 38 checks across four workers. Their evidence SHA-256 is
+`62f328874cbd4e72f5adf6d9cd3e836ec24d04ded9737caa04205bcae190bca8`.

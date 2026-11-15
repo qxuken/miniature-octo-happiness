@@ -1073,3 +1073,10 @@ profile. It also passed the prebuilt local pair with an explicit server
 argv. Eight interrupted receipts resumed, every repeat sync stayed at zero
 commits, and each restored database verified 30 retained roots. Eight Python
 files remain. [Month workload verification](xtask-conversion.md#accelerated-month-workload)
+
+The Rust StudyProgress upgrade controller passed the historical old/new
+release pair on macOS and Docker Linux/ext4. Mixed-version ALPN rejection
+preserved local commits with zero replies. Coordinated upgrade converged
+with both retained roots, and repeat sync and restart kept both revisions.
+The migration covers 160/179 controls with six Python files remaining.
+[Study CLI upgrade verification](xtask-conversion.md#coordinated-studyprogress-cli-upgrade)

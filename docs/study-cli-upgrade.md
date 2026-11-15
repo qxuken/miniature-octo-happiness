@@ -61,7 +61,7 @@ migration implementation changed.
 
 ## Test construction and process boundaries
 
-`tools/study_cli_upgrade.py` extracts two independent Git archives and builds
+`cargo xtask study-cli-upgrade` extracts two independent Git archives and builds
 `cargo build --offline --locked --release -p study-peer` with their original
 manifests/locks and separate Cargo targets. The production CLI sources are never
 rewritten. It then generates a disposable current integration test from the
@@ -76,7 +76,7 @@ passes on both platforms.
 Each relay owns its loopback port for the scenario, points to CLI port-zero
 listeners after readiness, and forwards opaque bytes. Existing helper deadlines
 bound readiness/replies (8 seconds), one-shot commands (10 seconds), convergence
-and rejection (20 seconds), and relay I/O (4 seconds). The Python runner bounds
+and rejection (20 seconds), and relay I/O (4 seconds). The controller bounds
 builds/Clippy to 300 seconds, test execution to 180 seconds and Docker execution
 to 900 seconds. Owned process groups are killed on every exit, including a failed leader that
 has already exited; the direct child is reaped. The fixture kills
@@ -86,14 +86,12 @@ private-key bytes; only proof and executable copies leave the Docker volume.
 
 Existing or dangling output paths reject before any external command. Known
 ambient build overrides are removed while `RUSTUP_HOME` and `RUSTUP_TOOLCHAIN`
-remain intact. Toolchains, configuration and registry caches are trusted inputs;
-this is not a hostile compiler/configuration qualification. Seven Python controls
-pass normally and under `-O` on Mac/Linux: fresh-output admission, preserved
-selector, real child failure/timeout reaping, cleanup after failed container
-removal with authoritative absence checks, exact fixture extraction/seam, an exited leader with a sleeping descendant,
-and copied-artifact/source mismatch rejection.
+remain intact. Toolchains, configuration and registry caches are trusted inputs.
+The maintained controls cover fresh output, toolchain selection, child failure
+and timeout, authoritative Docker absence, exact fixture extraction,
+exited-leader cleanup, and rejection of mutated copied evidence.
 
-## Native qualification and evidence
+## Historical native qualification and evidence
 
 Mac arm64 used Mise Rust/Cargo 1.99.1 and Python 3.14.8, native `/dev/disk3s5`
 (APFS). Linux aarch64 used immutable local image
@@ -130,13 +128,12 @@ but Clippy-failure records are retained separately and are not qualified.
 Local ignored artifacts are not a permanent retention or release promise.
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/study_cli_upgrade.py \
+cargo xtask study-cli-upgrade \
   --new 365daf6 --output target/study-upgrade-mac-fresh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/study_cli_upgrade.py \
+cargo xtask study-cli-upgrade \
   --new 365daf6 --output target/study-upgrade-linux-fresh \
   --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
-mise exec python@3.14.8 -- python tools/test_study_cli_upgrade.py
-mise exec python@3.14.8 -- python -O tools/test_study_cli_upgrade.py
+cargo test --offline --locked -p xtask --bin xtask study_upgrade
 ```
 
 No general rolling-upgrade availability, torn configuration replacement,

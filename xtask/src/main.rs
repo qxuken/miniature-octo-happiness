@@ -66,6 +66,8 @@ mod soak;
 #[cfg(unix)]
 mod sqlite_baseline;
 #[cfg(unix)]
+mod study_upgrade;
+#[cfg(unix)]
 mod supervise;
 mod support;
 mod toolchain;
@@ -96,6 +98,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Run the coordinated pre-ALPN StudyProgress upgrade qualification.
+    #[cfg(unix)]
+    StudyCliUpgrade(study_upgrade::Options),
     /// Execute the accelerated 30-day two-peer storage workload.
     #[cfg(unix)]
     MonthlyWorkload(monthly_workload::Options),
@@ -269,6 +274,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::StudyCliUpgrade(options) => study_upgrade::run(&run, options),
         #[cfg(unix)]
         Task::MonthlyWorkload(options) => monthly_workload::run(&run, options),
         #[cfg(unix)]
