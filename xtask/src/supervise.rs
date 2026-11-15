@@ -689,8 +689,11 @@ mod unix {
                     .remove(&(child.id() as i32))
                     .context("spawned child identity unavailable")?;
                 let mut file = OpenOptions::new().append(true).create(true).open(path)?;
-                serde_json::to_writer(&mut file, &identity)?;
-                file.write_all(b"\n")?;
+                // Parallel observers may share this journal. Append each row
+                // together so their JSON tokens cannot interleave.
+                let mut row = serde_json::to_vec(&identity)?;
+                row.push(b'\n');
+                file.write_all(&row)?;
                 file.flush()?;
             }
             loop {

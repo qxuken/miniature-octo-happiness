@@ -12,6 +12,8 @@ mod c_sanitizers;
 mod check;
 mod clean;
 #[cfg(unix)]
+mod compatibility;
+#[cfg(unix)]
 mod coverage;
 #[cfg(unix)]
 mod coverage_executables;
@@ -84,6 +86,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Qualify storage or core snapshot compatibility between two archived revisions.
+    #[cfg(unix)]
+    Compatibility(compatibility::Options),
     /// Compare an archived engine with SQLite using a bounded history workload.
     #[cfg(unix)]
     SqliteBaseline(sqlite_baseline::Options),
@@ -239,6 +244,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::Compatibility(options) => compatibility::run(&run, options),
         #[cfg(unix)]
         Task::SqliteBaseline(options) => sqlite_baseline::run(&run, options),
         #[cfg(unix)]

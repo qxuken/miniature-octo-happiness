@@ -23,6 +23,8 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         ".cargo/config.toml",
         "tools/coverage-fixture.rs",
         "tools/benchmark.rs",
+        "tools/compatibility-driver.rs",
+        "tools/compatibility-snapshot.rs",
     ] {
         let file = root.join(name);
         if file.is_file() {
@@ -228,6 +230,37 @@ impl<'a> Campaign<'a> {
         timeout: f64,
         cwd: &Path,
     ) -> Result<String> {
+        let request = self.request(args, name, timeout, cwd)?;
+        let report = supervise::run(&request);
+        self.record(name, &request, report, expected)
+    }
+    pub fn pair(&mut self, commands: [(&str, Vec<OsString>); 2], timeout: f64) -> Result<()> {
+        ensure!(!self.cancellation.requested(), "campaign cancelled");
+        let [(first, a), (second, b)] = commands;
+        ensure!(first != second, "parallel command names must differ");
+        let a = self.request(a, first, timeout, &self.run.root)?;
+        let b = self.request(b, second, timeout, &self.run.root)?;
+        let (one, two) = std::thread::scope(|scope| {
+            let worker = scope.spawn(|| supervise::run(&a));
+            let two = supervise::run(&b);
+            let one = worker
+                .join()
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("supervisor thread panicked")));
+            (one, two)
+        });
+        let one = self.record(first, &a, one, None);
+        let two = self.record(second, &b, two, None);
+        one?;
+        two?;
+        Ok(())
+    }
+    fn request(
+        &self,
+        args: Vec<OsString>,
+        name: &str,
+        timeout: f64,
+        cwd: &Path,
+    ) -> Result<Request> {
         ensure!(
             !name.is_empty()
                 && name
@@ -255,12 +288,12 @@ impl<'a> Campaign<'a> {
         eprintln!("+ {}", strings.join(" "));
         let stdout = self.output.join(format!("{name}.stdout.log"));
         let stderr = self.output.join(format!("{name}.stderr.log"));
-        let report = supervise::run(&Request {
-            argv: strings.clone(),
+        Ok(Request {
+            argv: strings,
             cwd: Some(cwd.to_owned()),
             env: Some(env),
-            stdout: stdout.clone(),
-            stderr: stderr.clone(),
+            stdout,
+            stderr,
             report: Some(self.output.join(format!("{name}.process.json"))),
             timeout_seconds: timeout,
             maximum_bytes: self.maximum_bytes,
@@ -268,17 +301,32 @@ impl<'a> Campaign<'a> {
             file_limit: self.file_limit,
             journal: None,
             sample_rss: self.sample_rss,
-        });
+        })
+    }
+    fn record(
+        &mut self,
+        name: &str,
+        request: &Request,
+        report: Result<supervise::Report>,
+        expected: Option<&str>,
+    ) -> Result<String> {
+        let stdout = &request.stdout;
+        let stderr = &request.stderr;
         let (report, invocation_error) = match report {
             Ok(r) => (Some(r), None),
             Err(e) => (None, Some(format!("{e:#}"))),
         };
-        let out = String::from_utf8_lossy(&fs::read(&stdout).unwrap_or_default()).into_owned();
-        let err = String::from_utf8_lossy(&fs::read(&stderr).unwrap_or_default()).into_owned();
+        let out = String::from_utf8_lossy(&fs::read(stdout).unwrap_or_default()).into_owned();
+        let err = String::from_utf8_lossy(&fs::read(stderr).unwrap_or_default()).into_owned();
         let passed = report
             .as_ref()
             .is_some_and(|r| qualifies(r, &err, expected));
-        self.evidence["commands"].as_array_mut().unwrap().push(json!({"argv":strings,"cwd":cwd,"name":name,"exit_code":report.as_ref().and_then(|r| r.returncode),"supervision":report,"invocation_error":invocation_error,"stdout":stdout.file_name().and_then(|s|s.to_str()),"stderr":stderr.file_name().and_then(|s|s.to_str()),"expected_assertion":expected,"passed":passed}));
+        self.evidence["commands"].as_array_mut().unwrap().push(json!({
+            "argv":request.argv,"cwd":request.cwd,"name":name,"exit_code":report.as_ref().and_then(|r| r.returncode),
+            "timeout_seconds":request.timeout_seconds,"maximum_bytes":request.maximum_bytes,
+            "supervision":report,"invocation_error":invocation_error,"stdout":stdout.file_name().and_then(|s|s.to_str()),
+            "stderr":stderr.file_name().and_then(|s|s.to_str()),"expected_assertion":expected,"passed":passed
+        }));
         self.save()?;
         ensure!(passed, "{name} failed; see {}", self.output.display());
         Ok(out.trim_end_matches(['\r', '\n']).to_owned())
@@ -347,6 +395,25 @@ pub fn host(version: &str) -> Result<&str> {
         .context("rustc host missing")
 }
 pub fn archive_source(c: &mut Campaign<'_>, reference: &str) -> Result<(String, PathBuf)> {
+    let (revision, source, digest) = archive_revision(c, reference, None)?;
+    c.evidence["engine_revision"] = json!(revision);
+    c.evidence["archive_sha256"] = json!(digest);
+    Ok((revision, source))
+}
+
+pub fn archive_revision(
+    c: &mut Campaign<'_>,
+    reference: &str,
+    label: Option<&str>,
+) -> Result<(String, PathBuf, String)> {
+    let prefix = label.unwrap_or("engine");
+    ensure!(
+        !prefix.is_empty()
+            && prefix
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-'),
+        "invalid archive label"
+    );
     let revision = c.command(
         vec![
             "git".into(),
@@ -355,7 +422,7 @@ pub fn archive_source(c: &mut Campaign<'_>, reference: &str) -> Result<(String, 
             "--end-of-options".into(),
             format!("{reference}^{{commit}}").into(),
         ],
-        "engine-revision",
+        &format!("{prefix}-revision"),
         None,
         30.,
     )?;
@@ -365,7 +432,7 @@ pub fn archive_source(c: &mut Campaign<'_>, reference: &str) -> Result<(String, 
     );
     let files = c.command(
         cmd(["git", "ls-tree", "-r", &revision]),
-        "engine-files",
+        &format!("{prefix}-files"),
         None,
         30.,
     )?;
@@ -376,8 +443,13 @@ pub fn archive_source(c: &mut Campaign<'_>, reference: &str) -> Result<(String, 
                 .all(|l| l.starts_with("100644 blob ") || l.starts_with("100755 blob ")),
         "nonregular engine archive input"
     );
-    let tar = c.output.join("source.tar");
-    let source = c.output.join("source");
+    let (tar, source) = if let Some(label) = label {
+        let parent = c.output.join("source");
+        fs::create_dir_all(&parent)?;
+        (c.output.join(format!("{label}.tar")), parent.join(label))
+    } else {
+        (c.output.join("source.tar"), c.output.join("source"))
+    };
     fs::create_dir(&source)?;
     c.command(
         vec![
@@ -388,7 +460,7 @@ pub fn archive_source(c: &mut Campaign<'_>, reference: &str) -> Result<(String, 
             path(&tar),
             revision.clone().into(),
         ],
-        "engine-archive",
+        &format!("{prefix}-archive"),
         None,
         30.,
     )?;
@@ -400,18 +472,79 @@ pub fn archive_source(c: &mut Campaign<'_>, reference: &str) -> Result<(String, 
             "-C".into(),
             path(&source),
         ],
-        "extract-source",
+        &if label.is_none() {
+            "extract-source".to_owned()
+        } else {
+            format!("{prefix}-extract")
+        },
         None,
         30.,
     )?;
-    c.evidence["engine_revision"] = json!(revision);
-    c.evidence["archive_sha256"] = json!(sha(&tar)?);
-    Ok((revision, source))
+    Ok((revision, source, sha(&tar)?))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn paired_commands_overlap_and_both_reports_survive_failure() {
+        let tmp =
+            crate::support::Scratch::new(&std::env::temp_dir(), "paired-supervision").unwrap();
+        let mut run = Run::new(tmp.path().to_owned());
+        let journal = tmp.path().join("journal.jsonl");
+        run.env
+            .insert("HELPER_PROCESS_JOURNAL".into(), path(&journal));
+        let output = tmp.path().join("output");
+        let mut campaign = Campaign::detached(&run, &output, "parallel control").unwrap();
+        let result = campaign.pair(
+            [
+                (
+                    "first",
+                    cmd([
+                        "sh",
+                        "-c",
+                        "touch first; while [ ! -f second ]; do sleep .01; done; exit 7",
+                    ]),
+                ),
+                (
+                    "second",
+                    cmd([
+                        "sh",
+                        "-c",
+                        "while [ ! -f first ]; do sleep .01; done; touch second",
+                    ]),
+                ),
+            ],
+            5.,
+        );
+        assert!(campaign.finish(result).is_err());
+        let proof = crate::delivery::read_json(&output.join("evidence.json")).unwrap();
+        let reports = proof["commands"].as_array().unwrap();
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0]["exit_code"], 7);
+        assert_eq!(reports[1]["exit_code"], 0);
+        assert!(
+            reports
+                .iter()
+                .all(|row| row["supervision"]["cleanup_verified"] == true)
+        );
+        let mut journal_pids = fs::read_to_string(journal)
+            .unwrap()
+            .lines()
+            .map(|row| {
+                serde_json::from_str::<supervise::Identity>(row)
+                    .unwrap()
+                    .pid as u64
+            })
+            .collect::<Vec<_>>();
+        let mut report_pids = reports
+            .iter()
+            .map(|row| row["supervision"]["pid"].as_u64().unwrap())
+            .collect::<Vec<_>>();
+        journal_pids.sort_unstable();
+        report_pids.sort_unstable();
+        assert_eq!(journal_pids, report_pids);
+    }
     fn fixture() -> (crate::support::Scratch, Run) {
         use std::os::unix::fs::PermissionsExt;
         let dir = crate::support::Scratch::new(&std::env::temp_dir(), "campaign").unwrap();

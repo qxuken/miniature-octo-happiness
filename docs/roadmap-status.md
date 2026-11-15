@@ -1031,3 +1031,11 @@ original digest across current and retained states through reopen and
 maintenance. Five legacy controls map to Rust tests, bringing the conversion
 to 117/179 and 18 maintained Python files.
 [SQLite verification](xtask-conversion.md#sqlite-retained-history-comparison)
+
+The Rust storage and wire-v1 controller passed both directions on macOS and
+Docker Linux against `738e924`, using the original endpoint lockfiles. Storage
+read and unsupported-rejection images stayed byte-identical. Snapshot durable
+revision 4 and retained revision 2 survived reopen and duplicate shipment
+while the primary advanced to 5. The migration now accounts for 124/179
+controls and 17 Python files.
+[Compatibility verification](xtask-conversion.md#frozen-native-and-wire-compatibility)

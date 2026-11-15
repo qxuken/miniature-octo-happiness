@@ -6,10 +6,6 @@
       "allowed_skips": []
     },
     {
-      "path": "test_compatibility.py",
-      "allowed_skips": []
-    },
-    {
       "path": "test_replica_progress.py",
       "allowed_skips": [
         "helper_suite.NativeTLS.test_authenticated_observations_restarts_dropped_reply_and_stale_capture"

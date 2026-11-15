@@ -3,12 +3,11 @@
 Run with local Git objects, an installed compiler and cached dependencies:
 
 ```sh
-mise x rust@1.99.1 python@3.14.8 -- python3 -O tools/compatibility.py \
+cargo xtask compatibility \
   --profile storage --historical a7dc343 \
   --current 21e5d2638c24c6254ced35d0077c55bb30a287b2 \
   --output target/compatibility/new-storage-run
-mise x python@3.14.8 -- python3 tools/test_compatibility.py
-mise x python@3.14.8 -- python3 -O tools/test_compatibility.py
+cargo test --offline --locked -p xtask --bin xtask compatibility
 ```
 
 The final output component must not exist: files, directories, existing symlinks
@@ -59,9 +58,9 @@ revision 2 with only `key=11`. Both reads must preserve every image byte.
 
 For each image, both consumers reject a copy with header version 0xffffffff and
 must preserve every unsupported-image byte. This deliberately changes the
-version before CRC validation; it is not a valid future encoder or a migration
-test. Byte-preservation checks use explicit failures and remain active under
-Python `-O`, including when a consumer returns success after changing the file.
+version before CRC validation. Byte-preservation checks are explicit in both
+debug and optimized builds, including when a consumer exits successfully after
+changing the file.
 
 There are two writes, four full logical reads and four unsupported-version
 rejections per platform. `evidence.json` reports each writer's results separately;
@@ -73,7 +72,7 @@ records native Mac and isolated Linux results.
 ## Passive snapshot profile
 
 ```sh
-mise x rust@1.99.1 python@3.14.8 -- python3 -O tools/compatibility.py \
+cargo xtask compatibility \
   --profile snapshot --historical dcd2402 --current 315068f \
   --output target/compatibility/new-snapshot-run
 ```
@@ -90,9 +89,10 @@ protocol's precise boundaries. New runs preserve source/build directories;
 that earlier report's temporary-directory layout describes its older runner.
 
 Git/tool probes and archives have 30-second subprocess waits, each build 180
-seconds, storage consumers 30 seconds, and a snapshot pair a shared 90-second
-deadline. Timed-out process groups are killed and direct children reaped with a
-five-second wait. Metadata records commands, deadlines, return codes and failures.
+seconds, and storage consumers 30 seconds. Each peer in a concurrent snapshot
+pair runs under a 90-second deadline. Timed-out process groups are killed and
+direct children reaped with a five-second wait. Metadata records commands,
+deadlines, return codes and failures.
 These are subprocess bounds under normal OS scheduling, not a kernel/filesystem
 liveness guarantee.
 

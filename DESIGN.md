@@ -4357,13 +4357,15 @@ is inferred from this run. Replay with `cargo run --offline --locked --release
 
 ## Compatibility, native faults and decision inventory
 
-`tools/compatibility.py` builds the same downstream driver against current
+The historical compatibility qualification built the same downstream driver against
 `1ca5e5ab` and archived `a7dc343` using offline locked Cargo on arm64 macOS
 rustc 1.99.1. Both verify current revision 4 and retained revision 2, exact row
 counts/values and missing historical keys. Both reject an unsupported header
 version without changing file bytes. The frozen pre1 fixture covers the opposite
 reader/writer direction. These are named pre1 checkpoints, not a stable-format
 release promise. Evidence binds engine, driver and test source hashes.
+`cargo xtask compatibility` now runs this fixture against the selected
+checkpoints. [Compatibility runbook](tools/compatibility.md)
 
 The typed process-evolution test runs create, partial migration, verification,
 backup, restore, historical rollback and explicit remigration in separate

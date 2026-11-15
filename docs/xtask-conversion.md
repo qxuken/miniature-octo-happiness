@@ -651,3 +651,44 @@ passed for the comparator and for xtask on macOS, Linux x86-64 and MSVC cross
 targets. The residual suite passed 122 checks with two registered skips across
 14 workers. Its evidence SHA-256 is
 `2e17e593d366540267e7e7f99c51c332348a1739d6dae99ad7a61dd3a611611d`.
+
+## Frozen native and wire compatibility
+
+`cargo xtask compatibility` now owns both the storage and core snapshot
+profiles. Each endpoint builds from a named source archive with its original
+lockfile. The controller binds the private example overlay and both executable
+hashes to the run. It distinguishes the build stamp on an older snapshot
+endpoint from the native engine identity API. Both snapshot peers overlap under
+bounded supervision. Both terminal reports survive a peer failure, and
+concurrent observers append whole rows to the shared process journal.
+
+macOS and Docker Linux passed `a7dc343` ↔ `738e924` storage. Each writer
+produced revision 4 with retained revision 2. Both readers verified the
+complete state, and both unsupported-version rejectors preserved exact
+bytes. Both systems also passed `dcd2402` ↔ `738e924` core wire-v1. The
+follower reopened with durable revision 4 and retained revision 2. Repeat
+shipment returned the same receipt and unsupported poll-version rejection
+preserved follower files. The primary advanced locally to 5. All process
+cleanup checks passed.
+
+| Operating system and profile | Controller proof SHA-256 |
+|---|---|
+| macOS storage | `49df4414625b162782e564890220120fa28ee8a1ee89184c1f9cf143d3f7a41e` |
+| Docker Linux storage | `ce385047c800896682ff333e5d79e275576e40d51ae38c1bd6acd634a3440014` |
+| macOS core snapshot | `58d94ec00923f5083b71ccb797c168ab904420fd663ae43774ffb57b0f4f4994` |
+| Docker Linux core snapshot | `58bc000a6e9f2881a436e9235200c918945eef35c5a34112039163c3917da781` |
+
+All seven controls map to Rust, including successful consumers that mutate
+images and timeout or early exit that leaves a descendant. The Python entry
+point and its tests are retired. Three remaining Python runners import the
+shared helper functions, so that module remains until their conversions.
+The ledger accounts for **124/179** controls and **17** Python files.
+[Compatibility runbook](../tools/compatibility.md)
+
+The checks retain the 8 MiB per-stream ceiling and the 30-second storage and
+90-second snapshot consumer deadlines. The 145 xtask tests passed on macOS in
+debug and release. Focused controller and pair tests passed in Docker Linux.
+Strict Clippy passed for macOS and the Linux and MSVC cross targets. The
+remaining legacy suites passed 108 checks with two registered skips across 12
+workers. Their evidence SHA-256 is
+`d80eb896ae899aee3e3b8c1ee750258161913654c7479cf01a54bc7513ed0d84`.

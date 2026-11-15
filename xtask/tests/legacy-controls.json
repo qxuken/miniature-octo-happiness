@@ -19,7 +19,8 @@
     "resource-envelope/test_runner.py",
     "resource-envelope/test_cache_probe.py",
     "resource-envelope/test_resilience.py",
-    "sqlite-baseline/test_runner.py"
+    "sqlite-baseline/test_runner.py",
+    "test_compatibility.py"
   ],
   "controls": [
     {
@@ -761,43 +762,64 @@
       "path": "test_compatibility.py",
       "id": "helper_suite.CompatibilityTests.test_both_profiles_reject_existing_and_dangling_outputs_before_build",
       "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
-      "rust": []
+      "rust": [
+        "compatibility::tests::both_profiles_reject_existing_and_dangling_outputs_before_build"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_compatibility.py",
       "id": "helper_suite.CompatibilityTests.test_successful_storage_consumers_check_both_writer_directions",
       "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
-      "rust": []
+      "rust": [
+        "compatibility::tests::storage_matrix_preserves_both_writer_directions_and_rejects_mutating_readers"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_compatibility.py",
       "id": "helper_suite.CompatibilityTests.test_zero_exit_mutating_reader_fails_and_preserves_failure_evidence",
       "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
-      "rust": []
+      "rust": [
+        "compatibility::tests::storage_matrix_preserves_both_writer_directions_and_rejects_mutating_readers"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_compatibility.py",
       "id": "helper_suite.CompatibilityTests.test_zero_exit_mutating_rejector_fails_and_preserves_failure_evidence",
       "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
-      "rust": []
+      "rust": [
+        "compatibility::tests::storage_matrix_preserves_both_writer_directions_and_rejects_mutating_readers"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_compatibility.py",
       "id": "helper_suite.CompatibilityTests.test_requested_commits_original_locks_and_locked_example_overlays",
       "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
-      "rust": []
+      "rust": [
+        "compatibility::tests::locked_fixture_overlays_preserve_original_locks_and_identity_scopes"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_compatibility.py",
       "id": "helper_suite.CompatibilityTests.test_early_exited_leader_does_not_leave_running_descendant",
       "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
-      "rust": []
+      "rust": [
+        "supervise::tests::exited_leader_does_not_wait_for_descendant_pipe_eof"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_compatibility.py",
       "id": "helper_suite.CompatibilityTests.test_consumer_timeout_kills_and_reaps_process_group",
       "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
-      "rust": []
+      "rust": [
+        "supervise::tests::timeout_reaps_leader_and_cleans_descendants"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",

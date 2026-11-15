@@ -3,19 +3,23 @@
 The optional snapshot profile extends the existing native compatibility tool:
 
 ```sh
-python3 tools/compatibility.py --profile snapshot \
+cargo xtask compatibility --profile snapshot \
   --historical dcd2402 --current 315068f \
   --output target/snapshot-compatibility
 ```
 
 The output must be new. The historical default for this profile is `dcd2402`;
 current defaults to committed HEAD, never uncommitted engine changes. The original
-storage profile and its `a7dc343` historical default are unchanged. Python 3.12+,
-Git and the native Rust toolchain are required. Dependencies must already be
+storage profile retains `a7dc343` as its historical default. Git and the native
+Rust toolchain are required. Dependencies must already be
 available locally: builds use `--offline --locked` and incremental compilation is
 disabled. This is private qualification tooling; nothing is published.
 
-Each endpoint is a frozen Git archive. The only build overlays are the same
+The original qualification below used the historical runner. Use the
+[current runbook](../tools/compatibility.md) for the Rust controller's evidence
+layout and test commands.
+
+Each endpoint was a frozen Git archive. The original build overlays were the same
 `tools/compatibility-snapshot.rs` fixture and an explicit example declaration in
 its Cargo.toml. The original Cargo.lock remains byte-identical before/after build;
 no newly resolved standalone dependency graph substitutes for either historical
