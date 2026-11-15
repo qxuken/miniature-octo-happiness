@@ -431,3 +431,29 @@ pub(crate) fn cargo_build_env(
     env.insert("CARGO_INCREMENTAL".into(), "0".into());
     env
 }
+
+pub(crate) fn copy_qualification_tree(from: &Path, to: &Path) -> Result<()> {
+    // Validate every input before creating any destination, then verify the copy.
+    let before = qualification_inventory(from, &[])?;
+    fn copy(from: &Path, to: &Path) -> Result<()> {
+        fs::create_dir(to)?;
+        for e in fs::read_dir(from)? {
+            let e = e?;
+            let meta = fs::symlink_metadata(e.path())?;
+            if meta.is_dir() {
+                copy(&e.path(), &to.join(e.file_name()))?;
+            } else {
+                ensure!(meta.is_file(), "nonregular trace copy input");
+                fs::copy(e.path(), to.join(e.file_name()))?;
+            }
+        }
+        Ok(())
+    }
+    copy(from, to)?;
+    ensure!(
+        before == qualification_inventory(from, &[])?
+            && before == qualification_inventory(to, &[])?,
+        "trace copy changed inputs"
+    );
+    Ok(())
+}

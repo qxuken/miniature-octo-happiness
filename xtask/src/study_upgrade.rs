@@ -1,25 +1,35 @@
 //! Exact-build StudyProgress CLI upgrade with the existing public-API fixture.
+#[cfg(windows)]
+use crate::windows_compatibility::Campaign;
+#[cfg(unix)]
 use crate::{
-    artifact_trace::{copy_tree, docker_retire, inventory, nonce},
+    artifact_trace::{docker_retire, nonce},
     assurance::{self, Campaign},
-    delivery, faults, serialization_scale,
-    support::{Run, cmd, path, sha},
-    toolchain,
+    faults, toolchain,
+};
+use crate::{
+    delivery, source_archive,
+    support::{
+        Run, cargo_build_env, cmd, copy_qualification_tree as copy_tree, path,
+        qualification_inventory as inventory, sha,
+    },
 };
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     collections::BTreeMap,
+    env::consts::EXE_SUFFIX,
     fs::{self, OpenOptions},
     io::Write,
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
 
 const HISTORICAL: &str = "fb80989d98bd977743168ee10418a434a67a0261";
-const CURRENT: &str = "365daf6";
+const CURRENT: &str = "365daf6c8a6b7c85fb049fb5a0370b401dde2424";
 const LABELS: [&str; 2] = ["old", "new"];
 const FIXTURE: &str = "study-cli-upgrade-fixture.rs";
 const MARKERS: [&str; 3] = [
@@ -34,13 +44,23 @@ pub struct Options {
     output: PathBuf,
     #[arg(long, default_value = CURRENT)]
     new: String,
+    #[cfg(unix)]
     #[arg(long)]
     docker_image: Option<String>,
+    #[cfg(unix)]
     #[arg(long, hide = true)]
     worker: Option<PathBuf>,
 }
 
-fn fixture(helpers: &str, scenario: &str) -> Result<String> {
+fn replace_fixture_once(source: &str, before: &str, after: &str) -> Result<String> {
+    ensure!(
+        source.matches(before).count() == 1,
+        "study fixture seam differs: {before}"
+    );
+    Ok(source.replacen(before, after, 1))
+}
+
+fn fixture(helpers: &str, scenario: &str, windows: bool) -> Result<String> {
     let boundary =
         "#[test]\nfn persistent_study_progress_survives_interrupted_credential_cutover()";
     ensure!(
@@ -53,9 +73,36 @@ fn fixture(helpers: &str, scenario: &str) -> Result<String> {
         helpers.matches(old).count() == 1 && helpers.matches("Command::new(BIN)").count() == 1,
         "helper executable seam differs"
     );
-    let moved = helpers
+    let mut moved = helpers
         .replace(old, "        (log, binary): (&Log, &str),\n    ) -> Self {")
         .replace("Command::new(BIN)", "Command::new(binary)");
+    if windows {
+        for (before, after) in [
+            (
+                "#![cfg(any(target_os = \"macos\", target_os = \"linux\"))]",
+                "#![cfg(windows)]",
+            ),
+            ("    os::unix::fs::{DirBuilderExt, PermissionsExt},\n", ""),
+            (
+                "std::env::temp_dir().join",
+                "PathBuf::from(std::env::var_os(\"STUDY_UPGRADE_RUNTIME\").unwrap()).join",
+            ),
+            (
+                "fs::DirBuilder::new().mode(0o700).create(&path).unwrap();",
+                "fs::create_dir(&path).unwrap();",
+            ),
+            (
+                "fs::DirBuilder::new().mode(0o700).create(&active).unwrap();",
+                "fs::create_dir(&active).unwrap();",
+            ),
+            (
+                "    fs::set_permissions(active.join(\"key.der\"), fs::Permissions::from_mode(0o600)).unwrap();\n",
+                "",
+            ),
+        ] {
+            moved = replace_fixture_once(&moved, before, after)?;
+        }
+    }
     Ok(format!("#![allow(dead_code)]\n{moved}{scenario}"))
 }
 
@@ -63,6 +110,7 @@ fn generate(source: &Path, scenario: &Path) -> Result<String> {
     fixture(
         &fs::read_to_string(source.join("apps/study-peer/tests/credential_rotation.rs"))?,
         &fs::read_to_string(scenario)?,
+        cfg!(windows),
     )
 }
 
@@ -86,23 +134,52 @@ fn source_locks(source: &Path) -> Result<()> {
 }
 
 fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
+    #[cfg(unix)]
     let work = assurance::fresh(&run.root, work)?;
+    #[cfg(unix)]
     let mut c = Campaign::detached(
         run,
         &work.join("result"),
         "mixed-version study CLI architecture",
     )?;
+    #[cfg(windows)]
+    let mut c = Campaign::new(
+        run,
+        &work.join("result"),
+        "mixed-version study CLI architecture",
+    )?;
+    #[cfg(unix)]
     c.limits(8 * 1024 * 1024, None)?;
     let runtime = work.join("runtime");
     fs::create_dir(&runtime)?;
+    #[cfg(unix)]
     fs::set_permissions(&runtime, fs::Permissions::from_mode(0o700))?;
-    c.env = serialization_scale::clean_env(&c.env);
+    c.env = cargo_build_env(&c.env);
+    #[cfg(unix)]
     c.env.insert("TMPDIR".into(), path(&runtime));
+    #[cfg(windows)]
+    {
+        c.env.retain(|key, _| {
+            ![
+                "WEEKEND_DB_SOURCE_ID",
+                "STUDY_UPGRADE_RUNTIME",
+                "STUDY_OLD_BINARY",
+                "STUDY_NEW_BINARY",
+                "STUDY_UPGRADE_EVIDENCE",
+            ]
+            .iter()
+            .any(|name| key.eq_ignore_ascii_case(name))
+        });
+        c.env.insert("STUDY_UPGRADE_RUNTIME".into(), path(&runtime));
+    }
     c.evidence["verified"] = json!(false);
     c.save()?;
     let result = (|| -> Result<()> {
+        #[cfg(windows)]
+        c.restrict_directories(&[("runtime", &runtime)])?;
         c.evidence["compiler"] = json!(c.command(cmd(["rustc", "-vV"]), "compiler", None, 30.)?);
         c.evidence["cargo"] = json!(c.command(cmd(["cargo", "-V"]), "cargo", None, 30.)?);
+        #[cfg(unix)]
         let filesystem = if cfg!(target_os = "linux") {
             vec![
                 "findmnt".into(),
@@ -115,7 +192,10 @@ fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
         } else {
             vec!["df".into(), "-P".into(), path(&work)]
         };
-        c.evidence["filesystem"] = json!(c.command(filesystem, "filesystem", None, 30.)?);
+        #[cfg(unix)]
+        {
+            c.evidence["filesystem"] = json!(c.command(filesystem, "filesystem", None, 30.)?);
+        }
         let identities = delivery::read_json(&seed.join("identities.json"))?;
         let mut generated = None;
         let mut sources = BTreeMap::new();
@@ -124,6 +204,10 @@ fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
             copy_tree(&seed.join(label), &source)?;
             let bound = inventory(&source, &[])?;
             let lock_hash = sha(&source.join("Cargo.lock"))?;
+            fs::copy(
+                source.join("Cargo.lock"),
+                c.output.join(format!("{label}-Cargo.lock")),
+            )?;
             let target = work.join(format!("{label}-build"));
             let revision = identities[label]
                 .as_str()
@@ -149,8 +233,10 @@ fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
                 inventory(&source, &[])? == bound,
                 "locked build changed archival inputs"
             );
-            let binary = target.join("release/study-peer");
-            let copied = c.output.join(format!("{label}-study-peer"));
+            let binary = target
+                .join("release")
+                .join(format!("study-peer{EXE_SUFFIX}"));
+            let copied = c.output.join(format!("{label}-study-peer{EXE_SUFFIX}"));
             fs::copy(&binary, &copied)?;
             let binary_hash = sha(&binary)?;
             ensure!(
@@ -169,6 +255,7 @@ fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
                     .create_new(true)
                     .open(&path)?
                     .write_all(fixture.as_bytes())?;
+                fs::copy(&path, c.output.join("generated-cli-upgrade.rs"))?;
                 c.evidence["fixture_sha256"] = json!(sha(&path)?);
                 generated = Some(path);
             }
@@ -177,9 +264,9 @@ fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
         let source = work.join("new");
         let target = work.join("new-build");
         for (var, output) in [
-            ("STUDY_OLD_BINARY", "old-study-peer"),
-            ("STUDY_NEW_BINARY", "new-study-peer"),
-            ("STUDY_UPGRADE_EVIDENCE", "proof"),
+            ("STUDY_OLD_BINARY", format!("old-study-peer{EXE_SUFFIX}")),
+            ("STUDY_NEW_BINARY", format!("new-study-peer{EXE_SUFFIX}")),
+            ("STUDY_UPGRADE_EVIDENCE", "proof".to_owned()),
         ] {
             c.env.insert(var.into(), path(c.output.join(output)));
         }
@@ -218,7 +305,7 @@ fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
         for (label, (bound, hash)) in sources {
             ensure!(
                 inventory(&work.join(label), &[])? == bound
-                    && sha(&c.output.join(format!("{label}-study-peer")))? == hash,
+                    && sha(&c.output.join(format!("{label}-study-peer{EXE_SUFFIX}")))? == hash,
                 "study sources or binary changed during execution"
             );
         }
@@ -262,8 +349,14 @@ fn verify_copy(result: &Path, source: &Value, fixture_hash: &str) -> Result<Stri
             "copied source differs from frozen seed"
         );
         ensure!(
-            observed["binary_sha256"] == sha(&result.join(format!("{label}-study-peer")))?,
+            observed["binary_sha256"]
+                == sha(&result.join(format!("{label}-study-peer{EXE_SUFFIX}")))?,
             "copied study binary differs"
+        );
+        let lock = json!(sha(&result.join(format!("{label}-Cargo.lock")))?);
+        ensure!(
+            observed["lock_sha256"] == lock && observed["files"]["Cargo.lock"] == lock,
+            "copied study lock differs"
         );
     }
     ensure!(
@@ -273,6 +366,7 @@ fn verify_copy(result: &Path, source: &Value, fixture_hash: &str) -> Result<Stri
     sha(&path)
 }
 
+#[cfg(unix)]
 fn docker(c: &mut Campaign<'_>, seed: &Path, image: &str) -> Result<()> {
     let image = c.command(
         cmd(["docker", "image", "inspect", "--format={{.Id}}", image]),
@@ -374,21 +468,37 @@ fn docker(c: &mut Campaign<'_>, seed: &Path, image: &str) -> Result<()> {
 }
 
 pub fn run(run: &Run, options: Options) -> Result<()> {
+    #[cfg(unix)]
     if let Some(seed) = options.worker {
         let seed = dunce::canonicalize(seed)?;
         return worker(run, &seed, &options.output);
     }
+    #[cfg(unix)]
     let output = assurance::fresh_output(&run.root, &options.output)?;
+    #[cfg(windows)]
+    let output = options.output;
     let mut c = Campaign::new(run, &output, "coordinated native StudyProgress CLI upgrade")?;
+    #[cfg(unix)]
     c.limits(8 * 1024 * 1024, None)?;
     c.evidence["verified"] = json!(false);
     c.save()?;
     let result = (|| -> Result<()> {
         let mut identities = BTreeMap::new();
         for (label, reference) in [("old", HISTORICAL), ("new", options.new.as_str())] {
-            let (revision, source, archive) =
-                assurance::archive_revision(&mut c, reference, Some(label))?;
-            c.evidence["sources"][label] = json!({"revision":revision,"archive_sha256":archive,"files":inventory(&source,&[])?});
+            let output = c.output.clone();
+            let (revision, source, archive) = source_archive::revision(
+                &output,
+                reference,
+                Some(label),
+                |args, name, timeout| c.command(args, name, None, timeout),
+            )?;
+            let lock_object = source_archive::lock_object(
+                &revision,
+                &source.join("Cargo.lock"),
+                label,
+                |args, name, timeout| c.command(args, name, None, timeout),
+            )?;
+            c.evidence["sources"][label] = json!({"revision":revision,"archive_sha256":archive,"lock_object":lock_object,"files":inventory(&source,&[])?});
             identities.insert(label, revision);
         }
         let seed = c.output.join("source");
@@ -402,13 +512,18 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         let fixture = generate(&seed.join("new"), &seed.join(FIXTURE))?;
         let hash = format!("{:x}", Sha256::digest(fixture.as_bytes()));
         let seed_hashes = inventory(&seed, &[])?;
-        if let Some(image) = options.docker_image {
-            docker(&mut c, &seed, &image)?;
-        } else {
+        let native = |c: &Campaign<'_>| {
             let work = c.output.join("work");
             worker(run, &seed, &work)?;
-            copy_tree(&work.join("result"), &c.output.join("result"))?;
-        }
+            copy_tree(&work.join("result"), &c.output.join("result"))
+        };
+        #[cfg(unix)]
+        match options.docker_image {
+            Some(image) => docker(&mut c, &seed, &image)?,
+            None => native(&c)?,
+        };
+        #[cfg(windows)]
+        native(&c)?;
         ensure!(
             inventory(&seed, &[])? == seed_hashes,
             "frozen study seed changed"
@@ -430,16 +545,17 @@ mod tests {
     fn fixture_requires_one_native_binary_seam_and_preserves_public_oracles() {
         let helper = include_str!("../../apps/study-peer/tests/credential_rotation.rs");
         let scenario = include_str!("../../tools/study-cli-upgrade-fixture.rs");
-        let generated = fixture(helper, scenario).unwrap();
+        let generated = fixture(helper, scenario, false).unwrap();
         assert!(generated.contains("Command::new(binary)"));
         assert!(!generated.contains("Command::new(BIN)"));
         assert!(generated.contains("STUDY_OLD_BINARY"));
         assert!(generated.contains("core(root, \"a\")"));
-        assert!(fixture("changed helper", scenario).is_err());
+        assert!(fixture("changed helper", scenario, false).is_err());
         assert!(
             fixture(
                 &helper.replace("Command::new(BIN)", "Command::new(OTHER)"),
-                scenario
+                scenario,
+                false
             )
             .is_err()
         );
@@ -452,17 +568,21 @@ mod tests {
         let mut sources = json!({});
         let mut worker = json!({"passed":true,"verified":true,"runtime_removed":true,"fixture_sha256":"fixture","sources":{}});
         for label in LABELS {
-            let binary = root.join(format!("{label}-study-peer"));
+            let binary = root.join(format!("{label}-study-peer{EXE_SUFFIX}"));
             fs::write(&binary, label.as_bytes()).unwrap();
-            sources[label] = json!({"revision":label,"files":{"Cargo.lock":"frozen"}});
+            let lock = root.join(format!("{label}-Cargo.lock"));
+            fs::write(&lock, b"frozen lock").unwrap();
+            let lock_hash = sha(&lock).unwrap();
+            sources[label] = json!({"revision":label,"files":{"Cargo.lock":lock_hash}});
             worker["sources"][label] = sources[label].clone();
             worker["sources"][label]["binary_sha256"] = json!(sha(&binary).unwrap());
+            worker["sources"][label]["lock_sha256"] = json!(lock_hash);
         }
         worker["artifacts"] = json!(inventory(root, &[]).unwrap());
         let evidence = root.join("evidence.json");
         fs::write(&evidence, worker.to_string()).unwrap();
         verify_copy(root, &sources, "fixture").unwrap();
-        let binary = root.join("old-study-peer");
+        let binary = root.join(format!("old-study-peer{EXE_SUFFIX}"));
         fs::write(&binary, b"changed").unwrap();
         assert!(
             verify_copy(root, &sources, "fixture")

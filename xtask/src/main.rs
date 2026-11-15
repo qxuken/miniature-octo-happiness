@@ -83,7 +83,7 @@ mod source_archive;
 mod sqlite_baseline;
 #[cfg(unix)]
 mod study_soak;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod study_upgrade;
 #[cfg(unix)]
 mod supervise;
@@ -129,7 +129,7 @@ enum Task {
     #[cfg(unix)]
     HelperControls(helper_controls::Options),
     /// Run the coordinated pre-ALPN StudyProgress upgrade qualification.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     StudyCliUpgrade(study_upgrade::Options),
     /// Execute the accelerated 30-day two-peer storage workload.
     #[cfg(unix)]
@@ -323,7 +323,7 @@ fn execute(cli: Cli) -> Result<()> {
         Task::StudyPeerSoak(options) => study_soak::run(&run, options),
         #[cfg(unix)]
         Task::HelperControls(options) => helper_controls::run(&run, options),
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         Task::StudyCliUpgrade(options) => study_upgrade::run(&run, options),
         #[cfg(unix)]
         Task::MonthlyWorkload(options) => monthly_workload::run(&run, options),

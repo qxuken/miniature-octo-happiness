@@ -91,6 +91,31 @@ jobs:
             !target/windows-snapshot-upgrade/source/**
             !target/windows-snapshot-upgrade/build/**
             !target/windows-snapshot-upgrade/**/key.der
+      - name: Verify the frozen StudyProgress CLI upgrade on NTFS
+        if: runner.os == 'Windows'
+        id: windows_study_upgrade
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $historical = 'fb80989d98bd977743168ee10418a434a67a0261'
+          $current = '365daf6c8a6b7c85fb049fb5a0370b401dde2424'
+          git fetch --no-tags --depth=1 origin $historical $current
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask study-cli-upgrade --new $current --output target/windows-study-upgrade
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows StudyProgress CLI upgrade evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-study-upgrade-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-study-upgrade/evidence.json
+            target/windows-study-upgrade/*.stdout
+            target/windows-study-upgrade/*.stderr
+            target/windows-study-upgrade/*.tar
+            target/windows-study-upgrade/work/result/**
+            !target/windows-study-upgrade/**/key.der
       - name: Qualify the private Windows package and relocation
         if: runner.os == 'Windows'
         run: cargo xtask package --output target/private-package --features crdt,replication
@@ -237,7 +262,7 @@ jobs:
             target/release/*.dll.lib
             include/weekend_db.h
       - name: Enforce the Windows fault and compatibility results
-        if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.windows_storage_wire.outcome == 'failure' || steps.windows_snapshot_upgrade.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
+        if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.windows_storage_wire.outcome == 'failure' || steps.windows_snapshot_upgrade.outcome == 'failure' || steps.windows_study_upgrade.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
         shell: pwsh
         run: exit 1
       - name: Enforce the macOS maintenance fault result

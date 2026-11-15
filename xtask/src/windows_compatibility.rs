@@ -1,7 +1,7 @@
 //! Native process adapter for the frozen compatibility oracles.
 use crate::{
     qualification_net::{loopback_address, ready_line},
-    support::{Run, cmd, sha},
+    support::{Run, cmd, path, sha},
     trace_process::{self, Request},
     windows_process,
 };
@@ -25,6 +25,7 @@ const INPUTS: &[&str] = &[
     "xtask/src/qualification_net.rs",
     "xtask/src/snapshot_proof.rs",
     "xtask/src/snapshot_upgrade.rs",
+    "xtask/src/study_upgrade.rs",
     "xtask/src/source_archive.rs",
     "xtask/src/support.rs",
     "xtask/src/trace_process.rs",
@@ -35,6 +36,7 @@ const INPUTS: &[&str] = &[
     "tools/compatibility-typed-v1.rs",
     "tools/compatibility-typed-v2.rs",
     "tools/snapshot-cli-upgrade-fixture.rs",
+    "tools/study-cli-upgrade-fixture.rs",
 ];
 
 struct Capture {
@@ -109,6 +111,45 @@ impl<'a> Campaign<'a> {
 
     pub fn save(&self) -> Result<()> {
         trace_process::write_proof(&self.output, &self.evidence)
+    }
+
+    pub fn restrict_directories(&mut self, directories: &[(&str, &Path)]) -> Result<()> {
+        let identity = self.command(
+            cmd(["whoami.exe", "/user", "/fo", "csv", "/nh"]),
+            "credential-owner",
+            None,
+            30.,
+        )?;
+        let sid = identity
+            .rsplit_once(',')
+            .context("Windows user SID missing")?
+            .1
+            .trim_matches('"');
+        let numbers = sid
+            .strip_prefix("S-1-")
+            .context("invalid Windows user SID")?;
+        ensure!(
+            numbers
+                .split('-')
+                .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit())),
+            "invalid Windows user SID"
+        );
+        let grant = format!("*{sid}:(OI)(CI)F");
+        for (label, directory) in directories {
+            self.command(
+                vec![
+                    "icacls.exe".into(),
+                    path(directory),
+                    "/inheritance:r".into(),
+                    "/grant:r".into(),
+                    grant.clone().into(),
+                ],
+                &format!("{label}-restrict-acl"),
+                None,
+                30.,
+            )?;
+        }
+        Ok(())
     }
 
     pub fn command(

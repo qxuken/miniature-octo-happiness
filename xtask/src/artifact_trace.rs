@@ -75,31 +75,8 @@ fn output_path(root: &Path, requested: &Path) -> Result<PathBuf> {
     }
     crate::notices::resolve(&output)
 }
+pub(crate) use crate::support::copy_qualification_tree as copy_tree;
 pub(crate) use crate::support::qualification_inventory as inventory;
-pub(crate) fn copy_tree(from: &Path, to: &Path) -> Result<()> {
-    // Validate every input before creating any destination, then verify the copy.
-    let before = inventory(from, &[])?;
-    fn copy(from: &Path, to: &Path) -> Result<()> {
-        fs::create_dir(to)?;
-        for e in fs::read_dir(from)? {
-            let e = e?;
-            let meta = fs::symlink_metadata(e.path())?;
-            if meta.is_dir() {
-                copy(&e.path(), &to.join(e.file_name()))?;
-            } else {
-                ensure!(meta.is_file(), "nonregular trace copy input");
-                fs::copy(e.path(), to.join(e.file_name()))?;
-            }
-        }
-        Ok(())
-    }
-    copy(from, to)?;
-    ensure!(
-        before == inventory(from, &[])? && before == inventory(to, &[])?,
-        "trace copy changed inputs"
-    );
-    Ok(())
-}
 fn write_json(file: &Path, value: &impl serde::Serialize) -> Result<()> {
     let mut bytes = serde_json::to_vec_pretty(value)?;
     bytes.push(b'\n');

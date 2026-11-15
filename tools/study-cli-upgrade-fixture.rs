@@ -1,5 +1,5 @@
 // Appended to the frozen credential fixture's process/relay/public-state helpers.
-// Only Peer::start gains an explicit executable argument; transport stays in the CLIs.
+// Peer::start gains an explicit executable argument; transport stays in the CLIs.
 #[test]
 fn coordinated_cli_alpn_upgrade() {
     let old_binary = std::env::var("STUDY_OLD_BINARY").unwrap();
@@ -7,7 +7,10 @@ fn coordinated_cli_alpn_upgrade() {
     let private = Private::new();
     let root = &private.0;
     let logs = PathBuf::from(std::env::var_os("STUDY_UPGRADE_EVIDENCE").unwrap());
+    #[cfg(unix)]
     fs::DirBuilder::new().mode(0o700).create(&logs).unwrap();
+    #[cfg(windows)]
+    fs::create_dir(&logs).unwrap();
     let log = Arc::new(Mutex::new(File::create(logs.join("events.log")).unwrap()));
     for actor in ["a", "b"] {
         once(

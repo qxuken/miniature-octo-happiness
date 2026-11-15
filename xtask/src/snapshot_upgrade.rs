@@ -208,45 +208,16 @@ struct Scenario<'a> {
 impl Scenario<'_> {
     #[cfg(windows)]
     fn prepare_credentials(&self, c: &mut Campaign<'_>) -> Result<()> {
-        let identity = c.command(
-            cmd(["whoami.exe", "/user", "/fo", "csv", "/nh"]),
-            "credential-owner",
-            None,
-            30.,
-        )?;
-        let sid = identity
-            .rsplit_once(',')
-            .context("Windows user SID missing")?
-            .1
-            .trim_matches('"');
-        let numbers = sid
-            .strip_prefix("S-1-")
-            .context("invalid Windows user SID")?;
-        ensure!(
-            numbers
-                .split('-')
-                .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit())),
-            "invalid Windows user SID"
-        );
-        let grant = format!("*{sid}:(OI)(CI)F");
-        for (name, dir) in [
-            ("client", &self.client),
-            ("server", &self.server),
-            ("wrong", &self.wrong),
-        ] {
-            fs::create_dir(dir)?;
-            c.command(
-                vec![
-                    "icacls.exe".into(),
-                    path(dir),
-                    "/inheritance:r".into(),
-                    "/grant:r".into(),
-                    grant.clone().into(),
-                ],
-                &format!("{name}-restrict-acl"),
-                None,
-                30.,
-            )?;
+        let directories = [
+            ("client", self.client.as_path()),
+            ("server", self.server.as_path()),
+            ("wrong", self.wrong.as_path()),
+        ];
+        for (_, directory) in directories {
+            fs::create_dir(directory)?;
+        }
+        c.restrict_directories(&directories)?;
+        for (name, dir) in directories {
             self.client_call(
                 c,
                 vec![path(&self.endpoints[0].fixture), "keygen".into(), path(dir)],
