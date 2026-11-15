@@ -1,15 +1,53 @@
-//! Qualify near-cap copies on an owned NTFS volume using the compound fixture.
+//! Qualify near-cap copies on an owned native volume using the compound fixture.
 
 use crate::resource_oracle as oracle;
 use anyhow::{Result, ensure};
 use serde_json::{Value, json};
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const SOURCE_BYTES: u64 = 66_154_496;
 const COPY_BYTES: u64 = 63_074_304;
 const OPERATIONS: [&str; 3] = ["backup", "restore", "compact"];
 
-fn verify_phase(rows: &[Value], source: &str, mode: &str, label: &str, pid: u32) -> Result<()> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Profile {
+    #[cfg(any(windows, test))]
+    Ntfs,
+    #[cfg(any(target_os = "macos", test))]
+    Apfs,
+}
+
+impl Profile {
+    const fn errno(self) -> i32 {
+        match self {
+            #[cfg(any(windows, test))]
+            Self::Ntfs => 112,
+            #[cfg(any(target_os = "macos", test))]
+            Self::Apfs => 28,
+        }
+    }
+
+    fn replaces_source(self, operation: &str) -> bool {
+        match self {
+            #[cfg(any(windows, test))]
+            Self::Ntfs => {
+                let _ = operation;
+                false
+            }
+            #[cfg(any(target_os = "macos", test))]
+            Self::Apfs => operation == "compact",
+        }
+    }
+}
+
+fn verify_phase(
+    rows: &[Value],
+    source: &str,
+    mode: &str,
+    label: &str,
+    pid: u32,
+    profile: Profile,
+) -> Result<()> {
     ensure!(
         rows.len() == 2 && rows[1] == oracle::completion(mode, source),
         "incomplete/wrong fixture identity"
@@ -41,33 +79,33 @@ fn verify_phase(rows: &[Value], source: &str, mode: &str, label: &str, pid: u32)
                 (oracle::MIB..COPY_BYTES).contains(&partial),
                 "partial copy length"
             );
-            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":"DiskFull","raw":112,
+            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":"DiskFull","raw":profile.errno(),
                 "native_operation":"Write","partial_bytes":partial,"source_unchanged":true,"backup_unchanged":true})
         }
         "space-retry" => {
             json!({"stage":"retry","operation":label,"pid":pid,"partial_rejected":true,
-            "existing_rejected":true,"partial_preserved":true,"matches_backup":true})
+            "existing_rejected":!profile.replaces_source(label),"partial_preserved":true,"matches_backup":true})
         }
         "space-retire" => {
             json!({"stage":"retire","operation":label,"pid":pid,"owned_outputs_removed":true})
         }
-        _ => anyhow::bail!("unknown NTFS maintenance phase"),
+        _ => anyhow::bail!("unknown maintenance phase"),
     };
-    ensure!(
-        *row == expected,
-        "wrong NTFS {mode} observation for {label}"
-    );
+    ensure!(*row == expected, "wrong {mode} observation for {label}");
     Ok(())
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod native {
     use super::*;
+    #[cfg(target_os = "macos")]
+    use crate::macos_volume;
+    #[cfg(windows)]
+    use crate::windows_volume::{self, Capacity};
     use crate::{
         delivery,
         support::{Run, path, sha},
-        windows_trace::{admission, call, write_proof},
-        windows_volume::{self, CLUSTER, Capacity},
+        trace_process::{admission, call, write_proof},
     };
     use anyhow::Context;
     use clap::Args;
@@ -79,8 +117,34 @@ mod native {
         path::{Path, PathBuf},
     };
 
-    const CAPACITY: Capacity = Capacity::Maintenance;
+    #[cfg(windows)]
+    const PROFILE: Profile = Profile::Ntfs;
+    #[cfg(target_os = "macos")]
+    const PROFILE: Profile = Profile::Apfs;
+    const CLUSTER: u64 = 4096;
     const HEADROOM: u64 = 8 * oracle::MIB;
+
+    fn free_space(data: &Path) -> Result<u64> {
+        #[cfg(windows)]
+        {
+            windows_volume::space(data, Capacity::Maintenance)
+        }
+        #[cfg(target_os = "macos")]
+        {
+            macos_volume::space(data)
+        }
+    }
+
+    fn full(space: u64) -> bool {
+        #[cfg(windows)]
+        {
+            space == 0
+        }
+        #[cfg(target_os = "macos")]
+        {
+            space < HEADROOM
+        }
+    }
 
     #[derive(Args)]
     pub struct Options {
@@ -151,7 +215,7 @@ mod native {
             }
             let (stdout, pid) = self.command(proof, args, &format!("{mode}-{label}"), false)?;
             let rows = rows(&stdout)?;
-            verify_phase(&rows, self.source, mode, label, pid)?;
+            verify_phase(&rows, self.source, mode, label, pid, PROFILE)?;
             let result = json!({"mode":mode,"label":label,"pid":pid,"observation":rows[0]});
             proof["maintenance_records"]
                 .as_array_mut()
@@ -169,13 +233,14 @@ mod native {
             .collect()
     }
 
-    fn bounded_fill(dir: &Path, ballast: &Path, new: bool) -> Result<u64> {
-        let free = windows_volume::space(dir, CAPACITY)?;
+    fn bounded_fill(dir: &Path, ballast: &Path, new: bool) -> Result<(u64, u64)> {
+        let free = free_space(dir)?;
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(new)
             .open(ballast)?;
-        let mut filled = file.seek(SeekFrom::End(0))?;
+        let previous = file.seek(SeekFrom::End(0))?;
+        let mut filled = previous;
         // Bound both the expected capacity and the individual requests, including
         // the last rejected request. Only extend the controller's own ballast.
         let block = [0x5a; 65536];
@@ -187,7 +252,7 @@ mod native {
             );
             match file.write(&block[..request]) {
                 Ok(n) if n > 0 => filled += n as u64,
-                Err(e) if e.raw_os_error() == Some(112) => {
+                Err(e) if e.raw_os_error() == Some(PROFILE.errno()) => {
                     if request == CLUSTER as usize {
                         break;
                     }
@@ -198,11 +263,76 @@ mod native {
         }
         file.sync_all()?;
         drop(file);
+        let available = free_space(dir)?;
         ensure!(
-            windows_volume::space(dir, CAPACITY)? == 0 && filled > free.saturating_sub(oracle::MIB),
-            "actual full private NTFS required"
+            full(available)
+                && (filled - previous).abs_diff(free.saturating_sub(available)) < oracle::MIB,
+            "bounded kernel exhaustion required: free before {free}, free after {available}, bytes written {}",
+            filled - previous
         );
-        Ok(filled)
+        Ok((filled, available))
+    }
+
+    fn headroom(data: &Path, ballast: &Path) -> Result<(u64, u64, u64)> {
+        #[cfg(target_os = "macos")]
+        let reserve = data.join("copy-reserve");
+        #[cfg(target_os = "macos")]
+        {
+            let mut file = OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&reserve)?;
+            for _ in 0..HEADROOM / (64 * 1024) {
+                file.write_all(&[0x4b; 64 * 1024])?;
+            }
+            file.sync_all()?;
+        }
+        let (filled, saturated) = bounded_fill(data, ballast, true)?;
+        #[cfg(windows)]
+        {
+            let file = OpenOptions::new().write(true).open(ballast)?;
+            file.set_len(
+                filled
+                    .checked_sub(HEADROOM)
+                    .context("insufficient ballast")?,
+            )?;
+            file.sync_all()?;
+        }
+        #[cfg(target_os = "macos")]
+        fs::remove_file(reserve)?;
+        let available = free_space(data)?;
+        #[cfg(windows)]
+        ensure!(
+            available == HEADROOM,
+            "exact 8 MiB of copy headroom required"
+        );
+        #[cfg(target_os = "macos")]
+        ensure!(
+            available.saturating_sub(saturated).abs_diff(HEADROOM) < oracle::MIB,
+            "APFS reserve release produced unexpected headroom"
+        );
+        Ok((filled, saturated, available))
+    }
+
+    fn partial_path(data: &Path, operation: &str) -> Result<PathBuf> {
+        if !PROFILE.replaces_source(operation) {
+            return Ok(data.join(format!("failed-{operation}.wdb")));
+        }
+        let mut partial = None;
+        for entry in fs::read_dir(data)? {
+            let entry = entry?;
+            if entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".wdb-compact-")
+            {
+                ensure!(
+                    partial.replace(entry.path()).is_none(),
+                    "duplicate compaction scratch"
+                );
+            }
+        }
+        partial.context("in-place compaction scratch missing")
     }
 
     fn verified_copy(source: &Path, target: &Path, length: u64) -> Result<String> {
@@ -225,7 +355,7 @@ mod native {
     ) -> Result<()> {
         let source = data.join("source.wdb");
         let backup = data.join("backup.wdb");
-        let source_hash = verified_copy(&seed.join("source.wdb"), &source, SOURCE_BYTES)?;
+        let mut source_hash = verified_copy(&seed.join("source.wdb"), &source, SOURCE_BYTES)?;
         let backup_hash = verified_copy(&seed.join("backup.wdb"), &backup, COPY_BYTES)?;
         proof["installed_seed"] = json!({"source_sha256":source_hash,"source_bytes":SOURCE_BYTES,
             "backup_sha256":backup_hash,"backup_bytes":COPY_BYTES});
@@ -253,30 +383,17 @@ mod native {
 
         let ballast = data.join("ballast");
         for op in OPERATIONS {
-            let filled = bounded_fill(data, &ballast, true)?;
-            {
-                let file = OpenOptions::new().write(true).open(&ballast)?;
-                file.set_len(
-                    filled
-                        .checked_sub(HEADROOM)
-                        .context("insufficient ballast")?,
-                )?;
-                file.sync_all()?;
-            }
-            ensure!(
-                windows_volume::space(data, CAPACITY)? == HEADROOM,
-                "exact 8 MiB of copy headroom required"
-            );
+            let (filled, saturated, available) = headroom(data, &ballast)?;
             let failure = fixture.phase(proof, data, &source, "space-fail", op)?;
             ensure!(
                 sha(&source)? == source_hash && sha(&backup)? == backup_hash,
                 "failed operation modified a good image"
             );
-            let partial = data.join(format!("failed-{op}.wdb"));
+            let partial = partial_path(data, op)?;
             let partial_hash = sha(&partial)?;
-            let remaining = windows_volume::space(data, CAPACITY)?;
-            ensure!(remaining < HEADROOM, "failed operation consumed no space");
-            bounded_fill(data, &ballast, false)?;
+            let remaining = free_space(data)?;
+            ensure!(remaining < available, "failed operation consumed no space");
+            let (before_ballast, before_reopen) = bounded_fill(data, &ballast, false)?;
             let full_source = fixture.phase(
                 proof,
                 data,
@@ -291,12 +408,18 @@ mod native {
                 "space-check",
                 &format!("full-backup-{op}"),
             )?;
-            ensure!(
-                windows_volume::space(data, CAPACITY)? == 0,
-                "fresh opens freed private space"
-            );
+            let after_reopen = free_space(data)?;
+            ensure!(full(after_reopen), "fresh opens freed private space");
+            #[cfg(target_os = "macos")]
+            {
+                let (after_ballast, _) = bounded_fill(data, &ballast, false)?;
+                ensure!(
+                    before_ballast == after_ballast,
+                    "fresh opens made additional space writable"
+                );
+            }
             fs::remove_file(&ballast)?;
-            let freed = windows_volume::space(data, CAPACITY)?;
+            let freed = free_space(data)?;
             ensure!(
                 freed >= COPY_BYTES,
                 "ballast removal did not restore copy headroom"
@@ -312,7 +435,12 @@ mod native {
             }
             fs::remove_file(control)?;
             let retry = fixture.phase(proof, data, &source, "space-retry", op)?;
-            let retried = data.join(format!("retry-{op}.wdb"));
+            let retried = if PROFILE.replaces_source(op) {
+                source_hash = backup_hash.clone();
+                source.clone()
+            } else {
+                data.join(format!("retry-{op}.wdb"))
+            };
             ensure!(
                 sha(&retried)? == backup_hash
                     && sha(&backup)? == backup_hash
@@ -329,7 +457,8 @@ mod native {
             )?;
             fixture.phase(proof, data, &source, "space-retire", op)?;
             proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":op,"initial_ballast_bytes":filled,
-                "copy_headroom":HEADROOM,"free_after_copy":remaining,"free_at_fresh_opens":0,"free_after_removal":freed,
+                "free_at_calibration":saturated,"copy_headroom":available,"free_after_copy":remaining,"free_at_fresh_opens":before_reopen,
+                "free_after_fresh_opens":after_reopen,"ballast_at_reopen_bytes":before_ballast,"free_after_removal":freed,
                 "failure":failure,"full_source":full_source,"full_backup":full_backup,"retry":retry,"partial_sha256":partial_hash}));
             write_proof(fixture.output, proof)?;
         }
@@ -369,8 +498,9 @@ mod native {
         fs::create_dir(&output)?;
         let runs = output.join("runs");
         fs::create_dir(&runs)?;
-        let copy = output.join("fixture.exe");
+        let copy = output.join(format!("fixture{}", std::env::consts::EXE_SUFFIX));
         verified_copy(&binary, &copy, fs::metadata(&binary)?.len())?;
+        #[cfg(windows)]
         let env: BTreeMap<_, _> = run
             .env
             .iter()
@@ -382,6 +512,8 @@ mod native {
             })
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
+        #[cfg(target_os = "macos")]
+        let env = BTreeMap::from([("PATH".into(), "/usr/bin:/bin:/usr/sbin:/sbin".into())]);
         let mut fixture = Fixture {
             binary: &copy,
             output: &output,
@@ -390,11 +522,24 @@ mod native {
             env: env.clone(),
             processes: BTreeSet::new(),
         };
+        let (mode, scope) = match PROFILE {
+            #[cfg(any(windows, test))]
+            Profile::Ntfs => (
+                "ntfs-enospc",
+                "near-cap copy exhaustion on private fixed NTFS",
+            ),
+            #[cfg(any(target_os = "macos", test))]
+            Profile::Apfs => (
+                "enospc",
+                "near-cap copy exhaustion on private APFS disk image",
+            ),
+        };
         fixture
             .env
-            .insert("WEEKEND_PRIVATE_MAINTENANCE".into(), "ntfs-enospc".into());
-        let mut proof = json!({"verified":false,"scope":"near-cap copy exhaustion on private fixed NTFS",
-            "source_id":opts.source,"fixture_sha256":original_hash,"commands":[],"maintenance_records":[],"maintenance_cases":[]});
+            .insert("WEEKEND_PRIVATE_MAINTENANCE".into(), mode.into());
+        let mut proof = json!({"verified":false,"scope":scope,
+            "source_id":opts.source,"fixture_sha256":original_hash,"runner_sha256":sha(&std::env::current_exe()?)?,
+            "commands":[],"maintenance_records":[],"maintenance_cases":[]});
         let seed = output.join("seed");
         let result = (|| -> Result<()> {
             let fixture_sources = run.root.join("tools/resource-envelope");
@@ -408,13 +553,29 @@ mod native {
             .map(|name| Ok((name, sha(&fixture_sources.join(name))?)))
             .collect::<Result<BTreeMap<_, _>>>()?;
             proof["fixture_inputs_sha256"] = json!(inputs);
-            proof["host_volume"] = crate::windows_process::volume(&output)?;
+            #[cfg(windows)]
+            {
+                proof["host_volume"] = crate::windows_process::volume(&output)?;
+            }
+            #[cfg(target_os = "macos")]
+            {
+                proof["host_volume"] = macos_volume::host_volume(&output)?;
+            }
             let (stdout, pid) =
                 fixture.command(&mut proof, vec![path(&seed)], "near-cap-seed", false)?;
             let rows = rows(&stdout)?;
             oracle::compound(&rows, "native", &opts.source)?;
             proof["seed"] = json!({"pid":pid,"rows":rows});
-            windows_volume::with_volume(&mut proof, &output, &env, CAPACITY, |proof, data| {
+            #[cfg(windows)]
+            windows_volume::with_volume(
+                &mut proof,
+                &output,
+                &env,
+                Capacity::Maintenance,
+                |proof, data| qualify(&mut fixture, proof, &seed, data),
+            )?;
+            #[cfg(target_os = "macos")]
+            macos_volume::with_volume(&mut proof, &output, &env, |proof, data| {
                 qualify(&mut fixture, proof, &seed, data)
             })?;
             ensure!(
@@ -459,7 +620,7 @@ mod native {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use native::{Options, run};
 
 #[cfg(test)]
@@ -474,7 +635,7 @@ mod tests {
             "raw":112,"native_operation":"Write","partial_bytes":8*oracle::MIB,"source_unchanged":true,"backup_unchanged":true}),
             oracle::completion("space-fail", source),
         ];
-        assert!(verify_phase(&failure, source, "space-fail", "compact", 10).is_ok());
+        assert!(verify_phase(&failure, source, "space-fail", "compact", 10, Profile::Ntfs).is_ok());
         for (field, wrong) in [
             ("raw", json!(28)),
             ("native_operation", json!("Open")),
@@ -482,7 +643,9 @@ mod tests {
             ("pid", json!(11)),
         ] {
             let original = std::mem::replace(&mut failure[0][field], wrong);
-            assert!(verify_phase(&failure, source, "space-fail", "compact", 10).is_err());
+            assert!(
+                verify_phase(&failure, source, "space-fail", "compact", 10, Profile::Ntfs).is_err()
+            );
             failure[0][field] = original;
         }
         let mut retry = [
@@ -490,8 +653,10 @@ mod tests {
             "existing_rejected":true,"partial_preserved":true,"matches_backup":true}),
             oracle::completion("space-retry", source),
         ];
-        assert!(verify_phase(&retry, source, "space-retry", "compact", 12).is_ok());
+        assert!(verify_phase(&retry, source, "space-retry", "compact", 12, Profile::Ntfs).is_ok());
+        assert!(verify_phase(&retry, source, "space-retry", "compact", 12, Profile::Apfs).is_err());
         retry[0]["existing_rejected"] = json!(false);
-        assert!(verify_phase(&retry, source, "space-retry", "compact", 12).is_err());
+        assert!(verify_phase(&retry, source, "space-retry", "compact", 12, Profile::Ntfs).is_err());
+        assert!(verify_phase(&retry, source, "space-retry", "compact", 12, Profile::Apfs).is_ok());
     }
 }

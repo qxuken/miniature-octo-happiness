@@ -147,6 +147,46 @@ pub fn execute(
     );
     Ok(report)
 }
+
+pub fn admission(root: &Path, output: &Path) -> Result<std::path::PathBuf> {
+    let output = root.join(output);
+    match fs::symlink_metadata(&output) {
+        Ok(_) => anyhow::bail!("output already exists"),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+        Err(e) => return Err(e.into()),
+    }
+    crate::notices::resolve(&output)
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+pub fn write_proof(root: &Path, proof: &Value) -> Result<()> {
+    let mut bytes = serde_json::to_vec_pretty(proof)?;
+    bytes.push(b'\n');
+    fs::write(root.join("evidence.json"), bytes)?;
+    Ok(())
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+pub fn call(
+    proof: &mut Value,
+    output: &Path,
+    argv: Vec<OsString>,
+    cwd: &Path,
+    label: &str,
+    env: &BTreeMap<OsString, OsString>,
+    any_exit: bool,
+) -> Result<Report> {
+    let result = execute(
+        argv,
+        cwd,
+        label,
+        env,
+        proof["commands"].as_array_mut().unwrap(),
+        any_exit,
+    );
+    write_proof(output, proof)?;
+    result
+}
 #[cfg(test)]
 mod tests {
     use super::*;

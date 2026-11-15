@@ -50,7 +50,8 @@ mod native {
     use crate::{
         delivery,
         support::{path, sha},
-        windows_trace::{attestation, call, compiler_command},
+        trace_process::call,
+        windows_trace::{attestation, compiler_command},
         windows_volume,
     };
     use anyhow::{Context, Result, ensure};

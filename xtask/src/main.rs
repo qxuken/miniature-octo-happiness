@@ -32,6 +32,10 @@ mod helper_controls;
 mod instrumentation;
 #[cfg(unix)]
 mod interactive;
+#[cfg(target_os = "macos")]
+mod macos_volume;
+#[cfg(any(target_os = "macos", windows, test))]
+mod maintenance_space;
 mod migration;
 #[cfg(unix)]
 mod monthly_workload;
@@ -78,10 +82,8 @@ mod supervise;
 mod support;
 mod toolchain;
 mod trace_model;
-#[cfg(any(windows, test))]
+#[cfg(any(target_os = "macos", windows, test))]
 mod trace_process;
-#[cfg(any(windows, test))]
-mod windows_maintenance;
 #[cfg(windows)]
 mod windows_process;
 #[cfg(any(windows, test))]
@@ -170,7 +172,10 @@ enum Task {
     WindowsDiskFull(windows_trace::Options),
     /// Verify near-cap backup, restore and compact-copy exhaustion on NTFS.
     #[cfg(windows)]
-    WindowsMaintenanceSpace(windows_maintenance::Options),
+    WindowsMaintenanceSpace(maintenance_space::Options),
+    /// Verify near-cap backup, restore and in-place compaction exhaustion on APFS.
+    #[cfg(target_os = "macos")]
+    MacosMaintenanceSpace(maintenance_space::Options),
     /// Compare delivered Rust/C/Odin consumers with the independent operation model.
     #[cfg(unix)]
     ArtifactTrace(artifact_trace::Options),
@@ -359,7 +364,9 @@ fn execute(cli: Cli) -> Result<()> {
         #[cfg(windows)]
         Task::WindowsDiskFull(options) => windows_trace::run_disk_full(&mut run, options),
         #[cfg(windows)]
-        Task::WindowsMaintenanceSpace(options) => windows_maintenance::run(&run, options),
+        Task::WindowsMaintenanceSpace(options) => maintenance_space::run(&run, options),
+        #[cfg(target_os = "macos")]
+        Task::MacosMaintenanceSpace(options) => maintenance_space::run(&run, options),
         #[cfg(unix)]
         Task::Faults { task } => faults::run(&run, task),
         #[cfg(unix)]

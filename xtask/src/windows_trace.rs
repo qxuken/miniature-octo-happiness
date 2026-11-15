@@ -2,10 +2,13 @@
 #[path = "windows_faults.rs"]
 mod faults;
 
+#[cfg(windows)]
+use crate::trace_process::{call, write_proof};
 use crate::{
     delivery,
     support::{path, sha, text},
     trace_model::{self, Trace},
+    trace_process::admission,
 };
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
@@ -610,19 +613,6 @@ pub struct Options {
     #[arg(long)]
     pub output: std::path::PathBuf,
 }
-pub(super) fn admission(root: &Path, output: &Path) -> Result<std::path::PathBuf> {
-    let output = if output.is_absolute() {
-        output.to_owned()
-    } else {
-        root.join(output)
-    };
-    match fs::symlink_metadata(&output) {
-        Ok(_) => anyhow::bail!("output already exists"),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-        Err(e) => return Err(e.into()),
-    }
-    crate::notices::resolve(&output)
-}
 pub fn run(run: &mut crate::support::Run, opts: Options) -> Result<()> {
     qualify(run, opts, Campaign::State)
 }
@@ -680,34 +670,6 @@ fn qualify(run: &mut crate::support::Run, opts: Options, campaign: Campaign) -> 
             campaign,
         )
     }
-}
-#[cfg(windows)]
-pub(super) fn write_proof(root: &Path, proof: &Value) -> Result<()> {
-    let mut bytes = serde_json::to_vec_pretty(proof)?;
-    bytes.push(b'\n');
-    fs::write(root.join("evidence.json"), bytes)?;
-    Ok(())
-}
-#[cfg(windows)]
-pub(super) fn call(
-    proof: &mut Value,
-    output: &Path,
-    argv: Vec<OsString>,
-    cwd: &Path,
-    label: &str,
-    env: &BTreeMap<OsString, OsString>,
-    any_exit: bool,
-) -> Result<crate::trace_process::Report> {
-    let result = crate::trace_process::execute(
-        argv,
-        cwd,
-        label,
-        env,
-        proof["commands"].as_array_mut().unwrap(),
-        any_exit,
-    );
-    write_proof(output, proof)?;
-    result
 }
 #[cfg(windows)]
 fn inputs(root: &Path) -> Result<BTreeMap<String, String>> {

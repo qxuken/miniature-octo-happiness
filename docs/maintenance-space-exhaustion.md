@@ -244,6 +244,32 @@ The test-owned container and volume were absent after execution.
 | Docker Linux controller | `5c029ee6b0e876d3838993b5251c18c2304bcc6ac0a4bc1fed147957edbd4ef8` |
 | Docker Linux worker | `391102346d55d2c2f7ca64576b3ec892f3f853032f1a3418cfdd161b52c493ec` |
 
+## Native macOS near-cap copy profile
+
+Use the same compound fixture and an APFS backing volume. The controller owns
+a fixed 256 MiB writable APFS disk image and verifies the image path, physical
+disk and mounted volume before writing. It uses an 8 MiB reserve file to make
+room for the partial copy. APFS can reject a 4 KiB write with `ENOSPC` while
+still reporting available bytes. The test repeats that real write check and
+records the filesystem counter before and after each fresh reopen.
+[Creating a blank APFS disk image](https://support.apple.com/en-ca/guide/disk-utility/dskutl11888/mac)
+
+```sh
+source_id=$(git rev-parse HEAD)
+WEEKEND_DB_SOURCE_ID="$source_id" cargo build --offline --locked --release \
+  --manifest-path tools/resource-envelope/Cargo.toml --features compound \
+  --bin weekend-compound-resource --target-dir target/maintenance-mac-build
+cargo xtask macos-maintenance-space \
+  --fixture target/maintenance-mac-build/release/weekend-compound-resource \
+  --source "$source_id" --output target/macos-maintenance-space
+```
+
+Backup and restore retry at new names. In-place compaction retries with its
+earlier partial scratch still present and verifies that the canonical file
+equals the good backup. Cleanup detaches only the test image and verifies
+its absence before removing the backing file. The macOS job archives the
+same fixture and phase reports as the Windows gate.
+
 ## Injected namespace and sync errors
 
 The `namespace-failures` resource profile runs the production

@@ -1,5 +1,5 @@
 //! Own a small fixed VHD for exercising actual NTFS exhaustion.
-use crate::{support::path, windows_trace::call};
+use crate::{support::path, trace_process::call};
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::{

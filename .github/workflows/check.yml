@@ -74,6 +74,22 @@ jobs:
           name: weekend-db-windows-maintenance-space-${{ runner.arch }}
           if-no-files-found: warn
           path: target/windows-maintenance-space/
+      - name: Verify near-cap macOS backup, restore and compaction exhaustion
+        if: runner.os == 'macOS'
+        id: macos_maintenance_space
+        continue-on-error: true
+        env:
+          WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+        run: |
+          cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-mac-build
+          cargo xtask macos-maintenance-space --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-maintenance-space
+      - name: Save macOS maintenance exhaustion evidence
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-macos-maintenance-space-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/macos-maintenance-space/
       - name: Release configuration validation
         run: |
           cargo test --offline --locked -p xtask --bin xtask
@@ -123,6 +139,9 @@ jobs:
       - name: Enforce the Windows publication and maintenance fault results
         if: always() && runner.os == 'Windows' && (steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
         shell: pwsh
+        run: exit 1
+      - name: Enforce the macOS maintenance fault result
+        if: always() && runner.os == 'macOS' && steps.macos_maintenance_space.outcome == 'failure'
         run: exit 1
   helper-controls:
     name: POSIX qualification helper controls
