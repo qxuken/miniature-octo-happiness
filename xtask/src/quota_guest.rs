@@ -23,6 +23,7 @@ pub enum Mode {
     Fill,
     InodeFill,
     InodeExhaust,
+    FillInodeBallast,
     InodeRelease,
     Remove,
     WriteControl,
@@ -36,6 +37,7 @@ impl Mode {
             Self::Fill => "fill",
             Self::InodeFill => "inode-fill",
             Self::InodeExhaust => "inode-exhaust",
+            Self::FillInodeBallast => "fill-inode-ballast",
             Self::InodeRelease => "inode-release",
             Self::Remove => "remove",
             Self::WriteControl => "write-control",
@@ -224,6 +226,31 @@ pub fn run(opts: Options) -> Result<()> {
             row["created"] = json!(created);
             row["errno"] = json!(err.raw_os_error());
             row["fsynced_bytes"] = json!(bytes.len());
+            row["global_free_inodes"] = json!(statvfs(data)?.f_ffree);
+        }
+        Mode::FillInodeBallast => {
+            let dir = inode_ballast(data, opts.uid)?;
+            let mut file = OpenOptions::new()
+                .append(true)
+                .custom_flags(libc::O_NOFOLLOW)
+                .open(dir.join("slot"))?;
+            let info = file.metadata()?;
+            ensure!(
+                info.is_file()
+                    && info.uid() == opts.uid
+                    && info.len() == 4096
+                    && statvfs(data)?.f_ffree == 0,
+                "owned inode ballast and a full inode table required"
+            );
+            let (written, errno) = fill(&mut file, opts.ceiling)?;
+            let create_errno = match output(&dir.join("calibration-inode")) {
+                Err(err) => err.raw_os_error(),
+                Ok(_) => anyhow::bail!("exclusive create unexpectedly succeeded"),
+            };
+            row["errno"] = json!(errno);
+            row["create_errno"] = json!(create_errno);
+            row["written"] = json!(written);
+            row["ceiling"] = json!(opts.ceiling);
             row["global_free_inodes"] = json!(statvfs(data)?.f_ffree);
         }
         Mode::InodeRelease => {

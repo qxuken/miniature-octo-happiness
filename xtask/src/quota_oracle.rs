@@ -138,6 +138,16 @@ pub fn verify_probe(row: &Value, uid: u32, mode: &str, ceiling: u64, space: Spac
                 && (1..=MAX_CALIBRATION_INODES).contains(&number(row, "created")?),
             "bounded global inode exhaustion with data headroom required"
         ),
+        "fill-inode-ballast" => ensure!(
+            space == Space::Enospc
+                && row["available_bytes"] == 0
+                && row["global_free_inodes"] == 0
+                && row["errno"] == 28
+                && row["create_errno"] == 28
+                && row["ceiling"] == ceiling
+                && (16 * MIB..=ceiling).contains(&number(row, "written")?),
+            "publication requires real block and inode ENOSPC with no user headroom"
+        ),
         "inode-release" => ensure!(
             space == Space::InodeEnospc
                 && row["removed"] == true
@@ -203,6 +213,9 @@ pub fn maintenance<'a>(
         "journal barrier requires in-place compaction"
     );
     let expected = match mode {
+        "space-publish" if space == Space::InodeEnospc && label == "compact" => {
+            json!({"stage":"publish","operation":label,"pid":pid,"before_bytes":66_154_496,"after_bytes":63_074_304,"matches_backup":true,"scratch_removed":true})
+        }
         "space-fail" if space.fails_at_create() => {
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
         }
@@ -698,6 +711,37 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn namespace_exhaustion_requires_both_kernel_errors_and_zero_user_headroom() {
+        let full = json!({"mode":"fill-inode-ballast","pid":42,"identity":identity(UID),"global_free_bytes":8*MIB,"available_bytes":0,"global_free_inodes":0,"errno":28,"create_errno":28,"written":128*MIB,"ceiling":CEILING});
+        let verify =
+            |row: &Value| verify_probe(row, UID, "fill-inode-ballast", CEILING, Space::Enospc);
+        verify(&full).unwrap();
+        for (key, value) in [
+            ("available_bytes", json!(4096)),
+            ("global_free_inodes", json!(1)),
+            ("errno", json!(122)),
+            ("create_errno", json!(null)),
+        ] {
+            assert!(verify(&mutate(&full, key, value)).is_err(), "{key}");
+        }
+        let row = json!({"stage":"publish","operation":"compact","pid":42,"before_bytes":66_154_496,"after_bytes":63_074_304,"matches_backup":true,"scratch_removed":true});
+        let done = resource_oracle::completion("space-publish", SOURCE);
+        let publish = |row: Value| {
+            maintenance(
+                &[row, done.clone()],
+                "space-publish",
+                "compact",
+                SOURCE,
+                Space::InodeEnospc,
+                42,
+            )
+            .is_ok()
+        };
+        assert!(publish(row.clone()));
+        assert!(!publish(mutate(&row, "scratch_removed", json!(false))));
     }
 
     #[test]

@@ -34,6 +34,7 @@ const HOST_TOOLS: [&str; 8] = [
     "uname",
 ];
 const ARRAY_MOUNT: &[&str] = &["--json", "--mountpoint"];
+const EXT4_NO_QUOTA: &str = "rw,nodev,nosuid,noexec";
 const MAX_FIXTURE_BYTES: u64 = 64 * MIB;
 const MAX_RUNNER_BYTES: u64 = 128 * MIB;
 
@@ -55,6 +56,9 @@ pub struct Options {
     /// Exhaust all available inodes on a private ext4 filesystem with no quota.
     #[arg(long, requires = "maintenance", conflicts_with = "inode_quota")]
     pub inode_enospc: bool,
+    /// Exhaust user blocks and filesystem inodes after a compacted copy is durable.
+    #[arg(long, requires = "maintenance", conflicts_with_all = ["inode_quota", "inode_enospc", "writeback"])]
+    pub namespace_enospc: bool,
     /// Exercise kernel block errors at commit barriers or during maintenance.
     #[arg(long, conflicts_with_all = ["inode_quota", "inode_enospc", "probe_only"])]
     pub writeback: bool,
@@ -110,7 +114,9 @@ fn command_context(base: &Path, source: &str) -> Result<Run> {
 fn support_tools(c: &Campaign<'_>, opts: &Options) -> Result<BTreeMap<String, PathBuf>> {
     HOST_TOOLS
         .into_iter()
-        .filter(|&name| !(opts.inode_enospc || opts.writeback) || name != "setquota")
+        .filter(|&name| {
+            !(opts.inode_enospc || opts.namespace_enospc || opts.writeback) || name != "setquota"
+        })
         .chain(
             opts.writeback
                 .then_some(["dmsetup", "fallocate", "filefrag", "mknod"])
@@ -118,7 +124,7 @@ fn support_tools(c: &Campaign<'_>, opts: &Options) -> Result<BTreeMap<String, Pa
                 .flatten(),
         )
         .chain(
-            (opts.writeback && opts.maintenance)
+            (opts.maintenance && (opts.writeback || opts.namespace_enospc))
                 .then_some(["cc", "env"])
                 .into_iter()
                 .flatten(),
@@ -474,6 +480,24 @@ impl Calls<'_, '_> {
     fn verify_mount(&mut self, s: &Scratch, device: &str) -> Result<Value> {
         self.verify_mount_source(s, device, device)
     }
+    fn remount_ext4(&mut self, scratch: &Scratch, device: &str) -> Result<Value> {
+        self.verify_mount(scratch, device)?;
+        self.exec(vec!["umount".into(), path(&scratch.mount)])?;
+        ensure!(
+            self.mount(scratch, false)?.is_none(),
+            "owned mount did not retire"
+        );
+        self.exec(vec![
+            "mount".into(),
+            "-t".into(),
+            "ext4".into(),
+            "-o".into(),
+            EXT4_NO_QUOTA.into(),
+            device.into(),
+            path(&scratch.mount),
+        ])?;
+        self.verify_mount(scratch, device)
+    }
     fn verify_mount_source(
         &mut self,
         s: &Scratch,
@@ -803,6 +827,8 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
     let run = command_context(&run.root, &opts.source)?;
     let description = if opts.writeback {
         "native delayed writeback error on owned private Linux ext4"
+    } else if opts.namespace_enospc {
+        "native ext4 compaction publication with exhausted user blocks and inodes"
     } else if opts.inode_enospc {
         "native global inode exhaustion on owned private Linux ext4"
     } else {
@@ -844,13 +870,14 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         call.c.evidence["image_identity"] = json!(s.image_identity);
         let kernel = call.exec(cmd(["uname", "-a"]))?;
         call.c.evidence["kernel"] = json!(kernel.stdout);
+        let no_quota = opts.inode_enospc || opts.namespace_enospc;
         let (hard, inodes, space) = if opts.writeback {
             (
                 0,
                 0,
                 Space::Writeback(opts.copy_barrier.unwrap_or(CopyBarrier::Data)),
             )
-        } else if opts.inode_enospc {
+        } else if no_quota {
             (0, 0, Space::InodeEnospc)
         } else if opts.inode_quota {
             // The guest owns the directory, source, backup and one ballast inode.
@@ -897,8 +924,8 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
                 "-t".into(),
                 "ext4".into(),
                 "-o".into(),
-                if opts.inode_enospc {
-                    "rw,nodev,nosuid,noexec".into()
+                if no_quota {
+                    EXT4_NO_QUOTA.into()
                 } else {
                     "rw,usrquota,nodev,nosuid,noexec".into()
                 },
@@ -914,7 +941,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         private_directory(&data, uid)?;
         if let Some(map) = &mapping {
             call.c.evidence["writeback_mount"] = map.verify_mount(&mut call, s)?;
-        } else if opts.inode_enospc {
+        } else if no_quota {
             let mount = call.verify_mount(s, &device)?;
             let options = mount["options"]
                 .as_str()
@@ -964,13 +991,18 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         if opts.maintenance {
             let seed = s.directory.join("seed-parent");
             private_directory(&seed, uid)?;
-            let fault = match (&mut mapping, space) {
-                (Some(map), Space::Writeback(barrier)) => Some(
-                    writeback::MaintenanceFault::prepare(map, s, &mut call, &guest, barrier)?,
-                ),
-                _ => None,
-            };
-            guest.maintenance(&mut call, &opts.source, space, &seed.join("seed"), fault)?;
+            let seed = seed.join("seed");
+            if opts.namespace_enospc {
+                guest.namespace_enospc(&mut call, &opts.source, &seed, s, &device)?;
+            } else {
+                let fault = match (&mut mapping, space) {
+                    (Some(map), Space::Writeback(barrier)) => Some(
+                        writeback::MaintenanceFault::prepare(map, s, &mut call, &guest, barrier)?,
+                    ),
+                    _ => None,
+                };
+                guest.maintenance(&mut call, &opts.source, space, &seed, fault)?;
+            }
         } else if let Some(map) = &mut mapping {
             map.qualify(&mut call, s, &guest, &opts.source)?;
         } else {
@@ -1073,6 +1105,35 @@ struct Maintenance<'a> {
     records: Vec<Value>,
 }
 impl Maintenance<'_> {
+    fn seed(&mut self, c: &mut Calls<'_, '_>, seed: &Path) -> Result<(PathBuf, PathBuf)> {
+        let original = self.guest.data.join("source.wdb");
+        let backup = self.guest.data.join("backup.wdb");
+        let reply = self.guest.fixture(c, vec![path(seed)], 180., &[0])?;
+        let seed_rows = json_rows(&reply.stdout)?;
+        resource_oracle::compound(&seed_rows, "native", self.source)?;
+        self.pids.insert(reply.pid);
+        let expected = ["source.wdb", "backup.wdb"]
+            .into_iter()
+            .map(|name| Ok((name, json!({"bytes":fs::metadata(seed.join(name))?.len(),"sha256":sha(&seed.join(name))?}))))
+            .collect::<Result<BTreeMap<_, _>>>()?;
+        let installed = self
+            .guest
+            .probe(c, "install-seed", CEILING, self.space, Some(seed))?;
+        ensure!(
+            installed["installed"] == json!(expected),
+            "installed seed differs"
+        );
+        ensure!(
+            sha(&original)? == expected["source.wdb"]["sha256"].as_str().unwrap()
+                && sha(&backup)? == expected["backup.wdb"]["sha256"].as_str().unwrap(),
+            "controller installed hash mismatch"
+        );
+        c.c.evidence["maintenance_seed"] = json!({"rows":seed_rows,"installed":expected});
+        self.phase(c, "space-check", "initial-source", &original, false)?;
+        self.phase(c, "space-check", "initial-backup", &backup, false)?;
+        Ok((original, backup))
+    }
+
     fn phase(
         &mut self,
         c: &mut Calls<'_, '_>,
@@ -1106,8 +1167,78 @@ impl Maintenance<'_> {
             .push(json!({"mode":mode,"label":label,"pid":reply.pid,"rows":rows}));
         Ok(row)
     }
+
+    fn finish(
+        mut self,
+        c: &mut Calls<'_, '_>,
+        original: &Path,
+        backup: &Path,
+        cases: Vec<Value>,
+    ) -> Result<()> {
+        self.phase(c, "space-check", "advanced-source", original, true)?;
+        self.phase(c, "space-check", "final-backup", backup, false)?;
+        ensure!(
+            self.guest.data_names()? == ["backup.wdb", "source.wdb"].map(OsString::from).into(),
+            "unretired outputs or ballast"
+        );
+        let images = c.c.output.join("images");
+        fs::create_dir(&images)?;
+        for image in [original, backup] {
+            let target = images.join(image.file_name().unwrap());
+            fs::copy(image, &target)?;
+            ensure!(
+                sha(image)? == sha(&target)?,
+                "copied maintenance image changed"
+            );
+        }
+        c.c.evidence["maintenance_cases"] = json!(cases);
+        c.c.evidence["maintenance_records"] = json!(self.records);
+        c.c.evidence["maintenance_pids"] = json!(self.pids);
+        Ok(())
+    }
 }
 impl Guest {
+    fn namespace_enospc(
+        &mut self,
+        c: &mut Calls<'_, '_>,
+        source: &str,
+        seed: &Path,
+        scratch: &Scratch,
+        device: &str,
+    ) -> Result<()> {
+        let space = Space::InodeEnospc;
+        self.env
+            .insert("WEEKEND_PRIVATE_MAINTENANCE".into(), space.profile().into());
+        let mut data = Maintenance {
+            guest: self,
+            source,
+            space,
+            pids: BTreeSet::new(),
+            records: vec![],
+        };
+        let (original, backup) = data.seed(c, seed)?;
+        let (reply, pressure) = writeback::publish_full(c, scratch, self, device)?;
+        let published = data.record("space-publish", "compact", reply)?;
+        let mount = c.remount_ext4(scratch, device)?;
+        let canonical = fs::symlink_metadata(&original)?;
+        ensure!(
+            pressure["replacement_inode"] == canonical.ino()
+                && canonical.mode() & 0o7777 == 0o640
+                && pressure["replacement_sha256"] == sha(&original)?
+                && pressure["replacement_sha256"] == sha(&backup)?
+                && self.data_names()? == ["backup.wdb", "source.wdb"].map(OsString::from).into(),
+            "compacted inode, bytes or cleanup changed after remount"
+        );
+        data.phase(c, "space-check", "published-source", &original, false)?;
+        data.phase(c, "space-check", "published-backup", &backup, false)?;
+        data.phase(c, "space-advance", "advanced", &original, false)?;
+        c.remount_ext4(scratch, device)?;
+        let cases = vec![
+            json!({"operation":"compact","publication":published,"pressure":pressure,"mount_after_publication":mount}),
+        ];
+        data.finish(c, &original, &backup, cases)
+    }
+
     fn maintenance(
         &mut self,
         c: &mut Calls<'_, '_>,
@@ -1125,26 +1256,7 @@ impl Guest {
             pids: BTreeSet::new(),
             records: vec![],
         };
-        let original = self.data.join("source.wdb");
-        let backup = self.data.join("backup.wdb");
-        let reply = self.fixture(c, vec![path(seed)], 180., &[0])?;
-        let seed_rows = json_rows(&reply.stdout)?;
-        resource_oracle::compound(&seed_rows, "native", source)?;
-        data.pids.insert(reply.pid);
-        let expected=["source.wdb","backup.wdb"].into_iter().map(|name|Ok((name,json!({"bytes":fs::metadata(seed.join(name))?.len(),"sha256":sha(&seed.join(name))?})))).collect::<Result<BTreeMap<_,_>>>()?;
-        let installed = self.probe(c, "install-seed", CEILING, space, Some(seed))?;
-        ensure!(
-            installed["installed"] == json!(expected),
-            "installed seed differs"
-        );
-        ensure!(
-            sha(&original)? == expected["source.wdb"]["sha256"].as_str().unwrap()
-                && sha(&backup)? == expected["backup.wdb"]["sha256"].as_str().unwrap(),
-            "controller installed hash mismatch"
-        );
-        c.c.evidence["maintenance_seed"] = json!({"rows":seed_rows,"installed":expected});
-        data.phase(c, "space-check", "initial-source", &original, false)?;
-        data.phase(c, "space-check", "initial-backup", &backup, false)?;
+        let (original, backup) = data.seed(c, seed)?;
         let negative = self.fixture(
             c,
             vec![
@@ -1351,26 +1463,7 @@ impl Guest {
         if let Some(fault) = &writeback {
             fault.remount(c)?;
         }
-        data.phase(c, "space-check", "advanced-source", &original, true)?;
-        data.phase(c, "space-check", "final-backup", &backup, false)?;
-        ensure!(
-            self.data_names()? == ["backup.wdb", "source.wdb"].map(OsString::from).into(),
-            "unretired outputs or ballast"
-        );
-        let images = c.c.output.join("images");
-        fs::create_dir(&images)?;
-        for image in [&original, &backup] {
-            let target = images.join(image.file_name().unwrap());
-            fs::copy(image, &target)?;
-            ensure!(
-                sha(image)? == sha(&target)?,
-                "copied maintenance image changed"
-            );
-        }
-        c.c.evidence["maintenance_cases"] = json!(cases);
-        c.c.evidence["maintenance_records"] = json!(data.records);
-        c.c.evidence["maintenance_pids"] = json!(data.pids);
-        Ok(())
+        data.finish(c, &original, &backup, cases)
     }
 }
 
@@ -1687,6 +1780,7 @@ mod tests {
                 maintenance: false,
                 inode_quota: false,
                 inode_enospc: false,
+                namespace_enospc: false,
                 writeback: false,
                 copy_barrier: None,
             };

@@ -793,6 +793,43 @@ pub(super) struct MaintenanceFault<'a> {
     barrier: CopyBarrier,
 }
 
+fn stage_gate(
+    calls: &mut Calls<'_, '_>,
+    scratch: &Scratch,
+    guest: &Guest,
+) -> Result<(PathBuf, String)> {
+    let archived = calls.c.output.join("frozen-source").join(GATE_SOURCE);
+    let staged = scratch.directory.join("writeback_gate.c");
+    fs::copy(&archived, &staged)?;
+    fs::set_permissions(&staged, fs::Permissions::from_mode(0o444))?;
+    let source_hash = sha(&archived)?;
+    ensure!(
+        sha(&staged)? == source_hash,
+        "writeback gate source changed"
+    );
+    let build = scratch.directory.join("shim-build");
+    super::private_directory(&build, guest.uid)?;
+    let library = build.join("gate.so");
+    let mut args = guest.drop.clone();
+    args.push(path(&calls.tools["cc"]));
+    args.extend(cmd([
+        "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
+    ]));
+    args.extend([path(&staged), "-o".into(), path(&library), "-ldl".into()]);
+    calls.guest(args, &guest.env, 30., &[0])?;
+    let shim = scratch.directory.join("writeback-gate.so");
+    let shim_hash = super::copy_executable(&library, &shim, 2 * super::MIB)?;
+    let evidence_gate = calls.c.output.join("writeback-gate.so");
+    fs::copy(&shim, &evidence_gate)?;
+    ensure!(
+        sha(&staged)? == source_hash && sha(&evidence_gate)? == shim_hash,
+        "writeback gate source or executable changed during staging"
+    );
+    calls.c.evidence["writeback_gate"] =
+        json!({"source_sha256":source_hash,"binary_sha256":shim_hash});
+    Ok((shim, shim_hash))
+}
+
 impl<'a> MaintenanceFault<'a> {
     pub(super) fn prepare(
         mapper: &'a mut Mapping,
@@ -801,35 +838,7 @@ impl<'a> MaintenanceFault<'a> {
         guest: &Guest,
         barrier: CopyBarrier,
     ) -> Result<Self> {
-        let archived = calls.c.output.join("frozen-source").join(GATE_SOURCE);
-        let staged = scratch.directory.join("writeback_gate.c");
-        fs::copy(&archived, &staged)?;
-        fs::set_permissions(&staged, fs::Permissions::from_mode(0o444))?;
-        let source_hash = sha(&archived)?;
-        ensure!(
-            sha(&staged)? == source_hash,
-            "writeback gate source changed"
-        );
-        let build = scratch.directory.join("shim-build");
-        super::private_directory(&build, guest.uid)?;
-        let library = build.join("gate.so");
-        let mut args = guest.drop.clone();
-        args.push(path(&calls.tools["cc"]));
-        args.extend(cmd([
-            "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-        ]));
-        args.extend([path(&staged), "-o".into(), path(&library), "-ldl".into()]);
-        calls.guest(args, &guest.env, 30., &[0])?;
-        let shim = scratch.directory.join("writeback-gate.so");
-        let shim_hash = super::copy_executable(&library, &shim, 2 * super::MIB)?;
-        let evidence_gate = calls.c.output.join("writeback-gate.so");
-        fs::copy(&shim, &evidence_gate)?;
-        ensure!(
-            sha(&staged)? == source_hash && sha(&evidence_gate)? == shim_hash,
-            "writeback gate source or executable changed during staging"
-        );
-        calls.c.evidence["writeback_gate"] =
-            json!({"source_sha256":source_hash,"binary_sha256":shim_hash});
+        let (shim, shim_hash) = stage_gate(calls, scratch, guest)?;
         Ok(Self {
             mapper,
             scratch,
@@ -1058,6 +1067,111 @@ impl<'a> MaintenanceFault<'a> {
         self.mapper.unmount(calls, self.scratch, false)?;
         self.mapper.mount(calls, self.scratch)
     }
+}
+
+pub(super) fn publish_full(
+    calls: &mut Calls<'_, '_>,
+    scratch: &Scratch,
+    guest: &Guest,
+    device: &str,
+) -> Result<(Output, Value)> {
+    let (shim, shim_hash) = stage_gate(calls, scratch, guest)?;
+    let source = guest.data.join("source.wdb");
+    let backup = guest.data.join("backup.wdb");
+    let original_hash = sha(&source)?;
+    let backup_hash = sha(&backup)?;
+    let original = fs::File::open(&source)?;
+    original.set_permissions(fs::Permissions::from_mode(0o640))?;
+    original.sync_all()?;
+    let original_info = original.metadata()?;
+    drop(original);
+    let gate = scratch.directory.join("armed-namespace-enospc");
+    let label = "namespace-enospc";
+    let mut argv = guest.fixture_argv(vec![
+        path(&guest.data),
+        path(&source),
+        "space-publish".into(),
+        "compact".into(),
+    ]);
+    argv.splice(
+        guest.drop.len()..guest.drop.len(),
+        [
+            path(&calls.tools["env"]),
+            "WEEKEND_PRIVATE_MAINTENANCE=inode-enospc".into(),
+            assignment("LD_PRELOAD", &shim),
+            assignment("WDB_WRITEBACK_DIRECTORY", &guest.data),
+            assignment("WDB_WRITEBACK_GATE", &gate),
+            "WDB_WRITEBACK_LABEL=namespace-enospc".into(),
+            "WDB_WRITEBACK_BARRIER=namespace-enospc".into(),
+            "WDB_WRITEBACK_TARGET=scratch".into(),
+        ],
+    );
+    let (out, (target, mut proof)) = held_fixture(
+        calls,
+        argv,
+        label,
+        &gate,
+        (Duration::from_secs(60), 180.),
+        |active, details| {
+            let [dev, inode, name] = details else {
+                anyhow::bail!("missing compaction scratch readiness");
+            };
+            ensure!(scratch_name(name), "invalid compaction scratch name");
+            let target = guest.data.join(name);
+            let meta = fs::symlink_metadata(&target)?;
+            ensure!(
+                meta.is_file()
+                    && meta.dev() == dev.parse::<u64>()?
+                    && meta.dev() == original_info.dev()
+                    && meta.ino() == inode.parse::<u64>()?
+                    && meta.ino() != original_info.ino()
+                    && meta.nlink() == 1
+                    && meta.uid() == guest.uid
+                    && meta.mode() & 0o7777 == 0o640
+                    && meta.len() == 63_074_304
+                    && sha(&target)? == backup_hash
+                    && sha(&source)? == original_hash,
+                "wrong file at compaction publication gate"
+            );
+            active.verify_mount(scratch, device)?;
+            let inodes = guest.probe(
+                active,
+                "inode-exhaust",
+                super::CEILING,
+                Space::InodeEnospc,
+                None,
+            )?;
+            let blocks = guest.probe(
+                active,
+                "fill-inode-ballast",
+                super::CEILING,
+                Space::Enospc,
+                None,
+            )?;
+            Ok((
+                target,
+                json!({"original_inode":original_info.ino(),"replacement_inode":meta.ino(),"original_sha256":original_hash,"replacement_sha256":backup_hash,"inode_exhaustion":inodes,"full":blocks}),
+            ))
+        },
+    )?;
+    ensure!(
+        out.stderr
+            == "exchange available_blocks=0 available_inodes=0\nunlink available_blocks=0 available_inodes=0\n",
+        "missing zero-headroom checks immediately before exchange and unlink"
+    );
+    let canonical = fs::symlink_metadata(&source)?;
+    ensure!(
+        canonical.dev() == original_info.dev()
+            && proof["replacement_inode"] == canonical.ino()
+            && canonical.mode() & 0o7777 == 0o640
+            && sha(&source)? == backup_hash
+            && sha(&backup)? == backup_hash
+            && !target.exists()
+            && sha(&shim)? == shim_hash,
+        "publication changed exact copy bytes or left the old image"
+    );
+    proof["namespace_checks"] = json!(out.stderr.lines().collect::<Vec<_>>());
+    Ok((out, proof))
 }
 
 fn assignment(name: &str, value: &Path) -> OsString {

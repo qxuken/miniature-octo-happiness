@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -19,7 +20,9 @@ static const char *label, *gate, *target, *metadata_magic;
 static off64_t offset;
 static char name_at_creation[64];
 static int seen_target, armed;
-static enum { DATA, COPY_ROOT, FILE_METADATA, EXCHANGE_DIRECTORY, CLEANUP_DIRECTORY } phase;
+static enum {
+    DATA, COPY_ROOT, FILE_METADATA, EXCHANGE_DIRECTORY, CLEANUP_DIRECTORY, NAMESPACE_ENOSPC
+} phase;
 
 static int scratch_name(const char *name) {
     static const char prefix[] = ".wdb-compact-";
@@ -54,6 +57,8 @@ __attribute__((constructor)) static void setup(void) {
             phase = FILE_METADATA;
         } else if (strcmp(barrier, "exchange-directory") == 0) {
             phase = EXCHANGE_DIRECTORY;
+        } else if (strcmp(barrier, "namespace-enospc") == 0) {
+            phase = NAMESPACE_ENOSPC;
         } else {
             assert(strcmp(barrier, "cleanup-directory") == 0);
             phase = CLEANUP_DIRECTORY;
@@ -74,6 +79,7 @@ static void await_arm(const struct stat *entry) {
     assert(fflush(stdout) == 0);
 
     struct timespec started, now, pause = {0, 10000000};
+    const time_t deadline = phase == NAMESPACE_ENOSPC ? 130 : 25;
     assert(clock_gettime(CLOCK_MONOTONIC, &started) == 0);
     for (;;) {
         if (lstat(gate, &info) == 0) {
@@ -82,7 +88,7 @@ static void await_arm(const struct stat *entry) {
         }
         assert(errno == ENOENT);
         assert(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
-        assert(now.tv_sec - started.tv_sec < 25);
+        assert(now.tv_sec - started.tv_sec < deadline);
         nanosleep(&pause, NULL);
     }
 }
@@ -174,20 +180,32 @@ static struct stat owned_entry(int dirfd, const char *name) {
     return info;
 }
 
+static void full_directory(int dirfd, const char *step) {
+    struct statvfs space;
+    assert(fstatvfs(dirfd, &space) == 0);
+    assert(space.f_bavail == 0 && space.f_favail == 0);
+    assert(fprintf(stderr, "%s available_blocks=0 available_inodes=0\n", step) > 0);
+    assert(fflush(stderr) == 0);
+}
+
 int renameat2(int from, const char *old, int to, const char *new, unsigned int flags) {
     static int (*next)(int, const char *, int, const char *, unsigned int);
     if (!next) {
         next = (int (*)(int, const char *, int, const char *, unsigned int))dlsym(RTLD_NEXT, "renameat2");
         assert(next);
     }
-    if (seen_target && (phase == EXCHANGE_DIRECTORY || phase == CLEANUP_DIRECTORY)
+    if (seen_target && (phase == EXCHANGE_DIRECTORY || phase == CLEANUP_DIRECTORY
+                       || phase == NAMESPACE_ENOSPC)
         && strcmp(old, "source.wdb") == 0 && strcmp(new, name_at_creation) == 0) {
         assert(flags == RENAME_EXCHANGE);
         original = owned_entry(from, old);
         struct stat scratch = owned_entry(to, new);
         assert(same_inode(&scratch, &created));
-        if (phase == EXCHANGE_DIRECTORY) {
+        if (phase == EXCHANGE_DIRECTORY || phase == NAMESPACE_ENOSPC) {
             await_arm(&scratch);
+        }
+        if (phase == NAMESPACE_ENOSPC) {
+            full_directory(from, "exchange");
         }
         int result = next(from, old, to, new, flags);
         assert(result == 0);
@@ -205,12 +223,17 @@ int unlinkat(int dirfd, const char *name, int flags) {
         next = (int (*)(int, const char *, int))dlsym(RTLD_NEXT, "unlinkat");
         assert(next);
     }
-    if (seen_target && phase == CLEANUP_DIRECTORY && strcmp(name, name_at_creation) == 0) {
+    if (seen_target && (phase == CLEANUP_DIRECTORY || phase == NAMESPACE_ENOSPC)
+        && strcmp(name, name_at_creation) == 0) {
         assert(flags == 0);
         struct stat scratch = owned_entry(dirfd, name);
         struct stat source = owned_entry(dirfd, "source.wdb");
         assert(same_inode(&scratch, &original) && same_inode(&source, &created));
-        await_arm(&scratch);
+        if (phase == CLEANUP_DIRECTORY) {
+            await_arm(&scratch);
+        } else {
+            full_directory(dirfd, "unlink");
+        }
         int result = next(dirfd, name, flags);
         assert(result == 0);
         assert(fstatat(dirfd, name, &scratch, AT_SYMLINK_NOFOLLOW) == -1 && errno == ENOENT);

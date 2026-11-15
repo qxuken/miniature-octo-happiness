@@ -134,7 +134,22 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
         assert!(matches!(op, "backup" | "restore" | "compact"));
         assert_eq!(source, dir.join("source.wdb"));
         let backup = dir.join("backup.wdb");
-        if mode == "space-fail" {
+        if mode == "space-publish" {
+            assert!(kind == "inode-enospc" && op == "compact");
+            let stats = operation(dir, source, op, source).unwrap();
+            assert_eq!(stats.before_bytes, 66_154_496);
+            assert_eq!(stats.after_bytes, COMPACTED);
+            assert!(
+                names(dir)
+                    .into_iter()
+                    .eq([backup.clone(), source.to_path_buf()])
+            );
+            assert_eq!(fs::read(source).unwrap(), fs::read(backup).unwrap());
+            println!(
+                "{{\"stage\":\"publish\",\"operation\":\"{op}\",\"pid\":{pid},\"before_bytes\":{},\"after_bytes\":{},\"matches_backup\":true,\"scratch_removed\":true}}",
+                stats.before_bytes, stats.after_bytes
+            );
+        } else if mode == "space-fail" {
             let before = fs::read(source).unwrap();
             let good = fs::read(&backup).unwrap();
             let entries = names(dir);
