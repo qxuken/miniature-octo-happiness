@@ -13,6 +13,8 @@ pub struct Report {
     pub cleanup_verified: bool,
     pub failure: Option<String>,
     #[cfg(windows)]
+    pub creation_time_100ns: Option<u64>,
+    #[cfg(windows)]
     pub stopped: bool,
     #[cfg(windows)]
     pub timed_out: bool,

@@ -164,7 +164,7 @@ struct Trial<'a> {
     fixture: &'a Path,
     env: &'a BTreeMap<OsString, OsString>,
     records: Vec<Value>,
-    pids: BTreeSet<u32>,
+    processes: BTreeSet<(u32, u64)>,
 }
 
 impl Trial<'_> {
@@ -210,8 +210,11 @@ impl Trial<'_> {
         );
         let report = call(proof, self.output, args, self.output, label, &env, false)?;
         let pid = report.pid.context("quota fixture process ID")?;
+        let created = report
+            .creation_time_100ns
+            .context("quota fixture creation time")?;
         ensure!(
-            self.pids.insert(pid),
+            self.processes.insert((pid, created)),
             "quota phases require distinct processes"
         );
         let row = delivery::read_json(&self.output.join(format!("{label}.stdout")))?;
@@ -393,7 +396,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         fixture: &fixture,
         env: &env,
         records: vec![],
-        pids: BTreeSet::new(),
+        processes: BTreeSet::new(),
     };
     let mut proof = json!({"verified":false,"source_id":opts.source,"fixture_sha256":digest,
         "fixture_input_sha256":sha(&run.root.join("tools/quota/fixture.rs"))?,"runner_sha256":sha(&std::env::current_exe()?)?,"commands":[]});

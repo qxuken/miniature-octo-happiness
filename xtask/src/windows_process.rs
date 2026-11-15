@@ -18,7 +18,9 @@ use std::{
     time::{Duration, Instant},
 };
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, ERROR_NO_MORE_FILES, GetLastError, HANDLE, INVALID_HANDLE_VALUE},
+    Foundation::{
+        CloseHandle, ERROR_NO_MORE_FILES, FILETIME, GetLastError, HANDLE, INVALID_HANDLE_VALUE,
+    },
     Storage::FileSystem::{GetDriveTypeW, GetVolumeInformationW, GetVolumePathNameW},
     System::{
         Diagnostics::ToolHelp::{
@@ -31,8 +33,8 @@ use windows_sys::Win32::{
             QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
         },
         Threading::{
-            CREATE_SUSPENDED, GetCurrentProcess, IsWow64Process2, OpenThread, ResumeThread,
-            THREAD_SUSPEND_RESUME,
+            CREATE_SUSPENDED, GetCurrentProcess, GetProcessTimes, IsWow64Process2, OpenThread,
+            ResumeThread, THREAD_SUSPEND_RESUME,
         },
     },
 };
@@ -231,6 +233,28 @@ fn owned(
     let failures = Arc::new(Mutex::new(vec![]));
     let execution = (|| -> Result<()> {
         job = Some(Job::own_and_resume(&child)?);
+        let (mut created, mut exited, mut kernel, mut user) = (
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+        );
+        // SAFETY: the owned child handle remains live and the outputs are writable.
+        ensure!(
+            unsafe {
+                GetProcessTimes(
+                    child.as_raw_handle(),
+                    &mut created,
+                    &mut exited,
+                    &mut kernel,
+                    &mut user,
+                )
+            } != 0,
+            "process creation time: {}",
+            std::io::Error::last_os_error()
+        );
+        report.creation_time_100ns =
+            Some((u64::from(created.dwHighDateTime) << 32) | u64::from(created.dwLowDateTime));
         readers.push(drain(
             child.stdout.take().unwrap(),
             stdout,

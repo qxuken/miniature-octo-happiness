@@ -178,6 +178,9 @@ mod native {
         output: &'a Path,
         source: &'a str,
         env: BTreeMap<OsString, OsString>,
+        #[cfg(windows)]
+        processes: BTreeSet<(u32, u64)>,
+        #[cfg(target_os = "macos")]
         processes: BTreeSet<u32>,
         profile: Profile,
         #[cfg(windows)]
@@ -204,9 +207,18 @@ mod native {
                 expect_panic,
             )?;
             let pid = report.pid.context("fixture process ID")?;
+            #[cfg(windows)]
+            let process = (
+                pid,
+                report
+                    .creation_time_100ns
+                    .context("fixture process creation time")?,
+            );
+            #[cfg(target_os = "macos")]
+            let process = pid;
             ensure!(
-                self.processes.insert(pid),
-                "fixture process reused for {label}"
+                self.processes.insert(process),
+                "fixture process identity reused for {label}"
             );
             if expect_panic {
                 let stderr = fs::read_to_string(self.runs.join(format!("{label}.stderr")))?;
