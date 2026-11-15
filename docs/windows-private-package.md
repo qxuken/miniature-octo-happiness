@@ -56,6 +56,12 @@ cargo +1.99.0 fetch --locked --manifest-path examples/rust_package/Cargo.toml
 cargo +1.99.0 xtask windows-msrv --output target/windows-msrv
 ```
 
+Add `--odin` to the last command to include the native Odin package and
+optimized trace. The hosted job installs the Windows x64 build from the
+`dev-2026-10` Odin release on `PATH`, checking that the ZIP SHA-256 is
+`b6b2e426a8b6f147b74ec7e18bef8df27cf40fe16193159df7ca09a0cc0c2011`.
+[Pinned release](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10)
+
 The runner reads the declared minimum from the root manifest and checks the
 actual Rust and Cargo versions. It verifies the working copies of every
 tracked Cargo lock against the indexed Git blobs before and after qualification.
@@ -63,8 +69,12 @@ The standard Windows debug and release profiles run with locked, offline
 builds. The same invocation qualifies C/C++ consumers against both workspace
 DLLs, builds a private combined-feature package, runs the Rust consumer from
 its copied source, and exercises the relocated package's exact DLL with the
-existing 134-cell C/C++ trace. The evidence binds the package manifest, DLL
-and trace report by their hashes.
+existing 134-cell C/C++ trace. If the package contains a verified Odin
+consumer, the trace requires the same Odin compiler hash. It also runs
+all ten cases with optimized Odin. Before and after a successful run,
+the Odin process verifies its loaded DLL path and hash, ABI, format,
+feature mask and source identity under the same evidence rules as C/C++.
+The evidence binds the package manifest, DLL and trace report by their hashes.
 
 ### Recorded Rust 1.99.0 qualification
 

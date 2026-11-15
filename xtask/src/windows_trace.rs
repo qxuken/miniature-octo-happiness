@@ -314,6 +314,23 @@ pub fn compiler_command(
         "bcrypt.lib".into(),
     ]
 }
+#[cfg(windows)]
+fn odin_command(
+    compiler: &Path,
+    inputs: &Path,
+    package: &Path,
+    executable: &Path,
+) -> Vec<OsString> {
+    vec![
+        path(compiler),
+        "build".into(),
+        path(inputs.join("odin")),
+        "-o:speed".into(),
+        format!("-out:{}", executable.display()).into(),
+        format!("-collection:weekend={}", package.join("bindings").display()).into(),
+        "-define:WEEKEND_DB_LIBRARY=../../weekend_db.dll.lib".into(),
+    ]
+}
 pub fn clean_env(env: &BTreeMap<OsString, OsString>) -> BTreeMap<OsString, OsString> {
     env.iter()
         .filter(|(k, _)| {
@@ -691,6 +708,8 @@ fn inputs(root: &Path) -> Result<BTreeMap<String, String>> {
         "xtask/tests/trace-v2.expected",
         "tools/artifact-trace/consumer.c",
         "tools/artifact-trace/windows_consumer.c",
+        "tools/artifact-trace/odin/main.odin",
+        "tools/artifact-trace/odin/attest_windows.odin",
         "tools/delivered-faults/consumer.c",
         "tools/delivered-faults/windows_injector.h",
     ]
@@ -727,9 +746,7 @@ fn native(
     fs::create_dir(output)?;
     let before = inputs(&run.root)?;
     let scope = match campaign {
-        Campaign::State => {
-            "Delivered Windows x64 C/C++ finite state trace; not full API, MC/DC or power loss"
-        }
+        Campaign::State => "Delivered Windows x64 finite state trace for packaged consumers",
         Campaign::InjectedFaults => {
             "Delivered Windows x64 C publication errors and fresh-process recovery"
         }
@@ -839,23 +856,55 @@ fn native(
             ensure!(inputs(&run.root)? == before, "fault tool inputs changed");
             return Ok(());
         }
+        let odin = if info["odin"]["verified"] == true {
+            let compiler = crate::toolchain::which(OsStr::new("odin.exe"), &env)
+                .context("packaged Odin profile requires the same compiler on PATH")?;
+            let compiler = dunce::canonicalize(compiler)?;
+            let digest = sha(&compiler)?;
+            ensure!(
+                info["odin"]["compiler_sha256"] == digest,
+                "Odin compiler differs from the package compiler"
+            );
+            let odin_inputs = input.join("odin");
+            fs::create_dir(&odin_inputs)?;
+            for name in ["main.odin", "attest_windows.odin"] {
+                fs::copy(
+                    run.root.join("tools/artifact-trace/odin").join(name),
+                    odin_inputs.join(name),
+                )?;
+            }
+            Some(compiler)
+        } else {
+            None
+        };
         let mut outcomes = vec![];
-        for (cpp, language) in [(false, "c"), (true, "cpp")] {
+        for language in ["c", "cpp"].into_iter().chain(odin.iter().map(|_| "odin")) {
             let build = output.join(language);
             fs::create_dir(&build)?;
             let exe = build.join(format!("consumer-{language}.exe"));
             let dll = build.join("weekend_db.dll");
             fs::copy(relocated.join("weekend_db.dll"), &dll)?;
             let digest = sha(&dll)?;
-            call(
-                &mut proof,
-                output,
-                compiler_command(compiler.as_os_str(), cpp, &input, &relocated, &exe),
-                &build,
-                "compile",
-                &env,
-                false,
-            )?;
+            let (command, profile) = match language {
+                "odin" => (
+                    odin_command(
+                        odin.as_deref().context("Odin compiler missing")?,
+                        &input,
+                        &relocated,
+                        &exe,
+                    ),
+                    "-o:speed; ODIN_DISABLE_ASSERT=false",
+                ),
+                "cpp" => (
+                    compiler_command(compiler.as_os_str(), true, &input, &relocated, &exe),
+                    "/O2 /UNDEBUG /MD /TP /std:c++17",
+                ),
+                _ => (
+                    compiler_command(compiler.as_os_str(), false, &input, &relocated, &exe),
+                    "/O2 /UNDEBUG /MD /TC /std:c11",
+                ),
+            };
+            call(&mut proof, output, command, &build, "compile", &env, false)?;
             let mut entries = cases()?;
             for name in ["wrong-hash", "wrong-path", "wrong-source"] {
                 entries.push(Case {
@@ -955,12 +1004,25 @@ fn native(
                 ensure!(sha(&dll)? == digest, "runtime DLL changed");
                 outcomes.push(json!({"language":language,"case":entry.name,"exit":report.exit,"verified":true,"stdout_sha256":sha(&dir.join("run.stdout"))?}));
             }
-            proof[language] = json!({"executable_sha256":sha(&exe)?,"dll_sha256":digest,"profile":if cpp {"/O2 /UNDEBUG /MD /TP /std:c++17"}else{"/O2 /UNDEBUG /MD /TC /std:c11"}});
+            proof[language] =
+                json!({"executable_sha256":sha(&exe)?,"dll_sha256":digest,"profile":profile});
+            if let Some(compiler) = odin.as_ref().filter(|_| language == "odin") {
+                let compiler_sha256 = sha(compiler)?;
+                ensure!(
+                    info["odin"]["compiler_sha256"] == compiler_sha256,
+                    "Odin compiler changed"
+                );
+                proof[language]["compiler_sha256"] = json!(compiler_sha256);
+                proof[language]["version"] = info["odin"]["version"].clone();
+            }
         }
         verified(package, pin)?;
         verified(&relocated, pin)?;
         ensure!(inputs(&run.root)? == before, "trace tool inputs changed");
-        ensure!(outcomes.len() == 20, "missing native trace cases");
+        ensure!(
+            outcomes.len() == if odin.is_some() { 30 } else { 20 },
+            "missing native trace cases"
+        );
         proof["outcomes"] = json!(outcomes);
         proof["trace_cells"] = json!(134);
         proof["trace_sha256"] = json!(trace_model::TRACE_SHA256);
@@ -989,7 +1051,9 @@ fn native(
     write_proof(output, &proof)?;
     result?;
     let outcomes = match campaign {
-        Campaign::State => json!({"cases":20,"cells":134,"dll_sha256":proof["c"]["dll_sha256"]}),
+        Campaign::State => {
+            json!({"cases":proof["outcomes"].as_array().unwrap().len(),"cells":134,"dll_sha256":proof["c"]["dll_sha256"]})
+        }
         Campaign::InjectedFaults => {
             json!({"cases":6,"disabled_injection_control":true,"dll_sha256":proof["dll_sha256"]})
         }

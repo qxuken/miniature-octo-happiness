@@ -84,7 +84,14 @@ read32 :: proc(bytes: []u8) -> u32 {
     return u32(bytes[0]) | u32(bytes[1])<<8 | u32(bytes[2])<<16 | u32(bytes[3])<<24
 }
 main :: proc() {
-    assert(len(os.args)==4)
+    when ODIN_OS == .Windows {
+        run_windows_trace()
+    } else {
+        assert(len(os.args)==4)
+        run_trace()
+    }
+}
+run_trace :: proc() {
     bytes,err := os.read_entire_file(os.args[1],context.allocator)
     assert(err==nil);defer delete(bytes)
     assert(len(bytes)>=12 && len(bytes)<=4108)

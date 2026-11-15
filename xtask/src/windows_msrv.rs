@@ -17,6 +17,9 @@ use std::{
 pub struct Options {
     #[arg(long)]
     output: PathBuf,
+    /// Include the installed Odin compiler and optimized Odin trace cases.
+    #[arg(long)]
+    odin: bool,
 }
 
 fn minimum(root: &Path) -> Result<String> {
@@ -126,22 +129,27 @@ fn run_checks(c: &mut Campaign<'_>, root: &Path, target: &Path, xtask: &Path) ->
     Ok(())
 }
 
-fn run_delivery(c: &mut Campaign<'_>, xtask: &Path, compiler: &str, root_lock: &str) -> Result<()> {
+fn run_delivery(
+    c: &mut Campaign<'_>,
+    xtask: &Path,
+    compiler: &str,
+    root_lock: &str,
+    odin: bool,
+) -> Result<()> {
     let package = c.output.join("package");
-    c.command(
-        vec![
-            path(xtask),
-            "package".into(),
-            "--output".into(),
-            path(&package),
-            "--features".into(),
-            "crdt,replication".into(),
-            "--rust-source".into(),
-        ],
-        "native-package",
-        None,
-        300.,
-    )?;
+    let mut command = vec![
+        path(xtask),
+        "package".into(),
+        "--output".into(),
+        path(&package),
+        "--features".into(),
+        "crdt,replication".into(),
+        "--rust-source".into(),
+    ];
+    if odin {
+        command.push("--odin".into());
+    }
+    c.command(command, "native-package", None, 300.)?;
     let manifest_path = package.join("manifest.json");
     let manifest = delivery::read_json(&manifest_path)?;
     let pin = sha(&manifest_path)?;
@@ -151,7 +159,8 @@ fn run_delivery(c: &mut Campaign<'_>, xtask: &Path, compiler: &str, root_lock: &
             && manifest["toolchain"] == compiler
             && manifest["lockfile_sha256"] == root_lock
             && manifest["runtime_feature_mask"] == 3
-            && manifest["rust_source"]["native_compile_verified"] == true,
+            && manifest["rust_source"]["native_compile_verified"] == true
+            && (!odin || manifest["odin"]["verified"] == true),
         "minimum-compiler package identity or consumer mismatch"
     );
     let trace = c.output.join("trace");
@@ -173,20 +182,25 @@ fn run_delivery(c: &mut Campaign<'_>, xtask: &Path, compiler: &str, root_lock: &
     let trace_path = trace.join("evidence.json");
     let proof = delivery::read_json(&trace_path)?;
     let dll = sha(&package.join("weekend_db.dll"))?;
+    let trace_cases = if odin { 30 } else { 20 };
     ensure!(
         proof["native_windows_verified"] == true
             && proof["manifest_sha256"] == pin
             && proof["trace_cells"] == 134
             && proof["outcomes"]
                 .as_array()
-                .is_some_and(|rows| rows.len() == 20)
+                .is_some_and(|rows| rows.len() == trace_cases)
             && proof["c"]["dll_sha256"] == dll
-            && proof["cpp"]["dll_sha256"] == dll,
+            && proof["cpp"]["dll_sha256"] == dll
+            && (!odin
+                || (proof["odin"]["dll_sha256"] == dll
+                    && proof["odin"]["compiler_sha256"] == manifest["odin"]["compiler_sha256"])),
         "minimum-compiler delivered trace mismatch"
     );
     c.evidence["delivery"] = json!({
         "package_manifest_sha256":pin, "trace_evidence_sha256":sha(&trace_path)?,
-        "dll_sha256":dll, "trace_cells":134, "trace_cases":20, "rust_source_verified":true,
+        "dll_sha256":dll, "trace_cells":134, "trace_cases":trace_cases, "rust_source_verified":true,
+        "odin_verified":odin,
     });
     Ok(())
 }
@@ -228,7 +242,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         c.save()?;
         let xtask = std::env::current_exe()?;
         run_checks(&mut c, &run.root, &target, &xtask)?;
-        run_delivery(&mut c, &xtask, &rustc, &locks["Cargo.lock"])?;
+        run_delivery(&mut c, &xtask, &rustc, &locks["Cargo.lock"], opts.odin)?;
         ensure!(
             committed_locks(&mut c, &run.root, "after")? == locks,
             "locked inputs changed"

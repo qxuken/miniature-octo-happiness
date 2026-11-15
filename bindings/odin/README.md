@@ -21,14 +21,14 @@ Paths are explicit-length native bytes on supported macOS/Linux platforms and
 UTF-8 on Windows. Embedded NULs are invalid; file creation is exclusive. File
 operations are unsupported outside the C adapter's documented platforms.
 
-Regenerate declarations with `python3 tools/odin_bindings.py`; `--check` rejects
+Regenerate declarations with `cargo xtask odin-bindings`. `--check` rejects
 stale function signatures/constants against the C header. The parser fails on
 unrecognized signature forms instead of silently omitting functions. The
 standalone packaged smoke exercises ABI/source identity, bytes with embedded
 NUL, buffer sizing, transactions, and retained file reopening; it does not test
 every exposed function or establish whole-binding semantic coverage.
 
-`python3 tools/release.py --output NEW_DIRECTORY --odin` packages this binding
+`cargo xtask package --output NEW_DIRECTORY --odin` packages this binding
 and consumer source, requires an installed Odin compiler, records its version
 and executable hash, and runs the consumer against the delivered shared
 library. Missing Odin is an error when this profile is requested. Existing

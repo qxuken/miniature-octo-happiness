@@ -338,8 +338,22 @@ jobs:
           cargo fetch --locked
           cargo fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
           cargo fetch --locked --manifest-path examples/rust_package/Cargo.toml
+      - name: Install the pinned Odin compiler
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'odin-windows-amd64-dev-2026-10.zip'
+          $dir = Join-Path $env:RUNNER_TEMP 'odin-dev-2026-10'
+          Invoke-WebRequest -TimeoutSec 180 -Uri 'https://github.com/odin-lang/Odin/releases/download/dev-2026-10/odin-windows-amd64-dev-2026-10.zip' -OutFile $zip
+          $digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+          if ($digest -ne 'b6b2e426a8b6f147b74ec7e18bef8df27cf40fe16193159df7ca09a0cc0c2011') { throw 'Odin archive SHA-256 mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath $dir
+          $compiler = @(Get-ChildItem -LiteralPath $dir -Recurse -File -Filter odin.exe)
+          if ($compiler.Count -ne 1) { throw 'Expected one Odin compiler in the pinned archive' }
+          & $compiler[0].FullName version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $compiler[0].DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Verify the minimum compiler, workspace and exact delivered artifacts
-        run: cargo xtask windows-msrv --output target/windows-msrv
+        run: cargo xtask windows-msrv --odin --output target/windows-msrv
       - name: Save Windows minimum-compiler evidence
         if: always()
         uses: actions/upload-artifact@v7
