@@ -991,3 +991,12 @@ performance guarantee is inferred from the tooling check. Seven more controls
 map to Rust (74/179; 37 Python files remain). The archived serialization Python
 source remains an exact dependency of the pending compound/resilience conversion.
 See the [benchmark and serialization checkpoint](xtask-conversion.md#benchmark-and-paired-serialization-conversion).
+
+The `885f347` hosted Windows run exited during coordinator receipt-capacity
+qualification after 512/1,024 commits, with socket error 10060 in the CLI client.
+The test now uses an authenticated loopback client with a 30-second absolute
+reply deadline, a 128-byte cap, and no retries for failed observations. The
+product's three-second network deadlines remain unchanged. macOS debug/release
+passes all six writer tests, including 1,024 receipts, eight lost replies and
+restarts, three full replays, and revision 1,026. Native and MSVC cross-target
+Clippy pass; the new native Windows CI run is pending.

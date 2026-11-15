@@ -122,8 +122,11 @@ limits and credential revocation without restart require separate work.
 ## Finite native receipt-capacity qualification
 
 `native_receipt_capacity_survives_restarts_backup_restore_and_compaction` in
-`tests/writers.rs` uses only its own authenticated loopback server/client
-processes and temporary native files. It submits exactly 1,024 unique requests;
+`tests/writers.rs` uses its own authenticated loopback server process,
+a bounded test client and temporary native files. The test client allows 30
+seconds for each reply so a slow hosted disk sync does not abort the durability
+scenario. The regular CLI still uses its three-second deadline and is exercised
+by the other process tests. The scenario submits exactly 1,024 unique requests;
 request i expects revision i+2, stores value 10,000+7i and must retain its original
 acknowledgment i+3. Every 128th request is sent completely without reading its
 reply. A separate get observes the committed revision/value before the server is

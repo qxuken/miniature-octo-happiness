@@ -9,14 +9,14 @@
 
 use std::{
     fs,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
     path::PathBuf,
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
         atomic::{AtomicU64, Ordering},
         mpsc::{self, Receiver},
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 const BIN: &str = env!("CARGO_BIN_EXE_write-coordinator");
@@ -241,12 +241,53 @@ fn capacity_request(index: usize) -> String {
     )
 }
 
-fn configured_service(path: &str, secret: &str) -> (Process, Process, String) {
+fn configured_service(path: &str, secret: &str, token: &str) -> (Process, CapacityClient) {
     let server = Process::start(&["serve", path, "0", "--secret-file", secret]);
     let ready = server.receive();
-    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap().to_owned();
-    let client = Process::start(&["client", &port, "--secret-file", secret]);
-    (server, client, port)
+    let address = ready.strip_prefix("ready ").unwrap().parse().unwrap();
+    (
+        server,
+        CapacityClient {
+            address,
+            token: token.to_owned(),
+        },
+    )
+}
+
+struct CapacityClient {
+    address: std::net::SocketAddr,
+    token: String,
+}
+impl CapacityClient {
+    fn send(&self, command: &str) -> std::net::TcpStream {
+        let bounds = Duration::from_secs(5);
+        let mut socket = std::net::TcpStream::connect_timeout(&self.address, bounds).unwrap();
+        socket.set_write_timeout(Some(bounds)).unwrap();
+        writeln!(socket, "auth {} {command}", self.token).unwrap();
+        socket
+    }
+
+    fn request(&self, command: &str) -> String {
+        // The capacity oracle tests durability, even when one hosted disk
+        // flush runs past the app client's ordinary three-second deadline.
+        let mut socket = self.send(command);
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut reply = Vec::with_capacity(64);
+        for _ in 0..128 {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(!remaining.is_zero(), "capacity reply deadline: {command}");
+            socket.set_read_timeout(Some(remaining)).unwrap();
+            let mut byte = [0];
+            socket
+                .read_exact(&mut byte)
+                .unwrap_or_else(|e| panic!("capacity reply for {command}: {e}"));
+            if byte[0] == b'\n' {
+                return String::from_utf8(reply).unwrap();
+            }
+            reply.push(byte[0]);
+        }
+        panic!("capacity response exceeds 128 bytes: {command}");
+    }
 }
 
 fn verify_all_capacity_receipts(path: &std::path::Path) -> u64 {
@@ -300,34 +341,40 @@ fn verify_all_capacity_receipts(path: &std::path::Path) -> u64 {
     fs::metadata(path).unwrap().len()
 }
 
-fn full_service_replays_without_new_revision(client: &mut Process) {
+fn full_service_replays_without_new_revision(client: &CapacityClient) {
     let state = format!(
         "value {} {}",
         DURABLE_RECEIPTS + 2,
         capacity_value(DURABLE_RECEIPTS - 1)
     );
-    client.send("get");
-    assert_eq!(client.receive(), state);
-    client.send(&format!(
-        "set-id capacity_overflow {} 999999",
-        DURABLE_RECEIPTS + 2
-    ));
-    assert_eq!(client.receive(), "error Limit");
-    client.send("set-id capacity_0000 2 10001");
-    assert_eq!(client.receive(), "error Invalid");
-    client.send("set-id capacity_0000 3 10000");
-    assert_eq!(client.receive(), "error Invalid");
+    assert_eq!(client.request("get"), state);
+    assert_eq!(
+        client.request(&format!(
+            "set-id capacity_overflow {} 999999",
+            DURABLE_RECEIPTS + 2
+        )),
+        "error Limit"
+    );
+    assert_eq!(
+        client.request("set-id capacity_0000 2 10001"),
+        "error Invalid"
+    );
+    assert_eq!(
+        client.request("set-id capacity_0000 3 10000"),
+        "error Invalid"
+    );
     for index in 0..DURABLE_RECEIPTS {
-        client.send(&capacity_request(index));
-        assert_eq!(client.receive(), format!("committed {}", index + 3));
+        assert_eq!(
+            client.request(&capacity_request(index)),
+            format!("committed {}", index + 3)
+        );
     }
-    client.send("get");
-    assert_eq!(client.receive(), state);
+    assert_eq!(client.request("get"), state);
 }
 
 #[test]
 fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
-    use std::net::{Shutdown, TcpStream};
+    use std::net::Shutdown;
     use weekend_db::{Limits, storage};
 
     let dir = Directory::new();
@@ -349,7 +396,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
             .unwrap()
             .success()
     );
-    let (mut server, mut client, mut port) = configured_service(path, secret);
+    let (mut server, mut client) = configured_service(path, secret, &token);
     // Direct stderr bypasses libtest's per-test capture so CI interruption
     // preserves the last completed phase without reducing this full-cap test.
     writeln!(std::io::stderr(), "receipt capacity: filling 1024 receipts").unwrap();
@@ -361,28 +408,21 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
             // A complete authenticated request is sent without reading a reply.
             // Observe the committed state separately before interruption: this
             // deliberately does not claim a kill during a publication barrier.
-            let mut lost = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
-            lost.set_write_timeout(Some(Duration::from_secs(5)))
-                .unwrap();
-            writeln!(lost, "auth {token} {request}").unwrap();
+            let lost = client.send(&request);
             lost.shutdown(Shutdown::Write).unwrap();
             drop(lost);
             lost_replies += 1;
-            client.send("get");
             assert_eq!(
-                client.receive(),
+                client.request("get"),
                 format!("value {} {}", index + 3, capacity_value(index))
             );
-            drop(client);
             server.stop();
-            (server, client, port) = configured_service(path, secret);
+            (server, client) = configured_service(path, secret, &token);
             restarts += 1;
-            client.send(&request);
-            assert_eq!(client.receive(), format!("committed {}", index + 3));
+            assert_eq!(client.request(&request), format!("committed {}", index + 3));
             // The very first receipt remains the original acknowledgment even
             // after later writes and every post-commit restart.
-            client.send(&capacity_request(0));
-            assert_eq!(client.receive(), "committed 3");
+            assert_eq!(client.request(&capacity_request(0)), "committed 3");
             writeln!(
                 std::io::stderr(),
                 "receipt capacity: committed {}/{}; restarted and replayed",
@@ -391,8 +431,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
             )
             .unwrap();
         } else {
-            client.send(&request);
-            assert_eq!(client.receive(), format!("committed {}", index + 3));
+            assert_eq!(client.request(&request), format!("committed {}", index + 3));
         }
     }
     assert_eq!((lost_replies, restarts), (8, 8));
@@ -401,8 +440,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
         "receipt capacity: checking full-service replay"
     )
     .unwrap();
-    full_service_replays_without_new_revision(&mut client);
-    drop(client);
+    full_service_replays_without_new_revision(&client);
     server.stop();
     drop(server);
     let before = verify_all_capacity_receipts(&file);
@@ -434,9 +472,8 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
         )
         .unwrap();
         let image = fs::read(file).unwrap();
-        let (mut server, mut client, _) = configured_service(file.to_str().unwrap(), secret);
-        full_service_replays_without_new_revision(&mut client);
-        drop(client);
+        let (mut server, client) = configured_service(file.to_str().unwrap(), secret, &token);
+        full_service_replays_without_new_revision(&client);
         server.stop();
         drop(server);
         verify_all_capacity_receipts(file);
