@@ -33,7 +33,7 @@
 #define OK(call) assert((call)==WDB_OK)
 static void (*arm)(const char*,int);
 static void (*disarm)(void);
-static int (*count)(int);
+static int (*fault_count)(int);
 static wdb_value *bytes(wdb_database *db,unsigned char byte,size_t length) {
     uint8_t buffer[65536];assert(length<=sizeof buffer);memset(buffer,byte,length);
     wdb_value *value=NULL;OK(wdb_value_make(db,WDB_BYTES,0,buffer,length,&value));return value;
@@ -113,11 +113,11 @@ int main(int argc,char **argv) {
 #if defined(_WIN32)
         arm=windows_arm;
         disarm=windows_disarm;
-        count=windows_count;
+        fault_count=windows_count;
 #else
         arm=(void(*)(const char*,int))dlsym(RTLD_DEFAULT,"qualification_arm");
         disarm=(void(*)(void))dlsym(RTLD_DEFAULT,"qualification_disarm");
-        count=(int(*)(int))dlsym(RTLD_DEFAULT,"qualification_count");assert(arm && disarm && count);
+        fault_count=(int(*)(int))dlsym(RTLD_DEFAULT,"qualification_count");assert(arm && disarm && fault_count);
 #endif
     }
     uint8_t source[64];size_t need=99;OK(wdb_source_id(source,sizeof source,&need));
@@ -164,18 +164,18 @@ int main(int argc,char **argv) {
 #else
     if(mode!=5) {int fd=open(other,O_WRONLY|O_CREAT|O_EXCL,0600);assert(fd>=0);assert(fsync(fd)==0);assert(close(fd)==0);}
 #endif
-    assert(count(1)==0 && count(0)==0);
+    assert(fault_count(1)==0 && fault_count(0)==0);
     revision=UINT64_C(0xdeadbeefcafebabe);int status=wdb_tx_commit(tx,&revision);
     int expected=mode==0?WDB_OK:(mode==1 || mode==5?WDB_IO:WDB_OUTCOME_UNKNOWN);
     assert(status==expected && revision==(mode==0?4u:0u));
-    int hits=count(0),syncs=count(1),roots=count(2),witnesses=count(3),native_error=count(5);
+    int hits=fault_count(0),syncs=fault_count(1),roots=fault_count(2),witnesses=fault_count(3),native_error=fault_count(5);
 #if defined(_WIN32)
     assert(hits==(mode!=0));
     assert(native_error==(mode==0?0:(mode==5?ERROR_DISK_FULL:ERROR_IO_DEVICE)));
 #else
     assert(hits==((mode>=1 && mode<=4)?1:0));
 #endif
-    assert(count(4)>0);
+    assert(fault_count(4)>0);
     if(mode==0)assert(syncs==3 && roots==1 && witnesses==1);
     if(mode>=1 && mode<=3)assert(syncs==mode && roots==(mode>=2) && witnesses==(mode>=3));
     if(mode==4)assert(syncs==1 && roots==1 && witnesses==0);

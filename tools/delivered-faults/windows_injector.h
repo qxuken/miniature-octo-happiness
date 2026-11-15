@@ -17,7 +17,10 @@ static flush_fn real_flush;
 static write_fn real_write;
 static struct import_patch flush_patch, write_patch;
 static wchar_t target_path[32768];
-static int selected, hits, syncs, roots, witnesses, writes, win_error;
+static int selected;
+static struct fault_observations {
+    int hits, syncs, roots, witnesses, writes, win_error;
+} observations;
 
 static void *image_at(BYTE *base, DWORD size, ULONGLONG offset, size_t bytes) {
     assert(offset <= size && bytes <= size - offset);
@@ -91,10 +94,10 @@ static int is_target(HANDLE handle) {
 
 static BOOL WINAPI observed_flush(HANDLE handle) {
     if (is_target(handle)) {
-        ++syncs;
-        if (selected >= 1 && selected <= 3 && syncs == selected) {
-            ++hits;
-            win_error = ERROR_IO_DEVICE;
+        ++observations.syncs;
+        if (selected >= 1 && selected <= 3 && observations.syncs == selected) {
+            ++observations.hits;
+            observations.win_error = ERROR_IO_DEVICE;
             SetLastError(ERROR_IO_DEVICE);
             return FALSE;
         }
@@ -107,13 +110,13 @@ static NTSTATUS NTAPI observed_write(HANDLE handle, HANDLE event, PIO_APC_ROUTIN
                                      ULONG length, const LARGE_INTEGER *offset, const ULONG *key) {
     if (is_target(handle)) {
         assert(offset != NULL && offset->QuadPart >= 4096);
-        ++writes;
+        ++observations.writes;
         const LONGLONG at = offset->QuadPart;
-        if (at < 12288) ++roots;
-        else if (at < 20480) ++witnesses;
+        if (at < 12288) ++observations.roots;
+        else if (at < 20480) ++observations.witnesses;
         if ((selected == 4 && at < 12288) || (selected == 5 && at >= 20480)) {
-            ++hits;
-            win_error = selected == 4 ? ERROR_IO_DEVICE : ERROR_DISK_FULL;
+            ++observations.hits;
+            observations.win_error = selected == 4 ? ERROR_IO_DEVICE : ERROR_DISK_FULL;
             /* NTSTATUS equivalents of those Win32 errors. */
             io->Status = (NTSTATUS)(selected == 4 ? 0xc0000185u : 0xc000007fu);
             io->Information = 0;
@@ -141,7 +144,7 @@ static void windows_arm(const char *path, int mode) {
 #ifdef WDB_DISABLE_FAULTS
     selected = 0;
 #endif
-    hits = syncs = roots = witnesses = writes = win_error = 0;
+    observations = (struct fault_observations){0};
     HMODULE module = GetModuleHandleW(L"weekend_db.dll");
     assert(module != NULL);
     flush_fn flush = observed_flush;
@@ -166,12 +169,12 @@ static void windows_disarm(void) {
 
 static int windows_count(int key) {
     switch (key) {
-    case 0: return hits;
-    case 1: return syncs;
-    case 2: return roots;
-    case 3: return witnesses;
-    case 4: return writes;
-    case 5: return win_error;
+    case 0: return observations.hits;
+    case 1: return observations.syncs;
+    case 2: return observations.roots;
+    case 3: return observations.witnesses;
+    case 4: return observations.writes;
+    case 5: return observations.win_error;
     default: assert(0); return -1;
     }
 }
