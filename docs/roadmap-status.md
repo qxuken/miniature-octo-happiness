@@ -2239,3 +2239,20 @@ commit p99 moves from 37.825 to 35.940 ms on macOS and from 28.911 to
 32.565 ms on Linux. All four runs reopen revision 517 with the same
 current and retained state and the same checkpoint lengths.
 [Schedule, measurements and preserved traces](compound-resource-envelope.md#fixed-arrival-snapshot-queueing)
+
+## Sampled follower progress and catch-up observations
+
+At `444b0eb`, sampled authenticated polling reports the revision gap,
+monotonic age of the last accepted durable receipt and time between
+observing an outstanding revision and seeing it reached. A failed sample
+leaves the last accepted receipt available as history and keeps the
+enrollment, revision and digest checks for future polls.
+
+macOS/APFS and Docker Linux/ext4 pass the ten progress controls and the
+real TLS scenario. The follower reopens at revision 3 after the lost
+ship reply. After the primary advances to 4, both sampled polls report
+a gap of one, and a later authenticated poll confirms catch-up to 4.
+Final verification preserves retained revision 2. Windows x64 strict
+cross-Clippy passes. The new native Windows scenario and deployment
+catch-up targets remain open.
+[Operator contract and evidence](replica-progress.md#sampled-polling)

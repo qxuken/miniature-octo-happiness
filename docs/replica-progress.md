@@ -68,12 +68,81 @@ used, not a continuously sampled head.
 Prior observations are caller-trusted local records, not signed attestations.
 A prior receipt is labeled historical-only while fresh progress is unknown;
 it is never presented as the result of a failed poll. A fresh newer receipt
-marks the old observation superseded. Wall-clock timestamps may jump. The tool
-does not calculate elapsed replication lag, a commit-time estimate, an SLO, or
-an RPO guarantee. Revision differences include metadata commits and should not
-be interpreted as counts of missing application edits.
+marks the old observation superseded. Wall-clock timestamps may jump.
+Revision differences include metadata commits. The sampled mode adds
+monotonic timing for observations and the revisions they are waiting on.
 
-## Failures, retry and observation files
+## Sampled polling
+
+```sh
+cargo xtask replica-progress \
+  --binary /private/bin/weekend-replicate --source primary.wdb \
+  --stream 11111111111111111111111111111111 --peer 127.0.0.1:8400 \
+  --credentials primary-credentials --pin follower-cert.der \
+  --poll --samples 12 --interval-ms 1000
+```
+
+`--samples` accepts 1 through 64 sequential polls. The interval defaults to
+1,000 milliseconds and accepts 100 through 60,000. It starts after the
+previous poll finishes. Each poll has its own `--timeout` budget and follows
+the ordinary primary file lease rules. The source must be available to the
+existing CLI during its local inspection and open. A live application can
+use the embedded replication API with its existing database handle.
+
+Stdout contains one version-1 `weekend-replica-monitor` JSON object per line.
+`--previous` and `--save` belong to one-shot observations. In sampled mode
+the monitor retains the latest accepted observation in memory for
+reconciliation. A failed sample leaves it in place, and later polls still
+check its enrollment, revision and digest. The command returns success when
+the last poll is accepted. Earlier failures remain visible in the lines
+already emitted.
+
+| Field | Meaning |
+|---|---|
+| `schema`, `version` | `weekend-replica-monitor`, integer `1` |
+| `sample`, `elapsed_ms`, `probe_ms` | One-based sequence, elapsed time since this monitor started, and duration of this complete observation, including local verification |
+| `accepted`, `observation` | Reconciliation result and the full one-shot progress record, including any error |
+| `revision_gap` | Verified local revision minus fresh accepted follower revision. Null when the follower is empty or the observation is rejected |
+| `last_durable` | Last accepted durable revision, digest and observation timestamp, plus `age_ms` since it was observed. Its age resets on each accepted durable poll, including a repeated receipt |
+| `waiting_for` | On an accepted sample, the first observed local revision that is still outstanding, with `observed_for_ms` since it was first seen. Null on rejection or when the follower has reached the target and the latest sampled local revision |
+| `caught_up` | Target revision and `observed_after_ms` when an accepted poll first reports that target or a newer revision. If the primary advanced, this can accompany a new `waiting_for` target |
+
+The age and catch-up fields use a monotonic clock inside the current monitor
+process. They measure elapsed time between local observations. The sampled
+primary revision is the one verified by the CLI call. A follower may install
+an image between polls, including after a reply is lost. Commit timestamps
+and deployment SLOs require separate evidence.
+
+### Sampled poll qualification
+
+The archived `444b0eb` build exercised the real `weekend-replicate` and
+`xtask` executables on macOS arm64/APFS with Rust 1.99.1 and Docker Linux
+arm64/ext4 with Rust 1.99.0. The fixture checks the exact current data and
+retained revision 2 on both endpoints.
+
+| Stage | Verified result |
+|---|---|
+| Fresh empty follower | Local revision 3 is outstanding. The current gap and durable receipt are unknown |
+| Lost ship reply, then refused poll before restart | The relay discards 79 bytes of the TLS reply on both platforms. The failed poll supplies neither a fresh receipt nor catch-up evidence |
+| First poll after restart | Authenticated revision 3 matches the saved export digest. The observer reports that revision 3 caught up |
+| Primary advances to 4 | Two polls with `--samples 2 --interval-ms 100` each report a gap of one and a fresh receipt for revision 3. The second reports 563 ms of observed wait on macOS and 312 ms on Docker Linux, including the next probe's time |
+| Shipment and poll at revision 4 | Gap zero and observed catch-up to revision 4. Source and selected follower data and retained roots verify |
+| Follower stops again | Fresh progress is unavailable. The historical receipt stays at revision 4 and its age advances |
+
+Ten progress controls passed on each platform. The series control rejects a
+regressing receipt after a failed sample and then accepts a later valid
+receipt. A failed final sample emits its record and exits nonzero. Strict
+Clippy passed on both platforms and for the Rust 1.99.0 MSVC cross-target.
+Native Windows reruns use the same authenticated scenario. The Docker
+container and volume were removed after copyback, and the reports verify
+credential cleanup.
+
+| Evidence under `target/replica-monitor-qualification/` | macOS SHA-256 | Docker Linux SHA-256 |
+|---|---|---|
+| Report | `c25d957bcf42a38a62f5cb86db5a23548506eba3a695221548f890a4a66c0879` | `970994cbfdf1f415aa2896cc06a8791f4fcfb9058b2ef6e9774d25786e9e5b62` |
+| Sampled CLI stdout | `34ed22894367722a108c2e287f82c03fd2404772fdc0ca6744c5086f52fff642` | `09e9bfa6219e18bc3d4d366dfbe87a44a4d27411d85581112e4e413d0138c61c` |
+
+## One-shot failures, retry and observation files
 
 Syntax and argument-admission errors use CLI diagnostics and a nonzero
 exit, without JSON. After argument admission, operational failures produce a
@@ -124,9 +193,15 @@ executables built from the same archived revision and original locks.
 ```sh
 REPLICA_PROGRESS_BIN=/absolute/path/to/weekend-replicate \
 REPLICA_PROGRESS_FIXTURE=/absolute/path/to/replica-progress-fixture \
+REPLICA_PROGRESS_XTASK=/absolute/path/to/xtask \
+REPLICA_PROGRESS_EVIDENCE=/absolute/path/to/fresh-result-directory \
 cargo test --offline --locked -p xtask --bin xtask \
   authenticated_observations_restarts_dropped_reply_and_stale_capture -- --ignored
 ```
+
+The observer and evidence paths are optional on Unix. Supplying them
+exercises the sampled CLI executable and preserves the report after the
+temporary stores and private keys are removed.
 
 The Rust test exercises the same response-loss, restart, exact receipt,
 stale-capture, foreign enrollment and final retained-state checks described

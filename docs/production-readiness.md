@@ -191,6 +191,9 @@ qualification is a separate release-candidate requirement.
   results. Define revision and digest checks for duplicate, stale,
   conflicting, and lost replies, and keep the selected image
   authoritative even when an older image is present.
+  Sampled polling reports revision gaps, durable observation age and
+  observed catch-up time across transient errors.
+  [Sampled polling contract](replica-progress.md#sampled-polling)
 - **Offline CRDT writers.** Specify lawful merge and resolution contracts
   for app records, enforce or clearly protect reserved rows, and qualify
   policy/schema evolution, actor identity and replacement, replay,

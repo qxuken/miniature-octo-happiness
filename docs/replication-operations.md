@@ -318,6 +318,11 @@ does not persist the sender's previous in-memory progress watermark. The
 follower's recovered manifest remains authoritative. A restored/forked primary
 requires new stream enrollment; do not reinterpret it as the old live writer.
 
+Sampled polling tracks the verified revision gap and the age of the last
+durable observation across transient failures. Each sample uses the same
+primary lease rules and reconnects over authenticated TLS.
+[Sampled progress diagnostics](replica-progress.md#sampled-polling)
+
 To confirm the exact old capture after restart, compare both the captured
 revision and the polled digest with the saved completed export:
 
