@@ -1984,3 +1984,14 @@ Freeing one inode permitted byte-identical retries. The source later
 reopened at 213 with the same retained roots. The audit checked the exact
 fixture, source archive, final images and cleanup. This extends F10 to
 real global inode exhaustion at creation on ext4.
+
+## Kernel permission denial during compaction publication
+
+At `73bc3b6`, [macOS/APFS and Docker Linux/ext4](maintenance-space-exhaustion.md#kernel-permission-denial-at-exchange-and-cleanup)
+both returned kernel `EACCES` at exchange and unlink. The original image
+remained canonical after exchange denial. The compacted image remained
+canonical after unlink denial, and the old file survived at the scratch
+name. Each reopened at revision 212 with all 64 retained roots before the
+directory regained write permission. Both retries matched the compacted
+control byte for byte. Actual namespace space exhaustion and delayed
+writeback remain open in F10.

@@ -271,8 +271,9 @@ including the in-place replacement from compaction. The run reestablished
 zero free inodes before each subsequent fault. The final source reopened
 at revision 213 and the backup at 212, both with retained IDs 1 through 64
 covering revisions 53 through 179. This qualifies creation-time exhaustion
-on the tested ext4 profiles. Native failures during later namespace
-operations and physical power loss remain separate gates.
+on the tested ext4 profiles. [Kernel permission denial during later namespace
+operations](#kernel-permission-denial-at-exchange-and-cleanup) has separate
+evidence. Namespace space exhaustion and physical power loss remain open.
 
 The [hosted Ubuntu 24.04 x64 job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43749868875/job/132921247478)
 passed with Rust 1.99.1 at PR head `6a8bd8e` and tested merge
@@ -566,3 +567,52 @@ archive, then records their hashes. Evidence is under
 | Worker | `6b0869a7fba40964962e3b9a21353fbc21b0499f67d5703f1fd47a383bb829fc` | `aea9c9c9680b02c6935326cf68675991cc1c1a3a0c8c9425d35aaccee212d674` |
 | Namespace observation | `82ccc43ae4259c8a5f09d9bd5eff28602a9680e4286715401078d3c906e71ab4` | `8dcd1c3e88adeb4429739c9e434db24b1a435cdc71b25dfe26ba47fc7d3881a5` |
 | Shared shim source | `b65034ea3c5d70ad0920a7028ecc2b699c7f6fa4a1550c7f38cb2f5337606230` | `b65034ea3c5d70ad0920a7028ecc2b699c7f6fa4a1550c7f38cb2f5337606230` |
+
+## Kernel permission denial at exchange and cleanup
+
+The extended `namespace-failures` profile adds two real `EACCES` (13)
+outcomes to the seven injected cases. At the selected call, the private shim
+changes the exact case directory from mode `0700` to `0500`, calls the OS
+operation, and passes through its return and errno. The directory stays
+searchable throughout. The fixture checks its mode before and after a fresh
+database reopen, then restores write permission for the retry. The Docker
+worker runs with all capabilities dropped so the directory mode applies to it.
+[Linux rename and permission behavior](https://man7.org/linux/man-pages/man2/rename.2.html), [Linux unlink permission behavior](https://man7.org/linux/man-pages/man2/unlink.2.html)
+
+| Kernel operation | Database result / native diagnostic | Fresh reopen while denied | Retry after restoring write permission |
+|---|---|---|---|
+| Exchange canonical and scratch names | `OutcomeUnknown / Exchange / Permission / 13` | Original 66,154,496-byte canonical image, compacted scratch preserved | Canonical becomes byte-identical to the 63,074,304-byte compacted control. Existing scratch survives unchanged |
+| Remove the old image after exchange and both initial syncs | `OutcomeUnknown / Remove / Permission / 13` | Compacted 63,074,304-byte canonical image, original bytes preserved at the scratch name | Canonical again matches the compacted control. Existing scratch survives unchanged |
+
+Both outcomes reopen current revision 212 and verify all data for all 64
+retained roots before and after retry. The private fixture retires its
+scratch files after checking them. The disabled-injection control and all
+seven injected cases still pass, for 19 fresh-process checks per platform
+including the compacted control.
+
+The runs used exact source `73bc3b6b39d31ea5c0caf8ad88c3c4ac0a591356`,
+macOS arm64/APFS with Rust 1.99.1, and Docker Linux arm64/ext4 with Rust
+1.99.0. The independent audit matched both source archives against Git,
+rehashed 32 worker payloads per platform, and matched each diagnostic and
+fresh reopen to the captured observation and frozen data fingerprints.
+The owned Docker container and volume were absent after evidence copyback.
+The macOS xtask unit suite passed 185 tests with one default ignore.
+Strict Clippy passed for the macOS controller and compound fixture.
+Evidence is under `target/namespace-permission-validation/`.
+
+```sh
+cargo xtask resource namespace-failures --revision 73bc3b6 --output target/namespace-permission-macos
+cargo xtask resource namespace-failures --revision 73bc3b6 --output target/namespace-permission-linux \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c
+```
+
+Run the native test as a regular user on a filesystem that supports the
+adapter's exchange operation. Actual `ENOSPC` during exchange or unlink,
+delayed writeback errors, and physical persistence after power loss
+remain separate qualification cases.
+
+| Evidence | macOS SHA-256 | Linux SHA-256 |
+|---|---|---|
+| Controller | `987829b4a88e7cfb5782cdf53c8d1e7a7bc6186b3f7f86e0165a12c43caeaa6f` | `cee0fc78bf5a5b71e6eaf6609a880355e3b1b76079d249090d531f23cbfb5b12` |
+| Worker | `f17076659cd89ca3c9b0fb443d4df75614106458b1f1d1e5253fa81eca28b307` | `36ee6ab2fe319c0cdeaab22d88ddaf3df04370c7ddeb7e0e47ed5f335d72221d` |
+| Namespace observation | `bf04add8a524f083dae2c38652a0f44ff927c2529feea97526312c2d97f5b2fc` | `fe74c738d1e2b3fcde727e6b335245cb42bc6f9ab6b149af59108e1bbf9fabcd` |

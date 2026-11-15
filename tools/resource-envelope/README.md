@@ -122,12 +122,14 @@ later commit. Exact commands, privilege/cleanup bounds, source/artifact hashes
 and qualification limits are in [the report](../../docs/maintenance-space-exhaustion.md).
 The original append quota mode remains unchanged; no crates are published.
 
-## Native namespace error injection
+## Native namespace errors
 
 `cargo xtask resource namespace-failures --revision COMMIT --output FRESH`
 uses the near-cap workload with a private syscall interposer. It verifies
 native diagnostics for six late compaction phases and for EIO delivered after
-a successful exchange. Fresh processes verify current and retained data
-before and after retry. The controller checks phase order, output bounds and
-cleanup. Add the immutable `--docker-image` above for Linux/ext4.
+a successful exchange. It also removes directory write permission at the
+exchange and unlink calls to exercise actual kernel denial. Fresh processes
+verify current and retained data before and after retry. The controller checks
+phase order, output bounds and cleanup. Run as a standard user or add the
+immutable `--docker-image` above for Linux/ext4.
 [Case matrix and evidence](../../docs/maintenance-space-exhaustion.md#injected-namespace-and-sync-errors)

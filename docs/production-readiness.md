@@ -114,9 +114,10 @@ qualification is a separate release-candidate requirement.
   if they fit the first workload. Raise them or change the layout only
   with new bounds and evidence. Account for headroom needed by recovery
   and interrupted replacement files. The [ext4 inode-exhaustion test](maintenance-space-exhaustion.md#recorded-native-global-inode-exhaustion-result)
-  verifies create-time recovery with one freed inode. Native failures
-  during later namespace operations still need qualification.
-  Verify the canonical image before
+  verifies create-time recovery with one freed inode. The [kernel permission test](maintenance-space-exhaustion.md#kernel-permission-denial-at-exchange-and-cleanup)
+  verifies reopen and retry after exchange and unlink failures. Actual
+  namespace space exhaustion and delayed writeback faults still need
+  qualification. Verify the canonical image before
   removing any orphan. Windows compact copy is an existing capability.
   Qualify in-place Windows replacement independently if it becomes part
   of the release.
