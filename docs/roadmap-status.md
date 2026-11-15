@@ -2059,3 +2059,18 @@ oracles. The isolated macOS run used about 48 MiB less peak RSS, and the
 mixed candidate run peaked about 77 MiB higher. That leaves the deployment
 RSS gate open. Hosted ext4 passed all three copy writeback barriers on
 the updated engine.
+
+## Short-lived offline maintenance
+
+At `b377d37`, the [admin CLI](operations.md) exposes in-place compaction on
+macOS and Linux. A subprocess regression verifies the source lease, exact
+same-input bytes and all retained roots. The [paired isolation workload](compound-resource-envelope.md#short-lived-maintenance-processes)
+reuses the existing near-cap oracle and budgets. On macOS, the main worker
+sampled 73,216 KiB peak RSS with short-lived helpers and 1,446,816 KiB with
+in-process maintenance. The largest helper high-water mark was 115.0 MiB.
+The two 24-cycle runs took 106.86 s and 105.56 s respectively and ended at
+revision 980 with all 64 retained roots. On Docker Linux/ext4, the main
+worker sampled 69,300 KiB versus 127,032 KiB. The largest helper high-water
+mark was 112.0 MiB. The Linux runs ended at the same revision and root
+count within 0.35 s of each other. Aggregate memory and deployment budgets
+remain open.

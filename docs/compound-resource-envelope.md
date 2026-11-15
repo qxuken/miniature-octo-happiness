@@ -454,3 +454,76 @@ matched their recorded hashes and 64 retained-root counts.
 Local evidence is under `target/compaction-lifetime-validation/`.
 The cycle audit SHA-256 is
 `6681d82da4a9b7cf60c20a94ad0ad19cfdd9200cf8eaab7b17d5f7043f10236c`.
+
+### Short-lived maintenance processes
+
+Run the paired workload from the exact source on macOS or Linux. To use
+the recorded Linux arm64/ext4 setup, add `--docker-image` with the Rust
+1.99.0 image ID `sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
+
+```sh
+cargo xtask resource compound-isolation --revision b377d37 \
+  --output target/resource-compound-isolation
+```
+
+The controller builds one release binary, creates one compacted
+revision-212 seed, and runs 24 ordinary cycles followed by 24 cycles
+that start a fresh copy of that same binary for each backup, restore or
+compaction. This includes the intentionally rejected backup. Both modes
+call the same operations with the same budgets of 96 MiB for the rejected
+backup and 256 MiB for successful maintenance. Reopening, contention and
+graph verification in the workload stay in the main process. The controller
+checks every phase, rehashes the seed and checks that each run leaves only
+its final `cycles.wdb`.
+
+The main worker RSS is sampled by the supervisor about every 50 ms.
+Each short-lived helper reports its own `RUSAGE_SELF` RSS high-water mark
+after the operation. The two measurements cover different processes.
+Aggregate process-tree RSS and deployment memory limits remain open.
+
+Each run passed all 168 state observations, 768 contended commits and
+6,144 reader checks. Both finished with revision 980, sequence 100, 64
+retained roots, a 63,074,304-byte image and a 57,794,708-byte core peak in the
+opened database. An independent byte comparison allowed only the eight keys'
+last-write revision fields and the current DATA checksum to differ. The
+eight revisions remained the set 973 through 980 in both runs.
+
+| macOS arm64/APFS, Rust 1.99.1 | In process | Short-lived helpers |
+|---|---:|---:|
+| Worker wall time | 105.56 s | 106.86 s |
+| Main worker sampled peak RSS | 1,446,816 KiB | 73,216 KiB |
+| Main worker RSS sample count | 1,624 | 1,649 |
+| Maximum of 96 helper RSS high-water marks | — | 120,569,856 bytes |
+| In-place compaction median / max, 24 samples | 686.0 / 726.0 ms | 703.3 / 717.7 ms |
+
+| Docker Linux arm64/ext4, Rust 1.99.0 | In process | Short-lived helpers |
+|---|---:|---:|
+| Worker wall time | 94.00 s | 93.65 s |
+| Main worker sampled peak RSS | 127,032 KiB | 69,300 KiB |
+| Main worker RSS sample count | 1,658 | 1,646 |
+| Maximum of 96 helper RSS high-water marks | — | 117,440,512 bytes |
+| In-place compaction median / max, 24 samples | 624.0 / 640.0 ms | 633.3 / 642.9 ms |
+
+The macOS seed SHA-256 is
+`07dc128d21484d3a2acf5f7c53377fd106f51691e2704288209b82e6dda99fab`.
+The release fixture SHA-256 is
+`c5f6a013e4aed174b25298a384380b6146090e73267b85ddb627be2b8b15b75c`.
+The checked worker evidence in `target/compound-isolation-macos/run/evidence.json`
+has SHA-256 `cb273f886158af21e17af874e9e1966b6e0e0ccdf545c972fce5e1f7b38a9eca`.
+
+The Linux seed SHA-256 is
+`1e65af2a71a821e7ae03d0fecdf6fb75b886eb4dcd651a859cf269c044fd90ea`.
+The release fixture SHA-256 is
+`30478b6d45dea6dd4e57d7cc40d5e4ce5665a8e3baf7d286c9bc2fa0f77ae9a8`.
+The checked worker evidence in `target/compound-isolation-ext4/run/evidence.json`
+has SHA-256 `1b7658acc880a1feb730e8088bbeda7ec2afbc84768adba4de43fa24ab745e71`.
+The controller verified removal of its container and volume.
+
+The production `weekend-admin compact` uses the existing offline API.
+The native subprocess test holds the source lease, verifies `Busy` and
+unchanged input bytes, releases the lease, and compares the CLI output
+image byte for byte to the API's output from identical input. It reopens
+to compare current and retained roots. The all-feature admin and
+compaction suites passed 12 tests on macOS and 13 on Docker Linux. The
+14 resource-controller and oracle tests passed on macOS. On Windows the
+command reports `UnsupportedPlatform` and `backup` produces a compacted copy.

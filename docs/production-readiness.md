@@ -122,7 +122,10 @@ qualification is a separate release-candidate requirement.
   verifies recovery after copy-data, root-slot and witness flush failures.
   Actual namespace space exhaustion and faults during subsequent metadata
   sync, replacement and cleanup still need qualification. Verify the canonical image before
-  removing any orphan. Windows compact copy is an existing capability.
+  removing any orphan. The [admin CLI](operations.md) can compact in place
+  with exclusive leases on macOS and Linux. The [paired isolation workload](compound-resource-envelope.md#short-lived-maintenance-processes)
+  measures the process-memory effect with the same copy budgets and seed.
+  Windows compact copy is an existing capability.
   Qualify in-place Windows replacement independently if it becomes part
   of the release.
 - **Versioned APIs and distribution.** Decide which Rust types, methods,
