@@ -143,6 +143,19 @@ and retain failure evidence; requested-commit/original-lock/locked-example
 controls; and a real process timeout/cleanup control. These are runner tests;
 the actual native consumers above separately exercise engine behavior.
 
+## Windows NTFS result
+
+The Rust runner qualified the same pinned storage pair on native x64 Windows
+with fixed NTFS and Rust 1.99.1 MSVC at PR head `91b7519`. Both archived
+binaries wrote separate format-two images. Each of the four reads verified
+the complete fixture at current revision 4 and retained revision 2 and
+left the image bytes identical. Each of the four mutated-header opens
+returned `UnsupportedFormat` and left every byte identical. The downloaded
+unsupported files differed from their source images only in the four-byte
+version field. Both source archives, original lockfiles, and native binary
+hashes were verified against the recorded identities. See the
+[shared Windows archive and checksums](snapshot-compatibility.md#windows-ntfs-result).
+
 No core source changed. Broader data shapes, feature combinations, arbitrary
 checkpoints, Windows execution, cross-platform transfer, fault/power-loss
 behavior, typed-schema migration and stable support-policy commitments remain

@@ -99,3 +99,38 @@ contracts and were not exercised by this core wire qualification. In particular,
 core compatibility does not imply that a historical CLI can participate in the
 new CLI's TLS deployment. See [replication operations](replication-operations.md)
 for the deployment requirements and its separate native/TLS evidence.
+
+## Windows NTFS result
+
+PR head `91b7519` passed both directions on 2026-11-15 with Rust 1.99.1
+MSVC on native x64 Windows and fixed NTFS. The controller ran from test
+merge `1f522c8913ca325dd503ab35165f4e1d0853916c`. Each follower reopened
+current revision 4 and retained revision 2 after the primary had advanced
+locally to 5. Duplicate shipment returned the same durable receipt.
+A wire version 255 poll was rejected and left the closed follower files
+unchanged. The independently hashed export and persisted follower image
+matched both processes' receipts.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43731576062/job/132864962027)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43731576062/artifacts/14168338890).
+
+| Direction | Export and persisted follower image SHA-256 |
+|---|---|
+| dcd2402 → 315068f | `e8fdfc8341ead5a64836aee463a2c695bc7ba5bd7806ec4c4ee24cb7e5753824` |
+| 315068f → dcd2402 | `e1e5946d1a48184c309189ab462db578402f6e970e4dbc1e4c14707b732953b1` |
+
+The archive includes the [storage-format qualification](storage-compatibility-21e5d26.md#windows-ntfs-result).
+Both runs passed an independent inventory check over 144 payload files and
+54 bounded command records with verified job cleanup. The four source archives
+matched the macOS rerun byte for byte. Each lockfile matched its committed Git
+blob. All eight executables matched their recorded hashes and x64 PE headers.
+The two Windows profiles built the same debug fixtures used by the macOS rerun.
+The core wire test operates over private loopback. The authenticated mixed-version
+CLI and mixed-OS traffic remain separate profiles.
+
+| Evidence | SHA-256 |
+|---|---|
+| Downloaded ZIP | `8aa5397a55241e334c8c3b6eacbdcf68e4cc9190e1ba92509f91d3f65bb80e54` |
+| Windows snapshot `evidence.json` | `30d3f89e20be73c5a85f9d19b3bf3a3ed80bc63e83a0677a66521ce596486681` |
+| Windows storage `evidence.json` | `185fa4db303b6d61925b528284dd8208a9731b0c2f56180d87f069879f80c942` |
+| macOS snapshot rerun `evidence.json` | `7a9fd7e60f5d915a27577dc5532a70de2728754bbc1bd4042cc8f1806e13776f` |
+| macOS storage rerun `evidence.json` | `99f589f3f4c0e05baa5bf5d822710c2b7d6bb5b126b9db642aa28c40036a8a23` |
