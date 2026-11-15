@@ -9,14 +9,19 @@ const COPY: usize = 256 * MIB;
 const COMPACTED: u64 = 63_074_304;
 
 #[cfg(target_os = "macos")]
-fn exchange_at_capacity(source: &Path, gate: PathBuf, pid: u32) {
+fn compact_at_capacity(source: &Path, gate: PathBuf, pid: u32, cleanup: bool) {
+    let (step, phase) = if cleanup {
+        (storage::CompactionStep::RemoveOld, "cleanup")
+    } else {
+        (storage::CompactionStep::Exchange, "exchange")
+    };
     let mut entered = false;
-    let failure = storage::with_storage_diagnostics(|| {
+    let result = storage::with_storage_diagnostics(|| {
         storage::compact_file_with_hook(source, limits(COPY), move |event| {
-            if event.step == storage::CompactionStep::Exchange && !event.after {
-                assert!(!entered, "compaction repeated exchange");
+            if event.step == step && !event.after {
+                assert!(!entered, "compaction repeated {phase}");
                 entered = true;
-                println!("ready exchange {pid}");
+                println!("ready {phase} {pid}");
                 std::io::stdout().flush().unwrap();
                 let started = Instant::now();
                 loop {
@@ -26,7 +31,7 @@ fn exchange_at_capacity(source: &Path, gate: PathBuf, pid: u32) {
                             break;
                         }
                         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                        Err(error) => panic!("inspect exchange gate: {error}"),
+                        Err(error) => panic!("inspect {phase} gate: {error}"),
                     }
                     assert!(started.elapsed() < std::time::Duration::from_secs(90));
                     thread::sleep(std::time::Duration::from_millis(10));
@@ -34,8 +39,16 @@ fn exchange_at_capacity(source: &Path, gate: PathBuf, pid: u32) {
             }
             Ok(())
         })
-    })
-    .expect_err("expected kernel namespace exhaustion");
+    });
+    if cleanup {
+        let stats = result.expect("expected APFS to retire the old image at capacity");
+        println!(
+            "{{\"stage\":\"cleanup\",\"operation\":\"compact\",\"pid\":{pid},\"before_bytes\":{},\"after_bytes\":{}}}",
+            stats.before_bytes, stats.after_bytes,
+        );
+        return;
+    }
+    let failure = result.expect_err("expected kernel namespace exhaustion");
     assert_eq!(failure.error, Error::OutcomeUnknown);
     assert!(failure.verification.is_none());
     let native = failure.native.unwrap();
@@ -133,9 +146,14 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
     #[cfg(target_os = "macos")]
-    if mode == "space-exchange" {
+    if matches!(mode, "space-exchange" | "space-cleanup") {
         assert!(op == "compact" && kind == "enospc" && source == dir.join("source.wdb"));
-        exchange_at_capacity(source, PathBuf::from(&arguments[1]), pid);
+        compact_at_capacity(
+            source,
+            PathBuf::from(&arguments[1]),
+            pid,
+            mode == "space-cleanup",
+        );
         complete(mode);
         return;
     }

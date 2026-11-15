@@ -81,6 +81,10 @@ fn verify_phase(
         "space-exchange" if profile == Profile::Apfs && label == "compact" => {
             json!({"stage":"exchange","operation":label,"pid":pid,"error":15,"native_operation":"Exchange","category":"DiskFull","raw":28})
         }
+        #[cfg(any(target_os = "macos", test))]
+        "space-cleanup" if profile == Profile::Apfs && label == "compact" => {
+            json!({"stage":"cleanup","operation":label,"pid":pid,"before_bytes":66_154_496,"after_bytes":63_074_304})
+        }
         "space-fail" => {
             let partial = oracle::number(row, "partial_bytes")?;
             ensure!(
@@ -178,6 +182,10 @@ mod native {
         /// Exhaust space immediately before compaction's native exchange.
         #[arg(long)]
         namespace_enospc: bool,
+        #[cfg(target_os = "macos")]
+        /// Exhaust space after durable exchange and before removing the old image.
+        #[arg(long, conflicts_with = "namespace_enospc")]
+        cleanup_enospc: bool,
     }
 
     struct Fixture<'a> {
@@ -593,81 +601,167 @@ mod native {
     }
 
     #[cfg(target_os = "macos")]
-    fn qualify_exchange(
+    struct NamespaceImages {
+        source: PathBuf,
+        backup: PathBuf,
+        source_hash: String,
+        backup_hash: String,
+        original_meta: fs::Metadata,
+        ballast: PathBuf,
+    }
+
+    #[cfg(target_os = "macos")]
+    impl NamespaceImages {
+        fn install(
+            fixture: &mut Fixture<'_>,
+            proof: &mut Value,
+            seed: &Path,
+            data: &Path,
+        ) -> Result<Self> {
+            use std::os::unix::fs::PermissionsExt;
+
+            let source = data.join("source.wdb");
+            let backup = data.join("backup.wdb");
+            let source_hash = verified_copy(&seed.join("source.wdb"), &source, SOURCE_BYTES)?;
+            let backup_hash = verified_copy(&seed.join("backup.wdb"), &backup, COPY_BYTES)?;
+            let original = fs::File::open(&source)?;
+            original.set_permissions(fs::Permissions::from_mode(0o640))?;
+            original.sync_all()?;
+            let original_meta = original.metadata()?;
+            drop(original);
+            fixture.phase(proof, data, &source, "space-check", "initial-source")?;
+            fixture.phase(proof, data, &backup, "space-check", "initial-backup")?;
+            Ok(Self {
+                source,
+                backup,
+                source_hash,
+                backup_hash,
+                original_meta,
+                ballast: data.join("ballast"),
+            })
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[derive(Clone, Copy)]
+    enum NamespacePhase {
+        Exchange,
+        Cleanup,
+    }
+
+    #[cfg(target_os = "macos")]
+    struct AtCapacity {
+        scratch: PathBuf,
+        scratch_inode: u64,
+        canonical_inode: u64,
+        filled: u64,
+        available: u64,
+        observation: Value,
+    }
+
+    #[cfg(target_os = "macos")]
+    fn namespace_pressure(
         run: &Run,
         fixture: &mut Fixture<'_>,
         proof: &mut Value,
-        seed: &Path,
         data: &Path,
-    ) -> Result<()> {
+        images: &NamespaceImages,
+        phase: NamespacePhase,
+    ) -> Result<AtCapacity> {
         use crate::assurance::Campaign;
-        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        use std::os::unix::fs::MetadataExt;
         use std::time::Duration;
 
-        let source = data.join("source.wdb");
-        let backup = data.join("backup.wdb");
-        let source_hash = verified_copy(&seed.join("source.wdb"), &source, SOURCE_BYTES)?;
-        let backup_hash = verified_copy(&seed.join("backup.wdb"), &backup, COPY_BYTES)?;
-        let original = fs::File::open(&source)?;
-        original.set_permissions(fs::Permissions::from_mode(0o640))?;
-        original.sync_all()?;
-        let original_meta = original.metadata()?;
-        drop(original);
-        fixture.phase(proof, data, &source, "space-check", "initial-source")?;
-        fixture.phase(proof, data, &backup, "space-check", "initial-backup")?;
-
-        let ballast = data.join("ballast");
-        let gate_root = fixture.output.join("exchange-child");
+        let (step, mode, live_source_hash, live_scratch_hash, source_len, scratch_len) = match phase
+        {
+            NamespacePhase::Exchange => (
+                "exchange",
+                "space-exchange",
+                &images.source_hash,
+                &images.backup_hash,
+                SOURCE_BYTES,
+                COPY_BYTES,
+            ),
+            NamespacePhase::Cleanup => (
+                "cleanup",
+                "space-cleanup",
+                &images.backup_hash,
+                &images.source_hash,
+                COPY_BYTES,
+                SOURCE_BYTES,
+            ),
+        };
+        let gate_root = fixture.output.join(format!("{step}-child"));
         let ready = gate_root.join("release");
-        let mut child = Campaign::detached(run, &gate_root, "native APFS exchange at ENOSPC")?;
+        let mut child = Campaign::detached(
+            run,
+            &gate_root,
+            "native APFS compaction namespace at ENOSPC",
+        )?;
         child.env = fixture.env.clone();
         child.limits(1024 * 1024, None)?;
         let result = child.ready_process(
             vec![
                 path(fixture.binary),
                 path(data),
-                path(&source),
-                "space-exchange".into(),
+                path(&images.source),
+                mode.into(),
                 "compact".into(),
                 path(&ready),
             ],
-            "exchange",
+            step,
             (Duration::from_secs(60), 150.),
             true,
             |line| {
                 let pid: u32 = line
-                    .strip_prefix("ready exchange ")
-                    .context("wrong APFS exchange boundary")?
+                    .strip_prefix(&format!("ready {step} "))
+                    .context("wrong APFS namespace boundary")?
                     .parse()?;
-                ensure!(pid > 0, "invalid APFS exchange PID");
+                ensure!(pid > 0, "invalid APFS namespace PID");
                 Ok(pid)
             },
             |_, pid| {
                 let scratch = partial_path(data, "compact")?;
-                let meta = fs::symlink_metadata(&scratch)?;
+                let temporary = fs::symlink_metadata(&scratch)?;
+                let canonical = fs::symlink_metadata(&images.source)?;
+                let old = match phase {
+                    NamespacePhase::Exchange => &canonical,
+                    NamespacePhase::Cleanup => &temporary,
+                };
                 ensure!(
-                    meta.is_file()
-                        && meta.dev() == original_meta.dev()
-                        && meta.ino() != original_meta.ino()
-                        && meta.mode() & 0o7777 == 0o640
-                        && meta.nlink() == 1
-                        && meta.len() == COPY_BYTES
-                        && sha(&scratch)? == backup_hash
-                        && sha(&source)? == source_hash,
-                    "wrong source or verified replacement at exchange gate"
+                    old.ino() == images.original_meta.ino()
+                        && canonical.ino() != temporary.ino()
+                        && [&canonical, &temporary]
+                            .into_iter()
+                            .all(|meta| meta.is_file()
+                                && meta.dev() == images.original_meta.dev()
+                                && meta.nlink() == 1
+                                && meta.mode() & 0o7777 == 0o640)
+                        && canonical.len() == source_len
+                        && temporary.len() == scratch_len
+                        && sha(&scratch)? == *live_scratch_hash
+                        && sha(&images.source)? == *live_source_hash,
+                    "wrong source or scratch image at APFS {step} gate"
                 );
-                let (fill, available) = bounded_fill(data, &ballast, true)?;
+                let (fill, available) = bounded_fill(data, &images.ballast, true)?;
                 fs::create_dir(&ready)?;
-                Ok((pid, scratch, meta.ino(), fill, available))
+                Ok((
+                    pid,
+                    scratch,
+                    temporary.ino(),
+                    canonical.ino(),
+                    fill,
+                    available,
+                ))
             },
         );
-        let (pid, scratch, scratch_inode, filled, available) = match result {
+        let (pid, scratch, scratch_inode, canonical_inode, filled, available) = match result {
             Ok(gate) => {
                 child.finish(Ok(()))?;
                 gate
             }
             Err(error) => {
-                return child.finish(Err(error));
+                return Err(child.finish(Err(error)).unwrap_err());
             }
         };
         let gate_record = delivery::read_json(&gate_root.join("evidence.json"))?;
@@ -675,24 +769,54 @@ mod native {
             gate_record["passed"] == true
                 && gate_record["commands"][0]["supervision"]["pid"] == pid
                 && fixture.processes.insert(pid),
-            "APFS exchange process identity mismatch"
+            "APFS namespace process identity mismatch"
         );
-        let rows = fs::read_to_string(gate_root.join("exchange.stdout.log"))?
+        let rows = fs::read_to_string(gate_root.join(format!("{step}.stdout.log")))?
             .lines()
             .skip(1)
             .map(|line| delivery::json(line.as_bytes()))
             .collect::<Result<Vec<_>>>()?;
-        verify_phase(
-            &rows,
-            fixture.source,
-            "space-exchange",
-            "compact",
-            pid,
-            Profile::Apfs,
-        )?;
-        proof["maintenance_records"].as_array_mut().unwrap().push(
-            json!({"mode":"space-exchange","label":"compact","pid":pid,"observation":rows[0]}),
-        );
+        verify_phase(&rows, fixture.source, mode, "compact", pid, Profile::Apfs)?;
+        proof["maintenance_records"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"mode":mode,"label":"compact","pid":pid,"observation":rows[0]}));
+        Ok(AtCapacity {
+            scratch,
+            scratch_inode,
+            canonical_inode,
+            filled,
+            available,
+            observation: rows.into_iter().next().unwrap(),
+        })
+    }
+
+    #[cfg(target_os = "macos")]
+    fn qualify_exchange(
+        run: &Run,
+        fixture: &mut Fixture<'_>,
+        proof: &mut Value,
+        seed: &Path,
+        data: &Path,
+    ) -> Result<()> {
+        use std::os::unix::fs::MetadataExt;
+        let images = NamespaceImages::install(fixture, proof, seed, data)?;
+        let AtCapacity {
+            scratch,
+            scratch_inode,
+            filled,
+            available,
+            observation,
+            ..
+        } = namespace_pressure(run, fixture, proof, data, &images, NamespacePhase::Exchange)?;
+        let NamespaceImages {
+            source,
+            backup,
+            source_hash,
+            backup_hash,
+            original_meta,
+            ballast,
+        } = images;
         ensure!(
             fs::metadata(&source)?.ino() == original_meta.ino()
                 && fs::metadata(&scratch)?.ino() == scratch_inode
@@ -763,7 +887,66 @@ mod native {
             fs::metadata(&source)?.len(),
         )?;
         verified_copy(&backup, &fixture.output.join("backup.wdb"), COPY_BYTES)?;
-        proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":"compact","exchange":rows[0],"source_sha256":source_hash,"scratch_sha256":backup_hash,"original_inode":original_meta.ino(),"scratch_inode":scratch_inode,"retried_inode":retried.ino(),"ballast_bytes":filled,"free_at_exchange":available,"free_after_release":freed,"retry_matches_backup":true,"scratch_preserved_after_remount":true}));
+        proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":"compact","exchange":observation,"source_sha256":source_hash,"scratch_sha256":backup_hash,"original_inode":original_meta.ino(),"scratch_inode":scratch_inode,"retried_inode":retried.ino(),"ballast_bytes":filled,"free_at_exchange":available,"free_after_release":freed,"retry_matches_backup":true,"scratch_preserved_after_remount":true}));
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    fn qualify_cleanup(
+        run: &Run,
+        fixture: &mut Fixture<'_>,
+        proof: &mut Value,
+        seed: &Path,
+        data: &Path,
+    ) -> Result<()> {
+        use std::os::unix::fs::MetadataExt;
+        let images = NamespaceImages::install(fixture, proof, seed, data)?;
+        let full = namespace_pressure(run, fixture, proof, data, &images, NamespacePhase::Cleanup)?;
+        proof["cleanup_mount"] = macos_volume::remount(proof, fixture.output, &fixture.env)?;
+        let canonical = fs::symlink_metadata(&images.source)?;
+        ensure!(
+            canonical.is_file()
+                && canonical.ino() == full.canonical_inode
+                && canonical.mode() & 0o7777 == 0o640
+                && canonical.nlink() == 1
+                && !full.scratch.try_exists()?
+                && fs::read_dir(data)?.count() == 3
+                && sha(&images.source)? == images.backup_hash
+                && sha(&images.backup)? == images.backup_hash
+                && fs::metadata(&images.ballast)?.len() == full.filled,
+            "APFS cleanup or remount changed the canonical bytes or left the old inode"
+        );
+        let free = free_space(data)?;
+        ensure!(
+            free > full.available,
+            "cleanup freed no APFS space with the ballast still present"
+        );
+        fixture.phase(proof, data, &images.source, "space-check", "cleaned-source")?;
+        fixture.phase(proof, data, &images.backup, "space-check", "cleaned-backup")?;
+        fixture.phase(proof, data, &images.source, "space-advance", "advanced")?;
+        fixture.phase(
+            proof,
+            data,
+            &images.source,
+            "space-check",
+            "advanced-source",
+        )?;
+        fixture.phase(proof, data, &images.backup, "space-check", "final-backup")?;
+        ensure!(
+            fs::metadata(&images.ballast)?.len() == full.filled,
+            "ballast changed before the next commit"
+        );
+        verified_copy(
+            &images.source,
+            &fixture.output.join("advanced.wdb"),
+            fs::metadata(&images.source)?.len(),
+        )?;
+        verified_copy(
+            &images.backup,
+            &fixture.output.join("backup.wdb"),
+            COPY_BYTES,
+        )?;
+        proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":"compact","cleanup":full.observation,"old_inode":full.scratch_inode,"canonical_inode":full.canonical_inode,"ballast_bytes":full.filled,"free_before_unlink":full.available,"free_after_remount":free,"scratch_absent_after_remount":true,"canonical_sha256":images.backup_hash,"advanced_with_ballast":true}));
         Ok(())
     }
 
@@ -1045,6 +1228,8 @@ mod native {
         #[cfg(target_os = "macos")]
         let scope = if opts.namespace_enospc {
             "kernel ENOSPC at APFS compaction exchange"
+        } else if opts.cleanup_enospc {
+            "APFS compaction cleanup after allocation reaches ENOSPC"
         } else {
             scope
         };
@@ -1096,6 +1281,8 @@ mod native {
             macos_volume::with_volume(&mut proof, &output, &env, |proof, data| {
                 if opts.namespace_enospc {
                     qualify_exchange(run, &mut fixture, proof, &seed, data)
+                } else if opts.cleanup_enospc {
+                    qualify_cleanup(run, &mut fixture, proof, &seed, data)
                 } else {
                     qualify(&mut fixture, proof, &seed, data)
                 }
@@ -1150,6 +1337,27 @@ pub use native::{Options, run};
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apfs_cleanup_requires_successful_compaction_sizes() {
+        let source = "1111111111111111111111111111111111111111";
+        let done = oracle::completion("space-cleanup", source);
+        let mut row = json!({"stage":"cleanup","operation":"compact","pid":41,"before_bytes":66_154_496,"after_bytes":63_074_304});
+        let verify = |row, profile| {
+            verify_phase(
+                &[row, done.clone()],
+                source,
+                "space-cleanup",
+                "compact",
+                41,
+                profile,
+            )
+        };
+        verify(row.clone(), Profile::Apfs).unwrap();
+        assert!(verify(row.clone(), Profile::Ntfs).is_err());
+        row["after_bytes"] = json!(66_154_496);
+        assert!(verify(row, Profile::Apfs).is_err());
+    }
 
     #[test]
     fn apfs_exchange_requires_the_native_enospc_and_uncertain_outcome() {
