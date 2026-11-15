@@ -785,8 +785,10 @@ fixture uses fixed lineage identities for these byte comparisons.
 | Requested core peak around the concurrent limit rejection | 93,685,728 B | 93,685,728 B |
 | Sampled peak worker RSS, including simulator | 525,984 KiB | 418,076 KiB |
 
-These are single observations. Contention at installation, sustained
-reader/writer schedules and deployment-level latency bounds remain open.
+These are single observations. The follow-up samples longer publication
+windows under load. Direct installation-lock attribution and
+deployment-level latency bounds remain open.
+[Paired reader and writer measurements](#sustained-fresh-snapshot-acquisition)
 The exact lock ordering and acknowledgment point are documented in the
 [design](../DESIGN.md).
 
@@ -803,3 +805,86 @@ cargo xtask resource compound-breadth --revision 17f7c47 \
 | Release driver | `b4d8ec26675b5fe8c1db84e4bc432f1a2143378042b5a3bd6d8fe9a76c3ccc9b` | `f13d82d87964a9fede946684e660d8f26cb35993dd2546c96050af2228fb7dc9` |
 | Controller evidence | `559bb31f62733d43e77a97e7b1ce9e5a1cba16db7fde30d44a144dcbda11ec86` | `149dd3613afa854b4f7e197da9badb3d2e5254ec7dd9c09ee08b905fa2daf264` |
 | Worker evidence | `02d9bc43ec8f423036d12971752636e821f118caa618a440a892ee079267c64b` | `23743e9cde407d98b6fc879262b83ad1bfdb60f523f39792f0514c4276ca601b` |
+
+## Sustained fresh snapshot acquisition
+
+The `compound-breadth-sustained` profile starts from the same fixed-identity,
+58,523,648-byte compacted seed in all runs. It uses the same release driver
+source against `b131f84` before the lock split and `48e2e6d` after it.
+On each platform the baseline and candidate ran sequentially.
+
+Each run spans eight write-and-compact cycles. Three writer threads stage
+their first drafts before a shared starting barrier, then each commits 16
+full batches per cycle. Each batch assigns one shared scalar to 1,024
+disjoint keys. Four reader threads acquire fresh snapshots with a requested
+500 µs delay between completed iterations. They check both ends of every
+writer's key range on each read and scan every record and nested map on
+each newly observed revision. The independent controller replays the
+acknowledged writer order and checks every sampled reader state against it.
+
+The 384 commits advance from revision 133 to 517. Each cycle verifies the
+current and all 64 retained views before and after in-place compaction.
+The active file grows to 64,618,496 bytes in the first cycle and 64,749,568
+bytes in the next seven, then compacts to 58,654,720 bytes each time.
+The core limit is 96 MiB. Compaction runs after the worker threads finish
+and the active handle closes. It has a separate 256 MiB budget.
+
+Snapshot timings cover acquisition alone. The statistics exclude each
+reader's pre-barrier sample. The transition subset contains acquisitions
+that observed a revision newer than that reader's previous sample.
+Commit timings include waiting for other writers and all durability
+barriers. Percentiles use the nearest rank. Raw samples with zero
+elapsed clock ticks are counted and retained. The reader loop submits
+its next request after the previous iteration, so the candidate can
+complete substantially more reads and verification work in each window.
+Open-loop arrival queues, direct lock-installation timing and deployment
+thresholds remain separate.
+
+Reproduce from the driver checkout at `48e2e6d`.
+
+```sh
+cargo xtask resource compound-breadth-sustained --revision b131f84 \
+  --output target/sustained-breadth-macos-baseline
+cargo xtask resource compound-breadth-sustained --revision 48e2e6d \
+  --output target/sustained-breadth-macos-candidate
+cargo xtask resource compound-breadth-sustained --revision b131f84 \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/sustained-breadth-linux-baseline
+cargo xtask resource compound-breadth-sustained --revision 48e2e6d \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/sustained-breadth-linux-candidate
+```
+
+| Metric | macOS baseline | macOS candidate | Docker Linux baseline | Docker Linux candidate |
+|---|---:|---:|---:|---:|
+| Fresh acquisitions | 746 | 19,378 | 1,086 | 6,386 |
+| Acquisition p99 | 33.924 ms | 0.417 µs | 65.972 ms | 1.292 µs |
+| Maximum acquisition | 36.655 ms | 15.917 µs | 72.604 ms | 13.042 µs |
+| Revision-transition acquisitions | 735 | 1,536 | 739 | 1,477 |
+| Revision-transition acquisition p99 | 33.924 ms | 0.791 µs | 67.224 ms | 1.208 µs |
+| Distinct intermediate revisions observed, of 376 | 191 | 376 | 235 | 371 |
+| Durable commit p50 | 22.659 ms | 42.985 ms | 5.981 ms | 24.199 ms |
+| Durable commit p99 | 37.422 ms | 47.008 ms | 73.725 ms | 91.139 ms |
+| Compaction median, eight cycles | 982.7 ms | 999.1 ms | 1,021.3 ms | 1,024.8 ms |
+| Reopen median, eight cycles | 233.1 ms | 232.6 ms | 227.5 ms | 224.3 ms |
+| Largest requested core peak during load | 83,207,568 B | 83,460,236 B | 83,168,616 B | 83,480,072 B |
+| Sampled peak worker RSS across the run | 552,832 KiB | 497,696 KiB | 190,336 KiB | 186,548 KiB |
+
+The candidate completed more reads and full scans, and durable commit
+latency increased in both pairs. The candidate retained 2,015 zero-tick
+acquisitions on macOS and one on Linux. These distributions describe the
+four finite runs. The macOS arm64/APFS host used Rust 1.99.1. Docker Linux
+used Rust 1.99.0, arm64/ext4 and a two-CPU, 2 GiB container.
+
+All four seed files match byte for byte. The eight sequence checkpoints
+agree on revision, digest and file lengths. The controller hashes the
+bounded raw sample log and replays it after copyback. Both Docker runs
+removed their owned container and volume. The 17 resource controls and
+strict Clippy pass on macOS and Docker Linux.
+
+| Output directory under `target/` | Raw `run/run.jsonl` SHA-256 | Worker `run/evidence.json` SHA-256 |
+|---|---|---|
+| `sustained-breadth-macos-baseline` | `b5fc6beda9f5b1f51d61a8811b0f80912302a9f4af87d4e648a97357b95dfb0a` | `f036b527ca81cdb8d726e76c03ac4f4f1f7d2d5c055008ae803842cd474c57a5` |
+| `sustained-breadth-macos-candidate` | `faf9d69c677a63a554cc244b1c61d3566ddea71ded9c11b91ae1f49d17520625` | `1aed01a471f8b007fdb704e556e2b1c06dad5a0a07fdc8b334ff7788a6a2fcc1` |
+| `sustained-breadth-linux-baseline` | `3c2f31953991516d4c98df96876b502a32110da5ab7cd9f29f31d2a75b8ce150` | `4fab816fae907e9660dd6bd6fda36d7dc5023870dad72f2a35febb73ca9ccda2` |
+| `sustained-breadth-linux-candidate` | `2ce071185070ea4a15632584f72aac89574bfeef62afb02b915b22f745582ccb` | `8e6c2125d3dfa4fa2b999847f8dba8dad07e14d79d97beeb0ab66350edfb2b3a` |

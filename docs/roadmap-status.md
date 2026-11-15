@@ -2200,5 +2200,29 @@ The macOS ThreadSanitizer concurrency run passed all eight tests with
 nightly-2026-11-12 and an instrumented standard library. Docker Linux
 passed 57 targeted tests with one registered ignore, including the
 separate follower durable acknowledgment case. Strict Clippy passed
-locally and for the Rust 1.99.0 MSVC cross-target. Native Windows evidence
-for this lock change remains pending.
+locally and for the Rust 1.99.0 MSVC cross-target.
+
+The hosted Windows x64 minimum-Rust job passed at merge commit `44d64b5`,
+which includes the branch at `59010be`. The engine and concurrency test
+blobs match that branch. Debug and release both pass the paused-sync
+regression and the serialization image controls. The job also verifies its
+exact delivered DLL through the 134-cell trace. Its evidence SHA-256 is
+`45c00654d8cada3cd30b8565371e56b0a3135ca4dc0ac6a7339441e7890e88cf`.
+[Hosted Windows minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43771782032/job/132989065859)
+
+The native Windows job also passed its NTFS compatibility, exact-DLL
+publication fault, exhaustion and workspace checks for that branch.
+[Hosted native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43771782032/job/132989065899)
+
+## Sustained snapshot acquisition under full-width writes
+
+At `48e2e6d`, both platforms run the same eight-cycle workload against
+`b131f84` and the lock split. Each run acknowledges 384 full-width commits
+and reopens revision 517 with all 64 retained roots. Snapshot acquisition
+p99 falls from 33.924 ms to 0.417 µs on macOS/APFS and from 65.972 ms to
+1.292 µs on Docker Linux/ext4. The candidate completes more reads and
+verification scans. Durable commit p99 increases from 37.422 to 47.008 ms
+on macOS and from 73.725 to 91.139 ms on Linux. The independently replayed
+reader state and all cycle checkpoints pass. The 17 resource controls
+and strict Clippy pass on both platforms.
+[Paired results and raw samples](compound-resource-envelope.md#sustained-fresh-snapshot-acquisition)
