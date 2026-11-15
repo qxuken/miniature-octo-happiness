@@ -1873,3 +1873,15 @@ with the ballast still present allowed retry to revision 4 and retained
 revision 2. The archive, five process records and volume cleanup were
 verified. Strict host and Windows-target Clippy passed, and Docker Linux
 passed 18 quota controls and built the same fixture.
+
+## Windows NTFS typed schema rollout
+
+At `5818ba5` the [frozen typed rollout](typed-schema-rollout.md#windows-result-on-2026-11-15)
+passed all 12 phases on native Windows x64/NTFS with the original lockfile
+bytes. Exit 70 after staging a migration left current and retained state
+unchanged on fresh reopen. The historical application preserved the new
+score and opaque field 99 during its edit. It reopened a new indexed v1
+insert after restoring the pre-upgrade backup. All 75 downloaded artifact
+hashes and 32 child cleanup records were verified. The macOS rerun passed
+all 12 phases with Git's checkout conversion enabled in the environment.
+This records T03 for the pinned schema pair on all three platforms.
