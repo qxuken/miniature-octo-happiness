@@ -120,9 +120,9 @@ inherited; Docker has a 1,200-second overall deadline. No crates are published.
 
 ## Maintenance space exhaustion
 
-`../quota/enospc.py --revision COMMIT --output FRESH` archives this private
+`cargo xtask quota-enospc --revision COMMIT --output FRESH` archives this private
 compound driver and runs backup/restore/compact against an isolated 256 MiB
-Docker tmpfs. `../quota/run.py --maintenance` uses a quota-capable Linux host
+Docker tmpfs. `xtask quota --maintenance` uses a quota-capable Linux host
 and an exact-source binary for the separate 256 MiB UID quota/ext4 profile.
 Both require partial-copy kernel errors, full current/all-64-retained oracles
 while full, retry after freeing owned ballast, and fresh-process reopening of a

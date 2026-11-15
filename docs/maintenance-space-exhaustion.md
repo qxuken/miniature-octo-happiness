@@ -147,7 +147,7 @@ historical assertion or diagnose a kernel fault.
 Local Docker, with the pinned image already available:
 
 ```sh
-mise exec python@3.14.8 -- python -I -B tools/quota/enospc.py \
+cargo xtask quota-enospc \
   --revision 74fd4e8d256043f027d4cfa353ec33d957d0d64f \
   --output target/maintenance-space-new
 ```
@@ -159,11 +159,12 @@ with quota/e2fsprogs/util-linux installed:
 
 ```sh
 source_id="$(git rev-parse HEAD)"
+cargo +1.99.1 fetch --locked
+cargo +1.99.1 build --offline --locked -p xtask --target-dir target/xtask
 WEEKEND_DB_SOURCE_ID="$source_id" cargo +1.99.1 build --offline --locked --release \
   --manifest-path tools/resource-envelope/Cargo.toml --features compound \
   --bin weekend-compound-resource --target-dir target/maintenance-quota-build
-quota_python="$(mise exec python@3.14.8 -- python -c 'import sys; print(sys.executable)')"
-sudo "$quota_python" tools/quota/run.py --maintenance \
+sudo "$PWD/target/xtask/debug/xtask" quota --maintenance \
   --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" \
   --source "$source_id" --output "$PWD/target/maintenance-quota-new"
 ```

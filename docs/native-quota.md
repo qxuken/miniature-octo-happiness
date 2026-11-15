@@ -45,12 +45,11 @@ independently, checks actual absence, and removes scratch only after both are
 absent. A `findmnt` query error cannot prove absence. Cleanup uncertainty fails
 qualification and retains its diagnostic evidence.
 
-The evidence records the exact source commit and file hashes, fixture hash,
-controller/guest Python identities, resolved command hashes, kernel, quota
-policy, command results and full data oracles. Apt package versions are recorded
-by CI; they are not represented as immutable package pins. Controller Python
-3.14.8 and Mise 2026.11.6 are pinned; the guest's distro Python is recorded
-separately.
+The Rust controller records the exact source commit and file hashes, fixture and
+controller executable hashes, resolved command hashes, kernel, quota policy,
+command results and full data oracles. The guest calibrator is a byte-verified
+copy of the controller binary and checks its own UID, GID, capability sets and
+no-new-privileges flag after `setpriv`. CI records the installed package versions.
 
 ## Running it
 
@@ -58,11 +57,14 @@ Use a disposable, quota-capable Linux host with `quota`, `e2fsprogs` and
 `util-linux`. Build without engine feature flags:
 
 ```sh
-cargo +1.99.1 build --locked --release --example native_quota --target-dir target/quota-build
-quota_python="$(mise exec python@3.14.8 -- python -c 'import sys; print(sys.executable)')"
-sudo "$quota_python" tools/quota/run.py \
+source_id="$(git rev-parse HEAD)"
+cargo +1.99.1 fetch --locked
+cargo +1.99.1 build --offline --locked -p xtask --target-dir target/xtask
+WEEKEND_DB_SOURCE_ID="$source_id" cargo +1.99.1 build --offline --locked --release \
+  --example native_quota --target-dir target/quota-build
+sudo "$PWD/target/xtask/debug/xtask" quota \
   --fixture "$PWD/target/quota-build/release/examples/native_quota" \
-  --source "$(git rev-parse HEAD)" \
+  --source "$source_id" \
   --output "$PWD/target/native-quota"
 ```
 

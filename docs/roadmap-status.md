@@ -1000,3 +1000,12 @@ product's three-second network deadlines remain unchanged. macOS debug/release
 passes all six writer tests, including 1,024 receipts, eight lost replies and
 restarts, three full replays, and revision 1,026. Native and MSVC cross-target
 Clippy pass; the new native Windows CI run is pending.
+
+The hosted Windows job for `7d45f48` passed the receipt-capacity test and all
+20 exact-DLL traces. The engine and fuzz workflows are green at that commit.
+
+The Rust quota controller and its shared maintenance oracle now run the Docker
+ENOSPC drill. All three partial-copy errors used errno 28 and passed reopen and
+retry with 64 retained roots. The native EDQUOT job now uses the Rust entry point.
+Legacy quota files remain until the native job verifies the replacement.
+[Quota migration evidence](xtask-conversion.md#linux-quota-controller-and-maintenance-enospc)

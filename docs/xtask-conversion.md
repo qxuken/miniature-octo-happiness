@@ -513,3 +513,29 @@ proof SHA-256 values:
 With the still-required shared file restored, the residual Python registry
 passes **206 checks plus four registered skips across 30 workers** (SHA-256
 `4114be98df0ad177b8657faacf829efec27d21cc94ba2ef51e842a6553d0e8fd`).
+
+## Linux quota controller and maintenance ENOSPC
+
+The Rust quota controller provisions an owned ext4 loop mount and runs the
+engine fixture and the calibrator under a numeric UID with cleared capabilities.
+It binds both the current checkout and the fixture to the exact source commit.
+Cleanup checks the mount and backing image before removal and requires fresh
+proof of both absences. The separate Docker command shares the guest calibrator
+and independent maintenance oracle on a fixed 256 MiB tmpfs.
+
+The frozen Docker replay at engine source `7d45f4810cc3a40bc610e2daa4914de15e9eac5b`
+passed backup, restore and compaction. Each reported errno 28 after 8,388,608
+bytes of partial output. Each input reopened with all 64 retained roots while
+space was constrained. After retry, the final source reopened at 213 and the
+backup at 212. The required-failure control also verified the successful copy
+on a non-full filesystem. The copied report, executable and artifact hashes
+verified, and resource absence checks passed.
+
+- Docker controller evidence SHA-256 `ef0af7b47a96ba97839a4e70bffeb5b35e8f97a4c563d8d95855e75f265d4aeb`.
+- Docker worker evidence SHA-256 `fac068efc66c295cb2a4069521701baa826617ac0fbe50ef9eb8a8c6dc457633`.
+
+The hosted native quota job now invokes the Rust controller for append and
+near-cap maintenance. The Python files and their helper registrations stay
+available during that first native verification. Windows CI for the preceding
+coordinator fixture fix (`7d45f48`) is green, including the full capacity run
+and all 20 exact-DLL cases. The engine and fuzz workflows both passed.

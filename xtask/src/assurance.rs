@@ -180,6 +180,10 @@ impl<'a> Campaign<'a> {
     pub fn unchanged(&self) -> Result<bool> {
         Ok(self.before == snapshot(&self.run.root)?)
     }
+    #[cfg(target_os = "linux")]
+    pub fn cancelled(&self) -> bool {
+        self.cancellation.requested()
+    }
     pub fn command(
         &mut self,
         args: Vec<OsString>,
@@ -287,7 +291,11 @@ impl<'a> Campaign<'a> {
             if self.evidence["status"].as_str().is_some_and(|s| {
                 matches!(
                     s,
-                    "incomplete" | "measured" | "calibrated" | "completed-separated-reports"
+                    "incomplete"
+                        | "measured"
+                        | "calibrated"
+                        | "completed-separated-reports"
+                        | "qualified"
                 )
             }) {
                 self.evidence["status"] = json!("rejected");

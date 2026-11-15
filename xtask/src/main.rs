@@ -32,6 +32,16 @@ mod odin;
 mod package;
 #[cfg(unix)]
 mod probe;
+#[cfg(unix)]
+mod quota_enospc;
+#[cfg(target_os = "linux")]
+mod quota_guest;
+#[cfg(target_os = "linux")]
+mod quota_host;
+#[cfg(target_os = "linux")]
+mod quota_oracle;
+#[cfg(target_os = "linux")]
+mod resource_oracle;
 mod rust_source;
 #[cfg(unix)]
 mod sanitizers;
@@ -68,6 +78,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Exercise near-cap maintenance on a private Docker Linux tmpfs.
+    #[cfg(unix)]
+    QuotaEnospc(quota_enospc::Options),
+    /// Qualify actual EDQUOT and fresh recovery on an owned Linux ext4 mount.
+    #[cfg(target_os = "linux")]
+    Quota(quota_host::Options),
+    #[cfg(target_os = "linux")]
+    #[command(hide = true)]
+    QuotaGuest(quota_guest::Options),
     /// Compare clean and instrumented serialization on an archived engine.
     #[cfg(unix)]
     SerializationScale(serialization_scale::Options),
@@ -196,9 +215,19 @@ fn main() {
 }
 
 fn execute(cli: Cli) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    if let Task::QuotaGuest(options) = cli.task {
+        return quota_guest::run(options);
+    }
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        #[cfg(unix)]
+        Task::QuotaEnospc(options) => quota_enospc::run(&run, options),
+        #[cfg(target_os = "linux")]
+        Task::Quota(options) => quota_host::run(&run, options),
+        #[cfg(target_os = "linux")]
+        Task::QuotaGuest(_) => unreachable!(),
         #[cfg(unix)]
         Task::ArtifactTrace(options) => artifact_trace::run(&run, options),
         #[cfg(unix)]
