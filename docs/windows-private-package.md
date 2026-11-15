@@ -41,3 +41,66 @@ platform-named package/evidence directory, including failed-check evidence. Rust
 configuration tests run on all three native platforms. Actual MSVC execution is
 qualified by the Windows job; tests running on macOS do not establish Windows
 runtime compatibility. Odin exact-artifact qualification remains separate.
+
+## Minimum Rust compiler on native Windows
+
+Use a fresh, byte-preserving checkout on fixed NTFS with the native x64 MSVC
+toolchain. The hosted job disables Git line-ending conversion before checkout.
+Run the pinned compiler and cache the locked inputs before qualification.
+
+```powershell
+rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+cargo +1.99.0 fetch --locked
+cargo +1.99.0 fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
+cargo +1.99.0 fetch --locked --manifest-path examples/rust_package/Cargo.toml
+cargo +1.99.0 xtask windows-msrv --output target/windows-msrv
+```
+
+The runner reads the declared minimum from the root manifest and checks the
+actual Rust and Cargo versions. It verifies the working copies of every
+tracked Cargo lock against the indexed Git blobs before and after qualification.
+The standard Windows debug and release profiles run with locked, offline
+builds. The same invocation qualifies C/C++ consumers against both workspace
+DLLs, builds a private combined-feature package, runs the Rust consumer from
+its copied source, and exercises the relocated package's exact DLL with the
+existing 134-cell C/C++ trace. The evidence binds the package manifest, DLL
+and trace report by their hashes.
+
+### Recorded Rust 1.99.0 qualification
+
+PR head `ec08f39` passed on native x64 Windows and fixed NTFS on
+2026-11-15. The checkout was the clean PR test merge
+`6962da64360adf6ae359bca7ae21c5024229c9c2`. Rustc and Cargo reported
+1.99.0. Rustc reported commit `b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`
+and LLVM 23.1.1. The C/C++ compiler was MSVC 14.51.36231 with SDK
+10.0.26100.0. [Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43734689131/job/132874586809)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43734689131/artifacts/14170102057).
+
+All 13 tracked locks matched their Git blobs before and after the run.
+Formatting, strict workspace Clippy, the renamed typed consumer, Rust
+examples, ABI smoke and native C/C++ consumers passed. The debug and release
+all-features suites each reported 511 passes across 60 test summaries.
+The optimized private package passed relocation, and the copied-source Rust
+consumer verified typed indexes, CRDT convergence and repeat sync.
+
+All 20 exact-DLL C/C++ cases passed. Ten successful transcripts matched their
+independent expectations byte for byte. The other ten returned errors before
+creating a database. The independent audit matched all 1,734 downloaded
+payload hashes and the stdout, stderr and cleanup records for all 37
+top-level commands. All 686 package source hashes matched Git.
+
+The same source checkpoint passed the macOS debug/release workspace and C
+checks at 1.99.0, with all 13 locks unchanged. A separate clean arm64 macOS
+worktree built its combined-feature private package with 1.99.0. Its C/C++,
+Odin and copied-source Rust consumers passed, and all 771 package hashes
+were rechecked.
+
+| Evidence | SHA-256 |
+|---|---|
+| Windows ZIP | `e839e07c8b43d53a0e319c8a150ca4f55df5a97628036a0ebf78564479434e57` |
+| Windows controller | `391f1963d0dac9cdfa6aac4311b8c56d83aa05ba71a71a84b03b6c6587577563` |
+| Windows package manifest | `7cdc29905c7284873cff1657f08dcccb4d4d0b28329f2fd5b28097899e41edf1` |
+| Windows delivered DLL | `3fbe30f56425b210146460e0945d30eb22f9b1fe3008d8add6980687d14caeca` |
+| Windows delivered trace | `0b920f81c66cf264e6fb9f7dcdc2f50824e803df6838e1fbc1e732d09e263137` |
+| macOS workspace check log | `38f65cfc08498b04a00f21b2cf74d058783b2d0fd46add6e2b62130070d27f59` |
+| macOS package manifest | `f3f55f1857e1d7c3fd38d6b42bcc3a1939bbe3b2fc910d8c66d995adad528f64` |

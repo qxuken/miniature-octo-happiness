@@ -142,6 +142,25 @@ absent after the run.
 | macOS worker rerun | `1d269a5320fdfd4d6794287a2879c5df6c4b7fabc8ced71414788ec4b98bf714` |
 | Docker Linux worker rerun | `fcf901391d0748619b74ddeea69ca52902f1a0d196654743a95c0942fec795df` |
 
+The standard Windows job subsequently reproduced a runner-test failure
+on a CRLF checkout. The fixture extractor matched an LF-only boundary in
+the checked-out helper. A local regression reproduced the same error from
+CRLF bytes. The generator now normalizes the helper and scenario text to
+LF before extracting and composing the fixture. The regression verifies that
+LF and CRLF inputs generate identical test source. The CLI source archives
+and their Cargo lockfiles retain their committed bytes.
+[Original Windows failure](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43734689131/job/132874586511).
+
+At `898eb52` the frozen Windows upgrade reran with the normalized fixture.
+It preserved both locally acknowledged revision-7 commits during mixed-version
+rejection, then converged and remained stable at `[8, 8]`. The independent
+audit matched all 42 worker payloads and 24 process records. The worker
+report SHA-256 is
+`6cc1bb19fd091c667fbbbd3320716f382ffec9f742843c4b5e528b5231ed9b94`.
+The standard Windows runner-test step also passed on that commit.
+[Windows rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43735663339/job/132877604354)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43735663339/artifacts/14169984061).
+
 ## Historical native qualification and evidence
 
 Mac arm64 used Mise Rust/Cargo 1.99.1 and Python 3.14.8, native `/dev/disk3s5`
