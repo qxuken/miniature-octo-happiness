@@ -243,13 +243,34 @@ pub fn run(opts: Options) -> Result<()> {
                 "owned inode ballast and a full inode table required"
             );
             let (written, errno) = fill(&mut file, opts.ceiling)?;
+            let (_, _, tail) = space(data)?;
+            if tail != 0 {
+                // The large file can need extent-tree space even when a small
+                // allocation in a separate pre-existing inode still fits.
+                ensure!(
+                    tail <= 65536 && written + tail <= opts.ceiling,
+                    "unexpected ballast headroom"
+                );
+                let mut tail_file = OpenOptions::new()
+                    .write(true)
+                    .custom_flags(libc::O_NOFOLLOW)
+                    .open(dir.join("ballast-1"))?;
+                let info = tail_file.metadata()?;
+                ensure!(
+                    info.is_file() && info.uid() == opts.uid && info.len() == 0,
+                    "owned empty ballast inode required"
+                );
+                tail_file.write_all(&[0xa7; 65536][..tail as usize])?;
+                tail_file.sync_all()?;
+            }
             let create_errno = match output(&dir.join("calibration-inode")) {
                 Err(err) => err.raw_os_error(),
                 Ok(_) => anyhow::bail!("exclusive create unexpectedly succeeded"),
             };
             row["errno"] = json!(errno);
             row["create_errno"] = json!(create_errno);
-            row["written"] = json!(written);
+            row["written"] = json!(written + tail);
+            row["tail_bytes"] = json!(tail);
             row["ceiling"] = json!(opts.ceiling);
             row["global_free_inodes"] = json!(statvfs(data)?.f_ffree);
         }
