@@ -14,7 +14,7 @@ use std::{
     collections::BTreeMap,
     ffi::{OsStr, OsString},
     fs::{self, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -23,6 +23,7 @@ const BASE: &[&str] = &["Cargo.toml", "Cargo.lock", "src/main.rs"];
 const COMPOUND: &[&str] = &[
     "src/compound.rs",
     "src/breadth.rs",
+    "src/breadth_sustained.rs",
     "src/resilience.rs",
     "src/space.rs",
     "namespace_fault.c",
@@ -45,6 +46,7 @@ pub enum Profile {
     CompoundCycles,
     CompoundIsolation,
     CompoundBreadth,
+    CompoundBreadthSustained,
     Resilience,
     NamespaceFailures,
 }
@@ -56,6 +58,7 @@ impl Profile {
             Self::CompoundCycles => "compound-cycles",
             Self::CompoundIsolation => "compound-isolation",
             Self::CompoundBreadth => "compound-breadth",
+            Self::CompoundBreadthSustained => "compound-breadth-sustained",
             Self::Resilience => "resilience",
             Self::NamespaceFailures => "namespace-failures",
         }
@@ -67,6 +70,7 @@ impl Profile {
             | Self::CompoundCycles
             | Self::CompoundIsolation
             | Self::CompoundBreadth
+            | Self::CompoundBreadthSustained
             | Self::Resilience
             | Self::NamespaceFailures => "weekend-compound-resource",
         }
@@ -98,7 +102,10 @@ fn write_json(output: &Path, value: &Value) -> Result<()> {
     Ok(())
 }
 fn rows(path: &Path) -> Result<Vec<Value>> {
-    let bytes = fs::read(path)?;
+    let mut bytes = Vec::new();
+    fs::File::open(path)?
+        .take(MAX_STREAM)
+        .read_to_end(&mut bytes)?;
     ensure!(bytes.len() < MAX_STREAM as usize, "resource output limit");
     std::str::from_utf8(&bytes)?
         .lines()
@@ -345,20 +352,42 @@ pub(crate) fn worker(
                 resource_oracle::envelope,
             )?;
             c.evidence["run"] = value;
-        } else if profile == Profile::CompoundBreadth {
-            let value = observe(
+        } else if matches!(
+            profile,
+            Profile::CompoundBreadth | Profile::CompoundBreadthSustained
+        ) {
+            let sustained = profile == Profile::CompoundBreadthSustained;
+            let mode = if sustained {
+                "breadth-sustained"
+            } else {
+                "breadth"
+            };
+            let mut value = observe(
                 Observation {
                     binary: &binary,
                     data: &output.join("data"),
                     report: &output.join("run.json"),
-                    args: &["--".into(), "breadth".into()],
+                    args: &["--".into(), mode.into()],
                     context: &run,
                     deadline: 240.,
                     inspect_group: true,
                 },
-                |rows| resource_oracle::compound_breadth(rows, revision),
+                |rows| {
+                    if sustained {
+                        resource_oracle::sustained_breadth(rows, revision).map(drop)
+                    } else {
+                        resource_oracle::compound_breadth(rows, revision)
+                    }
+                },
             )?;
-            check_breadth(&value, &output.join("data"), revision)?;
+            if sustained {
+                value.as_object_mut().unwrap().remove("rows");
+                value["sample_log_sha256"] = json!(sha(&output.join("run.jsonl"))?);
+                c.evidence["summary"] = check_sustained_breadth(&value, &output, revision)?;
+                write_json(&output.join("run.json"), &value)?;
+            } else {
+                check_breadth(&value, &output.join("data"), revision)?;
+            }
             c.evidence["run"] = value;
         } else {
             let source_image = output.join("native-data/source.wdb");
@@ -616,7 +645,7 @@ fn docker(
                 Profile::Compound | Profile::NamespaceFailures => 600.,
                 Profile::CompoundCycles => 900.,
                 Profile::CompoundIsolation => 1400.,
-                Profile::CompoundBreadth => 600.,
+                Profile::CompoundBreadth | Profile::CompoundBreadthSustained => 600.,
                 Profile::Resilience => 1200.,
             },
         );
@@ -693,6 +722,30 @@ fn check_breadth(run: &Value, data: &Path, revision: &str) -> Result<()> {
     Ok(())
 }
 
+fn check_sustained_breadth(run: &Value, output: &Path, revision: &str) -> Result<Value> {
+    ensure!(
+        run["passed"] == true && run["owned_live_processes_absent"] == true,
+        "unverified sustained breadth run"
+    );
+    let raw = output.join("run.jsonl");
+    ensure!(
+        run["sample_log_sha256"] == sha(&raw)?,
+        "sustained sample log changed"
+    );
+    let rows = rows(&raw)?;
+    let summary = resource_oracle::sustained_breadth(&rows, revision)?;
+    let data = output.join("data");
+    ensure!(
+        fs::read_dir(&data)?.count() == 2
+            && fs::metadata(data.join("seed.wdb"))?.len()
+                == resource_oracle::number(&rows[0], "file_bytes")?
+            && fs::metadata(data.join("sustained.wdb"))?.len()
+                == resource_oracle::number(&rows[8], "compact_bytes")?,
+        "unexpected sustained breadth images"
+    );
+    Ok(summary)
+}
+
 fn check_proof(
     output: &Path,
     source: &BTreeMap<String, String>,
@@ -729,6 +782,11 @@ fn check_proof(
         )?;
     } else if profile == Profile::CompoundBreadth {
         check_breadth(&proof["run"], &output.join("data"), revision)?;
+    } else if profile == Profile::CompoundBreadthSustained {
+        ensure!(
+            proof["summary"] == check_sustained_breadth(&proof["run"], output, revision)?,
+            "sustained breadth summary differs from raw samples"
+        );
     } else {
         ensure!(
             proof["runs"]

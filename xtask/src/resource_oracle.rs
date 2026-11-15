@@ -279,6 +279,15 @@ const BREADTH_PHASES: [&str; 18] = [
 
 #[cfg(unix)]
 fn breadth_digest(current_revision: u64) -> u64 {
+    breadth_digest_with(current_revision, |key| match key {
+        0..1024 if current_revision >= 134 => Some(65 << 32 | key),
+        2048..3072 if current_revision == 135 => Some(0x5348_4152_4544),
+        _ => None,
+    })
+}
+
+#[cfg(unix)]
+fn breadth_digest_with(current_revision: u64, current: impl Fn(u64) -> Option<u64> + Copy) -> u64 {
     fnv((0..=64).flat_map(|id| {
         let revision: u64 = if id == 0 {
             current_revision
@@ -291,16 +300,12 @@ fn breadth_digest(current_revision: u64) -> u64 {
             .into_iter()
             .chain((0..4095u64).flat_map(move |key| {
                 let regular_update = key.checked_sub(1024).filter(|n| (10..=epoch).contains(n));
-                let version = match key {
-                    0..1024 if id == 0 && current_revision >= 134 => 65,
-                    0..1024 => epoch.min(9),
-                    _ => regular_update.unwrap_or(0),
-                };
-                let bits = if id == 0 && current_revision == 135 && (2048..3072).contains(&key) {
-                    0x5348_4152_4544
+                let version = if key < 1024 {
+                    epoch.min(9)
                 } else {
-                    version << 32 | key
+                    regular_update.unwrap_or(0)
                 };
+                let bits = if id == 0 { current(key) } else { None }.unwrap_or(version << 32 | key);
                 bits.to_le_bytes()
             }))
             .chain((0..8192u32).flat_map(|entry| {
@@ -309,6 +314,144 @@ fn breadth_digest(current_revision: u64) -> u64 {
                     .into_iter()
                     .chain(0x5749_4445u64.to_le_bytes())
             }))
+    }))
+}
+
+#[cfg(unix)]
+fn sustained_digest(cycle: u64) -> u64 {
+    breadth_digest_with(133 + 48 * cycle, |key| {
+        (key < 3072).then(|| 0x5355_0000_0000_0000 | ((key / 1024) << 32) | (16 * cycle))
+    })
+}
+
+#[cfg(unix)]
+fn latency_samples(mut samples: Vec<u64>) -> Value {
+    samples.sort_unstable();
+    let rank = |percent: usize| samples[(samples.len() * percent).div_ceil(100) - 1];
+    json!({
+        "count":samples.len(), "zero_ticks":samples.partition_point(|&ns| ns == 0),
+        "p50_ns":rank(50), "p95_ns":rank(95),
+        "p99_ns":rank(99), "max_ns":rank(100)
+    })
+}
+
+#[cfg(unix)]
+pub fn sustained_breadth(rows: &[Value], source: &str) -> Result<Value> {
+    ensure!(
+        rows.len() == 10 && rows.last() == Some(&completion("breadth-sustained", source)),
+        "incomplete sustained breadth cycles or wrong build identity"
+    );
+    let mut start_bytes = 58_523_648;
+    ensure!(
+        rows[0]
+            == json!({"phase":"sustained_seed","revision":133,"digest":breadth_digest(133),"file_bytes":start_bytes}),
+        "invalid sustained breadth seed"
+    );
+    let mut commits = Vec::new();
+    let mut acquisitions = Vec::new();
+    let mut transitions = Vec::new();
+    let mut compactions = Vec::new();
+    let mut reopens = Vec::new();
+    let mut intermediate_revisions = 0;
+    for (index, row) in rows[1..9].iter().enumerate() {
+        let cycle = index as u64 + 1;
+        let start = 133 + 48 * (cycle - 1);
+        let end = start + 48;
+        let written = number(row, "file_bytes")?;
+        ensure!(
+            row["phase"] == "sustained_cycle"
+                && row["cycle"] == cycle
+                && row["revision"] == end
+                && row["digest"] == sustained_digest(cycle)
+                && (60 * MIB..=64 * MIB).contains(&written)
+                && written == start_bytes + 48 * 126_976
+                && (1..=CORE).contains(&number(row, "core_peak_bytes")?),
+            "wrong sustained state or file growth in cycle {cycle}"
+        );
+        let compact = number(row, "compact_bytes")?;
+        ensure!(compact == 58_654_720, "bad sustained compacted size");
+        start_bytes = compact;
+        let wall = number(row, "workload_ns")?;
+        let maintenance = number(row, "maintenance_ns")?;
+        let reopen = number(row, "reopen_ns")?;
+        ensure!(maintenance > 0 && reopen > 0, "missing maintenance timing");
+        compactions.push(maintenance);
+        reopens.push(reopen);
+
+        let writers: Vec<Vec<[u64; 2]>> = serde_json::from_value(row["writers"].clone())?;
+        let readers: Vec<Vec<[u64; 5]>> = serde_json::from_value(row["readers"].clone())?;
+        ensure!(
+            writers.len() == 3 && readers.len() == 4,
+            "missing worker samples"
+        );
+        let mut order = Vec::new();
+        for (writer, samples) in writers.iter().enumerate() {
+            ensure!(
+                samples.len() == 16 && samples.windows(2).all(|w| w[0][0] < w[1][0]),
+                "writer receipts out of order"
+            );
+            for &[revision, ns] in samples {
+                ensure!((1..=wall).contains(&ns), "invalid writer timing");
+                commits.push(ns);
+                order.push((revision, writer));
+            }
+        }
+        order.sort_unstable();
+        ensure!(
+            order.iter().map(|p| p.0).eq(start + 1..=end),
+            "wrong committed revision order"
+        );
+        let mut sequences = [16 * (cycle - 1); 3];
+        let mut states = vec![sequences];
+        for (_, writer) in order {
+            sequences[writer] += 1;
+            states.push(sequences);
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for samples in readers {
+            ensure!(
+                (2..=4096).contains(&samples.len())
+                    && samples[0][0] == start
+                    && samples.last().unwrap()[0] == end,
+                "reader did not bracket the writer window"
+            );
+            let mut previous = start;
+            for (i, [revision, ns, a, b, c]) in samples.into_iter().enumerate() {
+                ensure!(
+                    (previous..=end).contains(&revision),
+                    "reader revision out of order"
+                );
+                // An uncontended acquisition can start and end in one clock tick.
+                ensure!(ns <= wall, "reader timing exceeds the writer window");
+                ensure!(
+                    states[(revision - start) as usize] == [a, b, c],
+                    "reader observed a state inconsistent with the acknowledged order"
+                );
+                if i != 0 {
+                    acquisitions.push(ns);
+                    if revision != previous {
+                        transitions.push(ns);
+                    }
+                    if (start + 1..end).contains(&revision) {
+                        seen.insert(revision);
+                    }
+                }
+                previous = revision;
+            }
+        }
+        ensure!(
+            !seen.is_empty(),
+            "cycle has no intermediate reader observations"
+        );
+        intermediate_revisions += seen.len();
+    }
+    Ok(json!({
+        "commits":latency_samples(commits),
+        "snapshot_acquisition":latency_samples(acquisitions),
+        "revision_transition_acquisition":latency_samples(transitions),
+        "compaction":latency_samples(compactions),
+        "reopen":latency_samples(reopens),
+        "intermediate_revisions":intermediate_revisions
     }))
 }
 
@@ -907,6 +1050,57 @@ mod tests {
             bad[index][field] = replacement;
             assert!(compound_breadth(&bad, "fixture").is_err(), "{field}");
         }
+    }
+
+    #[test]
+    fn sustained_breadth_replays_reader_states_from_writer_receipts() {
+        let mut rows = vec![json!({"phase":"sustained_seed","revision":133,
+                "digest":7_918_828_611_224_877_843u64,"file_bytes":58_523_648})];
+        for cycle in 1..=8u64 {
+            let start = 133 + (cycle - 1) * 48;
+            let before = 16 * (cycle - 1);
+            let after = before + 16;
+            let writers: Vec<_> = (0..3)
+                .map(|writer| {
+                    (1..=16)
+                        .map(|i| [start + writer * 16 + i, 11])
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            let reader = [
+                [start, 13, before, before, before],
+                [start + 1, 0, before + 1, before, before],
+                [start + 1, 9, before + 1, before, before],
+                [start + 48, 8, after, after, after],
+            ];
+            rows.push(json!({
+                "phase":"sustained_cycle","cycle":cycle,"revision":start+48,"digest":sustained_digest(cycle),
+                "file_bytes":if cycle==1 {64_618_496} else {64_749_568},
+                "compact_bytes":58_654_720,"core_peak_bytes":CORE,
+                "workload_ns":20,"maintenance_ns":19,"reopen_ns":16,"writers":writers,"readers":([reader;4]),
+            }));
+        }
+        rows.push(completion("breadth-sustained", "sample"));
+        let summary = sustained_breadth(&rows, "sample").unwrap();
+        assert_eq!(summary["commits"]["count"], 384);
+        assert_eq!(summary["snapshot_acquisition"]["count"], 96);
+        assert_eq!(summary["snapshot_acquisition"]["zero_ticks"], 32);
+        assert_eq!(summary["snapshot_acquisition"]["p99_ns"], 9);
+        assert_eq!(summary["revision_transition_acquisition"]["count"], 64);
+        assert_eq!(summary["revision_transition_acquisition"]["p99_ns"], 8);
+        assert!(sustained_breadth(&rows[..9], "sample").is_err());
+
+        let mut bad = rows.clone();
+        bad[1]["readers"][0][1][2] = json!(0);
+        assert!(sustained_breadth(&bad, "sample").is_err());
+        bad = rows.clone();
+        bad[8]["writers"][0][0][0] = bad[8]["writers"][1][0][0].clone();
+        assert!(sustained_breadth(&bad, "sample").is_err());
+        bad = rows.clone();
+        for reader in bad[1]["readers"].as_array_mut().unwrap() {
+            reader.as_array_mut().unwrap().drain(1..3);
+        }
+        assert!(sustained_breadth(&bad, "sample").is_err());
     }
 
     #[test]

@@ -15,6 +15,8 @@ use weekend_db::{
     CollectionId, Database, Error, Snapshot, Transaction, TransactionState, Value,
     storage::{self, ByteStore, Crash, Fault, FileStore, IoKind, MAX_IMAGE_BYTES, SimulatedDisk},
 };
+#[path = "breadth_sustained.rs"]
+pub(super) mod sustained;
 
 const WIDTH: u32 = 4096;
 const WRITES: u32 = 1024;
@@ -159,29 +161,43 @@ fn verify_view(
     updates: Updates,
     digest: &mut u64,
 ) {
+    verify_values(view, collection, digest, |index| {
+        if updates != Updates::Seed && index < WRITES {
+            scalar(PROBE_EPOCH, index)
+        } else if updates == Updates::Both && DISJOINT.contains(&index) {
+            SHARED
+        } else {
+            seed_bits(epoch, index)
+        }
+    });
+}
+
+fn seed_bits(epoch: u64, index: u32) -> u64 {
+    let update = u64::from(index.saturating_sub(WRITES));
+    let version = if index < WRITES {
+        epoch.min(FULL_EPOCHS)
+    } else if (FULL_EPOCHS + 1..=epoch.min(ROOTS)).contains(&update) {
+        update
+    } else {
+        0
+    };
+    scalar(version, index)
+}
+
+fn verify_values(
+    view: &Snapshot<'_>,
+    collection: CollectionId,
+    digest: &mut u64,
+    expected: impl Fn(u32) -> u64,
+) {
     let rows = view.scan(collection).unwrap();
     assert_eq!(rows.len(), WIDTH as usize);
     hash(digest, &view.revision().to_le_bytes());
     for (index, (key, value)) in (0..WIDTH).zip(rows) {
         assert_eq!(key, index.to_be_bytes());
         if index != WIDTH - 1 {
-            let update = u64::from(index.saturating_sub(WRITES));
-            let version = if index < WRITES {
-                epoch.min(FULL_EPOCHS)
-            } else if (FULL_EPOCHS + 1..=epoch.min(ROOTS)).contains(&update) {
-                update
-            } else {
-                0
-            };
-            let expected = if updates != Updates::Seed && index < WRITES {
-                scalar(PROBE_EPOCH, index)
-            } else if updates == Updates::Both && DISJOINT.contains(&index) {
-                SHARED
-            } else {
-                scalar(version, index)
-            };
             let bits = value.as_u64().unwrap();
-            assert_eq!(bits, expected);
+            assert_eq!(bits, expected(index));
             hash(digest, &bits.to_le_bytes());
             continue;
         }
@@ -229,12 +245,16 @@ fn verify_views(
     };
     assert_eq!(current.data_revision(), data_revision);
     verify_view(current, collection, ROOTS, updates, &mut digest);
+    verify_retained(retained, collection, &mut digest);
+    digest
+}
+
+fn verify_retained(retained: &[Snapshot<'_>], collection: CollectionId, digest: &mut u64) {
     for (id, view) in (1..=ROOTS).zip(retained) {
         assert_eq!(view.revision(), 4 + 2 * id);
         assert_eq!(view.data_revision(), view.revision());
-        verify_view(view, collection, id, Updates::Seed, &mut digest);
+        verify_view(view, collection, id, Updates::Seed, digest);
     }
-    digest
 }
 
 fn state(

@@ -900,9 +900,12 @@ fn main() {
     assert!((2..=7).contains(&args.len()));
     let dir = Path::new(&args[1]);
     #[cfg(unix)]
-    if args.len() == 4 && args[2] == "--" && args[3] == "breadth" {
-        breadth::run(dir);
-        return;
+    if args.len() == 4 && args[2] == "--" {
+        match args[3].to_str().unwrap() {
+            "breadth" => return breadth::run(dir),
+            "breadth-sustained" => return breadth::sustained::run(dir),
+            _ => {}
+        }
     }
     if args.len() >= 4 {
         let source = Path::new(&args[2]);
