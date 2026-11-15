@@ -20,6 +20,7 @@ cargo xtask atomic-model
 cargo xtask fuzz --runs 1000 --seconds 20 --output target/fuzz-evidence/private
 cargo xtask coverage --scope library
 cargo xtask coverage-executables --help
+cargo xtask mutations --list
 cargo xtask clean --dry-run
 ```
 
@@ -68,6 +69,11 @@ source path are excluded explicitly, including Docker installations outside
 `.cargo`/`.rustup`. The per-executable command keeps child/build profiles
 unqualified and produces no aggregate percentage. See the [coverage guide](coverage.md)
 and [parent executable guide](coverage-executables.md) for exact scope.
+
+`mutations` replays the [56 reviewed guard changes](mutations.md) in an owned
+source copy. Nonempty baselines, failed-test diagnostics, restoration, original
+input stability and process retirement remain qualification gates. No original
+checkout or shared build cache is mutated.
 
 The check planner preserves the original Python pipeline: formatting, strict
 workspace Clippy, debug/release workspace tests, task CLI demo, renamed-dependency

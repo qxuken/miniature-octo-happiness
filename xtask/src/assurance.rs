@@ -67,7 +67,7 @@ fn walk(
             && (all
                 || matches!(
                     file.extension().and_then(|s| s.to_str()),
-                    Some("rs" | "c" | "h")
+                    Some("rs" | "c" | "h" | "json")
                 )
                 || matches!(
                     file.file_name().and_then(|s| s.to_str()),

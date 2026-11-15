@@ -18,6 +18,8 @@ mod fuzz;
 #[cfg(any(unix, test))]
 mod instrumentation;
 mod migration;
+#[cfg(unix)]
+mod mutations;
 mod notices;
 mod odin;
 mod package;
@@ -48,6 +50,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Detect reviewed safe guard mutants in an isolated source checkout.
+    #[cfg(unix)]
+    Mutations(mutations::Options),
     /// Produce independent reports for exact parent test executables.
     #[cfg(unix)]
     CoverageExecutables(coverage_executables::Options),
@@ -166,6 +171,8 @@ fn execute(cli: Cli) -> Result<()> {
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        #[cfg(unix)]
+        Task::Mutations(options) => mutations::run(&run, options),
         #[cfg(unix)]
         Task::CoverageExecutables(options) => coverage_executables::run(&run, options),
         #[cfg(unix)]

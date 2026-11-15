@@ -30,7 +30,7 @@ entry points.
 |---|---|---|
 | Core entry points | check/build/package/cleanup, shared bounded POSIX supervision, native and delivered fault parent/worker | Check/build/package/cleanup are Rust-only; bounded supervision/fault orchestration is Rust with remaining adapters/oracles pending |
 | Packaging leaves and consumers | release policy, MSVC discovery/consumers, attribution, Odin bindings, dynamic ABI smoke, delivered Rust source | Clean Mac/Linux packages qualify at `06d0a15`; hosted Windows passes at `e3ff5ad` and `cfa08d1` |
-| CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, `probe/run.py` | Sanitizer, C-ASan, atomic-model, fuzz and coverage runners are Rust; mutations and packaging experiment pending |
+| CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, `probe/run.py` | Sanitizer, C-ASan, atomic-model, fuzz, coverage and mutation runners are Rust; packaging experiment pending |
 | Independent delivery traces | state model, Rust/C/Odin trace controller, Docker worker, Windows 134-cell trace | Pending |
 | Upgrade and distributed qualification | storage/snapshot compatibility, snapshot/study CLI upgrades, replica progress, follower backup/restore, coordinator/peer soaks | Pending |
 | Resource/workload qualification | baseline/benchmark/monthly workload, serialization scale, resource observer, compound/recovery/growth/cache probes | Pending |
@@ -218,3 +218,41 @@ Local proof bindings under `target/xtask-coverage-conversion/` (SHA-256):
 | Qualified Linux library line | `ed0344a0bd8c8a220b1d844a8cee0cba14e00a72831a9e7223c4869ed5bcfc65` |
 | Qualified Linux condition fixture | `e42fa81e78d7d610af889587ef06caf1eb9e3f0eef63ffcab56e41abf5dc8bd9` |
 | Qualified Linux parent reports | `10709b272e69e5263a443dfb01be816726d50fd39a7c4e5c288aa8c29a656df7` |
+
+## Mutation conversion checkpoint
+
+`cargo xtask mutations` replaces the last Python mutation controller. Its 56
+reviewed cases are frozen, with original source provenance, in
+`xtask/tests/mutations.json`; names, replacements, source occurrence counts,
+packages and test commands are preserved. Five new Rust controls check the full
+inventory/current expression matches, production-only replacement, copy isolation,
+symlink rejection, nonempty baselines and genuine failed-test detection. Compiler
+diagnostics merely quoting a failure marker cannot qualify: the failed libtest
+footer must be anchored and Cargo must exit 101, with clean process retirement.
+Root source and the complete copied input hash map must remain stable after
+restoration. Owned package artifacts are cleaned before each mutant and after
+restoration, preventing coarse timestamps from reusing a mutant in another case.
+All subprocesses retain the 120-second limit and shared output/cleanup gates.
+
+Mac and offline Docker Linux **each pass all 13 distinct baselines and detect all
+56 mutants**, with all 680 copied inputs unchanged afterward. This includes
+allocation, FFI, transfer/replacement/simulator, value/tree, live budget, both TLS
+endpoints and typed runtime/catalog guards. Root inputs remain unchanged. The
+Linux container and volume are independently absent. An initial smoke and full
+run are followed by a full rerun after the failed-footer predicate is tightened;
+the following hashes bind the final reruns. Mac debug/release controls pass
+(70 unit plus seven integration tests); strict native/MSVC cross-target Clippy
+and Linux debug controls pass. No mutation is applied to the original checkout.
+
+The retired controller had no separate Python test suite, so the frozen legacy
+mapping remains **38/179** and the remaining helper registry stays at 141 controls
+before its two execution modes/skips. There are now **51** maintained Python
+files. The source-bound runs use `60f03c0-dirty`; this is finite directed mutation
+evidence, not measured compiler MC/DC or a new production qualification claim.
+Current usage and safeguards are in the [mutation guide](mutations.md).
+
+Local proof under `target/xtask-mutations/` (SHA-256):
+
+- Mac final report: `78c263fe1eb5219af1204255855b12acbf54eddd8321d7cbc3ef4fc928defa02`.
+- Linux final report: `4f8a96e207ed1adc80bb61a36ee5768d5f3712a8f702096b5574bb5dcb4a14aa`.
+- Linux controller: `35e885afe9980348ad635c73586f60d58329cd25390b827a83ab3339632e365b`.

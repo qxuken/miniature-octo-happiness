@@ -925,3 +925,10 @@ sources, LLVM warnings, empty metrics and unsupported MC/DC still reject. Mac
 debug/release controls and Linux debug pass; 278 remaining helper checks plus four
 registered skips pass. Exact counts, source scopes and proof hashes are in the
 [conversion ledger](xtask-conversion.md#coverage-conversion-checkpoint).
+
+The Rust [mutation runner](mutations.md) then preserves all 56 reviewed changes
+and passes all 13 baselines/56 detections on both native Mac and offline Docker
+Linux. All 680 copied inputs are restored, root inputs stay stable, and owned
+resources are retired. The final predicate rejects compiler errors, quoted
+markers, empty tests and supervision failures. No separate Python suite is
+removed in this step: 38/179 legacy mappings remain, with 51 Python files left.
