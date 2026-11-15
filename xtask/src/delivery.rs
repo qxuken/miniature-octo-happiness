@@ -6,12 +6,7 @@ use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
 };
 use serde_json::{Map, Number, Value};
-use std::{
-    collections::BTreeMap,
-    fmt, fs,
-    io::Read,
-    path::{Component, Path},
-};
+use std::{collections::BTreeMap, fmt, fs, io::Read, path::Path};
 struct Unique(Value);
 impl<'de> Deserialize<'de> for Unique {
     fn deserialize<D: Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
@@ -154,7 +149,9 @@ pub fn inventory(root: &Path) -> Result<BTreeMap<String, String>> {
     visit(root, root, &mut out, &mut 0, &mut 0, 0)?;
     Ok(out)
 }
+#[cfg(any(unix, test))]
 pub fn verified(root: &Path) -> Result<Value> {
+    use std::path::Component;
     let info = read_json(&root.join("manifest.json"))?;
     let source = info["source"].as_str().context("package source missing")?;
     ensure!(

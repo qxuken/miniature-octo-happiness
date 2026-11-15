@@ -966,3 +966,11 @@ quota and coverage; Windows caught CRLF-converted oracle fixtures. Explicit LF
 attributes and a real `core.autocrlf=true` checkout regression preserve the exact
 frozen hashes. All nine focused model controls pass locally; the Windows CI
 rerun remains pending rather than being counted as a native pass.
+
+The Windows fixture rerun at `cad7154` passes native validation, full checks,
+C/C++ consumers and private packaging. The next Rust Windows trace port is locally
+verified by portable controls and strict MSVC cross-compilation; the workflow now
+requires 20 actual C/C++ executions with exact DLL attestations. Native process
+ownership and private MSVC-discovery controls still require that hosted Windows
+run. Legacy Windows tooling remains until it passes; no retirement count or
+production qualification is advanced ahead of execution.

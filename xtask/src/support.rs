@@ -66,6 +66,8 @@ pub struct Run {
     pub env: BTreeMap<OsString, OsString>,
     pub commands: Vec<Value>,
     pub log_dir: Option<PathBuf>,
+    #[cfg(windows)]
+    pub private_deadline: Option<std::time::Instant>,
 }
 impl Run {
     pub fn new(root: PathBuf) -> Self {
@@ -74,6 +76,8 @@ impl Run {
             env: env::vars_os().collect(),
             commands: vec![],
             log_dir: None,
+            #[cfg(windows)]
+            private_deadline: None,
         }
     }
     pub fn target(&self) -> PathBuf {
@@ -230,13 +234,27 @@ impl Run {
     // Compiler environment output can contain credentials. Keep both streams
     // out of logs and errors; callers retain only explicit identities/hashes.
     pub fn capture_private(&mut self, args: &[OsString]) -> Result<Vec<u8>> {
-        let out = self.command(args)?.output()?;
-        ensure!(
-            out.status.success(),
-            "private toolchain command failed: {}",
-            out.status
-        );
-        Ok(out.stdout)
+        #[cfg(windows)]
+        {
+            drop(self.command(args)?);
+            let timeout = self.private_deadline.map_or(120., |end| {
+                end.saturating_duration_since(std::time::Instant::now())
+                    .as_secs_f64()
+                    .min(120.)
+            });
+            ensure!(timeout > 0., "private toolchain discovery deadline");
+            crate::windows_process::capture_private(args, &self.root, &self.env, timeout)
+        }
+        #[cfg(not(windows))]
+        {
+            let out = self.command(args)?.output()?;
+            ensure!(
+                out.status.success(),
+                "private toolchain command failed: {}",
+                out.status
+            );
+            Ok(out.stdout)
+        }
     }
     pub fn task(&mut self, args: impl IntoIterator<Item = OsString>) -> Result<()> {
         let mut command = vec![path(std::env::current_exe()?)];

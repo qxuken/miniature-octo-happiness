@@ -1006,6 +1006,7 @@ dependencies = [
  "sha2",
  "signal-hook",
  "toml",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

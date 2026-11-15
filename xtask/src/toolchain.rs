@@ -228,6 +228,24 @@ pub fn compiler_environment(
     run: &mut Run,
     directory: &Path,
 ) -> Result<BTreeMap<OsString, OsString>> {
+    #[cfg(windows)]
+    {
+        let previous = run.private_deadline;
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        run.private_deadline = Some(previous.map_or(end, |p| p.min(end)));
+        let result = compiler_environment_inner(run, directory);
+        run.private_deadline = previous;
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        compiler_environment_inner(run, directory)
+    }
+}
+fn compiler_environment_inner(
+    run: &mut Run,
+    directory: &Path,
+) -> Result<BTreeMap<OsString, OsString>> {
     if which(OsStr::new("cl.exe"), &run.env).is_some() {
         return Ok(run.env.clone());
     }

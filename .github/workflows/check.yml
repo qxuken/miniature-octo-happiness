@@ -32,6 +32,21 @@ jobs:
           cargo xtask windows-consumers --library target/release/weekend_db.dll
       - name: Qualify private native package and relocation (no publication)
         run: cargo xtask package --output target/private-package --features crdt,replication
+      - name: Verify all 20 Windows C/C++ cases against the exact delivered DLL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Output "Delivered manifest SHA-256: $pin"
+          cargo xtask windows-trace --package target/private-package --manifest-sha256 $pin --output target/private-windows-trace
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows exact-DLL trace evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-trace-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-windows-trace/
       - name: Save native private package evidence
         if: always()
         uses: actions/upload-artifact@v7

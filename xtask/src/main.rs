@@ -15,7 +15,6 @@ mod coverage;
 mod coverage_executables;
 #[cfg(unix)]
 mod delivered_faults;
-#[cfg(any(unix, test))]
 mod delivery;
 #[cfg(unix)]
 mod faults;
@@ -38,8 +37,13 @@ mod sanitizers;
 mod supervise;
 mod support;
 mod toolchain;
-#[cfg(any(unix, test))]
 mod trace_model;
+#[cfg(any(windows, test))]
+mod trace_process;
+#[cfg(windows)]
+mod windows_process;
+#[cfg(any(windows, test))]
+mod windows_trace;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
@@ -60,6 +64,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Verify native x64 Windows C/C++ traces against a manifest-pinned DLL.
+    #[cfg(windows)]
+    WindowsTrace(windows_trace::Options),
     /// Compare delivered Rust/C/Odin consumers with the independent operation model.
     #[cfg(unix)]
     ArtifactTrace(artifact_trace::Options),
@@ -224,6 +231,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::AbiSmoke(options) => abi::run(options),
         Task::OdinBindings { check } => odin::run(&root, check),
         Task::WindowsConsumers(options) => toolchain::windows_consumers(&mut run, options),
+        #[cfg(windows)]
+        Task::WindowsTrace(options) => windows_trace::run(&mut run, options),
         #[cfg(unix)]
         Task::Faults { task } => faults::run(&run, task),
         #[cfg(unix)]

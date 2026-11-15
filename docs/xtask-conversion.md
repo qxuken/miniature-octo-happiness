@@ -408,3 +408,34 @@ fixtures now have an explicit Git `eol=lf` policy; their bytes and expected hash
 are unchanged. A fresh Git index/checkout regression with `core.autocrlf=true`
 verifies both original hashes and absence of CR bytes. All nine model controls
 pass locally. The new Windows hosted rerun remains the native execution gate.
+
+## Windows Rust trace port: native qualification pending
+
+The next port adds Windows-only `cargo xtask windows-trace`, reusing the frozen
+independent Rust model. Its portable policy controls cover the pinned clean x64
+MSVC manifest, complete payload inventory, Windows device/path/case aliases,
+backslash keys, strict loaded-DLL attestations, feature profiles and compiler
+overrides. It schedules the same seven trace cases plus three identity rejections
+for each optimized C/C++ consumer: 20 actual executions remain required.
+
+The native process boundary creates each child suspended, assigns a
+`KILL_ON_JOB_CLOSE` job, verifies/resumes its single primary thread, bounds both
+streams and deadlines, terminates the entire job on every outcome, and queries
+zero active processes before reporting cleanup. Ordinary nonzero exits remain
+distinct from timeout/output/read/retirement failures. MSVC discovery also uses
+this ownership boundary, with a shared 120-second discovery deadline and bounded
+in-memory output; raw environment values never enter files, logs or errors. A
+Windows-only sentinel regression checks successful and failed private capture.
+
+Mac debug/release controls pass 116 tests (109 unit plus seven integration), and
+strict native/MSVC cross-target Clippy passes. These are portable execution and
+cross-compilation results, not native Windows process/DLL qualification. The
+workflow now runs all 20 exact-DLL cases after private package qualification and
+uploads the proof separately; its terminal summary includes the package pin,
+actual DLL hash and evidence hash. Crates remain unpublished. The Python Windows
+controller/model/transport and its suite are intentionally retained until that
+native gate passes, so the retirement ledger remains 55/179 with 43 Python files.
+
+The preceding LF-fixture fix at `cad7154` has now passed the actual Windows
+validation, full checks, C/C++ consumers and clean private package/relocation job.
+Its fuzz job also passes; the hosted TSan job was still pending at this observation.
