@@ -66,14 +66,32 @@ fn copy_verified<B: ByteStore + 'static>(
     mem: &Memory,
 ) -> Result<CompactionStats> {
     let before_bytes = source.backend.length()?;
-    let mut destination = Storage::create(
-        destination,
-        mem,
-        &recovered.head,
-        recovered.next_collection,
-        recovered.identity,
-        &recovered.retention,
-    )?;
+    let mut destination = {
+        let codec::Recovered {
+            head,
+            next_collection,
+            identity,
+            retention,
+            cache,
+            data_cache,
+            ..
+        } = recovered;
+        // File-local offsets belong to the source. The copy encodes its own.
+        drop(cache);
+        drop(data_cache);
+        Storage::create(
+            destination,
+            mem,
+            &head,
+            next_collection,
+            identity,
+            &retention,
+        )?
+    };
+    // The offline copy only returns sizes. Release cached references before
+    // reading the independent verification graph.
+    destination.cache = None;
+    destination.data_cache = None;
     destination.verify(mem)?;
     Ok(CompactionStats {
         before_bytes,
@@ -133,9 +151,78 @@ pub fn restore_file(
 mod decisions {
     use super::*;
     use crate::{
-        Database,
+        Database, Error,
         storage::{IoKind, SimulatedDisk},
     };
+
+    struct VerifyCopy {
+        source: SimulatedDisk,
+        destination: SimulatedDisk,
+        memory: Memory,
+    }
+
+    impl ByteStore for VerifyCopy {
+        fn lock(&mut self) -> Result<()> {
+            self.destination.lock()
+        }
+        fn unlock(&mut self) {
+            self.destination.unlock();
+        }
+        fn length(&mut self) -> Result<u64> {
+            self.destination.length()
+        }
+        fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
+            if offset == 0 {
+                assert_eq!(self.source.lock(), Err(Error::Busy));
+                assert_eq!(self.memory.usage().0, 0);
+            }
+            self.destination.read(offset, out)
+        }
+        fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
+            self.destination.write(offset, bytes)
+        }
+        fn sync(&mut self) -> Result<()> {
+            self.destination.sync()
+        }
+    }
+
+    #[test]
+    fn backup_releases_copy_graph_before_verification_but_keeps_source_leased() {
+        let disk = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(disk.clone(), [4; 16], Limits::default()).unwrap();
+        let collection = db.create_collection().unwrap();
+        let mut transaction = db.begin();
+        transaction
+            .put(collection, b"a", &db.integer(1).unwrap())
+            .unwrap();
+        transaction.commit().unwrap();
+        db.retain_snapshot(&db.snapshot()).unwrap();
+        drop(db);
+
+        let memory = Memory::new(Limits::default()).unwrap();
+        let mut source = Storage::locked(disk.clone(), &memory).unwrap();
+        let recovered = codec::recover(&mut *source.backend, &memory).unwrap();
+        let destination = SimulatedDisk::new().unwrap();
+        copy_verified(
+            &mut source,
+            recovered,
+            VerifyCopy {
+                source: disk,
+                destination: destination.clone(),
+                memory: memory.clone(),
+            },
+            &memory,
+        )
+        .unwrap();
+        assert!(
+            destination
+                .trace()
+                .unwrap()
+                .iter()
+                .any(|event| event.kind == IoKind::Read && event.offset == 0)
+        );
+    }
+
     #[test]
     fn empty_inspection_reports_no_retained_roots_and_no_source_writes() {
         let disk = SimulatedDisk::new().unwrap();
