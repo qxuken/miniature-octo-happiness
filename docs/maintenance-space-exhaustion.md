@@ -180,7 +180,7 @@ combined with `--maintenance`.
 This closes the named near-cap **copy-phase** ENOSPC/EDQUOT maintenance gate.
 Actual filesystem exhaustion during exchange, cleanup, and delayed writeback,
 inode quotas, physical power interruption, full ext4 devices and native
-Mac/Windows exhaustion remain separate gates. Earlier process-kill and simulated
+macOS exhaustion remain separate gates. Earlier process-kill and simulated
 namespace/recovery matrices retain their separate scope. All 19 Cargo
 manifests retain `publish=false`.
 
@@ -207,8 +207,42 @@ bytes. Every retry keeps the failed destination at its original path and
 produces bytes identical to the good backup in a fresh destination. A later
 commit on the original reopens at revision 213 with all 64 retained roots.
 
-Native execution is pending. The controller archives the executable, phase
-records, image hashes and owned-volume cleanup evidence.
+The hosted native Windows x64 run at PR head `cd3d14a` used Rust
+1.99.1 and executable source `35725723c08a6b6a8fa991956499eadc37580e2d`,
+the tested PR merge. All three operations wrote exactly 8,388,608 bytes
+before returning 112 / `DiskFull` / `Write`. Each fresh full-volume open
+verified revision 212 and all 64 retained roots. Removing the ballast restored
+114,339,840 free bytes per case. Retried output matched the verified backup
+byte for byte. The later source commit reopened at 213 and the good backup
+stayed at 212. All 27 command trees retired and the VHD detached and was
+removed. The required-failure control with ample space produced a valid
+backup and failed at the intended assertion.
+
+The independent archive check rehashed 60 files, checked the fixture
+executable and verified that the final backup and original verified backup
+were byte-identical. It confirmed 26 distinct fixture processes and all
+24 checked phase records. The [Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43726145853/job/132848384551)
+provides the [maintenance evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43726145853/artifacts/14166034096).
+
+| Evidence | SHA-256 |
+|---|---|
+| Windows archive | `5af2efd943f5b27e9296f1f27d9f2e967123775fbfb8897ce415eabde3217502` |
+| Windows evidence JSON | `3561751093999cb451236ccfa1847769f78d87d7fe837db207cdad93c3fc1370` |
+| Independent archive rehash | `be2eedf5ea485b9eedbe58f36bc186e9e5a377890540afd754218ed23f436a70` |
+| Windows advanced source | `4c9982b7f4caa6e687118458112cf0131fba71221b56868e686c1eecd9086bc3` |
+| Windows preserved backup | `7bb1f25890ca7281c1e7d084bb7b6eb45940be2f52c057915403b35d8d83ddbe` |
+
+At `cd3d14a`, the macOS/APFS seed rerun passed all 11 phases, including
+native in-place compaction. The Docker Linux ENOSPC controller and worker
+passed backup, restore and in-place compaction, full-volume reopen and
+retry. Linux finished with source revision 213 and backup revision 212.
+The test-owned container and volume were absent after execution.
+
+| Regression evidence | SHA-256 |
+|---|---|
+| macOS seed log | `87f3a7be341a887b7663ec73ebbfd40ac5666f5572e194f7049c157a575137ff` |
+| Docker Linux controller | `5c029ee6b0e876d3838993b5251c18c2304bcc6ac0a4bc1fed147957edbd4ef8` |
+| Docker Linux worker | `391102346d55d2c2f7ca64576b3ec892f3f853032f1a3418cfdd161b52c493ec` |
 
 ## Injected namespace and sync errors
 

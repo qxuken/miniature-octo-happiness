@@ -1815,10 +1815,24 @@ Strict host and Windows-target xtask Clippy passed. Windows cross-linking
 and the native MSVC consumers passed. The macOS and Docker Linux exact
 `f70e405` package regressions passed five and six cases respectively with
 the updated shared C fixture. The scope of the new evidence is append
-exhaustion. NTFS quota and maintenance exhaustion remain open.
+exhaustion. NTFS maintenance copies were tested separately below. NTFS
+quota remains open.
 
 | Evidence | SHA-256 |
 |---|---|
 | Native Windows NTFS exhaustion report | `eb4f24e9e0b11c4c2499e3c1be593548088c72d738bddfe788dc9ad50325a11e` |
 | macOS delivered C regression report | `b154ef1230cfa872540edef877793f79226d14264f2cb58c7b4da7c38af47358` |
 | Linux delivered C regression report | `3d1279e974e17fbc0a7c38743394f9734831f19f0a056c759c9909c0874d3241` |
+
+## Windows near-cap maintenance exhaustion
+
+The [Windows maintenance gate](maintenance-space-exhaustion.md#native-windows-near-cap-copy-profile)
+passed at `cd3d14a` with PR merge source `3572572`. Backup, restore and
+`compact_to` each encountered native write error 112 at an 8 MiB partial
+copy. Fresh processes reopened revision 212 and all 64 retained roots in
+both the source and verified backup at zero free bytes. Retrying at fresh
+paths preserved each partial destination and produced copies identical to
+the verified backup. A later source commit reopened at 213. The isolated
+256 MiB VHD detached and was removed. The macOS seed and Linux maintenance
+regressions passed with the same fixture. NTFS quota, macOS actual maintenance
+exhaustion, namespace faults and physical recovery remain separate gates.

@@ -281,8 +281,9 @@ The third process retried and reopened revision 4 with retained revision 2.
 The volume and image cleanup checks passed. The archive rehash verified
 all 79 listed files and six DLL attestations across the three processes.
 The packaged DLL and manifest compared byte for byte with the ones used by
-the six injected-fault cases in the same job. NTFS quota, maintenance
-exhaustion and physical power interruption retain their own gates.
+the six injected-fault cases in the same job. [NTFS maintenance copy exhaustion](maintenance-space-exhaustion.md#native-windows-near-cap-copy-profile)
+uses the separate Rust fixture. NTFS quota and physical power interruption
+retain their own gates.
 [Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43724963499/job/132844797192)
 · [NTFS exhaustion archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43724963499/artifacts/14165178920)
 
