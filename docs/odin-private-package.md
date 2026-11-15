@@ -1,13 +1,13 @@
 # Odin private package profile
 
-`python3 tools/release.py --output NEW_DIRECTORY --features crdt,replication --odin`
+`cargo xtask package --output NEW_DIRECTORY --features crdt,replication --odin`
 adds the raw ABI binding, standalone consumer source, compiled consumer, and
 Odin toolchain/license evidence to a private native package. Missing Odin fails
 qualification. Nothing is published. See [binding installation](../bindings/odin/README.md)
 for collection imports and platform-specific library paths.
 
 The generated binding exposes all 49 current C functions and all numeric
-status/kind/validation/version constants. `tools/odin_bindings.py --check` and
+status/kind/validation/version constants. `cargo xtask odin-bindings --check` and
 release tests compare the complete generated declaration file against the
 packaged C header's names and type/pointer signatures. Unsupported declaration
 forms fail closed. This verifies declaration alignment, not the semantics of
@@ -18,7 +18,7 @@ the older wgpu coexistence examples remain separate checks.
 
 The packager now deletes the isolated Cargo build directory before any compiled
 consumer runs. It then renames the entire package to a different path, verifies
-the original package path is absent, and reruns C/C++, ctypes, and requested
+the original package path is absent, and reruns C/C++, dynamic ABI and requested
 Odin checks there. The directory is restored afterward so evidence stays at the
 requested output path. macOS uses a library install name of
 `@rpath/libweekend_db.dylib` with executable `@loader_path`; Linux uses SONAME

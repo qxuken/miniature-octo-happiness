@@ -1,5 +1,40 @@
 # Continuous helper and oracle controls
 
+Run the same private Rust controls as the macOS and Ubuntu helper jobs.
+The SQLite comparator uses the system development library and pkg-config.
+
+```sh
+cargo fetch --locked
+cargo fetch --locked --manifest-path tools/sqlite-baseline/Cargo.toml
+cargo xtask helper-controls --output target/helper-controls
+```
+
+Choose a fresh output directory. The command discovers the exact executable of
+each registered integration, unit and standalone SQLite test target from
+bounded Cargo output. It binds their source paths and executable hashes, runs
+the debug and release profiles, and matches libtest's complete reported results
+against the discovered test identities. Missing or duplicate targets, omitted
+tests, unregistered skips, empty execution, nonzero status and incomplete
+cleanup all reject. The one registered ignored TLS test requires separately
+frozen inputs and has its own native result. The five external fixture hashes
+and source inventory must remain stable.
+
+Each suite gets 90 seconds within a 600-second launch budget. Each worker has
+independent 8 MiB stdout/stderr caps and an inherited regular-file limit. The
+xtask unit binary allows files up to 128 MiB plus one byte for its sparse
+oversize-input regression. Other workers have an 8 MiB file limit. The process
+supervisor records terminal status and checks cleanup. Detached-session controls
+cover timeout, early exit, a reparented same-group grandchild and a malformed
+journal with a known child. The proof includes per-binary test identities,
+process reports, source hashes and logs. Hosted CI excludes the intermediate
+Cargo build directory from the upload.
+
+The [conversion ledger](xtask-conversion.md) maps the frozen Python control IDs
+to Rust. See [bounded supervision](xtask-supervision.md) for the process
+ownership assumptions.
+
+## Historical Python helper controller
+
 `tools/check_helpers.py` runs every registered Python control suite in separate
 normal and `-O` processes. This closes the local entry-point gap recorded at
 `4370b46`; the workflow now schedules the same command on macOS and Ubuntu.

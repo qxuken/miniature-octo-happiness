@@ -75,37 +75,29 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - name: Install pinned Python with Mise
-        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
-        with:
-          version: 2026.11.6
-          install_args: python@3.14.8
-      - name: Build and test the private Rust supervisor
+      - name: Install Rust and cache the locked dependencies
         run: |
           rustup toolchain install 1.99.1 --profile minimal
           rustup override set 1.99.1
           cargo fetch --locked
-          cargo test --offline --locked -p xtask --target-dir target/xtask
-          cargo xtask --help
-      - name: Test the private SQLite comparator
+          cargo fetch --locked --manifest-path tools/sqlite-baseline/Cargo.toml
+      - name: Ensure system SQLite is available
         run: |
           if [ "$RUNNER_OS" = Linux ] && ! pkg-config --exists sqlite3; then
             sudo apt-get update
             sudo apt-get install --yes --no-install-recommends libsqlite3-dev pkg-config
           fi
-          manifest=tools/sqlite-baseline/Cargo.toml
-          cargo fetch --locked --manifest-path "$manifest"
-          cargo test --offline --locked --manifest-path "$manifest" --no-default-features --features sqlite-comparator --bin sqlite-comparator
-          cargo test --offline --locked --release --manifest-path "$manifest" --no-default-features --features sqlite-comparator --bin sqlite-comparator
-      - name: Run all registered helper controls normally and under Python -O
-        run: mise exec python@3.14.8 -- python tools/check_helpers.py --output target/helper-controls
+      - name: Run and verify all registered debug and release helper controls
+        run: cargo xtask helper-controls --output target/helper-controls
       - name: Save private helper-control evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: helper-controls-${{ runner.os }}-${{ runner.arch }}
           if-no-files-found: warn
-          path: target/helper-controls/
+          path: |
+            target/helper-controls/
+            !target/helper-controls/cargo-target/**
   linux-quota:
     name: Native Linux quota exhaustion and recovery
     runs-on: ubuntu-24.04

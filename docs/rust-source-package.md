@@ -5,9 +5,9 @@ fresh private Rust consumer against it. This is source delivery, not a portable
 precompiled rlib or proc-macro binary. Nothing invokes Cargo publication.
 
 ```sh
-python3 tools/release.py --output NEW_DIRECTORY --rust-source
+cargo xtask package --output NEW_DIRECTORY --rust-source
 # Optional stronger Linux-only isolation proof (Docker must be available):
-python3 tools/release.py --output ANOTHER_NEW_DIRECTORY --rust-source --rust-source-isolated
+cargo xtask package --output ANOTHER_NEW_DIRECTORY --rust-source --rust-source-isolated
 ```
 
 A clean source tree is required unless `--allow-dirty` explicitly marks the

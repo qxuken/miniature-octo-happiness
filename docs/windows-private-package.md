@@ -3,7 +3,7 @@
 On an x86_64 Windows MSVC host with Visual Studio C/C++ build tools:
 
 ```powershell
-python tools/release.py --output target/private-windows-package --features crdt,replication
+cargo xtask package --output target/private-windows-package --features crdt,replication
 ```
 
 The destination must be new. A clean tree is required by default. `--allow-dirty`
@@ -16,7 +16,7 @@ checks the effective panic strategy, and packages `weekend_db.dll`, its
 and collected Rust/dependency attribution. It runs `dumpbin /exports` against
 the packaged DLL and requires exact agreement with the header's exported names.
 Both C and C++ clients compile against the packaged header and import library,
-then run beside that exact DLL. The existing ctypes smoke and source-identity
+then run beside that exact DLL. The dynamic ABI smoke and source-identity
 checks also load the packaged DLL. The manifest records source/configuration
 hashes, feature selection, commands, compiler output, MSVC/SDK versions,
 compiler/tool binary hashes, artifact hashes, and dependency listings.
@@ -37,7 +37,7 @@ code requires bundling vendor licenses. Existing concrete missing attribution
 inputs still prevent candidate eligibility without skipping runtime checks.
 
 Every native CI job invokes the private packager and uploads its complete
-platform-named package/evidence directory, including failed-check evidence. Python command and
+platform-named package/evidence directory, including failed-check evidence. Rust command and
 configuration tests run on all three native platforms. Actual MSVC execution is
 qualified by the Windows job; tests running on macOS do not establish Windows
 runtime compatibility. Odin exact-artifact qualification remains separate.

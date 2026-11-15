@@ -33,8 +33,9 @@ checkout. `cargo xtask check` checks the whole workspace in debug/release,
 including the CLI lifecycle and a renamed-dependency consumer.
 The private [Rust xtask](docs/xtask.md) provides check, build, package, cleanup
 and [bounded POSIX fault runners](docs/xtask-supervision.md), with clap-generated
-help. Python remains required for independent oracles and retained OS/profile
-controllers.
+help. The maintained qualification controllers, independent oracles and their
+tests run through Rust. On macOS and Linux, `cargo xtask helper-controls` audits
+the debug and release helper suites.
 
 [DESIGN.md](DESIGN.md) contains the complete target design, implementation
 sketches, decisions, competitor comparison, reading references, milestones,

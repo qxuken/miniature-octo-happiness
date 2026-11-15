@@ -28,20 +28,20 @@ entry points.
 
 | Batch | Remaining modules | State |
 |---|---|---|
-| Core entry points | check/build/package/cleanup, shared bounded POSIX supervision, native and delivered fault parent/worker | Rust-only, including delivered package and phase oracles; remaining consumers of the Python supervisor adapter are tracked in later batches |
+| Core entry points | check/build/package/cleanup, shared bounded POSIX supervision, native and delivered fault parent/worker | Rust-only, including delivered package and phase oracles |
 | Packaging leaves and consumers | release policy, MSVC discovery/consumers, attribution, Odin bindings, dynamic ABI smoke, delivered Rust source | Clean Mac/Linux packages qualify at `06d0a15`; hosted Windows passes at `e3ff5ad` and `cfa08d1` |
 | CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, packaging probe | Rust implementations and local qualification pass; hosted qualification is recorded per commit below |
-| Independent delivery traces | state model, Rust/C/Odin trace controller, Docker worker, Windows 134-cell trace | Pending |
-| Upgrade and distributed qualification | storage/snapshot compatibility, snapshot/study CLI upgrades, replica progress, follower backup/restore, coordinator/peer soaks | Pending |
-| Resource/workload qualification | baseline/benchmark/monthly workload, serialization scale, resource observer, compound/recovery/growth/cache probes | Pending |
-| Native space failures | quota controller/probe/maintenance and tmpfs controller; preserve native EDQUOT vs ENOSPC distinction | Pending |
-| Final retirement | helper registry/test mappings, Rust-only subprocess fixtures, Python shims/old tests, CI/docs command inventory, full qualification | Pending |
+| Independent delivery traces | state model, Rust/C/Odin trace controller, Docker worker, Windows 134-cell trace | Rust-only, with exact relocated Rust/C/Odin and hosted Windows C/C++ evidence |
+| Upgrade and distributed qualification | storage/snapshot compatibility, snapshot/study CLI upgrades, replica progress, follower backup/restore, coordinator/peer soaks | Rust-only controllers and source-bound native tests |
+| Resource/workload qualification | baseline/benchmark/monthly workload, serialization scale, resource observer, compound/recovery/growth/cache probes | Rust-only controllers, with scoped macOS and Linux evidence |
+| Native space failures | quota controller/probe/maintenance and tmpfs controller; preserve native EDQUOT vs ENOSPC distinction | Rust-only, with local ENOSPC and hosted EDQUOT evidence |
+| Final retirement | helper registry/test mappings, Rust-only subprocess fixtures, Python shims/old tests, CI/docs command inventory, full qualification | Rust-only, with the final mapped controls and native results below |
 
 The starting 70 tracked Python files comprise 69 under `tools/` and
 `probe/run.py`.
-The earlier 9,907 lines include both implementation and controls. Keep changes
-reviewable and commit verified batches; the conversion remains incomplete until
-all gates above pass. Tooling test coverage is separate from product MC/DC.
+The earlier 9,907 lines include both implementation and controls. The checkpoint
+results below preserve their original source and platform scopes. Tooling test
+coverage is separate from product MC/DC.
 
 
 ## Packaging conversion checkpoint
@@ -915,3 +915,33 @@ Both former soak tests now map to discovered Rust controls. macOS passed
 passed all 34 checks in two workers, with evidence SHA-256
 `1de8ed1c42bea32cd5dcfd17c187840ad7270c5b2c2d067f12b8fe6a685b9916`.
 The ledger covers **162/179** controls and **4** maintained Python files.
+
+## Final helper retirement
+
+`cargo xtask helper-controls` replaces the final Python controller, registry,
+transport shim and tests. The CI job uses Rust and the locked standalone SQLite
+comparator. The controller discovers the four expected Cargo test executables
+in each profile, verifies their hashes, and checks complete libtest results
+against the discovered test inventories. It retains one named TLS skip per
+profile for the separately qualified native fixture. All 17 remaining frozen
+Python controls map to Rust, closing the ledger at **179/179**. The checkout has
+**zero maintained Python files**. All 20 Cargo manifests remain private.
+
+| Native profile | Debug passes | Release passes | Approved skips in each | Evidence SHA-256 |
+|---|---:|---:|---:|---|
+| macOS arm64/APFS | 184 | 184 | 1 | `d2987abd89afd77b18cd04f0b1bb0039dafb8b990f38a866d1c9b9d8aa5cdfd8` |
+| Docker Linux arm64/ext4 | 201 | 201 | 1 | `f315aca2f52fbea1cbf386b92b30b2ccb4654ea136db0cc01dee6b448c6939a4` |
+
+Each report records eight successful worker retirements. The two source
+inventories are identical, and an independent check rehashed all 70 proof
+files on each platform. The Docker volume and container were confirmed absent.
+Both proofs identify the same dirty tooling overlay on `531f3ee`, with the
+actual source and runner hashes. Strict Clippy passed on macOS and the Linux
+and MSVC cross targets. Workflow lint passed.
+
+The initial 8 MiB inherited file limit rejected the unit suite's intentional
+oversize notice fixture. The final unit limit admits the Linux sparse
+128 MiB + 1 fixture, with the independent 8 MiB stream limits still enforced.
+A serial Docker run reached the 90-second worker deadline and retired
+cleanly. Four libtest threads completed the same registered suites within
+the original deadlines. [Helper runbook](helper-controls.md)

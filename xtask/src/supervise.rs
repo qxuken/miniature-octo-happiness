@@ -1104,4 +1104,109 @@ mod tests {
         assert!(report.returncode.is_some());
         assert!(!report.cleanup_verified);
     }
+
+    #[test]
+    fn detached_sessions_are_retired_after_timeout_exit_or_malformed_journal() {
+        const MODE: &str = "WEEKEND_TEST_DETACHED_SESSION";
+        const NAME: &str = "supervise::tests::detached_sessions_are_retired_after_timeout_exit_or_malformed_journal";
+        if let Ok(mode) = std::env::var(MODE) {
+            detached_session_worker(&mode);
+            return;
+        }
+        for mode in ["timeout", "early", "orphan", "malformed"] {
+            let (owned, mut request) = fixture("");
+            let journal = owned.path().join("journal");
+            request.argv = vec![
+                std::env::current_exe().unwrap().to_str().unwrap().into(),
+                "--exact".into(),
+                NAME.into(),
+            ];
+            request.cwd = Some(owned.path().to_owned());
+            let mut env: BTreeMap<_, _> = std::env::vars().collect();
+            env.insert(MODE.into(), mode.into());
+            request.env = Some(env);
+            request.journal = Some(journal);
+            request.timeout_seconds = 3.;
+            let report = run(&request).unwrap();
+            let pid: i32 = fs::read_to_string(owned.path().join("detached.pid"))
+                .unwrap_or_else(|err| panic!("{mode}: {err}; {report:?}"))
+                .trim()
+                .parse()
+                .unwrap();
+            assert!(
+                process_table()
+                    .unwrap()
+                    .get(&pid)
+                    .is_none_or(|row| row.state.starts_with('Z')),
+                "{mode}: {report:?}"
+            );
+            assert!(report.owned_descendants.iter().any(|row| row.pid == pid));
+            assert_eq!(report.cleanup_verified, mode != "malformed", "{report:?}");
+            match mode {
+                "timeout" => assert!(report.timed_out, "{report:?}"),
+                "early" => assert_eq!(report.returncode, Some(2), "{report:?}"),
+                "orphan" => assert!(report.success(), "{report:?}"),
+                "malformed" => {
+                    assert!(report.cleanup_failure.unwrap().contains("journal"));
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    fn detached_session_worker(mode: &str) {
+        use std::{
+            os::unix::process::CommandExt,
+            process::{Command, Stdio},
+            thread,
+            time::Duration,
+        };
+        let mut command = if mode == "orphan" {
+            let mut command = Command::new("/bin/sh");
+            command.args([
+                "-c",
+                r#"sleep 30 & printf '%s\n' "$!" > detached.pid; read -r release"#,
+            ]);
+            command.stdin(Stdio::piped());
+            command
+        } else {
+            let mut command = Command::new("sleep");
+            command.arg("30");
+            command
+        };
+        // SAFETY: setsid is async-signal-safe and only affects the forked child.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let mut child = command.spawn().unwrap();
+        let pid = child.id() as i32;
+        let row = process_table().unwrap().remove(&pid).unwrap();
+        assert_eq!(row.group, pid);
+        let mut line = serde_json::to_vec(&row).unwrap();
+        line.push(b'\n');
+        if mode == "malformed" {
+            line.extend(b"{broken\n");
+        }
+        if mode != "orphan" {
+            fs::write("detached.pid", pid.to_string()).unwrap();
+        }
+        fs::write("journal", &line).unwrap();
+        match mode {
+            "early" => std::process::exit(2),
+            "orphan" => {
+                writeln!(child.stdin.take().unwrap(), "release").unwrap();
+                assert!(child.wait().unwrap().success());
+            }
+            _ => {
+                thread::sleep(Duration::from_secs(30));
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
 }

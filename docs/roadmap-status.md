@@ -1086,3 +1086,10 @@ restarts between macOS/APFS and Docker Linux/ext4, using frozen source
 `ed8f9f9`. Both peers finished at revision 63 and repeat covering exchanges
 stayed stable. The migration covers 162/179 controls with four remaining
 Python files. [StudyProgress peer soak verification](study-peer-soak.md#rust-controller-result)
+
+The final Rust helper controller passed debug and release on macOS/APFS
+(184 tests per profile) and Docker Linux/ext4 (201 per profile), with one
+explicit separately qualified TLS skip per profile. All 179 frozen controls
+now map to Rust tests and zero maintained Python files remain. CI uses the
+same Rust helper command. Crates stay private.
+[Final xtask retirement](xtask-conversion.md#final-helper-retirement)

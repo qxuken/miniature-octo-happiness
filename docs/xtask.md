@@ -21,6 +21,8 @@ cargo xtask fuzz --runs 1000 --seconds 20 --output target/fuzz-evidence/private
 cargo xtask coverage --scope library
 cargo xtask coverage-executables --help
 cargo xtask mutations --list
+cargo fetch --locked --manifest-path tools/sqlite-baseline/Cargo.toml
+cargo xtask helper-controls --output target/helper-controls
 cargo xtask probe
 cargo xtask clean --dry-run
 ```
@@ -31,10 +33,10 @@ options reject through clap before any package or cleanup output is created.
 Every failed check/build subprocess stops the command and returns a failure.
 No command publishes to crates.io or a container registry.
 
-Rust/Cargo 1.99+ is required for check/build/package/cleanup; these commands no
-longer require Python. Qualification pins Rust/Cargo 1.99.1. Remaining tooling
-conversion is tracked in the [completion ledger](xtask-conversion.md). The alias
-builds xtask offline/locked into `target/xtask`; the initial fetch supplies its
+Rust/Cargo 1.99+ is required for check/build/package/cleanup. Qualification
+pins Rust/Cargo 1.99.1. All maintained commands and test oracles are Rust. See
+the [conversion ledger](xtask-conversion.md) and [helper runbook](helper-controls.md).
+The alias builds xtask offline/locked into `target/xtask`; the initial fetch supplies its
 locked tooling dependencies. There are 20 private project manifests, all with
 `publish=false`.
 
@@ -59,8 +61,8 @@ Requested run/time budgets do not count as executions: every target must emit a
 nonzero completed-run summary and exit successfully. Both lockfiles, reviewed
 seeds and source stay bound to the campaign. Model mutants require their exact
 stderr assertion and a completed, retired process; timeout or a missing marker
-cannot qualify a negative control. Coverage/mutation and the other independent
-qualification tools remain tracked in the conversion ledger.
+cannot qualify a negative control. The conversion ledger records coverage,
+mutation and the other independent qualification commands.
 
 `coverage` and `coverage-executables` also use the bounded POSIX runner. They
 preserve the independent metric/calibration and exact-parent-PID gates; reports
@@ -112,17 +114,13 @@ retain their existing meanings. Rust owns the lifecycle and the independent
 platform-command, configuration, attribution, Odin-binding, dynamic C-ABI and
 delivered-source validators. Windows compiler environment output stays in a
 private pipe; only selected identities and hashed overrides enter the manifest.
-Checks remain active in debug/release. The old Python modules are retired after
-their controls are mapped to Rust.
+Checks remain active in debug/release. The original control identities map to
+Rust in the frozen regression ledger.
 An isolated source request requires a nonempty image and explicit successful
 native/isolation results from the checker. Missing, false or malformed success
 flags reject qualification rather than silently omitting a requested profile.
 
-The library, macros, apps, storage/wire formats, durability barriers and separate
-follower-durable acknowledgment are unchanged. This batch begins the migration;
-remaining non-packaging automation and independent oracles are being converted
-under the [complete conversion](xtask-conversion.md). The
-[supervision batch](xtask-supervision.md) supplies bounded POSIX ownership.
+The [supervisor](xtask-supervision.md) supplies bounded POSIX ownership.
 Historical results below retain their original commands and source revisions.
 
 ## Cleanup and retention
@@ -158,8 +156,7 @@ paths use `dunce::canonicalize` for compiler-compatible canonical paths.
 
 The [bounded supervision migration](xtask-supervision.md) carries forward the
 cleanup/deadline/output-bound controls and native/exact-delivery fault runners.
-Further profile/OS-policy or leaf-oracle migration requires independent
-cross-checks. Windows execution and final-candidate consolidation retain their
+Native Windows execution and final-candidate consolidation retain their
 source/platform-specific gates.
 
 ## Verified first-batch results

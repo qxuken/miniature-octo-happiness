@@ -155,5 +155,5 @@ mise exec rust@1.99.1 -- cargo test --offline --locked -p weekend-db --all-featu
 mise exec rust@1.99.1 -- cargo test --offline --locked --manifest-path fuzz/Cargo.toml --lib
 cargo xtask serialization-scale --revision HEAD --axis history --output target/data-history-fresh
 cargo xtask serialization-scale --revision HEAD --output target/data-breadth-fresh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/check_helpers.py --output target/data-helpers-fresh
+cargo xtask helper-controls --output target/data-helpers-fresh
 ```

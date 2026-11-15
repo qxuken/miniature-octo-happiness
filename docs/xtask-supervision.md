@@ -1,23 +1,18 @@
 # Bounded supervision and fault runners
 
 The private Rust `xtask` owns POSIX child supervision and the native-error and
-exact-delivery fault campaigns. The existing Python commands remain compatibility
-entry points. No crate is published, and engine/storage/wire/acknowledgment
-semantics do not change.
+exact-delivery fault campaigns. It also runs the
+[bounded helper controls](helper-controls.md).
 
 ```sh
 cargo xtask faults native --source HEAD --output target/native-faults-new
 cargo xtask faults delivered --package /absolute/linux-package --output target/delivered-faults-new
-cargo test --offline --locked -p xtask --target-dir target/xtask
-cargo xtask --help
-mise exec python@3.14.8 -- python tools/check_helpers.py --output target/helper-controls-new
+cargo xtask helper-controls --output target/helper-controls-new
 ```
 
-Build the runner before using a Python compatibility command. `WEEKEND_XTASK_BIN`
-can select a native prebuilt executable; the default is `target/xtask/debug/xtask`.
-Privileged quota controllers use that prebuilt executable, never Cargo under sudo.
-CI bootstraps the tool before helper/quota controls. These new commands are POSIX
-only; Windows retains check/build/package/clean, with no Job Object claim.
+Privileged quota controllers use the prebuilt native xtask executable.
+These commands use POSIX process inspection. Windows has its own native check,
+build, package and cleanup entry points.
 
 ## Ownership and terminal reports
 
@@ -27,8 +22,8 @@ an optional new report path, timeout, per-stream byte ceiling, inclusive/exclusi
 ceiling selection, optional inherited file-size limit, optional process journal,
 and optional RSS sampling. Unknown fields, invalid limits, existing outputs and
 dangling symlinks reject. Environment values are transported in memory and are
-not copied into evidence. The adapter binds reports to the executable SHA-256;
-helper campaigns bind its source inputs and binary before and after the run.
+not copied into evidence. Helper campaigns bind their source inputs and binary
+before and after the run.
 
 Rust owns pipes, deadlines, output accounting, signals, RSS probes and retirement:
 
@@ -64,7 +59,7 @@ about every 50 ms; it is not a process-tree memory cap. Bounded pipes can add
 backpressure to verbose helpers, so this is tooling qualification, not a new
 engine performance measurement or product MC/DC denominator.
 
-## What moved and what remains
+## Historical supervision checkpoint
 
 | Entry point | Ownership/orchestration now |
 |---|---|
@@ -89,12 +84,11 @@ preserved. Missing/untracked xtask inputs reject; checkpoint new files first.
 The parent records the staged input hashes and verifies they stay unchanged in
 its qualified delivery campaign. No host filesystem is deliberately exhausted.
 
-Python still contains benchmark/profile scheduling, privileged quota provisioning,
-multi-endpoint network orchestration, and independent source/license/ABI/byte
-oracles. This batch does not retire those modules or claim a complete removal of
-Python. Further migration needs the same independent controls.
+The table above records the first migration checkpoint. The
+[conversion ledger](xtask-conversion.md) records the subsequent retirement of
+the Python controllers and validators.
 
-## Regression mapping and results
+## Historical regression mapping and results
 
 | Preserved regression | Current control |
 |---|---|

@@ -29,7 +29,7 @@ The private [xtask crate](xtask.md) owns this orchestration and package lifecycl
 Rust now owns ABI loading, platform/compiler policy, bounded attribution and
 delivered-source validation as well. Use `cargo xtask check` and `cargo xtask
 package`; the old Python check/release entry points are retired. The
-[conversion ledger](xtask-conversion.md) tracks remaining non-packaging tooling.
+[conversion ledger](xtask-conversion.md) records the retirement of the non-packaging Python tooling.
 Compiler wrappers and the compiler remain trusted tools.
 The package includes `notices/inventory.json` and copied attribution
 files for the actual Cargo compiler-artifact package IDs emitted during

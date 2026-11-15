@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "suites": [
-    {
-      "path": "test_check_helpers.py",
-      "allowed_skips": []
-    }
-  ]
-}

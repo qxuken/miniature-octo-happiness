@@ -26,6 +26,8 @@ mod faults;
 mod follower_backup;
 #[cfg(unix)]
 mod fuzz;
+#[cfg(unix)]
+mod helper_controls;
 #[cfg(any(unix, test))]
 mod instrumentation;
 #[cfg(unix)]
@@ -105,6 +107,9 @@ enum Task {
     /// Run authenticated offline/sync rounds on macOS and Docker Linux.
     #[cfg(unix)]
     StudyPeerSoak(study_soak::Options),
+    /// Run and audit the private debug and release helper test suites.
+    #[cfg(unix)]
+    HelperControls(helper_controls::Options),
     /// Run the coordinated pre-ALPN StudyProgress upgrade qualification.
     #[cfg(unix)]
     StudyCliUpgrade(study_upgrade::Options),
@@ -283,6 +288,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::Resource(options) => resource_campaign::run(&run, options),
         #[cfg(unix)]
         Task::StudyPeerSoak(options) => study_soak::run(&run, options),
+        #[cfg(unix)]
+        Task::HelperControls(options) => helper_controls::run(&run, options),
         #[cfg(unix)]
         Task::StudyCliUpgrade(options) => study_upgrade::run(&run, options),
         #[cfg(unix)]
