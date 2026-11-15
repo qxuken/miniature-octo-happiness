@@ -479,7 +479,8 @@ its final `cycles.wdb`.
 The main worker RSS is sampled by the supervisor about every 50 ms.
 Each short-lived helper reports its own `RUSAGE_SELF` RSS high-water mark
 after the operation. The two measurements cover different processes.
-Aggregate process-tree RSS and deployment memory limits remain open.
+The paired measurement below adds aggregate process-group RSS. Deployment
+memory limits remain open.
 
 Each run passed all 168 state observations, 768 contended commits and
 6,144 reader checks. Both finished with revision 980, sequence 100, 64
@@ -527,3 +528,70 @@ to compare current and retained roots. The all-feature admin and
 compaction suites passed 12 tests on macOS and 13 on Docker Linux. The
 14 resource-controller and oracle tests passed on macOS. On Windows the
 command reports `UnsupportedPlatform` and `backup` produces a compacted copy.
+
+### Paired process-group RSS during maintenance
+
+Run the same 24-cycle comparison with the process-group observer at
+`9b234a7b818eeecd08f6659a25b174728b9c3fa0`.
+
+```sh
+cargo xtask resource compound-isolation --revision 9b234a7 \
+  --output target/compound-group-rss
+```
+
+The supervisor records each leader's RSS and the sum of resident memory
+reported by the live processes in its owned group in the same polling
+iteration. Maintenance helpers stay in that group. Polls are scheduled
+50 ms after the previous read, with additional time for process inventory
+and scheduling. macOS uses `ps` and Linux reads `/proc/PID/stat`. The
+observer records the group member count, both RSS totals and the number
+of samples where another member contributes RSS. It excludes the observer
+and other groups. RSS can count shared pages more than once and the sampling
+can miss short peaks. The result is a sampled process-group total. It leaves
+physical footprint, kernel cache memory and deployment limits open.
+[Linux process accounting](https://www.kernel.org/doc/html/latest/filesystems/proc.html)
+
+Both modes again verify each current and retained state after all 24 cycles.
+The runs on a platform start from one seed and finish at revision 980 with
+64 retained roots. The controller checks sample pairing and recomputes the
+peak and overlap summaries before accepting the evidence.
+
+| macOS arm64/APFS, Rust 1.99.1 | In process | Short-lived helpers |
+|---|---:|---:|
+| Group sampled peak RSS | 3,600,880 KiB | 181,552 KiB |
+| Leader sampled peak RSS | 3,600,880 KiB | 64,096 KiB |
+| Group samples with other resident memory | 1 of 1,386 | 628 of 1,396 |
+| Worker wall time | 106.01 s | 106.59 s |
+| In-place compact median, 24 samples | 699.0 ms | 700.9 ms |
+
+The macOS isolated peak sample includes 63,808 KiB from the leader and
+117,744 KiB from a second group member. The observed in-process peak varies
+across runs. The earlier comparison's leader sampled peak was 1,446,816 KiB.
+
+| Docker Linux arm64/ext4, Rust 1.99.0 | In process | Short-lived helpers |
+|---|---:|---:|
+| Group sampled peak RSS | 126,232 KiB | 176,532 KiB |
+| Leader sampled peak RSS | 126,232 KiB | 64,628 KiB |
+| Group samples with other resident memory | 0 of 1,654 | 777 of 1,671 |
+| Worker wall time | 94.43 s | 95.04 s |
+| In-place compact median, 24 samples | 628.8 ms | 635.5 ms |
+
+The Linux isolated peak sample includes 61,852 KiB from the leader and
+114,680 KiB from a second member. Short-lived helpers lowered the leader
+peak and raised the group peak in this Linux pair.
+
+Both platforms finished at sequence 100 with a 63,074,304-byte image.
+Independent comparison identified only the contending keys' last-write
+revision fields and the current DATA checksum as byte differences within
+each pair. Each run verified 768 contended commits and 6,144 reader checks.
+Independent checks rehashed both source archives and the 32 payloads per
+worker. Docker retired the container and its volume. Strict Clippy passed
+on both platforms. The macOS xtask suite passed 190 tests with one registered
+ignore. The 15 resource tests and 13 supervisor tests passed on Linux.
+
+| Evidence under `target/group-rss-validation/` | macOS SHA-256 | Docker Linux SHA-256 |
+|---|---|---|
+| Identical seed within each pair | `ff28a871a014ffef5941d3de9faf6577cb4d231eb43149793139d19a31a780b4` | `a916394d55d98553dc3a8f318b2a582bba44328554f2dc8cede43a9de5be46be` |
+| Exact release fixture | `62358fd5be434fcc65f011fceb423a27cc80c68020609818d10707c4945a78ab` | `375e0174db70b26b1b95bb42b7c469b74d1f6449a61f71912fb9335fbf8b7b85` |
+| Worker evidence | `3ce93e31213c6ecf718616e8d939bb90fe5ab27bb6919ecf24b77c07f8ee8df2` | `b7b84a8db7b9b035244ed9c1d47f6c6988ad710961d82b1e1fef1b6729f84961` |
+| Independent audit | `78807cf4dee2c353ae3ec46202d7202eb2ae0f2c5b0bf7e158c1b90e42d02b2e` | `eaa6ba4999ca56c9725d16c315135c06f792de501151a08e985f005204047f17` |

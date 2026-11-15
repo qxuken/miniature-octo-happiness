@@ -2139,3 +2139,15 @@ byte, and has no old scratch entry. The volume gains 66,121,728 available
 bytes with the ballast still in place. The next commit reaches revision
 213 with all 64 retained roots. The native arm64 run and the exchange
 refusal regression passed. Hosted macOS was queued.
+
+## Paired process-group RSS during near-cap maintenance
+
+At `9b234a7`, the [paired workload](compound-resource-envelope.md#paired-process-group-rss-during-maintenance)
+samples the leader and other processes in its group together. On macOS
+arm64/APFS, sampled aggregate peak RSS was 3,600,880 KiB in-process and
+181,552 KiB with helpers. On Docker Linux arm64/ext4 it was 126,232 KiB
+in-process and 176,532 KiB with helpers. Each run completed all 24 cycles
+and reopened revision 980 with 64 retained roots. Both raw image
+comparisons allow only the eight last-write stamps and the resulting
+DATA checksum differences. Physical footprint and owner deployment
+budgets remain open.
