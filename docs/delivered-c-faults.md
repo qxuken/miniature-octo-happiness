@@ -100,12 +100,18 @@ both exact UUID removals independently and requires successful absence queries.
 With the already qualified Linux package and local image available:
 
 ```sh
-mise exec python@3.14.8 -- python tools/delivered-faults/test_runner.py
-mise exec python@3.14.8 -- python -O tools/delivered-faults/test_runner.py
-mise exec python@3.14.8 -- python tools/delivered-faults/run.py \
+cargo test --offline --locked -p xtask --bin xtask delivered_faults
+cargo test --offline --locked --release -p xtask --bin xtask delivered_faults
+cargo xtask faults delivered \
   --package target/qualification-21e5d26/linux-package \
   --output target/my-fresh-delivered-c-faults
 ```
+
+The current parent, worker, exact-package verification and independent six-mode
+oracle are Rust-only. The worker runs directed oracle controls itself; debug and
+release Rust tests preserve the retired Python controls. Current conversion
+results are in the [ledger](xtask-conversion.md). Historical proof below retains
+its original source/tool versions.
 
 Final proof is `target/delivered-faults-365daf6/final-v3/`, with six exercising
 processes and six separate recovery processes, plus the expected disabled-shim

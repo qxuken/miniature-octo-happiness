@@ -10,10 +10,6 @@
       "allowed_skips": []
     },
     {
-      "path": "delivered-faults/test_runner.py",
-      "allowed_skips": []
-    },
-    {
       "path": "quota/test_runner.py",
       "allowed_skips": []
     },
@@ -45,10 +41,6 @@
     },
     {
       "path": "test_compatibility.py",
-      "allowed_skips": []
-    },
-    {
-      "path": "test_native_faults.py",
       "allowed_skips": []
     },
     {

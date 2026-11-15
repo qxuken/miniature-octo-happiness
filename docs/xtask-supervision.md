@@ -72,8 +72,8 @@ engine performance measurement or product MC/DC denominator.
 | `quota.invoke` | Rust supervisor, actual fixture PID in command evidence; privilege/mount/loop policy remains Python |
 | resource `observe` | Rust supervision/RSS/terminal outcome; Python phase/byte oracle |
 | helper `execute` / process-table probe | Rust supervision/journal retirement/probe; Python registry, worker instrumentation and unittest result oracle |
-| `native_faults.py` | Thin compatibility CLI; Rust archive, explicit driver overlay, immutable image, permission/ENOSPC execution, stability and cleanup |
-| delivered-faults `run.py` | Rust parent **and worker** orchestration; Python retains package verification and strict independent exercise/recovery outcome oracles |
+| `cargo xtask faults native` | Rust archive, explicit driver overlay, immutable image, permission/ENOSPC execution, stability and cleanup; Python shim retired |
+| `cargo xtask faults delivered` | Rust parent/worker, exact-package verification and independent exercise/recovery oracle; Python shim/oracle retired |
 
 The delivered worker relocates the exact package, runs all six fault modes,
 recovers each in a separate process without the shim, checks loader paths,

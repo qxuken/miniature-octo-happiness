@@ -28,7 +28,7 @@ entry points.
 
 | Batch | Remaining modules | State |
 |---|---|---|
-| Core entry points | check/build/package/cleanup, shared bounded POSIX supervision, native and delivered fault parent/worker | Check/build/package/cleanup are Rust-only; bounded supervision/fault orchestration is Rust with remaining adapters/oracles pending |
+| Core entry points | check/build/package/cleanup, shared bounded POSIX supervision, native and delivered fault parent/worker | Rust-only, including delivered package and phase oracles; remaining consumers of the Python supervisor adapter are tracked in later batches |
 | Packaging leaves and consumers | release policy, MSVC discovery/consumers, attribution, Odin bindings, dynamic ABI smoke, delivered Rust source | Clean Mac/Linux packages qualify at `06d0a15`; hosted Windows passes at `e3ff5ad` and `cfa08d1` |
 | CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, packaging probe | Rust implementations and local qualification pass; hosted qualification is recorded per commit below |
 | Independent delivery traces | state model, Rust/C/Odin trace controller, Docker worker, Windows 134-cell trace | Pending |
@@ -298,3 +298,43 @@ Local proof under `target/xtask-probe/` (SHA-256):
 Hosted engine/fuzz runs at clean `60f03c0` are subsequently fully green,
 including the new Rust library-coverage job, both sanitizers and all three native
 package platforms. Later mutation/probe commits retain their own CI gates.
+
+## Native and delivered fault oracle retirement
+
+Both fault commands now run entirely in Rust. The delivered worker uses a strict,
+independent six-mode oracle and runs its directed negative controls before the
+real consumer. Exercise cannot claim recovery: phase key sets, integer identities,
+completion booleans and every observed status/revision/injection counter must
+match independently. The new package gate verifies exact source IDs, complete
+hash inventories and safe regular paths. Duplicate JSON keys, symlinks/reparse
+inputs, self-hashed/escaping paths, excessive JSON/file/entry/depth budgets and
+payload corruption reject. There is no engine import in either oracle.
+
+Three retired Python controls map to actual Rust tests, taking the frozen mapping
+to **41/179**. Four files are removed, leaving **46** maintained Python files.
+The Rust runner and its tests have no remaining Python subprocess; historical
+Python command strings remain only in the golden check-plan comparison. Mac
+debug/release controls pass **85 tests** (78 unit plus seven integration), and
+strict native/MSVC cross-target Clippy passes. The remaining Python registry
+passes **272 checks plus four registered skips across 36 workers**.
+
+Actual Docker execution qualifies the old exact `06d0a15` Linux shared library
+with today's staged Rust runner: all six C exercise processes and six independent
+recovery processes pass, with retained revision 2 and successful retry to 4.
+Reopened revisions by mode are **4, 3, 4, 4, 3, 3**. Visible revisions remain
+**4, 3, 3, 3, 3, 3**, and status codes **0, 14, 15, 15, 15, 14**. The disabled
+injector still fails at the required C assertion (SIGABRT), preventing vacuous
+injection success. Loader paths, inputs, package, binaries, copied artifacts and
+owned Docker absence all verify. Native permission, append/backup/restore/compact
+ENOSPC and retry also pass against frozen engine `570c7df` plus the explicit
+current driver overlay. This is bounded native-error/process evidence, separate
+from device power-loss qualification and follower durability acknowledgment.
+
+The runner sources were staged before qualification, as required by the existing
+runner snapshot gate; archived engine/package and runner identities remain
+independent. Local proof under `target/xtask-fault-oracles/` (SHA-256):
+
+- Delivered parent: `c19327927a0936ac80f4e19d30edd47294f0e9853950f65fc654cdeb53248682`.
+- Delivered worker: `b338d35f95d5c3dae048a78071c236753c6024536746a4d00a9f79a66115fc21`.
+- Native drill: `9785a2122e7255317dc37d2928004ddb8a700a7b84b7d56e23ddda5b2ada2e41`.
+- Remaining helper registry: `c3ae64e4592ef310d2cdf772d80650d724885debfe7ae868e76b569131e997c3`.

@@ -3,11 +3,11 @@
 Run with Docker and cached Cargo inputs available:
 
 ```sh
-mise exec python@3.14.8 -- python -O tools/native_faults.py \
+cargo xtask faults native \
   --source 96e105f --output /absolute/new/evidence-directory
 ```
 
-The runner archives the exact selected commit, overlays only the current
+The Rust runner archives the exact selected commit, overlays only the current
 `examples/native_faults.rs`, and records both source identities. It builds the
 base-feature release example offline and locked inside an immutable Linux image,
 with network access disabled. The example asserts its runtime source ID and

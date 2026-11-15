@@ -12,6 +12,10 @@ mod coverage;
 #[cfg(unix)]
 mod coverage_executables;
 #[cfg(unix)]
+mod delivered_faults;
+#[cfg(any(unix, test))]
+mod delivery;
+#[cfg(unix)]
 mod faults;
 #[cfg(unix)]
 mod fuzz;
@@ -290,5 +294,27 @@ mod tests {
             );
         }
         assert!(Cli::try_parse_from(["xtask", "publish"]).is_err());
+    }
+    #[cfg(unix)]
+    #[test]
+    fn native_fault_cli_preserves_source_output_and_help() {
+        let cli = Cli::try_parse_from([
+            "xtask", "faults", "native", "--source", "HEAD", "--output", "new",
+        ])
+        .unwrap();
+        let Task::Faults {
+            task: faults::Task::Native(_),
+        } = cli.task
+        else {
+            panic!("native task")
+        };
+        use clap::error::ErrorKind;
+        assert_eq!(
+            Cli::try_parse_from(["xtask", "faults", "native", "--help"])
+                .err()
+                .unwrap()
+                .kind(),
+            ErrorKind::DisplayHelp
+        );
     }
 }

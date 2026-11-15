@@ -6,7 +6,9 @@
     "test_c_sanitizers.py",
     "test_fuzz_runner.py",
     "test_coverage.py",
-    "test_coverage_executables.py"
+    "test_coverage_executables.py",
+    "test_native_faults.py",
+    "delivered-faults/test_runner.py"
   ],
   "controls": [
     {
@@ -169,13 +171,19 @@
       "path": "delivered-faults/test_runner.py",
       "id": "helper_suite.Controls.test_outcomes_reject_false_ack_and_partial_commit",
       "source_sha256": "0a9abbff0782ef35ff255cceb36998f63bee8c5d850a8ceaeaafcb511c56f493",
-      "rust": []
+      "rust": [
+        "delivered_faults::tests::outcomes_reject_false_acknowledgment_and_partial_commit"
+      ],
+      "unix_only": true
     },
     {
       "path": "delivered-faults/test_runner.py",
       "id": "helper_suite.Controls.test_phases_cannot_claim_recovery_from_exercise_summary",
       "source_sha256": "0a9abbff0782ef35ff255cceb36998f63bee8c5d850a8ceaeaafcb511c56f493",
-      "rust": []
+      "rust": [
+        "delivered_faults::tests::exercise_cannot_assert_independent_recovery"
+      ],
+      "unix_only": true
     },
     {
       "path": "quota/test_runner.py",
@@ -771,7 +779,10 @@
       "path": "test_native_faults.py",
       "id": "helper_suite.NativeFaultRunnerAdmission.test_compatibility_cli_delegates_exact_arguments",
       "source_sha256": "c9efeff51fa9227cecfcebb024f96c5ae19528fe8928f11c97350c897028d969",
-      "rust": []
+      "rust": [
+        "tests::native_fault_cli_preserves_source_output_and_help"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_release.py",

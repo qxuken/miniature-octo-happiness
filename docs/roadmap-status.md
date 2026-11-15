@@ -940,3 +940,10 @@ Mac/Linux; the experiment itself remains Mac-only. The remaining conversion is
 50 Python files for independent delivery/fault/state oracles and distributed,
 workload, quota and helper qualification. Clean `60f03c0` passes hosted engine and
 fuzz runs, including Rust coverage, both sanitizers and native private packaging.
+
+Fault qualification then becomes Rust-only, including the independent delivered
+package/phase oracle. Real six-mode C exercise/recovery, disabled-injector control,
+native permission/ENOSPC maintenance/retry and owned-resource checks pass. Separate
+phase receipts remain mandatory. The ledger records exact old-package/new-runner
+identities; 41/179 controls now map to Rust, 46 Python files remain, and the
+remaining helper registry passes 272 checks plus four registered skips.

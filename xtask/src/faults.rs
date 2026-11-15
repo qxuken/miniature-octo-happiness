@@ -171,19 +171,6 @@ impl Campaign {
         )?;
         Ok(())
     }
-    fn oracle(&mut self, action: &str, inputs: &[&Path]) -> Result<Value> {
-        let python = env::var("WEEKEND_PYTHON").unwrap_or_else(|_| "python3".into());
-        let mut args = vec![
-            python,
-            "-I".into(),
-            "-B".into(),
-            s(self.root.join("tools/delivered-faults/run.py")),
-            "--oracle".into(),
-            action.into(),
-        ];
-        args.extend(inputs.iter().map(s));
-        Ok(serde_json::from_str(self.ok(args, "oracle", 30.)?.trim())?)
-    }
 }
 fn s(p: impl AsRef<Path>) -> String {
     p.as_ref().to_string_lossy().into_owned()
@@ -494,11 +481,11 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
     let volume = format!("{name}-data");
     let mut acquired = false;
     let result = (|| -> Result<()> {
-        let info = c.oracle("verify", &[&package])?;
+        let info = crate::delivered_faults::package(&package)?;
         image(&mut c, &opts.image)?;
         let inputs = output.join("inputs");
         fs::create_dir(&inputs)?;
-        for n in ["consumer.c", "faults.c", "run.py", "test_runner.py"] {
+        for n in ["consumer.c", "faults.c"] {
             fs::copy(
                 run.root.join("tools/delivered-faults").join(n),
                 inputs.join(n),
@@ -601,8 +588,8 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
                 && sha(&package.join("manifest.json"))? == manifest,
             "seed changed"
         );
-        c.oracle("verify", &[&package])?;
-        c.oracle("verify", &[&result.join("relocated-package")])?;
+        crate::delivered_faults::package(&package)?;
+        crate::delivered_faults::package(&result.join("relocated-package"))?;
         ensure!(
             proof["results"].as_array().context("results")?.len() == 6,
             "missing cases"
@@ -628,7 +615,7 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
     let result = (|| -> Result<()> {
         let package = output.join("relocated-package");
         copy_tree(Path::new("/seed/package"), &package)?;
-        let info = c.oracle("verify", &[&package])?;
+        let info = crate::delivered_faults::package(&package)?;
         let inputs = output.join("inputs");
         copy_tree(Path::new("/seed/inputs"), &inputs)?;
         let frozen = inventory(&inputs)?;
@@ -652,10 +639,7 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
             })
             .collect();
         env.insert("CARGO_INCREMENTAL".into(), "0".into());
-        env.insert("PYTHONDONTWRITEBYTECODE".into(), "1".into());
         c.root = output.clone(); // Consumer paths and rpath are evaluated after relocation.
-        // Keep oracle lookup bound to the immutable staged runner, not this cwd.
-        let oracle_root = run.root.clone();
         c.evidence["source"] = info["source"].clone();
         c.evidence["inputs_sha256"] = json!(frozen);
         c.evidence["package_manifest_sha256"] = json!(manifest);
@@ -684,22 +668,9 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
             }
             c.evidence[label] = json!(text);
         }
-        // Pure oracle controls run in both interpreter modes; subprocess-control
-        // regressions live at the Rust supervisor interface, outside this oracle.
-        for optimize in [false, true] {
-            let mut args = v(&["python3", "-I", "-B"]);
-            if optimize {
-                args.push("-O".into());
-            }
-            args.push(s(inputs.join("test_runner.py")));
-            c.call(
-                args,
-                if optimize { "controls-O" } else { "controls" },
-                30.,
-                Some(env.clone()),
-                &[0],
-            )?;
-        }
+        crate::delivered_faults::self_check()?;
+        c.evidence["oracle_controls"] =
+            json!({"implementation":"independent Rust", "passed":true, "modes":6});
         for (suffix, extra) in [
             ("", None),
             ("-disabled", Some("-DQUALIFICATION_BYPASS_INJECTION=1")),
@@ -814,10 +785,12 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
                     &json!({"exercise":one(&exercise)?,"recovery":one(&recovery)?,"mode":mode}),
                 )?,
             )?;
-            let old = std::mem::replace(&mut c.root, oracle_root.clone());
-            let row = c.oracle("combine", &[&phases]);
-            c.root = old;
-            rows.push(row?);
+            let phases = crate::delivery::read_json(&phases)?;
+            rows.push(crate::delivered_faults::combine(
+                &phases["exercise"],
+                &phases["recovery"],
+                mode,
+            )?);
         }
         let data = output.join("disabled-case");
         fs::create_dir(&data)?;
@@ -842,9 +815,7 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
         for (name, digest) in binaries {
             ensure!(sha(&output.join(name))? == digest, "binary changed");
         }
-        let old = std::mem::replace(&mut c.root, oracle_root);
-        c.oracle("verify", &[&package])?;
-        c.root = old;
+        crate::delivered_faults::package(&package)?;
         c.evidence["results"] = json!(rows);
         c.evidence["source_stable"] = json!(true);
         Ok(())
