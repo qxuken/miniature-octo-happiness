@@ -90,6 +90,12 @@ fn run_checks(c: &mut Campaign<'_>, root: &Path, target: &Path, xtask: &Path) ->
                 && matches!(args[1].to_str(), Some("clippy" | "test" | "run" | "build"))
             {
                 args.insert(2, "--locked".into());
+                if args[1] == "test" {
+                    // Compile first so cold builds and native test execution have independent deadlines.
+                    let mut compile = args.clone();
+                    compile.push("--no-run".into());
+                    c.command(compile, &format!("{prefix}-compile"), None, 300.)?;
+                }
             }
             c.command(args, &format!("{prefix}-{}", index + 1), None, 300.)?;
         }
@@ -241,8 +247,9 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         c.evidence["lockfiles_sha256"] = json!(locks);
         c.save()?;
         let xtask = std::env::current_exe()?;
-        run_checks(&mut c, &run.root, &target, &xtask)?;
         run_delivery(&mut c, &xtask, &rustc, &locks["Cargo.lock"], opts.odin)?;
+        c.save()?;
+        run_checks(&mut c, &run.root, &target, &xtask)?;
         ensure!(
             committed_locks(&mut c, &run.root, "after")? == locks,
             "locked inputs changed"
