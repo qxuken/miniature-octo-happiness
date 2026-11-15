@@ -1,3 +1,4 @@
+mod capture_record;
 #[cfg(test)]
 mod tests;
 #[path = "tls.rs"]
@@ -24,6 +25,8 @@ weekend-replicate compact-manifest <follower-dir> <stream-hex> <file-identity-he
 weekend-replicate status <follower-dir> <stream-hex> <file-identity-hex>
 weekend-replicate serve <follower-dir> <stream-hex> <file-identity-hex> <listen-ip:port> <credentials-dir> <peer-cert.der> [--max-exchanges N]
 weekend-replicate ship <source-db> <stream-hex> <new-export-file> <peer-ip:port> <credentials-dir> <peer-cert.der> [--attempts N]
+weekend-replicate capture <source-db> <stream-hex> <new-export-file> <new-descriptor-db>
+weekend-replicate ship-captured <source-db> <stream-hex> <export-file> <descriptor-db> <peer-ip:port> <credentials-dir> <peer-cert.der> [--attempts N]
 weekend-replicate poll <source-db> <stream-hex> <peer-ip:port> <credentials-dir> <peer-cert.der>
 IDs are 32 hexadecimal digits. Ship attempts: 1..3 (default 3). Each socket exchange has a 30 s absolute I/O budget including connect; local disk work is not timed out.";
 fn text(s: &OsStr) -> AppResult<&str> {
@@ -172,6 +175,19 @@ pub(crate) fn main() -> AppResult<()> {
             let follower = Follower::open(dir, e, Limits::default())?;
             serve(follower, address, &tls, max)
         }
+        [c, source, stream, export, descriptor] if c == "capture" => {
+            let stream = identity(stream)?;
+            let prepared = prepare(source.as_ref(), stream, export.as_ref())?;
+            let capture = prepared.export.descriptor();
+            capture_record::store(Path::new(descriptor), capture)?;
+            announce(&prepared)?;
+            println!(
+                "local export_length={} export_digest={}",
+                capture.length,
+                hex(&capture.digest)
+            );
+            Ok(())
+        }
         [
             c,
             source,
@@ -186,18 +202,43 @@ pub(crate) fn main() -> AppResult<()> {
             let address = text(address)?.parse()?;
             let attempts = option(options, "--attempts", 3, 3)?;
             let tls = transport(credentials, pin)?;
-            let mut prepared = prepare(source.as_ref(), stream, export.as_ref())?;
-            println!(
-                "local captured_revision={} stream={} file_identity={}",
-                prepared.revision,
-                hex(&stream),
-                hex(&prepared.primary.enrollment().file_identity)
-            );
-            io::stdout().flush()?;
-            match ship(&mut prepared,&tls,address,attempts) {
-                Ok(ack)=>{println!("{}",ack_line(Some(ack)));Ok(())},
-                Err(e)=>Err(format!("transfer not confirmed; follower outcome may be uncertain: {e}. Reopen and poll on a fresh authenticated connection; do not infer rollback. Export file retained; a restarted send needs a new export path.").into())
-            }
+            let prepared = prepare(source.as_ref(), stream, export.as_ref())?;
+            deliver(
+                prepared,
+                &tls,
+                address,
+                attempts,
+                "Export file retained. Use capture to preserve a descriptor for a future restart.",
+            )
+        }
+        [
+            c,
+            source,
+            stream,
+            export,
+            descriptor,
+            address,
+            credentials,
+            pin,
+            options @ ..,
+        ] if c == "ship-captured" => {
+            let stream = identity(stream)?;
+            let address = text(address)?.parse()?;
+            let attempts = option(options, "--attempts", 3, 3)?;
+            let tls = transport(credentials, pin)?;
+            let prepared = prepare_saved(
+                source.as_ref(),
+                stream,
+                export.as_ref(),
+                descriptor.as_ref(),
+            )?;
+            deliver(
+                prepared,
+                &tls,
+                address,
+                attempts,
+                "Export and descriptor retained. Retry with ship-captured.",
+            )
         }
         [c, source, stream, address, credentials, pin] if c == "poll" => {
             let stream = identity(stream)?;
@@ -217,19 +258,51 @@ pub(crate) fn main() -> AppResult<()> {
 struct Prepared {
     primary: Primary,
     export: Export,
-    revision: u64,
+}
+fn announce(prepared: &Prepared) -> AppResult<()> {
+    let e = prepared.primary.enrollment();
+    println!(
+        "local captured_revision={} stream={} file_identity={}",
+        prepared.export.revision(),
+        hex(&e.stream_id),
+        hex(&e.file_identity),
+    );
+    io::stdout().flush()?;
+    Ok(())
 }
 fn prepare(source: &Path, stream: [u8; 16], destination: &Path) -> AppResult<Prepared> {
     let mut db = Database::open_file(source, Limits::default())?;
     let mut primary = Primary::new(&db, stream)?;
     let export = primary.export_file(&mut db, destination)?;
-    let revision = export.revision();
     drop(db);
-    Ok(Prepared {
-        primary,
-        export,
-        revision,
-    })
+    Ok(Prepared { primary, export })
+}
+fn prepare_saved(
+    source: &Path,
+    stream: [u8; 16],
+    image: &Path,
+    record: &Path,
+) -> AppResult<Prepared> {
+    let descriptor = capture_record::load(record)?;
+    let db = Database::open_file(source, Limits::default())?;
+    let primary = Primary::new(&db, stream)?;
+    drop(db);
+    let export = primary.reopen_export_file(image, descriptor, Limits::default())?;
+    Ok(Prepared { primary, export })
+}
+fn deliver(
+    mut prepared: Prepared,
+    tls: &Tls,
+    address: SocketAddr,
+    attempts: usize,
+    context: &str,
+) -> AppResult<()> {
+    announce(&prepared)?;
+    let ack = ship(&mut prepared, tls, address, attempts).map_err(|error| {
+        format!("transfer not confirmed; follower outcome may be uncertain: {error}. Poll on a fresh authenticated connection. {context}")
+    })?;
+    println!("{}", ack_line(Some(ack)));
+    Ok(())
 }
 fn ship(
     prepared: &mut Prepared,

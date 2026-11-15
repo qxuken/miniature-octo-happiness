@@ -1620,3 +1620,57 @@ fresh-image checks per host passed and the supervisors verified cleanup.
 This adds post-copy native error handling to the existing SIGKILL,
 simulated namespace and kernel copy-phase exhaustion evidence. Actual
 namespace exhaustion and device power-loss qualification remain open.
+
+## Restartable snapshot capture
+
+The [capture workflow](replication-operations.md#restartable-captures)
+commits a local descriptor only after the complete export is durable. A
+later sender verifies the image's exact length, SHA-256, enrollment,
+revision, witness and current and retained graphs under one lease. The
+descriptor contains local capture state. The follower independently reports
+its durable revision and digest through the existing authenticated protocol.
+
+The native CLI test stopped the sender after it connected and while TLS
+was waiting for the peer. It confirmed the follower was unchanged, advanced
+the primary from revision 4 to 5, and sent the saved revision 4 from a new
+process. The follower reopened revision 4 with current value 2 and retained
+revision 2 with value 1. Replaying the same capture preserved every follower
+file byte for byte. Once revision 5 was installed, resending revision 4
+reported the newer receipt while preserving the saved pair and follower
+files. Changed image bytes, an incomplete descriptor both before collection
+creation and before row publication, and wrong enrollment all failed before
+network I/O.
+
+The native TLS fault test discards the terminal acknowledgment after
+installation, then reopens the follower and reconstructs the sender from its
+saved descriptor. Retry recovers the exact original digest without manifest
+growth. The simulator verifies the lease, rejects a digest-matching image
+with no witness, compares actual outbound bytes and permits only reads and
+length queries on the reopened export.
+
+macOS arm64/APFS and Docker Linux arm64/ext4 each passed 15 replication unit
+checks and 24 application checks in both debug and release, plus six core
+replication integration checks in debug. Strict Clippy passed for the app
+on both hosts and for the all-feature core on macOS. macOS ASan and TSan at
+`nightly-2026-11-12` each passed all 24 application checks with rebuilt std.
+The MSVC cross-target core check passed. Native Windows execution of the
+restartable capture remains due.
+
+```sh
+cargo test --offline --locked -p weekend-db --features replication --lib replication
+cargo test --offline --locked -p weekend-db --features replication --test replication
+cargo test --offline --locked -p weekend-replicate --all-targets
+```
+
+| Evidence | SHA-256 |
+|---|---|
+| Descriptor source | `f377522e6acb1a7009532677c1f65acf6755f3421d2c935b79cb05ad199cca22` |
+| Core replication source | `915114528fe5b410933d522848e84c7870f66676c25fa8598e40428347a0c365` |
+| Native CLI test source | `6352e13de67e6d2f83073b320b9e248e75c337c405c50caa98013e2db52f43cc` |
+| macOS application debug log | `78d75abe82e47da11c90c11230a4c9a625627c94372de86bd435effcce34835c` |
+| macOS application release log | `bd2b04073763710d9f71e1a410334328f77b04bd9d6cc42ffa1a1b88a3167b68` |
+| macOS ASan application log | `de3812036fd902102967fbd30dc13d92f8785fde0053425df33c5da8d127d3d4` |
+| macOS TSan application log | `3a7648a7e447119ee03c5103377bd24efd910e93e23567d35cf0622d7126402a` |
+| Docker Linux checks and Clippy | `e4a22ec4e785698b1396a24c6a67bd523b93c47bba8135f4b7b7a08acace751e` |
+| Docker Linux core release replication log | `c83585697fc9c7c5824bdb2b8f73f761e7f82da0a617e1660780804a9228faf3` |
+| MSVC cross-target core check | `db7de6234672b0169b84aad4d7e6befddcb3dc2d48bfc8046b68f74882f2fd3f` |

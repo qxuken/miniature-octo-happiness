@@ -64,6 +64,122 @@ fn wrong_digest(mut ack: DurableAck) -> DurableAck {
 }
 
 #[test]
+fn reopened_exports_require_the_saved_identity_and_keep_the_original_bytes() {
+    use crate::storage::{Fault, IoKind, SimulatedDisk};
+
+    let mut source =
+        Database::create_on(MemoryStore::new().unwrap(), [4; 16], Limits::default()).unwrap();
+    source.begin().commit().unwrap();
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    let disk = SimulatedDisk::new().unwrap();
+    let export = primary.export_to(&mut source, disk.clone()).unwrap();
+    let descriptor = export.descriptor();
+    let expected = ack(&export);
+    let original = disk.durable_image().unwrap();
+    assert_eq!(
+        descriptor.digest,
+        <[u8; 32]>::from(Sha256::digest(&original))
+    );
+    assert_eq!(
+        primary
+            .reopen_export(disk.clone(), descriptor, Limits::default())
+            .err(),
+        Some(Error::Busy)
+    );
+    drop(export);
+    source.begin().commit().unwrap();
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    for (candidate, error) in [
+        (
+            ExportDescriptor {
+                enrollment: Enrollment {
+                    stream_id: [8; 16],
+                    ..descriptor.enrollment
+                },
+                ..descriptor
+            },
+            Error::ForeignStore,
+        ),
+        (
+            ExportDescriptor {
+                revision: 3,
+                ..descriptor
+            },
+            Error::ForeignStore,
+        ),
+        (
+            ExportDescriptor {
+                revision: 2,
+                ..descriptor
+            },
+            Error::Corrupt,
+        ),
+        (
+            ExportDescriptor {
+                length: 1,
+                ..descriptor
+            },
+            Error::Limit,
+        ),
+        (
+            ExportDescriptor {
+                length: descriptor.length + 1,
+                ..descriptor
+            },
+            Error::Corrupt,
+        ),
+        (
+            ExportDescriptor {
+                digest: [0; 32],
+                ..descriptor
+            },
+            Error::Corrupt,
+        ),
+    ] {
+        assert_eq!(
+            primary
+                .reopen_export(disk.clone(), candidate, Limits::default())
+                .err(),
+            Some(error)
+        );
+    }
+    let mut corrupt = original.clone();
+    // Zero all witnesses. A byte-matching descriptor alone cannot admit
+    // an unwitnessed candidate.
+    corrupt[3 * REGION..5 * REGION].fill(0);
+    let unwitnessed = ExportDescriptor {
+        digest: Sha256::digest(&corrupt).into(),
+        ..descriptor
+    };
+    assert_eq!(
+        primary
+            .reopen_export(
+                SimulatedDisk::from_image(&corrupt).unwrap(),
+                unwitnessed,
+                Limits::default()
+            )
+            .err(),
+        Some(Error::Corrupt)
+    );
+    disk.arm(usize::MAX, Fault::Error);
+    let mut reopened = primary
+        .reopen_export(disk.clone(), descriptor, Limits::default())
+        .unwrap();
+    assert_eq!(reopened.descriptor(), descriptor);
+    let mut exchange = Exchange::new([Reply::Ready, Reply::Installed(expected)]);
+    assert_eq!(primary.ship(&mut reopened, &mut exchange), Ok(expected));
+    assert!(exchange.sent.ends_with(&original));
+    drop(reopened);
+    assert_eq!(disk.durable_image().unwrap(), original);
+    assert!(
+        disk.trace()
+            .unwrap()
+            .iter()
+            .all(|event| matches!(event.kind, IoKind::Length | IoKind::Read))
+    );
+}
+
+#[test]
 fn primary_poll_rejects_invalid_progress_without_losing_its_last_ack() {
     let (db, [old, current, next]) = exports();
     let (old, current, next) = (ack(&old), ack(&current), ack(&next));

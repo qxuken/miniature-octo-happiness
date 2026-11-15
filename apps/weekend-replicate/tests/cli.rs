@@ -289,6 +289,206 @@ fn verify_follower(path: &Path, stream: &str, identity: &str) {
     );
 }
 
+#[test]
+fn native_captured_export_survives_sender_kill_and_primary_advancement() {
+    use sha2::{Digest, Sha256};
+    use std::net::TcpListener;
+
+    let dir = directory("captured");
+    let root = &dir.0;
+    let primary = root.join("primary");
+    seed_primary(&primary);
+    let source = primary.to_str().unwrap();
+    let image = root.join("capture.wdb");
+    let record = root.join("descriptor.wdb");
+    let stream = "aa11aa11aa11aa11aa11aa11aa11aa11";
+    let capture = run(&[
+        "capture",
+        source,
+        stream,
+        image.to_str().unwrap(),
+        record.to_str().unwrap(),
+    ]);
+    let identity = capture
+        .split_whitespace()
+        .find_map(|s| s.strip_prefix("file_identity="))
+        .unwrap();
+    let original = fs::read(&image).unwrap();
+    let ticket = fs::read(&record).unwrap();
+    let digest = format!("{:x}", Sha256::digest(&original));
+    let local = format!("local captured_revision=4 stream={stream} file_identity={identity}");
+    assert_eq!(
+        capture,
+        format!(
+            "{local}\nlocal export_length={} export_digest={digest}\n",
+            original.len()
+        )
+    );
+
+    let sender = root.join("sender");
+    let receiver = root.join("receiver");
+    credentials(&sender);
+    credentials(&receiver);
+    let sender_cert = sender.join("cert.der");
+    let receiver_cert = receiver.join("cert.der");
+    let follower = root.join("follower");
+    fs::create_dir(&follower).unwrap();
+    let follower_path = follower.to_str().unwrap();
+    run(&["follower-init", follower_path, stream, identity]);
+    let empty_follower = files(&follower);
+    let command = |stream: &str, image: &Path, descriptor: &Path, address: &str| {
+        let mut cmd = Command::new(BIN);
+        cmd.args(["ship-captured", source, stream])
+            .args([image, descriptor])
+            .arg(address)
+            .arg(&sender)
+            .arg(&receiver_cert)
+            .args(["--attempts", "1"]);
+        cmd
+    };
+    // The sender reaches TCP connect after verifying the pair and waits in
+    // TLS while this listener withholds the handshake.
+    let stalled = TcpListener::bind("127.0.0.1:0").unwrap();
+    stalled.set_nonblocking(true).unwrap();
+    let stalled_address = stalled.local_addr().unwrap().to_string();
+    let mut interrupted = Server(
+        command(stream, &image, &record, &stalled_address)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let socket = loop {
+        match stalled.accept() {
+            Ok((socket, _)) => break socket,
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(interrupted.0.try_wait().unwrap().is_none());
+                assert!(
+                    Instant::now() < deadline,
+                    "sender did not reach TCP connect"
+                );
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(e) => panic!("accepting sender: {e}"),
+        }
+    };
+    interrupted.0.kill().unwrap();
+    assert!(!interrupted.0.wait().unwrap().success());
+    let mut output = String::new();
+    std::io::Read::read_to_string(&mut interrupted.0.stdout.take().unwrap(), &mut output).unwrap();
+    assert_eq!(output, format!("{local}\n"));
+    drop(socket);
+    assert_eq!(files(&follower), empty_follower);
+
+    let db = Database::open_file(&primary, Limits::default()).unwrap();
+    let mut tx = db.begin();
+    tx.put(db.collection_id(1), b"key", &db.unsigned(3).unwrap())
+        .unwrap();
+    assert_eq!(tx.commit(), Ok(5));
+    drop(tx);
+    drop(db);
+
+    let changed = root.join("changed-export");
+    let absent_record = root.join("incomplete-descriptor");
+    let absent_row = root.join("descriptor-without-row");
+    let mut bad_bytes = original.clone();
+    *bad_bytes.last_mut().unwrap() ^= 1;
+    fs::write(&changed, bad_bytes).unwrap();
+    Database::create_file(&absent_record, Limits::default()).unwrap();
+    Database::create_file(&absent_row, Limits::default())
+        .unwrap()
+        .create_collection()
+        .unwrap();
+    for (s, file, descriptor, error) in [
+        (stream, &changed, &record, "Corrupt"),
+        (stream, &image, &absent_record, "UnsupportedFormat"),
+        (stream, &image, &absent_row, "UnsupportedFormat"),
+        (
+            "bb11bb11bb11bb11bb11bb11bb11bb11",
+            &image,
+            &record,
+            "ForeignStore",
+        ),
+    ] {
+        let rejected = command(s, file, descriptor, &stalled_address)
+            .output()
+            .unwrap();
+        assert!(!rejected.status.success());
+        assert!(rejected.stdout.is_empty());
+        assert_eq!(
+            String::from_utf8(rejected.stderr).unwrap().trim_end(),
+            error
+        );
+    }
+    assert!(matches!(stalled.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock));
+    assert_eq!(files(&follower), empty_follower);
+
+    let receipt = format!("follower durable_revision=4 stream={stream} digest={digest}");
+    let serve = || {
+        Server::start(
+            root,
+            &[
+                "serve",
+                follower_path,
+                stream,
+                identity,
+                "127.0.0.1:0",
+                receiver.to_str().unwrap(),
+                sender_cert.to_str().unwrap(),
+                "--max-exchanges",
+                "1",
+            ],
+        )
+    };
+    let mut installed = None;
+    for _ in 0..2 {
+        let (mut server, address) = serve();
+        let shipped = command(stream, &image, &record, &address).output().unwrap();
+        assert!(shipped.status.success(), "{shipped:?}");
+        assert_eq!(
+            String::from_utf8(shipped.stdout).unwrap(),
+            format!("{local}\n{receipt}\n")
+        );
+        server.finished();
+        verify_follower(&follower, stream, identity);
+        let now = files(&follower);
+        if let Some(before) = &installed {
+            assert_eq!(&now, before);
+        }
+        installed = Some(now);
+    }
+
+    let (mut server, address) = serve();
+    let newer = run(&[
+        "ship",
+        source,
+        stream,
+        root.join("newer-export").to_str().unwrap(),
+        &address,
+        sender.to_str().unwrap(),
+        receiver_cert.to_str().unwrap(),
+        "--attempts",
+        "1",
+    ]);
+    server.finished();
+    let newer_receipt = newer
+        .lines()
+        .find(|line| line.starts_with("follower durable_revision=5 "))
+        .unwrap();
+    let advanced = files(&follower);
+    let (mut server, address) = serve();
+    let shipped = command(stream, &image, &record, &address).output().unwrap();
+    assert!(shipped.status.success(), "{shipped:?}");
+    assert_eq!(
+        String::from_utf8(shipped.stdout).unwrap(),
+        format!("{local}\n{newer_receipt}\n")
+    );
+    server.finished();
+    assert_eq!(files(&follower), advanced);
+    assert_eq!(fs::read(&image).unwrap(), original);
+    assert_eq!(fs::read(&record).unwrap(), ticket);
+}
+
 fn verify_records(
     current: weekend_db::Snapshot<'_>,
     retained: weekend_db::Snapshot<'_>,

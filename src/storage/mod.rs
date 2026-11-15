@@ -182,7 +182,7 @@ impl Storage {
         }
         Ok(())
     }
-    fn locked<B: ByteStore + 'static>(backend: B, mem: &Memory) -> Result<Self> {
+    pub(crate) fn locked<B: ByteStore + 'static>(backend: B, mem: &Memory) -> Result<Self> {
         let mut backend: Box<dyn ByteStore> = mem.boxed(backend)?;
         backend.lock()?;
         Ok(Self {
@@ -377,10 +377,7 @@ pub(crate) fn write_all(
     Ok(())
 }
 
-#[cfg(all(
-    feature = "replication",
-    any(test, target_os = "macos", target_os = "linux", windows)
-))]
+#[cfg(feature = "replication")]
 pub(crate) fn recover_replica(
     backend: &mut dyn ByteStore,
     mem: &Memory,

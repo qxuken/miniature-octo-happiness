@@ -3,8 +3,11 @@
 //! authenticated to the configured peer (for example, mutual TLS with peer
 //! pinning). Stream IDs and SHA-256 digests are not peer credentials.
 use crate::{
-    Database, Error, Result,
-    storage::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, Storage, read_all},
+    Database, Error, Limits, Result,
+    memory::Memory,
+    storage::{
+        APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, Storage, read_all, recover_replica,
+    },
 };
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
@@ -51,6 +54,26 @@ struct Offer {
     length: u64,
     digest: [u8; 32],
 }
+
+/// Identifies an exact local capture. Persist this descriptor before starting
+/// a shipment to resume that image after a sender restart. The descriptor is
+/// local state. A follower reports its own durable acknowledgment separately.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExportDescriptor {
+    pub enrollment: Enrollment,
+    pub revision: u64,
+    pub length: u64,
+    pub digest: [u8; 32],
+}
+impl ExportDescriptor {
+    fn offer(self) -> Offer {
+        Offer {
+            revision: self.revision,
+            length: self.length,
+            digest: self.digest,
+        }
+    }
+}
 impl Offer {
     fn validate(self) -> Result<()> {
         if !(APPEND_START as u64..=MAX_IMAGE_BYTES as u64).contains(&self.length) {
@@ -77,6 +100,14 @@ pub struct Export {
 impl Export {
     pub fn revision(&self) -> u64 {
         self.offer.revision
+    }
+    pub fn descriptor(&self) -> ExportDescriptor {
+        ExportDescriptor {
+            enrollment: self.enrollment,
+            revision: self.offer.revision,
+            length: self.offer.length,
+            digest: self.offer.digest,
+        }
     }
 }
 
@@ -124,6 +155,54 @@ impl Primary {
     ) -> Result<Export> {
         let revision = self.check_source(source)?;
         self.capture(source, crate::storage::FileStore::create(path)?, revision)
+    }
+    /// Reopen a previously captured image using its trusted local descriptor.
+    /// Verify the exact length and digest, witnessed revision, identity and
+    /// complete graph under one exclusive lease. No bytes are written.
+    pub fn reopen_export(
+        &self,
+        image: impl ByteStore + 'static,
+        descriptor: ExportDescriptor,
+        limits: Limits,
+    ) -> Result<Export> {
+        if descriptor.enrollment != self.enrollment || descriptor.revision > self.verified_revision
+        {
+            return Err(Error::ForeignStore);
+        }
+        let offer = descriptor.offer();
+        offer.validate()?;
+        let mem = Memory::new(limits)?;
+        let mut storage = Storage::locked(image, &mem)?;
+        let backend = storage.image_bytes();
+        if image_digest(backend, offer.length)? != offer.digest {
+            return Err(Error::Corrupt);
+        }
+        recover_replica(
+            backend,
+            &mem,
+            self.enrollment.file_identity,
+            offer.revision,
+            offer.length,
+        )?;
+        Ok(Export {
+            enrollment: self.enrollment,
+            offer,
+            storage,
+        })
+    }
+    /// Reopen an exact saved capture on this host with a read-only file handle.
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    pub fn reopen_export_file(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        descriptor: ExportDescriptor,
+        limits: Limits,
+    ) -> Result<Export> {
+        self.reopen_export(
+            crate::storage::FileStore::open_read_only(path)?,
+            descriptor,
+            limits,
+        )
     }
     fn check_source(&self, source: &Database) -> Result<u64> {
         let (identity, revision) = source.replication_head()?;

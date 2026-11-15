@@ -102,7 +102,7 @@ fn authorized_install_reopen_poll_and_retry_release_primary_lease() {
     let path = source(&dir);
     let mut prepared = prepare(&path, [1; 16], &dir.0.join("export.wdb")).unwrap();
     let e = enrollment_of(&prepared);
-    assert_eq!(prepared.revision, 4);
+    assert_eq!(prepared.export.revision(), 4);
     // The network may run while a new writer holds and advances the primary.
     let db = Database::open_file(&path, Limits::default()).unwrap();
     let mut tx = db.begin();
@@ -260,7 +260,11 @@ impl<S: Write> Write for LoseTerminal<S> {
 fn lost_terminal_reply_reopens_exact_receipt_and_retries_same_export() {
     let dir = Directory::new();
     let path = source(&dir);
-    let mut prepared = prepare(&path, [1; 16], &dir.0.join("export")).unwrap();
+    let image = dir.0.join("export");
+    let record = dir.0.join("descriptor");
+    let mut prepared = prepare(&path, [1; 16], &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    capture_record::store(&record, descriptor).unwrap();
     let e = enrollment_of(&prepared);
     let mut f = follower(&dir, e);
     let (client, server) = pair();
@@ -286,13 +290,21 @@ fn lost_terminal_reply_reopens_exact_receipt_and_retries_same_export() {
             check(&f, before);
             before
         });
+        assert!(ship(&mut prepared, &client, address, 1).is_err());
+        drop(prepared);
+        let db = Database::open_file(&path, Limits::default()).unwrap();
+        assert_eq!(db.begin().commit(), Ok(5));
+        drop(db);
+        let mut restarted = prepare_saved(&path, e.stream_id, &image, &record).unwrap();
+        assert_eq!(restarted.export.descriptor(), descriptor);
         (
-            ship(&mut prepared, &client, address, 2),
+            ship(&mut restarted, &client, address, 1),
             worker.join().unwrap(),
         )
     });
     assert_eq!(sent.unwrap(), recovered);
     assert_eq!(recovered.revision, 4);
+    assert_eq!(recovered.digest, descriptor.digest);
 }
 #[test]
 fn credential_bounds_and_fixture_loading() {

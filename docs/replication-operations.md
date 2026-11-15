@@ -269,11 +269,59 @@ A newer acknowledgment is newer progress, not proof that the exact old image
 independent inspection when needed.
 
 Export files are create-new and are retained after exit, including failure.
-The CLI does not reopen an arbitrary saved file as an Export. After a primary
-process restart, poll first; if another shipment is needed, capture to a **new**
-export path. That is a newly captured image, not an automatic retry of the old
-file. Remove old export files only when no process holds them and your operational
-retention policy permits. A failed export can leave a partial file.
+The `ship` command captures and sends in one invocation. Use the separate
+capture workflow below to keep enough local state to resend the exact image
+after a sender restart. Remove export files only when their leases are clear
+and your retention policy permits.
+
+### Restartable captures
+
+Use two fresh paths in a trusted private directory. Capture first, then
+send the saved capture in a separate process. The same send command also
+resumes an interrupted or unconfirmed attempt.
+
+```sh
+weekend-replicate capture /data/primary.wdb STREAM_HEX \
+  /data/export-42.wdb /data/export-42-descriptor.wdb
+weekend-replicate ship-captured /data/primary.wdb STREAM_HEX \
+  /data/export-42.wdb /data/export-42-descriptor.wdb \
+  192.0.2.10:9443 /private/local-credentials /private/remote-cert.der
+```
+
+`capture` completes and verifies the export before committing its local
+descriptor. The descriptor records enrollment, revision, length and the
+SHA-256 of the exact bytes. It uses one binary row in a separate Weekend
+database. File creation precedes the descriptor commit, so an interrupted
+capture can leave a partial export, an incomplete descriptor or a usable
+pair. A usable pair contains a valid selected descriptor and a matching
+complete witnessed image. A partial pair can be inspected or cleaned up
+offline. Use fresh paths for the next capture.
+
+`ship-captured` reconstructs the primary under its local file lease.
+The recovered primary must cover the captured revision and match the
+stream and database identity. The sender releases the primary before
+connecting. It verifies the saved export's physical length, SHA-256,
+matching witness and complete current and retained graph under an exclusive
+read-only file lease, which it holds through all attempts. A changed export,
+wrong enrollment or incomplete descriptor is rejected before connecting.
+Keep the files together and protect them from local modification. The
+descriptor is a local verification record. Authentication uses the
+configured TLS peer credentials.
+
+`capture` prints only local capture information. A successful
+`ship-captured` prints the captured revision and the follower's separate
+durable acknowledgment. If the follower already selected the exact image,
+it returns the same revision and digest without another install. It can
+instead report a newer durable revision covered by the recovered primary.
+That newer receipt describes the currently selected image. It carries no
+proof that the older image is still selected. The restartable workflow
+uses the existing snapshot wire protocol and the same enrollment policy.
+When restoring or forking a primary, configure a fresh stream and follower.
+
+For embedded Rust, persist `Export::descriptor()` before transfer, then
+reconstruct `Primary` and use `Primary::reopen_export_file` or
+`Primary::reopen_export` with the saved descriptor. The application owns
+descriptor persistence, path lifetime and authenticated channels.
 
 ### Credential handling and platform scope
 
