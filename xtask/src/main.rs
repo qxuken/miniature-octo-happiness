@@ -23,6 +23,8 @@ mod delivery;
 #[cfg(unix)]
 mod faults;
 #[cfg(unix)]
+mod follower_backup;
+#[cfg(unix)]
 mod fuzz;
 #[cfg(any(unix, test))]
 mod instrumentation;
@@ -88,6 +90,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Verify native follower backup, restore and fresh-stream reseeding.
+    #[cfg(unix)]
+    FollowerBackupRestore(follower_backup::Options),
     /// Exercise a bounded native lifecycle workload on a frozen engine.
     #[cfg(unix)]
     Soak(soak::Options),
@@ -249,6 +254,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::FollowerBackupRestore(options) => follower_backup::run(&run, options),
         #[cfg(unix)]
         Task::Soak(options) => soak::run(&run, options),
         #[cfg(unix)]

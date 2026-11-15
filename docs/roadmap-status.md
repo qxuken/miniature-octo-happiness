@@ -1045,3 +1045,10 @@ Docker Linux/ext4 against frozen engine `7a9e661`. The controller validated
 every round, verified process cleanup and bounded RSS telemetry to the peak
 and sample count. The conversion now covers 132/179 controls and 15 Python
 files. [Native lifecycle verification](xtask-conversion.md#native-lifecycle-soak)
+
+The Rust follower backup and reseed controller passed on macOS/APFS and Docker
+Linux/ext4 at `65d142e`. The new enrollment reopened at durable revision 4 with
+retained revision 2. Wrong-stream upload preserved the old durable receipt
+and all original files. Both runs verified process retirement and removed
+their private keys. Fourteen Python files remain.
+[Reseed verification](xtask-conversion.md#authenticated-follower-backup-and-reseed)

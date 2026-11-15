@@ -94,7 +94,7 @@ it accept the restored history.
 ## Reproducible qualification
 
 ```sh
-python3 tools/follower-backup-restore.py --source 65d142e \
+cargo xtask follower-backup-restore --source 65d142e \
   --output target/follower-backup-restore-NEW
 ```
 
@@ -102,15 +102,17 @@ The output directory must be new. This private macOS/Linux harness archives the
 chosen commit, builds the existing `weekend-replicate` and `weekend-admin` with
 `--offline --locked`, and leaves the original Cargo.lock unchanged. It overlays
 only the existing compatibility-driver fixture and an explicit example entry;
-that fixture seeds and checks current/retained rows that admin intentionally does
-not print. No CLI/core runtime edits or publication occur. The native process
-workflow uses exact-leaf mTLS credentials generated in its private output directory.
+that fixture independently seeds and checks current and retained rows. The
+native process workflow generates exact-leaf mTLS credentials in its private
+output directory. The controller removes the private keys on both success and
+failure.
 All commands, logs, source archive/fixture/runner hashes, copied binary hashes,
 lockfile and toolchain are retained. Builds, handshakes and process lifetimes are
-bounded. A failed run exits unsuccessfully and does not write verified evidence.
-The harness supports native macOS/Linux key generation, not Windows key provisioning.
+bounded. A failed run preserves terminal evidence with `verified: false`.
+The current profile uses native macOS and Linux key generation.
 
-Frozen source `65d142e6ae85e477f0abb21e2ab04d67393db1f3` passed on native arm64 macOS
+The historical qualification at frozen source
+`65d142e6ae85e477f0abb21e2ab04d67393db1f3` passed on native arm64 macOS
 with rustc 1.99.1 / LLVM 23.1.1, using Python `-O` so success does not depend on
 Python assertions. The seeded current root was revision 4 (`key=21`,
 `new="current"`), with retained root 1 at revision 2 (`key=11`, no `new` key).

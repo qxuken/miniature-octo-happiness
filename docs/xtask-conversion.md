@@ -724,3 +724,33 @@ focused soak and sampler tests. Strict Clippy passed on macOS and the Linux
 and MSVC cross targets. The five remaining legacy suites passed 92 checks
 with two registered skips across 10 workers. Their evidence SHA-256 is
 `df7a9247945d87c6abc3a7377f6948ef5d3fdf0d3e36fbb7ba882a7767c7d05e`.
+
+## Authenticated follower backup and reseed
+
+`cargo xtask follower-backup-restore` builds the native admin, replication CLI
+and independent oracle from a frozen source with its original lock. A shared
+supervisor verifies loopback readiness and retains terminal process evidence
+for each exchange. The finite servers exit naturally in this profile. New
+controls cover deliberate stop, client failure, forged readiness, timeout,
+strict durable receipt parsing and attempts to remove every private key.
+
+macOS/APFS and Docker Linux/ext4 passed at archived `65d142e`. Both the
+original follower and the reseeded follower reopened at durable revision 4
+with retained root 1 at revision 2. An authenticated wrong-stream upload
+reported the local capture and failed with `ForeignStore`. The old
+follower files and durable receipt stayed unchanged. Existing-destination
+restore rejected and preserved its target. The original primary also remained
+byte-identical. Both runs removed all generated private keys, preserved
+public certificates and verified process retirement. The Docker run verified
+container and volume cleanup.
+
+- macOS proof SHA-256 `cab46acbc790a2c4cabceebcca94aba3ad7729de75887cc77a1f9795a8c382be`.
+- Docker Linux proof SHA-256 `01a2b8390a8003d968c1a6087024beae4ce5923d3e6d29c8fa05720b026c952a`.
+
+The former Python runner had no registered helper suite. Its removal brings
+the remaining maintained Python files to **14**, with **132/179** legacy
+controls mapped. [Follower backup runbook](follower-backup-restore.md)
+
+macOS passed all 153 xtask tests in debug and release. Docker Linux passed
+the focused receipt, credential cleanup, and loopback controls. Strict
+Clippy passed on macOS and the Linux and MSVC cross targets.

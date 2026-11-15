@@ -37,6 +37,8 @@ pub struct Report {
     pub cleanup_failure: Option<String>,
     pub timed_out: bool,
     pub cancelled: bool,
+    #[serde(default)]
+    pub stopped: bool,
     pub stdout_bytes: u64,
     pub stderr_bytes: u64,
     pub rss_samples_kib: Vec<u64>,
@@ -50,6 +52,13 @@ pub struct Report {
 impl Report {
     pub fn success(&self) -> bool {
         self.returncode == Some(0)
+            && self.failure.is_none()
+            && self.cleanup_failure.is_none()
+            && self.cleanup_verified
+    }
+    pub(crate) fn stopped_cleanly(&self) -> bool {
+        self.stopped
+            && self.returncode == Some(-libc::SIGKILL)
             && self.failure.is_none()
             && self.cleanup_failure.is_none()
             && self.cleanup_verified
@@ -83,18 +92,30 @@ enum Sampling {
 }
 
 pub fn run(request: &Request) -> Result<Report> {
-    run_sampled(request, Sampling::Full)
+    run_sampled(request, Sampling::Full, None)
 }
 
 pub(crate) fn run_peak_rss(request: &Request) -> Result<Report> {
-    run_sampled(request, Sampling::Peak)
+    run_sampled(request, Sampling::Peak, None)
 }
 
-fn run_sampled(request: &Request, sampling: Sampling) -> Result<Report> {
+pub(crate) fn run_stoppable(
+    request: &Request,
+    stop: &std::sync::atomic::AtomicBool,
+) -> Result<Report> {
+    run_sampled(request, Sampling::Full, Some(stop))
+}
+
+fn run_sampled(
+    request: &Request,
+    sampling: Sampling,
+    stop: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<Report> {
     #[cfg(not(unix))]
     {
         let _ = request;
         let _ = sampling;
+        let _ = stop;
         anyhow::bail!("bounded POSIX supervision is unavailable on this platform");
     }
     #[cfg(unix)]
@@ -153,7 +174,7 @@ fn run_sampled(request: &Request, sampling: Sampling) -> Result<Report> {
             } else {
                 new_file(&request.stderr)?
             };
-            unix::execute(request, stdout, stderr, &mut report, sampling)
+            unix::execute(request, stdout, stderr, &mut report, sampling, stop)
         })();
         if let Err(error) = result {
             report.failure.get_or_insert(format!("{error:#}"));
@@ -632,8 +653,9 @@ mod unix {
         stderr: File,
         report: &mut Report,
         sampling: Sampling,
+        stop: Option<&AtomicBool>,
     ) -> Result<()> {
-        execute_with(request, stdout, stderr, report, sampling, &mut System)
+        execute_with(request, stdout, stderr, report, sampling, stop, &mut System)
     }
     fn execute_with(
         request: &Request,
@@ -641,6 +663,7 @@ mod unix {
         stderr: File,
         report: &mut Report,
         sampling: Sampling,
+        stop: Option<&AtomicBool>,
         inspect: &mut impl Inspect,
     ) -> Result<()> {
         let signals = Signals::new()?;
@@ -736,6 +759,10 @@ mod unix {
                 if inspect.exited(child.id())? {
                     break;
                 }
+                if stop.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+                    report.stopped = true;
+                    break;
+                }
                 if started.elapsed().as_secs_f64() >= request.timeout_seconds {
                     report.timed_out = true;
                     anyhow::bail!("command deadline");
@@ -786,7 +813,7 @@ mod unix {
         }
         report.stdout_bytes = out.count;
         report.stderr_bytes = err.count;
-        if report.returncode != Some(0) && report.failure.is_none() {
+        if report.returncode != Some(0) && report.failure.is_none() && !report.stopped_cleanly() {
             report.failure = Some(format!("child exit {:?}", report.returncode));
         }
         Ok(())
@@ -857,6 +884,7 @@ mod unix {
                 new_file(&request.stderr).unwrap(),
                 &mut report,
                 Sampling::Full,
+                None,
                 &mut inspect,
             )
             .unwrap();
@@ -890,6 +918,7 @@ mod unix {
                     } else {
                         Sampling::Full
                     },
+                    None,
                     &mut Fault { mode },
                 )
                 .unwrap();

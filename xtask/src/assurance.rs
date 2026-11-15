@@ -10,7 +10,11 @@ use std::{
     collections::BTreeMap,
     ffi::OsString,
     fs,
+    io::{BufRead, BufReader, Read},
+    net::SocketAddr,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
+    time::{Duration, Instant},
 };
 
 pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
@@ -232,7 +236,7 @@ impl<'a> Campaign<'a> {
     ) -> Result<String> {
         let request = self.request(args, name, timeout, cwd)?;
         let report = supervise::run(&request);
-        self.record(name, &request, report, expected)
+        self.record(name, &request, report, expected, false)
     }
     pub fn pair(&mut self, commands: [(&str, Vec<OsString>); 2], timeout: f64) -> Result<()> {
         ensure!(!self.cancellation.requested(), "campaign cancelled");
@@ -248,11 +252,61 @@ impl<'a> Campaign<'a> {
                 .unwrap_or_else(|_| Err(anyhow::anyhow!("supervisor thread panicked")));
             (one, two)
         });
-        let one = self.record(first, &a, one, None);
-        let two = self.record(second, &b, two, None);
+        let one = self.record(first, &a, one, None, false);
+        let two = self.record(second, &b, two, None, false);
         one?;
         two?;
         Ok(())
+    }
+    /// Start a bounded loopback process, observe readiness, then run its client.
+    /// A natural exit can be required for finite servers.
+    pub fn loopback<T>(
+        &mut self,
+        arguments: Vec<OsString>,
+        label: &str,
+        limits: (Duration, f64),
+        wait_for_exit: bool,
+        action: impl FnOnce(&mut Self, SocketAddr) -> Result<T>,
+    ) -> Result<T> {
+        ensure!(!self.cancelled(), "campaign cancelled");
+        let (readiness, deadline) = limits;
+        let request = self.request(arguments, label, deadline, &self.run.root)?;
+        let stop = AtomicBool::new(false);
+        let (outcome, report) = std::thread::scope(|scope| {
+            let worker = scope.spawn(|| supervise::run_stoppable(&request, &stop));
+            let outcome = (|| -> Result<T> {
+                let started = Instant::now();
+                let address = loop {
+                    ensure!(!self.cancelled(), "campaign cancelled");
+                    ensure!(!worker.is_finished(), "server exited before readiness");
+                    if let Some(address) = loopback_address(&request.stdout)? {
+                        break address;
+                    }
+                    ensure!(started.elapsed() < readiness, "server readiness deadline");
+                    std::thread::sleep(Duration::from_millis(15));
+                };
+                action(self, address)
+            })();
+            if outcome.is_err() || !wait_for_exit {
+                stop.store(true, Ordering::Relaxed);
+            }
+            let report = worker
+                .join()
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("server supervisor thread panicked")));
+            (outcome, report)
+        });
+        let observed = self.record(
+            label,
+            &request,
+            report,
+            None,
+            outcome.is_err() || !wait_for_exit,
+        );
+        match (outcome, observed) {
+            (Ok(value), Ok(_)) => Ok(value),
+            (Err(error), Ok(_)) | (Ok(_), Err(error)) => Err(error),
+            (Err(client), Err(server)) => anyhow::bail!("{client:#}; {server:#}"),
+        }
     }
     pub fn request(
         &self,
@@ -309,6 +363,7 @@ impl<'a> Campaign<'a> {
         request: &Request,
         report: Result<supervise::Report>,
         expected: Option<&str>,
+        accept_stop: bool,
     ) -> Result<String> {
         let stdout = &request.stdout;
         let stderr = &request.stderr;
@@ -320,7 +375,7 @@ impl<'a> Campaign<'a> {
         let err = String::from_utf8_lossy(&fs::read(stderr).unwrap_or_default()).into_owned();
         let passed = report
             .as_ref()
-            .is_some_and(|r| qualifies(r, &err, expected));
+            .is_some_and(|r| qualifies(r, &err, expected) || accept_stop && r.stopped_cleanly());
         self.evidence["commands"].as_array_mut().unwrap().push(json!({
             "argv":request.argv,"cwd":request.cwd,"name":name,"exit_code":report.as_ref().and_then(|r| r.returncode),
             "timeout_seconds":request.timeout_seconds,"maximum_bytes":request.maximum_bytes,
@@ -364,6 +419,32 @@ impl<'a> Campaign<'a> {
         self.save()?;
         checked
     }
+}
+
+fn loopback_address(output: &Path) -> Result<Option<SocketAddr>> {
+    let file = match fs::File::open(output) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let mut bytes = Vec::new();
+    BufReader::new(file)
+        .take(512)
+        .read_until(b'\n', &mut bytes)?;
+    ensure!(bytes.len() < 512, "oversized server readiness");
+    if !bytes.ends_with(b"\n") {
+        return Ok(None);
+    }
+    let text = std::str::from_utf8(&bytes)?.trim_end_matches(['\r', '\n']);
+    let address: SocketAddr = text
+        .strip_prefix("ready ")
+        .context("server readiness missing")?
+        .parse()?;
+    ensure!(
+        address.ip().is_loopback() && address.port() != 0,
+        "server advertised an invalid loopback address"
+    );
+    Ok(Some(address))
 }
 pub fn qualifies(report: &supervise::Report, stderr: &str, expected: Option<&str>) -> bool {
     // The shared supervisor reports an ordinary nonzero exit as a failure too.
@@ -486,6 +567,83 @@ pub fn archive_revision(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn loopback_ready_exit_stop_and_rejection_record_terminal_state() {
+        let tmp =
+            crate::support::Scratch::new(&std::env::temp_dir(), "loopback-supervision").unwrap();
+        let run = Run::new(tmp.path().to_owned());
+        for (name, script, natural, action_error, error) in [
+            (
+                "finite",
+                "printf 'ready 127.0.0.1:51111\n'; while [ ! -f release ]; do sleep .01; done",
+                true,
+                false,
+                None,
+            ),
+            (
+                "stopped",
+                "printf 'ready 127.0.0.1:51111\n'; exec sleep 30",
+                false,
+                false,
+                None,
+            ),
+            (
+                "bad-address",
+                "printf 'ready 0.0.0.0:51111\n'; exec sleep 30",
+                false,
+                false,
+                Some("invalid loopback address"),
+            ),
+            (
+                "client-error",
+                "printf 'ready 127.0.0.1:51111\n'; exec sleep 30",
+                true,
+                true,
+                Some("client failed"),
+            ),
+            (
+                "no-readiness",
+                "exec sleep 30",
+                false,
+                false,
+                Some("readiness deadline"),
+            ),
+        ] {
+            let output = tmp.path().join(name);
+            let mut campaign = Campaign::detached(&run, &output, "loopback control").unwrap();
+            let readiness = if name == "no-readiness" {
+                Duration::from_millis(200)
+            } else {
+                Duration::from_secs(3)
+            };
+            let result = campaign.loopback(
+                cmd(["sh", "-c", script]),
+                "server",
+                (readiness, 5.),
+                natural,
+                |_, address| {
+                    ensure!(address.port() == 51111, "unexpected test address");
+                    ensure!(!action_error, "client failed");
+                    if natural {
+                        fs::write(tmp.path().join("release"), [])?;
+                    }
+                    Ok(())
+                },
+            );
+            let result = campaign.finish(result);
+            let proof = crate::delivery::read_json(&output.join("evidence.json")).unwrap();
+            let process = &proof["commands"][0]["supervision"];
+            assert_eq!(process["cleanup_verified"], true, "{name}");
+            assert_eq!(process["stopped"], name != "finite", "{name}");
+            if let Some(marker) = error {
+                assert!(result.unwrap_err().to_string().contains(marker), "{name}");
+                assert_eq!(proof["passed"], false);
+            } else {
+                result.unwrap();
+                assert_eq!(proof["passed"], true);
+            }
+        }
+    }
     #[test]
     fn paired_commands_overlap_and_both_reports_survive_failure() {
         let tmp =
