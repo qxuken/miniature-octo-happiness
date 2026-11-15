@@ -1834,8 +1834,8 @@ both the source and verified backup at zero free bytes. Retrying at fresh
 paths preserved each partial destination and produced copies identical to
 the verified backup. A later source commit reopened at 213. The isolated
 256 MiB VHD detached and was removed. The macOS seed and Linux maintenance
-regressions passed with the same fixture. NTFS quota, namespace faults and
-physical recovery remain separate gates.
+regressions passed with the same fixture. NTFS maintenance quota, namespace
+faults and physical recovery remain separate gates.
 
 ## macOS near-cap maintenance exhaustion
 
@@ -1861,3 +1861,15 @@ After freeing space, retry of request 42 reopened revision 4 with retained
 revision 2. The disk image detached and was removed. The shared C fixture
 also passed the Linux regression against `f70e405`. The macOS workflow
 archives the combined package fault results.
+
+## Windows NTFS owner quota and append recovery
+
+At `fbb114e` the [hosted NTFS owner-quota gate](native-quota.md#native-windows-ntfs-owner-quota)
+observed real error 112 with 52,576,256 bytes globally free under a 1 MiB
+hard quota. The database and ballast both belonged to the verified Local
+Service SID on the owned VHD. A fresh process reopened current revision 3
+and retained revision 2 with identical bytes. Raising the quota to 4 MiB
+with the ballast still present allowed retry to revision 4 and retained
+revision 2. The archive, five process records and volume cleanup were
+verified. Strict host and Windows-target Clippy passed, and Docker Linux
+passed 18 quota controls and built the same fixture.

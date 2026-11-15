@@ -167,3 +167,43 @@ revisions with the quota still enforced. The controller raises the hard
 limit to 4 MiB with the ballast in place, proves a synchronized write
 succeeds, retries to revision 4 and verifies the final file in another
 process. The VHD and its quota configuration are retired together.
+
+The hosted Windows x64 gate passed at `fbb114e` with Rust 1.99.1 and
+fixture source `a47ca097a70d4b1441fc4e95e53f75c93a9ed994`, the tested PR
+merge. The kernel returned `112 / DiskFull / Write` during the append,
+matching the separate ballast probe with 52,576,256 bytes globally free.
+The volume query reported enforcement active with a 1,048,576-byte hard
+limit for the verified owner. Raising that limit to 4,194,304 bytes allowed
+the synchronized 4 KiB probe and database retry with the original ballast
+still present. Identifying the quota cause requires the volume headroom
+and quota configuration because the volume-full case also reports 112.
+
+Five independent fixture processes reported current revisions 3, 3, 3,
+4 and 4. Every process verified retained revision 2 and all expected row
+bytes. The seed image hash stayed fixed through the failure and quota-bound
+reopen. The failed transaction became terminal and new writes required
+recovery. All 14 command trees retired, and the controller detached and
+removed the VHD. Review rehashed all 31 archive entries and checked the
+file owner, quota queries, fixture and recovered image.
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43729548939/job/132858737709)
+· [Windows quota evidence](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43729548939/artifacts/14167528541)
+
+| Evidence | SHA-256 |
+|---|---|
+| Hosted ZIP | `011d5cb481e33c858864862374fa13955fe10e9a6b4171cca23960b010975ec7` |
+| Evidence JSON | `6cce8927d5857cf4b7057c76590c191984a81c0aaf311a7593b5d56bea17383d` |
+| Archive rehash | `c57412d21450fb585d422150d2ce8afedc41113f9441f0ad3fb8e6b851e42f73` |
+| Seed and quota-bound reopen image | `829edfc31909ec2dc4e77037c2ccdb02bc36743b73d62c96944fb6058423c61c` |
+| Retry image | `838b30020c739f102d8b1b18d4574d4e9e226fee41997450ce6e606632ae9504` |
+| Docker Linux quota controls and fixture build | `e707c627e2ff43abf67e38728b1352f360f6c2b244f974e402a420f68cb9bd8f` |
+| Hosted Linux append quota rerun | `c6ce615f196de442fab07868cffe9457308c56735fbbc2402086acae8048526a` |
+| Hosted Linux maintenance quota rerun | `92d5746613cd1338ed3d2a6ac62b9e7a0662054b53be923eb151edaeaf6e5f5e` |
+
+The hosted Linux rerun at the same PR merge passed the shared append
+oracle with real errno 122. All three maintenance cases also observed 122
+and finished with source revision 213 and backup revision 212. Both cleanup
+checks passed. [Linux regression archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43729548939/artifacts/14167593395)
+
+The Windows evidence covers the native Rust append path under a file-owner
+quota. A quota run of maintenance under a standard Windows account, other
+filesystem profiles and physical power interruption retain separate gates.
