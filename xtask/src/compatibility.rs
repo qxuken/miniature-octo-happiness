@@ -1,4 +1,4 @@
-//! Frozen storage and wire-v1 snapshot compatibility.
+//! Frozen storage, typed schema and wire-v1 snapshot compatibility.
 use crate::{
     artifact_trace::inventory,
     assurance::{self, Campaign},
@@ -34,24 +34,31 @@ const BUILD_STAMP: &str = r###"fn main() {
 enum Profile {
     Storage,
     Snapshot,
+    Typed,
 }
 impl Profile {
     fn name(self) -> &'static str {
         match self {
             Self::Storage => "storage",
             Self::Snapshot => "snapshot",
+            Self::Typed => "typed",
         }
     }
     fn historical(self) -> &'static str {
         match self {
             Self::Storage => "a7dc343",
             Self::Snapshot => "dcd2402",
+            Self::Typed => "1ca5e5a",
         }
     }
-    fn fixture(self) -> &'static str {
+    fn fixtures(self) -> [&'static str; 2] {
         match self {
-            Self::Storage => "tools/compatibility-driver.rs",
-            Self::Snapshot => "tools/compatibility-snapshot.rs",
+            Self::Storage => ["tools/compatibility-driver.rs"; 2],
+            Self::Snapshot => ["tools/compatibility-snapshot.rs"; 2],
+            Self::Typed => [
+                "tools/compatibility-typed-v1.rs",
+                "tools/compatibility-typed-v2.rs",
+            ],
         }
     }
 }
@@ -97,14 +104,31 @@ fn overlay(source: &Path, fixture: &[u8], profile: Profile) -> Result<bool> {
             .open(source.join(name))?
             .write_all(text)?;
     }
-    let mut manifest = OpenOptions::new().append(true).open(manifest)?;
+    let fixture_manifest = if profile == Profile::Typed {
+        let typed = source.join("crates/weekend-db-typed/Cargo.toml");
+        let manifest: toml::Value = toml::from_str(&fs::read_to_string(&typed)?)?;
+        ensure!(
+            manifest["package"]["publish"].as_bool() == Some(false),
+            "historical typed manifest must be private"
+        );
+        typed
+    } else {
+        manifest.clone()
+    };
+    let mut fixture = OpenOptions::new().append(true).open(fixture_manifest)?;
+    let fixture_source = if profile == Profile::Typed {
+        "../../tools/qualification-fixture.rs"
+    } else {
+        "tools/qualification-fixture.rs"
+    };
     writeln!(
-        manifest,
-        "\n[[example]]\nname=\"qualification_fixture\"\npath=\"tools/qualification-fixture.rs\""
+        fixture,
+        "\n[[example]]\nname=\"qualification_fixture\"\npath=\"{fixture_source}\""
     )?;
     if profile == Profile::Snapshot {
-        writeln!(manifest, "required-features=[\"replication\"]")?;
+        writeln!(fixture, "required-features=[\"replication\"]")?;
     }
+    let mut manifest = OpenOptions::new().append(true).open(manifest)?;
     writeln!(
         manifest,
         "\n[[example]]\nname=\"qualification_identity\"\npath=\"tools/qualification-identity.rs\""
@@ -133,6 +157,9 @@ fn build_plan(source: &Path, target: &Path, profile: Profile) -> Vec<std::ffi::O
     ]);
     if profile == Profile::Snapshot {
         command.extend(cmd(["--features", "replication"]));
+    }
+    if profile == Profile::Typed {
+        command.extend(cmd(["-p", "weekend-db-typed", "--release"]));
     }
     command
 }
@@ -194,7 +221,11 @@ fn build_endpoint(
         inventory(&source, &[])? == sources,
         "build changed frozen source"
     );
-    let examples = target.join("debug/examples");
+    let examples = target.join(if profile == Profile::Typed {
+        "release/examples"
+    } else {
+        "debug/examples"
+    });
     let binary = c.output.join(format!("{name}-consumer"));
     fs::copy(examples.join("qualification_fixture"), &binary)?;
     fs::set_permissions(&binary, fs::Permissions::from_mode(0o700))?;
@@ -218,6 +249,7 @@ fn build_endpoint(
         "binary_sha256":binary_sha256,"identity_binary_sha256":identity_sha256,
         "runtime_identity":identity,"identity_fixture_sha256":sha(&source.join("tools/qualification-identity.rs"))?,
         "source_sha256":sources,"source_directory":source,
+        "fixture_sha256":sha(&source.join("tools/qualification-fixture.rs"))?,
     });
     c.save()?;
     Ok(Endpoint {
@@ -337,13 +369,96 @@ fn snapshot_cases(c: &mut Campaign<'_>, binaries: [&Path; 2]) -> Result<()> {
     Ok(())
 }
 
+fn typed_phase(
+    c: &mut Campaign<'_>,
+    binary: &Path,
+    phase: &str,
+    input: &Path,
+    output: Option<&Path>,
+) -> Result<()> {
+    let mut args = vec![path(binary), phase.into(), path(input)];
+    args.extend(output.map(path));
+    let observed = if phase == "interrupt-migration" {
+        c.command_exit(args, phase, 70, 30.)?
+    } else {
+        c.command(args, phase, None, 30.)?
+    };
+    let expected = if phase == "interrupt-migration" {
+        "migration-staged"
+    } else {
+        phase
+    };
+    ensure!(observed == expected, "incomplete typed phase {phase}");
+    Ok(())
+}
+
+fn typed_cases(c: &mut Campaign<'_>, [old, new]: [&Path; 2]) -> Result<()> {
+    let database = c.output.join("typed.wdb");
+    let backup = c.output.join("pre-upgrade.wdb");
+    let restored = c.output.join("restored.wdb");
+    typed_phase(c, old, "seed", &database, None)?;
+    let initial = sha(&database)?;
+    typed_phase(c, old, "backup", &database, Some(&backup))?;
+    ensure!(
+        sha(&database)? == initial,
+        "typed backup wrote to the source"
+    );
+    let backup_hash = sha(&backup)?;
+    let mut last = initial.clone();
+    for (binary, phase, writes) in [
+        (new, "register-v2", true),
+        (new, "interrupt-migration", false),
+        (new, "verify-interruption", false),
+        (new, "migrate-first", true),
+        (old, "legacy-edit", true),
+        (new, "finish-migration", true),
+        (new, "verify-v2", false),
+    ] {
+        typed_phase(c, binary, phase, &database, None)?;
+        let current = sha(&database)?;
+        ensure!(
+            (current != last) == writes,
+            "unexpected source-byte change disposition at {phase}"
+        );
+        c.evidence["typed_phase_sha256"][phase] = json!(current);
+        c.save()?;
+        last = current;
+    }
+    typed_phase(c, new, "restore", &backup, Some(&restored))?;
+    let restored_hash = sha(&restored)?;
+    typed_phase(c, old, "verify-v1", &restored, None)?;
+    ensure!(
+        sha(&restored)? == restored_hash,
+        "legacy verification changed the restored image"
+    );
+    typed_phase(c, old, "write-restored-v1", &restored, None)?;
+    ensure!(
+        sha(&database)? == last && sha(&backup)? == backup_hash,
+        "rollback or resumed legacy writes changed the upgraded source or backup"
+    );
+    let resumed_hash = sha(&restored)?;
+    ensure!(
+        resumed_hash != restored_hash,
+        "resumed legacy write changed no bytes"
+    );
+    c.evidence["results"]["typed"] = json!({
+        "initial_sha256":initial, "upgraded_sha256":last, "backup_sha256":backup_hash,
+        "restored_sha256":restored_hash, "resumed_sha256":resumed_hash, "retained_checkpoint":1,
+        "precommit_exit":70, "precommit_reopen_unchanged":true,
+        "historical_insert_rejected_after_registration":true,
+        "historical_update_preserved_new_and_unknown_fields":true,
+        "old_indexes_and_writes_work_after_restore":true,
+    });
+    Ok(())
+}
+
 pub fn run(run: &Run, opts: Options) -> Result<()> {
     // This profile supports a new output hierarchy, retaining atomic
     // create-dir admission for the final path.
     let mut c = Campaign::new(
         run,
         &opts.output,
-        "two frozen checkpoints on native files and private loopback",
+        "two frozen builds on native files or private loopback",
     )?;
     c.limits(8 * 1024 * 1024, None)?;
     c.evidence["verified"] = json!(false);
@@ -353,23 +468,32 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         .unwrap_or_else(|| opts.profile.historical());
     c.evidence["requested_sources"] = json!({"historical":historical,"current":opts.current});
     c.evidence["qualification_profile"] = json!(opts.profile.name());
-    c.evidence["profile"] = json!("debug");
+    c.evidence["profile"] = json!(if opts.profile == Profile::Typed {
+        "release"
+    } else {
+        "debug"
+    });
     c.env = serialization_scale::clean_env(&c.env);
     c.save()?;
     let result = (|| -> Result<()> {
-        let fixture = run.root.join(opts.profile.fixture());
-        let fixture_hash = sha(&fixture)?;
-        let bytes = fs::read(&fixture)?;
+        let [old_fixture, new_fixture] = opts.profile.fixtures().map(|name| run.root.join(name));
+        let [old_bytes, new_bytes] = [fs::read(&old_fixture)?, fs::read(&new_fixture)?];
+        let fixture_hash = sha(&old_fixture)?;
+        let new_hash = sha(&new_fixture)?;
         c.evidence["fixture_sha256"] = json!(fixture_hash);
+        if opts.profile == Profile::Typed {
+            c.evidence["successor_fixture_sha256"] = json!(new_hash);
+        }
         c.evidence["rustc"] = json!(c.command(cmd(["rustc", "-Vv"]), "rustc", None, 30.)?);
         c.evidence["cargo"] = json!(c.command(cmd(["cargo", "-V"]), "cargo", None, 30.)?);
-        let old = build_endpoint(&mut c, "historical", historical, opts.profile, &bytes)?;
-        let new = build_endpoint(&mut c, "current", &opts.current, opts.profile, &bytes)?;
+        let old = build_endpoint(&mut c, "historical", historical, opts.profile, &old_bytes)?;
+        let new = build_endpoint(&mut c, "current", &opts.current, opts.profile, &new_bytes)?;
         c.env.remove(std::ffi::OsStr::new("WEEKEND_DB_SOURCE_ID"));
         let binaries = [old.binary.as_path(), new.binary.as_path()];
         match opts.profile {
             Profile::Storage => storage_cases(&mut c, binaries)?,
             Profile::Snapshot => snapshot_cases(&mut c, binaries)?,
+            Profile::Typed => typed_cases(&mut c, binaries)?,
         }
         for endpoint in [old, new] {
             ensure!(
@@ -380,7 +504,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             );
         }
         ensure!(
-            sha(&fixture)? == fixture_hash,
+            sha(&old_fixture)? == fixture_hash && sha(&new_fixture)? == new_hash,
             "compatibility fixture changed"
         );
         c.evidence["artifact_sha256"] =
@@ -410,7 +534,7 @@ mod tests {
         symlink(&directory, &link).unwrap();
         symlink(root.join("missing"), &bad).unwrap();
         let run = Run::new(root.to_owned());
-        for profile in [Profile::Storage, Profile::Snapshot] {
+        for profile in [Profile::Storage, Profile::Snapshot, Profile::Typed] {
             for output in [&file, &directory, &link, &bad] {
                 let opts = Options {
                     profile,
@@ -481,7 +605,11 @@ mod tests {
     fn locked_fixture_overlays_preserve_original_locks_and_identity_scopes() {
         let tmp = Scratch::new(&std::env::temp_dir(), "compatibility").unwrap();
         let root = tmp.path();
-        for (profile, native) in [(Profile::Storage, true), (Profile::Snapshot, false)] {
+        for (profile, native) in [
+            (Profile::Storage, true),
+            (Profile::Snapshot, false),
+            (Profile::Typed, true),
+        ] {
             let source = root.join(profile.name());
             fs::create_dir_all(source.join("tools")).unwrap();
             fs::create_dir(source.join("src")).unwrap();
@@ -491,6 +619,11 @@ mod tests {
             let lock = source.join("Cargo.lock");
             fs::write(&lock, b"original-lock").unwrap();
             fs::write(source.join("Cargo.toml"), b"[package]\npublish=false\n").unwrap();
+            let typed = source.join("crates/weekend-db-typed");
+            if profile == Profile::Typed {
+                fs::create_dir_all(&typed).unwrap();
+                fs::write(typed.join("Cargo.toml"), b"[package]\npublish=false\n").unwrap();
+            }
             assert_eq!(overlay(&source, b"fixture", profile).unwrap(), native);
             assert_eq!(fs::read(&lock).unwrap(), b"original-lock");
             assert_eq!(
@@ -514,6 +647,18 @@ mod tests {
                 profile == Profile::Snapshot
             );
             assert!(!args.contains(&"generate-lockfile".into()));
+            assert_eq!(
+                args.contains(&"--release".into()),
+                profile == Profile::Typed
+            );
+            if profile == Profile::Typed {
+                assert!(args.contains(&"weekend-db-typed".into()));
+                assert!(
+                    fs::read_to_string(typed.join("Cargo.toml"))
+                        .unwrap()
+                        .contains("../../tools/qualification-fixture.rs")
+                );
+            }
         }
         assert_ne!(
             expected_identity(Profile::Snapshot, false, "old"),

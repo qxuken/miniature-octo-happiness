@@ -128,7 +128,9 @@ Updates load the record inside their transaction, modify `T`, and patch stable
 field IDs into the complete envelope. Unknown fields and envelope keys survive.
 An older compatible model can update newer records; retired/incompatible fields
 fail. Older models cannot insert new old-version rows once the table has advanced.
-There is no detached-struct save operation.
+There is no detached-struct save operation. The [mixed-version rollout and
+rollback](../../docs/typed-schema-rollout.md) exercises these guarantees with
+separately built legacy and successor executables.
 
 Registering a new model version does not convert records. Updating an older
 record through a newer model returns `MigrationRequired`. Call

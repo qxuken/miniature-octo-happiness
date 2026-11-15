@@ -29,6 +29,8 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "tools/benchmark.rs",
         "tools/compatibility-driver.rs",
         "tools/compatibility-snapshot.rs",
+        "tools/compatibility-typed-v1.rs",
+        "tools/compatibility-typed-v2.rs",
         "tools/snapshot-cli-upgrade-fixture.rs",
         "tools/monthly_workload.rs",
         "tools/study-cli-upgrade-fixture.rs",
