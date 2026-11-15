@@ -47,6 +47,7 @@ pub enum Profile {
     CompoundIsolation,
     CompoundBreadth,
     CompoundBreadthSustained,
+    CompoundBreadthArrivals,
     Resilience,
     NamespaceFailures,
 }
@@ -59,6 +60,7 @@ impl Profile {
             Self::CompoundIsolation => "compound-isolation",
             Self::CompoundBreadth => "compound-breadth",
             Self::CompoundBreadthSustained => "compound-breadth-sustained",
+            Self::CompoundBreadthArrivals => "compound-breadth-arrivals",
             Self::Resilience => "resilience",
             Self::NamespaceFailures => "namespace-failures",
         }
@@ -71,6 +73,7 @@ impl Profile {
             | Self::CompoundIsolation
             | Self::CompoundBreadth
             | Self::CompoundBreadthSustained
+            | Self::CompoundBreadthArrivals
             | Self::Resilience
             | Self::NamespaceFailures => "weekend-compound-resource",
         }
@@ -80,6 +83,14 @@ impl Profile {
             Self::CompoundCycles => &["cycles"],
             Self::CompoundIsolation => &["cycles", "cycles-isolated"],
             _ => &[],
+        }
+    }
+    fn breadth_mode(self) -> Option<&'static str> {
+        match self {
+            Self::CompoundBreadth => Some("breadth"),
+            Self::CompoundBreadthSustained => Some("breadth-sustained"),
+            Self::CompoundBreadthArrivals => Some("breadth-arrivals"),
+            _ => None,
         }
     }
 }
@@ -352,16 +363,9 @@ pub(crate) fn worker(
                 resource_oracle::envelope,
             )?;
             c.evidence["run"] = value;
-        } else if matches!(
-            profile,
-            Profile::CompoundBreadth | Profile::CompoundBreadthSustained
-        ) {
-            let sustained = profile == Profile::CompoundBreadthSustained;
-            let mode = if sustained {
-                "breadth-sustained"
-            } else {
-                "breadth"
-            };
+        } else if let Some(mode) = profile.breadth_mode() {
+            let sustained = mode != "breadth";
+            let arrivals = mode == "breadth-arrivals";
             let mut value = observe(
                 Observation {
                     binary: &binary,
@@ -374,7 +378,7 @@ pub(crate) fn worker(
                 },
                 |rows| {
                     if sustained {
-                        resource_oracle::sustained_breadth(rows, revision).map(drop)
+                        resource_oracle::sustained_breadth(rows, revision, arrivals).map(drop)
                     } else {
                         resource_oracle::compound_breadth(rows, revision)
                     }
@@ -383,7 +387,8 @@ pub(crate) fn worker(
             if sustained {
                 value.as_object_mut().unwrap().remove("rows");
                 value["sample_log_sha256"] = json!(sha(&output.join("run.jsonl"))?);
-                c.evidence["summary"] = check_sustained_breadth(&value, &output, revision)?;
+                c.evidence["summary"] =
+                    check_sustained_breadth(&value, &output, revision, arrivals)?;
                 write_json(&output.join("run.json"), &value)?;
             } else {
                 check_breadth(&value, &output.join("data"), revision)?;
@@ -645,7 +650,9 @@ fn docker(
                 Profile::Compound | Profile::NamespaceFailures => 600.,
                 Profile::CompoundCycles => 900.,
                 Profile::CompoundIsolation => 1400.,
-                Profile::CompoundBreadth | Profile::CompoundBreadthSustained => 600.,
+                Profile::CompoundBreadth
+                | Profile::CompoundBreadthSustained
+                | Profile::CompoundBreadthArrivals => 600.,
                 Profile::Resilience => 1200.,
             },
         );
@@ -722,7 +729,12 @@ fn check_breadth(run: &Value, data: &Path, revision: &str) -> Result<()> {
     Ok(())
 }
 
-fn check_sustained_breadth(run: &Value, output: &Path, revision: &str) -> Result<Value> {
+fn check_sustained_breadth(
+    run: &Value,
+    output: &Path,
+    revision: &str,
+    arrivals: bool,
+) -> Result<Value> {
     ensure!(
         run["passed"] == true && run["owned_live_processes_absent"] == true,
         "unverified sustained breadth run"
@@ -733,7 +745,7 @@ fn check_sustained_breadth(run: &Value, output: &Path, revision: &str) -> Result
         "sustained sample log changed"
     );
     let rows = rows(&raw)?;
-    let summary = resource_oracle::sustained_breadth(&rows, revision)?;
+    let summary = resource_oracle::sustained_breadth(&rows, revision, arrivals)?;
     let data = output.join("data");
     ensure!(
         fs::read_dir(&data)?.count() == 2
@@ -782,9 +794,15 @@ fn check_proof(
         )?;
     } else if profile == Profile::CompoundBreadth {
         check_breadth(&proof["run"], &output.join("data"), revision)?;
-    } else if profile == Profile::CompoundBreadthSustained {
+    } else if let Some(mode) = profile.breadth_mode() {
         ensure!(
-            proof["summary"] == check_sustained_breadth(&proof["run"], output, revision)?,
+            proof["summary"]
+                == check_sustained_breadth(
+                    &proof["run"],
+                    output,
+                    revision,
+                    mode == "breadth-arrivals"
+                )?,
             "sustained breadth summary differs from raw samples"
         );
     } else {

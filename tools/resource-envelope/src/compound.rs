@@ -903,7 +903,8 @@ fn main() {
     if args.len() == 4 && args[2] == "--" {
         match args[3].to_str().unwrap() {
             "breadth" => return breadth::run(dir),
-            "breadth-sustained" => return breadth::sustained::run(dir),
+            "breadth-sustained" => return breadth::sustained::run(dir, false),
+            "breadth-arrivals" => return breadth::sustained::run(dir, true),
             _ => {}
         }
     }

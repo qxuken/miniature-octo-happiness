@@ -6,7 +6,7 @@ use super::{
 use std::{
     fs,
     path::Path,
-    sync::Barrier,
+    sync::{Barrier, OnceLock},
     thread,
     time::{Duration, Instant},
 };
@@ -20,6 +20,8 @@ const READERS: usize = 4;
 const ROUNDS: u64 = 16;
 const CYCLES: u64 = 8;
 const SAMPLES: usize = 4096;
+const ARRIVALS: usize = 1536;
+const PERIOD: Duration = Duration::from_micros(500);
 const IDENTITY: [u8; 16] = *b"breadth-load-001";
 const TAG: u64 = 0x5355_0000_0000_0000;
 
@@ -38,13 +40,12 @@ fn expected(key: u32, sequences: [u64; WRITERS]) -> u64 {
 fn snapshot_sample(
     db: &Database,
     collection: CollectionId,
-    last_revision: Option<u64>,
+    scan: impl FnOnce(u64) -> bool,
 ) -> [u64; 5] {
     let start = Instant::now();
     let snapshot = db.snapshot();
     let acquired = u64::try_from(start.elapsed().as_nanos()).unwrap();
     let revision = snapshot.revision();
-    assert!(revision >= last_revision.unwrap_or(FINAL));
     let mut sequences = [0; WRITERS];
     for (writer, sequence) in sequences.iter_mut().enumerate() {
         let key = writer as u32 * WRITES;
@@ -64,7 +65,7 @@ fn snapshot_sample(
         assert_eq!(read(&snapshot, collection, last_key), last_bits);
     }
     assert_eq!(revision, FINAL + sequences.iter().sum::<u64>());
-    if last_revision != Some(revision) {
+    if scan(revision) {
         let mut digest = OFFSET;
         verify_values(&snapshot, collection, &mut digest, |key| {
             expected(key, sequences)
@@ -98,18 +99,39 @@ fn verify(db: &Database, sequence: u64) -> u64 {
     digest
 }
 
-struct Samples {
-    writers: Vec<Vec<[u64; 2]>>,
-    readers: Vec<Vec<[u64; 5]>>,
+struct Start {
+    barrier: Barrier,
+    clock: OnceLock<Instant>,
 }
 
-fn run_cycle(db: &Database, cycle: u64) -> Samples {
+impl Start {
+    fn wait(&self) -> Instant {
+        if self.barrier.wait().is_leader() {
+            self.clock.set(Instant::now()).unwrap();
+        }
+        *self.clock.wait()
+    }
+}
+
+struct Samples<const N: usize> {
+    writers: Vec<Vec<[u64; 2]>>,
+    readers: Vec<Vec<[u64; N]>>,
+}
+
+fn run_cycle<const N: usize>(
+    db: &Database,
+    cycle: u64,
+    reader: impl Fn(&Database, CollectionId, &Start, u64, u64) -> Vec<[u64; N]> + Sync,
+) -> Samples<N> {
     let first = 1 + (cycle - 1) * ROUNDS;
     let last = cycle * ROUNDS;
     let start_revision = FINAL + WRITERS as u64 * (first - 1);
     let end_revision = FINAL + WRITERS as u64 * last;
     let collection = db.collection_id(1);
-    let start = Barrier::new(WRITERS + READERS);
+    let start = Start {
+        barrier: Barrier::new(WRITERS + READERS),
+        clock: OnceLock::new(),
+    };
     thread::scope(|scope| {
         let writers: Vec<_> = (0..WRITERS)
             .map(|writer| {
@@ -137,23 +159,8 @@ fn run_cycle(db: &Database, cycle: u64) -> Samples {
         let readers: Vec<_> = (0..READERS)
             .map(|_| {
                 let start = &start;
-                scope.spawn(move || {
-                    let initial = snapshot_sample(db, collection, None);
-                    assert_eq!(initial[0], start_revision);
-                    let mut samples = vec![initial];
-                    start.wait();
-                    while samples.last().unwrap()[0] < end_revision {
-                        assert!(samples.len() < SAMPLES, "fresh snapshot sample limit");
-                        let sample =
-                            snapshot_sample(db, collection, Some(samples.last().unwrap()[0]));
-                        samples.push(sample);
-                        if sample[0] < end_revision {
-                            thread::sleep(Duration::from_micros(500));
-                        }
-                    }
-                    assert_eq!(samples.last().unwrap()[0], end_revision);
-                    samples
-                })
+                let reader = &reader;
+                scope.spawn(move || reader(db, collection, start, start_revision, end_revision))
             })
             .collect();
         Samples {
@@ -169,7 +176,72 @@ fn run_cycle(db: &Database, cycle: u64) -> Samples {
     })
 }
 
-pub(crate) fn run(dir: &Path) {
+fn completion_paced(
+    db: &Database,
+    collection: CollectionId,
+    start: &Start,
+    first: u64,
+    last: u64,
+) -> Vec<[u64; 5]> {
+    let initial = snapshot_sample(db, collection, |_| true);
+    assert_eq!(initial[0], first);
+    let mut samples = vec![initial];
+    start.wait();
+    while samples.last().unwrap()[0] < last {
+        assert!(samples.len() < SAMPLES, "fresh snapshot sample limit");
+        let previous = samples.last().unwrap()[0];
+        let sample = snapshot_sample(db, collection, |revision| revision != previous);
+        assert!(sample[0] >= previous);
+        samples.push(sample);
+        if sample[0] < last {
+            thread::sleep(PERIOD);
+        }
+    }
+    assert_eq!(samples.last().unwrap()[0], last);
+    samples
+}
+
+fn fixed_arrivals(
+    db: &Database,
+    collection: CollectionId,
+    start: &Start,
+    _first: u64,
+    _last: u64,
+) -> Vec<[u64; 7]> {
+    let epoch = start.wait();
+    (0..ARRIVALS)
+        .map(|index| {
+            // Requests are scheduled by their ordinal. An overdue request
+            // keeps its original deadline and is serviced in lane order.
+            let due = PERIOD * index as u32;
+            let began = loop {
+                let elapsed = epoch.elapsed();
+                if elapsed >= due {
+                    break u64::try_from(elapsed.as_nanos()).unwrap();
+                }
+                thread::sleep(due - elapsed);
+            };
+            let [rev, acquire, a, b, c] =
+                snapshot_sample(db, collection, |_| index.is_multiple_of(128));
+            let done = u64::try_from(epoch.elapsed().as_nanos()).unwrap();
+            [rev, acquire, a, b, c, began, done]
+        })
+        .collect()
+}
+
+pub(crate) fn run(dir: &Path, arrivals: bool) {
+    if arrivals {
+        run_profile(dir, "breadth-arrivals", fixed_arrivals);
+    } else {
+        run_profile(dir, "breadth-sustained", completion_paced);
+    }
+}
+
+fn run_profile<const N: usize>(
+    dir: &Path,
+    profile: &str,
+    reader: impl Fn(&Database, CollectionId, &Start, u64, u64) -> Vec<[u64; N]> + Sync,
+) {
     fs::create_dir(dir).unwrap();
     let seed_path = dir.join("seed.wdb");
     let active = dir.join("sustained.wdb");
@@ -194,7 +266,7 @@ pub(crate) fn run(dir: &Path) {
     for cycle in 1..=CYCLES {
         let db = Database::open_file(&active, limits(CORE)).unwrap();
         let start = Instant::now();
-        let samples = run_cycle(&db, cycle);
+        let samples = run_cycle(&db, cycle, &reader);
         let workload_ns = start.elapsed().as_nanos();
         let digest = verify(&db, cycle * ROUNDS);
         let peak = db.memory_usage().peak_bytes;
@@ -227,5 +299,5 @@ pub(crate) fn run(dir: &Path) {
             samples.readers
         );
     }
-    complete("breadth-sustained");
+    complete(profile);
 }
