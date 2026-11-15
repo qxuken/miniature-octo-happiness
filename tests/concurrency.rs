@@ -377,7 +377,7 @@ impl ByteStore for PausedStore {
 }
 
 #[test]
-fn pinned_reader_proceeds_during_io_and_adapter_panic_fails_closed() {
+fn fresh_readers_proceed_during_io_and_adapter_panic_fails_closed() {
     // Unwind after append, root-slot, and witness sync. The disk may contain a
     // new root even though the in-process head was never acknowledged.
     for (panic, syncs_before_pause) in [(false, 0), (true, 0), (true, 1), (true, 2)] {
@@ -400,6 +400,8 @@ fn pinned_reader_proceeds_during_io_and_adapter_panic_fails_closed() {
         .unwrap();
         let c = seed(&db, 1);
         let pinned = db.snapshot();
+        let retained = db.retain_snapshot(&pinned).unwrap();
+        let published = db.snapshot().revision();
         let mut tx = db.begin();
         tx.put(c, &[0, 0], &db.unsigned(1).unwrap()).unwrap();
         armed.store(true, Ordering::Relaxed);
@@ -408,9 +410,32 @@ fn pinned_reader_proceeds_during_io_and_adapter_panic_fails_closed() {
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| tx.commit()))
             });
             entry.recv_timeout(Duration::from_secs(30)).unwrap();
-            // The writer holds the commit mutex here, inside a real sync call.
+            // Keep the real sync paused while a reader acquires its own views
+            // and opens a draft against the last acknowledged head.
             assert_eq!(number(&pinned, c, &[0, 0]), 0);
+            let (send, receive) = mpsc::channel();
+            let db = &db;
+            let reader = s.spawn(move || {
+                let current = db.snapshot();
+                let ids = db.retained_ids().unwrap();
+                let prior = db.retained_snapshot(retained).unwrap();
+                let draft_value = db.begin().get(c, &[0, 0]).unwrap().unwrap().as_u64();
+                send.send((
+                    current.revision(),
+                    number(&current, c, &[0, 0]),
+                    ids,
+                    prior.revision(),
+                    draft_value,
+                ))
+                .unwrap();
+            });
+            let observed = receive.recv_timeout(Duration::from_secs(2));
             resume.send(()).unwrap();
+            reader.join().unwrap();
+            assert_eq!(
+                observed.expect("fresh reader waited for the writer's sync"),
+                (published, 0, vec![retained], pinned.revision(), Ok(0)),
+            );
             let result = writer.join().unwrap();
             assert_eq!(result.is_err(), panic);
             if !panic {
@@ -430,6 +455,7 @@ fn pinned_reader_proceeds_during_io_and_adapter_panic_fails_closed() {
         drop(pinned);
         drop(db);
         let reopened = Database::open_on(store, Limits::default()).unwrap();
+        assert_eq!(reopened.retained_ids().unwrap(), vec![retained]);
         assert_eq!(
             number(&reopened.snapshot(), reopened.collection_id(1), &[0, 0]),
             if panic && syncs_before_pause == 0 {

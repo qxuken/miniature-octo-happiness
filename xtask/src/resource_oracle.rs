@@ -343,7 +343,7 @@ pub fn compound_breadth(rows: &[Value], source: &str) -> Result<()> {
                     && row["writes_per_draft"] == 1024
                     && (1..=CORE).contains(&draft_live)
                     && draft_live > number(row, "baseline_live_bytes")?
-                    && reading > 0
+                    && (1..=reading).contains(&number(row, "acquire_ns")?)
                     && number(row, "first_ns")? >= reading
                     && number(row, "conflict_ns")? >= reading,
                 "wrong reader state or missing draft overlap"
@@ -867,7 +867,7 @@ mod tests {
                         return json!({
                             "phase":phase,"digest":OLD,"drafts":3,"writes_per_draft":1024,
                             "baseline_live_bytes":79_174_728,"draft_live_bytes":79_862_856,
-                            "reader_ns":12,"first_ns":36,"conflict_ns":21,
+                        "acquire_ns":1,"reader_ns":12,"first_ns":36,"conflict_ns":21,
                         });
                     }
                     7 => (134, FIRST, None, 62_840_832),
@@ -895,6 +895,7 @@ mod tests {
             (4, "depth", json!(63)),
             (5, "digest", json!(0)),
             (6, "drafts", json!(2)),
+            (6, "acquire_ns", json!(13)),
             (6, "conflict_ns", json!(11)),
             (6, "baseline_live_bytes", json!(u64::MAX)),
             (9, "revision", json!(134)),

@@ -417,7 +417,6 @@ fn concurrent(dir: &Path, compacted: &Path, identity: [u8; 16]) {
     let initial = db.storage_space().unwrap();
     let collection = db.collection_id(1);
     let pinned = db.snapshot();
-    let retained = retained_views(&db);
     let baseline_live = db.memory_usage().live_bytes;
     let mut first = stage(&db, 0..WRITES, PROBE_EPOCH);
     let mut conflicting = stage(&db, 0..WRITES, PROBE_EPOCH + 1);
@@ -425,7 +424,7 @@ fn concurrent(dir: &Path, compacted: &Path, identity: [u8; 16]) {
     let draft_live = db.memory_usage().live_bytes;
     assert!(draft_live > baseline_live);
     armed.store(true, Ordering::Relaxed);
-    let (digest, reader_ns, first_ns, conflict_ns) = thread::scope(|scope| {
+    let (digest, acquire_ns, reader_ns, first_ns, conflict_ns) = thread::scope(|scope| {
         let first = scope.spawn(move || {
             let start = Instant::now();
             assert_eq!(first.commit(), Ok(Updates::First.revision()));
@@ -442,18 +441,22 @@ fn concurrent(dir: &Path, compacted: &Path, identity: [u8; 16]) {
         });
         contending.recv_timeout(Duration::from_secs(30)).unwrap();
         let start = Instant::now();
-        let digest = verify_views(&pinned, &retained, collection, Updates::Seed);
+        let fresh = db.snapshot();
+        let retained = retained_views(&db);
+        let acquire_ns = start.elapsed().as_nanos();
+        let digest = verify_views(&fresh, &retained, collection, Updates::Seed);
         let reader_ns = start.elapsed().as_nanos();
         resume.send(()).unwrap();
         (
             digest,
+            acquire_ns,
             reader_ns,
             first.join().unwrap(),
             conflict.join().unwrap(),
         )
     });
     println!(
-        "{{\"phase\":\"overlapping_drafts\",\"digest\":{digest},\"drafts\":3,\"writes_per_draft\":{WRITES},\"baseline_live_bytes\":{baseline_live},\"draft_live_bytes\":{draft_live},\"reader_ns\":{reader_ns},\"first_ns\":{first_ns},\"conflict_ns\":{conflict_ns}}}"
+        "{{\"phase\":\"overlapping_drafts\",\"digest\":{digest},\"drafts\":3,\"writes_per_draft\":{WRITES},\"baseline_live_bytes\":{baseline_live},\"draft_live_bytes\":{draft_live},\"acquire_ns\":{acquire_ns},\"reader_ns\":{reader_ns},\"first_ns\":{first_ns},\"conflict_ns\":{conflict_ns}}}"
     );
 
     let acknowledged = db.storage_space().unwrap();
@@ -494,7 +497,6 @@ fn concurrent(dir: &Path, compacted: &Path, identity: [u8; 16]) {
     state("concurrent_retry", &db, Updates::Both, elapsed, None);
     drop(retry);
     drop(pinned);
-    drop(retained);
     drop(db);
 
     let info = storage::inspect_file(&concurrent, limits(CORE)).unwrap();

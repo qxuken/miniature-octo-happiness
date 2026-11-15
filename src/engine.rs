@@ -9,7 +9,7 @@ use std::{
     cell::Cell,
     marker::PhantomData,
     sync::atomic::{AtomicU64, Ordering},
-    sync::{Mutex, MutexGuard},
+    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
 static NEXT_STORE: AtomicU64 = AtomicU64::new(1);
@@ -69,41 +69,55 @@ pub(crate) struct Head {
 struct State {
     head: Shared<Head>,
     next_collection: u64,
-    storage: Option<Storage>,
     retention: Retention,
 }
-impl State {
+struct Publication<'db> {
+    db: &'db Database,
+    storage: MutexGuard<'db, Option<Storage>>,
+    state: RwLockReadGuard<'db, State>,
+}
+impl Publication<'_> {
     fn publish(
-        &mut self,
-        mem: &Memory,
+        self,
         head: Shared<Head>,
         next_collection: u64,
         retention: Option<Retention>,
     ) -> Result<()> {
-        if let Some(storage) = &mut self.storage {
-            storage.persist(
-                mem,
+        let Self {
+            db,
+            mut storage,
+            state,
+        } = self;
+        if let Some(backend) = storage.as_mut() {
+            backend.persist(
+                &db.mem,
                 &head,
                 next_collection,
-                retention.as_ref().unwrap_or(&self.retention),
+                retention.as_ref().unwrap_or(&state.retention),
             )?;
         }
-        self.head = head;
-        self.next_collection = next_collection;
-        if let Some(retention) = retention {
-            self.retention = retention;
-        }
+        // Keep the writer mutex held through installation. Readers may have
+        // acquired the prior state while persistence was in progress.
+        drop(state);
+        let mut state = db.state.write().unwrap_or_else(|e| e.into_inner());
+        let old_head = std::mem::replace(&mut state.head, head);
+        state.next_collection = next_collection;
+        let old_retention =
+            retention.map(|retention| std::mem::replace(&mut state.retention, retention));
+        drop(state);
+        drop((old_head, old_retention));
         Ok(())
     }
 }
 
 /// Thread-safe writer authority. Preparation is private to each transaction;
-/// one mutex serializes validation, rebasing, persistence and head publication.
-/// Acquired snapshots traverse immutable nodes without this mutex.
+/// a writer mutex serializes validation, rebasing, persistence and publication.
+/// Snapshots and drafts can acquire the acknowledged state during storage I/O.
 pub struct Database {
     pub(crate) mem: Memory,
     store: u64,
-    state: Mutex<State>,
+    writer: Mutex<Option<Storage>>,
+    state: RwLock<State>,
 }
 pub struct Snapshot<'db> {
     db: &'db Database,
@@ -178,19 +192,16 @@ impl Database {
     /// Requires a healthy byte-backed store. Length I/O errors can be retried.
     /// Impossible physical lengths block publication until reopening.
     pub fn storage_space(&self) -> Result<crate::storage::StorageSpace> {
-        self.publication_state()?
-            .storage
-            .as_mut()
-            .ok_or(Error::Invalid)?
-            .space()
+        self.lock_writer()?.as_mut().ok_or(Error::Invalid)?.space()
     }
     /// Return the persistent identity of a byte-backed database without I/O.
     /// Copies and restores preserve this identity. It identifies a lineage,
     /// so callers also need a revision or application receipt to detect rollback.
     /// An in-memory database without a byte store returns `Error::Invalid`.
     pub fn storage_identity(&self) -> Result<[u8; 16]> {
-        self.read_state()
-            .storage
+        self.writer
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
             .as_ref()
             .map(Storage::identity)
             .ok_or(Error::Invalid)
@@ -217,8 +228,13 @@ impl Database {
         &mut self,
         destination: B,
     ) -> Result<(Storage, crate::storage::CompactionStats)> {
+        let storage = self
+            .writer
+            .get_mut()
+            .map_err(|_| Error::RecoveryRequired)?
+            .as_mut()
+            .ok_or(Error::Invalid)?;
         let state = self.state.get_mut().map_err(|_| Error::RecoveryRequired)?;
-        let storage = state.storage.as_mut().ok_or(Error::Invalid)?;
         let (mut copy, stats) = storage.encode_compact_copy(
             destination,
             &self.mem,
@@ -231,10 +247,9 @@ impl Database {
     }
     #[cfg(feature = "replication")]
     pub(crate) fn replication_head(&self) -> Result<([u8; 16], u64)> {
-        let state = self.write_state()?;
-        let storage = state.storage.as_ref().ok_or(Error::Invalid)?;
-        storage.guard()?;
-        Ok((storage.identity(), state.head.revision))
+        let writer = self.lock_writer()?;
+        let storage = writer.as_ref().ok_or(Error::Invalid)?;
+        Ok((storage.identity(), self.read_state().head.revision))
     }
     #[cfg(all(
         feature = "replication",
@@ -247,13 +262,12 @@ impl Database {
         length: u64,
         limits: Limits,
     ) -> Result<Self> {
-        let db = Self::with_limits(limits)?;
+        let mut db = Self::with_limits(limits)?;
         let recovered =
             crate::storage::recover_replica(backend, &db.mem, identity, revision, length)?;
-        *db.write_state()? = State {
+        *db.state.get_mut().unwrap() = State {
             head: recovered.head,
             next_collection: recovered.next_collection,
-            storage: None,
             retention: recovered.retention,
         };
         Ok(db)
@@ -267,21 +281,26 @@ impl Database {
     ) -> Result<crate::storage::CompactionStats> {
         crate::storage::compact_file(path.as_ref(), limits)
     }
-    // Poison never silently re-enables publication: a ByteStore implementation
-    // may have unwound after writing a root but before returning its outcome.
-    // Immutable acknowledged heads remain readable for diagnosis/recovery.
-    fn read_state(&self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(|e| e.into_inner())
+    fn read_state(&self) -> RwLockReadGuard<'_, State> {
+        self.state.read().unwrap_or_else(|e| e.into_inner())
     }
-    fn write_state(&self) -> Result<MutexGuard<'_, State>> {
-        self.state.lock().map_err(|_| Error::RecoveryRequired)
-    }
-    fn publication_state(&self) -> Result<MutexGuard<'_, State>> {
-        let state = self.write_state()?;
-        if let Some(storage) = &state.storage {
+    // A ByteStore may unwind after writing a root. Writer poison blocks all
+    // later publication while leaving the acknowledged state available.
+    fn lock_writer(&self) -> Result<MutexGuard<'_, Option<Storage>>> {
+        let writer = self.writer.lock().map_err(|_| Error::RecoveryRequired)?;
+        if let Some(storage) = writer.as_ref() {
             storage.guard()?;
         }
-        Ok(state)
+        Ok(writer)
+    }
+    fn publication_state(&self) -> Result<Publication<'_>> {
+        let storage = self.lock_writer()?;
+        let state = self.read_state();
+        Ok(Publication {
+            db: self,
+            storage,
+            state,
+        })
     }
     pub fn new() -> Result<Self> {
         Self::with_limits(Limits::default())
@@ -299,10 +318,10 @@ impl Database {
         Ok(Self {
             mem,
             store,
-            state: Mutex::new(State {
+            writer: Mutex::new(None),
+            state: RwLock::new(State {
                 head,
                 next_collection: 1,
-                storage: None,
                 retention: Retention::new(),
             }),
         })
@@ -314,7 +333,7 @@ impl Database {
         identity: [u8; 16],
         limits: Limits,
     ) -> Result<Self> {
-        let db = Self::with_limits(limits)?;
+        let mut db = Self::with_limits(limits)?;
         let storage = {
             let state = db.read_state();
             Storage::create(
@@ -326,31 +345,29 @@ impl Database {
                 &state.retention,
             )?
         };
-        db.write_state().unwrap().storage = Some(storage);
+        *db.writer.get_mut().unwrap() = Some(storage);
         Ok(db)
     }
     /// Verify the full graph, stabilize its bytes/witness, then open. Recovery
     /// needs an exclusive writer lease and may perform sync/metadata I/O.
     pub fn open_on<B: ByteStore + 'static>(backend: B, limits: Limits) -> Result<Self> {
-        let db = Self::with_limits(limits)?;
+        let mut db = Self::with_limits(limits)?;
         let (storage, head, next_collection, retention) = Storage::open(backend, &db.mem)?;
-        *db.write_state().unwrap() = State {
+        *db.state.get_mut().unwrap() = State {
             head,
             next_collection,
-            storage: Some(storage),
             retention,
         };
+        *db.writer.get_mut().unwrap() = Some(storage);
         Ok(db)
     }
     /// Reads still use the last acknowledged head, but publication is blocked.
     /// Reopen to determine an uncertain commit's outcome.
     pub fn requires_recovery(&self) -> bool {
-        let state = self.read_state();
-        self.state.is_poisoned()
-            || state
-                .storage
-                .as_ref()
-                .is_some_and(Storage::requires_recovery)
+        match self.writer.lock() {
+            Ok(writer) => writer.as_ref().is_some_and(Storage::requires_recovery),
+            Err(_) => true,
+        }
     }
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn create_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
@@ -369,7 +386,8 @@ impl Database {
         if !std::ptr::eq(self, snapshot.db) {
             return Err(Error::ForeignStore);
         }
-        let mut state = self.publication_state()?;
+        let publication = self.publication_state()?;
+        let state = &publication.state;
         if state.retention.entries.len() >= MAX_RETAINED_SNAPSHOTS {
             return Err(Error::Limit);
         }
@@ -389,11 +407,12 @@ impl Database {
             collections: state.head.collections.clone(),
         })?;
         let next_collection = state.next_collection;
-        state.publish(&self.mem, head, next_collection, Some(retention))?;
+        publication.publish(head, next_collection, Some(retention))?;
         Ok(id)
     }
     pub fn release_retained(&self, id: u64) -> Result<()> {
-        let mut state = self.publication_state()?;
+        let publication = self.publication_state()?;
+        let state = &publication.state;
         let index = state
             .retention
             .entries
@@ -409,7 +428,7 @@ impl Database {
             collections: state.head.collections.clone(),
         })?;
         let next_collection = state.next_collection;
-        state.publish(&self.mem, head, next_collection, Some(retention))?;
+        publication.publish(head, next_collection, Some(retention))?;
         Ok(())
     }
     pub fn retained_snapshot(&self, id: u64) -> Result<Snapshot<'_>> {
@@ -450,7 +469,8 @@ impl Database {
         }
     }
     pub fn create_collection(&self) -> Result<CollectionId> {
-        let mut state = self.publication_state()?;
+        let publication = self.publication_state()?;
+        let state = &publication.state;
         let next = state.head.revision.checked_add(1).ok_or(Error::Exhausted)?;
         let id = state.next_collection;
         let following = id.checked_add(1).ok_or(Error::Exhausted)?;
@@ -467,14 +487,15 @@ impl Database {
             data_revision: next,
             collections,
         })?;
-        state.publish(&self.mem, head, following, None)?;
+        publication.publish(head, following, None)?;
         Ok(self.collection_id(id))
     }
     /// Catalog operations are immediate atomic commits, never part of a draft.
     /// IDs are never reused; transactions on a removed collection conflict.
     pub fn drop_collection(&self, id: CollectionId) -> Result<()> {
         self.check_collection(id)?;
-        let mut state = self.publication_state()?;
+        let publication = self.publication_state()?;
+        let state = &publication.state;
         if state.head.collections.get(&id.id.to_le_bytes()).is_none() {
             return Err(Error::NotFound);
         }
@@ -489,7 +510,7 @@ impl Database {
             collections,
         })?;
         let next_collection = state.next_collection;
-        state.publish(&self.mem, head, next_collection, None)?;
+        publication.publish(head, next_collection, None)?;
         Ok(())
     }
     pub fn snapshot(&self) -> Snapshot<'_> {
@@ -772,7 +793,8 @@ impl Transaction<'_> {
     fn publish(&self) -> Result<u64> {
         // The commit gate covers validation, rebasing, persistence and publication.
         // ByteStore methods must not call back into this database.
-        let mut state = self.db.publication_state()?;
+        let publication = self.db.publication_state()?;
+        let state = &publication.state;
         self.validate(&state.head)?;
         let next = state.head.revision.checked_add(1).ok_or(Error::Exhausted)?;
         let mut collections = state.head.collections.clone();
@@ -811,7 +833,7 @@ impl Transaction<'_> {
             collections,
         })?;
         let next_collection = state.next_collection;
-        state.publish(&self.db.mem, head, next_collection, None)?;
+        publication.publish(head, next_collection, None)?;
         Ok(next)
     }
     /// Commit errors are terminal. Conflicts abort; preparation failures fail.
@@ -883,7 +905,7 @@ mod tests {
         let db = Database::new().unwrap();
         let c = db.create_collection().unwrap();
         let old = db.read_state().head.clone();
-        db.write_state().unwrap().head = db
+        db.state.write().unwrap().head = db
             .mem
             .shared(Head {
                 revision: u64::MAX,
@@ -902,7 +924,7 @@ mod tests {
     #[test]
     fn collection_id_exhaustion_never_reuses_identity() {
         let db = Database::new().unwrap();
-        db.write_state().unwrap().next_collection = u64::MAX;
+        db.state.write().unwrap().next_collection = u64::MAX;
         assert_eq!(db.create_collection(), Err(Error::Exhausted));
         assert_eq!(db.snapshot().revision(), 0);
     }
@@ -910,7 +932,7 @@ mod tests {
     fn retained_id_exhaustion_is_atomic() {
         let db = Database::new().unwrap();
         let snapshot = db.snapshot();
-        db.write_state().unwrap().retention.next_id = u64::MAX;
+        db.state.write().unwrap().retention.next_id = u64::MAX;
         assert_eq!(db.retain_snapshot(&snapshot), Err(Error::Exhausted));
         assert_eq!(db.snapshot().revision(), 0);
         assert!(db.retained_ids().unwrap().is_empty());
@@ -924,7 +946,7 @@ mod tests {
             db.retain_snapshot(&db.snapshot()).unwrap();
             db.retain_snapshot(&db.snapshot()).unwrap();
             let old = db.read_state().head.clone();
-            db.write_state().unwrap().head = db
+            db.state.write().unwrap().head = db
                 .mem
                 .shared(Head {
                     revision: u64::MAX - 1,
@@ -955,14 +977,14 @@ mod tests {
     #[test]
     fn final_catalog_and_retention_ids_are_assigned_once() {
         let db = Database::new().unwrap();
-        db.write_state().unwrap().next_collection = u64::MAX - 1;
+        db.state.write().unwrap().next_collection = u64::MAX - 1;
         let last = db.create_collection().unwrap();
         assert_eq!(last.as_u64(), u64::MAX - 1);
         let revision = db.snapshot().revision();
         assert_eq!(db.create_collection(), Err(Error::Exhausted));
         assert_eq!(db.snapshot().revision(), revision);
         assert_eq!(db.snapshot().count(last), Ok(0));
-        db.write_state().unwrap().retention.next_id = u64::MAX - 1;
+        db.state.write().unwrap().retention.next_id = u64::MAX - 1;
         assert_eq!(db.retain_snapshot(&db.snapshot()), Ok(u64::MAX - 1));
         let revision = db.snapshot().revision();
         assert_eq!(db.retain_snapshot(&db.snapshot()), Err(Error::Exhausted));
@@ -1007,7 +1029,7 @@ mod tests {
         assert!(!db.requires_recovery());
         assert!(
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let _guard = db.write_state().unwrap();
+                let _guard = db.writer.lock().unwrap();
                 panic!("intentional writer-mutex poison");
             }))
             .is_err()
