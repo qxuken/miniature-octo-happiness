@@ -219,13 +219,15 @@ impl Database {
     ) -> Result<(Storage, crate::storage::CompactionStats)> {
         let state = self.state.get_mut().map_err(|_| Error::RecoveryRequired)?;
         let storage = state.storage.as_mut().ok_or(Error::Invalid)?;
-        storage.compact(
+        let (mut copy, stats) = storage.encode_compact_copy(
             destination,
             &self.mem,
             &state.head,
             state.next_collection,
             &state.retention,
-        )
+        )?;
+        copy.verify(&self.mem)?;
+        Ok((copy, stats))
     }
     #[cfg(feature = "replication")]
     pub(crate) fn replication_head(&self) -> Result<([u8; 16], u64)> {

@@ -141,7 +141,7 @@ impl Storage {
     pub(crate) fn image_bytes(&mut self) -> &mut dyn ByteStore {
         &mut *self.backend
     }
-    pub(crate) fn compact<B: ByteStore + 'static>(
+    pub(crate) fn encode_compact_copy<B: ByteStore + 'static>(
         &mut self,
         destination: B,
         mem: &Memory,
@@ -164,12 +164,16 @@ impl Storage {
             self.identity,
             retention,
         )?;
-        copy.verify(mem)?;
+        copy.release_serialization_caches();
         let stats = CompactionStats {
             before_bytes,
             after_bytes: copy.end,
         };
         Ok((copy, stats))
+    }
+    fn release_serialization_caches(&mut self) {
+        self.data_cache = None;
+        self.cache = None;
     }
     pub(crate) fn verify(&mut self, mem: &Memory) -> Result<()> {
         let verified = codec::recover(&mut *self.backend, mem)?;

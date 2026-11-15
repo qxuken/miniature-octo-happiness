@@ -383,7 +383,7 @@ impl ByteStore for Observed {
     }
 }
 pub(crate) fn compact_file(path: &Path, limits: Limits) -> Result<CompactionStats> {
-    compact_file_impl(path, limits, Observer::default())
+    compact_file_impl(path, &Memory::new(limits)?, Observer::default())
 }
 #[cfg(any(test, feature = "fault-injection"))]
 pub fn compact_file_with_hook(
@@ -396,10 +396,9 @@ pub fn compact_file_with_hook(
     let observer = Observer {
         hook: Some(mem.shared(std::sync::Mutex::new(hook))?),
     };
-    compact_file_impl(path, limits, observer)
+    compact_file_impl(path, &Memory::new(limits)?, observer)
 }
-fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<CompactionStats> {
-    let mem = Memory::new(limits)?;
+fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
     let original = Location::new(path)?;
     let source = original.open(false)?;
     let old_file = retry(NativeIoOperation::DuplicateHandle, || {
@@ -415,25 +414,34 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
             observer: observer.clone(),
             target: false,
         },
-        &mem,
+        mem,
     )?;
-    let scratch = original.scratch(&mem)?;
+    storage.release_serialization_caches();
+    let scratch = original.scratch(mem)?;
     let target = scratch.open(true)?;
     let new_file = retry(NativeIoOperation::DuplicateHandle, || {
         target.file.try_clone()
     })?;
-    let (mut replacement, stats) = storage
-        .compact(
-            Observed {
-                file: target,
-                observer: observer.clone(),
-                target: true,
-            },
-            &mem,
-            &head,
-            next_collection,
-            &retention,
-        )
+    let prepared = storage.encode_compact_copy(
+        Observed {
+            file: target,
+            observer: observer.clone(),
+            target: true,
+        },
+        mem,
+        &head,
+        next_collection,
+        &retention,
+    );
+    // The source backend still owns the lease while verification walks the
+    // newly serialized graph. The offline copy no longer needs the old graph.
+    drop(head);
+    drop(retention);
+    let (mut replacement, stats) = prepared
+        .and_then(|(mut copy, stats)| {
+            copy.verify(mem)?;
+            Ok((copy, stats))
+        })
         .map_err(|e| {
             if e == Error::OutcomeUnknown {
                 Error::Io
@@ -442,12 +450,12 @@ fn compact_file_impl(path: &Path, limits: Limits, observer: Observer) -> Result<
             }
         })?;
     observer.call(CompactionStep::CopyMetadata, || {
-        sys::copy_metadata(&old_file, &new_file, &mem)
+        sys::copy_metadata(&old_file, &new_file, mem)
     })?;
     observer.call(CompactionStep::SyncMetadata, || full_sync(&new_file))?;
     // Metadata APIs can affect data interpretation (e.g. compression xattrs).
     // Re-verify after every mutation, before publishing a directory entry.
-    replacement.verify(&mem)?;
+    replacement.verify(mem)?;
     observer.call(CompactionStep::CheckNames, || {
         original.matches(&old_file)?;
         scratch.matches(&new_file)
@@ -525,6 +533,87 @@ mod tests {
 #[cfg(test)]
 mod decision_tests {
     use super::*;
+
+    #[test]
+    fn file_compaction_verifies_without_holding_copy_graphs_or_releasing_leases() {
+        use std::{
+            fs,
+            sync::{
+                Arc,
+                atomic::{AtomicUsize, Ordering},
+            },
+        };
+
+        struct Fixture(std::path::PathBuf);
+        impl Drop for Fixture {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+
+        const PAYLOAD: usize = 512 * 1024;
+        let directory =
+            std::env::temp_dir().join(format!("weekend-compact-lifetimes-{}", std::process::id()));
+        fs::create_dir(&directory).unwrap();
+        let fixture = Fixture(directory);
+        let path = fixture.0.join("store.wdb");
+        let limits = Limits::default();
+        {
+            let db = crate::Database::create_file(&path, limits).unwrap();
+            let collection = db.create_collection().unwrap();
+            let mut draft = db.begin();
+            draft
+                .put(
+                    collection,
+                    b"value",
+                    &db.bytes(&vec![0x5a; PAYLOAD]).unwrap(),
+                )
+                .unwrap();
+            draft.commit().unwrap();
+            db.retain_snapshot(&db.snapshot()).unwrap();
+        }
+
+        let memory = Memory::new(limits).unwrap();
+        let observed_memory = memory.clone();
+        let observed_path = path.clone();
+        let verifications = Arc::new(AtomicUsize::new(0));
+        let observed_verifications = verifications.clone();
+        let mut check_next_read = true;
+        let hook: Hook = Box::new(move |event| {
+            if event.step == CompactionStep::SyncMetadata && event.after {
+                check_next_read = true;
+            }
+            if event.step == CompactionStep::TargetRead && !event.after && check_next_read {
+                check_next_read = false;
+                let live = observed_memory.usage().0;
+                assert!(
+                    live < PAYLOAD,
+                    "verification started with {live} charged bytes"
+                );
+                assert!(matches!(FileStore::open(&observed_path), Err(Error::Busy)));
+                let scratch = fs::read_dir(observed_path.parent().unwrap())
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .find(|path| {
+                        path.file_name()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .starts_with(".wdb-compact-")
+                    })
+                    .unwrap();
+                assert!(matches!(FileStore::open(scratch), Err(Error::Busy)));
+                observed_verifications.fetch_add(1, Ordering::Relaxed);
+            }
+            Ok(())
+        });
+        let observer = Observer {
+            hook: Some(memory.shared(std::sync::Mutex::new(hook)).unwrap()),
+        };
+        compact_file_impl(&path, &memory, observer).unwrap();
+        assert_eq!(verifications.load(Ordering::Relaxed), 2);
+    }
+
     #[test]
     fn pathname_and_claimed_read_only_controls() {
         for name in ["", ".", "..", "end/", "a\0b"] {

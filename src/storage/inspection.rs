@@ -90,8 +90,7 @@ fn copy_verified<B: ByteStore + 'static>(
     };
     // The offline copy only returns sizes. Release cached references before
     // reading the independent verification graph.
-    destination.cache = None;
-    destination.data_cache = None;
+    destination.release_serialization_caches();
     destination.verify(mem)?;
     Ok(CompactionStats {
         before_bytes,
