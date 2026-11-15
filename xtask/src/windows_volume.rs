@@ -65,8 +65,7 @@ fn status(code: u32, context: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn space(directory: &Path, capacity: Capacity) -> Result<u64> {
-    let bytes = capacity.bytes();
+fn query_space(directory: &Path) -> Result<(u64, u64, u64)> {
     let mut available = 0;
     let mut total = 0;
     let mut free = 0;
@@ -80,9 +79,24 @@ pub fn space(directory: &Path, capacity: Capacity) -> Result<u64> {
         )
     };
     ensure!(ok != 0, "volume free space: {}", io::Error::last_os_error());
+    Ok((available, total, free))
+}
+
+pub fn space(directory: &Path, capacity: Capacity) -> Result<u64> {
+    let bytes = capacity.bytes();
+    let (available, total, free) = query_space(directory)?;
     ensure!(
         available == free && free <= total && (bytes / 2..=bytes).contains(&total),
         "bounded private volume without a per-user quota required"
+    );
+    Ok(free)
+}
+
+pub(crate) fn physical_space(directory: &Path, capacity: Capacity) -> Result<u64> {
+    let (_, _, free) = query_space(directory)?;
+    ensure!(
+        free <= capacity.bytes(),
+        "free bytes exceed private volume capacity"
     );
     Ok(free)
 }

@@ -1,4 +1,6 @@
 //! Actual owner quota on a disposable fixed NTFS VHD, without a new host account.
+#[path = "../../tools/quota/windows_identity.rs"]
+mod identity;
 use crate::{
     delivery, quota_append,
     support::{Run, path, sha},
@@ -21,7 +23,7 @@ use windows_sys::Win32::{
     Foundation::LocalFree,
     Security::{
         Authorization::{GetNamedSecurityInfoW, SE_FILE_OBJECT},
-        CreateWellKnownSid, EqualSid, LookupAccountSidW, OWNER_SECURITY_INFORMATION,
+        CreateWellKnownSid, EqualSid, LookupAccountSidW, OWNER_SECURITY_INFORMATION, TOKEN_QUERY,
         WinLocalServiceSid,
     },
 };
@@ -41,19 +43,16 @@ pub struct Options {
     output: PathBuf,
 }
 
-struct Owner {
+pub(crate) struct Owner {
     sid: [u32; 17],
-    account: String,
+    pub(crate) account: String,
 }
 
 impl Owner {
-    fn local_service() -> Result<Self> {
+    pub(crate) fn local_service() -> Result<Self> {
         let mut sid = [0; 17];
         let mut bytes = std::mem::size_of_val(&sid) as u32;
-        let mut name = [0; 256];
-        let mut domain = [0; 256];
-        let (mut name_len, mut domain_len, mut kind) = (name.len() as u32, domain.len() as u32, 0);
-        // SAFETY: initialized, aligned SID buffer and bounded Windows outputs.
+        // SAFETY: initialized, aligned SID buffer and valid size output.
         unsafe {
             ensure!(
                 CreateWellKnownSid(
@@ -65,6 +64,22 @@ impl Owner {
                 "construct owner SID: {}",
                 io::Error::last_os_error()
             );
+        }
+        Self::resolve(sid)
+    }
+
+    pub(crate) fn current_user() -> Result<Self> {
+        Self::resolve(identity::token_user(&identity::process_token(
+            TOKEN_QUERY,
+        )?)?)
+    }
+
+    fn resolve(mut sid: [u32; 17]) -> Result<Self> {
+        let mut name = [0; 256];
+        let mut domain = [0; 256];
+        let (mut name_len, mut domain_len, mut kind) = (name.len() as u32, domain.len() as u32, 0);
+        // SAFETY: valid owned SID buffer and bounded Windows outputs.
+        unsafe {
             ensure!(
                 LookupAccountSidW(
                     null(),
@@ -87,7 +102,7 @@ impl Owner {
         Ok(Self { sid, account })
     }
 
-    fn verify(&self, file: &Path) -> Result<()> {
+    pub(crate) fn verify(&self, file: &Path) -> Result<()> {
         let name: Vec<u16> = file.as_os_str().encode_wide().chain([0]).collect();
         let (mut owner, mut descriptor) = (null_mut(), null_mut());
         // SAFETY: terminated file path, live outputs and an owned descriptor on success.
@@ -114,20 +129,20 @@ impl Owner {
             LocalFree(descriptor);
             matches
         };
-        ensure!(matches, "quota file owner must be the selected service SID");
+        ensure!(matches, "quota file owner differs from the selected SID");
         Ok(())
     }
 }
 
-fn exhaust(ballast: &Path) -> Result<(i32, u64)> {
+pub(crate) fn exhaust(ballast: &Path, ceiling: u64) -> Result<(i32, u64)> {
     let mut file = OpenOptions::new().write(true).open(ballast)?;
     let mut bytes = file.seek(SeekFrom::End(0))?;
     let block = [0x5a; 64 * 1024];
     let mut count = block.len();
     loop {
         ensure!(
-            bytes + count as u64 <= 2 * LIMIT,
-            "NTFS quota did not enforce within the independent 2 MiB bound"
+            bytes + count as u64 <= ceiling,
+            "NTFS quota did not enforce within the independent {ceiling}-byte bound"
         );
         match file.write(&block[..count]) {
             Ok(n) if n > 0 => bytes += n as u64,
@@ -207,7 +222,7 @@ impl Trial<'_> {
     }
 
     fn calibrate(&self, proof: &mut Value, data: &Path, ballast: &Path) -> Result<(i32, u64)> {
-        let (code, bytes) = exhaust(ballast)?;
+        let (code, bytes) = exhaust(ballast, 2 * LIMIT)?;
         let free = windows_volume::space(data, Capacity::Append)?;
         ensure!(
             free > 32 * MIB,
@@ -288,7 +303,7 @@ impl Trial<'_> {
         let failed = sha(&database)?;
         self.case(proof, &database, "reopen-at-limit", "inspect", 3, code)?;
         ensure!(
-            sha(&database)? == failed && exhaust(&ballast)? == (code, bytes),
+            sha(&database)? == failed && exhaust(&ballast, 2 * LIMIT)? == (code, bytes),
             "open changed the failed image or quota boundary"
         );
         let global = windows_volume::space(data, Capacity::Append)?;

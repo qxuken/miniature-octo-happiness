@@ -321,6 +321,34 @@ jobs:
       - name: Enforce the macOS maintenance fault result
         if: always() && runner.os == 'macOS' && steps.macos_maintenance_space.outcome == 'failure'
         run: exit 1
+  windows-maintenance-quota:
+    name: Native Windows maintenance owner quota
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the private controller and near-cap fixture
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+          cargo fetch --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo fetch --locked --manifest-path tools/resource-envelope/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-win-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify actual owner quota, fresh opens and retry
+        run: cargo xtask windows-maintenance-space --owner-quota --fixture target/maintenance-win-build/release/weekend-compound-resource.exe --source $env:WEEKEND_DB_SOURCE_ID --output target/windows-maintenance-quota
+      - name: Save Windows maintenance owner-quota evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-maintenance-quota-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/windows-maintenance-quota/
   windows-msrv:
     name: Windows MSVC minimum Rust
     runs-on: windows-latest

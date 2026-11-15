@@ -13,6 +13,8 @@ const OPERATIONS: [&str; 3] = ["backup", "restore", "compact"];
 enum Profile {
     #[cfg(any(windows, test))]
     Ntfs,
+    #[cfg(any(windows, test))]
+    NtfsQuota(i32),
     #[cfg(any(target_os = "macos", test))]
     Apfs,
 }
@@ -22,6 +24,8 @@ impl Profile {
         match self {
             #[cfg(any(windows, test))]
             Self::Ntfs => 112,
+            #[cfg(any(windows, test))]
+            Self::NtfsQuota(code) => code,
             #[cfg(any(target_os = "macos", test))]
             Self::Apfs => 28,
         }
@@ -30,7 +34,7 @@ impl Profile {
     fn replaces_source(self, operation: &str) -> bool {
         match self {
             #[cfg(any(windows, test))]
-            Self::Ntfs => {
+            Self::Ntfs | Self::NtfsQuota(_) => {
                 let _ = operation;
                 false
             }
@@ -79,7 +83,12 @@ fn verify_phase(
                 (oracle::MIB..COPY_BYTES).contains(&partial),
                 "partial copy length"
             );
-            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":"DiskFull","raw":profile.errno(),
+            let category = if profile.errno() == 1295 {
+                "Quota"
+            } else {
+                "DiskFull"
+            };
+            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":category,"raw":profile.errno(),
                 "native_operation":"Write","partial_bytes":partial,"source_unchanged":true,"backup_unchanged":true})
         }
         "space-retry" => {
@@ -100,12 +109,15 @@ mod native {
     use super::*;
     #[cfg(target_os = "macos")]
     use crate::macos_volume;
-    #[cfg(windows)]
-    use crate::windows_volume::{self, Capacity};
     use crate::{
         delivery,
         support::{Run, path, sha},
         trace_process::{admission, call, write_proof},
+    };
+    #[cfg(windows)]
+    use crate::{
+        windows_quota,
+        windows_volume::{self, Capacity},
     };
     use anyhow::Context;
     use clap::Args;
@@ -154,6 +166,10 @@ mod native {
         source: String,
         #[arg(long)]
         output: PathBuf,
+        #[cfg(windows)]
+        /// Apply an enforced owner quota to the restricted copy fixture.
+        #[arg(long)]
+        owner_quota: bool,
     }
 
     struct Fixture<'a> {
@@ -163,6 +179,9 @@ mod native {
         source: &'a str,
         env: BTreeMap<OsString, OsString>,
         processes: BTreeSet<u32>,
+        profile: Profile,
+        #[cfg(windows)]
+        owner_quota: bool,
     }
 
     impl Fixture<'_> {
@@ -215,7 +234,7 @@ mod native {
             }
             let (stdout, pid) = self.command(proof, args, &format!("{mode}-{label}"), false)?;
             let rows = rows(&stdout)?;
-            verify_phase(&rows, self.source, mode, label, pid, PROFILE)?;
+            verify_phase(&rows, self.source, mode, label, pid, self.profile)?;
             let result = json!({"mode":mode,"label":label,"pid":pid,"observation":rows[0]});
             proof["maintenance_records"]
                 .as_array_mut()
@@ -231,6 +250,224 @@ mod native {
             .lines()
             .map(|line| delivery::json(line.as_bytes()))
             .collect()
+    }
+
+    #[cfg(windows)]
+    struct OwnerQuota {
+        drive: String,
+        owner: windows_quota::Owner,
+        code: i32,
+    }
+
+    #[cfg(windows)]
+    impl OwnerQuota {
+        const RAISED: u64 = 80 * oracle::MIB;
+
+        fn tool(
+            fixture: &Fixture<'_>,
+            proof: &mut Value,
+            tool: &str,
+            label: &str,
+            args: &[OsString],
+        ) -> Result<()> {
+            let mut command = vec![path(windows_volume::system_command(tool)?)];
+            command.extend_from_slice(args);
+            call(
+                proof,
+                fixture.output,
+                command,
+                fixture.runs,
+                label,
+                &fixture.env,
+                false,
+            )?;
+            Ok(())
+        }
+
+        fn quota(
+            &self,
+            fixture: &Fixture<'_>,
+            proof: &mut Value,
+            label: &str,
+            action: &str,
+            tail: &[OsString],
+        ) -> Result<()> {
+            let mut args = vec!["quota".into(), action.into(), self.drive.as_str().into()];
+            args.extend_from_slice(tail);
+            Self::tool(fixture, proof, "fsutil.exe", label, &args)
+        }
+
+        fn limit(
+            &self,
+            fixture: &Fixture<'_>,
+            proof: &mut Value,
+            label: &str,
+            hard: u64,
+        ) -> Result<()> {
+            self.quota(
+                fixture,
+                proof,
+                label,
+                "modify",
+                &[
+                    (hard / 2).to_string().into(),
+                    hard.to_string().into(),
+                    self.owner.account.as_str().into(),
+                ],
+            )?;
+            self.quota(fixture, proof, &format!("{label}-query"), "query", &[])
+        }
+
+        fn create_probe(
+            &self,
+            fixture: &mut Fixture<'_>,
+            proof: &mut Value,
+            data: &Path,
+            label: &str,
+        ) -> Result<PathBuf> {
+            let probe = data.join("quota-probe");
+            let (log, _) = fixture.command(
+                proof,
+                vec![
+                    path(data),
+                    path(&probe),
+                    "space-quota-probe".into(),
+                    "probe".into(),
+                ],
+                label,
+                false,
+            )?;
+            ensure!(
+                rows(&log)? == [oracle::completion("space-quota-probe", fixture.source)],
+                "wrong quota probe identity"
+            );
+            self.owner.verify(&probe)?;
+            Ok(probe)
+        }
+
+        fn setup(
+            fixture: &mut Fixture<'_>,
+            proof: &mut Value,
+            data: &Path,
+            source: &Path,
+            backup: &Path,
+        ) -> Result<Self> {
+            let root = data
+                .parent()
+                .and_then(Path::to_str)
+                .context("owned drive root")?;
+            let drive = root.strip_suffix('\\').context("owned drive letter")?;
+            ensure!(
+                drive.len() == 2
+                    && drive.as_bytes()[0].is_ascii_uppercase()
+                    && drive.ends_with(':')
+                    && proof["private_volume"]["root"] == root,
+                "quota administration requires the bound private drive"
+            );
+            let mut quota = Self {
+                drive: drive.into(),
+                owner: windows_quota::Owner::current_user()?,
+                code: 0,
+            };
+            let preserved = windows_quota::Owner::local_service()?;
+            Self::tool(
+                fixture,
+                proof,
+                "icacls.exe",
+                "grant-copy-user",
+                &[
+                    path(data),
+                    "/grant".into(),
+                    format!("{}:(OI)(CI)M", quota.owner.account).into(),
+                    "/T".into(),
+                ],
+            )?;
+            for (file, label) in [(source, "own-source"), (backup, "own-backup")] {
+                Self::tool(
+                    fixture,
+                    proof,
+                    "icacls.exe",
+                    label,
+                    &[
+                        path(file),
+                        "/setowner".into(),
+                        preserved.account.as_str().into(),
+                    ],
+                )?;
+                preserved.verify(file)?;
+            }
+            quota.quota(fixture, proof, "quota-track", "track", &[])?;
+            quota.limit(fixture, proof, "quota-initial-limit", HEADROOM)?;
+            quota.quota(fixture, proof, "quota-enforce", "enforce", &[])?;
+            quota.quota(fixture, proof, "quota-enforced-query", "query", &[])?;
+            fixture
+                .env
+                .insert("WEEKEND_PRIVATE_MAINTENANCE".into(), "ntfs-quota".into());
+            let probe = quota.create_probe(fixture, proof, data, "quota-create-calibration")?;
+            let (code, bytes) = windows_quota::exhaust(&probe, HEADROOM + oracle::MIB)?;
+            let physical = Self::free(data)?;
+            ensure!(
+                bytes == HEADROOM,
+                "owner quota must allow exactly 8 MiB before refusing writes"
+            );
+            fs::remove_file(probe)?;
+            quota.code = code;
+            fixture.profile = Profile::NtfsQuota(code);
+            fixture.env.insert(
+                "WEEKEND_PRIVATE_QUOTA_ERRNO".into(),
+                code.to_string().into(),
+            );
+            proof["owner_quota"] = json!({"copy_owner":quota.owner.account,"source_owner":preserved.account,
+                "calibrated_code":code,"calibrated_bytes":bytes,"physical_free_at_calibration":physical,
+                "initial_limit":HEADROOM,"raised_limit":Self::RAISED});
+            Ok(quota)
+        }
+
+        fn free(data: &Path) -> Result<u64> {
+            let free = windows_volume::physical_space(data, Capacity::Maintenance)?;
+            ensure!(
+                free > COPY_BYTES,
+                "physical volume must have headroom for a full copy"
+            );
+            Ok(free)
+        }
+
+        fn probe_full(
+            &self,
+            fixture: &mut Fixture<'_>,
+            proof: &mut Value,
+            data: &Path,
+            op: &str,
+        ) -> Result<()> {
+            let probe = self.create_probe(fixture, proof, data, &format!("quota-full-{op}"))?;
+            ensure!(
+                windows_quota::exhaust(&probe, oracle::MIB)? == (self.code, 0),
+                "fresh opens changed the quota boundary"
+            );
+            fs::remove_file(probe)?;
+            Ok(())
+        }
+
+        fn raise(
+            &self,
+            fixture: &mut Fixture<'_>,
+            proof: &mut Value,
+            data: &Path,
+            op: &str,
+        ) -> Result<()> {
+            self.limit(fixture, proof, &format!("quota-raise-{op}"), Self::RAISED)?;
+            let probe = self.create_probe(fixture, proof, data, &format!("quota-write-{op}"))?;
+            let mut file = OpenOptions::new().append(true).open(&probe)?;
+            file.write_all(&[0x6a; CLUSTER as usize])?;
+            file.sync_all()?;
+            drop(file);
+            ensure!(
+                fs::metadata(&probe)?.len() == CLUSTER,
+                "raised quota did not permit fsynced write"
+            );
+            fs::remove_file(probe)?;
+            Ok(())
+        }
     }
 
     pub fn bounded_fill(dir: &Path, ballast: &Path, new: bool) -> Result<(u64, u64)> {
@@ -381,9 +618,37 @@ mod native {
         fs::remove_file(control)?;
         proof["negative_control"] = json!({"pid":pid,"exit":101,"copy_verified":true});
 
+        #[cfg(windows)]
+        let quota = if fixture.owner_quota {
+            Some(OwnerQuota::setup(fixture, proof, data, &source, &backup)?)
+        } else {
+            None
+        };
+        #[cfg(windows)]
+        let quota_active = quota.is_some();
+        #[cfg(target_os = "macos")]
+        let quota_active = false;
+        let available_space = |data: &Path| -> Result<u64> {
+            #[cfg(windows)]
+            if quota_active {
+                return OwnerQuota::free(data);
+            }
+            free_space(data)
+        };
         let ballast = data.join("ballast");
         for op in OPERATIONS {
-            let (filled, saturated, available) = headroom(data, &ballast)?;
+            let (filled, saturated, available) = if quota_active {
+                #[cfg(windows)]
+                quota.as_ref().unwrap().limit(
+                    fixture,
+                    proof,
+                    &format!("quota-cap-{op}"),
+                    HEADROOM,
+                )?;
+                (0, 0, available_space(data)?)
+            } else {
+                headroom(data, &ballast)?
+            };
             let failure = fixture.phase(proof, data, &source, "space-fail", op)?;
             ensure!(
                 sha(&source)? == source_hash && sha(&backup)? == backup_hash,
@@ -391,9 +656,21 @@ mod native {
             );
             let partial = partial_path(data, op)?;
             let partial_hash = sha(&partial)?;
-            let remaining = free_space(data)?;
+            let remaining = available_space(data)?;
             ensure!(remaining < available, "failed operation consumed no space");
-            let (before_ballast, before_reopen) = bounded_fill(data, &ballast, false)?;
+            #[cfg(windows)]
+            if let Some(quota) = &quota {
+                quota.owner.verify(&partial)?;
+                ensure!(
+                    fs::metadata(&partial)?.len() == HEADROOM,
+                    "copy did not exhaust its owner allowance"
+                );
+            }
+            let (before_ballast, before_reopen) = if quota_active {
+                (0, remaining)
+            } else {
+                bounded_fill(data, &ballast, false)?
+            };
             let full_source = fixture.phase(
                 proof,
                 data,
@@ -408,8 +685,15 @@ mod native {
                 "space-check",
                 &format!("full-backup-{op}"),
             )?;
-            let after_reopen = free_space(data)?;
-            ensure!(full(after_reopen), "fresh opens freed private space");
+            let after_reopen = available_space(data)?;
+            ensure!(
+                if quota_active {
+                    after_reopen == before_reopen
+                } else {
+                    full(after_reopen)
+                },
+                "fresh opens changed the pressure boundary"
+            );
             #[cfg(target_os = "macos")]
             {
                 let (after_ballast, _) = bounded_fill(data, &ballast, false)?;
@@ -418,22 +702,28 @@ mod native {
                     "fresh opens made additional space writable"
                 );
             }
-            fs::remove_file(&ballast)?;
-            let freed = free_space(data)?;
-            ensure!(
-                freed >= COPY_BYTES,
-                "ballast removal did not restore copy headroom"
-            );
-            let control = data.join("write-control");
-            {
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&control)?;
-                file.write_all(&[0x6a; CLUSTER as usize])?;
-                file.sync_all()?;
+            if quota_active {
+                #[cfg(windows)]
+                {
+                    let quota = quota.as_ref().unwrap();
+                    quota.probe_full(fixture, proof, data, op)?;
+                    quota.raise(fixture, proof, data, op)?;
+                }
+            } else {
+                fs::remove_file(&ballast)?;
+                let control = data.join("write-control");
+                {
+                    let mut file = OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&control)?;
+                    file.write_all(&[0x6a; CLUSTER as usize])?;
+                    file.sync_all()?;
+                }
+                fs::remove_file(control)?;
             }
-            fs::remove_file(control)?;
+            let freed = available_space(data)?;
+            ensure!(freed >= COPY_BYTES, "retry lacks physical copy headroom");
             let retry = fixture.phase(proof, data, &source, "space-retry", op)?;
             let retried = if PROFILE.replaces_source(op) {
                 source_hash = backup_hash.clone();
@@ -441,6 +731,10 @@ mod native {
             } else {
                 data.join(format!("retry-{op}.wdb"))
             };
+            #[cfg(windows)]
+            if let Some(quota) = &quota {
+                quota.owner.verify(&retried)?;
+            }
             ensure!(
                 sha(&retried)? == backup_hash
                     && sha(&backup)? == backup_hash
@@ -456,10 +750,30 @@ mod native {
                 &format!("retried-{op}"),
             )?;
             fixture.phase(proof, data, &source, "space-retire", op)?;
-            proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":op,"initial_ballast_bytes":filled,
+            let mut record = json!({"operation":op,"initial_ballast_bytes":filled,
                 "free_at_calibration":saturated,"copy_headroom":available,"free_after_copy":remaining,"free_at_fresh_opens":before_reopen,
                 "free_after_fresh_opens":after_reopen,"ballast_at_reopen_bytes":before_ballast,"free_after_removal":freed,
-                "failure":failure,"full_source":full_source,"full_backup":full_backup,"retry":retry,"partial_sha256":partial_hash}));
+                "failure":failure,"full_source":full_source,"full_backup":full_backup,"retry":retry,"partial_sha256":partial_hash});
+            if quota_active {
+                for key in [
+                    "initial_ballast_bytes",
+                    "free_at_calibration",
+                    "copy_headroom",
+                    "free_after_removal",
+                    "ballast_at_reopen_bytes",
+                ] {
+                    record.as_object_mut().unwrap().remove(key);
+                }
+                record["quota_headroom"] = json!(HEADROOM);
+                record["physical_free_before"] = json!(available);
+                record["physical_free_after_raise"] = json!(freed);
+                record["quota_still_full_after_reopen"] = json!(true);
+                record["same_owner_fsynced_write"] = json!(CLUSTER);
+            }
+            proof["maintenance_cases"]
+                .as_array_mut()
+                .unwrap()
+                .push(record);
             write_proof(fixture.output, proof)?;
         }
         fixture.phase(proof, data, &source, "space-advance", "advanced")?;
@@ -521,6 +835,9 @@ mod native {
             source: &opts.source,
             env: env.clone(),
             processes: BTreeSet::new(),
+            profile: PROFILE,
+            #[cfg(windows)]
+            owner_quota: opts.owner_quota,
         };
         let (mode, scope) = match PROFILE {
             #[cfg(any(windows, test))]
@@ -528,11 +845,19 @@ mod native {
                 "ntfs-enospc",
                 "near-cap copy exhaustion on private fixed NTFS",
             ),
+            #[cfg(any(windows, test))]
+            Profile::NtfsQuota(_) => unreachable!(),
             #[cfg(any(target_os = "macos", test))]
             Profile::Apfs => (
                 "enospc",
                 "near-cap copy exhaustion on private APFS disk image",
             ),
+        };
+        #[cfg(windows)]
+        let scope = if opts.owner_quota {
+            "near-cap copy exhaustion under an owner quota on private fixed NTFS"
+        } else {
+            scope
         };
         fixture
             .env
@@ -546,6 +871,10 @@ mod native {
             let inputs = [
                 "src/compound.rs",
                 "src/space.rs",
+                #[cfg(windows)]
+                "src/quota_token.rs",
+                #[cfg(windows)]
+                "../quota/windows_identity.rs",
                 "Cargo.toml",
                 "Cargo.lock",
             ]
@@ -628,6 +957,22 @@ pub use native::{Options, run};
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ntfs_owner_quota_requires_the_calibrated_native_code_and_category() {
+        for (code, category) in [(112, "DiskFull"), (1295, "Quota")] {
+            let mut rows = [
+                json!({"stage":"fail","operation":"backup","pid":10,"error":14,"category":category,
+                    "raw":code,"native_operation":"Write","partial_bytes":8*oracle::MIB,
+                    "source_unchanged":true,"backup_unchanged":true}),
+                oracle::completion("space-fail", "source"),
+            ];
+            let profile = Profile::NtfsQuota(code);
+            assert!(verify_phase(&rows, "source", "space-fail", "backup", 10, profile).is_ok());
+            rows[0]["category"] = json!(if code == 112 { "Quota" } else { "DiskFull" });
+            assert!(verify_phase(&rows, "source", "space-fail", "backup", 10, profile).is_err());
+        }
+    }
 
     #[test]
     fn ntfs_exhaustion_requires_real_partial_write_and_new_compact_destination() {

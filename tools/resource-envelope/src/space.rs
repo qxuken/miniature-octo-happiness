@@ -2,6 +2,9 @@
 use super::*;
 use std::{collections::BTreeSet, path::PathBuf};
 use storage::{NativeIoCategory, NativeIoOperation};
+#[cfg(windows)]
+#[path = "quota_token.rs"]
+mod quota_token;
 const COPY: usize = 256 * MIB;
 const COMPACTED: u64 = 63_074_304;
 fn replaces_source(op: &str) -> bool {
@@ -65,12 +68,22 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     #[cfg(unix)]
     assert!(matches!(kind.as_str(), "enospc" | "quota" | "inode-quota"));
     #[cfg(windows)]
-    assert_eq!(kind, "ntfs-enospc");
+    assert!(matches!(kind.as_str(), "ntfs-enospc" | "ntfs-quota"));
+    #[cfg(windows)]
+    let _restricted = (kind == "ntfs-quota")
+        .then(|| quota_token::Restricted::enter().expect("restrict maintenance fixture token"));
     let inode = kind == "inode-quota";
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
-    if mode == "space-check" {
+    if mode == "space-quota-probe" {
+        assert_eq!(kind, "ntfs-quota");
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(source)
+            .unwrap();
+    } else if mode == "space-check" {
         let changed = arguments.get(1).is_some_and(|v| v == "changed");
         let db = Database::open_file(source, limits(CORE)).unwrap();
         event(
@@ -114,11 +127,15 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 "quota" | "inode-quota" => 122,
                 "enospc" => 28,
                 "ntfs-enospc" => 112,
+                "ntfs-quota" => std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
+                    .unwrap()
+                    .parse()
+                    .unwrap(),
                 _ => unreachable!(),
             };
             assert_eq!(
                 native.category,
-                if errno == 122 {
+                if matches!(errno, 122 | 1295) {
                     NativeIoCategory::Quota
                 } else {
                     NativeIoCategory::DiskFull
