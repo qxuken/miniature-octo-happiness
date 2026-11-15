@@ -7,16 +7,15 @@ source and cached Cargo registry are bind-mounted. The Linux process receives
 its own private key and the macOS certificate, not the macOS private key.
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python -O tools/study_peer_soak.py \
-  /absolute/path/to/new-output --source ed8f9f9 --rounds 30 --restart-every 5
-mise exec python@3.14.8 -- python -O -m unittest discover -s tools \
-  -p test_study_peer_soak.py
+cargo xtask study-peer-soak /absolute/path/to/new-output \
+  --source ed8f9f9 --rounds 30 --restart-every 5
+cargo test --offline --locked -p xtask --bin xtask study_soak
 ```
 
 The default immutable Docker image is the locally qualified Rust 1.99.1 image;
 use `--image` to identify another available tool image explicitly. The launcher
 resolves its immutable image ID and records the actual toolchain. This profile
-requires macOS, Docker, Python 3.12+, cached locked Cargo dependencies, and Unix
+requires macOS, Docker, Rust 1.99.1, cached locked Cargo dependencies, and Unix
 credential modes. It does not install tools or run hosted CI. Evidence includes
 synthetic private test keys; keep the output private and outside distributions.
 
@@ -78,15 +77,31 @@ recorded as failures; they cannot leave `verified=true`. Final evidence is
 written even when a cleanup command fails. Fresh output, source, logs, synthetic
 credentials and closed final database copies remain for inspection.
 
-Independent review caught and corrected three weaknesses before qualification:
-ignoring acknowledged totals, losing track of A if B startup failed, and treating
-failed cleanup as success. Probe timeouts were added, and the admission tests
-also reject dangling symlinks before path resolution. Two oracle/safety tests
-pass normally and under Python `-O`, including a negative control where local
-state is correct and exchange counts grow but acknowledgment totals are stale.
-No production check or side effect relies on a Python `assert`.
+The Rust controls reject stale acknowledgment totals even when the displayed
+state converges and counts increase. They also reject existing output and invalid
+workload bounds. Separate native session controls exercise supervised input,
+bounded lines and process-group cleanup.
 
-## Recorded result
+## Rust controller result
+
+The Rust controller passed all 30 rounds and six paired SIGKILL restarts with
+the same frozen engine source and immutable Linux image listed below. Both
+peers finished at revision 63 with 1,395 minutes, weekly goal 230, session
+limit 10 and lessons 2–61. The six native peers exited with signal 9, the six
+Docker exec wrappers reported 137, and the final pair quit with status 0.
+The container and volume were confirmed absent.
+
+| Bound item | SHA-256 |
+|---|---|
+| Rust controller source snapshot | `e3274237201e1ac8a57bd523164f2d58061b6d9d374d0bb2892c3bc54be48f99` |
+| Native release executable | `3f4150bcd4818868c046d369adaa5d104e9cee12068c02151fcf774d1b23c73c` |
+| Linux release executable | `00185bace5f02686d80a0281993ca3020c912f223476e31fbdd92e4fbd216fe2` |
+| Evidence JSON | `32b9a5980b0655fd7a00e09e380deb79e32e516c2921e7a2f17c64f9e37b75cc` |
+
+Private output is `target/xtask-study-peer-full`. The proof records the
+controller worktree as dirty and binds the actual source and archive hashes.
+
+## Historical Python controller result
 
 Frozen app source `ed8f9f922bc46bd6e52b7d0776f69dad93f3184a` passed all 30 rounds
 with the final launcher, under Python `-O`, on macOS 27.0.1 arm64/APFS and

@@ -896,3 +896,22 @@ macOS passed 170 ordinary xtask tests in both profiles. Strict Clippy passed
 on macOS and the Linux and MSVC cross targets. The two residual legacy suites
 passed all 38 checks across four workers. Their evidence SHA-256 is
 `62f328874cbd4e72f5adf6d9cd3e836ec24d04ded9737caa04205bcae190bca8`.
+
+## Authenticated StudyProgress peer soak
+
+`cargo xtask study-peer-soak` binds the historical source archive and both
+release binaries, bounds each interactive reply, and verifies the peer's
+covering acknowledgment separately from the local commit. It passed all 30
+offline edit and sync rounds between macOS/APFS and Docker Linux/ext4. Each
+of the six paired SIGKILL interruptions reopened the exact acknowledged
+state. Both peers finished at revision 63, and every round verified stable
+revisions across additional covering exchanges. Docker cleanup passed.
+The evidence SHA-256 is
+`32b9a5980b0655fd7a00e09e380deb79e32e516c2921e7a2f17c64f9e37b75cc`.
+[StudyProgress peer soak runbook](study-peer-soak.md)
+
+Both former soak tests now map to discovered Rust controls. macOS passed
+174 ordinary xtask tests in each profile. The sole remaining Python suite
+passed all 34 checks in two workers, with evidence SHA-256
+`1de8ed1c42bea32cd5dcfd17c187840ad7270c5b2c2d067f12b8fe6a685b9916`.
+The ledger covers **162/179** controls and **4** maintained Python files.

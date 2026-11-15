@@ -4,10 +4,6 @@
     {
       "path": "test_check_helpers.py",
       "allowed_skips": []
-    },
-    {
-      "path": "test_study_peer_soak.py",
-      "allowed_skips": []
     }
   ]
 }

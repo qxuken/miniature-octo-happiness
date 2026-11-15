@@ -1080,3 +1080,9 @@ preserved local commits with zero replies. Coordinated upgrade converged
 with both retained roots, and repeat sync and restart kept both revisions.
 The migration covers 160/179 controls with six Python files remaining.
 [Study CLI upgrade verification](xtask-conversion.md#coordinated-studyprogress-cli-upgrade)
+
+The Rust StudyProgress peer soak verified all 30 rounds and six paired SIGKILL
+restarts between macOS/APFS and Docker Linux/ext4, using frozen source
+`ed8f9f9`. Both peers finished at revision 63 and repeat covering exchanges
+stayed stable. The migration covers 162/179 controls with four remaining
+Python files. [StudyProgress peer soak verification](study-peer-soak.md#rust-controller-result)

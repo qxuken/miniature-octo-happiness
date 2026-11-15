@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    io::{PipeReader, Read, Write},
     path::PathBuf,
     time::Instant,
 };
@@ -85,42 +85,72 @@ fn new_file(path: &PathBuf) -> Result<File> {
         .open(path)
         .with_context(|| format!("new output {}", path.display()))
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 enum Sampling {
+    #[default]
     Full,
     Peak,
 }
 
+#[derive(Default)]
+struct Execution<'a> {
+    sampling: Sampling,
+    stop: Option<&'a std::sync::atomic::AtomicBool>,
+    input: Option<PipeReader>,
+}
+
 pub fn run(request: &Request) -> Result<Report> {
-    run_sampled(request, Sampling::Full, None)
+    run_controlled(request, Execution::default())
 }
 
 pub(crate) fn run_peak_rss(request: &Request) -> Result<Report> {
-    run_sampled(request, Sampling::Peak, None)
+    run_controlled(
+        request,
+        Execution {
+            sampling: Sampling::Peak,
+            ..Execution::default()
+        },
+    )
 }
 
 pub(crate) fn run_stoppable(
     request: &Request,
     stop: &std::sync::atomic::AtomicBool,
 ) -> Result<Report> {
-    run_sampled(request, Sampling::Full, Some(stop))
+    run_controlled(
+        request,
+        Execution {
+            stop: Some(stop),
+            ..Execution::default()
+        },
+    )
 }
 
-fn run_sampled(
+pub(crate) fn run_interactive(
     request: &Request,
-    sampling: Sampling,
-    stop: Option<&std::sync::atomic::AtomicBool>,
+    stop: &std::sync::atomic::AtomicBool,
+    input: PipeReader,
 ) -> Result<Report> {
+    run_controlled(
+        request,
+        Execution {
+            stop: Some(stop),
+            input: Some(input),
+            ..Execution::default()
+        },
+    )
+}
+
+fn run_controlled(request: &Request, execution: Execution<'_>) -> Result<Report> {
     #[cfg(not(unix))]
     {
         let _ = request;
-        let _ = sampling;
-        let _ = stop;
+        let _ = execution;
         anyhow::bail!("bounded POSIX supervision is unavailable on this platform");
     }
     #[cfg(unix)]
     {
-        let maximum_deadline = match sampling {
+        let maximum_deadline = match execution.sampling {
             Sampling::Full => 86_400.,
             Sampling::Peak => 86_520.,
         };
@@ -174,7 +204,7 @@ fn run_sampled(
             } else {
                 new_file(&request.stderr)?
             };
-            unix::execute(request, stdout, stderr, &mut report, sampling, stop)
+            unix::execute(request, stdout, stderr, &mut report, execution)
         })();
         if let Err(error) = result {
             report.failure.get_or_insert(format!("{error:#}"));
@@ -231,6 +261,8 @@ pub(crate) fn process_table() -> Result<BTreeMap<i32, Identity>> {
     unix::table()
 }
 
+pub(crate) use unix::nonblocking;
+
 #[cfg(unix)]
 mod unix {
     use super::*;
@@ -249,7 +281,7 @@ mod unix {
         time::Duration,
     };
     const PROBE_LIMIT: u64 = 8 * 1024 * 1024;
-    fn nonblocking(fd: i32) -> Result<()> {
+    pub(crate) fn nonblocking(fd: i32) -> Result<()> {
         // SAFETY: fcntl only changes status flags on an owned, live descriptor.
         let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
         ensure!(
@@ -652,20 +684,23 @@ mod unix {
         stdout: File,
         stderr: File,
         report: &mut Report,
-        sampling: Sampling,
-        stop: Option<&AtomicBool>,
+        execution: Execution<'_>,
     ) -> Result<()> {
-        execute_with(request, stdout, stderr, report, sampling, stop, &mut System)
+        execute_with(request, stdout, stderr, report, execution, &mut System)
     }
     fn execute_with(
         request: &Request,
         stdout: File,
         stderr: File,
         report: &mut Report,
-        sampling: Sampling,
-        stop: Option<&AtomicBool>,
+        execution: Execution<'_>,
         inspect: &mut impl Inspect,
     ) -> Result<()> {
+        let Execution {
+            sampling,
+            stop,
+            input,
+        } = execution;
         let signals = Signals::new()?;
         let (out_r, out_w) = std::io::pipe()?;
         let merged = request.stdout == request.stderr;
@@ -673,7 +708,9 @@ mod unix {
         nonblocking(out_r.as_raw_fd())?;
         nonblocking(err_r.as_raw_fd())?;
         let mut command = Command::new(&request.argv[0]);
-        command.args(&request.argv[1..]).stdin(Stdio::null());
+        command
+            .args(&request.argv[1..])
+            .stdin(input.map_or_else(Stdio::null, Stdio::from));
         if let Some(cwd) = &request.cwd {
             command.current_dir(cwd);
         }
@@ -883,8 +920,7 @@ mod unix {
                 new_file(&request.stdout).unwrap(),
                 new_file(&request.stderr).unwrap(),
                 &mut report,
-                Sampling::Full,
-                None,
+                Execution::default(),
                 &mut inspect,
             )
             .unwrap();
@@ -913,12 +949,14 @@ mod unix {
                     new_file(&request.stdout).unwrap(),
                     new_file(&request.stderr).unwrap(),
                     &mut report,
-                    if matches!(mode, "sampler-summary" | "sampler-exit") {
-                        Sampling::Peak
-                    } else {
-                        Sampling::Full
+                    Execution {
+                        sampling: if matches!(mode, "sampler-summary" | "sampler-exit") {
+                            Sampling::Peak
+                        } else {
+                            Sampling::Full
+                        },
+                        ..Execution::default()
                     },
-                    None,
                     &mut Fault { mode },
                 )
                 .unwrap();

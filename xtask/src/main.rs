@@ -28,6 +28,8 @@ mod follower_backup;
 mod fuzz;
 #[cfg(any(unix, test))]
 mod instrumentation;
+#[cfg(unix)]
+mod interactive;
 mod migration;
 #[cfg(unix)]
 mod monthly_workload;
@@ -66,6 +68,8 @@ mod soak;
 #[cfg(unix)]
 mod sqlite_baseline;
 #[cfg(unix)]
+mod study_soak;
+#[cfg(unix)]
 mod study_upgrade;
 #[cfg(unix)]
 mod supervise;
@@ -98,6 +102,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Run authenticated offline/sync rounds on macOS and Docker Linux.
+    #[cfg(unix)]
+    StudyPeerSoak(study_soak::Options),
     /// Run the coordinated pre-ALPN StudyProgress upgrade qualification.
     #[cfg(unix)]
     StudyCliUpgrade(study_upgrade::Options),
@@ -274,6 +281,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::StudyPeerSoak(options) => study_soak::run(&run, options),
         #[cfg(unix)]
         Task::StudyCliUpgrade(options) => study_upgrade::run(&run, options),
         #[cfg(unix)]

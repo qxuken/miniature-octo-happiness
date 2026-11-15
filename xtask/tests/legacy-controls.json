@@ -24,7 +24,8 @@
     "test_soak.py",
     "test_snapshot_cli_upgrade.py",
     "test_replica_progress.py",
-    "test_study_cli_upgrade.py"
+    "test_study_cli_upgrade.py",
+    "test_study_peer_soak.py"
   ],
   "controls": [
     {
@@ -1473,13 +1474,19 @@
       "path": "test_study_peer_soak.py",
       "id": "helper_suite.QualificationOracles.test_converged_state_and_increasing_counts_do_not_replace_covering_ack",
       "source_sha256": "3aa172d78e97db136f557224756628d586f1db99a712f3fa5314c50beaf2a31d",
-      "rust": []
+      "rust": [
+        "study_soak::tests::exact_covering_replies_are_required_across_stable_revisions"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_study_peer_soak.py",
       "id": "helper_suite.QualificationOracles.test_existing_output_and_invalid_workload_reject_before_external_work",
       "source_sha256": "3aa172d78e97db136f557224756628d586f1db99a712f3fa5314c50beaf2a31d",
-      "rust": []
+      "rust": [
+        "study_soak::tests::admission_rejects_existing_outputs_and_invalid_round_bounds"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_windows_consumers.py",
