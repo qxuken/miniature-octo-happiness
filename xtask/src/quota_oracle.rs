@@ -10,25 +10,35 @@ use std::{ffi::OsString, path::Path};
 pub const CHUNK: u64 = 8 * MIB;
 pub const CEILING: u64 = 384 * MIB;
 pub const LOG_BYTES: u64 = MIB;
+pub const EXT4_INODES: u64 = 128;
+pub const MAX_CALIBRATION_INODES: u64 = 2 * EXT4_INODES;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Space {
     Quota,
     Enospc,
     InodeQuota,
+    InodeEnospc,
 }
 impl Space {
     pub fn errno(self) -> i32 {
-        if self == Self::Enospc { 28 } else { 122 }
+        match self {
+            Self::Enospc | Self::InodeEnospc => 28,
+            Self::Quota | Self::InodeQuota => 122,
+        }
+    }
+    pub fn fails_at_create(self) -> bool {
+        matches!(self, Self::InodeQuota | Self::InodeEnospc)
     }
     pub fn profile(self) -> &'static str {
         match self {
             Self::Quota => "quota",
             Self::Enospc => "enospc",
             Self::InodeQuota => "inode-quota",
+            Self::InodeEnospc => "inode-enospc",
         }
     }
     pub fn category(self) -> &'static str {
-        if self == Self::Enospc {
+        if self.errno() == 28 {
             "DiskFull"
         } else {
             "Quota"
@@ -51,7 +61,7 @@ pub fn verify_probe(row: &Value, uid: u32, mode: &str, ceiling: u64, space: Spac
         let bytes = number(row, field)?;
         ensure!(
             space == Space::Enospc || bytes > 16 * MIB,
-            "global space too low to distinguish quota"
+            "global data headroom too low to isolate the limit"
         );
     }
     match mode {
@@ -67,6 +77,21 @@ pub fn verify_probe(row: &Value, uid: u32, mode: &str, ceiling: u64, space: Spac
                 && row["fsynced_bytes"] == 4096
                 && number(row, "global_free_inodes")? > 16,
             "actual inode quota with global inode and data headroom required"
+        ),
+        "inode-exhaust" => ensure!(
+            space == Space::InodeEnospc
+                && row["errno"] == space.errno()
+                && row["fsynced_bytes"] == 4096
+                && number(row, "global_free_inodes")? == 0
+                && (1..=MAX_CALIBRATION_INODES).contains(&number(row, "created")?),
+            "bounded global inode exhaustion with data headroom required"
+        ),
+        "inode-release" => ensure!(
+            space == Space::InodeEnospc
+                && row["removed"] == true
+                && row["before_free_inodes"] == 0
+                && row["global_free_inodes"] == 1,
+            "exactly one global inode must be freed after the reopens"
         ),
         "headroom" => ensure!(
             row["released_bytes"] == CHUNK,
@@ -122,8 +147,8 @@ pub fn maintenance<'a>(
         "invalid maintenance expectation"
     );
     let expected = match mode {
-        "space-fail" if space == Space::InodeQuota => {
-            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":"Quota","raw":122,"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
+        "space-fail" if space.fails_at_create() => {
+            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
         }
         "space-fail" => {
             let partial = number(row, "partial_bytes")?;
@@ -134,7 +159,7 @@ pub fn maintenance<'a>(
             );
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":row["native_operation"],"partial_bytes":partial,"source_unchanged":true,"backup_unchanged":true})
         }
-        "space-retry" if space == Space::InodeQuota => {
+        "space-retry" if space.fails_at_create() => {
             json!({"stage":"retry","operation":label,"pid":pid,"no_partial":true,"matches_backup":true})
         }
         "space-retry" => {
@@ -194,18 +219,14 @@ pub fn exact_mount(output: &str, mount: &Path, device: &str) -> Result<Value> {
     );
     Ok(rows[0].clone())
 }
-pub fn formatter(executable: &Path, image: &Path) -> Vec<OsString> {
+pub fn formatter(executable: &Path, image: &Path, space: Space) -> Vec<OsString> {
     let mut args = vec![path(executable)];
-    args.extend(cmd([
-        "-t",
-        "ext4",
-        "-q",
-        "-F",
-        "-O",
-        "quota",
-        "-E",
-        "quotatype=usrquota",
-    ]));
+    args.extend(cmd(["-t", "ext4", "-q", "-F", "-O"]));
+    if space == Space::InodeEnospc {
+        args.extend(cmd(["^quota", "-N", &EXT4_INODES.to_string()]));
+    } else {
+        args.extend(cmd(["quota", "-E", "quotatype=usrquota"]));
+    }
     args.push(path(image));
     args
 }
@@ -228,7 +249,8 @@ mod tests {
         assert_eq!(
             formatter(
                 Path::new("/usr/sbin/mke2fs"),
-                Path::new("/owned/image.ext4")
+                Path::new("/owned/image.ext4"),
+                Space::Quota
             ),
             cmd([
                 "/usr/sbin/mke2fs",
@@ -240,6 +262,25 @@ mod tests {
                 "quota",
                 "-E",
                 "quotatype=usrquota",
+                "/owned/image.ext4"
+            ])
+        );
+        assert_eq!(
+            formatter(
+                Path::new("/usr/sbin/mke2fs"),
+                Path::new("/owned/image.ext4"),
+                Space::InodeEnospc
+            ),
+            cmd([
+                "/usr/sbin/mke2fs",
+                "-t",
+                "ext4",
+                "-q",
+                "-F",
+                "-O",
+                "^quota",
+                "-N",
+                "128",
                 "/owned/image.ext4"
             ])
         );
@@ -347,6 +388,69 @@ mod tests {
     }
     fn failure(space: Space) -> Value {
         json!({"stage":"fail","operation":"backup","pid":12,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Write","partial_bytes":8*MIB,"source_unchanged":true,"backup_unchanged":true})
+    }
+    #[test]
+    fn global_inode_exhaustion_requires_zero_inodes_data_headroom_and_enospc() {
+        let space = Space::InodeEnospc;
+        let full = json!({"mode":"inode-exhaust","pid":42,"identity":identity(UID),"global_free_bytes":32*MIB,"available_bytes":32*MIB,"errno":28,"global_free_inodes":0,"created":1,"fsynced_bytes":4096});
+        verify_probe(&full, UID, "inode-exhaust", CEILING, space).unwrap();
+        for (key, value) in [
+            ("global_free_inodes", json!(1)),
+            ("available_bytes", json!(0)),
+            ("errno", json!(122)),
+            ("created", json!(MAX_CALIBRATION_INODES + 1)),
+        ] {
+            assert!(
+                verify_probe(
+                    &mutate(&full, key, value),
+                    UID,
+                    "inode-exhaust",
+                    CEILING,
+                    space
+                )
+                .is_err()
+            );
+        }
+        let released = json!({"mode":"inode-release","pid":43,"identity":identity(UID),"global_free_bytes":32*MIB,"available_bytes":32*MIB,"before_free_inodes":0,"global_free_inodes":1,"removed":true});
+        verify_probe(&released, UID, "inode-release", CEILING, space).unwrap();
+        assert!(
+            verify_probe(
+                &mutate(&released, "global_free_inodes", json!(2)),
+                UID,
+                "inode-release",
+                CEILING,
+                space
+            )
+            .is_err()
+        );
+        let failure = json!({"stage":"fail","operation":"backup","pid":44,"error":14,"category":"DiskFull","raw":28,"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true});
+        let completion = resource_oracle::completion("space-fail", SOURCE);
+        maintenance(
+            &[failure.clone(), completion.clone()],
+            "space-fail",
+            "backup",
+            SOURCE,
+            space,
+            44,
+        )
+        .unwrap();
+        for (key, value) in [
+            ("native_operation", json!("Write")),
+            ("raw", json!(122)),
+            ("inventory_unchanged", json!(false)),
+        ] {
+            assert!(
+                maintenance(
+                    &[mutate(&failure, key, value), completion.clone()],
+                    "space-fail",
+                    "backup",
+                    SOURCE,
+                    space,
+                    44
+                )
+                .is_err()
+            );
+        }
     }
     #[test]
     fn inode_quota_needs_a_create_error_with_no_partial_and_independent_headroom() {

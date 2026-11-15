@@ -66,14 +66,17 @@ pub(super) fn compact_copy(
 pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::OsString]) {
     let kind = std::env::var("WEEKEND_PRIVATE_MAINTENANCE").unwrap();
     #[cfg(unix)]
-    assert!(matches!(kind.as_str(), "enospc" | "quota" | "inode-quota"));
+    assert!(matches!(
+        kind.as_str(),
+        "enospc" | "quota" | "inode-quota" | "inode-enospc"
+    ));
     #[cfg(windows)]
     assert!(matches!(kind.as_str(), "ntfs-enospc" | "ntfs-quota"));
     #[cfg(windows)]
     if kind == "ntfs-quota" {
         quota_token::set_copy_owner().expect("set quota owner in the fixture token");
     }
-    let inode = kind == "inode-quota";
+    let inode = matches!(kind.as_str(), "inode-quota" | "inode-enospc");
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
@@ -131,7 +134,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             let native = failure.native.unwrap();
             let errno = match kind.as_str() {
                 "quota" | "inode-quota" => 122,
-                "enospc" => 28,
+                "enospc" | "inode-enospc" => 28,
                 "ntfs-enospc" => 112,
                 "ntfs-quota" => std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
                     .unwrap()

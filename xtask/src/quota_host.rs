@@ -3,7 +3,7 @@ use crate::{
     artifact_trace::{inventory, nonce},
     assurance::{self, Campaign},
     quota_oracle::{self, CEILING, CHUNK, LOG_BYTES, Space},
-    resource_oracle::{self, MIB},
+    resource_oracle::{self, MIB, number},
     supervise::{self, Request},
     support::{Run, cmd, path, sha},
     toolchain,
@@ -49,6 +49,9 @@ pub struct Options {
     /// Exhaust the user inode quota during maintenance, with no block quota.
     #[arg(long, requires = "maintenance")]
     pub inode_quota: bool,
+    /// Exhaust all available inodes on a private ext4 filesystem with no quota.
+    #[arg(long, requires = "maintenance", conflicts_with = "inode_quota")]
+    pub inode_enospc: bool,
 }
 #[derive(Debug)]
 struct Unsupported(String);
@@ -95,9 +98,10 @@ fn command_context(base: &Path, source: &str) -> Result<Run> {
     run.env.insert("HOME".into(), "/root".into());
     Ok(run)
 }
-fn support_tools(c: &Campaign<'_>) -> Result<BTreeMap<String, PathBuf>> {
+fn support_tools(c: &Campaign<'_>, inode_enospc: bool) -> Result<BTreeMap<String, PathBuf>> {
     HOST_TOOLS
         .into_iter()
+        .filter(|&name| !inode_enospc || name != "setquota")
         .map(|name| {
             Ok((
                 name.into(),
@@ -438,7 +442,7 @@ impl Calls<'_, '_> {
             cleanup,
         )?)
     }
-    fn verify_mount(&mut self, s: &Scratch, device: &str) -> Result<()> {
+    fn verify_mount(&mut self, s: &Scratch, device: &str) -> Result<Value> {
         s.ownership()?;
         ensure!(
             self.loops(s, false)? == [device],
@@ -448,8 +452,7 @@ impl Calls<'_, '_> {
             &self.mount(s, false)?.context("private mount absent")?,
             &s.mount,
             device,
-        )?;
-        Ok(())
+        )
     }
 }
 fn mount_state(o: Output) -> Result<Option<String>> {
@@ -758,11 +761,12 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         "requires Linux root controller; elevate only this entrypoint"
     );
     let run = command_context(&run.root, &opts.source)?;
-    let mut campaign = Campaign::detached(
-        &run,
-        &output,
-        "native kernel quotas on owned private Linux ext4",
-    )?;
+    let description = if opts.inode_enospc {
+        "native global inode exhaustion on owned private Linux ext4"
+    } else {
+        "native kernel quotas on owned private Linux ext4"
+    };
+    let mut campaign = Campaign::detached(&run, &output, description)?;
     fs::set_permissions(&campaign.output, fs::Permissions::from_mode(0o700))?;
     campaign.evidence["verified"] = json!(false);
     campaign.evidence["status"] = json!("running");
@@ -778,7 +782,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let source_files = source_binding(call.c, &opts.source)?;
         let tools = qualification_files(&run.root, opts.maintenance)?;
         call.c.evidence["tools_sha256"] = json!(tools);
-        call.tools = support_tools(call.c)?;
+        call.tools = support_tools(call.c, opts.inode_enospc)?;
         let hashes = executable_hashes(&call.tools)?;
         call.c.evidence["executables"] = hashes.clone();
         scratch = Some(Scratch::create()?);
@@ -794,8 +798,22 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         call.c.evidence["image_identity"] = json!(s.image_identity);
         let kernel = call.exec(cmd(["uname", "-a"]))?;
         call.c.evidence["kernel"] = json!(kernel.stdout);
+        let (hard, inodes, space) = if opts.inode_enospc {
+            (0, 0, Space::InodeEnospc)
+        } else if opts.inode_quota {
+            // The guest owns the directory, source, backup and one ballast inode.
+            (0, 4, Space::InodeQuota)
+        } else if opts.maintenance {
+            (256 * 1024, 0, Space::Quota)
+        } else {
+            (4096, 0, Space::Quota)
+        };
         let device = (|| -> Result<String> {
-            call.exec(quota_oracle::formatter(&call.tools["mkfs.ext4"], &s.image))?;
+            call.exec(quota_oracle::formatter(
+                &call.tools["mkfs.ext4"],
+                &s.image,
+                space,
+            ))?;
             let dev = call
                 .exec(vec![
                     "losetup".into(),
@@ -816,7 +834,11 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
                 "-t".into(),
                 "ext4".into(),
                 "-o".into(),
-                "rw,usrquota,nodev,nosuid,noexec".into(),
+                if opts.inode_enospc {
+                    "rw,nodev,nosuid,noexec".into()
+                } else {
+                    "rw,usrquota,nodev,nosuid,noexec".into()
+                },
                 dev.clone().into(),
                 path(&s.mount),
             ])?;
@@ -827,30 +849,35 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let uid = guest_uid()?;
         let data = s.mount.join("data");
         private_directory(&data, uid)?;
-        let (hard, inodes, space) = if opts.inode_quota {
-            // The guest owns the directory, source, backup and one ballast inode.
-            (0, 4, Space::InodeQuota)
-        } else if opts.maintenance {
-            (256 * 1024, 0, Space::Quota)
+        let mount = call.verify_mount(s, &device)?;
+        if opts.inode_enospc {
+            let options = mount["options"]
+                .as_str()
+                .context("missing ext4 mount options")?;
+            ensure!(
+                !options.split(',').any(|option| option.contains("quota")),
+                "global inode exhaustion requires an ext4 mount without quotas"
+            );
+            call.c.evidence["inode_mount"] = mount;
+            private_directory(&s.mount.join("inode-ballast"), uid)?;
+            call.c.evidence["inode_limit"] = json!({"uid":uid,"gid":uid,"type":"filesystem","requested_inodes":quota_oracle::EXT4_INODES,"quota_enabled":false});
         } else {
-            (4096, 0, Space::Quota)
-        };
-        call.c.evidence["quota"] = json!({"uid":uid,"gid":uid,"type":"user","soft_kib":hard,"hard_kib":hard,"inode_soft":inodes,"inode_hard":inodes,"image_bytes":bytes});
-        call.verify_mount(s, &device)?;
-        let id = uid.to_string();
-        let cap = hard.to_string();
-        let inode_cap = inodes.to_string();
-        call.exec(cmd([
-            OsStr::new("setquota"),
-            OsStr::new("-u"),
-            OsStr::new(&id),
-            OsStr::new(&cap),
-            OsStr::new(&cap),
-            OsStr::new(&inode_cap),
-            OsStr::new(&inode_cap),
-            s.mount.as_os_str(),
-        ]))
-        .map_err(|e| unsupported(e, "private quota configuration unavailable"))?;
+            call.c.evidence["quota"] = json!({"uid":uid,"gid":uid,"type":"user","soft_kib":hard,"hard_kib":hard,"inode_soft":inodes,"inode_hard":inodes,"image_bytes":bytes});
+            let id = uid.to_string();
+            let cap = hard.to_string();
+            let inode_cap = inodes.to_string();
+            call.exec(cmd([
+                OsStr::new("setquota"),
+                OsStr::new("-u"),
+                OsStr::new(&id),
+                OsStr::new(&cap),
+                OsStr::new(&cap),
+                OsStr::new(&inode_cap),
+                OsStr::new(&inode_cap),
+                s.mount.as_os_str(),
+            ]))
+            .map_err(|e| unsupported(e, "private quota configuration unavailable"))?;
+        }
         let runner = s.directory.join("xtask-guest");
         let current = dunce::canonicalize(std::env::current_exe()?)?;
         let runner_hash = copy_executable(&current, &runner, MAX_RUNNER_BYTES)?;
@@ -1069,24 +1096,42 @@ impl Guest {
         for op in ["backup", "restore", "compact"] {
             let a = sha(&original)?;
             let b = sha(&backup)?;
-            let (full, headroom) = if space == Space::InodeQuota {
-                (
+            let (full, headroom) = match space {
+                Space::InodeQuota => (
                     self.probe(c, "inode-fill", CEILING, space, None)?,
                     Value::Null,
-                )
-            } else {
-                (
+                ),
+                Space::InodeEnospc => (
+                    self.probe(c, "inode-exhaust", CEILING, space, None)?,
+                    Value::Null,
+                ),
+                Space::Quota | Space::Enospc => (
                     self.probe(c, "fill", CEILING, space, None)?,
                     self.probe(c, "headroom", CEILING, space, None)?,
-                )
+                ),
             };
-            let fail = data.phase(c, "space-fail", op, &original, false)?;
-            if space == Space::InodeQuota {
+            if space == Space::InodeEnospc {
+                let created = number(&full, "created")?;
                 ensure!(
-                    self.data_names()?
-                        == ["backup.wdb", "ballast", "source.wdb"]
-                            .map(OsString::from)
-                            .into(),
+                    (created > 1 && op == "backup") || (created == 1 && op != "backup"),
+                    "initial inode fill or one-inode refill not proven"
+                );
+            }
+            let fail = data.phase(c, "space-fail", op, &original, false)?;
+            if space.fails_at_create() {
+                let expected: BTreeSet<_> = if space == Space::InodeQuota {
+                    ["backup.wdb", "ballast", "source.wdb"]
+                        .into_iter()
+                        .map(OsString::from)
+                        .collect()
+                } else {
+                    ["backup.wdb", "source.wdb"]
+                        .into_iter()
+                        .map(OsString::from)
+                        .collect()
+                };
+                ensure!(
+                    self.data_names()? == expected,
                     "inode refusal left an unexpected directory entry"
                 );
             }
@@ -1108,7 +1153,12 @@ impl Guest {
                 &backup,
                 false,
             )?;
-            let remove = self.probe(c, "remove", CEILING, space, None)?;
+            let release = if space == Space::InodeEnospc {
+                "inode-release"
+            } else {
+                "remove"
+            };
+            let remove = self.probe(c, release, CEILING, space, None)?;
             let control = self.probe(c, "write-control", CEILING, space, None)?;
             data.phase(c, "space-retry", op, &original, false)?;
             data.phase(
@@ -1121,7 +1171,7 @@ impl Guest {
             let retried = if op == "compact" {
                 original.clone()
             } else {
-                let prefix = if space == Space::InodeQuota {
+                let prefix = if space.fails_at_create() {
                     "failed"
                 } else {
                     "retry"
@@ -1485,6 +1535,7 @@ mod tests {
                 probe_only: false,
                 maintenance: false,
                 inode_quota: false,
+                inode_enospc: false,
             };
             assert!(
                 super::run(&run, opts)

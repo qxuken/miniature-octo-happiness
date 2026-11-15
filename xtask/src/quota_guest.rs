@@ -1,6 +1,6 @@
 //! Unprivileged Linux calibrator, launched under setpriv by an owned controller.
 use crate::{
-    quota_oracle::{self, CEILING, CHUNK},
+    quota_oracle::{self, CEILING, CHUNK, MAX_CALIBRATION_INODES},
     resource_oracle::MIB,
     support::sha,
 };
@@ -22,6 +22,8 @@ pub enum Mode {
     Identity,
     Fill,
     InodeFill,
+    InodeExhaust,
+    InodeRelease,
     Remove,
     WriteControl,
     Headroom,
@@ -33,6 +35,8 @@ impl Mode {
             Self::Identity => "identity",
             Self::Fill => "fill",
             Self::InodeFill => "inode-fill",
+            Self::InodeExhaust => "inode-exhaust",
+            Self::InodeRelease => "inode-release",
             Self::Remove => "remove",
             Self::WriteControl => "write-control",
             Self::Headroom => "headroom",
@@ -134,6 +138,20 @@ pub fn space(path: &Path) -> Result<(u64, u64, u64)> {
         bytes(info.f_bavail, info.f_frsize)?,
     ))
 }
+
+fn inode_ballast(data: &Path, uid: u32) -> Result<PathBuf> {
+    let dir = data
+        .parent()
+        .context("missing private mount")?
+        .join("inode-ballast");
+    let info = fs::symlink_metadata(&dir)?;
+    ensure!(
+        info.is_dir() && info.uid() == uid && info.dev() == fs::metadata(data)?.dev(),
+        "unowned or off-volume inode ballast directory"
+    );
+    Ok(dir)
+}
+
 pub fn run(opts: Options) -> Result<()> {
     ensure!(
         (CHUNK..=CEILING).contains(&opts.ceiling),
@@ -175,6 +193,53 @@ pub fn run(opts: Options) -> Result<()> {
             ensure!(fs::read(&ballast)? == bytes, "existing inode write changed");
             row["errno"] = json!(err.raw_os_error());
             row["fsynced_bytes"] = json!(bytes.len());
+            row["global_free_inodes"] = json!(statvfs(data)?.f_ffree);
+        }
+        Mode::InodeExhaust => {
+            let dir = inode_ballast(data, opts.uid)?;
+            let created = statvfs(data)?.f_ffree;
+            ensure!(
+                (1..=MAX_CALIBRATION_INODES).contains(&created),
+                "private filesystem inode inventory is outside the calibration bound"
+            );
+            let slot = dir.join("slot");
+            let mut file = output(&slot)?;
+            for n in 1..created {
+                output(&dir.join(format!("ballast-{n}")))?;
+            }
+            let denied = dir.join("calibration-inode");
+            let err = match output(&denied) {
+                Err(err) => err,
+                Ok(extra) => {
+                    drop(extra);
+                    fs::remove_file(denied)?;
+                    anyhow::bail!("global inode limit failed to reject file creation");
+                }
+            };
+            let bytes = [0x5a; 4096];
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+            File::open(&dir)?.sync_all()?;
+            ensure!(fs::read(&slot)? == bytes, "existing inode write changed");
+            row["created"] = json!(created);
+            row["errno"] = json!(err.raw_os_error());
+            row["fsynced_bytes"] = json!(bytes.len());
+            row["global_free_inodes"] = json!(statvfs(data)?.f_ffree);
+        }
+        Mode::InodeRelease => {
+            let dir = inode_ballast(data, opts.uid)?;
+            let slot = dir.join("slot");
+            let info = fs::symlink_metadata(&slot)?;
+            ensure!(
+                info.is_file() && info.uid() == opts.uid && info.len() == 4096,
+                "owned inode ballast slot required"
+            );
+            let before = statvfs(data)?.f_ffree;
+            ensure!(before == 0, "filesystem gained a free inode before release");
+            fs::remove_file(slot)?;
+            File::open(&dir)?.sync_all()?;
+            row["removed"] = json!(true);
+            row["before_free_inodes"] = json!(before);
             row["global_free_inodes"] = json!(statvfs(data)?.f_ffree);
         }
         Mode::Headroom => {

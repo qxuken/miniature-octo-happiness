@@ -523,6 +523,11 @@ jobs:
           sudo "$PWD/target/xtask/release/xtask" quota --maintenance --inode-quota --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-inode-quota"
           sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, phase: .failure.native_operation, free_inodes: .full.global_free_inodes}], cleanup: .cleanup.verified}' target/maintenance-inode-quota/evidence.json
           sudo sha256sum target/maintenance-inode-quota/evidence.json
+      - name: Exhaust all private ext4 inodes and retry after releasing one
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --inode-enospc --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-inode-enospc"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, phase: .failure.native_operation, free_inodes: .full.global_free_inodes, available_bytes: .full.available_bytes, released_free_inodes: .ballast_removed.global_free_inodes}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified}' target/maintenance-inode-enospc/evidence.json
+          sudo sha256sum target/maintenance-inode-enospc/evidence.json
       - name: Transfer private evidence ownership for upload
         if: always()
         run: |
@@ -535,6 +540,9 @@ jobs:
           if test -d target/maintenance-inode-quota; then
             sudo chown -R --reference=. target/maintenance-inode-quota
           fi
+          if test -d target/maintenance-inode-enospc; then
+            sudo chown -R --reference=. target/maintenance-inode-enospc
+          fi
       - name: Save quota test evidence (no crate or container publication)
         if: always()
         uses: actions/upload-artifact@v7
@@ -546,6 +554,7 @@ jobs:
             target/quota-host/
             target/maintenance-quota/
             target/maintenance-inode-quota/
+            target/maintenance-inode-enospc/
             target/maintenance-quota-build/release/weekend-compound-resource
             target/quota-build/release/examples/native_quota
   sanitizers:
