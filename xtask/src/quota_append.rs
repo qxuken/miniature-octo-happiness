@@ -1,4 +1,4 @@
-//! Independent append oracle shared by real Linux and Windows quota fixtures.
+//! Independent append oracle for real Linux and Windows storage faults.
 use anyhow::{Result, ensure};
 use serde_json::{Value, json};
 fn rows(revision: u64) -> Value {
@@ -16,8 +16,14 @@ fn rows(revision: u64) -> Value {
     json!([{"key_hex":"7061796c6f6164","kind":"bytes","bytes_hex":bytes},{"key_hex":"726f77","kind":"integer","integer":if new{18}else{17}}])
 }
 pub(super) fn expected(source: &str, stage: &str, revision: u64, pid: u32, raw: i32) -> Value {
-    let fail = stage == "fail";
-    json!({"stage":stage,"source":source,"features":0,"pid":pid,"current_revision":revision,"retained_id":1,"retained_revision":2,"commit_error":if fail{14}else{0},"native_category":if !fail{"None"}else if raw==112{"DiskFull"}else{"Quota"},"native_raw_code":fail.then_some(raw),"native_operation":if fail{"Write"}else{"None"},"terminal_error":if fail{11}else{0},"recovery_required":fail,"blocked_write_error":if fail{16}else{0},"current_rows":rows(revision),"retained_rows":rows(3)})
+    let (category, operation) = match (stage, raw) {
+        ("fail-sync", _) => ("Other", "Sync"),
+        ("fail", 112) => ("DiskFull", "Write"),
+        ("fail", _) => ("Quota", "Write"),
+        _ => ("None", "None"),
+    };
+    let fail = matches!(stage, "fail" | "fail-sync");
+    json!({"stage":stage,"source":source,"features":0,"pid":pid,"current_revision":revision,"retained_id":1,"retained_revision":2,"commit_error":if fail{14}else{0},"native_category":category,"native_raw_code":fail.then_some(raw),"native_operation":operation,"terminal_error":if fail{11}else{0},"recovery_required":fail,"blocked_write_error":if fail{16}else{0},"current_rows":rows(revision),"retained_rows":rows(3)})
 }
 pub fn verify(
     row: &Value,
@@ -28,10 +34,11 @@ pub fn verify(
     raw: i32,
 ) -> Result<()> {
     ensure!(
-        matches!(stage, "seed" | "fail" | "inspect" | "retry")
+        ((raw == 5 && matches!(stage, "seed" | "fail-sync" | "inspect" | "retry"))
+            || (matches!(raw, 112 | 122 | 1295)
+                && matches!(stage, "seed" | "fail" | "inspect" | "retry")))
             && matches!(revision, 3 | 4)
-            && pid > 0
-            && matches!(raw, 112 | 122 | 1295),
+            && pid > 0,
         "invalid fixture expectation"
     );
     let expected = expected(source, stage, revision, pid, raw);
@@ -60,5 +67,21 @@ mod tests {
         assert!(verify(&row, "source", "fail", 3, 42, 112).is_err());
         row["native_raw_code"] = json!(1295);
         assert!(verify(&row, "source", "fail", 3, 42, 1295).is_ok());
+    }
+
+    #[test]
+    fn delayed_writeback_requires_sync_eio_and_a_poisoned_writer() {
+        let row = expected("source", "fail-sync", 3, 42, 5);
+        verify(&row, "source", "fail-sync", 3, 42, 5).unwrap();
+        assert!(verify(&row, "source", "fail", 3, 42, 5).is_err());
+        for (key, value) in [
+            ("native_operation", json!("Write")),
+            ("native_raw_code", json!(28)),
+            ("recovery_required", json!(false)),
+        ] {
+            let mut changed = row.clone();
+            changed[key] = value;
+            assert!(verify(&changed, "source", "fail-sync", 3, 42, 5).is_err());
+        }
     }
 }

@@ -177,7 +177,12 @@ mod native {
         );
         let args: Vec<_> = std::env::args_os().collect();
         let mode = args.get(1).and_then(|s| s.to_str()).expect("command");
-        assert!(matches!(mode, "seed" | "fail" | "inspect" | "retry"));
+        assert!(matches!(
+            mode,
+            "seed" | "fail" | "fail-sync" | "inspect" | "retry"
+        ));
+        #[cfg(windows)]
+        assert_ne!(mode, "fail-sync");
         assert_eq!(args.len(), if mode == "inspect" { 4 } else { 3 });
         let path = Path::new(&args[2]);
         let db = if mode == "seed" {
@@ -200,16 +205,18 @@ mod native {
                 assert_eq!(db.retain_snapshot(&baseline), Ok(RETAINED_ID));
                 3
             }
-            "fail" => {
+            "fail" | "fail-sync" => {
                 checked_state(&db, 3, false);
                 let mut tx = db.begin();
                 stage(&mut tx, &db, db.collection_id(1), true);
                 let failed = tx.commit_with_diagnostics().unwrap_err();
                 assert_eq!(failed.error, Error::Io);
                 assert_eq!(failed.verification, None);
-                let native = failed.native.expect("real quota error has native context");
+                let native = failed
+                    .native
+                    .expect("real storage error has native context");
                 #[cfg(target_os = "linux")]
-                let expected_errno = 122;
+                let expected_errno = if mode == "fail-sync" { 5 } else { 122 };
                 #[cfg(windows)]
                 let expected_errno = {
                     let raw = std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
@@ -219,14 +226,19 @@ mod native {
                     assert!(matches!(raw, 112 | 1295));
                     raw
                 };
-                let category = if expected_errno == 112 {
-                    NativeIoCategory::DiskFull
-                } else {
-                    NativeIoCategory::Quota
+                let category = match expected_errno {
+                    5 => NativeIoCategory::Other,
+                    112 => NativeIoCategory::DiskFull,
+                    _ => NativeIoCategory::Quota,
                 };
                 assert_eq!(native.category, category);
                 assert_eq!(native.raw_os_error, Some(expected_errno));
-                assert_eq!(native.operation, NativeIoOperation::Write);
+                let operation = if mode == "fail-sync" {
+                    NativeIoOperation::Sync
+                } else {
+                    NativeIoOperation::Write
+                };
+                assert_eq!(native.operation, operation);
                 assert_eq!(tx.state(), TransactionState::Aborted);
                 let terminal = tx.commit().unwrap_err();
                 assert_eq!(terminal, Error::Closed);
@@ -260,7 +272,7 @@ mod native {
             }
             _ => unreachable!(),
         };
-        let state = checked_state(&db, revision, mode == "fail");
+        let state = checked_state(&db, revision, matches!(mode, "fail" | "fail-sync"));
         emit(mode, state, failure);
     }
 }

@@ -471,7 +471,7 @@ jobs:
             target/helper-controls/
             !target/helper-controls/cargo-target/**
   linux-quota:
-    name: Native Linux quota exhaustion and recovery
+    name: Native Linux quota, exhaustion and writeback recovery
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -481,10 +481,10 @@ jobs:
       - name: Install filesystem quota tools and record their versions
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends quota e2fsprogs util-linux
+          sudo apt-get install --yes --no-install-recommends quota e2fsprogs util-linux dmsetup
           mkdir -p target/quota-host
           uname -a > target/quota-host/kernel.txt
-          dpkg-query -W quota e2fsprogs util-linux > target/quota-host/packages.txt
+          dpkg-query -W quota e2fsprogs util-linux dmsetup > target/quota-host/packages.txt
           cat /etc/os-release > target/quota-host/os-release.txt
       - name: Build the private Rust quota controller without privileges
         run: |
@@ -509,6 +509,11 @@ jobs:
           sudo "$PWD/target/xtask/release/xtask" quota --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-quota"
           sudo jq -ce 'select(.verified) | {source: .source_binding.source, calibrated_errno: .calibration_full.errno, revisions: [.results[] | .current_revision], cleanup: .cleanup.verified}' target/native-quota/evidence.json
           sudo sha256sum target/native-quota/evidence.json
+      - name: Fail a real ext4 append at writeback and reopen after remount
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --writeback --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-writeback"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, fault: .writeback_extent, results: [.results[] | {stage, current_revision, retained_revision, native_operation, native_raw_code}], cleanup: .cleanup.verified, mapper_absent}' target/native-writeback/evidence.json
+          sudo sha256sum target/native-writeback/evidence.json
       - name: Build the near-cap maintenance fixture
         run: |
           cargo +1.99.1 build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-quota-build
@@ -534,6 +539,9 @@ jobs:
           if test -d target/native-quota; then
             sudo chown -R --reference=. target/native-quota
           fi
+          if test -d target/native-writeback; then
+            sudo chown -R --reference=. target/native-writeback
+          fi
           if test -d target/maintenance-quota; then
             sudo chown -R --reference=. target/maintenance-quota
           fi
@@ -551,6 +559,7 @@ jobs:
           if-no-files-found: warn
           path: |
             target/native-quota/
+            target/native-writeback/
             target/quota-host/
             target/maintenance-quota/
             target/maintenance-inode-quota/

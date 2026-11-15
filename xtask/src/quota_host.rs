@@ -1,4 +1,7 @@
 //! Linux-only controller for a privately owned, disposable ext4 quota mount.
+#[path = "quota_writeback.rs"]
+mod writeback;
+
 use crate::{
     artifact_trace::{inventory, nonce},
     assurance::{self, Campaign},
@@ -52,6 +55,9 @@ pub struct Options {
     /// Exhaust all available inodes on a private ext4 filesystem with no quota.
     #[arg(long, requires = "maintenance", conflicts_with = "inode_quota")]
     pub inode_enospc: bool,
+    /// Delay a kernel block error until the local commit's append fsync.
+    #[arg(long, conflicts_with_all = ["maintenance", "probe_only"])]
+    pub writeback: bool,
 }
 #[derive(Debug)]
 struct Unsupported(String);
@@ -98,10 +104,16 @@ fn command_context(base: &Path, source: &str) -> Result<Run> {
     run.env.insert("HOME".into(), "/root".into());
     Ok(run)
 }
-fn support_tools(c: &Campaign<'_>, inode_enospc: bool) -> Result<BTreeMap<String, PathBuf>> {
+fn support_tools(c: &Campaign<'_>, opts: &Options) -> Result<BTreeMap<String, PathBuf>> {
     HOST_TOOLS
         .into_iter()
-        .filter(|&name| !inode_enospc || name != "setquota")
+        .filter(|&name| !(opts.inode_enospc || opts.writeback) || name != "setquota")
+        .chain(
+            opts.writeback
+                .then_some(["dmsetup", "fallocate", "filefrag", "mknod"])
+                .into_iter()
+                .flatten(),
+        )
         .map(|name| {
             Ok((
                 name.into(),
@@ -129,6 +141,8 @@ fn qualification_files(base: &Path, maintenance: bool) -> Result<BTreeMap<String
         "xtask/src/quota_host.rs",
         "xtask/src/quota_guest.rs",
         "xtask/src/quota_oracle.rs",
+        "xtask/src/quota_append.rs",
+        "xtask/src/quota_writeback.rs",
         "xtask/src/supervise.rs",
         "xtask/src/assurance.rs",
         "tools/quota/fixture.rs",
@@ -443,6 +457,14 @@ impl Calls<'_, '_> {
         )?)
     }
     fn verify_mount(&mut self, s: &Scratch, device: &str) -> Result<Value> {
+        self.verify_mount_source(s, device, device)
+    }
+    fn verify_mount_source(
+        &mut self,
+        s: &Scratch,
+        device: &str,
+        mount_source: &str,
+    ) -> Result<Value> {
         s.ownership()?;
         ensure!(
             self.loops(s, false)? == [device],
@@ -451,7 +473,7 @@ impl Calls<'_, '_> {
         quota_oracle::exact_mount(
             &self.mount(s, false)?.context("private mount absent")?,
             &s.mount,
-            device,
+            mount_source,
         )
     }
 }
@@ -761,7 +783,9 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         "requires Linux root controller; elevate only this entrypoint"
     );
     let run = command_context(&run.root, &opts.source)?;
-    let description = if opts.inode_enospc {
+    let description = if opts.writeback {
+        "native delayed writeback error on owned private Linux ext4"
+    } else if opts.inode_enospc {
         "native global inode exhaustion on owned private Linux ext4"
     } else {
         "native kernel quotas on owned private Linux ext4"
@@ -772,6 +796,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
     campaign.evidence["status"] = json!("running");
     campaign.save()?;
     let mut scratch = None;
+    let mut mapping = None;
     let mut call = Calls {
         c: &mut campaign,
         tools: BTreeMap::new(),
@@ -782,7 +807,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let source_files = source_binding(call.c, &opts.source)?;
         let tools = qualification_files(&run.root, opts.maintenance)?;
         call.c.evidence["tools_sha256"] = json!(tools);
-        call.tools = support_tools(call.c, opts.inode_enospc)?;
+        call.tools = support_tools(call.c, &opts)?;
         let hashes = executable_hashes(&call.tools)?;
         call.c.evidence["executables"] = hashes.clone();
         scratch = Some(Scratch::create()?);
@@ -809,11 +834,12 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             (4096, 0, Space::Quota)
         };
         let device = (|| -> Result<String> {
-            call.exec(quota_oracle::formatter(
-                &call.tools["mkfs.ext4"],
-                &s.image,
-                space,
-            ))?;
+            let format = if opts.writeback {
+                writeback::formatter(&call.tools["mkfs.ext4"], &s.image)
+            } else {
+                quota_oracle::formatter(&call.tools["mkfs.ext4"], &s.image, space)
+            };
+            call.exec(format)?;
             let dev = call
                 .exec(vec![
                     "losetup".into(),
@@ -829,6 +855,12 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
                 call.loops(s, false)? == [dev.as_str()],
                 "attached loop identity mismatch"
             );
+            if opts.writeback {
+                mapping = Some(writeback::Mapping::new(s, &dev, bytes)?);
+                let map = mapping.as_ref().unwrap();
+                map.create(&mut call, s)?;
+                return Ok(dev);
+            }
             call.exec(vec![
                 "mount".into(),
                 "-t".into(),
@@ -849,8 +881,10 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let uid = guest_uid()?;
         let data = s.mount.join("data");
         private_directory(&data, uid)?;
-        let mount = call.verify_mount(s, &device)?;
-        if opts.inode_enospc {
+        if let Some(map) = &mapping {
+            call.c.evidence["writeback_mount"] = map.verify_mount(&mut call, s)?;
+        } else if opts.inode_enospc {
+            let mount = call.verify_mount(s, &device)?;
             let options = mount["options"]
                 .as_str()
                 .context("missing ext4 mount options")?;
@@ -862,6 +896,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             private_directory(&s.mount.join("inode-ballast"), uid)?;
             call.c.evidence["inode_limit"] = json!({"uid":uid,"gid":uid,"type":"filesystem","requested_inodes":quota_oracle::EXT4_INODES,"quota_enabled":false});
         } else {
+            call.verify_mount(s, &device)?;
             call.c.evidence["quota"] = json!({"uid":uid,"gid":uid,"type":"user","soft_kib":hard,"hard_kib":hard,"inode_soft":inodes,"inode_hard":inodes,"image_bytes":bytes});
             let id = uid.to_string();
             let cap = hard.to_string();
@@ -895,7 +930,9 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         call.c.evidence["fixture_sha256"] = json!(fixture_hash);
         call.c.evidence["guest_identity"] =
             guest.probe(&mut call, "identity", CHUNK, space, None)?;
-        if opts.maintenance {
+        if let Some(map) = &mut mapping {
+            map.qualify(&mut call, s, &guest, &opts.source)?;
+        } else if opts.maintenance {
             let seed = s.directory.join("seed-parent");
             private_directory(&seed, uid)?;
             guest.maintenance(&mut call, &opts.source, space, &seed.join("seed"))?;
@@ -918,7 +955,12 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         );
         Ok(())
     })();
-    let cleanup_result = scratch.as_ref().map(|s| cleanup(&mut call, s));
+    let cleanup_result = scratch.as_ref().map(|s| {
+        if let Some(map) = &mapping {
+            map.retire(&mut call, s)?;
+        }
+        cleanup(&mut call, s)
+    });
     let cleanup_verified = match cleanup_result {
         None => true,
         Some(Ok(proof)) => {
@@ -1536,6 +1578,7 @@ mod tests {
                 maintenance: false,
                 inode_quota: false,
                 inode_enospc: false,
+                writeback: false,
             };
             assert!(
                 super::run(&run, opts)
