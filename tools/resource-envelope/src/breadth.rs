@@ -1,9 +1,19 @@
 //! Default width, depth and write-count limits on one byte-backed store.
 use super::{CORE, MIB, OFFSET, ROOTS, complete, hash, limits, rss_kib, verify_file_bytes};
-use std::{fs, path::Path, time::Instant};
+use std::{
+    fs,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+    thread,
+    time::{Duration, Instant},
+};
 use weekend_db::{
     CollectionId, Database, Error, Snapshot, Transaction, TransactionState, Value,
-    storage::{self, Crash, Fault, IoKind, MAX_IMAGE_BYTES, SimulatedDisk},
+    storage::{self, ByteStore, Crash, Fault, FileStore, IoKind, MAX_IMAGE_BYTES, SimulatedDisk},
 };
 
 const WIDTH: u32 = 4096;
@@ -13,6 +23,25 @@ const FULL_EPOCHS: u64 = 9;
 const FINAL: u64 = 5 + 2 * ROOTS;
 const LEAF: u64 = 0x5749_4445;
 const PROBE_EPOCH: u64 = ROOTS + 1;
+const SHARED: u64 = 0x5348_4152_4544;
+const DISJOINT: std::ops::Range<u32> = 2 * WRITES..3 * WRITES;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Updates {
+    Seed,
+    First,
+    Both,
+}
+impl Updates {
+    fn revision(self) -> u64 {
+        FINAL
+            + match self {
+                Self::Seed => 0,
+                Self::First => 1,
+                Self::Both => 2,
+            }
+    }
+}
 
 fn dag(db: &Database) -> Value {
     let leaf = db.unsigned(LEAF).unwrap();
@@ -123,7 +152,13 @@ fn seed(db: &Database) {
     assert_eq!(db.retain_snapshot(&db.snapshot()), Err(Error::Limit));
 }
 
-fn verify_view(view: &Snapshot<'_>, collection: CollectionId, epoch: u64, digest: &mut u64) {
+fn verify_view(
+    view: &Snapshot<'_>,
+    collection: CollectionId,
+    epoch: u64,
+    updates: Updates,
+    digest: &mut u64,
+) {
     let rows = view.scan(collection).unwrap();
     assert_eq!(rows.len(), WIDTH as usize);
     hash(digest, &view.revision().to_le_bytes());
@@ -132,18 +167,21 @@ fn verify_view(view: &Snapshot<'_>, collection: CollectionId, epoch: u64, digest
         if index != WIDTH - 1 {
             let update = u64::from(index.saturating_sub(WRITES));
             let version = if index < WRITES {
-                if epoch == PROBE_EPOCH {
-                    epoch
-                } else {
-                    epoch.min(FULL_EPOCHS)
-                }
+                epoch.min(FULL_EPOCHS)
             } else if (FULL_EPOCHS + 1..=epoch.min(ROOTS)).contains(&update) {
                 update
             } else {
                 0
             };
+            let expected = if updates != Updates::Seed && index < WRITES {
+                scalar(PROBE_EPOCH, index)
+            } else if updates == Updates::Both && DISJOINT.contains(&index) {
+                SHARED
+            } else {
+                scalar(version, index)
+            };
             let bits = value.as_u64().unwrap();
-            assert_eq!(bits, scalar(version, index));
+            assert_eq!(bits, expected);
             hash(digest, &bits.to_le_bytes());
             continue;
         }
@@ -167,33 +205,52 @@ fn verify_view(view: &Snapshot<'_>, collection: CollectionId, epoch: u64, digest
     }
 }
 
+fn retained_views(db: &Database) -> Vec<Snapshot<'_>> {
+    let ids = db.retained_ids().unwrap();
+    assert!(ids.iter().copied().eq(1..=ROOTS));
+    ids.into_iter()
+        .map(|id| db.retained_snapshot(id).unwrap())
+        .collect()
+}
+
+fn verify_views(
+    current: &Snapshot<'_>,
+    retained: &[Snapshot<'_>],
+    collection: CollectionId,
+    updates: Updates,
+) -> u64 {
+    let mut digest = OFFSET;
+    let revision = updates.revision();
+    assert_eq!(current.revision(), revision);
+    let data_revision = if updates == Updates::Seed {
+        FINAL - 1
+    } else {
+        revision
+    };
+    assert_eq!(current.data_revision(), data_revision);
+    verify_view(current, collection, ROOTS, updates, &mut digest);
+    for (id, view) in (1..=ROOTS).zip(retained) {
+        assert_eq!(view.revision(), 4 + 2 * id);
+        assert_eq!(view.data_revision(), view.revision());
+        verify_view(view, collection, id, Updates::Seed, &mut digest);
+    }
+    digest
+}
+
 fn state(
     phase: &str,
     db: &Database,
-    epoch: u64,
-    elapsed: std::time::Duration,
+    updates: Updates,
+    elapsed: Duration,
     inspected_witness: Option<bool>,
 ) {
-    let collection = db.collection_id(1);
-    let mut digest = OFFSET;
-    let ids = db.retained_ids().unwrap();
-    assert!(ids.iter().copied().eq(1..=ROOTS));
-    let current = db.snapshot();
-    let revision = FINAL + u64::from(epoch == PROBE_EPOCH);
-    assert_eq!(current.revision(), revision);
-    let data_revision = if epoch == PROBE_EPOCH {
-        revision
-    } else {
-        FINAL - 1
-    };
-    assert_eq!(current.data_revision(), data_revision);
-    verify_view(&current, collection, epoch, &mut digest);
-    for id in ids {
-        let view = db.retained_snapshot(id).unwrap();
-        assert_eq!(view.revision(), 4 + 2 * id);
-        assert_eq!(view.data_revision(), view.revision());
-        verify_view(&view, collection, id, &mut digest);
-    }
+    let digest = verify_views(
+        &db.snapshot(),
+        &retained_views(db),
+        db.collection_id(1),
+        updates,
+    );
+    let revision = updates.revision();
     let space = db.storage_space().unwrap();
     println!(
         "{{\"phase\":\"{phase}\",\"revision\":{revision},\"roots\":{ROOTS},\"width\":{WIDTH},\"depth\":{DEPTH},\"digest\":{digest},\"file_bytes\":{},\"elapsed_ns\":{},\"core_peak_bytes\":{},\"rss_kib\":{},\"inspected_witness\":{}}}",
@@ -205,13 +262,13 @@ fn state(
     );
 }
 
-fn recover(phase: &str, disk: &SimulatedDisk, epoch: u64, witnessed: bool, start: Instant) {
+fn recover(phase: &str, disk: &SimulatedDisk, updates: Updates, witnessed: bool, start: Instant) {
     disk.crash(Crash::DropAll).unwrap();
     let inspected = storage::inspect_on(disk.clone(), limits(CORE)).unwrap();
     assert_eq!(inspected.witnessed, witnessed);
     let db = Database::open_on(disk.clone(), limits(CORE)).unwrap();
     assert_eq!(inspected.revision, db.snapshot().revision());
-    state(phase, &db, epoch, start.elapsed(), Some(witnessed));
+    state(phase, &db, updates, start.elapsed(), Some(witnessed));
     drop(db);
     assert_eq!(
         storage::inspect_on(disk.clone(), limits(CORE)).unwrap(),
@@ -236,28 +293,222 @@ fn simulate(compacted: &Path) {
         .enumerate()
         .filter_map(|(index, event)| (event.kind == IoKind::Sync).then_some(index))
         .collect();
-    let [_, slot_sync, witness_sync] = syncs.try_into().unwrap();
+    let [append_sync, slot_sync, witness_sync] = syncs.try_into().unwrap();
     drop(db);
-    recover("acknowledged", &disk, PROBE_EPOCH, true, start);
+    recover("acknowledged", &disk, Updates::First, true, start);
     drop(disk);
 
-    for (phase, sync, epoch, witnessed) in [
-        ("slot_drop", slot_sync, ROOTS, true),
-        ("witness_drop", witness_sync, PROBE_EPOCH, false),
+    let torn = |prefix| Fault::SyncError(Crash::Torn { write: 0, prefix });
+    for (phase, sync, fault, updates, witnessed) in [
+        ("slot_drop", slot_sync, Fault::Error, Updates::Seed, true),
+        (
+            "witness_drop",
+            witness_sync,
+            Fault::Error,
+            Updates::First,
+            false,
+        ),
+        (
+            "append_torn",
+            append_sync,
+            torn(storage::REGION),
+            Updates::Seed,
+            true,
+        ),
+        // Version 2's checksum occupies bytes 64 through 71. The rest of
+        // either metadata region is zero in both the previous and new image.
+        (
+            "slot_before_checksum",
+            slot_sync,
+            torn(64),
+            Updates::Seed,
+            true,
+        ),
+        (
+            "slot_through_checksum",
+            slot_sync,
+            torn(72),
+            Updates::First,
+            false,
+        ),
+        (
+            "witness_before_checksum",
+            witness_sync,
+            torn(64),
+            Updates::First,
+            false,
+        ),
+        (
+            "witness_through_checksum",
+            witness_sync,
+            torn(72),
+            Updates::First,
+            true,
+        ),
     ] {
         let start = Instant::now();
         let disk = SimulatedDisk::from_image(&image).unwrap();
         let db = Database::open_on(disk.clone(), limits(CORE)).unwrap();
-        disk.arm(sync, Fault::Error);
-        assert_eq!(
-            stage(&db, 0..WRITES, PROBE_EPOCH).commit(),
-            Err(Error::OutcomeUnknown)
-        );
+        disk.arm(sync, fault);
+        let expected = if sync == append_sync {
+            Error::Io
+        } else {
+            Error::OutcomeUnknown
+        };
+        assert_eq!(stage(&db, 0..WRITES, PROBE_EPOCH).commit(), Err(expected));
         assert_eq!(disk.trace().unwrap().len(), sync + 1);
         assert!(db.requires_recovery());
         drop(db);
-        recover(phase, &disk, epoch, witnessed, start);
+        recover(phase, &disk, updates, witnessed, start);
     }
+}
+
+// Arm after open's stabilization syncs. The next writer pauses after its
+// real append sync, with all native writes and leases still in effect.
+struct PauseAfterSync {
+    file: FileStore,
+    armed: Arc<AtomicBool>,
+    pause: Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>,
+}
+
+impl ByteStore for PauseAfterSync {
+    fn lock(&mut self) -> weekend_db::Result<()> {
+        self.file.lock()
+    }
+    fn unlock(&mut self) {
+        self.file.unlock();
+    }
+    fn length(&mut self) -> weekend_db::Result<u64> {
+        self.file.length()
+    }
+    fn read(&mut self, offset: u64, out: &mut [u8]) -> weekend_db::Result<usize> {
+        self.file.read(offset, out)
+    }
+    fn write(&mut self, offset: u64, bytes: &[u8]) -> weekend_db::Result<usize> {
+        self.file.write(offset, bytes)
+    }
+    fn sync(&mut self) -> weekend_db::Result<()> {
+        self.file.sync()?;
+        if self.armed.swap(false, Ordering::Relaxed) {
+            let (arrived, resume) = self.pause.take().unwrap();
+            arrived.send(()).unwrap();
+            resume.recv_timeout(Duration::from_secs(30)).unwrap();
+        }
+        Ok(())
+    }
+}
+
+fn concurrent(dir: &Path, compacted: &Path, identity: [u8; 16]) {
+    let concurrent = dir.join("concurrent.wdb");
+    let before_limit = dir.join("before-limit.wdb");
+    fs::copy(compacted, &concurrent).unwrap();
+    let (arrived, at_sync) = mpsc::channel();
+    let (resume, resumed) = mpsc::channel();
+    let armed = Arc::new(AtomicBool::new(false));
+    let db = Database::open_on(
+        PauseAfterSync {
+            file: FileStore::open(&concurrent).unwrap(),
+            armed: armed.clone(),
+            pause: Some((arrived, resumed)),
+        },
+        limits(CORE),
+    )
+    .unwrap();
+    let initial = db.storage_space().unwrap();
+    let collection = db.collection_id(1);
+    let pinned = db.snapshot();
+    let retained = retained_views(&db);
+    let baseline_live = db.memory_usage().live_bytes;
+    let mut first = stage(&db, 0..WRITES, PROBE_EPOCH);
+    let mut conflicting = stage(&db, 0..WRITES, PROBE_EPOCH + 1);
+    let mut disjoint = stage(&db, DISJOINT, PROBE_EPOCH + 2);
+    let draft_live = db.memory_usage().live_bytes;
+    assert!(draft_live > baseline_live);
+    armed.store(true, Ordering::Relaxed);
+    let (digest, reader_ns, first_ns, conflict_ns) = thread::scope(|scope| {
+        let first = scope.spawn(move || {
+            let start = Instant::now();
+            assert_eq!(first.commit(), Ok(Updates::First.revision()));
+            start.elapsed().as_nanos()
+        });
+        at_sync.recv_timeout(Duration::from_secs(30)).unwrap();
+        let (entered, contending) = mpsc::channel();
+        let conflict = scope.spawn(move || {
+            let start = Instant::now();
+            entered.send(()).unwrap();
+            assert_eq!(conflicting.commit(), Err(Error::Conflict));
+            assert_eq!(conflicting.state(), TransactionState::Aborted);
+            start.elapsed().as_nanos()
+        });
+        contending.recv_timeout(Duration::from_secs(30)).unwrap();
+        let start = Instant::now();
+        let digest = verify_views(&pinned, &retained, collection, Updates::Seed);
+        let reader_ns = start.elapsed().as_nanos();
+        resume.send(()).unwrap();
+        (
+            digest,
+            reader_ns,
+            first.join().unwrap(),
+            conflict.join().unwrap(),
+        )
+    });
+    println!(
+        "{{\"phase\":\"overlapping_drafts\",\"digest\":{digest},\"drafts\":3,\"writes_per_draft\":{WRITES},\"baseline_live_bytes\":{baseline_live},\"draft_live_bytes\":{draft_live},\"reader_ns\":{reader_ns},\"first_ns\":{first_ns},\"conflict_ns\":{conflict_ns}}}"
+    );
+
+    let acknowledged = db.storage_space().unwrap();
+    assert!(
+        acknowledged.physical_bytes - initial.physical_bytes > acknowledged.remaining_append_bytes
+    );
+    fs::copy(&concurrent, &before_limit).unwrap();
+    let start = Instant::now();
+    assert_eq!(disjoint.commit(), Err(Error::Limit));
+    assert_eq!(disjoint.state(), TransactionState::Failed);
+    let elapsed = start.elapsed();
+    drop(disjoint);
+    assert!(!db.requires_recovery());
+    assert_eq!(db.storage_space().unwrap(), acknowledged);
+    verify_file_bytes(&concurrent, &before_limit);
+    fs::remove_file(before_limit).unwrap();
+    state("concurrent_limit", &db, Updates::First, elapsed, None);
+
+    let start = Instant::now();
+    let shared = db.unsigned(SHARED).unwrap();
+    let mut retry = db.begin();
+    for index in DISJOINT {
+        retry
+            .put(collection, &index.to_be_bytes(), &shared)
+            .unwrap();
+    }
+    assert_eq!(retry.commit(), Ok(Updates::Both.revision()));
+    let elapsed = start.elapsed();
+    assert_eq!(pinned.revision(), FINAL);
+    let mut pinned_digest = OFFSET;
+    verify_view(
+        &pinned,
+        collection,
+        ROOTS,
+        Updates::Seed,
+        &mut pinned_digest,
+    );
+    state("concurrent_retry", &db, Updates::Both, elapsed, None);
+    drop(retry);
+    drop(pinned);
+    drop(retained);
+    drop(db);
+
+    let info = storage::inspect_file(&concurrent, limits(CORE)).unwrap();
+    assert_eq!(info.identity, identity);
+    assert!(info.witnessed);
+    let start = Instant::now();
+    let db = Database::open_file(&concurrent, limits(CORE)).unwrap();
+    state(
+        "concurrent_reopen",
+        &db,
+        Updates::Both,
+        start.elapsed(),
+        None,
+    );
 }
 
 pub(super) fn run(dir: &Path) {
@@ -270,7 +521,7 @@ pub(super) fn run(dir: &Path) {
     let space = db.storage_space().unwrap();
     assert!(space.physical_bytes > (MAX_IMAGE_BYTES as u64 * 9 / 10));
     assert!(space.remaining_append_bytes < u64::from(WRITES) * storage::REGION as u64);
-    state("near_cap", &db, ROOTS, now.elapsed(), None);
+    state("near_cap", &db, Updates::Seed, now.elapsed(), None);
     fs::copy(&source, &before_reject).unwrap();
     let mut overflow = stage(&db, WIDTH..WIDTH + 1, PROBE_EPOCH);
     assert_eq!(overflow.commit(), Err(Error::Limit));
@@ -286,12 +537,12 @@ pub(super) fn run(dir: &Path) {
     assert_eq!(db.storage_space().unwrap(), space);
     verify_file_bytes(&source, &before_reject);
     fs::remove_file(before_reject).unwrap();
-    state("image_limit", &db, ROOTS, elapsed, None);
+    state("image_limit", &db, Updates::Seed, elapsed, None);
     drop(db);
 
     let now = Instant::now();
     let db = Database::open_file(&source, limits(CORE)).unwrap();
-    state("reopen", &db, ROOTS, now.elapsed(), None);
+    state("reopen", &db, Updates::Seed, now.elapsed(), None);
     drop(db);
     let backup = dir.join("backup.wdb");
     let restored = dir.join("restored.wdb");
@@ -320,10 +571,11 @@ pub(super) fn run(dir: &Path) {
         assert_eq!(info.identity, identity);
         assert!(info.witnessed);
         let db = Database::open_file(destination, limits(CORE)).unwrap();
-        state(phase, &db, ROOTS, elapsed, None);
+        state(phase, &db, Updates::Seed, elapsed, None);
     }
     verify_file_bytes(&backup, &restored);
     verify_file_bytes(&backup, &compacted);
+    concurrent(dir, &compacted, identity);
     simulate(&compacted);
     complete("breadth");
 }

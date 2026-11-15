@@ -660,7 +660,7 @@ fn check_breadth(run: &Value, data: &Path, revision: &str) -> Result<()> {
     let rows = run["rows"].as_array().context("breadth rows missing")?;
     resource_oracle::compound_breadth(rows, revision)?;
     ensure!(
-        fs::read_dir(data)?.count() == 4,
+        fs::read_dir(data)?.count() == 5,
         "unexpected breadth outputs"
     );
     let source = data.join("source.wdb");
@@ -681,6 +681,15 @@ fn check_breadth(run: &Value, data: &Path, revision: &str) -> Result<()> {
             "breadth copy bytes differ from report or backup: {name}"
         );
     }
+    let reopened = rows
+        .iter()
+        .find(|row| row["phase"] == "concurrent_reopen")
+        .context("missing concurrent reopen evidence")?;
+    ensure!(
+        fs::metadata(data.join("concurrent.wdb"))?.len()
+            == resource_oracle::number(reopened, "file_bytes")?,
+        "breadth concurrent image size differs from report"
+    );
     Ok(())
 }
 

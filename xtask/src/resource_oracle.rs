@@ -255,22 +255,33 @@ fn contention_samples(detail: &Value) -> Result<()> {
     Ok(())
 }
 
-const BREADTH_PHASES: [&str; 9] = [
+#[cfg(unix)]
+const BREADTH_PHASES: [&str; 18] = [
     "near_cap",
     "image_limit",
     "reopen",
     "backup",
     "restore",
     "compact",
+    "overlapping_drafts",
+    "concurrent_limit",
+    "concurrent_retry",
+    "concurrent_reopen",
     "acknowledged",
     "slot_drop",
     "witness_drop",
+    "append_torn",
+    "slot_before_checksum",
+    "slot_through_checksum",
+    "witness_before_checksum",
+    "witness_through_checksum",
 ];
 
-fn breadth_digest(probe: bool) -> u64 {
+#[cfg(unix)]
+fn breadth_digest(current_revision: u64) -> u64 {
     fnv((0..=64).flat_map(|id| {
         let revision: u64 = if id == 0 {
-            133 + u64::from(probe)
+            current_revision
         } else {
             4 + 2 * id
         };
@@ -281,11 +292,16 @@ fn breadth_digest(probe: bool) -> u64 {
             .chain((0..4095u64).flat_map(move |key| {
                 let regular_update = key.checked_sub(1024).filter(|n| (10..=epoch).contains(n));
                 let version = match key {
-                    0..1024 if id == 0 && probe => 65,
+                    0..1024 if id == 0 && current_revision >= 134 => 65,
                     0..1024 => epoch.min(9),
                     _ => regular_update.unwrap_or(0),
                 };
-                (version << 32 | key).to_le_bytes()
+                let bits = if id == 0 && current_revision == 135 && (2048..3072).contains(&key) {
+                    0x5348_4152_4544
+                } else {
+                    version << 32 | key
+                };
+                bits.to_le_bytes()
             }))
             .chain((0..8192u32).flat_map(|entry| {
                 (entry % 4096)
@@ -296,28 +312,55 @@ fn breadth_digest(probe: bool) -> u64 {
     }))
 }
 
+#[cfg(unix)]
 pub fn compound_breadth(rows: &[Value], source: &str) -> Result<()> {
     ensure!(
         rows.len() == BREADTH_PHASES.len() + 1
             && rows.last() == Some(&completion("breadth", source)),
         "incomplete breadth phases or wrong build identity"
     );
-    let old_digest = breadth_digest(false);
-    let new_digest = breadth_digest(true);
+    let [old_digest, first_digest, final_digest] = [133, 134, 135].map(breadth_digest);
     let source_bytes = number(&rows[0], "file_bytes")?;
     let compact = number(&rows[3], "file_bytes")?;
-    let appended = number(&rows[6], "file_bytes")?;
+    let appended = number(&rows[7], "file_bytes")?;
+    let retried = number(&rows[8], "file_bytes")?;
     ensure!(
         (64 * MIB - 4 * MIB + 1..=64 * MIB).contains(&source_bytes)
             && (1..source_bytes).contains(&compact)
-            && (compact + 4 * MIB..=64 * MIB).contains(&appended),
+            && (compact + 4 * MIB..64 * MIB).contains(&appended)
+            && appended - compact > 64 * MIB - appended
+            && (appended + 1..=64 * MIB).contains(&retried),
         "bad breadth source, compacted or appended image size"
     );
     for (index, (row, phase)) in rows.iter().zip(BREADTH_PHASES).enumerate() {
+        ensure!(row["phase"] == phase, "wrong breadth phase: {phase}");
+        if phase == "overlapping_drafts" {
+            let draft_live = number(row, "draft_live_bytes")?;
+            let reading = number(row, "reader_ns")?;
+            ensure!(
+                row["digest"] == old_digest
+                    && row["drafts"] == 3
+                    && row["writes_per_draft"] == 1024
+                    && (1..=CORE).contains(&draft_live)
+                    && draft_live > number(row, "baseline_live_bytes")?
+                    && reading > 0
+                    && number(row, "first_ns")? >= reading
+                    && number(row, "conflict_ns")? >= reading,
+                "wrong reader state or missing draft overlap"
+            );
+            continue;
+        }
         let (bytes, witness, revision, digest) = match phase {
-            "acknowledged" => (appended, Some(true), 134, new_digest),
-            "slot_drop" => (appended, Some(true), 133, old_digest),
-            "witness_drop" => (appended, Some(false), 134, new_digest),
+            "concurrent_limit" => (appended, None, 134, first_digest),
+            "concurrent_retry" | "concurrent_reopen" => (retried, None, 135, final_digest),
+            "acknowledged" | "witness_through_checksum" => {
+                (appended, Some(true), 134, first_digest)
+            }
+            "slot_drop" | "slot_before_checksum" => (appended, Some(true), 133, old_digest),
+            "witness_drop" | "slot_through_checksum" | "witness_before_checksum" => {
+                (appended, Some(false), 134, first_digest)
+            }
+            "append_torn" => (compact + 4096, Some(true), 133, old_digest),
             _ => (
                 if index < 3 { source_bytes } else { compact },
                 None,
@@ -326,8 +369,7 @@ pub fn compound_breadth(rows: &[Value], source: &str) -> Result<()> {
             ),
         };
         ensure!(
-            row["phase"] == phase
-                && row["revision"] == revision
+            row["revision"] == revision
                 && row["roots"] == 64
                 && row["width"] == 4096
                 && row["depth"] == 64
@@ -812,22 +854,34 @@ mod tests {
     #[test]
     fn breadth_oracle_requires_exact_roots_and_recovery_outcomes() {
         const OLD: u64 = 7_918_828_611_224_877_843;
-        const NEW: u64 = 12_349_113_872_356_617_204;
+        const FIRST: u64 = 12_349_113_872_356_617_204;
+        const RETRIED: u64 = 11_331_111_483_656_711_877;
         let mut rows: Vec<_> = BREADTH_PHASES
             .iter()
             .enumerate()
             .map(|(i, phase)| {
-                let new = matches!(i, 6 | 8);
+                let (revision, digest, witness, bytes) = match i {
+                    0..3 => (133, OLD, None, 63_574_016),
+                    3..6 => (133, OLD, None, 58_523_648),
+                    6 => {
+                        return json!({
+                            "phase":phase,"digest":OLD,"drafts":3,"writes_per_draft":1024,
+                            "baseline_live_bytes":79_174_728,"draft_live_bytes":79_862_856,
+                            "reader_ns":12,"first_ns":36,"conflict_ns":21,
+                        });
+                    }
+                    7 => (134, FIRST, None, 62_840_832),
+                    8 | 9 => (135, RETRIED, None, 62_967_808),
+                    10 | 17 => (134, FIRST, Some(true), 62_840_832),
+                    11 | 14 => (133, OLD, Some(true), 62_840_832),
+                    13 => (133, OLD, Some(true), 58_527_744),
+                    _ => (134, FIRST, Some(false), 62_840_832),
+                };
                 json!({
-                    "phase":phase,"revision":133 + u64::from(new),"roots":64,
-                    "width":4096,"depth":64,"digest":if new { NEW } else { OLD },
-                    "file_bytes":match i {
-                        0..3 => 63_574_016,
-                        3..6 => 58_523_648,
-                        _ => 62_840_832,
-                    },
+                    "phase":phase,"revision":revision,"roots":64,
+                    "width":4096,"depth":64,"digest":digest,"file_bytes":bytes,
                     "elapsed_ns":1,"core_peak_bytes":1,"rss_kib":1,
-                    "inspected_witness":if i < 6 { None } else { Some(i != 8) }
+                    "inspected_witness":witness
                 })
             })
             .collect();
@@ -840,8 +894,13 @@ mod tests {
             (3, "roots", json!(63)),
             (4, "depth", json!(63)),
             (5, "digest", json!(0)),
-            (7, "revision", json!(134)),
-            (8, "inspected_witness", json!(true)),
+            (6, "drafts", json!(2)),
+            (6, "conflict_ns", json!(11)),
+            (6, "baseline_live_bytes", json!(u64::MAX)),
+            (9, "revision", json!(134)),
+            (13, "file_bytes", json!(58_523_648)),
+            (14, "revision", json!(134)),
+            (16, "inspected_witness", json!(true)),
         ] {
             let mut bad = rows.clone();
             bad[index][field] = replacement;
