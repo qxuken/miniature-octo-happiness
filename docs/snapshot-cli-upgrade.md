@@ -15,9 +15,9 @@ rlib. Its native `SOURCE_ID` must equal the archive commit. The fixture is an
 explicit qualification consumer, not a replacement server or wire emulator.
 
 Both actual versions implement the same `weekend-snapshot/1` ALPN and exact-leaf
-mutual TLS profile. The historical CLI already implements `status`; this test
-uses only common `keygen`, `describe`, `follower-init`, `serve`, `ship`, `poll`
-and `status`. It does not invoke newer maintenance commands. There is no
+mutual TLS profile. The common CLI operations are `describe`, `follower-init`,
+`serve`, `ship`, `poll` and `status`. The POSIX run also uses the historical
+`keygen`. There is no
 reachable old/new ALPN mismatch in this specific pair, so no ALPN rejection
 result is inferred or fabricated.
 
@@ -60,8 +60,8 @@ so this is separate from [credential cutover](snapshot-credential-cutover.md).
 
 ## Running and limits
 
-On a trusted POSIX development machine with the recorded offline dependency
-cache and both Git commits:
+Use a trusted machine with the recorded offline dependency cache and both
+Git commits. On macOS or Linux, run the following command.
 
 ```sh
 cargo xtask snapshot-cli-upgrade \
@@ -70,26 +70,75 @@ cargo xtask snapshot-cli-upgrade \
   --output target/my-fresh-snapshot-upgrade
 ```
 
+On native x64 Windows with MSVC and fixed NTFS, run from PowerShell.
+
+```powershell
+cargo fetch --locked
+cargo xtask snapshot-cli-upgrade --output target/windows-snapshot-upgrade
+```
+
+The Windows CLI expects externally provisioned credentials. The runner
+restricts each fresh credential directory to the runner's Windows account
+before using the separately linked fixture to generate its test leaf and key.
+The archived CLIs run unchanged on both platforms.
+
 The output must be fresh, including absence of a dangling final symlink. The
 Rust controller accepts only regular tracked files in the source archives.
 The Linux qualification runs the same xtask command in an isolated Docker
 container with its database and build output on ext4.
 
-Child commands have bounded deadlines and process-group kill/reap on failure.
-Server readiness has a ten-second deadline. The supervisor stops each owned
-server after its stage and verifies process retirement. Its bounded logs
-include the terminal status.
+Child commands have bounded deadlines and owned process-tree cleanup.
+POSIX uses process groups. Windows assigns a suspended child to a job before
+resuming it. Server readiness has a ten-second deadline. The supervisor stops
+each owned server after its stage and verifies process retirement. Its bounded
+logs include the terminal status.
 The helper preserves the selected Rust toolchain while removing build overrides.
 It records failure metadata, source/tool hashes, exact commands, compiler and
 binary identities. Generated private keys are removed from evidence on normal
-completion and caught failures; public certificates and synthetic database
-contents remain. After a hard kill of the controller, discard any leftover
-test credentials in the private output directory.
+completion and caught failures. CI's artifact filter also excludes private
+key files. Public certificates and synthetic database contents remain.
 
-These finite loopback checks do not establish native Windows, cross-host
-routing, upgrade during a live writer's lease, hardware power loss, arbitrary
-historical compatibility, or a long-term support policy. Existing crash and
-credential rotation qualifications retain their own scopes.
+Cross-host routing, upgrade during a live writer's lease, hardware power loss
+and additional historical versions require separate qualification.
+
+## Native Windows NTFS result
+
+On 2026-11-15, PR head `44b492d` passed the full sequence on native x64
+Windows with fixed NTFS and Rust 1.99.1 MSVC. The controller ran from PR test
+merge `bb539b47b73c3b8b6e502b05f787fb39819874e9`. All 66 command records
+verified cleanup, including five intentional server job stops. The same
+controller passed its 62-command macOS regression, including its separate
+POSIX private-key creation path.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43732690108/job/132868430498)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43732690108/artifacts/14169083095).
+
+The revision-4 wrong-pin shipment exited 1 after local capture with an invalid
+peer certificate error and no follower acknowledgment. The same authenticated
+server then returned the original revision-3 receipt. An offline reopen and
+byte comparison confirmed the follower files were unchanged. The new sender's
+trusted retry installed revision 4. The old sender then installed revision 5
+on the new server. Both archived CLIs verified the reopened receipt.
+Both public-API fixtures checked the full current row and retained root 1
+at revision 2.
+Repeated polling preserved the final receipt and follower files.
+
+| Revision | Independently verified export SHA-256 |
+|---|---|
+| 3 | `c91640cb411bdc9e87be9819a11bf1cf14643b522c903a365ac0380c157535d6` |
+| 4 | `6dbdf88a033424e93f64a1f90b2cfaa2cf69c7c47bcf86521ac9d792ccfe7d15` |
+| 5 | `901d3e7151c150778f2b688016ff27a68ec54028af98014e4448e9f51c758b17` |
+
+All 153 downloaded payload hashes matched. The final selected follower image
+matched the revision-5 export exactly. Both source archives matched the macOS
+rerun byte for byte, both lockfiles matched their committed Git blobs, and
+the four executables matched their recorded hashes and x64 PE headers.
+The archive contains all three public certificates and no private keys.
+
+| Evidence | SHA-256 |
+|---|---|
+| Windows ZIP | `5bcd95fa984f2885f464203c54b8f5c945c02af88c1f489086aad756f5712695` |
+| Windows `evidence.json` | `f15add08454406c42b267159dedb85ce8f40c3e7793185563ee390690c27a943` |
+| macOS regression `evidence.json` | `b854209d8d38dc99415be6b157034825f0e6dea488342ab714fe784eaacce3ad` |
 
 ## Initial recorded local results
 
