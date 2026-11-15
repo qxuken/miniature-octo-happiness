@@ -8,7 +8,7 @@ decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
-| Credential cutover | Stopped-endpoint [snapshot](snapshot-credential-cutover.md) leaf/pin replacement passed native macOS, Linux and Windows debug/release. The [StudyProgress](study-credential-cutover.md) cutover passed macOS/Linux debug/release. The tests verify stale identities, preserved local progress and retained roots, and repeat sync. Live reload, actor migration and other versions remain separate. |
+| Credential cutover | Stopped-endpoint [snapshot](snapshot-credential-cutover.md) and [StudyProgress](study-credential-cutover.md) leaf/pin replacement passed native macOS, Linux and Windows debug/release. The tests verify stale identities, preserved local progress and retained roots, and repeat sync. Live reload, actor migration and other versions remain separate. |
 | Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The historical [source audits](decisions/README.md) classify 2,561 explicit records across 51 files, including shared TLS separately for each binary profile. Later VALUE/DATA index and [buffer-growth controls](serialization-buffer-growth.md) have separate mappings; fresh [shared-cache inventory](serialization-cache-sharing.md) has 2,604 records and 319 macro blind spots. Historical mappings, supplemental FFI/derive mappings and current inventory counts remain distinct. Signed alternate leaves are rejected by both exact-pin checks. Directed [handshake pairs](tls-handshake-decisions.md) now establish unfinished-handshake/pending-write independence at both endpoints; four guard omissions are detected. Delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
 | Fuzzing | All 22 targets passed the [exact-21e5d26 extended ASan campaign](fuzz-qualification-21e5d26.md), totaling 1,431,321 actual executions under per-target 100,000-run/120-second bounds, including 31,034 register-causality executions. Independent stable replay passed 25 tests; source, both locks and 242 seeds were verified. This supersedes the limited post-fix register count evidence for this checkpoint. Longer campaigns and broader oracles remain. |
 | Inspection | Read-only graph verification and CLI implemented. Typed index checking is available. Native error context and cheap append-space queries implemented. Verification stage/structure-start offsets implemented and fault-tested. |
@@ -1238,3 +1238,75 @@ produce the same bytes from a shared near-cap input. All 24 repeated cycles
 passed on macOS and Docker Linux, retaining all 64 roots through revision
 980. Sampled process RSS was 1,413,968 KiB and 127,044 KiB respectively.
 The measured core peak of the opened database was unchanged.
+
+## Private qualification checkpoint `025b87f`
+
+Clean macOS arm64 and Docker Linux arm64 packages each bind the same 668
+tracked source files. Both passed notice, unwind, ABI, C/C++ relocation and
+copied-source Rust consumer checks. macOS also passed Odin relocation and an
+isolated Linux build of its copied source. Independent hash checks covered
+every file listed by both package manifests. The optimized artifact oracle
+matched all 134 cells for Rust/C/Odin on macOS and Rust/C on Linux. All five
+macOS and six Linux delivered C fault cases passed, preserving retained
+revision 2 and reopening the selected revisions. Each retry reopened at 4.
+
+The bounded [30-day Linux server/macOS client workload](monthly-workload.md)
+passed all 432 phase records, eight interruptions and 120 sync sessions.
+Both restored databases verified all 30 retained roots. The separate
+[authenticated CLI soak](study-peer-soak.md) passed 30 offline-edit/sync
+rounds and six paired process interruptions. Both peers reached revision 62
+with 1,395 practice minutes, weekly goal 230, session limit 10 and lessons
+2–61. Repeat covering syncs stabilized without another local commit.
+
+The authenticated [replica observer](replica-progress.md) and all 23 release
+`weekend-replicate` tests passed on both platforms. When the response was
+dropped, the observer reported the follower as unconfirmed. After restart
+a fresh poll verified durable revision 3 and the exact export digest. A later
+shipment advanced the follower to 4. Local capture and the follower's durable
+receipt remain separate.
+
+The [near-cap resilience profile](near-cap-interruption-recovery.md) passed
+52 native maintenance interruptions and 108 composed recovery cases per
+platform. The current and all 64 retained roots matched the oracle through
+fresh-process retries. Both workers retired cleanly and each proof's 50 listed
+artifacts rehashed successfully.
+
+Native Windows x86_64 on fixed NTFS checked PR merge
+`4de0880b575fe2941e2d38cf83ab09adf8cd02ec`.
+Its Git tree matches `025b87f`. The native job passed StudyProgress credential
+cutover and coordinator capacity in debug and release. All 20 C/C++ cases
+passed the delivered-artifact trace. Independent verification rehashed all
+52 package and 170 trace entries and byte-matched the package DLL to the
+relocated, C and C++ copies. DLL SHA-256
+`fcc830646ce57fbd4b7b51f734db04edf77f76fbf9741ae178e51691fead60ce`.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43710316144/job/132800236604)
+
+Local macOS AddressSanitizer and ThreadSanitizer rebuilt the standard library
+with nightly `2026-11-12`. Each passed 621 workspace cases with three registered
+ignores. The passing cases included xtask supervision and the StudyProgress
+cutover. Documentation edits marked the AddressSanitizer checkout dirty.
+Independent verification matched all 285 recorded source hashes for both runs
+to `025b87f`.
+The hosted Ubuntu native, quota, helper and C AddressSanitizer jobs passed,
+as did the bounded fuzz workflow.
+[Engine job matrix](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43710316144)
+[Bounded fuzzing](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43710316153)
+
+| Checkpoint proof | SHA-256 |
+|---|---|
+| macOS package manifest | `f2bfa18b511dd626d0011347fd2ff4b96c0dfcfab53f61e352331315d579b0a6` |
+| Linux package manifest | `41b7dae70b7dd1cd6f5e427c04bdbec305659a0c391f565920dc5d70ed69d4ec` |
+| macOS trace evidence | `24e84b62e5f1569976a5218d65c20eb5d584bc526eb7061c340a12cc8dbdf8ad` |
+| Linux trace evidence | `0deaaa4e9082d3ebccf532db791cb038635a2c02cc718ace68c5b4bf7e76e90f` |
+| macOS delivered fault evidence | `cfbd8f82c6ffee0ac31aa610462bc6b3f920604ccb538b8a91daabd114b09e0e` |
+| Linux delivered fault evidence | `96622427bebabe6c55fe45959de5e356edddaa48a4d3a1ca2de0f34ca3b67793` |
+| macOS near-cap resilience worker | `2d039eeb20d661231fe4a81354f2139323ac3fd8581b1562170988212b6142ba` |
+| Linux near-cap resilience worker | `59dacf65cb6839d82794117db775cfaa7e5faae2919095e6cf102e4864aa7111` |
+| Windows package manifest | `988f3e54fc83f2aca3ad1f775b0cdb16b21e996a47f5c9237945f5b950521585` |
+| Windows trace evidence | `9392437074ab2be196fb7ed8caee428abb1a5bea41a48da67dd50f4e2e7fb347` |
+| macOS workspace AddressSanitizer evidence | `f40a4cb3ba9c0dcf276bc89e69413a408285fbfa0d5d86d2c1c90dc13497ef47` |
+| macOS workspace ThreadSanitizer evidence | `0e49f8d0f8cc49fde66aa11860a42eb0e33fc8153e248654a61b86dfe95922b5` |
+| Accelerated month evidence | `44381a3ce8bb9bc4fdacee43dd40a11754dd03d16996175aa27913ad82425271` |
+| Authenticated StudyProgress soak evidence | `6dabd65147e87dd86f6d3810eee6e1514abc3c04f569291ed0e895787001b843` |
+| Native macOS replica observer log | `296663fbb22f9e498269fd636263db3d3efa3db28539325890b0aa1191f50f99` |
+| Native Linux replica observer and app log | `3d468f43dd64dea3957c8da8f6d86ca3fb4f1529c3b1378d3b5b00e335475a60` |

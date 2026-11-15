@@ -96,6 +96,13 @@ compatibility tests supply additional logical oracles. Information/copy wrappers
 mostly propagate codec/storage/memory errors, so those records remain D rather
 than claiming independent injection at every wrapper layer.
 
+`backup_releases_copy_graph_before_verification_but_keeps_source_leased`
+observes the first destination header read. The source still rejects another
+lease and the copy's graph has released its charge. The existing fault sweep
+continues to exercise destination verification. The
+[same-input byte comparison and repeated copy results](../compound-resource-envelope.md#offline-copy-graph-lifetime)
+bind the lifetime change to its native profiles.
+
 ## O4: explicit salvage and read-only candidate views
 
 `candidate_view_masks_only_unselected_root_and_witness_intersections` checks both

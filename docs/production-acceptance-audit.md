@@ -13,6 +13,11 @@ run supports its recorded source/profile only. Neither a source disposition nor
 an error-path test elsewhere closes an untested `E`, platform `cfg`, dependency,
 macro expansion or operating-system behavior by association.
 
+The [private `025b87f` checkpoint](roadmap-status.md#private-qualification-checkpoint-025b87f)
+binds the macOS and Linux packages, optimized consumer traces, delivered fault
+checks, accelerated month and authenticated peer runs to one source revision.
+The release gates below retain their platform, workload and owner scope.
+
 The [completed quota integration checkpoint](roadmap-status.md#completed-quota-integration-checkpoint)
 verifies all ten engine jobs and bounded fuzzing green at PR head `e20cece`.
 That job/step-status review complements the detailed artifact and data oracles

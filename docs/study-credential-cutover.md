@@ -62,7 +62,11 @@ acknowledgments. Peer A recovered its acknowledged local edit and both peers
 converged to 53 minutes with their original retained roots. Repeat exchanges
 left the local revisions stable within each run. Strict all-target Clippy
 passed on both platforms and the Windows MSVC test executable cross-linked.
-Native Windows execution is pending.
+
+The native Windows x86_64 job for PR head `025b87f` passed
+`persistent_study_progress_survives_interrupted_credential_cutover` in debug
+and release. Its merge commit `4de0880b575fe2941e2d38cf83ab09adf8cd02ec`
+has the same Git tree as the local checkpoint. [Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43710316144/job/132800236604)
 
 | Local artifact | SHA-256 |
 |---|---|
