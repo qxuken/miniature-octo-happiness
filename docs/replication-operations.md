@@ -484,3 +484,104 @@ The [actual mixed-version snapshot CLI gate](snapshot-cli-upgrade.md) qualifies
 including persisted enrollment, retained data, failed transfer/retry and exact
 durable receipts. This named pre-1 pair does not establish compatibility for
 other versions or the newer maintenance commands.
+
+## Live export and polling from an embedded primary
+
+An application that owns the open primary can capture and poll through the
+same `Database` handle it uses to commit. Keep one `Primary` per configured
+follower so successive polls keep checking the accepted receipt. Pass an
+authenticated channel with a deadline for each exchange.
+
+```rust
+use weekend_db::{Database, Limits, Result};
+use weekend_db::replication::{DurableAck, Export, Primary, ReplicaObservation};
+use std::{io::{Read, Write}, path::Path};
+
+fn capture(
+    primary: &mut Primary,
+    db: &Database,
+    export_path: &Path,
+    copy_limits: Limits,
+) -> Result<Export> {
+    primary.export_live_file(db, export_path, copy_limits)
+}
+
+fn ship(
+    primary: &mut Primary,
+    export: &mut Export,
+    authenticated: impl Read + Write,
+) -> Result<(u64, DurableAck)> {
+    let captured_revision = export.revision();
+    let follower = primary.ship(export, authenticated)?;
+    Ok((captured_revision, follower))
+}
+
+fn poll(
+    primary: &mut Primary,
+    db: &Database,
+    authenticated: impl Read + Write,
+) -> Result<ReplicaObservation> {
+    primary.poll_live(db, authenticated)
+}
+```
+
+Capture waits for any in-flight publication, then pins one acknowledged head,
+its collection cursor and the retained roots listed at that revision. The source
+locks are released before the destination is created, encoded, synced and
+verified. The destination has its own memory budget. Pinned source values stay
+charged to the source until encoding releases the pinned roots. Budget or I/O
+failure can leave a partial destination for the caller to discard. For retries
+or a sender restart, keep the completed export and its exact descriptor as in
+[restartable captures](#restartable-captures).
+
+`poll_live` samples the primary revision before writing the poll request. A
+later local commit may advance the primary while the request is in flight.
+`ReplicaObservation` gives that local sample and the follower's durable receipt
+as separate values. `revision_gap()` counts local revisions, including metadata
+commits. An empty follower has no durable receipt or gap. The file-based CLI
+still uses an exclusive lease to open the primary. Use the embedded methods in
+the application that holds that lease to keep writing during capture and poll.
+
+### Verification
+
+At `d5fdbb5`, a native test pauses the destination after its first append sync.
+The source commits a new value, releases its old retained root, saves another
+root and creates a collection while the destination stays paused. The first
+export matches the quiescent revision-4 export byte for byte and includes
+retained revision 2. Live polling reports local revision 8 and follower revision
+4. The next export installs revision 8. After reopening, the follower reports
+gap zero and exposes the replacement retention catalog and the latest value.
+
+Simulator controls check that a copy-budget failure and an injected destination
+sync error leave source memory use, durable bytes and the sender's local bound
+unchanged. Retrying produces the same descriptor. Polling controls reject a
+foreign source before channel I/O, preserve the accepted follower receipt and
+reject a later regression. Existing local and follower durability barriers still
+apply.
+
+Native macOS arm64/APFS passed 660 workspace tests with all features and six
+documented ignores. Strict workspace Clippy passed. ThreadSanitizer
+(`nightly-2026-11-12`) passed 16 replication and concurrency tests with the
+manifest-growth test left to its separate maintenance qualification. Docker
+Linux arm64/ext4 passed 191 core and selected integration tests, one maintenance
+ignore and strict core Clippy from the exact archived source. The suites included
+allocation, compaction, retention, storage decisions, and both golden byte
+histories. Windows MSVC x64 strict cross-Clippy passed. Native Windows execution
+of the live-capture test is tracked separately.
+
+Run the native overlap test and the source-preservation controls from the
+archived checkout:
+
+```sh
+cargo test --locked -p weekend-db --all-features --lib replication::tests
+cargo test --locked -p weekend-db --all-features --test replication \
+  live_export_pins_old_roots_while_the_native_source_changes -- --exact
+```
+
+| Evidence under `target/live-replication-qualification/` | File |
+|---|---|
+| Source archive for `d5fdbb52f4f7ef77abb905195bbd613a5a65f45a` | `source.tar` (`e51ffdd3ccf26f816791b5a444c3e55d469add9e07703126f534bb4c5f8428f5`) |
+| Native workspace and strict Clippy | `macos-workspace.log`, `macos-clippy.log` |
+| Native replication and concurrency under ThreadSanitizer | `macos-tsan.log` |
+| Docker Linux ext4 run and toolchain | `linux.log` |
+| Windows MSVC x64 cross-Clippy | `windows-cross-clippy.log` |

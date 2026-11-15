@@ -2253,6 +2253,25 @@ real TLS scenario. The follower reopens at revision 3 after the lost
 ship reply. After the primary advances to 4, both sampled polls report
 a gap of one, and a later authenticated poll confirms catch-up to 4.
 Final verification preserves retained revision 2. Windows x64 strict
-cross-Clippy passes. The new native Windows scenario and deployment
-catch-up targets remain open.
+cross-Clippy passes. The native x64/NTFS rerun at PR head `80433c4` passes
+the sampled scenario, with both scheduled polls reporting a gap of one
+before catch-up to revision 4. Deployment catch-up targets remain open.
 [Operator contract and evidence](replica-progress.md#sampled-polling)
+
+## Embedded live primary capture and progress
+
+At `d5fdbb5`, `Primary` can capture and poll using the application's open
+`Database`. The live copy pins one acknowledged revision and retention catalog
+before releasing the source locks. A native test advances the primary from
+revision 4 to 8 during a paused destination sync. The revision-4 image remains
+byte-identical to the offline copy, including retained revision 2. The follower
+reports durable revision 4 independently, then reopens at revision 8 after
+receiving the second image. Copy budget and destination sync failures leave the
+source unchanged and allow a successful retry.
+
+Native macOS all-feature workspace tests and Clippy pass, including 16 tests
+under ThreadSanitizer in the replication and concurrency suites. Exact-source
+Docker Linux/ext4 passes 191 tests and strict core Clippy. Windows x64 strict
+cross-Clippy passes. Native Windows execution of the embedded scenario and
+deployment-scale lag and resource qualification remain open.
+[Embedded API and verification](replication-operations.md#live-export-and-polling-from-an-embedded-primary)

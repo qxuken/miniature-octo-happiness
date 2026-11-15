@@ -133,9 +133,23 @@ Ten progress controls passed on each platform. The series control rejects a
 regressing receipt after a failed sample and then accepts a later valid
 receipt. A failed final sample emits its record and exits nonzero. Strict
 Clippy passed on both platforms and for the Rust 1.99.0 MSVC cross-target.
-Native Windows reruns use the same authenticated scenario. The Docker
-container and volume were removed after copyback, and the reports verify
-credential cleanup.
+The Docker container and volume were removed after copyback, and the reports
+verify credential cleanup.
+
+Native Windows x64 on fixed NTFS passed the sampled scenario from the clean PR
+test merge `1ed2160db798b4b01bce33d40e714bb33cdab137` with PR head `80433c4`.
+The authenticated relay discarded 79 TLS reply bytes. The follower reopened at
+revision 3. Both scheduled polls reported local revision 4, durable revision 3
+and a gap of one. After the next ship, a fresh poll reported durable revision 4,
+gap zero and 949 ms of observed catch-up in this fixture. The archived verifier
+passed and retained no generated private credentials.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43775929978/job/133002105216)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43775929978/artifacts/14186681218).
+
+| Native Windows sampled evidence | SHA-256 |
+|---|---|
+| `target/windows-replica-progress-80433c4/proof.zip` | `936cbd3138257cb85bee61115e276fcbf0574f8942f5d7778f3fa42eba322605` |
+| `evidence.json` | `bc37f56c26bf0aadb16193d66ac4dec9598069579a123519b330fa23bd857bd2` |
 
 | Evidence under `target/replica-monitor-qualification/` | macOS SHA-256 | Docker Linux SHA-256 |
 |---|---|---|

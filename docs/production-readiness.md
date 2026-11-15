@@ -194,6 +194,9 @@ qualification is a separate release-candidate requirement.
   Sampled polling reports revision gaps, durable observation age and
   observed catch-up time across transient errors.
   [Sampled polling contract](replica-progress.md#sampled-polling)
+  An embedded primary can pin a verified capture and sample follower
+  progress while keeping the writer open.
+  [Live capture and polling](replication-operations.md#live-export-and-polling-from-an-embedded-primary)
 - **Offline CRDT writers.** Specify lawful merge and resolution contracts
   for app records, enforce or clearly protect reserved rows, and qualify
   policy/schema evolution, actor identity and replacement, replay,
