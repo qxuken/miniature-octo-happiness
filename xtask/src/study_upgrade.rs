@@ -61,6 +61,8 @@ fn replace_fixture_once(source: &str, before: &str, after: &str) -> Result<Strin
 }
 
 fn fixture(helpers: &str, scenario: &str, windows: bool) -> Result<String> {
+    let helpers = helpers.replace("\r\n", "\n");
+    let scenario = scenario.replace("\r\n", "\n");
     let boundary =
         "#[test]\nfn persistent_study_progress_survives_interrupted_credential_cutover()";
     ensure!(
@@ -546,6 +548,12 @@ mod tests {
         let helper = include_str!("../../apps/study-peer/tests/credential_rotation.rs");
         let scenario = include_str!("../../tools/study-cli-upgrade-fixture.rs");
         let generated = fixture(helper, scenario, false).unwrap();
+        let helper_crlf = helper.replace("\r\n", "\n").replace('\n', "\r\n");
+        let scenario_crlf = scenario.replace("\r\n", "\n").replace('\n', "\r\n");
+        assert_eq!(
+            fixture(&helper_crlf, &scenario_crlf, false).unwrap(),
+            generated
+        );
         assert!(generated.contains("Command::new(binary)"));
         assert!(!generated.contains("Command::new(BIN)"));
         assert!(generated.contains("STUDY_OLD_BINARY"));
