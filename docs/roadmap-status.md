@@ -1215,3 +1215,10 @@ DLL cases passed against merge `fc31b9a3e0eafbf3c4387f37f1fde8b6cb432d4f`.
 The repeated near-cap workload passed a second time on both platforms.
 The macOS sampled RSS reached 3.51 GiB with the same recorded core peak and
 final physical file size. The repeat Linux RSS stayed about 187 MiB.
+
+The [macOS allocator diagnostic](compound-resource-envelope.md#macos-allocator-diagnosis-and-bounded-verification-buffers)
+found 706.9 MiB resident in empty large-allocation regions in a 997.0 MiB
+VM-map snapshot. The opened allocator's in-use count stayed near 49 MB at
+phase boundaries. The workload now compares exact failed-backup bytes with
+two 64 KiB buffers. The full profile passed again on both platforms, and
+the macOS RSS peak persisted at 3,499,504 KiB.

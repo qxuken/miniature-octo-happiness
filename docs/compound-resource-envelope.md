@@ -282,3 +282,32 @@ a separate deployment gate from the configured core budget.
 |---|---|---|
 | macOS | `e0d2fabf1de6dec72b6db7debc1445e46753c3d6b0ea6f81a261e148e114f030` | `6ec3f9adc9a9939927b9cc8c5cbf6936fc12dc8971d645ca765d92d0510aad29` |
 | Linux | `c4f5317a76b5fd1172511b0c11b7420b0d27d408d30727acacb977d4646fbe17` | `0e9030f594e467c38baf17c679155775ec51babb0080ab377fdc5cdd6878bd37` |
+
+### macOS allocator diagnosis and bounded verification buffers
+
+A disposable copy of the frozen driver sampled Darwin allocator statistics
+at the same phase boundaries. An 8 MiB test allocation increased the live
+counter and releasing it returned the counter to baseline. The diagnostic
+run matched the original revision, sequence, full-state digests and physical
+length for all 168 phase rows. At open/compact boundaries the malloc in-use
+counter stayed between 48,922,848 and 48,924,432 bytes while phase RSS
+ranged from 84,592 to 1,480,848 KiB. A live `vmmap -summary` snapshot
+recorded 706.9 MiB resident in `Malloc Large (empty)` regions and 997.0 MiB
+total resident. This identifies empty allocator regions as the largest
+component of that snapshot's RSS.
+
+The maintained driver now compares the exact bytes across a failed backup
+using an owned pre-failure copy and two 64 KiB buffers. It removes the copy
+before retry. Both platforms again passed all 24 cycles, with unchanged
+final state, physical length and recorded core peak. Sampled process RSS
+was 3,499,504 KiB on macOS and 173,100 KiB on Linux. The macOS peak persisted
+with the smaller verification buffers. Allocator retention under this
+maintenance workload remains a deployment measurement.
+
+| Artifact | SHA-256 |
+|---|---|
+| Diagnostic input inventory | `a477b035d492ad64ecb6514ea60eb84054212ea9f17c83d0e39d7edaf3518e04` |
+| Diagnostic phase rows | `d9f2ec4bf2e9807c4118ecc2204ce2fed79f7595a01dd5eb8b7a5158a76c9577` |
+| Diagnostic VM map | `728b8d8e1f103e59edf3bd73b524dfbf1692e9221d865c328701dcda85de89eb` |
+| macOS bounded-buffer controller proof | `ee0233d4fac61d9887f1a3d06d43be044782acc5834fdc35cffb80367bebea52` |
+| Linux bounded-buffer controller proof | `e0089a80b5ade00fd017b1d9e5bd8b3ca2f1906d6d0a9f9c71d48f3453b585b9` |

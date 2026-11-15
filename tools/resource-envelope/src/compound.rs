@@ -1,7 +1,7 @@
 //! Compound finite workload; no production API or limit changes.
 use std::{
     fs,
-    io::Write,
+    io::{Read, Write},
     path::Path,
     sync::{Barrier, mpsc},
     thread,
@@ -514,11 +514,28 @@ fn native(dir: &Path) {
     complete("native");
 }
 
+fn verify_file_bytes(left: &Path, right: &Path) {
+    let mut left = fs::File::open(left).unwrap();
+    let mut right = fs::File::open(right).unwrap();
+    let mut remaining = left.metadata().unwrap().len();
+    assert_eq!(remaining, right.metadata().unwrap().len());
+    let mut left_block = [0; 64 * 1024];
+    let mut right_block = [0; 64 * 1024];
+    while remaining != 0 {
+        let size = remaining.min(left_block.len() as u64) as usize;
+        left.read_exact(&mut left_block[..size]).unwrap();
+        right.read_exact(&mut right_block[..size]).unwrap();
+        assert!(left_block[..size] == right_block[..size]);
+        remaining -= size as u64;
+    }
+}
+
 fn cycles(dir: &Path, seed: &Path) {
     fs::create_dir(dir).unwrap();
     let source = dir.join("cycles.wdb");
     fs::copy(seed, &source).unwrap();
     let rejected = dir.join("rejected.wdb");
+    let before_rejection = dir.join("before-rejection.wdb");
     let backup = dir.join("backup.wdb");
     let restored = dir.join("restored.wdb");
     let copy_limits = limits(256 * MIB);
@@ -543,7 +560,9 @@ fn cycles(dir: &Path, seed: &Path) {
         reject_large_commit(&db, revision, seq);
         drop(db);
 
-        let original = fs::read(&source).unwrap();
+        // Keep an exact pre-failure image, with bounded application buffers.
+        assert!(!before_rejection.exists());
+        fs::copy(&source, &before_rejection).unwrap();
         let now = Instant::now();
         assert_eq!(
             storage::backup_file(&source, &rejected, limits(CORE)),
@@ -551,8 +570,8 @@ fn cycles(dir: &Path, seed: &Path) {
         );
         let rejected_ns = now.elapsed().as_nanos();
         assert_eq!(fs::metadata(&rejected).unwrap().len(), 0);
-        assert_eq!(fs::read(&source).unwrap(), original);
-        drop(original);
+        verify_file_bytes(&source, &before_rejection);
+        fs::remove_file(&before_rejection).unwrap();
         let db = Database::open_file(&source, limits(CORE)).unwrap();
         event(
             "cycle_backup_rejected",
