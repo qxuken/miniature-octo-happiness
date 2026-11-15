@@ -443,6 +443,51 @@ mod files {
         fs::write(path, fixture()).unwrap();
     }
     #[test]
+    fn admin_compaction_respects_the_lease_and_publishes_the_same_bytes_as_the_api() {
+        let dir = Directory::new();
+        let path = dir.path("admin space λ.db");
+        let reference = dir.path("reference.db");
+        seed(&path);
+        fs::copy(&path, &reference).unwrap();
+        let before = fs::read(&path).unwrap();
+        let compact = || {
+            std::process::Command::new(env!("CARGO_BIN_EXE_weekend-admin"))
+                .arg("compact")
+                .arg(&path)
+                .output()
+                .unwrap()
+        };
+        let db = Database::open_file(&path, Limits::default()).unwrap();
+        let busy = compact();
+        assert!(!busy.status.success());
+        assert!(busy.stdout.is_empty());
+        assert!(busy.stderr.starts_with(b"Busy"));
+        assert_eq!(fs::read(&path).unwrap(), before);
+        drop(db);
+
+        let stats = Database::compact_file(&reference, Limits::default()).unwrap();
+        let output = compact();
+        assert!(output.status.success(), "{:?}", output.stderr);
+        assert!(output.stderr.is_empty());
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            format!(
+                "compacted {} bytes to {} bytes\n",
+                stats.before_bytes, stats.after_bytes
+            ),
+        );
+        assert!(stats.after_bytes < stats.before_bytes);
+        assert_eq!(fs::read(&path).unwrap(), fs::read(reference).unwrap());
+        let original = Database::open_on(
+            SimulatedDisk::from_image(&before).unwrap(),
+            Limits::default(),
+        )
+        .unwrap();
+        let reopened = Database::open_file(&path, Limits::default()).unwrap();
+        check(&reopened, &original);
+        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 2);
+    }
+    #[test]
     fn offline_file_compaction_preserves_metadata_and_enforces_quiescence() {
         use std::os::unix::fs::{PermissionsExt, symlink};
         #[cfg(target_os = "macos")]

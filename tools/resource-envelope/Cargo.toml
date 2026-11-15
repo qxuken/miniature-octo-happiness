@@ -10,11 +10,14 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 weekend-db = { path = "../.." }
 
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2", optional = true }
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Threading"] }
 
 [features]
-compound = ["weekend-db/fault-injection"]
+compound = ["dep:libc", "weekend-db/fault-injection"]
 
 [[bin]]
 name = "weekend-compound-resource"

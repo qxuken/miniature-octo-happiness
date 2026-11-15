@@ -256,7 +256,7 @@ fn contention_samples(detail: &Value) -> Result<()> {
 }
 
 #[cfg(unix)]
-pub fn compound_cycles(rows: &[Value], source: &str) -> Result<()> {
+pub fn compound_cycles(rows: &[Value], source: &str, isolated: bool) -> Result<()> {
     const PHASES: [&str; 7] = [
         "cycle_open",
         "contended_commits",
@@ -310,14 +310,21 @@ pub fn compound_cycles(rows: &[Value], source: &str) -> Result<()> {
                         && *detail == json!({"error":"Limit","new_payload_bytes":4*MIB}),
                     "wrong image-limit rejection"
                 ),
-                "cycle_backup_rejected" => ensure!(
-                    bytes == written && *detail == json!({"copy_budget":CORE,"error":"Limit"}),
-                    "wrong backup-budget rejection"
-                ),
-                _ => ensure!(
-                    bytes < written && *detail == json!({"copy_budget":256*MIB}),
-                    "maintenance did not reclaim space on the verified graph"
-                ),
+                _ => {
+                    let mut expected = if phase == "cycle_backup_rejected" {
+                        ensure!(bytes == written, "wrong backup-budget rejection");
+                        json!({"copy_budget":CORE,"error":"Limit"})
+                    } else {
+                        ensure!(bytes < written, "maintenance did not reclaim space");
+                        json!({"copy_budget":256*MIB})
+                    };
+                    if isolated {
+                        let peak = number(detail, "maintenance_peak_rss_bytes")?;
+                        ensure!(peak > 0, "missing maintenance peak RSS");
+                        expected["maintenance_peak_rss_bytes"] = json!(peak);
+                    }
+                    ensure!(*detail == expected, "wrong maintenance detail");
+                }
             }
         }
         compacted = Some(number(&cycle[6], "file_bytes")?);
@@ -760,8 +767,9 @@ mod tests {
             }
         }
         rows.push(completion("cycles", "fixture"));
-        compound_cycles(&rows, "fixture").unwrap();
-        assert!(compound_cycles(&rows[1..], "fixture").is_err());
+        compound_cycles(&rows, "fixture", false).unwrap();
+        assert!(compound_cycles(&rows[1..], "fixture", false).is_err());
+        assert!(compound_cycles(&rows, "fixture", true).is_err());
         for (index, field, value) in [
             (
                 1,
@@ -775,8 +783,21 @@ mod tests {
         ] {
             let mut bad = rows.clone();
             bad[index][field] = value;
-            assert!(compound_cycles(&bad, "fixture").is_err(), "{index}/{field}");
+            assert!(
+                compound_cycles(&bad, "fixture", false).is_err(),
+                "{index}/{field}"
+            );
         }
+        for row in rows.iter_mut().take(24 * 7).filter(|row| {
+            let phase = row["phase"].as_str().unwrap();
+            phase.starts_with("cycle_") && phase != "cycle_open"
+        }) {
+            row["detail"]["maintenance_peak_rss_bytes"] = json!(1);
+        }
+        compound_cycles(&rows, "fixture", true).unwrap();
+        assert!(compound_cycles(&rows, "fixture", false).is_err());
+        rows[3]["detail"]["maintenance_peak_rss_bytes"] = json!(0);
+        assert!(compound_cycles(&rows, "fixture", true).is_err());
     }
 
     #[test]

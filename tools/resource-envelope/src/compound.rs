@@ -575,7 +575,73 @@ fn verify_file_bytes(left: &Path, right: &Path) {
 }
 
 #[cfg(unix)]
-fn cycles(dir: &Path, seed: &Path) {
+fn maintenance(phase: &str, source: &Path, destination: &Path) {
+    let copy_limits = limits(256 * MIB);
+    match phase {
+        "cycle_backup_rejected" => assert_eq!(
+            storage::backup_file(source, destination, limits(CORE)),
+            Err(Error::Limit)
+        ),
+        "cycle_backup" => {
+            storage::backup_file(source, destination, copy_limits).unwrap();
+        }
+        "cycle_restore" => {
+            storage::restore_file(source, destination, copy_limits).unwrap();
+        }
+        "cycle_compact" => {
+            Database::compact_file(source, copy_limits).unwrap();
+        }
+        _ => panic!("invalid maintenance phase"),
+    }
+}
+
+#[cfg(unix)]
+fn maintenance_detail(phase: &str, source: &Path, destination: &Path, isolated: bool) -> String {
+    let mut detail = if phase == "cycle_backup_rejected" {
+        format!(r#"{{"copy_budget":{CORE},"error":"Limit""#)
+    } else {
+        format!(r#"{{"copy_budget":{}"#, 256 * MIB)
+    };
+    if isolated {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg(destination)
+            .arg(source)
+            .args(["maintenance-child", phase])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{phase}: {:?}", output.stderr);
+        assert!(output.stderr.is_empty());
+        let bytes = std::str::from_utf8(&output.stdout)
+            .unwrap()
+            .trim()
+            .parse::<u64>()
+            .unwrap();
+        assert!(bytes > 0);
+        detail.push_str(&format!(r#", "maintenance_peak_rss_bytes":{bytes}"#));
+    } else {
+        maintenance(phase, source, destination);
+    }
+    detail.push('}');
+    detail
+}
+
+#[cfg(unix)]
+fn maintenance_child(phase: &str, source: &Path, destination: &Path) {
+    maintenance(phase, source, destination);
+    let mut usage = std::mem::MaybeUninit::<libc::rusage>::uninit();
+    // getrusage initializes the output on success and includes only this process.
+    assert_eq!(
+        unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) },
+        0
+    );
+    let peak = u64::try_from(unsafe { usage.assume_init() }.ru_maxrss).unwrap();
+    #[cfg(target_os = "linux")]
+    let peak = peak.checked_mul(1024).unwrap();
+    println!("{peak}");
+}
+
+#[cfg(unix)]
+fn cycles(dir: &Path, seed: &Path, isolated: bool) {
     fs::create_dir(dir).unwrap();
     let source = dir.join("cycles.wdb");
     fs::copy(seed, &source).unwrap();
@@ -583,7 +649,6 @@ fn cycles(dir: &Path, seed: &Path) {
     let before_rejection = dir.join("before-rejection.wdb");
     let backup = dir.join("backup.wdb");
     let restored = dir.join("restored.wdb");
-    let copy_limits = limits(256 * MIB);
     for cycle in 0..CYCLES {
         let previous = FINAL + cycle * (WRITERS as u64 * ROUNDS);
         let start_seq = (cycle + 1) * ROUNDS;
@@ -609,10 +674,7 @@ fn cycles(dir: &Path, seed: &Path) {
         assert!(!before_rejection.exists());
         fs::copy(&source, &before_rejection).unwrap();
         let now = Instant::now();
-        assert_eq!(
-            storage::backup_file(&source, &rejected, limits(CORE)),
-            Err(Error::Limit)
-        );
+        let detail = maintenance_detail("cycle_backup_rejected", &source, &rejected, isolated);
         let rejected_ns = now.elapsed().as_nanos();
         assert_eq!(fs::metadata(&rejected).unwrap().len(), 0);
         verify_file_bytes(&source, &before_rejection);
@@ -625,35 +687,22 @@ fn cycles(dir: &Path, seed: &Path) {
             seq,
             false,
             rejected_ns,
-            "{\"copy_budget\":100663296,\"error\":\"Limit\"}",
+            &detail,
             true,
         );
         drop(db);
         fs::remove_file(&rejected).unwrap();
 
-        for (phase, path) in [
-            ("cycle_backup", &backup),
-            ("cycle_restore", &restored),
-            ("cycle_compact", &source),
+        for (phase, from, path) in [
+            ("cycle_backup", &source, &backup),
+            ("cycle_restore", &backup, &restored),
+            ("cycle_compact", &source, &source),
         ] {
             let now = Instant::now();
-            match phase {
-                "cycle_backup" => storage::backup_file(&source, path, copy_limits).unwrap(),
-                "cycle_restore" => storage::restore_file(&backup, path, copy_limits).unwrap(),
-                _ => Database::compact_file(path, copy_limits).unwrap(),
-            };
+            let detail = maintenance_detail(phase, from, path, isolated);
             let elapsed = now.elapsed().as_nanos();
             let db = Database::open_file(path, limits(CORE)).unwrap();
-            event(
-                phase,
-                &db,
-                revision,
-                seq,
-                false,
-                elapsed,
-                "{\"copy_budget\":268435456}",
-                true,
-            );
+            event(phase, &db, revision, seq, false, elapsed, &detail, true);
         }
         fs::remove_file(&backup).unwrap();
         fs::remove_file(&restored).unwrap();
@@ -856,8 +905,12 @@ fn main() {
         }
         #[cfg(unix)]
         match args[3].to_str().unwrap() {
-            "cycles" => {
-                cycles(dir, source);
+            mode @ ("cycles" | "cycles-isolated") => {
+                cycles(dir, source, mode == "cycles-isolated");
+                return;
+            }
+            "maintenance-child" => {
+                maintenance_child(args[4].to_str().unwrap(), source, dir);
                 return;
             }
             "maintenance-copy" => {

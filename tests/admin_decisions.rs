@@ -19,7 +19,7 @@ fn invalid_admin_commands_do_not_touch_paths_and_errors_do_not_print_records() {
     fs::write(&source, b"PRIVATE_RECORD_CONTENT").unwrap();
     fs::write(&destination, b"existing destination").unwrap();
     for command in [
-        "unknown", "check", "backup", "restore", "salvage", "export", "import",
+        "unknown", "check", "compact", "backup", "restore", "salvage", "export", "import",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_weekend-admin"))
             .arg(command)
@@ -47,4 +47,16 @@ fn invalid_admin_commands_do_not_touch_paths_and_errors_do_not_print_records() {
     assert!(!error.contains("PRIVATE_RECORD_CONTENT"));
     assert!(!error.contains(&*source.to_string_lossy()));
     assert_eq!(fs::read(&source).unwrap(), b"PRIVATE_RECORD_CONTENT");
+    #[cfg(windows)]
+    {
+        let output = Command::new(env!("CARGO_BIN_EXE_weekend-admin"))
+            .arg("compact")
+            .arg(&source)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.starts_with(b"UnsupportedPlatform"));
+        assert_eq!(fs::read(&source).unwrap(), b"PRIVATE_RECORD_CONTENT");
+    }
 }

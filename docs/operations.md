@@ -1,10 +1,10 @@
-# Inspect, back up and restore
+# Inspect, back up, restore and compact
 
 Close every database handle on the source file before these operations.
-The source is opened read-only and held under the same exclusive lease as
-a writer. Inspection verifies the selected current graph and every
-retained graph. A damaged newest graph is an error even when an older
-graph is readable.
+Inspection, backup and restore open the source read-only and hold it under
+the same exclusive lease as a writer. Inspection verifies the selected
+current graph and every retained graph. A damaged newest graph is an error
+even when an older graph is readable.
 
 ```sh
 cargo run --bin weekend-admin -- check state.wdb
@@ -16,6 +16,17 @@ cargo run --bin weekend-admin -- restore backup.wdb restored.wdb
 status, physical and committed bytes, and retained roots. It performs no
 source write or sync. An unwitnessed root can be readable. Inspection
 reports that condition without making a commit durability acknowledgment.
+
+On macOS and Linux, run `cargo run --bin weekend-admin -- compact state.wdb`
+to reclaim storage in place. The command needs to read the file, replace its
+directory entry and make room for the replacement while the original exists.
+It reports the old and new file sizes after durable replacement. It preserves
+the store identity, current revision and all retained roots. A live handle
+causes `Busy`. A post-exchange `OutcomeUnknown` calls for inspecting the
+canonical path with `check` and keeping any scratch output while diagnosing
+the failure. The CLI uses the library's default limits. Applications that set
+a custom allocation budget can pass it to `Database::compact_file`.
+On Windows, `backup` produces a compacted, verified copy at a fresh path.
 
 Backup validates the source before creating the destination. It copies
 the current graph and explicitly retained history, preserving IDs and

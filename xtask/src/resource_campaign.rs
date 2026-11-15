@@ -42,6 +42,7 @@ pub enum Profile {
     Envelope,
     Compound,
     CompoundCycles,
+    CompoundIsolation,
     Resilience,
     NamespaceFailures,
 }
@@ -51,6 +52,7 @@ impl Profile {
             Self::Envelope => "envelope",
             Self::Compound => "compound",
             Self::CompoundCycles => "compound-cycles",
+            Self::CompoundIsolation => "compound-isolation",
             Self::Resilience => "resilience",
             Self::NamespaceFailures => "namespace-failures",
         }
@@ -58,9 +60,18 @@ impl Profile {
     fn binary(self) -> &'static str {
         match self {
             Self::Envelope => "weekend-resource-envelope",
-            Self::Compound | Self::CompoundCycles | Self::Resilience | Self::NamespaceFailures => {
-                "weekend-compound-resource"
-            }
+            Self::Compound
+            | Self::CompoundCycles
+            | Self::CompoundIsolation
+            | Self::Resilience
+            | Self::NamespaceFailures => "weekend-compound-resource",
+        }
+    }
+    fn cycles(self) -> &'static [&'static str] {
+        match self {
+            Self::CompoundCycles => &["cycles"],
+            Self::CompoundIsolation => &["cycles", "cycles-isolated"],
+            _ => &[],
         }
     }
 }
@@ -321,29 +332,31 @@ pub(crate) fn worker(
                 c.evidence["runs"][label] = value;
                 c.save()?;
             }
-            if profile == Profile::CompoundCycles {
+            for &mode in profile.cycles() {
                 let seed = output.join("native-data/compact.wdb");
                 let seed_hash = sha(&seed)?;
-                let report = output.join("cycles.json");
-                let data = output.join("cycles-data");
+                let report = output.join(format!("{mode}.json"));
+                let data = output.join(format!("{mode}-data"));
                 let value = observe(
                     Observation {
                         binary: &binary,
                         data: &data,
                         report: &report,
-                        args: &[path(&seed), "cycles".into()],
+                        args: &[path(&seed), mode.into()],
                         context: &run,
                         deadline: 480.,
                         inspect_group: true,
                     },
-                    |rows| resource_oracle::compound_cycles(rows, revision),
+                    |rows| {
+                        resource_oracle::compound_cycles(rows, revision, mode == "cycles-isolated")
+                    },
                 )?;
                 ensure!(sha(&seed)? == seed_hash, "cycle seed changed");
                 ensure!(
                     fs::read_dir(&data)?.count() == 1 && data.join("cycles.wdb").is_file(),
                     "cycle maintenance artifacts remain"
                 );
-                c.evidence["runs"]["cycles"] = value;
+                c.evidence["runs"][mode] = value;
                 c.evidence["cycle_seed_sha256"] = json!(seed_hash);
                 c.save()?;
             }
@@ -543,6 +556,7 @@ fn docker(
                 Profile::Envelope => 300.,
                 Profile::Compound | Profile::NamespaceFailures => 600.,
                 Profile::CompoundCycles => 900.,
+                Profile::CompoundIsolation => 1400.,
                 Profile::Resilience => 1200.,
             },
         );
@@ -614,9 +628,9 @@ fn check_proof(
         )?;
     } else {
         ensure!(
-            proof["runs"].as_object().is_some_and(|m| {
-                m.len() == 3 + usize::from(profile == Profile::CompoundCycles)
-            }),
+            proof["runs"]
+                .as_object()
+                .is_some_and(|m| { m.len() == 3 + profile.cycles().len() }),
             "incomplete compound profiles"
         );
         for label in ["native", "inspect", "faults"] {
@@ -631,8 +645,8 @@ fn check_proof(
                 revision,
             )?;
         }
-        if profile == Profile::CompoundCycles {
-            let run = &proof["runs"]["cycles"];
+        for &mode in profile.cycles() {
+            let run = &proof["runs"][mode];
             ensure!(
                 run["passed"] == true && run["owned_live_processes_absent"] == true,
                 "unverified compound cycle run"
@@ -640,8 +654,8 @@ fn check_proof(
             let rows = run["rows"]
                 .as_array()
                 .context("compound cycle rows missing")?;
-            resource_oracle::compound_cycles(rows, revision)?;
-            let data = output.join("cycles-data");
+            resource_oracle::compound_cycles(rows, revision, mode == "cycles-isolated")?;
+            let data = output.join(format!("{mode}-data"));
             ensure!(
                 proof["cycle_seed_sha256"] == sha(&output.join("native-data/compact.wdb"))?
                     && fs::read_dir(&data)?.count() == 1

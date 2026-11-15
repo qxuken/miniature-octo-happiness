@@ -33,6 +33,17 @@ fn run(args: &[std::ffi::OsString]) -> weekend_db::Result<()> {
             }
             Ok(())
         }
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        [command, path] if command == "compact" => {
+            let stats = weekend_db::Database::compact_file(path, Limits::default())?;
+            println!(
+                "compacted {} bytes to {} bytes",
+                stats.before_bytes, stats.after_bytes
+            );
+            Ok(())
+        }
+        #[cfg(windows)]
+        [command, _] if command == "compact" => Err(weekend_db::Error::UnsupportedPlatform),
         [command, source, destination] if command == "backup" || command == "restore" => {
             let stats = if command == "backup" {
                 storage::backup_file(source, destination, Limits::default())?
@@ -87,7 +98,7 @@ fn main() {
     if let Err(error) = result {
         eprintln!("{error}");
         eprintln!(
-            "usage: weekend-admin check FILE | backup SOURCE NEW_FILE | restore BACKUP NEW_FILE | salvage SOURCE NEW_FILE | export SOURCE NEW_LOGICAL | import LOGICAL NEW_FILE"
+            "usage: weekend-admin check FILE | compact FILE (macOS/Linux) | backup SOURCE NEW_FILE | restore BACKUP NEW_FILE | salvage SOURCE NEW_FILE | export SOURCE NEW_LOGICAL | import LOGICAL NEW_FILE"
         );
         std::process::exit(1);
     }
