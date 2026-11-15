@@ -758,9 +758,11 @@ impl<'a> MaintenanceFault<'a> {
         calls.guest(args, &guest.env, 30., &[0])?;
         let shim = scratch.directory.join("writeback-gate.so");
         let shim_hash = super::copy_executable(&library, &shim, 2 * super::MIB)?;
+        let evidence_gate = calls.c.output.join("writeback-gate.so");
+        fs::copy(&shim, &evidence_gate)?;
         ensure!(
-            sha(&staged)? == source_hash,
-            "writeback gate source changed during build"
+            sha(&staged)? == source_hash && sha(&evidence_gate)? == shim_hash,
+            "writeback gate source or executable changed during staging"
         );
         calls.c.evidence["writeback_gate"] =
             json!({"source_sha256":source_hash,"binary_sha256":shim_hash});
