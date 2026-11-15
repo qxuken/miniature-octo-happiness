@@ -31,19 +31,17 @@ impl Drop for Fixture {
         fs::remove_dir_all(&self.0).unwrap();
     }
 }
-fn request(root: &Path, body: String) -> Value {
-    json!({"argv":[std::env::var("WEEKEND_PYTHON").unwrap_or_else(|_|"python3".into()),"-c",body],"cwd":null,"env":null,"stdout":root.join("stdout"),"stderr":root.join("stderr"),"report":root.join("report.json"),"timeout_seconds":5.,"maximum_bytes":8192,"file_limit":null,"journal":null})
+fn request(root: &Path, script: String) -> Value {
+    json!({"argv":["/bin/sh","-c",script,"fixture",root.join("pid")],"cwd":null,"env":null,"stdout":root.join("stdout"),"stderr":root.join("stderr"),"report":root.join("report.json"),"timeout_seconds":5.,"maximum_bytes":8192,"file_limit":null,"journal":null})
 }
+
 #[test]
 fn cancellation_retires_worker_and_writes_terminal_report() {
     let owned = Fixture::new();
     let marker = owned.0.join("pid");
     let req = request(
         &owned.0,
-        format!(
-            "import os,time;from pathlib import Path;Path({:?}).write_text(str(os.getpid()));time.sleep(30)",
-            marker.to_str().unwrap()
-        ),
+        "printf '%s\\n' \"$$\" > \"$1\"; exec sleep 30".into(),
     );
     let mut child = Command::new(env!("CARGO_BIN_EXE_xtask"))
         .arg("supervise")
@@ -78,7 +76,7 @@ fn cancellation_retires_worker_and_writes_terminal_report() {
     assert_eq!(report["returncode"], -9);
     assert_eq!(
         report["pid"].to_string(),
-        fs::read_to_string(marker).unwrap()
+        fs::read_to_string(marker).unwrap().trim()
     );
     let saved: Value =
         serde_json::from_slice(&fs::read(owned.0.join("report.json")).unwrap()).unwrap();
@@ -87,7 +85,7 @@ fn cancellation_retires_worker_and_writes_terminal_report() {
 #[test]
 fn malformed_request_and_unknown_fields_do_not_launch() {
     let owned = Fixture::new();
-    let mut req = request(&owned.0, "raise Exception('must not execute')".into());
+    let mut req = request(&owned.0, "exit 99".into());
     req["unknown"] = json!(true);
     let mut child = Command::new(env!("CARGO_BIN_EXE_xtask"))
         .arg("supervise")

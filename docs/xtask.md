@@ -22,10 +22,9 @@ options reject through clap before any package or cleanup output is created.
 Every failed check/build subprocess stops the command and returns a failure.
 No command publishes to crates.io or a container registry.
 
-Rust/Cargo 1.99+ and Python 3.11+ are required for these profiles; qualification
-uses Rust/Cargo 1.99.1 and Mise-pinned Python 3.14.8. `WEEKEND_PYTHON` selects the
-Python interpreter. `tools/check.py` and `tools/release.py` forward to the new
-commands and preserve the Python interpreter used by the caller. The alias
+Rust/Cargo 1.99+ is required for check/build/package/cleanup; these commands no
+longer require Python. Qualification pins Rust/Cargo 1.99.1. Remaining tooling
+conversion is tracked in the [completion ledger](xtask-conversion.md). The alias
 builds xtask offline/locked into `target/xtask`; the initial fetch supplies its
 locked tooling dependencies. There are 20 private project manifests, all with
 `publish=false`.
@@ -63,21 +62,22 @@ Artifact hashes and commands remain in `manifest.json`; failed qualification
 cannot set `verified` or `candidate_eligible` true.
 
 `--odin`, `--rust-source`, `--rust-source-isolated` and `--rust-source-image`
-retain their existing meanings. Rust owns the lifecycle; Python's tested
-platform-command, configuration, attribution, Odin-binding, ctypes ABI and
-delivered-source validators remain leaf checks. The bridge does not log helper
-stdin/stdout, including the Windows process environment; only selected policy
-results and hashed overrides enter the manifest. Checkers run with isolated
-Python so `PYTHONOPTIMIZE` cannot remove ABI assertions.
+retain their existing meanings. Rust owns the lifecycle and the independent
+platform-command, configuration, attribution, Odin-binding, dynamic C-ABI and
+delivered-source validators. Windows compiler environment output stays in a
+private pipe; only selected identities and hashed overrides enter the manifest.
+Checks remain active in debug/release. The old Python modules are retired after
+their controls are mapped to Rust.
 An isolated source request requires a nonempty image and explicit successful
 native/isolation results from the checker. Missing, false or malformed success
 flags reject qualification rather than silently omitting a requested profile.
 
 The library, macros, apps, storage/wire formats, durability barriers and separate
 follower-durable acknowledgment are unchanged. This batch begins the migration;
-it does not eliminate Python. The subsequent [bounded supervision and fault-runner
-batch](xtask-supervision.md) moves child ownership and two fault campaigns to
-Rust; independent oracles and remaining profile/OS policy stay in Python.
+remaining non-packaging automation and independent oracles are being converted
+under the [complete conversion](xtask-conversion.md). The
+[supervision batch](xtask-supervision.md) supplies bounded POSIX ownership.
+Historical results below retain their original commands and source revisions.
 
 ## Cleanup and retention
 

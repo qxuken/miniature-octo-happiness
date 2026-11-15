@@ -68,10 +68,6 @@
       "allowed_skips": []
     },
     {
-      "path": "test_release.py",
-      "allowed_skips": []
-    },
-    {
       "path": "test_replica_progress.py",
       "allowed_skips": [
         "helper_suite.NativeTLS.test_authenticated_observations_restarts_dropped_reply_and_stale_capture"
@@ -91,10 +87,6 @@
     },
     {
       "path": "test_study_peer_soak.py",
-      "allowed_skips": []
-    },
-    {
-      "path": "test_windows_consumers.py",
       "allowed_skips": []
     },
     {

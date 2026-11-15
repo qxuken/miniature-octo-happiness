@@ -1,0 +1,1118 @@
+{
+  "source_commit": "065dbdb9d0caf1f5090763cb3840e57a897fc6cf",
+  "retired_suites": [
+    "test_release.py",
+    "test_windows_consumers.py"
+  ],
+  "controls": [
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.TraceContract.test_binary_bounds",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.TraceContract.test_hand_checked_publications_and_missing_delete",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.TraceContract.test_finite_trace_conflicts_and_durable_history",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.TraceContract.test_v1_bytes_oracle_and_records_semantics_preserved",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.TraceContract.test_hand_checked_whole_database_empty_publication_and_terminal_states",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.TraceContract.test_hand_checked_retained_publication_validation_and_reopen",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.TraceContract.test_invalid_v2_validation_mode_and_unknown_version_rejected",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.TraceContract.test_v2_finite_validation_matrix_and_unchanged_v1_prefix",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.PackageProvenance.test_environment_preserves_toolchain_selection_but_removes_build_overrides",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.PackageProvenance.test_cleanup_argv_is_limited_to_matching_uuid_pair",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.PackageProvenance.test_corruption_extra_file_symlink_and_dirty_identity_rejected",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.PackageProvenance.test_manifest_path_escape_rejected",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.PackageProvenance.test_existing_output_is_never_overwritten",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_runner.py",
+      "id": "helper_suite.PackageProvenance.test_dangling_final_symlink_rejected_before_any_input_or_work",
+      "source_sha256": "5aab6a7426644a772aa36ee422176df351b3944e768cc321f389b9f37828bb94",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_qualified_oracle_is_reused_byte_for_byte",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_both_optimized_languages_use_delivered_import_library",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_manifest_pin_payload_and_complete_inventory_required",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_manifest_rejects_dirty_wrong_target_and_unknown_features",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_windows_path_escapes_devices_and_aliases_rejected",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_backslash_payload_keys_and_reparse_rejection",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_actual_loaded_path_hash_source_features_and_pid_required",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_duplicate_and_oversized_json_rejected",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_existing_output_is_rejected_before_inputs_or_processes",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_compile_environment_overrides_removed_case_insensitively",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_real_child_output_limit_and_timeout_are_not_false_green",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "artifact-trace/test_windows_trace.py",
+      "id": "helper_suite.WindowsTraceControls.test_real_success_and_nonzero_child",
+      "source_sha256": "ffc1b8c2fd11ec2e858dc436c86d6fe99b16fa7514a7867a06e3df7cdee54899",
+      "rust": []
+    },
+    {
+      "path": "delivered-faults/test_runner.py",
+      "id": "helper_suite.Controls.test_outcomes_reject_false_ack_and_partial_commit",
+      "source_sha256": "0a9abbff0782ef35ff255cceb36998f63bee8c5d850a8ceaeaafcb511c56f493",
+      "rust": []
+    },
+    {
+      "path": "delivered-faults/test_runner.py",
+      "id": "helper_suite.Controls.test_phases_cannot_claim_recovery_from_exercise_summary",
+      "source_sha256": "0a9abbff0782ef35ff255cceb36998f63bee8c5d850a8ceaeaafcb511c56f493",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_source_must_resolve_to_exact_commit_before_archiving",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_resolved_mke2fs_explicitly_selects_ext4",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_exact_mount_and_backing_identity",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_real_quota_category_cannot_be_substituted",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_full_current_and_retained_oracles_reject_damage_and_stale_state",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_failure_diagnostics_and_terminal_state_are_required",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_output_and_timeout_bounds_kill_reap_actual_children",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_output_admission_precedes_external_commands",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_unsupported_probe_is_not_engine_qualification",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_completed_quota_paths_recheck_the_same_tool_inventory",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_cleanup_attempts_detach_after_unmount_timeout_and_proves_absence",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_cleanup_identity_drift_never_unmounts_or_detaches",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "quota/test_runner.py",
+      "id": "helper_suite.QuotaControls.test_findmnt_query_error_cannot_prove_absence_or_remove_scratch",
+      "source_sha256": "0a518417fb29d1219b23dacc4d39fe99c1fd9e7eb9d426a9eba03cc7ff9f8ba9",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_growth_probe.py",
+      "id": "helper_suite.GrowthProbeControls.test_unique_instrumentation_and_strict_domain_measurements",
+      "source_sha256": "dd3eb30c81692de556a677b2ef7c28df3e2991e7cc4f5759dad65b56a33ad8b5",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_independent_fixed_digests_and_full_profile_schema",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_reject_missing_phase_bytes_cap_revision_overlap_and_samples",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_observer_arguments_and_leader_exit_retire_live_descendant",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_observer_output_bound_records_failure_before_parse",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_observer_cleanup_probe_failure_records_terminal_report",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_observer_spawn_failure_records_terminal_report",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_observer_wait_failure_records_terminal_report",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_observer_keeps_observation_and_cleanup_failures",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_observer_cancellation_records_terminal_report_and_reaps",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_compound.py",
+      "id": "helper_suite.CompoundControls.test_fresh_output_rejects_existing_and_dangling",
+      "source_sha256": "320a3f86acf5848b527a79c1f88d2e01d75b49af3b0baa5dac0ececd4615cafc",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_runner.py",
+      "id": "helper_suite.RunnerTests.test_observer_existing_outputs_remain_untouched",
+      "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_runner.py",
+      "id": "helper_suite.RunnerTests.test_malformed_output_retains_terminal_failure",
+      "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_runner.py",
+      "id": "helper_suite.RunnerTests.test_timeout_kills_worker_process_group_and_records_failure",
+      "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_runner.py",
+      "id": "helper_suite.RunnerTests.test_transport_import_failure_retains_terminal_report",
+      "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_runner.py",
+      "id": "helper_suite.RunnerTests.test_small_independent_oracle_known_digest",
+      "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_runner.py",
+      "id": "helper_suite.RunnerTests.test_sampler_timeout_reaps_real_child_and_retains_failure",
+      "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_runner.py",
+      "id": "helper_suite.RunnerTests.test_frozen_positive_and_corrupted_oracle_controls",
+      "source_sha256": "81666666aad8c656d460aa7566acbd91dfa518909fd87d24e9cb644cc5cfbc24",
+      "rust": []
+    },
+    {
+      "path": "serialization-scale/test_runner.py",
+      "id": "helper_suite.Controls.test_fresh_output_rejects_existing_and_dangling_before_commands",
+      "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
+      "rust": []
+    },
+    {
+      "path": "serialization-scale/test_runner.py",
+      "id": "helper_suite.Controls.test_build_overrides_removed_but_rustup_install_location_preserved",
+      "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
+      "rust": []
+    },
+    {
+      "path": "serialization-scale/test_runner.py",
+      "id": "helper_suite.Controls.test_outcome_and_maintenance_oracle_rejects_early_limit_or_skipped_work",
+      "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
+      "rust": []
+    },
+    {
+      "path": "serialization-scale/test_runner.py",
+      "id": "helper_suite.Controls.test_history_roots_require_complete_maintenance_and_exact_history",
+      "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
+      "rust": []
+    },
+    {
+      "path": "serialization-scale/test_runner.py",
+      "id": "helper_suite.Controls.test_container_removal_failure_still_cleans_volume_and_checks_absence",
+      "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
+      "rust": []
+    },
+    {
+      "path": "serialization-scale/test_runner.py",
+      "id": "helper_suite.Controls.test_instrumentation_unique_exact_sites_and_reject_reapplication",
+      "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
+      "rust": []
+    },
+    {
+      "path": "serialization-scale/test_runner.py",
+      "id": "helper_suite.Controls.test_instrumentation_accepts_legacy_data_and_rejects_ambiguous_or_missing_sites",
+      "source_sha256": "428f52d003b445ffc57035ec00d42307a2590a3ff2a3eca83e4a17e0ad8fa9ae",
+      "rust": []
+    },
+    {
+      "path": "sqlite-baseline/test_runner.py",
+      "id": "helper_suite.BaselineTests.test_existing_outputs_and_symlinks_rejected_before_sqlite",
+      "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
+      "rust": []
+    },
+    {
+      "path": "sqlite-baseline/test_runner.py",
+      "id": "helper_suite.BaselineTests.test_invalid_workload_rejects_before_output_creation",
+      "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
+      "rust": []
+    },
+    {
+      "path": "sqlite-baseline/test_runner.py",
+      "id": "helper_suite.BaselineTests.test_copy_destination_rejected_without_open_or_mutation",
+      "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
+      "rust": []
+    },
+    {
+      "path": "sqlite-baseline/test_runner.py",
+      "id": "helper_suite.BaselineTests.test_history_survives_reopen_gc_vacuum_backup_and_restore",
+      "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
+      "rust": []
+    },
+    {
+      "path": "sqlite-baseline/test_runner.py",
+      "id": "helper_suite.BaselineTests.test_full_oracle_rejects_noncanonical_keys_and_corrupted_state",
+      "source_sha256": "9130044f9e3dedf7a17203d7108e3ba92d018308e681ec755d2f57d14484e287",
+      "rust": []
+    },
+    {
+      "path": "test_c_sanitizers.py",
+      "id": "helper_suite.EnvironmentTests.test_hostile_inherited_flags_and_suppressions_are_replaced",
+      "source_sha256": "112c9ead200018906059a2e2684d02a5617278463a67d6072d9de08236a3b5c6",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_machine_validation_rejects_false_green_and_skip_masking",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_registry_requires_all_discovered_suites_and_rejects_symlink",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_output_admission_before_registry_or_children",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_machine_worker_result_has_actual_ids_and_assertions",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_real_zero_and_skipped_workers_cannot_be_false_green",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_standard_dataclass_worker_module_registration",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_external_inputs_reject_missing_symlink_and_mutation",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_output_file_and_result_json_bounds",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_whole_run_deadline_prevents_next_worker",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_detached_nested_session_is_stopped_on_timeout_and_early_exit",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_exited_detached_helper_group_cleans_reparented_grandchild",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_inspection_failure_still_reaps_actual_worker",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_malformed_journal_still_cleans_known_detached_child",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_nonzero_worker_cannot_be_accepted",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_real_timeout_records_terminal_exit",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_exited_leader_descendant_is_stopped",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_check_helpers.py",
+      "id": "helper_suite.HelperRunnerTests.test_failure_retains_false_evidence",
+      "source_sha256": "0e8723168f3c096c4b68f4146de01507176ff1885caebf4eb9ddcc0b1f313903",
+      "rust": []
+    },
+    {
+      "path": "test_compatibility.py",
+      "id": "helper_suite.CompatibilityTests.test_both_profiles_reject_existing_and_dangling_outputs_before_build",
+      "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
+      "rust": []
+    },
+    {
+      "path": "test_compatibility.py",
+      "id": "helper_suite.CompatibilityTests.test_successful_storage_consumers_check_both_writer_directions",
+      "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
+      "rust": []
+    },
+    {
+      "path": "test_compatibility.py",
+      "id": "helper_suite.CompatibilityTests.test_zero_exit_mutating_reader_fails_and_preserves_failure_evidence",
+      "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
+      "rust": []
+    },
+    {
+      "path": "test_compatibility.py",
+      "id": "helper_suite.CompatibilityTests.test_zero_exit_mutating_rejector_fails_and_preserves_failure_evidence",
+      "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
+      "rust": []
+    },
+    {
+      "path": "test_compatibility.py",
+      "id": "helper_suite.CompatibilityTests.test_requested_commits_original_locks_and_locked_example_overlays",
+      "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
+      "rust": []
+    },
+    {
+      "path": "test_compatibility.py",
+      "id": "helper_suite.CompatibilityTests.test_early_exited_leader_does_not_leave_running_descendant",
+      "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
+      "rust": []
+    },
+    {
+      "path": "test_compatibility.py",
+      "id": "helper_suite.CompatibilityTests.test_consumer_timeout_kills_and_reaps_process_group",
+      "source_sha256": "887e9f2daf332373389e42993b485222a9c0bc068b382b4e3920a32de0de2885",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_exact_independent_counts_and_complete_branches_are_distinct",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_partial_mcdc_cannot_accept_missing_or_arbitrary_counts",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_requested_metric_absent_or_zero_is_not_measurement",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_branch_and_condition_do_not_claim_mcdc",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_incomplete_branch_calibration_rejects",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_export_cannot_silently_ignore_other_data_sets",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_remapped_sysroot_and_wrong_target_are_outside_measured_scope",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_llvm_success_with_mapping_warning_is_degraded_not_measured",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage.py",
+      "id": "helper_suite.CoverageOracles.test_fixture_only_and_library_scope_bind_fixture_and_runner",
+      "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_only_libtest_artifacts_and_package_cwd",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_custom_harness_rejected_and_multitype_library_included",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_exact_parent_pid_and_children_retained",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_failed_and_empty_tests_rejected",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_source_drift_rejected",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_object_change_rejected_before_execution",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_invalid_profile_retains_rejected_metadata_and_next_target_runs",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_actual_failed_process_never_reaches_llvm",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_coverage_executables.py",
+      "id": "helper_suite.Boundaries.test_llvm_mismatch_warning_rejected_even_success_exit",
+      "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
+      "rust": []
+    },
+    {
+      "path": "test_fuzz_runner.py",
+      "id": "helper_suite.EvidenceTests.test_requested_runs_and_failed_builds_are_not_completed_runs",
+      "source_sha256": "cd99781ece03053a96933d64c87b4fdc787b78d5c087451275d1cf55a0f03c40",
+      "rust": []
+    },
+    {
+      "path": "test_fuzz_runner.py",
+      "id": "helper_suite.EvidenceTests.test_input_changes_are_visible_and_corpus_changes_are_excluded",
+      "source_sha256": "cd99781ece03053a96933d64c87b4fdc787b78d5c087451275d1cf55a0f03c40",
+      "rust": []
+    },
+    {
+      "path": "test_native_faults.py",
+      "id": "helper_suite.NativeFaultRunnerAdmission.test_compatibility_cli_delegates_exact_arguments",
+      "source_sha256": "c9efeff51fa9227cecfcebb024f96c5ae19528fe8928f11c97350c897028d969",
+      "rust": []
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.ReleaseConfiguration.test_only_one_unwind_strategy_is_accepted",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "toolchain::tests::panic_crt_and_artifact_contracts"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.ReleaseConfiguration.test_configuration_hashes_detect_changes_without_copying_secrets",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "toolchain::tests::configuration_hashes_override_and_config_without_credentials"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.NativePackageCommands.test_windows_packages_dll_and_import_library",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "toolchain::tests::panic_crt_and_artifact_contracts"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.NativePackageCommands.test_windows_clients_use_packaged_header_and_linker_input",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "toolchain::tests::windows_commands_put_import_library_only_after_link"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.NativePackageCommands.test_unix_exact_artifact_commands_are_preserved",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "toolchain::tests::exact_unix_commands_include_library_header_and_relocatable_rpath"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.NativePackageCommands.test_relocatable_library_and_odin_commands",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "toolchain::tests::odin_links_only_packaged_artifact_and_compiler_is_required"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.NativePackageCommands.test_odin_binding_exactly_tracks_header_signatures_and_constants",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "odin::tests::generated_binding_preserves_every_header_signature_and_constant"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.NativePackageCommands.test_windows_toolchain_versions_are_required_and_case_insensitive",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "toolchain::tests::compiler_environment_is_utf16_case_insensitive_and_redacted"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.NativePackageCommands.test_runtime_configuration_and_candidate_gates_are_distinct",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "toolchain::tests::panic_crt_and_artifact_contracts",
+        "toolchain::tests::runtime_success_and_candidate_eligibility_are_separate"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.RustSourceProfile.test_source_copy_is_explicit_and_excludes_untracked_files",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "rust_source::tests::source_inventory_is_explicit_private_and_in_tree"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.RustSourceProfile.test_source_metadata_rejects_escape_git_sources_and_publishable_packages",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "rust_source::tests::metadata_rejects_escapes_publishable_packages_and_git"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.RustSourceProfile.test_dependency_scan_does_not_mask_a_sibling_of_delivered_source",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "rust_source::tests::dependency_path_tokens_exclude_registry_and_delivered_siblings"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.RustSourceProfile.test_source_build_is_locked_and_isolation_mounts_only_delivered_source",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "rust_source::tests::source_build_is_locked_and_isolation_mounts_only_delivered_source"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.RustSourceProfile.test_short_checkout_root_requires_an_absolute_path_token_boundary",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "rust_source::tests::dependency_path_tokens_exclude_registry_and_delivered_siblings"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.Attribution.test_built_packages_only_and_missing_inputs_are_review_gates",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "notices::tests::actual_packages_not_unused_metadata_and_review_gates"
+      ]
+    },
+    {
+      "path": "test_release.py",
+      "id": "helper_suite.Attribution.test_declared_paths_and_symlinks_cannot_copy_outside_package",
+      "source_sha256": "fd0a8fc49f94c38dd268d534864abe92a7df2147bb52eb34430270be0d613970",
+      "rust": [
+        "notices::tests::declared_paths_and_symlinks_cannot_escape"
+      ]
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_relations_are_not_false_exact_acknowledgments",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_previous_never_substitutes_for_unknown_receipt",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_strict_saved_schema_and_parser",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_zero_file_identity_in_describe_is_sanitized_before_poll",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_saved_field_types_nonzero_ids_and_secondary_timestamp",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_oversized_revision_in_actual_observe_parse_is_sanitized",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_deep_json_is_a_sanitized_invalid_prior",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_selector_creation_failure_spawns_no_child",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_selector_registration_failure_kills_and_reaps_actual_child",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_excess_output_rejected_before_sleep_deadline",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_observe_timeout_preserves_valid_prior_as_historical",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_existing_observation_rejected_before_replication",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.Contracts.test_lost_reply_keeps_verified_capture_but_no_remote_ack",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_replica_progress.py",
+      "id": "helper_suite.NativeTLS.test_authenticated_observations_restarts_dropped_reply_and_stale_capture",
+      "source_sha256": "b56b4c64af545045b414f54c34fbe74d03f51e7041b1da27f25846d0d5ff942f",
+      "rust": []
+    },
+    {
+      "path": "test_snapshot_cli_upgrade.py",
+      "id": "helper_suite.Contract.test_docker_cleanup_attempts_both_and_requires_both_absence",
+      "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
+      "rust": []
+    },
+    {
+      "path": "test_snapshot_cli_upgrade.py",
+      "id": "helper_suite.Contract.test_exact_receipt_grammar",
+      "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
+      "rust": []
+    },
+    {
+      "path": "test_snapshot_cli_upgrade.py",
+      "id": "helper_suite.Contract.test_fresh_output_preserves_existing_and_dangling",
+      "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
+      "rust": []
+    },
+    {
+      "path": "test_snapshot_cli_upgrade.py",
+      "id": "helper_suite.Contract.test_environment_preserves_selected_toolchain",
+      "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
+      "rust": []
+    },
+    {
+      "path": "test_snapshot_cli_upgrade.py",
+      "id": "helper_suite.Contract.test_timeout_reaps_real_child_and_records_exit",
+      "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
+      "rust": []
+    },
+    {
+      "path": "test_snapshot_cli_upgrade.py",
+      "id": "helper_suite.Contract.test_failed_setup_records_failure_and_scrubs_keys",
+      "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
+      "rust": []
+    },
+    {
+      "path": "test_snapshot_cli_upgrade.py",
+      "id": "helper_suite.Contract.test_expected_failure_does_not_accept_success",
+      "source_sha256": "7892412141c7bf0a5adc2b5afa701fd5b1263a49bfc75c5e56aac51375e90af3",
+      "rust": []
+    },
+    {
+      "path": "test_soak.py",
+      "id": "helper_suite.SoakTests.test_round_oracle_accepts_short_and_release_transition",
+      "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
+      "rust": []
+    },
+    {
+      "path": "test_soak.py",
+      "id": "helper_suite.SoakTests.test_incomplete_inconsistent_and_forged_round_records_rejected",
+      "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
+      "rust": []
+    },
+    {
+      "path": "test_soak.py",
+      "id": "helper_suite.SoakTests.test_existing_and_dangling_output_rejected_before_external_work",
+      "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
+      "rust": []
+    },
+    {
+      "path": "test_soak.py",
+      "id": "helper_suite.SoakTests.test_setup_failure_keeps_terminal_evidence",
+      "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
+      "rust": []
+    },
+    {
+      "path": "test_soak.py",
+      "id": "helper_suite.SoakTests.test_actual_complete_child_has_exact_round_oracle",
+      "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
+      "rust": []
+    },
+    {
+      "path": "test_soak.py",
+      "id": "helper_suite.SoakTests.test_zero_exit_incomplete_and_malformed_children_rejected",
+      "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
+      "rust": []
+    },
+    {
+      "path": "test_soak.py",
+      "id": "helper_suite.SoakTests.test_failed_rss_probe_terminates_and_reaps_real_child",
+      "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
+      "rust": []
+    },
+    {
+      "path": "test_soak.py",
+      "id": "helper_suite.SoakTests.test_rss_probe_timeout_preserves_child_status",
+      "source_sha256": "64871dcfb3f1a228ba9a4712dcd54d2a4645b1e528c1ee9e91ca72389ab8744e",
+      "rust": []
+    },
+    {
+      "path": "test_study_cli_upgrade.py",
+      "id": "helper_suite.Controls.test_output_admission_before_external_work",
+      "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
+      "rust": []
+    },
+    {
+      "path": "test_study_cli_upgrade.py",
+      "id": "helper_suite.Controls.test_preserve_selector_remove_overrides",
+      "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
+      "rust": []
+    },
+    {
+      "path": "test_study_cli_upgrade.py",
+      "id": "helper_suite.Controls.test_real_failed_child_and_timeout_are_reaped",
+      "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
+      "rust": []
+    },
+    {
+      "path": "test_study_cli_upgrade.py",
+      "id": "helper_suite.Controls.test_exited_leader_cannot_leave_live_descendant",
+      "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
+      "rust": []
+    },
+    {
+      "path": "test_study_cli_upgrade.py",
+      "id": "helper_suite.Controls.test_copied_artifact_and_source_mismatch_reject",
+      "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
+      "rust": []
+    },
+    {
+      "path": "test_study_cli_upgrade.py",
+      "id": "helper_suite.Controls.test_cleanup_attempts_volume_after_container_error",
+      "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
+      "rust": []
+    },
+    {
+      "path": "test_study_cli_upgrade.py",
+      "id": "helper_suite.Controls.test_fixture_uses_real_binary_seam_and_public_oracles",
+      "source_sha256": "57c873e2c0f1817ad17e0b23375625222b224b67266569ad3e49706fdaebe896",
+      "rust": []
+    },
+    {
+      "path": "test_study_peer_soak.py",
+      "id": "helper_suite.QualificationOracles.test_converged_state_and_increasing_counts_do_not_replace_covering_ack",
+      "source_sha256": "3aa172d78e97db136f557224756628d586f1db99a712f3fa5314c50beaf2a31d",
+      "rust": []
+    },
+    {
+      "path": "test_study_peer_soak.py",
+      "id": "helper_suite.QualificationOracles.test_existing_output_and_invalid_workload_reject_before_external_work",
+      "source_sha256": "3aa172d78e97db136f557224756628d586f1db99a712f3fa5314c50beaf2a31d",
+      "rust": []
+    },
+    {
+      "path": "test_windows_consumers.py",
+      "id": "helper_suite.WindowsConsumerCommands.test_import_library_is_passed_to_linker_in_both_languages",
+      "source_sha256": "ab5923ab674494828e9f15296663b478cb6d0054cbaa6a4457d48fd22c7d23cf",
+      "rust": [
+        "toolchain::tests::windows_commands_put_import_library_only_after_link"
+      ]
+    },
+    {
+      "path": "resource-envelope/test_cache_probe.py",
+      "id": "helper_suite.CacheProbeControls.test_current_and_legacy_unique_sites_and_ambiguous_patch_rejection",
+      "source_sha256": "67f20de4544136f8a193353dbcf8127eb3ff5149d632de8fbab80b17704a7790",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_cache_probe.py",
+      "id": "helper_suite.CacheProbeControls.test_parser_rejects_missing_malformed_and_regressing_totals",
+      "source_sha256": "67f20de4544136f8a193353dbcf8127eb3ff5149d632de8fbab80b17704a7790",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_resilience.py",
+      "id": "helper_suite.ResilienceControls.test_complete_matrix_and_corruption_omission_type_identity_rejections",
+      "source_sha256": "60aa69c061b49f048f418a0a051ebe63f00a3eb7c87be2683f60471eddded1de",
+      "rust": []
+    },
+    {
+      "path": "resource-envelope/test_resilience.py",
+      "id": "helper_suite.ResilienceControls.test_case_control_and_namespace_order_are_not_interchangeable",
+      "source_sha256": "60aa69c061b49f048f418a0a051ebe63f00a3eb7c87be2683f60471eddded1de",
+      "rust": []
+    },
+    {
+      "path": "quota/test_maintenance.py",
+      "id": "helper_suite.MaintenanceControls.test_classified_partial_copy_requires_real_errno_and_unchanged_inputs",
+      "source_sha256": "9ae6ced61da45004590cda1156708116d306d3010448f94dbffe449b6d2ba51f",
+      "rust": []
+    },
+    {
+      "path": "quota/test_maintenance.py",
+      "id": "helper_suite.MaintenanceControls.test_retry_and_oracle_reject_wrong_dispositions_and_bytes",
+      "source_sha256": "9ae6ced61da45004590cda1156708116d306d3010448f94dbffe449b6d2ba51f",
+      "rust": []
+    },
+    {
+      "path": "quota/test_maintenance.py",
+      "id": "helper_suite.MaintenanceControls.test_larger_ballast_still_requires_privilege_and_distinct_space_failures",
+      "source_sha256": "9ae6ced61da45004590cda1156708116d306d3010448f94dbffe449b6d2ba51f",
+      "rust": []
+    }
+  ]
+}

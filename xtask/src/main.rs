@@ -1,11 +1,17 @@
+mod abi;
 mod check;
 mod clean;
 #[cfg(unix)]
 mod faults;
+mod migration;
+mod notices;
+mod odin;
 mod package;
+mod rust_source;
 #[cfg(unix)]
 mod supervise;
 mod support;
+mod toolchain;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
@@ -17,7 +23,7 @@ use support::{Platform, Run, cmd, path};
     name = "xtask",
     version,
     about = "Private repository automation; never publishes crates",
-    after_help = "Set WEEKEND_PYTHON for the retained Python leaf checkers. The runner cache lives in target/xtask."
+    after_help = "The runner cache lives in target/xtask. All crates remain unpublished."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -26,6 +32,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    #[command(hide = true)]
+    CompilerEnvironment {
+        #[arg(long)]
+        directory: PathBuf,
+    },
+    /// Dynamically load the exact shared library and verify its C ABI.
+    AbiSmoke(abi::Options),
+    /// Generate raw Odin bindings, or verify them against the C header.
+    OdinBindings {
+        #[arg(long)]
+        check: bool,
+    },
+    /// Compile C/C++ consumers against an exact Windows DLL/import library.
+    WindowsConsumers(toolchain::WindowsConsumers),
     /// Run bounded native or exact-delivery fault qualifications; never publishes.
     #[cfg(unix)]
     Faults {
@@ -112,6 +132,25 @@ fn execute(cli: Cli) -> Result<()> {
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        Task::CompilerEnvironment { directory } => {
+            let env = toolchain::compiler_environment(&mut run, &directory)?;
+            let strings: std::collections::BTreeMap<String, String> = env
+                .into_iter()
+                .map(|(k, v)| {
+                    Ok((
+                        k.into_string()
+                            .map_err(|_| anyhow::anyhow!("non-UTF-8 environment name"))?,
+                        v.into_string()
+                            .map_err(|_| anyhow::anyhow!("non-UTF-8 environment value"))?,
+                    ))
+                })
+                .collect::<Result<_>>()?;
+            serde_json::to_writer(std::io::stdout(), &strings)?;
+            Ok(())
+        }
+        Task::AbiSmoke(options) => abi::run(options),
+        Task::OdinBindings { check } => odin::run(&root, check),
+        Task::WindowsConsumers(options) => toolchain::windows_consumers(&mut run, options),
         #[cfg(unix)]
         Task::Faults { task } => faults::run(&run, task),
         #[cfg(unix)]

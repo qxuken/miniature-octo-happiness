@@ -26,9 +26,10 @@ configuration files. Configuration contents and registry credentials
 are omitted. Those hashes identify inputs without retaining their
 contents, so keep the configuration securely for later reproduction.
 The private [xtask crate](xtask.md) owns this orchestration and package lifecycle.
-The retained Python leaf checkers handle ABI calls, platform policy, attribution
-and optional delivered Rust source. `tools/check.py` and `tools/release.py`
-remain compatibility entry points that forward to xtask.
+Rust now owns ABI loading, platform/compiler policy, bounded attribution and
+delivered-source validation as well. Use `cargo xtask check` and `cargo xtask
+package`; the old Python check/release entry points are retired. The
+[conversion ledger](xtask-conversion.md) tracks remaining non-packaging tooling.
 Compiler wrappers and the compiler remain trusted tools.
 The package includes `notices/inventory.json` and copied attribution
 files for the actual Cargo compiler-artifact package IDs emitted during

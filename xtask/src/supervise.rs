@@ -804,7 +804,7 @@ mod unix {
                     signal(-pid, libc::SIGKILL)
                 }
             }
-            let (_owned, request) = super::super::tests::fixture("raise SystemExit(2)");
+            let (_owned, request) = super::super::tests::fixture("exit 2");
             let mut report = Report::default();
             let mut inspect = Reserved(false);
             execute_with(
@@ -822,8 +822,7 @@ mod unix {
         #[test]
         fn probe_wait_sampler_and_combined_failures_still_reap() {
             for mode in ["exit", "timeout", "malformed", "wait", "sampler", "both"] {
-                let (_owned, mut request) =
-                    super::super::tests::fixture("import time;time.sleep(30)");
+                let (_owned, mut request) = super::super::tests::fixture("exec sleep 30");
                 request.timeout_seconds = 0.1;
                 request.sample_rss = mode == "sampler";
                 let mut report = Report::default();
@@ -872,11 +871,7 @@ mod tests {
     pub(super) fn fixture(body: &str) -> (Scratch, Request) {
         let scratch = Scratch::new(&std::env::temp_dir(), "xtask-supervision").unwrap();
         let request = Request {
-            argv: vec![
-                std::env::var("WEEKEND_PYTHON").unwrap_or_else(|_| "python3".into()),
-                "-c".into(),
-                body.into(),
-            ],
+            argv: vec!["/bin/sh".into(), "-c".into(), body.into()],
             cwd: None,
             env: None,
             stdout: scratch.path().join("stdout"),
@@ -900,8 +895,7 @@ mod tests {
                 (1025, false, false),
                 (1025, true, false),
             ] {
-                let (_owned, mut request) =
-                    fixture(&format!("import os;os.write({stream},b'x'*{n})"));
+                let (_owned, mut request) = fixture(&format!("head -c {n} /dev/zero >&{stream}"));
                 request.exclusive_limit = exclusive;
                 let report = run(&request).unwrap();
                 assert_eq!(report.success(), success, "{report:?}");
@@ -926,9 +920,7 @@ mod tests {
     }
     #[test]
     fn timeout_reaps_leader_and_cleans_descendants() {
-        let (_owned, mut request) = fixture(
-            "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)']);time.sleep(30)",
-        );
+        let (_owned, mut request) = fixture("sleep 30 & wait");
         request.timeout_seconds = 0.25;
         let report = run(&request).unwrap();
         assert!(report.timed_out);
@@ -939,9 +931,7 @@ mod tests {
     }
     #[test]
     fn exited_leader_does_not_wait_for_descendant_pipe_eof() {
-        let (_owned, request) = fixture(
-            "import subprocess,sys;subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)']);sys.exit(2)",
-        );
+        let (_owned, request) = fixture("sleep 30 & exit 2");
         let report = run(&request).unwrap();
         assert_eq!(report.returncode, Some(2));
         assert!(report.cleanup_verified, "{report:?}");
@@ -950,7 +940,7 @@ mod tests {
     }
     #[test]
     fn all_paths_admitted_before_launch_and_existing_data_untouched() {
-        let (_owned, request) = fixture("raise Exception('must not launch')");
+        let (_owned, request) = fixture("exit 99");
         fs::write(&request.stderr, b"preserve").unwrap();
         assert!(run(&request).is_err());
         assert!(!request.stdout.exists());
@@ -961,10 +951,10 @@ mod tests {
     fn file_size_limit_is_inherited_by_descendants() {
         let (owned, mut request) = fixture("");
         let file = owned.path().join("oversized");
-        request.argv[2] = format!(
-            "import os;f=open({:?},'wb');f.write(b'x'*4096);f.flush()",
-            file.to_str().unwrap()
-        );
+        request.argv[2] = "dd if=/dev/zero of=\"$1\" bs=4096 count=1".into();
+        request
+            .argv
+            .extend(["fixture".into(), file.to_string_lossy().into_owned()]);
         request.file_limit = Some(1024);
         let report = run(&request).unwrap();
         assert!(!report.success());
@@ -973,7 +963,7 @@ mod tests {
     }
     #[test]
     fn malformed_journal_fails_after_direct_worker_cleanup() {
-        let (owned, mut request) = fixture("import time;time.sleep(30)");
+        let (owned, mut request) = fixture("exec sleep 30");
         let journal = owned.path().join("journal");
         fs::write(&journal, b"{broken\n").unwrap();
         request.journal = Some(journal);

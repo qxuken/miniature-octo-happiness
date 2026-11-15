@@ -43,7 +43,7 @@ pub fn profile(
     platform: Platform,
     arch: &str,
     skip: bool,
-    python: &OsStr,
+    xtask: &OsStr,
     scratch: &Path,
     release: bool,
 ) -> Vec<Vec<OsString>> {
@@ -81,13 +81,7 @@ pub fn profile(
         rows.push(cargo(&["run", "--offline", "--example", example]));
     }
     rows.push(cargo(&["build", "--offline", "--workspace"]));
-    rows.push(vec![
-        path(python),
-        path("-I"),
-        path("-B"),
-        path(root.join("tools/ffi_smoke.py")),
-        path(&library),
-    ]);
+    rows.push(vec![path(xtask), path("abi-smoke"), path(&library)]);
     let mut rust_file = |example: &str, file: &str| {
         let mut v = cargo(&["run", "--offline", "--example", example]);
         v.extend([path("--"), path(scratch.join(file))]);
@@ -160,7 +154,7 @@ pub fn profile(
 
 pub fn run(run: &mut Run, platform: Platform, skip: bool, dry: bool) -> Result<()> {
     let target = run.target();
-    let python = run.python();
+    let executable = std::env::current_exe()?;
     if dry {
         let mut commands = prelude();
         for release in [false, true] {
@@ -170,7 +164,7 @@ pub fn run(run: &mut Run, platform: Platform, skip: bool, dry: bool) -> Result<(
                 platform,
                 std::env::consts::ARCH,
                 skip,
-                &python,
+                executable.as_os_str(),
                 Path::new("<temporary>"),
                 release,
             ));
@@ -197,7 +191,7 @@ pub fn run(run: &mut Run, platform: Platform, skip: bool, dry: bool) -> Result<(
             platform,
             std::env::consts::ARCH,
             skip,
-            &python,
+            executable.as_os_str(),
             scratch.path(),
             release,
         ) {
@@ -240,23 +234,31 @@ mod tests {
                     platform,
                     arch,
                     skip,
-                    OsStr::new("python"),
+                    OsStr::new("<xtask>"),
                     Path::new("/scratch"),
                     release,
                 ));
             }
-            // The migrated leaf checker runs with isolated Python; the old
-            // orchestration did not pass -I/-B. Every actual check is retained.
+            // Preserve the historical command graph, with exactly the ABI
+            // Python consumer replaced by its independent Rust dynamic consumer.
             let normalized: Vec<Vec<String>> = commands
                 .iter()
                 .map(|row| {
-                    row.iter()
-                        .filter(|s| {
-                            s.as_os_str() != OsStr::new("-I") || row[0] != OsStr::new("python")
-                        })
-                        .filter(|s| s.as_os_str() != OsStr::new("-B"))
-                        .map(|s| s.to_string_lossy().replace('\\', "/"))
-                        .collect()
+                    if row[0] == OsStr::new("<xtask>") {
+                        assert_eq!(row[1], OsStr::new("abi-smoke"));
+                        let mut old =
+                            vec!["python".to_owned(), "/repo/tools/ffi_smoke.py".to_owned()];
+                        old.extend(
+                            row[2..]
+                                .iter()
+                                .map(|s| s.to_string_lossy().replace('\\', "/")),
+                        );
+                        old
+                    } else {
+                        row.iter()
+                            .map(|s| s.to_string_lossy().replace('\\', "/"))
+                            .collect()
+                    }
                 })
                 .collect();
             assert_eq!(

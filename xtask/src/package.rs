@@ -113,7 +113,15 @@ fn attribution(
     compiler: &Value,
 ) -> Result<Value> {
     let sysroot = run.capture(&cmd(["rustc", "--print", "sysroot"]))?;
-    run.helper("notices",&json!({"metadata":metadata,"packages":packages,"lockfile":lockfile,"destination":destination,"sysroot":sysroot,"compiler":compiler}))
+    let ids: BTreeSet<String> = serde_json::from_value(packages.clone())?;
+    crate::notices::collect(
+        metadata,
+        &ids,
+        lockfile,
+        destination,
+        Path::new(&sysroot),
+        compiler,
+    )
 }
 
 fn add_attribution(e: &mut Value, attribution: &Value) -> Result<()> {
@@ -170,7 +178,7 @@ pub fn run(run: &mut Run, args: Options) -> Result<()> {
     let source = run.capture(&cmd(["git", "rev-parse", "HEAD"]))?;
     let source_id = format!("{source}{}", if dirty.is_empty() { "" } else { "-dirty" });
     let initial = source_hashes(run, &output)?;
-    let inherited = run.helper("configuration", &json!({}))?;
+    let inherited = crate::toolchain::configuration(&run.root, &run.env)?;
     run.env
         .insert(path("WEEKEND_DB_SOURCE_ID"), path(&source_id));
     run.env
@@ -223,17 +231,15 @@ fn qualify(
                 .any(|line| line == "host: x86_64-pc-windows-msvc"),
             "Windows packaging qualifies only the x86_64 MSVC host"
         );
-        let env: BTreeMap<String, String> =
-            serde_json::from_value(run.helper("environment", &json!({"directory":build.path()}))?)?;
-        run.env = env.into_iter().map(|(k, v)| (path(k), path(v))).collect();
+        run.env = crate::toolchain::compiler_environment(run, build.path())?;
         run.env
             .insert(path("WEEKEND_DB_SOURCE_ID"), path(&source_id));
         run.env
             .insert(path("CARGO_PROFILE_RELEASE_PANIC"), path("unwind"));
         run.env.insert(path("CARGO_INCREMENTAL"), path("0"));
     }
-    e["effective_build_configuration"] = run.helper("configuration", &json!({}))?;
-    let plan = run.helper("plan", &json!({"output":output,"odin":args.odin}))?;
+    e["effective_build_configuration"] = crate::toolchain::configuration(&run.root, &run.env)?;
+    let plan = crate::toolchain::plan(run, platform, output, args.odin)?;
     run.status(&cmd(["cargo", "fetch", "--locked"]))?;
     let mut command = cmd([
         "cargo",
@@ -255,8 +261,8 @@ fn qualify(
     let mut query = command.clone();
     query.push(path("--print=cfg"));
     let cfg = run.capture(&query)?;
-    e["panic_strategy"] =
-        run.helper("compiler-cfg", &json!({"cfg":cfg}))?["panic_strategy"].clone();
+    crate::toolchain::require_cfg(&cfg, platform)?;
+    e["panic_strategy"] = json!("unwind");
     command.insert(split, path("--message-format=json-render-diagnostics"));
     let built = run.capture(&command)?;
     let mut ids = BTreeSet::new();
@@ -339,9 +345,14 @@ fn qualify(
         }
         executables.push(exe);
     }
-    run.leaf("tools/ffi_smoke.py", [path(&library), path(&source_id)])?;
+    run.task([
+        path("abi-smoke"),
+        path(&library),
+        path("--expected-source"),
+        path(&source_id),
+    ])?;
     if args.odin {
-        run.leaf("tools/odin_bindings.py", [path("--check")])?;
+        crate::odin::check(&root)?;
         copy_tree(&root.join("bindings/odin"), &output.join("bindings/odin"))?;
         copy_tree(
             &root.join("examples/odin_package"),
@@ -396,9 +407,24 @@ fn qualify(
     e["relocation_verified"] = json!(true);
     if args.source {
         let tracked = run.capture(&cmd(["git", "ls-files", "--cached", "-z"]))?;
-        let profile=run.helper("rust-source",&json!({"output":output,"tracked":tracked.split('\0').filter(|n|!n.is_empty()).collect::<Vec<_>>(),"source_id":source_id,"image":if args.isolated {Some(args.image.as_str())}else{None}}))?;
-        require_source_profile(&profile["info"], args.isolated)?;
-        for (name, hash) in profile["info"]["source_files_sha256"]
+        let tracked: Vec<_> = tracked
+            .split('\0')
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect();
+        let profile = crate::rust_source::qualify(
+            run,
+            output,
+            &tracked,
+            &source_id,
+            if args.isolated {
+                Some(&args.image)
+            } else {
+                None
+            },
+        )?;
+        require_source_profile(&profile.info, args.isolated)?;
+        for (name, hash) in profile.info["source_files_sha256"]
             .as_object()
             .context("source inventory missing")?
         {
@@ -407,34 +433,35 @@ fn qualify(
                 "delivered source differs from initial input: {name}"
             );
         }
-        run.commands.extend(
-            profile["commands"]
-                .as_array()
-                .context("source commands missing")?
-                .iter()
-                .cloned(),
-        );
         let notices = attribution(
             run,
-            &profile["metadata"],
-            &profile["packages"],
+            &profile.metadata,
+            &json!(profile.packages),
             &output.join("rust-source/examples/rust_package/Cargo.lock"),
             &output.join("notices/rust-source"),
             &e["toolchain"],
         )?;
         add_attribution(e, &notices)?;
-        e["rust_source"] = profile["info"].clone();
+        e["rust_source"] = profile.info;
     }
-    run.leaf("tools/ffi_smoke.py", [path(&library), path(&source_id)])?;
+    run.task([
+        path("abi-smoke"),
+        path(&library),
+        path("--expected-source"),
+        path(&source_id),
+    ])?;
     ensure!(
         source_hashes(run, output)? == *initial
             && run.capture(&cmd(["git", "rev-parse", "HEAD"]))? == source
-            && run.helper("configuration", &json!({}))? == e["effective_build_configuration"],
+            && crate::toolchain::configuration(&run.root, &run.env)?
+                == e["effective_build_configuration"],
         "source or build configuration changed during packaging"
     );
     e["verified"] = json!(true);
-    e["candidate_eligible"] =
-        json!(text(&e["dirty_status"])?.is_empty() && e["attribution_inputs_complete"] == true);
+    e["candidate_eligible"] = json!(crate::toolchain::candidate_eligible(
+        text(&e["dirty_status"])?,
+        e["attribution_inputs_complete"] == true
+    ));
     Ok(())
 }
 
@@ -486,10 +513,12 @@ fn relocate(
             }
             run.status(&c)?;
         }
-        run.leaf(
-            "tools/ffi_smoke.py",
-            [path(relocated.join(filename)), path(source_id)],
-        )
+        run.task([
+            path("abi-smoke"),
+            path(relocated.join(filename)),
+            path("--expected-source"),
+            path(source_id),
+        ])
     })();
     if let Err(error) = fs::rename(&relocated, output) {
         scratch.keep();

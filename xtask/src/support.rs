@@ -8,7 +8,7 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -75,12 +75,6 @@ impl Run {
             commands: vec![],
             log_dir: None,
         }
-    }
-    pub fn python(&self) -> OsString {
-        self.env
-            .get(OsStr::new("WEEKEND_PYTHON"))
-            .cloned()
-            .unwrap_or_else(|| path(if cfg!(windows) { "python" } else { "python3" }))
     }
     pub fn target(&self) -> PathBuf {
         let p = self
@@ -153,41 +147,99 @@ impl Run {
             .trim_end_matches(['\r', '\n'])
             .to_owned())
     }
-    // The Windows environment response contains process secrets. Never log
-    // helper stdin/stdout; only its command, stderr and selected policy results.
-    pub fn helper(&mut self, action: &str, input: &Value) -> Result<Value> {
-        let args = vec![
-            self.python(),
-            path("-I"),
-            path("-B"),
-            path(self.root.join("tools/release.py")),
-            path("--xtask-helper"),
-            path(action),
-        ];
-        let mut c = self.command(&args)?;
-        c.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let mut child = c.spawn()?;
-        let write = serde_json::to_writer(child.stdin.take().context("helper stdin")?, input);
-        let out = child.wait_with_output()?;
-        self.log(&out.stderr)?;
+    pub fn bounded_capture(&mut self, args: &[OsString], timeout: f64) -> Result<String> {
+        let mut scratch = Scratch::new(&env::temp_dir(), "command")?;
+        #[cfg(unix)]
+        let result = {
+            // Record the same argv without recording request environments.
+            drop(self.command(args)?);
+            let strings = args
+                .iter()
+                .map(|s| s.to_str().map(str::to_owned).context("UTF-8 command"))
+                .collect::<Result<Vec<_>>>()?;
+            let values = self
+                .env
+                .iter()
+                .map(|(k, v)| {
+                    Ok((
+                        k.to_str().context("UTF-8 env name")?.to_owned(),
+                        v.to_str().context("UTF-8 env value")?.to_owned(),
+                    ))
+                })
+                .collect::<Result<BTreeMap<_, _>>>()?;
+            let log = scratch.path().join("output");
+            let report = crate::supervise::run(&crate::supervise::Request {
+                argv: strings,
+                cwd: Some(self.root.clone()),
+                env: Some(values),
+                stdout: log.clone(),
+                stderr: log.clone(),
+                report: None,
+                timeout_seconds: timeout,
+                maximum_bytes: 64 * 1024 * 1024,
+                exclusive_limit: false,
+                file_limit: None,
+                journal: None,
+                sample_rss: false,
+            })?;
+            let bytes = fs::read(log)?;
+            self.log(&bytes)?;
+            ensure!(
+                report.success(),
+                "bounded command failed: {:?}; cleanup {:?}",
+                report.failure,
+                report.cleanup_failure
+            );
+            String::from_utf8(bytes)
+        };
+        #[cfg(not(unix))]
+        let result = {
+            // Preserve the legacy Windows root-process timeout contract. Docker
+            // resources have an independent explicit retirement/absence gate.
+            let output = scratch.path().join("output");
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&output)?;
+            let mut command = self.command(args)?;
+            command.stdout(file.try_clone()?).stderr(file);
+            let mut child = command.spawn()?;
+            let started = std::time::Instant::now();
+            let status = loop {
+                if let Some(s) = child.try_wait()? {
+                    break Some(s);
+                }
+                if started.elapsed().as_secs_f64() > timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break None;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            };
+            let bytes = fs::read(output)?;
+            self.log(&bytes)?;
+            ensure!(
+                status.is_some_and(|s| s.success()),
+                "bounded command failed or timed out"
+            );
+            String::from_utf8(bytes)
+        };
+        scratch.close()?;
+        Ok(result?)
+    }
+    // Compiler environment output can contain credentials. Keep both streams
+    // out of logs and errors; callers retain only explicit identities/hashes.
+    pub fn capture_private(&mut self, args: &[OsString]) -> Result<Vec<u8>> {
+        let out = self.command(args)?.output()?;
         ensure!(
             out.status.success(),
-            "package helper {action} failed: {}\n{}",
-            out.status,
-            String::from_utf8_lossy(&out.stderr)
+            "private toolchain command failed: {}",
+            out.status
         );
-        write?;
-        serde_json::from_slice(&out.stdout).context("package helper returned invalid JSON")
+        Ok(out.stdout)
     }
-    pub fn leaf(&mut self, script: &str, args: impl IntoIterator<Item = OsString>) -> Result<()> {
-        let mut command = vec![
-            self.python(),
-            path("-I"),
-            path("-B"),
-            path(self.root.join(script)),
-        ];
+    pub fn task(&mut self, args: impl IntoIterator<Item = OsString>) -> Result<()> {
+        let mut command = vec![path(std::env::current_exe()?)];
         command.extend(args);
         self.status(&command)
     }
