@@ -1,6 +1,6 @@
 # Compiler coverage evidence
 
-`tools/coverage.py` offers workspace or engine-library line/region reports
+`cargo xtask coverage` offers POSIX workspace or engine-library line/region reports
 and explicit branch, condition, and MC/DC requests. LLVM mapping warnings
 reject a measurement even when LLVM exits zero. The ordinary configured job
 now explicitly selects the core engine library; it does not measure the entire
@@ -11,21 +11,22 @@ source hashes, exclusions, test artifacts, calibration, and totals.
 The matching toolchain's `llvm-tools-preview` is required.
 
 ```sh
-python3 tools/coverage.py
-python3 tools/coverage.py --mode condition --scope library
-python3 tools/coverage.py --mode branch --fixture-only
-python3 tools/coverage.py --mode mcdc --fixture-only
+cargo xtask coverage
+cargo xtask coverage --mode condition --scope library
+cargo xtask coverage --mode branch --fixture-only
+cargo xtask coverage --mode mcdc --fixture-only
 ```
 
 The active toolchain is used by default for line mode. Other modes use
 nightly unless `--toolchain` selects another installed toolchain. The
 library scope runs `cargo test -p weekend-db --lib --all-features`.
-Workspace scope runs the existing all-feature workspace tests. The script
-replaces inherited Rust coverage flags and removes encoded Rust flags
-that could override instrumentation. Outputs go to `target/coverage`
+Workspace scope runs the existing all-feature workspace tests. The Rust runner
+replaces inherited flags, compiler wrappers and sanitizer suppressions with
+controlled coverage instrumentation. Outputs go to `target/coverage`
 for line mode or `target/coverage-MODE` for the other modes. `--output`
-selects another directory. Existing raw profiles in that run directory
-are removed before collecting new counters.
+selects another fresh directory. Existing outputs are rejected before execution;
+prior profiles are never reused or removed implicitly. Every subprocess has
+bounded output, a finite deadline, recorded status and verified retirement.
 
 Every branch/condition/MC/DC run first compiles the three-condition
 `(a && b) || c` calibration fixture. The partial case covers exactly 2/6
@@ -59,7 +60,7 @@ The later [dated 2026-11-12 capability probe](local-toolchains-a56083c.md#dated-
 also rejects the actual MC/DC flag before fixture compilation. Its unsupported
 result is separate from measured branch/condition data.
 
-Reports exclude paths under `tests`, `examples`, `tools`, the Rust
+Reports exclude paths under `tests`, `examples`, `tools`, `xtask`, the Rust
 sysroot, and Cargo registry sources. Unit tests located inside `src`
 remain in the measured files. Generic instantiations, proc-macro
 expansions, and compiler-emitted mappings affect the denominator.

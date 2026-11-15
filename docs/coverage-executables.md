@@ -1,14 +1,14 @@
 # Separate executable coverage qualification
 
-`tools/coverage-executables.py` measures each test executable against profiles from
+`cargo xtask coverage-executables` measures each test executable against profiles from
 its own process. It does not compute workspace coverage. The existing pooled
 coverage driver still rejects LLVM mapping warnings; this companion does not
 relax that gate.
 
 ```sh
-mise exec rust@1.99.1 python@3.14.8 -- python tools/test_coverage_executables.py
-mise exec rust@1.99.1 python@3.14.8 -- python -O tools/test_coverage_executables.py
-mise exec rust@1.99.1 python@3.14.8 -- python tools/coverage-executables.py \
+cargo test --offline --locked -p xtask --bin xtask coverage
+cargo test --offline --locked --release -p xtask --bin xtask coverage
+cargo xtask coverage-executables \
   --mode condition --toolchain nightly-2026-10-09 \
   --output target/coverage-executables-new \
   --select weekend-db::values --select weekend-replicate::cli
@@ -63,8 +63,10 @@ failed/empty test summaries, an actual failing subprocess, changed objects,
 source drift and successful-exit LLVM warning rejection. An actual subprocess
 malformed-profile test verifies rejection metadata is written and the next
 execution can proceed. Invalid raw names remain inventoried with a null PID;
-they never become eligible parent profiles. The tests also run with
-Python assertions disabled.
+they never become eligible parent profiles. The retired Python controls map to
+Rust debug/release tests in the conversion ledger. Command logs and process
+reports are stored at the campaign root with `object-NNN` stage labels; each
+object keeps its own terminal evidence, raw profiles, export and HTML report.
 
 The real initial controls used an isolated archive/checkout of
 `21e5d2638c24c6254ced35d0077c55bb30a287b2` with explicit coverage-tool overlays,

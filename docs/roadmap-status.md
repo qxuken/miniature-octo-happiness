@@ -914,3 +914,14 @@ controls remain accounted for: 20/179 map to Rust tests, with 159 still pending;
 the probe, independent delivery/fault oracles and the remaining qualifications are
 explicitly open. Detailed source IDs, hashes, failed Apple-runtime calibration
 and platform limitations remain in the conversion ledger. No crate is published.
+
+Clean `cfa08d1` subsequently passes all hosted engine/fuzz jobs, including native
+Windows and TSan. The next local batch ports both coverage drivers and preserves
+18 more legacy controls, taking the mapping to 38/179 and leaving 52 Python files.
+Mac old/new line totals match exactly; corrected Docker Linux line, calibration
+and independent parent reports pass after replacing assumptions about `.cargo`
+and `.rustup` installation paths with exact configured/selected paths. Outside
+sources, LLVM warnings, empty metrics and unsupported MC/DC still reject. Mac
+debug/release controls and Linux debug pass; 278 remaining helper checks plus four
+registered skips pass. Exact counts, source scopes and proof hashes are in the
+[conversion ledger](xtask-conversion.md#coverage-conversion-checkpoint).

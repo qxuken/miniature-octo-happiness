@@ -209,7 +209,7 @@ jobs:
       - run: rustup toolchain install 1.99.1 --profile minimal --component llvm-tools-preview
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
-      - run: python3 tools/coverage.py --scope library --output target/coverage-library
+      - run: cargo +1.99.1 xtask coverage --scope library --toolchain 1.99.1 --output target/coverage-library
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -217,6 +217,7 @@ jobs:
           if-no-files-found: error
           path: |
             target/coverage-library/evidence.json
-            target/coverage-library/*.rejected.*
+            target/coverage-library/*.log
+            target/coverage-library/*.process.json
             target/coverage-library/report.txt
             target/coverage-library/html/

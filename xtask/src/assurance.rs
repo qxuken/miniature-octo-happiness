@@ -21,6 +21,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "build.rs",
         "include/weekend_db.h",
         ".cargo/config.toml",
+        "tools/coverage-fixture.rs",
     ] {
         let file = root.join(name);
         if file.is_file() {
@@ -146,6 +147,16 @@ impl<'a> Campaign<'a> {
         expected: Option<&str>,
         timeout: f64,
     ) -> Result<String> {
+        self.command_at(args, name, expected, timeout, &self.run.root.clone())
+    }
+    pub fn command_at(
+        &mut self,
+        args: Vec<OsString>,
+        name: &str,
+        expected: Option<&str>,
+        timeout: f64,
+        cwd: &Path,
+    ) -> Result<String> {
         ensure!(
             !name.is_empty()
                 && name
@@ -175,7 +186,7 @@ impl<'a> Campaign<'a> {
         let stderr = self.output.join(format!("{name}.stderr.log"));
         let report = supervise::run(&Request {
             argv: strings.clone(),
-            cwd: Some(self.run.root.clone()),
+            cwd: Some(cwd.to_owned()),
             env: Some(env),
             stdout: stdout.clone(),
             stderr: stderr.clone(),
@@ -196,7 +207,7 @@ impl<'a> Campaign<'a> {
         let passed = report
             .as_ref()
             .is_some_and(|r| qualifies(r, &err, expected));
-        self.evidence["commands"].as_array_mut().unwrap().push(json!({"argv":strings,"name":name,"exit_code":report.as_ref().and_then(|r| r.returncode),"supervision":report,"invocation_error":invocation_error,"stdout":stdout.file_name().and_then(|s|s.to_str()),"stderr":stderr.file_name().and_then(|s|s.to_str()),"expected_assertion":expected,"passed":passed}));
+        self.evidence["commands"].as_array_mut().unwrap().push(json!({"argv":strings,"cwd":cwd,"name":name,"exit_code":report.as_ref().and_then(|r| r.returncode),"supervision":report,"invocation_error":invocation_error,"stdout":stdout.file_name().and_then(|s|s.to_str()),"stderr":stderr.file_name().and_then(|s|s.to_str()),"expected_assertion":expected,"passed":passed}));
         self.save()?;
         ensure!(passed, "{name} failed; see {}", self.output.display());
         Ok(out.trim_end_matches(['\r', '\n']).to_owned())
@@ -212,6 +223,14 @@ impl<'a> Campaign<'a> {
         self.evidence["passed"] = json!(checked.is_ok());
         if let Err(e) = &checked {
             self.evidence["error"] = json!(format!("{e:#}"));
+            if self.evidence["status"].as_str().is_some_and(|s| {
+                matches!(
+                    s,
+                    "incomplete" | "measured" | "calibrated" | "completed-separated-reports"
+                )
+            }) {
+                self.evidence["status"] = json!("rejected");
+            }
         }
         self.save()?;
         checked
@@ -301,13 +320,15 @@ mod tests {
     #[test]
     fn campaign_source_drift_and_timeout_never_qualify() {
         let (_dir, run) = fixture();
-        let c = Campaign::new(&run, Path::new("drift"), "test").unwrap();
+        let mut c = Campaign::new(&run, Path::new("drift"), "test").unwrap();
+        c.evidence["status"] = json!("measured");
         fs::write(run.root.join("src/input.rs"), "after").unwrap();
         let output = c.output.clone();
         assert!(c.finish(Ok(())).is_err());
         let evidence: Value =
             serde_json::from_slice(&fs::read(output.join("evidence.json")).unwrap()).unwrap();
         assert_eq!(evidence["passed"], false);
+        assert_eq!(evidence["status"], "rejected");
         assert!(
             evidence["error"]
                 .as_str()

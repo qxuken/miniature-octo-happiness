@@ -1,6 +1,6 @@
 # C and Rust AddressSanitizer profile
 
-`python3 tools/c_sanitizers.py --output NEW_DIRECTORY` builds a diagnostic
+`cargo xtask c-sanitizers --output NEW_DIRECTORY` builds a diagnostic
 shared library with nightly Rust, rebuilt instrumented standard library, and
 features `crdt,replication`. It compiles the existing C memory, threaded, and
 file consumers with Clang ASan, then runs them against that exact library.
@@ -21,6 +21,13 @@ four controls: valid C and Rust reads must succeed, and deliberate out-of-bounds
 heap reads in each language must fail with the ASan heap-buffer-overflow report.
 These defects exist only in calibration subprocesses. An absent, incompatible
 or ineffective runtime fails the profile rather than producing a green result.
+
+Current commands need a fresh output directory. The controlled environment test
+runs with `cargo test --offline --locked -p xtask --bin xtask instrumentation`.
+The [conversion ledger](xtask-conversion.md) records the new Rust runner's native
+Mac and Docker Linux results, including explicit Clang selection.
+
+## Historical native qualification
 
 On arm64 macOS 27.0.1, Apple Clang 21's runtime failed to link Rust's required
 ASan version symbol. LLVM Clang 23.1.5 with rustc 1.101.0-nightly

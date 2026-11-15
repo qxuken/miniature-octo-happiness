@@ -48,14 +48,6 @@
       "allowed_skips": []
     },
     {
-      "path": "test_coverage.py",
-      "allowed_skips": []
-    },
-    {
-      "path": "test_coverage_executables.py",
-      "allowed_skips": []
-    },
-    {
       "path": "test_native_faults.py",
       "allowed_skips": []
     },

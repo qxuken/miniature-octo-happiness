@@ -8,6 +8,10 @@ mod c_sanitizers;
 mod check;
 mod clean;
 #[cfg(unix)]
+mod coverage;
+#[cfg(unix)]
+mod coverage_executables;
+#[cfg(unix)]
 mod faults;
 #[cfg(unix)]
 mod fuzz;
@@ -44,6 +48,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Produce independent reports for exact parent test executables.
+    #[cfg(unix)]
+    CoverageExecutables(coverage_executables::Options),
+    /// Measure source coverage; reject unavailable metrics or LLVM warnings.
+    #[cfg(unix)]
+    Coverage(coverage::Options),
     /// Calibrate shared-runtime ASan across C and Rust, then run C consumers.
     #[cfg(unix)]
     CSanitizers(c_sanitizers::Options),
@@ -156,6 +166,10 @@ fn execute(cli: Cli) -> Result<()> {
     let root = dunce::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?;
     let mut run = Run::new(root.clone());
     match cli.task {
+        #[cfg(unix)]
+        Task::CoverageExecutables(options) => coverage_executables::run(&run, options),
+        #[cfg(unix)]
+        Task::Coverage(options) => coverage::run(&run, options),
         #[cfg(unix)]
         Task::CSanitizers(options) => c_sanitizers::run(&run, options),
         #[cfg(unix)]

@@ -29,8 +29,8 @@ entry points.
 | Batch | Remaining modules | State |
 |---|---|---|
 | Core entry points | check/build/package/cleanup, shared bounded POSIX supervision, native and delivered fault parent/worker | Check/build/package/cleanup are Rust-only; bounded supervision/fault orchestration is Rust with remaining adapters/oracles pending |
-| Packaging leaves and consumers | release policy, MSVC discovery/consumers, attribution, Odin bindings, dynamic ABI smoke, delivered Rust source | Clean Mac/Linux packages qualify at `06d0a15`; native Windows checkout regression fixed, hosted rerun pending |
-| CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, `probe/run.py` | Sanitizer, C-ASan, atomic-model and fuzz runners are Rust; coverage, mutations and packaging experiment pending |
+| Packaging leaves and consumers | release policy, MSVC discovery/consumers, attribution, Odin bindings, dynamic ABI smoke, delivered Rust source | Clean Mac/Linux packages qualify at `06d0a15`; hosted Windows passes at `e3ff5ad` and `cfa08d1` |
+| CI assurance and packaging experiment | sanitizers, C sanitizers, coverage/executable inventory, fuzz/corpus runner, atomic-model orchestration, mutation runner, `probe/run.py` | Sanitizer, C-ASan, atomic-model, fuzz and coverage runners are Rust; mutations and packaging experiment pending |
 | Independent delivery traces | state model, Rust/C/Odin trace controller, Docker worker, Windows 134-cell trace | Pending |
 | Upgrade and distributed qualification | storage/snapshot compatibility, snapshot/study CLI upgrades, replica progress, follower backup/restore, coordinator/peer soaks | Pending |
 | Resource/workload qualification | baseline/benchmark/monthly workload, serialization scale, resource observer, compound/recovery/growth/cache probes | Pending |
@@ -151,3 +151,70 @@ Local SHA-256 proof bindings under `target/xtask-full-conversion/`:
 | Linux model | `392f52d33d9c1a9922a317fcfe85f7f0509abc0b464ac38d404fb71080f0d6e5` |
 | Mac workspace ASan | `5d2cd6a36cdec8f7dfe80c580f4d64aa610f1bbc6f07be0a19b5909dd7ac4de0` |
 | Remaining Mac helper registry | `28624624875c489a4c9b1c941a9686c8cb0da9b881a9136aa20109ddc23fd748` |
+
+Hosted [engine run 43659047228](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43659047228)
+and [fuzz run 43659047126](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43659047126)
+are fully green at clean `cfa08d1`, including TSan, ASan, C calibration/models,
+native Mac/Linux/Windows, private packages, quota and remaining helper controls.
+This verifies both the original cancellation-fixture correction and the first
+Rust diagnostic-runner batch on hosted platforms. Crates remain private.
+
+## Coverage conversion checkpoint
+
+`cargo xtask coverage` and `coverage-executables` replace both controllers and
+their Python boundary suites. **38/179** frozen controls now map to discovered
+Rust tests; 141 remain. Four more Python files are removed, leaving **52**.
+The new coverage controls preserve exact calibration counts, rejection of missing
+or impossible metrics, unsupported MC/DC, warning rejection even at exit zero,
+source/fixture/runner binding, Cargo artifact/harness admission, package cwd,
+positive final libtest counts, exact parent PIDs, object hashes and terminal
+rejection metadata followed by execution of the next target. Child/build profiles
+stay unqualified, with no pooled executable percentage. All 72 runner tests pass
+on Mac in debug/release; Linux debug and native/MSVC cross-target Clippy pass.
+
+The Mac library comparison runs both old Python and new Rust controllers before
+retirement and gets **identical totals**: 9,873/11,120 lines and 18,218/20,966
+regions, with the same 135 unit tests. The initial Mac per-parent reports qualify
+durability (15 tests, 281/941 branches) and the core unit object (135 tests,
+1,017/1,205 branches). Its two child profiles remain unqualified. The condition
+fixture measures 2/6, 6/6 and 6/6 branch outcomes; the actual MC/DC request rejects
+with `unsupported`, so these results are not compiler-measured MC/DC.
+
+Docker Linux exposes two previously assumed installation paths: Cargo lives under
+`/usr/local/cargo`, and the dated nightly emits standard-library paths under
+`/usr/local/rustup`. Both initial reports reject outside sources rather than
+qualifying them. The runner now adds literal, component-bounded exclusions for
+the configured Cargo registry and the selected sysroot's Rust source subtree,
+including canonical aliases. Regex metacharacters and sibling paths have directed
+controls. The allowed project-source prefixes and outside-source rejection remain
+strict. Terminal failure also cannot retain a measured/calibrated success label.
+
+The corrected Linux rerun passes library line measurement (**10,191/11,327** lines,
+138 unit tests), condition calibration and both independent parent reports:
+durability 281/974 branches, core 1,058/1,248. The core's two child profiles remain
+unqualified. Counts differ across OS/compiler profiles and are not combined. The
+owned container/volume are independently absent. Rust 1.99.1 supplies line
+instrumentation; Linux condition reports use nightly-2026-11-01. LLVM tools are
+installed for those exact toolchains. Cargo builds remain offline/locked.
+
+The remaining helper registry passes **278 checks plus four registered skips
+across 40 workers**. Current command docs and hosted coverage use Rust. Historical
+reports retain their Python source IDs and commands. These are source-hashed
+`cfa08d1-dirty` development snapshots; the earlier Mac comparison precedes the final
+Docker path correction, while the Linux qualified run and final condition probe
+include it. No blanket frozen-candidate or full-workspace coverage claim is made.
+
+Local proof bindings under `target/xtask-coverage-conversion/` (SHA-256):
+
+| Evidence | SHA-256 |
+|---|---|
+| Old Python Mac line comparison | `761dfd5b37a5ccfd54fabeb82447452f69cf7f9eb3c130d492ddaa92f04922e5` |
+| Rust Mac line comparison | `80d338c09d59855028d6e903ba78cd9762902a47eb768d21b0d5ab1056d2bd6a` |
+| Initial Mac parent reports | `a9b83510834894dc391c35bbd54c30c6fec5e38c09795fca953a1e1e54fe09fb` |
+| Final Mac condition fixture | `eb95a21ac396e6baa8440fdf33882f853cb9d370f6c0d82e0595a80f33cda9f8` |
+| Mac unsupported MC/DC probe | `d13737d872e165a3f27147f43340415b22d5e5ff14bf5445a2e22bb6f0338480` |
+| Remaining Mac helpers | `3a7cf3a54dabebf5176926d90719d2ae79e5894113a0813b3e808f66c928fa79` |
+| Qualified Linux controller | `c77e93b0560a1253c567aec448dcb1f476b8241616688d3f7a28bec8dbfa4f9b` |
+| Qualified Linux library line | `ed0344a0bd8c8a220b1d844a8cee0cba14e00a72831a9e7223c4869ed5bcfc65` |
+| Qualified Linux condition fixture | `e42fa81e78d7d610af889587ef06caf1eb9e3f0eef63ffcab56e41abf5dc8bd9` |
+| Qualified Linux parent reports | `10709b272e69e5263a443dfb01be816726d50fd39a7c4e5c288aa8c29a656df7` |

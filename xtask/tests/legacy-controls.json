@@ -4,7 +4,9 @@
     "test_release.py",
     "test_windows_consumers.py",
     "test_c_sanitizers.py",
-    "test_fuzz_runner.py"
+    "test_fuzz_runner.py",
+    "test_coverage.py",
+    "test_coverage_executables.py"
   ],
   "controls": [
     {
@@ -589,109 +591,163 @@
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_exact_independent_counts_and_complete_branches_are_distinct",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::independent_counts_and_complete_branches_are_distinct"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_partial_mcdc_cannot_accept_missing_or_arbitrary_counts",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::partial_mcdc_rejects_missing_or_arbitrary_counts"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_requested_metric_absent_or_zero_is_not_measurement",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::requested_metric_absent_or_zero_is_not_measurement"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_branch_and_condition_do_not_claim_mcdc",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::branch_and_condition_do_not_claim_mcdc"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_incomplete_branch_calibration_rejects",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::incomplete_branch_calibration_rejects"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_export_cannot_silently_ignore_other_data_sets",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::export_cannot_silently_ignore_other_data_sets"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_remapped_sysroot_and_wrong_target_are_outside_measured_scope",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::remapped_sysroot_and_wrong_target_are_outside_measured_scope"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_llvm_success_with_mapping_warning_is_degraded_not_measured",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::llvm_zero_exit_with_mapping_warning_is_degraded"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage.py",
       "id": "helper_suite.CoverageOracles.test_fixture_only_and_library_scope_bind_fixture_and_runner",
       "source_sha256": "3ef5c96da3cf1f89ee7c5f05da49fda5e08454ee1f2c02fe9e8f99957e7c4f0a",
-      "rust": []
+      "rust": [
+        "coverage::tests::fixture_and_runner_sources_are_bound"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_only_libtest_artifacts_and_package_cwd",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "coverage_executables::tests::only_libtest_artifacts_and_package_cwd"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_custom_harness_rejected_and_multitype_library_included",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "coverage_executables::tests::custom_harness_rejects_and_multitype_library_is_included"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_exact_parent_pid_and_children_retained",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "coverage_executables::tests::exact_parent_pid_and_children_retained"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_failed_and_empty_tests_rejected",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "coverage_executables::tests::failed_and_empty_tests_reject"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_source_drift_rejected",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "assurance::tests::campaign_source_drift_and_timeout_never_qualify"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_object_change_rejected_before_execution",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "coverage_executables::tests::object_change_rejects_before_execution"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_invalid_profile_retains_rejected_metadata_and_next_target_runs",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "coverage_executables::tests::invalid_profile_retains_rejection_and_next_target_runs"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_actual_failed_process_never_reaches_llvm",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "coverage_executables::tests::actual_failed_process_never_reaches_llvm"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_coverage_executables.py",
       "id": "helper_suite.Boundaries.test_llvm_mismatch_warning_rejected_even_success_exit",
       "source_sha256": "2b1448578cd52eede429190b0b528b32f456e5a84b740a9b7dbaac63fdd56120",
-      "rust": []
+      "rust": [
+        "coverage::tests::llvm_zero_exit_with_mapping_warning_is_degraded"
+      ],
+      "unix_only": true
     },
     {
       "path": "test_fuzz_runner.py",
