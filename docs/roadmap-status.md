@@ -1962,3 +1962,13 @@ bytes. Releasing one inode permitted retry. The source later reopened at 213
 with history intact. The original block-quota profiles also passed in the
 same job. Later namespace operations and physical device failures remain
 separate gates.
+
+## Native NTFS owner quota during maintenance copies
+
+The [Windows NTFS owner-quota profile](maintenance-space-exhaustion.md#recorded-native-ntfs-owner-quota-result)
+at `b5988c7` observed Win32 112 after 8 MiB of backup, restore and compact-copy
+with over 100 MiB physically free. Raising the verified owner's limit with
+each partial present made retry succeed. The good backup stayed at 212 and
+the advanced source reopened at 213, both with all 64 retained roots.
+The audit verified the exact fixture, inputs, process identities and
+VHD cleanup. Linux quota and macOS disk exhaustion regressions also passed.

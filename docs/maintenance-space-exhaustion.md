@@ -317,6 +317,53 @@ both good images remain byte-identical.
 Build the Windows fixture as above from a byte-preserving checkout and
 run the same command with `--owner-quota` and a new output directory.
 
+The first two attempts used a restricted impersonation token. The
+calibration could read the data directory and received Access Denied on
+file creation, including before quota enforcement. The controller detached
+and removed both VHDs. The process-owner approach keeps the runner's elevated
+token and changes only the default file owner within each fixture
+process. A later run also showed Windows reusing a PID after a fixture
+exited. The supervisor now records the kernel creation time together
+with the PID. The quota checks use the pair for process identity.
+
+#### Recorded native NTFS owner-quota result
+
+PR head `b5988c7` passed on native Windows x64 with Rust 1.99.1 on a fixed
+NTFS VHD. The hosted checkout was `04838eff8763fef1f13fb69241b78413d62d7184`.
+The byte-preserving checkout matched all six source and lock hashes
+expected by the controller.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43748445011/job/132916838914)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43748445011/artifacts/14175422212).
+
+Backup, restore and compact-copy each wrote **8,388,608 bytes** and returned
+`Io / DiskFull / Write` with Win32 code 112. Calibration returned the same
+code while NTFS still had **114,335,744 physical bytes free**. Both good
+images reopened at revision 212 with all 64 retained roots. The same-owner
+probe confirmed the quota was still full. Raising the quota to 80 MiB with
+the partial file present permitted the 4 KiB write and each copy retry.
+Retries matched the good backup byte for byte. A later commit reopened at
+revision 213 with all retained history. The backup stayed at 212.
+
+The audit rehashed 112 payloads, checked 53 supervised commands using the
+PID and kernel creation time, and independently recomputed current and
+retained digests for the 24 maintenance phase records. A separate
+read-only inspector verified witnessed revisions 213 and 212 in the
+uploaded images and retained IDs 1–64 at revisions 53–179 in both. Its
+reads preserved the file hashes. The controller detached and removed the
+private VHD. The Linux append, block and inode quota profiles also passed
+in the same workflow. A macOS/APFS disk exhaustion regression passed at
+`e78e127`. A standard Windows account remains a separate qualification.
+
+| Evidence | SHA-256 |
+|---|---|
+| Hosted archive | `6d2ebb602a660a53e4f49a199fa511ca280466726eefedcceca59d29e8ea41f3` |
+| Owner quota report | `1bae58d446ef1aba9af72292899bf24b7595ace60cc81dc76066ce9a4d4e15e6` |
+| Uploaded fixture | `7cd3a0f97f7cd593c9b6b041eeda1d8a368043a265b9d7ded8f84d91a9d1f706` |
+| Advanced source at revision 213 | `00fa1f33383275379a71c867423a168e5ff8e5211a15d43f8347e0e7a95e907f` |
+| Backup at revision 212 | `2a024795cdcf04bbbdff0b8d8514b0def685185cd7522f981a820761105ebf5e` |
+| Independent audit | `f1bd9bd0b1a66952cd45dad6e63850ab9cbd904d51cea3f0236c1efe43a2f6a9` |
+| macOS regression report | `47629c94ece43232dc28dfbfc3b4728bc3ffbd43fe937989afc7eda4ae58890f` |
+
 At `cd3d14a`, the macOS/APFS seed rerun passed all 11 phases, including
 native in-place compaction. The Docker Linux ENOSPC controller and worker
 passed backup, restore and in-place compaction, full-volume reopen and

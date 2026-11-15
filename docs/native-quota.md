@@ -205,5 +205,7 @@ and finished with source revision 213 and backup revision 212. Both cleanup
 checks passed. [Linux regression archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43729548939/artifacts/14167593395)
 
 The Windows evidence covers the native Rust append path under a file-owner
-quota. A quota run of maintenance under a standard Windows account, other
-filesystem profiles and physical power interruption retain separate gates.
+quota. The separate [Windows maintenance profile](maintenance-space-exhaustion.md#ntfs-owner-quota-during-maintenance-copies)
+applies an owner quota to newly created copy destinations. A standard
+Windows account, other filesystem profiles and physical power interruption
+retain separate gates.
