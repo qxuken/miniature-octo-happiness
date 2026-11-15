@@ -178,8 +178,12 @@ harness-level scope reference.
 3. **Consolidate one final candidate bundle.** Existing results retain their
    source, feature, compiler, artifact and filesystem scope. Final package,
    source-consumer, sanitizer, mutation/corpus and workload evidence must be
-   reconciled against the chosen immutable candidate. The shared trace and
-   progress helper add evidence, without retroactively qualifying every profile.
+   reconciled against the chosen immutable candidate. The
+   [private `f70e405` checkpoint](roadmap-status.md#private-artifact-checkpoint-f70e405)
+   binds same-source native packages, a relocatable Rust source package, five
+   exact consumer transcripts and eleven delivered C publication and recovery
+   cases. Other
+   profiles retain their recorded scope.
 4. **Qualify continuous coordinator operation.** The sequenced profile gives
    each writer one retryable receipt and an explicit way to retire it when the
    next write commits. A native process test interrupts a journal client after

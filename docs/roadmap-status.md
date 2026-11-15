@@ -1454,10 +1454,14 @@ in debug and release, with the extended workload excluded. The storage
 decision suite passed nine tests on both, including lineage preserved through
 a verified compact copy. Five journal checks passed under each of macOS ASan
 and TSan with rebuilt std at `nightly-2026-11-12`. Strict Clippy passed on both
-host profiles and for cross-target `x86_64-pc-windows-msvc`. A native Windows
-run of the journal CLI is pending. Deployment-specific latency and maintenance
+host profiles and for cross-target `x86_64-pc-windows-msvc`. The default
+native jobs for `c6d6cf7` passed on hosted Ubuntu and Windows x64. Both job
+logs show the client kill, lost reply and divergent-history test and the local
+journal fault checks passing in debug and release. Deployment-specific
 budgets, authoritative routing after a stale restore, and operator acceptance
 of slot assignment and reconciliation remain open.
+[Ubuntu job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43716518091/job/132819139859),
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43716518091/job/132819139976)
 
 ```sh
 cargo test --offline --locked -p write-coordinator
@@ -1481,6 +1485,8 @@ cargo test --offline --locked --manifest-path fuzz/Cargo.toml --lib replay_coord
 | Docker Linux ext4 mount record | `40ab1c448ee0a848b68e89ad6f74c25d07f36ec6932a602da9050e95743f05fb` |
 | Windows cross-target Clippy log | `0c3cea29467528063362871133c41a5585265376542b7800b48cd2588f07d0ab` |
 | Bounded ASan fuzz log | `29af6942d7a42404f8f1fe1cb1af90b734bb126e4d69828eb9a88e95dcde3d07` |
+| Hosted Ubuntu journal job log | `26998d0d1996a7a02b55c3db6c065e8b2703050f965d3393a4256d9041f5ea05` |
+| Hosted Windows journal job log | `c3f89ad609d12d3d322947408f79f63fedae4020075710597d18dbffda5d6c41` |
 
 The macOS all-feature workspace run at `c6d6cf7` passed 633 tests, including
 the explicit separation of local commit and follower durability over TCP.
@@ -1533,3 +1539,65 @@ and ran both the toolchain build and native files on the private ext4 volume.
 | Native workload source | `03f2083e19fea6cbddb913caab55fdc812a4d99dec3fca1dbbe17aa6ff2ccd4e` |
 | macOS lifecycle log | `a1ebe07d706297e484798e766df12f74e529ab662964aa2c8865f540e91c7fb5` |
 | Linux lifecycle and Clippy log | `143030575b646875c72a9f479dc177bfaae1d051755b10f2ff70a667600ae11a` |
+
+The hosted Windows job for PR head `c6d6cf7` also ran all 20 exact-DLL
+trace cases on x64 fixed NTFS. Its package identifies the actual merge
+checkout `a2b25dcc4f8bbcd631253d566a091785b7d9600a` and feature mask 3.
+The package and trace artifacts have matching manifest and DLL bytes, and
+independent rehashing passed for all 52 package and 170 trace entries.
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43716518091/job/132819139976)
+
+| Hosted Windows evidence | SHA-256 |
+|---|---|
+| Package manifest | `5d33f2af5d66309ef5b76f6f34d9e3a0be46ebdac6a2e52b9504c078b957c512` |
+| Exact DLL | `7cc2cbf30f29e0380f6747834322469a7064e9b0669f2fc7ef5af31f4a2f0bb6` |
+| Trace | `b0a5702caa1e0b07ef485e80f1a401792d17860fbc0f68e3a35ef002318bd81e` |
+
+## Private artifact checkpoint f70e405
+
+Clean source `f70e405174e419ca802b7fc8853d3c1db04e7b1b` produced native
+macOS and Docker Linux packages and one relocatable Rust source package.
+All three passed package verification with combined CRDT and replication
+feature mask 3 from both the Cargo artifact and the loaded library. The
+Rust source consumer passed on macOS and in Docker without the checkout.
+Independent manifest rehashing checked all 849 listed files across the
+three packages.
+
+The [134-cell trace](artifact-trace-validation-modes.md) reproduced the full
+oracle transcript on macOS arm64 with Rust, C and Odin, and in Docker Linux
+arm64 with Rust and C. All five stdout files matched the expected transcript
+byte for byte. The Linux trace used a private ext4 volume for the build and
+runtime, verified the input seed and removed its owned resources. The trace
+hash and expected transcript hash are unchanged from the original oracle.
+
+The [delivered C failure checks](delivered-c-faults.md) used byte-identical
+copies of the same two libraries as the traces. In mode order, macOS APFS
+reopened revisions `4/3/4/4/3`. Docker Linux reopened `4/3/4/4/3/3`,
+including real kernel ENOSPC on a private tmpfs in the last case. A fresh
+process finished at revision 4 with retained revision 2 in every case. Both
+disabled-injector controls failed as expected. Linux removed and checked
+absence of its owned Docker container and volume.
+
+Use `cargo xtask package --features crdt,replication` on each native host
+with a fresh output path. Add `--odin` to the macOS package and use
+`--rust-source --rust-source-isolated` to qualify the source package.
+Pass those packages to `cargo xtask artifact-trace` and
+`cargo xtask faults delivered`. The Linux runs used image
+`sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08`.
+These are private source-bound results for the named consumers and fault
+mechanisms. Final distribution approval and physical device qualification
+remain open.
+
+| Evidence in `target/qualification-f70e405` | SHA-256 |
+|---|---|
+| macOS Odin-enabled package manifest | `d7a7466c9e18d7ca6b45904db0da41e176641a7941747ad6509b3b4a5420360f` |
+| macOS exact dylib | `a252a792fd0f95444c50b2f7de6fae418fd6cebcbd4e0cc86dfeebfdcf318ab4` |
+| Linux package manifest | `1f2a0b44b0d1ffdecc56e09e2cecd83ab9fe3dd255b1ad824dd6dda3fd71837e` |
+| Linux exact shared library | `629863a2bdf417633873ea5db0e22d236b99a4d3047e721e25cf55f0cc667598` |
+| Relocatable Rust source package manifest | `e2f7c06c06a5bede8c98afeaa48215ef0c5dee3ffd76fe723e1b16ef22902993` |
+| macOS trace | `4c693737b8aae214f85643f370daf5e80807b5cdcaf3f5afaadf60edf10e2259` |
+| Linux trace controller | `6c2d59fbff288ba64fb0a03d48c9b6b207f2bda0d876df5184100d7a7c231c5b` |
+| Linux trace worker | `0d056db2c6bb2b913ac739e3af36628828933a1108fe5e080441446510c6f74b` |
+| macOS delivered faults | `caafc20b75c52936c76546610f946b202303f2d8704a027cd4cbcc5e37496061` |
+| Linux delivered faults controller | `d180f762df945f3e8ee6b3291705f9db96d9b093cb131fe40eea9ce9a67027d0` |
+| Linux delivered faults worker | `5e6594f96bd7ca82afc12564a9164bdf78a677cd3d09f0f79a6f678c361e79f7` |
