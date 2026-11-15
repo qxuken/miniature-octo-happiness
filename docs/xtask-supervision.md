@@ -7,6 +7,7 @@ exact-delivery fault campaigns. It also runs the
 ```sh
 cargo xtask faults native --source HEAD --output target/native-faults-new
 cargo xtask faults delivered --package /absolute/linux-package --output target/delivered-faults-new
+cargo xtask faults delivered --macos --package /absolute/macos-package --output target/delivered-macos-faults-new
 cargo xtask helper-controls --output target/helper-controls-new
 ```
 

@@ -36,6 +36,9 @@ pub struct Delivered {
     output: PathBuf,
     #[arg(long,default_value=IMAGE)]
     image: String,
+    /// Run five native F_FULLFSYNC and root-write cases on macOS/APFS.
+    #[arg(long, conflicts_with = "worker")]
+    macos: bool,
     #[arg(long, hide = true)]
     worker: bool,
 }
@@ -466,6 +469,10 @@ pub(crate) fn stage_runner(root: &Path, target: &Path) -> Result<()> {
 }
 
 fn delivered(run: &Run, opts: Delivered) -> Result<()> {
+    ensure!(
+        !opts.macos || cfg!(target_os = "macos"),
+        "--macos requires a native macOS host"
+    );
     let package = dunce::canonicalize(opts.package.context("--package required")?)?;
     let candidate = env::current_dir()?.join(&opts.output);
     let candidate = dunce::canonicalize(candidate.parent().context("output parent")?)?
@@ -475,13 +482,22 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
         "output must be outside package"
     );
     let output = fresh(&candidate)?;
+    if opts.macos {
+        return exercise_package(
+            run,
+            output,
+            &package,
+            &run.root.join("tools/delivered-faults"),
+            true,
+        );
+    }
     let mut c = Campaign::new(&run.root, output.clone())?;
     c.save()?;
     let name = format!("weekend-delivered-faults-{}", nonce());
     let volume = format!("{name}-data");
     let mut acquired = false;
     let result = (|| -> Result<()> {
-        let info = crate::delivered_faults::package(&package)?;
+        let info = crate::delivered_faults::package(&package, "libweekend_db.so")?;
         image(&mut c, &opts.image)?;
         let inputs = output.join("inputs");
         fs::create_dir(&inputs)?;
@@ -588,8 +604,8 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
                 && sha(&package.join("manifest.json"))? == manifest,
             "seed changed"
         );
-        crate::delivered_faults::package(&package)?;
-        crate::delivered_faults::package(&result.join("relocated-package"))?;
+        crate::delivered_faults::package(&package, "libweekend_db.so")?;
+        crate::delivered_faults::package(&result.join("relocated-package"), "libweekend_db.so")?;
         ensure!(
             proof["results"].as_array().context("results")?.len() == 6,
             "missing cases"
@@ -609,17 +625,125 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
     finish(c, result, retired)
 }
 fn worker(run: &Run, output: &Path) -> Result<()> {
-    let output = fresh(output)?;
+    ensure!(
+        cfg!(target_os = "linux"),
+        "delivered Docker worker requires Linux"
+    );
+    exercise_package(
+        run,
+        fresh(output)?,
+        Path::new("/seed/package"),
+        Path::new("/seed/inputs"),
+        false,
+    )
+}
+
+fn macos_filesystem(output: &Path) -> Result<String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::{
+            ffi::{CStr, CString},
+            mem::MaybeUninit,
+            os::unix::ffi::OsStrExt,
+        };
+        let path = CString::new(output.as_os_str().as_bytes())?;
+        let mut stat = MaybeUninit::<libc::statfs>::uninit();
+        // SAFETY: path is NUL-terminated and stat points to writable statfs storage.
+        if unsafe { libc::statfs(path.as_ptr(), stat.as_mut_ptr()) } != 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        // SAFETY: statfs initialized the structure on success.
+        let stat = unsafe { stat.assume_init() };
+        let kind = stat.f_fstypename.map(|byte| byte as u8);
+        let filesystem = CStr::from_bytes_until_nul(&kind)?.to_str()?;
+        ensure!(
+            filesystem == "apfs" && stat.f_flags & libc::MNT_LOCAL as u32 != 0,
+            "native delivered faults require local APFS"
+        );
+        Ok(filesystem.to_owned())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = output;
+        anyhow::bail!("native delivered faults require macOS")
+    }
+}
+
+fn observes_library(log: &str, path: &Path, macos: bool) -> bool {
+    let expected = s(path);
+    log.lines().map(str::trim).any(|line| {
+        if macos {
+            line.starts_with("dyld[")
+                && line
+                    .split_once("> ")
+                    .is_some_and(|(_, loaded)| loaded == expected)
+        } else {
+            line.split_once("calling init: ")
+                .is_some_and(|(_, loaded)| loaded == expected)
+        }
+    })
+}
+
+fn exercise_package(
+    run: &Run,
+    output: PathBuf,
+    package_seed: &Path,
+    input_seed: &Path,
+    macos: bool,
+) -> Result<()> {
+    let (library, suffix, injector, loader_flag, loader_value, modes) = if macos {
+        (
+            "libweekend_db.dylib",
+            "dylib",
+            "DYLD_INSERT_LIBRARIES",
+            "DYLD_PRINT_LIBRARIES",
+            "1",
+            5,
+        )
+    } else {
+        (
+            "libweekend_db.so",
+            "so",
+            "LD_PRELOAD",
+            "LD_DEBUG",
+            "libs",
+            6,
+        )
+    };
     let mut c = Campaign::new(&run.root, output.clone())?;
     c.save()?;
     let result = (|| -> Result<()> {
+        let sources = if macos {
+            let hashes = crate::assurance::snapshot(&run.root)?;
+            c.evidence["runner_source"] = json!(
+                c.ok(v(&["git", "rev-parse", "HEAD"]), "runner-source", 30.)?
+                    .trim()
+            );
+            c.evidence["runner_sources_sha256"] = json!(hashes);
+            Some(hashes)
+        } else {
+            None
+        };
+        let info = crate::delivered_faults::package(package_seed, library)?;
+        let manifest = sha(&package_seed.join("manifest.json"))?;
         let package = output.join("relocated-package");
-        copy_tree(Path::new("/seed/package"), &package)?;
-        let info = crate::delivered_faults::package(&package)?;
+        copy_tree(package_seed, &package)?;
+        ensure!(
+            sha(&package.join("manifest.json"))? == manifest,
+            "relocated package identity changed"
+        );
+        crate::delivered_faults::package(&package, library)?;
         let inputs = output.join("inputs");
-        copy_tree(Path::new("/seed/inputs"), &inputs)?;
+        fs::create_dir(&inputs)?;
+        for name in ["consumer.c", "faults.c"] {
+            let input = input_seed.join(name);
+            ensure!(
+                fs::symlink_metadata(&input)?.is_file(),
+                "nonregular fault fixture"
+            );
+            fs::copy(input, inputs.join(name))?;
+        }
         let frozen = inventory(&inputs)?;
-        let manifest = sha(&package.join("manifest.json"))?;
         let mut env: BTreeMap<String, String> = env::vars()
             .filter(|(k, _)| {
                 !matches!(
@@ -634,7 +758,8 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
                         | "RUSTC_WRAPPER"
                         | "RUSTC_WORKSPACE_WRAPPER"
                         | "CARGO_BUILD_TARGET"
-                ) && !k.starts_with("CARGO_PROFILE_")
+                ) && !k.starts_with("DYLD_")
+                    && !k.starts_with("CARGO_PROFILE_")
                     && !(k.starts_with("CARGO_TARGET_") && k.ends_with("_RUSTFLAGS"))
             })
             .collect();
@@ -643,12 +768,18 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
         c.evidence["source"] = info["source"].clone();
         c.evidence["inputs_sha256"] = json!(frozen);
         c.evidence["package_manifest_sha256"] = json!(manifest);
+        c.evidence["library_sha256"] = json!(sha(&package.join(library))?);
         c.evidence["runner_sha256"] = json!(sha(&env::current_exe()?)?);
         for (label, args) in [
             ("kernel", v(&["uname", "-a"])),
             ("cc", v(&["cc", "--version"])),
-            (
-                "filesystem",
+        ] {
+            c.evidence[label] = json!(c.ok(args, label, 30.)?);
+        }
+        let filesystem = if macos {
+            macos_filesystem(&output)?
+        } else {
+            let text = c.ok(
                 v(&[
                     "findmnt",
                     "-T",
@@ -657,21 +788,20 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
                     "-o",
                     "FSTYPE,SOURCE,TARGET",
                 ]),
-            ),
-        ] {
-            let text = c.ok(args, label, 30.)?;
-            if label == "filesystem" {
-                ensure!(
-                    text.split_whitespace().next() == Some("ext4"),
-                    "private volume must be ext4"
-                );
-            }
-            c.evidence[label] = json!(text);
-        }
+                "filesystem",
+                30.,
+            )?;
+            ensure!(
+                text.split_whitespace().next() == Some("ext4"),
+                "private volume must be ext4"
+            );
+            text
+        };
+        c.evidence["filesystem"] = json!(filesystem);
         crate::delivered_faults::self_check()?;
         c.evidence["oracle_controls"] =
-            json!({"implementation":"independent Rust", "passed":true, "modes":6});
-        for (suffix, extra) in [
+            json!({"implementation":"independent Rust", "passed":true, "modes":modes});
+        for (variant, extra) in [
             ("", None),
             ("-disabled", Some("-DQUALIFICATION_BYPASS_INJECTION=1")),
         ] {
@@ -681,45 +811,51 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
             if let Some(extra) = extra {
                 args.push(extra.into());
             }
+            args.push(if macos { "-dynamiclib" } else { "-shared" }.into());
+            args.extend(v(&["-fPIC", &s(inputs.join("faults.c"))]));
+            if !macos {
+                args.push("-ldl".into());
+            }
             args.extend(v(&[
-                "-shared",
-                "-fPIC",
-                &s(inputs.join("faults.c")),
-                "-ldl",
                 "-o",
-                &s(output.join(format!("faults{suffix}.so"))),
+                &s(output.join(format!("faults{variant}.{suffix}"))),
             ]));
             c.ok(args, "build-shim", 30.)?;
         }
-        c.ok(
-            v(&[
-                "cc",
-                "-std=c11",
-                "-O2",
-                "-UNDEBUG",
-                "-Wall",
-                "-Wextra",
-                "-Werror",
-                "-I",
-                &s(&package),
-                &s(inputs.join("consumer.c")),
-                &s(package.join("libweekend_db.so")),
-                "-Wl,-rpath,$ORIGIN/relocated-package",
-                "-ldl",
-                "-o",
-                &s(output.join("consumer")),
-            ]),
-            "build-consumer",
-            30.,
-        )?;
+        let mut consumer = v(&[
+            "cc",
+            "-std=c11",
+            "-O2",
+            "-UNDEBUG",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-I",
+            &s(&package),
+            &s(inputs.join("consumer.c")),
+            &s(package.join(library)),
+            if macos {
+                "-Wl,-rpath,@loader_path/relocated-package"
+            } else {
+                "-Wl,-rpath,$ORIGIN/relocated-package"
+            },
+            "-o",
+            &s(output.join("consumer")),
+        ]);
+        if !macos {
+            consumer.push("-ldl".into());
+        }
+        c.ok(consumer, "build-consumer", 30.)?;
         let mut binaries = BTreeMap::new();
-        for name in ["consumer", "faults.so", "faults-disabled.so"] {
+        let shim = format!("faults.{suffix}");
+        let disabled_shim = format!("faults-disabled.{suffix}");
+        for name in ["consumer", &shim, &disabled_shim] {
             binaries.insert(name, sha(&output.join(name))?);
         }
         c.evidence["binary_sha256"] = json!(binaries);
         let source = info["source"].as_str().context("source")?;
         let mut rows = vec![];
-        for mode in 0..6 {
+        for mode in 0..modes {
             let data = if mode == 5 {
                 PathBuf::from("/faults/case")
             } else {
@@ -727,8 +863,8 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
             };
             fs::create_dir(&data)?;
             let mut injected = env.clone();
-            injected.insert("LD_PRELOAD".into(), s(output.join("faults.so")));
-            injected.insert("LD_DEBUG".into(), "libs".into());
+            injected.insert(injector.into(), s(output.join(&shim)));
+            injected.insert(loader_flag.into(), loader_value.into());
             injected.insert(
                 "QUALIFICATION_PRIVATE_TMPFS".into(),
                 if mode == 5 { "1" } else { "0" }.into(),
@@ -746,7 +882,7 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
                 &[0],
             )?;
             let mut clean = env.clone();
-            clean.insert("LD_DEBUG".into(), "libs".into());
+            clean.insert(loader_flag.into(), loader_value.into());
             let recovery = c.call(
                 v(&[
                     &s(output.join("consumer")),
@@ -760,17 +896,11 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
                 Some(clean),
                 &[0],
             )?;
-            let loaded = format!(
-                "calling init: {}",
-                package.join("libweekend_db.so").display()
-            );
             ensure!(
-                exercise.contains(&loaded)
-                    && recovery.contains(&loaded)
-                    && !recovery.contains(&format!(
-                        "calling init: {}",
-                        output.join("faults.so").display()
-                    )),
+                observes_library(&exercise, &package.join(library), macos)
+                    && observes_library(&recovery, &package.join(library), macos)
+                    && observes_library(&exercise, &output.join(&shim), macos)
+                    && !observes_library(&recovery, &output.join(&shim), macos),
                 "loader/injector mismatch"
             );
             let one = |text: &str| -> Result<Value> {
@@ -795,7 +925,7 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
         let data = output.join("disabled-case");
         fs::create_dir(&data)?;
         let mut disabled = env.clone();
-        disabled.insert("LD_PRELOAD".into(), s(output.join("faults-disabled.so")));
+        disabled.insert(injector.into(), s(output.join(&disabled_shim)));
         let text = c.call(
             v(&[&s(output.join("consumer")), "1", &s(data), source]),
             "disabled-injector",
@@ -809,13 +939,28 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
         );
         c.evidence["disabled_injector"] = json!({"returncode":-6,"expected_failure":true});
         ensure!(
-            inventory(&inputs)? == frozen && sha(&package.join("manifest.json"))? == manifest,
+            inventory(&inputs)? == frozen
+                && sha(&package.join("manifest.json"))? == manifest
+                && sha(&package_seed.join("manifest.json"))? == manifest,
             "input changed"
         );
         for (name, digest) in binaries {
             ensure!(sha(&output.join(name))? == digest, "binary changed");
         }
-        crate::delivered_faults::package(&package)?;
+        for (name, hash) in frozen {
+            ensure!(
+                sha(&input_seed.join(name))? == hash,
+                "original fault fixture changed"
+            );
+        }
+        crate::delivered_faults::package(&package, library)?;
+        crate::delivered_faults::package(package_seed, library)?;
+        if let Some(sources) = sources {
+            ensure!(
+                crate::assurance::snapshot(&run.root)? == sources,
+                "runner sources changed"
+            );
+        }
         c.evidence["results"] = json!(rows);
         c.evidence["source_stable"] = json!(true);
         Ok(())
@@ -829,6 +974,25 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn loader_log_requires_the_exact_delivered_path() {
+        let packaged = Path::new("/owned/relocated/libweekend_db.dylib");
+        for macos in [false, true] {
+            let prefix = if macos {
+                "dyld[81]: <IMAGE> "
+            } else {
+                "  81: calling init: "
+            };
+            let exact = format!("{prefix}{}", packaged.display());
+            assert!(observes_library(&exact, packaged, macos));
+            assert!(!observes_library(&format!("{exact}.old"), packaged, macos));
+            assert!(!observes_library(
+                &format!("{prefix}/elsewhere/libweekend_db.dylib"),
+                packaged,
+                macos
+            ));
+        }
+    }
     #[test]
     fn cleanup_attempts_both_retirements_and_both_absence_probes() {
         let name = format!("weekend-delivered-faults-{}", "a".repeat(32));

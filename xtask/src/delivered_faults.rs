@@ -3,11 +3,11 @@ use crate::delivery;
 use anyhow::{Result, ensure};
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, path::Path};
-pub fn package(root: &Path) -> Result<Value> {
+pub fn package(root: &Path, library: &str) -> Result<Value> {
     let info = delivery::verified(root)?;
     ensure!(
-        root.join("libweekend_db.so").is_file() && info["features"] == "crdt,replication",
-        "requires combined native Linux package"
+        root.join(library).is_file() && info["features"] == "crdt,replication",
+        "requires combined native package with {library}"
     );
     Ok(info)
 }

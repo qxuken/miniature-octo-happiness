@@ -128,7 +128,7 @@ enum Task {
     /// Exercise a bounded native lifecycle workload on a frozen engine.
     #[cfg(unix)]
     Soak(soak::Options),
-    /// Qualify storage or core snapshot compatibility between two archived revisions.
+    /// Qualify storage, typed schema, or core snapshot compatibility across archives.
     #[cfg(unix)]
     Compatibility(compatibility::Options),
     /// Compare an archived engine with SQLite using a bounded history workload.

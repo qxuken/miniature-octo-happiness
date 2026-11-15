@@ -1,5 +1,12 @@
-/* Private single-threaded Linux fixture, never linked into the delivered library. */
+/* Private single-threaded fixture, loaded only by the exercising consumer. */
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#include <fcntl.h>
+#include <stdarg.h>
+#include <stdio.h>
+#else
 #define _GNU_SOURCE
+#endif
 #include <assert.h>
 #include <dlfcn.h>
 #include <errno.h>
@@ -32,16 +39,17 @@ static int target(int fd) {
     int yes=fstat(fd,&st)==0 && st.st_dev==device && st.st_ino==inode;
     errno=saved;return yes;
 }
-int fsync(int fd) {
-    static int (*next)(int);
-    if(!next) { next=(int(*)(int))dlsym(RTLD_NEXT,"fsync");assert(next); }
-    if(target(fd)) {
-        ++syncs;
-        if(!fired && mode>=1 && mode<=3 && syncs==mode) {fired=1;errno=EIO;return -1;}
+static int before_sync(int fd) {
+    if (!target(fd)) return 0;
+    ++syncs;
+    if (!fired && mode >= 1 && mode <= 3 && syncs == mode) {
+        fired = 1;
+        errno = EIO;
+        return 1;
     }
-    return next(fd);
+    return 0;
 }
-static int before_write(int fd, off64_t at) {
+static int before_write(int fd, int64_t at) {
     if(!target(fd))return 0;
     ++writes;
     if(at>=4096 && at<12288) {
@@ -50,6 +58,62 @@ static int before_write(int fd, off64_t at) {
     }
     if(at>=12288 && at<20480)++witnesses;
     return 0;
+}
+#if defined(__APPLE__)
+static int observed_fcntl(int fd, int command, ...) {
+    va_list args;
+    switch (command) {
+    case F_FULLFSYNC:
+        if (before_sync(fd)) return -1;
+        return fcntl(fd, command);
+    case F_GETFD:
+    case F_GETFL:
+        return fcntl(fd, command);
+    case F_GETPATH: {
+        va_start(args, command);
+        char *path = va_arg(args, char *);
+        va_end(args);
+        return fcntl(fd, command, path);
+    }
+    case F_SETFD:
+    case F_SETFL:
+    case F_DUPFD:
+    case F_DUPFD_CLOEXEC: {
+        va_start(args, command);
+        int flags = va_arg(args, int);
+        va_end(args);
+        return fcntl(fd, command, flags);
+    }
+    default:
+        fprintf(stderr, "unexpected fcntl command %d in delivered fixture\n", command);
+        assert(0);
+        return -1;
+    }
+}
+
+static ssize_t observed_pwrite(int fd, const void *bytes, size_t length, off_t at) {
+    if (before_write(fd, at)) return -1;
+    ssize_t result = pwrite(fd, bytes, length, at);
+    if (result < 0 && target(fd)) native_error = errno;
+    return result;
+}
+
+/* dyld leaves calls to the original symbol in the interposer itself intact. */
+#define INTERPOSE(replacement, original)                                      \
+    __attribute__((used, section("__DATA,__interpose"))) static const struct { \
+        const void *replacement_address;                                     \
+        const void *original_address;                                        \
+    } interpose_##original = {                                                \
+        (const void *)(uintptr_t)&replacement, (const void *)(uintptr_t)&original \
+    }
+INTERPOSE(observed_fcntl, fcntl);
+INTERPOSE(observed_pwrite, pwrite);
+#elif defined(__linux__)
+int fsync(int fd) {
+    static int (*next)(int);
+    if(!next) { next=(int(*)(int))dlsym(RTLD_NEXT,"fsync");assert(next); }
+    if (before_sync(fd)) return -1;
+    return next(fd);
 }
 ssize_t pwrite(int fd,const void *bytes,size_t length,off_t at) {
     static ssize_t (*next)(int,const void*,size_t,off_t);
@@ -67,3 +131,6 @@ ssize_t pwrite64(int fd,const void *bytes,size_t length,off64_t at) {
     if(result<0 && target(fd))native_error=errno;
     return result;
 }
+#else
+#error unsupported delivered fault fixture host
+#endif

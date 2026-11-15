@@ -1145,3 +1145,10 @@ The whole xtask test suite at that checkpoint also passed locally under
 ThreadSanitizer with instrumented std, with 180 passes and one registered
 fixture skip. Its log SHA-256 is
 `2ccee77ba8c6f2422329ab045c21cc3d30d1f56e3d891921be5cd7b40dd9e4e9`.
+
+The [native macOS delivered C profile](delivered-c-faults.md#native-macos-delivered-c-faults)
+passes five cases against the exact `bc56084` dylib, including append, root and
+witness full-sync injection and root-write rejection. Fresh process recovery
+selects 4/3/4/4/3, then reaches 4 with retained revision 2 in all five cases.
+The disabled injector fails the required assertion. The shared Linux runner
+was requalified on the exact `bc56084` shared library across all six cases.

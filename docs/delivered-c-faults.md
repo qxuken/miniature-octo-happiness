@@ -132,3 +132,46 @@ remain source-bound historical evidence and are not relabeled as final-v3.
 Ignored local proof is not a permanent retention promise. This gate adds no
 native Mac/Windows, Rust/Odin fault-consumer, power-loss, compiler MC/DC or
 unified release-candidate qualification. No remote or registry action occurred.
+
+## Native macOS delivered C faults
+
+Use a verified combined macOS package on local APFS.
+
+```sh
+cargo xtask faults delivered --macos \
+  --package target/xtask-rust-only-clean-private-package \
+  --output target/macos-delivered-faults
+```
+
+The same optimized C exercise and recovery consumers link the relocated exact
+dylib. The macOS fixture observes `fcntl(F_FULLFSYNC)` and `pwrite` on the
+target inode. An unrelated file executes a full sync first to verify that it
+cannot spend the target's failure. The interposer forwards the known
+descriptor operations used by the artifact and aborts on an unexpected command.
+The runner clears inherited loader overrides, verifies the relocated dylib in
+each process's loader log, and checks that the recovery process loads no shim.
+
+| Case | Returned status | Visible revision | Fresh process reopens |
+|---|---|---:|---:|
+| Baseline | OK | 4 | 4 |
+| Append full sync | IO | 3 | 3 |
+| Root full sync | OUTCOME_UNKNOWN | 3 | 4 |
+| Witness full sync | OUTCOME_UNKNOWN | 3 | 4 |
+| Root write | OUTCOME_UNKNOWN | 3 | 3 |
+
+All five macOS cases pass against the exact `bc56084` dylib. Both retry paths
+finish at revision 4 with retained revision 2. The disabled shim exits on the
+required status assertion. The package manifest and dylib remain byte-identical.
+The existing Linux/ext4 driver also passes all six modes with the shared runner,
+including the kernel tmpfs ENOSPC control. Its reopened revisions remain
+4/3/4/4/3/3 in mode order.
+
+| Proof | SHA-256 |
+|---|---|
+| macOS dylib | `d5f9b9315064876f07013a698f654de131e462b5ef2487416202b60d79285705` |
+| macOS evidence | `0658490f36a72616482559b9e70306d184374ca86e1d267e32b9a3aa888a66fa` |
+| Linux evidence | `eda1ec9681de28a05d24db3278521a9fb805e5ac1c31259ec214c66f6342588a` |
+
+The macOS case injects single syscall returns and recovers through independent
+processes on a running kernel. Physical power interruption and Darwin kernel
+ENOSPC need separate evidence.
