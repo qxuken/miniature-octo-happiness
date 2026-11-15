@@ -30,6 +30,8 @@ mod fuzz;
 mod instrumentation;
 mod migration;
 #[cfg(unix)]
+mod monthly_workload;
+#[cfg(unix)]
 mod mutations;
 mod notices;
 mod odin;
@@ -94,6 +96,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Task {
+    /// Execute the accelerated 30-day two-peer storage workload.
+    #[cfg(unix)]
+    MonthlyWorkload(monthly_workload::Options),
     /// Observe local, captured and follower progress through the native replication CLI.
     #[cfg(unix)]
     ReplicaProgress(replica_progress::Options),
@@ -264,6 +269,8 @@ fn execute(cli: Cli) -> Result<()> {
     match cli.task {
         #[cfg(unix)]
         Task::Resource(options) => resource_campaign::run(&run, options),
+        #[cfg(unix)]
+        Task::MonthlyWorkload(options) => monthly_workload::run(&run, options),
         #[cfg(unix)]
         Task::ReplicaProgress(options) => replica_progress::run(options),
         #[cfg(unix)]

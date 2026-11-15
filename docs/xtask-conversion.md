@@ -829,3 +829,39 @@ MSVC cross targets. [Observer runbook](replica-progress.md)
 The three remaining legacy suites passed all 52 checks across six workers.
 Their evidence SHA-256 is
 `bf6177fbcd6f271fc1f954a5d45fcde9c2fa78c6918fdece704a554201511de5`.
+
+## Accelerated month workload
+
+`cargo xtask monthly-workload` handles a local pair, a prebuilt driver with
+an explicit server argv, and a native macOS client paired with a Linux
+Docker server. It binds both builds to the frozen engine and driver overlay,
+checks the phase identity and timings, and requires exact exit 70 for the
+eight receipt interruptions. The original phase logs and CSV summaries remain
+available. RSS now includes a workload-only sampled value alongside the
+cumulative local child high-water mark, which includes setup.
+
+The cross-OS run passed at `69b229ccdbbe9a2eacd27d3e505b2b77c9b9b6fd` using the
+16 MiB core admission profile. It observed all 432 phase rows, 60 daily
+retentions, 120 sync sessions, eight resumes and 112 returned transaction
+samples. Both nodes verified final current state and all 30 retained roots
+after reopening and restoration. Both databases ended at 6,668,288 bytes.
+All repeat syncs stayed at zero commits. The controller verified the ext4
+volume, copied the Linux database and maintained artifacts, and verified
+container and volume absence.
+
+- Cross-OS controller evidence SHA-256 `99a212f8e659f1e25669b57cac51df6f50c71b5dae7a1db02e04f97f60217c4d`.
+- Cross-OS workload summary SHA-256 `c8765e42754893cdd20288345d889b49515070448a10e8893aeacfe5537b2562`.
+
+The prebuilt local path ran the same full schedule with an explicit server
+argv. It returned the same 112 timing samples, final lengths and retained
+state. Local proof SHA-256 is
+`b4fe206da41324304000bfa4c2f8f7d35b8f10b011f96867f285b30b4932a135`.
+Two Python entry points were retired, bringing the remaining files to
+**8**. The mapped legacy total stays at **153/179**.
+
+macOS passed 168 ordinary xtask tests in debug and release, with the native
+TLS profile selected separately. Strict Clippy passed for macOS and both
+Linux and MSVC cross targets. The exact-exit control admits exit 70 and
+rejects both success and a different failure status.
+
+[Month workload runbook](monthly-workload.md)

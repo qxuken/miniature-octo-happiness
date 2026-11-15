@@ -8,11 +8,11 @@ workload makes every final and retained state independently checkable.
 Build and run a local two-process-peer qualification:
 
 ```sh
-cargo build --offline --locked --release --manifest-path tools/monthly-workload/Cargo.toml
-python3 tools/monthly_workload.py --directory target/monthly-workload/new-run
+cargo xtask monthly-workload --source HEAD --directory target/monthly-workload/new-run
 ```
 
-The directory must not exist. The standalone private tool depends on the engine
+The directory must be new. The controller builds the standalone driver from an
+archived engine revision and hashes the source and driver overlay. The driver depends on the engine
 with `crdt` and on the typed crate. It reuses StudyProgress's record and resolution
 policies without changing their encoding. The driver exposes separate `init`,
 `day`, `serve`, `sync`, `checkpoint`, `verify` and `backup` process phases. Every
@@ -57,11 +57,21 @@ Final state is 1830 minutes, 60 completed IDs, weekly goal 120 and session limit
 
 ## Linux server and macOS client
 
-The runner defaults to two peers on its own host. It can launch role0 on a Linux
-server using a supplied argv prefix, while role1 remains the local macOS client:
+On macOS, the controller can build and run role 0 inside a local Linux Docker
+container and keep role 1 native. It verifies the image identity and ext4 data
+volume, copies the result files, and verifies cleanup.
 
 ```sh
-python3 tools/monthly_workload.py --directory target/monthly-workload/cross-os \
+cargo xtask monthly-workload --source HEAD --live-budget \
+  --image rust:1-bookworm --directory target/monthly-workload/cross-os
+```
+
+For a separately prepared server and local executable, pass the server argv
+prefix and the two endpoints explicitly.
+
+```sh
+cargo xtask monthly-workload --directory target/monthly-workload/remote \
+  --binary /absolute/path/to/monthly-workload --engine-source COMMIT \
   --server-command '["docker","exec","CONTAINER","/work/monthly-workload"]' \
   --server-db /data/server.wdb \
   --server-listen 0.0.0.0:39101 --server-address 127.0.0.1:39101 \
@@ -89,25 +99,38 @@ JSON records driver phase duration, successful typed/CRDT transaction-call
 latency, reopen latency, revision/commit changes and file length. Transaction
 latency includes application conversion and validation as well as publication;
 it is not an isolated fsync measurement. Backup and restore have separate timers.
-The Python runner also measures process wall time and local disk free bytes.
+The Rust runner also measures process wall time and local disk free bytes.
 Interrupted operations have no success response, so reported transaction timing
 samples omit their committed typed transaction. Scheduled operation totals are
 stated separately from observed replies. CSV contains one row per phase;
 transaction samples are arrays within the corresponding JSON events.
 
-RSS is the host's cumulative child-process high-water mark, excluding remote
-container descendants. It is not summed resident memory, a leak bound or an
-allocator quota. File growth is per node/day; local free-space measurements do
-not describe a remote filesystem. Long-running load, larger cardinalities,
+RSS sampling covers supervised workload children on the local host. The
+cumulative child high-water mark also includes setup and build commands.
+Remote container descendants have their own memory scope. File growth is per node
+and day. Long-running load, larger cardinalities,
 network partitions beyond daily offline edits, authentication, passive follower
 acks and random fault schedules remain separate qualification work.
 
-For a pinned build, pass `--engine-source COMMIT` to bind the declared build
-source in the run summary. That label is caller-supplied; retain the archive,
-build command and remote binary hash as supporting evidence. The runner rejects
+For a prebuilt executable, pass `--engine-source COMMIT` with `--binary`.
+Retain the archive, build command and remote binary hash together with that
+declared identity. The runner rejects
 stale driver binaries missing the measurement fields. Socket connection and
 I/O timeouts are 10 and 15 seconds; server accept waits at most 30 seconds.
-Python phase subprocesses are bounded at 60 seconds.
+The client phases have a 60-second subprocess bound. A one-shot server has
+30 seconds for readiness and a 90-second lifetime bound. The calendar schedule
+has a 900-second deadline.
+
+## Rust controller replay
+
+The Rust controller passed all 30 days at frozen engine `69b229c` with a
+native macOS/APFS client and Docker Linux/ext4 server. It recorded 432 phase
+rows, 112 returned transaction timings and eight exact exit-70 interruptions.
+Every interrupted day resumed with only the missing CRDT update. Repeated
+sync added zero commits. Each node finished with 30 retained roots and a
+6,668,288-byte database, and the independent backup/restore checks passed.
+The workload took 50.818 seconds on this run.
+[Migration evidence](xtask-conversion.md#accelerated-month-workload)
 
 ## Executed Linux/macOS profile
 

@@ -30,6 +30,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "tools/compatibility-driver.rs",
         "tools/compatibility-snapshot.rs",
         "tools/snapshot-cli-upgrade-fixture.rs",
+        "tools/monthly_workload.rs",
     ] {
         let file = root.join(name);
         if file.is_file() {
@@ -50,6 +51,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "tools/resource-envelope",
         "tools/sqlite-baseline",
         "tools/soak",
+        "tools/monthly-workload",
     ] {
         walk(root, &root.join(name), &mut out, false)?;
     }
@@ -150,6 +152,12 @@ impl Drop for StopOnUnwind<'_> {
         }
     }
 }
+enum ExpectedExit<'a> {
+    Success,
+    Assertion(&'a str),
+    Code(i32),
+    StoppedOrSuccess,
+}
 impl<'a> Campaign<'a> {
     pub fn new(run: &'a Run, output: &Path, scope: &str) -> Result<Self> {
         Self::create(run, output, scope, true)
@@ -231,6 +239,21 @@ impl<'a> Campaign<'a> {
         ensure!(!self.cancellation.requested(), "campaign cancelled");
         self.execute(args, name, expected, timeout, cwd)
     }
+    pub fn command_exit(
+        &mut self,
+        args: Vec<OsString>,
+        name: &str,
+        code: i32,
+        timeout: f64,
+    ) -> Result<String> {
+        ensure!(
+            !self.cancelled() && code > 0,
+            "invalid expected command exit"
+        );
+        let request = self.request(args, name, timeout, &self.run.root)?;
+        let report = supervise::run(&request);
+        self.record(name, &request, report, ExpectedExit::Code(code))
+    }
     /// Only resource retirement/absence queries may run after cancellation.
     pub fn retirement_command(&mut self, args: Vec<OsString>, name: &str) -> Result<String> {
         self.execute(args, name, None, 30., &self.run.root.clone())
@@ -245,7 +268,12 @@ impl<'a> Campaign<'a> {
     ) -> Result<String> {
         let request = self.request(args, name, timeout, cwd)?;
         let report = supervise::run(&request);
-        self.record(name, &request, report, expected, false)
+        self.record(
+            name,
+            &request,
+            report,
+            expected.map_or(ExpectedExit::Success, ExpectedExit::Assertion),
+        )
     }
     pub fn pair(&mut self, commands: [(&str, Vec<OsString>); 2], timeout: f64) -> Result<()> {
         ensure!(!self.cancellation.requested(), "campaign cancelled");
@@ -261,8 +289,8 @@ impl<'a> Campaign<'a> {
                 .unwrap_or_else(|_| Err(anyhow::anyhow!("supervisor thread panicked")));
             (one, two)
         });
-        let one = self.record(first, &a, one, None, false);
-        let two = self.record(second, &b, two, None, false);
+        let one = self.record(first, &a, one, ExpectedExit::Success);
+        let two = self.record(second, &b, two, ExpectedExit::Success);
         one?;
         two?;
         Ok(())
@@ -277,6 +305,24 @@ impl<'a> Campaign<'a> {
         wait_for_exit: bool,
         action: impl FnOnce(&mut Self, SocketAddr) -> Result<T>,
     ) -> Result<T> {
+        self.ready_process(
+            arguments,
+            label,
+            limits,
+            wait_for_exit,
+            loopback_address,
+            action,
+        )
+    }
+    pub fn ready_process<T, R>(
+        &mut self,
+        arguments: Vec<OsString>,
+        label: &str,
+        limits: (Duration, f64),
+        wait_for_exit: bool,
+        parse_ready: impl FnOnce(&str) -> Result<R>,
+        action: impl FnOnce(&mut Self, R) -> Result<T>,
+    ) -> Result<T> {
         ensure!(!self.cancelled(), "campaign cancelled");
         let (readiness, deadline) = limits;
         let request = self.request(arguments, label, deadline, &self.run.root)?;
@@ -286,16 +332,16 @@ impl<'a> Campaign<'a> {
             let worker = scope.spawn(|| supervise::run_stoppable(&request, &stop));
             let outcome = (|| -> Result<T> {
                 let started = Instant::now();
-                let address = loop {
+                let ready = loop {
                     ensure!(!self.cancelled(), "campaign cancelled");
                     ensure!(!worker.is_finished(), "server exited before readiness");
-                    if let Some(address) = loopback_address(&request.stdout)? {
-                        break address;
+                    if let Some(line) = ready_line(&request.stdout)? {
+                        break parse_ready(&line)?;
                     }
                     ensure!(started.elapsed() < readiness, "server readiness deadline");
                     std::thread::sleep(Duration::from_millis(15));
                 };
-                action(self, address)
+                action(self, ready)
             })();
             if outcome.is_err() || !wait_for_exit {
                 stop.store(true, Ordering::Relaxed);
@@ -305,13 +351,12 @@ impl<'a> Campaign<'a> {
                 .unwrap_or_else(|_| Err(anyhow::anyhow!("server supervisor thread panicked")));
             (outcome, report)
         });
-        let observed = self.record(
-            label,
-            &request,
-            report,
-            None,
-            outcome.is_err() || !wait_for_exit,
-        );
+        let expected = if outcome.is_err() || !wait_for_exit {
+            ExpectedExit::StoppedOrSuccess
+        } else {
+            ExpectedExit::Success
+        };
+        let observed = self.record(label, &request, report, expected);
         match (outcome, observed) {
             (Ok(value), Ok(_)) => Ok(value),
             (Err(error), Ok(_)) | (Ok(_), Err(error)) => Err(error),
@@ -372,8 +417,7 @@ impl<'a> Campaign<'a> {
         name: &str,
         request: &Request,
         report: Result<supervise::Report>,
-        expected: Option<&str>,
-        accept_stop: bool,
+        expected: ExpectedExit<'_>,
     ) -> Result<String> {
         let stdout = &request.stdout;
         let stderr = &request.stderr;
@@ -383,17 +427,52 @@ impl<'a> Campaign<'a> {
         };
         let out = String::from_utf8_lossy(&fs::read(stdout).unwrap_or_default()).into_owned();
         let err = String::from_utf8_lossy(&fs::read(stderr).unwrap_or_default()).into_owned();
-        let passed = report
-            .as_ref()
-            .is_some_and(|r| qualifies(r, &err, expected) || accept_stop && r.stopped_cleanly());
+        let passed = report.as_ref().is_some_and(|r| match expected {
+            ExpectedExit::Success => qualifies(r, &err, None),
+            ExpectedExit::Assertion(marker) => qualifies(r, &err, Some(marker)),
+            ExpectedExit::Code(code) => {
+                r.returncode == Some(code)
+                    && r.cleanup_verified
+                    && r.cleanup_failure.is_none()
+                    && !r.timed_out
+                    && !r.cancelled
+                    && r.failure.as_deref() == Some(&format!("child exit Some({code})"))
+            }
+            ExpectedExit::StoppedOrSuccess => qualifies(r, &err, None) || r.stopped_cleanly(),
+        });
+        let marker = if let ExpectedExit::Assertion(marker) = expected {
+            Some(marker)
+        } else {
+            None
+        };
+        let exit = if let ExpectedExit::Code(code) = expected {
+            Some(code)
+        } else {
+            None
+        };
         self.evidence["commands"].as_array_mut().unwrap().push(json!({
             "argv":request.argv,"cwd":request.cwd,"name":name,"exit_code":report.as_ref().and_then(|r| r.returncode),
             "timeout_seconds":request.timeout_seconds,"maximum_bytes":request.maximum_bytes,
             "supervision":report,"invocation_error":invocation_error,"stdout":stdout.file_name().and_then(|s|s.to_str()),
-            "stderr":stderr.file_name().and_then(|s|s.to_str()),"expected_assertion":expected,"passed":passed
+            "stderr":stderr.file_name().and_then(|s|s.to_str()),"expected_assertion":marker,"expected_exit":exit,"passed":passed
         }));
         self.save()?;
-        ensure!(passed, "{name} failed; see {}", self.output.display());
+        if !passed {
+            let diagnostic = report
+                .as_ref()
+                .and_then(|report| {
+                    report
+                        .cleanup_failure
+                        .as_deref()
+                        .or(report.failure.as_deref())
+                })
+                .or(invocation_error.as_deref())
+                .unwrap_or("unexpected terminal status");
+            anyhow::bail!(
+                "{name} failed ({diagnostic}). See {}",
+                self.output.display()
+            );
+        }
         Ok(out.trim_end_matches(['\r', '\n']).to_owned())
     }
     pub fn finish(mut self, result: Result<()>) -> Result<()> {
@@ -431,7 +510,7 @@ impl<'a> Campaign<'a> {
     }
 }
 
-fn loopback_address(output: &Path) -> Result<Option<SocketAddr>> {
+fn ready_line(output: &Path) -> Result<Option<String>> {
     let file = match fs::File::open(output) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -445,8 +524,15 @@ fn loopback_address(output: &Path) -> Result<Option<SocketAddr>> {
     if !bytes.ends_with(b"\n") {
         return Ok(None);
     }
-    let text = std::str::from_utf8(&bytes)?.trim_end_matches(['\r', '\n']);
-    let address: SocketAddr = text
+    Ok(Some(
+        std::str::from_utf8(&bytes)?
+            .trim_end_matches(['\r', '\n'])
+            .to_owned(),
+    ))
+}
+
+fn loopback_address(line: &str) -> Result<SocketAddr> {
+    let address: SocketAddr = line
         .strip_prefix("ready ")
         .context("server readiness missing")?
         .parse()?;
@@ -454,7 +540,7 @@ fn loopback_address(output: &Path) -> Result<Option<SocketAddr>> {
         address.ip().is_loopback() && address.port() != 0,
         "server advertised an invalid loopback address"
     );
-    Ok(Some(address))
+    Ok(address)
 }
 pub fn qualifies(report: &supervise::Report, stderr: &str, expected: Option<&str>) -> bool {
     // The shared supervisor reports an ordinary nonzero exit as a failure too.
@@ -577,6 +663,28 @@ pub fn archive_revision(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn exact_expected_exit_rejects_success_and_another_failure() {
+        let tmp = crate::support::Scratch::new(&std::env::temp_dir(), "expected-exit").unwrap();
+        let run = Run::new(tmp.path().to_owned());
+        let mut c =
+            Campaign::detached(&run, &tmp.path().join("output"), "command exit control").unwrap();
+        c.command_exit(cmd(["sh", "-c", "exit 70"]), "expected", 70, 5.)
+            .unwrap();
+        for (name, expression) in [("success", "exit 0"), ("wrong", "exit 71")] {
+            assert!(
+                c.command_exit(cmd(["sh", "-c", expression]), name, 70, 5.)
+                    .is_err()
+            );
+        }
+        let observed = c.evidence["commands"].as_array().unwrap();
+        assert_eq!(observed.len(), 3);
+        for (record, expected) in observed.iter().zip([true, false, false]) {
+            assert_eq!(record["expected_exit"], 70);
+            assert_eq!(record["passed"], expected);
+            assert_eq!(record["supervision"]["cleanup_verified"], true);
+        }
+    }
     #[test]
     fn loopback_ready_exit_stop_and_rejection_record_terminal_state() {
         let tmp =
@@ -719,7 +827,8 @@ mod tests {
         assert!(
             reports
                 .iter()
-                .all(|row| row["supervision"]["cleanup_verified"] == true)
+                .all(|row| row["supervision"]["cleanup_verified"] == true),
+            "paired supervision: {reports:#?}"
         );
         let mut journal_pids = fs::read_to_string(journal)
             .unwrap()

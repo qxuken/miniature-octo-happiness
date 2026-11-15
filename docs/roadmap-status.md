@@ -1066,3 +1066,10 @@ checks on macOS and Docker Linux/ext4. Fresh polling verified durable revision
 retained revision 2. The conversion now covers 153/179 legacy controls and
 10 maintained Python files.
 [Progress observer verification](xtask-conversion.md#replica-progress-observations)
+
+The Rust accelerated month runner passed the full 30-day schedule with a
+native macOS client and Docker Linux/ext4 server using the 16 MiB core budget
+profile. It also passed the prebuilt local pair with an explicit server
+argv. Eight interrupted receipts resumed, every repeat sync stayed at zero
+commits, and each restored database verified 30 retained roots. Eight Python
+files remain. [Month workload verification](xtask-conversion.md#accelerated-month-workload)
