@@ -55,8 +55,8 @@ pub struct Options {
     /// Exhaust all available inodes on a private ext4 filesystem with no quota.
     #[arg(long, requires = "maintenance", conflicts_with = "inode_quota")]
     pub inode_enospc: bool,
-    /// Exercise kernel block errors at all three local commit sync barriers.
-    #[arg(long, conflicts_with_all = ["maintenance", "probe_only"])]
+    /// Exercise kernel block errors at commit barriers or during maintenance.
+    #[arg(long, conflicts_with_all = ["inode_quota", "inode_enospc", "probe_only"])]
     pub writeback: bool,
 }
 #[derive(Debug)]
@@ -114,6 +114,12 @@ fn support_tools(c: &Campaign<'_>, opts: &Options) -> Result<BTreeMap<String, Pa
                 .into_iter()
                 .flatten(),
         )
+        .chain(
+            (opts.writeback && opts.maintenance)
+                .then_some(["cc", "env"])
+                .into_iter()
+                .flatten(),
+        )
         .map(|name| {
             Ok((
                 name.into(),
@@ -154,6 +160,7 @@ fn qualification_files(base: &Path, maintenance: bool) -> Result<BTreeMap<String
         "tools/resource-envelope/src/compound.rs",
         "tools/resource-envelope/src/resilience.rs",
         "tools/resource-envelope/src/space.rs",
+        writeback::GATE_SOURCE,
     ]);
     shared
         .into_iter()
@@ -829,7 +836,9 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         call.c.evidence["image_identity"] = json!(s.image_identity);
         let kernel = call.exec(cmd(["uname", "-a"]))?;
         call.c.evidence["kernel"] = json!(kernel.stdout);
-        let (hard, inodes, space) = if opts.inode_enospc {
+        let (hard, inodes, space) = if opts.writeback {
+            (0, 0, Space::Writeback)
+        } else if opts.inode_enospc {
             (0, 0, Space::InodeEnospc)
         } else if opts.inode_quota {
             // The guest owns the directory, source, backup and one ballast inode.
@@ -936,12 +945,16 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         call.c.evidence["fixture_sha256"] = json!(fixture_hash);
         call.c.evidence["guest_identity"] =
             guest.probe(&mut call, "identity", CHUNK, space, None)?;
-        if let Some(map) = &mut mapping {
-            map.qualify(&mut call, s, &guest, &opts.source)?;
-        } else if opts.maintenance {
+        if opts.maintenance {
             let seed = s.directory.join("seed-parent");
             private_directory(&seed, uid)?;
-            guest.maintenance(&mut call, &opts.source, space, &seed.join("seed"))?;
+            let fault = mapping
+                .as_mut()
+                .map(|map| writeback::MaintenanceFault::prepare(map, s, &mut call, &guest))
+                .transpose()?;
+            guest.maintenance(&mut call, &opts.source, space, &seed.join("seed"), fault)?;
+        } else if let Some(map) = &mut mapping {
+            map.qualify(&mut call, s, &guest, &opts.source)?;
         } else {
             guest.normal(&mut call, &opts.source, opts.probe_only)?;
         }
@@ -1060,6 +1073,9 @@ impl Maintenance<'_> {
             args.push("changed".into());
         }
         let reply = self.guest.fixture(c, args, 120., &[0])?;
+        self.record(mode, label, reply)
+    }
+    fn record(&mut self, mode: &str, label: &str, reply: Output) -> Result<Value> {
         let rows = json_rows(&reply.stdout)?;
         let row =
             quota_oracle::maintenance(&rows, mode, label, self.source, self.space, reply.pid)?
@@ -1080,6 +1096,7 @@ impl Guest {
         source: &str,
         space: Space,
         seed: &Path,
+        mut writeback: Option<writeback::MaintenanceFault<'_>>,
     ) -> Result<()> {
         self.env
             .insert("WEEKEND_PRIVATE_MAINTENANCE".into(), space.profile().into());
@@ -1160,6 +1177,7 @@ impl Guest {
                     self.probe(c, "fill", CEILING, space, None)?,
                     self.probe(c, "headroom", CEILING, space, None)?,
                 ),
+                Space::Writeback => (Value::Null, Value::Null),
             };
             if space == Space::InodeEnospc {
                 let created = number(&full, "created")?;
@@ -1168,7 +1186,20 @@ impl Guest {
                     "initial inode fill or one-inode refill not proven"
                 );
             }
-            let fail = data.phase(c, "space-fail", op, &original, false)?;
+            let (fail, mapped, target) = if let Some(fault) = &mut writeback {
+                let (reply, evidence, target) = fault.fail(c, self, &original, op)?;
+                (
+                    data.record("space-fail", op, reply)?,
+                    evidence,
+                    Some(target),
+                )
+            } else {
+                (
+                    data.phase(c, "space-fail", op, &original, false)?,
+                    Value::Null,
+                    None,
+                )
+            };
             if space.fails_at_create() {
                 let expected: BTreeSet<_> = if space == Space::InodeQuota {
                     ["backup.wdb", "ballast", "source.wdb"]
@@ -1209,9 +1240,18 @@ impl Guest {
             } else {
                 "remove"
             };
-            let remove = self.probe(c, release, CEILING, space, None)?;
-            let control = self.probe(c, "write-control", CEILING, space, None)?;
+            let (remove, control) = if space == Space::Writeback {
+                (Value::Null, Value::Null)
+            } else {
+                (
+                    self.probe(c, release, CEILING, space, None)?,
+                    self.probe(c, "write-control", CEILING, space, None)?,
+                )
+            };
             data.phase(c, "space-retry", op, &original, false)?;
+            if let Some(fault) = &writeback {
+                fault.remount(c)?;
+            }
             data.phase(
                 c,
                 "space-check",
@@ -1233,6 +1273,12 @@ impl Guest {
                 sha(&retried)? == b && sha(&backup)? == b,
                 "retry/backup bytes differ"
             );
+            if let Some(target) = target {
+                ensure!(
+                    mapped["failed_target_sha256"] == sha(&target)?,
+                    "retry modified the failed destination"
+                );
+            }
             data.phase(
                 c,
                 "space-check",
@@ -1248,9 +1294,16 @@ impl Guest {
                 false,
             )?;
             data.phase(c, "space-retire", op, &original, false)?;
-            cases.push(json!({"operation":op,"full":full,"headroom":headroom,"failure":fail,"ballast_removed":remove,"write_control":control}));
+            let mut case = json!({"operation":op,"full":full,"headroom":headroom,"failure":fail,"ballast_removed":remove,"write_control":control});
+            if space == Space::Writeback {
+                case["writeback"] = mapped;
+            }
+            cases.push(case);
         }
         data.phase(c, "space-advance", "advanced", &original, false)?;
+        if let Some(fault) = &writeback {
+            fault.remount(c)?;
+        }
         data.phase(c, "space-check", "advanced-source", &original, true)?;
         data.phase(c, "space-check", "final-backup", &backup, false)?;
         ensure!(
@@ -1383,7 +1436,7 @@ pub fn enospc_worker(run: &Run, source: &Path, revision: &str, output: &Path) ->
         };
         call.c.evidence["guest_identity"] =
             guest.probe(&mut call, "identity", CHUNK, Space::Enospc, None)?;
-        guest.maintenance(&mut call, revision, Space::Enospc, &seed.join("seed"))?;
+        guest.maintenance(&mut call, revision, Space::Enospc, &seed.join("seed"), None)?;
         ensure!(
             inventory(source, &[])? == frozen,
             "frozen engine source changed"

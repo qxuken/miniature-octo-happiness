@@ -1,12 +1,12 @@
 //! Route one ext4 data block to a kernel error target at a commit barrier.
-use super::{Calls, Guest, Scratch, cmd, fs, json, path, quota_oracle, sha};
+use super::{Calls, Guest, Output, Scratch, cmd, fs, json, path, quota_oracle, sha};
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
 use std::{
     collections::BTreeSet,
     ffi::OsString,
     io::Read,
-    os::unix::fs::{FileTypeExt, MetadataExt},
+    os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -14,6 +14,75 @@ use std::{
 const SECTOR: u64 = 512;
 const BLOCK: u64 = 4096;
 const BLOCK_SECTORS: u64 = BLOCK / SECTOR;
+pub(super) const GATE_SOURCE: &str = "tools/resource-envelope/writeback_gate.c";
+
+fn held_fixture<T>(
+    calls: &mut Calls<'_, '_>,
+    mut argv: Vec<OsString>,
+    label: &str,
+    gate: &Path,
+    limits: (Duration, f64),
+    arm: impl FnOnce(&mut Calls<'_, '_>, &[String]) -> Result<T>,
+) -> Result<(Output, T)> {
+    argv[0] = path(&calls.tools["setpriv"]);
+    let tools = calls.tools.clone();
+    let mut sequence = calls.sequence;
+    let ready = calls.c.ready_process(
+        argv,
+        label,
+        limits,
+        true,
+        |line| {
+            let mut words = line.split_ascii_whitespace();
+            ensure!(
+                words.next() == Some("ready") && words.next() == Some(label),
+                "wrong fixture readiness"
+            );
+            let pid: u32 = words.next().context("missing fixture PID")?.parse()?;
+            ensure!(pid > 0, "invalid fixture PID");
+            let details = words.map(str::to_owned).collect::<Vec<_>>();
+            Ok((pid, details))
+        },
+        |c, (pid, details)| {
+            let mut active = Calls { c, tools, sequence };
+            let armed = arm(&mut active, &details);
+            sequence = active.sequence;
+            let proof = armed?;
+            fs::create_dir(gate)?;
+            Ok((pid, proof))
+        },
+    );
+    calls.sequence = sequence;
+    let (pid, proof) = ready?;
+    let log = fs::read_to_string(calls.c.output.join(format!("{label}.stdout.log")))?;
+    let (ready, stdout) = log
+        .split_once('\n')
+        .context("missing fixture readiness line")?;
+    let output = calls.c.evidence["commands"]
+        .as_array()
+        .unwrap()
+        .last()
+        .context("missing fixture supervision")?;
+    ensure!(
+        ready
+            .split_ascii_whitespace()
+            .nth(2)
+            .and_then(|s| s.parse().ok())
+            == Some(pid)
+            && output["name"] == label
+            && output["supervision"]["pid"] == pid,
+        "writeback fixture PID disagreement"
+    );
+    Ok((
+        Output {
+            stdout: stdout.to_owned(),
+            stderr: fs::read_to_string(calls.c.output.join(format!("{label}.stderr.log")))?,
+            pid,
+            exit: 0,
+        },
+        proof,
+    ))
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Boundary {
@@ -480,57 +549,22 @@ impl Mapping {
     ) -> Result<Value> {
         let stage = boundary.stage();
         let gate = scratch.directory.join(format!("armed-{}", boundary.name()));
-        let mut argv = guest.fixture_argv(vec![stage.into(), path(database), path(&gate)]);
-        argv[0] = path(&calls.tools["setpriv"]);
-        let tools = calls.tools.clone();
-        let mut sequence = calls.sequence;
-        let ready_pid = calls.c.ready_process(
-            argv,
+        let (reply, ()) = held_fixture(
+            calls,
+            guest.fixture_argv(vec![stage.into(), path(database), path(&gate)]),
             stage,
+            &gate,
             (Duration::from_secs(10), 35.),
-            true,
-            |line| {
-                let mut words = line.split(' ');
+            |active, details| {
                 ensure!(
-                    words.next() == Some("ready") && words.next() == Some(stage),
-                    "wrong fixture readiness"
+                    details.is_empty(),
+                    "unexpected commit fixture readiness details"
                 );
-                let pid: u32 = words.next().context("missing fixture PID")?.parse()?;
-                ensure!(
-                    pid > 0 && words.next().is_none(),
-                    "invalid fixture readiness"
-                );
-                Ok(pid)
+                self.switch(active, scratch, self.fault.as_deref().unwrap(), false)
             },
-            |c, pid| {
-                let mut active = Calls { c, tools, sequence };
-                let armed =
-                    self.switch(&mut active, scratch, self.fault.as_deref().unwrap(), false);
-                sequence = active.sequence;
-                armed?;
-                fs::create_dir(&gate)?;
-                Ok(pid)
-            },
-        );
-        calls.sequence = sequence;
-        let ready_pid = ready_pid?;
-        let stdout = fs::read_to_string(calls.c.output.join(format!("{stage}.stdout.log")))?;
-        let lines: Vec<_> = stdout.lines().collect();
-        ensure!(
-            lines.len() == 2 && lines[0] == format!("ready {stage} {ready_pid}"),
-            "invalid writeback fixture output"
-        );
-        let record = calls.c.evidence["commands"]
-            .as_array()
-            .unwrap()
-            .last()
-            .context("missing fixture supervision")?;
-        ensure!(
-            record["name"] == stage && record["supervision"]["pid"] == ready_pid,
-            "writeback fixture PID disagreement"
-        );
-        let row = quota_oracle::one_json(lines[1])?;
-        ensure!(row["pid"] == ready_pid, "fixture changed PID after arming");
+        )?;
+        let row = quota_oracle::one_json(reply.stdout.trim_end())?;
+        ensure!(row["pid"] == reply.pid, "fixture changed PID after arming");
         Ok(row)
     }
 
@@ -687,6 +721,198 @@ impl Mapping {
                 "prefix_verified":true}}),
         )
     }
+}
+
+pub(super) struct MaintenanceFault<'a> {
+    mapper: &'a mut Mapping,
+    scratch: &'a Scratch,
+    shim: PathBuf,
+    shim_hash: String,
+}
+
+impl<'a> MaintenanceFault<'a> {
+    pub(super) fn prepare(
+        mapper: &'a mut Mapping,
+        scratch: &'a Scratch,
+        calls: &mut Calls<'_, '_>,
+        guest: &Guest,
+    ) -> Result<Self> {
+        let archived = calls.c.output.join("frozen-source").join(GATE_SOURCE);
+        let staged = scratch.directory.join("writeback_gate.c");
+        fs::copy(&archived, &staged)?;
+        fs::set_permissions(&staged, fs::Permissions::from_mode(0o444))?;
+        let source_hash = sha(&archived)?;
+        ensure!(
+            sha(&staged)? == source_hash,
+            "writeback gate source changed"
+        );
+        let build = scratch.directory.join("shim-build");
+        super::private_directory(&build, guest.uid)?;
+        let library = build.join("gate.so");
+        let mut args = guest.drop.clone();
+        args.push(path(&calls.tools["cc"]));
+        args.extend(cmd([
+            "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
+        ]));
+        args.extend([path(&staged), "-o".into(), path(&library), "-ldl".into()]);
+        calls.guest(args, &guest.env, 30., &[0])?;
+        let shim = scratch.directory.join("writeback-gate.so");
+        let shim_hash = super::copy_executable(&library, &shim, 2 * super::MIB)?;
+        ensure!(
+            sha(&staged)? == source_hash,
+            "writeback gate source changed during build"
+        );
+        calls.c.evidence["writeback_gate"] =
+            json!({"source_sha256":source_hash,"binary_sha256":shim_hash});
+        Ok(Self {
+            mapper,
+            scratch,
+            shim,
+            shim_hash,
+        })
+    }
+
+    pub(super) fn fail(
+        &mut self,
+        calls: &mut Calls<'_, '_>,
+        guest: &Guest,
+        source: &Path,
+        operation: &str,
+    ) -> Result<(Output, Value, PathBuf)> {
+        ensure!(
+            sha(&self.shim)? == self.shim_hash,
+            "staged writeback gate changed"
+        );
+        let label = format!("writeback-{operation}");
+        let gate = self.scratch.directory.join(format!("armed-{operation}"));
+        let destination = format!("failed-{operation}.wdb");
+        let mut argv = guest.fixture_argv(vec![
+            path(&guest.data),
+            path(source),
+            "space-fail".into(),
+            operation.into(),
+        ]);
+        argv.splice(
+            guest.drop.len()..guest.drop.len(),
+            [
+                path(&calls.tools["env"]),
+                "WEEKEND_PRIVATE_MAINTENANCE=writeback".into(),
+                assignment("LD_PRELOAD", &self.shim),
+                assignment("WDB_WRITEBACK_DIRECTORY", &guest.data),
+                assignment("WDB_WRITEBACK_GATE", &gate),
+                format!("WDB_WRITEBACK_LABEL={label}").into(),
+                format!(
+                    "WDB_WRITEBACK_TARGET={}",
+                    if operation == "compact" {
+                        "scratch"
+                    } else {
+                        &destination
+                    }
+                )
+                .into(),
+            ],
+        );
+        let (reply, (target, mut proof)) = held_fixture(
+            calls,
+            argv,
+            &label,
+            &gate,
+            (Duration::from_secs(60), 120.),
+            |active, details| {
+                let [device, inode, name] = details else {
+                    anyhow::bail!("missing maintenance target readiness");
+                };
+                ensure!(
+                    if operation == "compact" {
+                        scratch_name(name)
+                    } else {
+                        *name == destination
+                    },
+                    "wrong maintenance target name"
+                );
+                let device: u64 = device.parse()?;
+                let inode: u64 = inode.parse()?;
+                let target = guest.data.join(name);
+                let info = fs::symlink_metadata(&target)?;
+                ensure!(
+                    info.is_file()
+                        && info.len() == 0
+                        && info.nlink() == 1
+                        && info.uid() == guest.uid
+                        && info.dev() == device
+                        && info.ino() == inode
+                        && info.dev() == fs::metadata(&guest.data)?.dev(),
+                    "wrong maintenance target identity or allocation boundary"
+                );
+                let geometry = active.exec(vec![
+                    "filefrag".into(),
+                    "-v".into(),
+                    "-b512".into(),
+                    path(&target),
+                ])?;
+                let sector = mapped_block(&geometry.stdout, 0, self.mapper.sectors, true)?;
+                let fault = self.mapper.error_table(sector);
+                self.mapper.fault = Some(fault.clone());
+                self.mapper.switch(active, self.scratch, &fault, false)?;
+                Ok((
+                    target,
+                    json!({"target":name,"sector":sector,"logical_offset":0,"length":BLOCK,
+                    "device":device,"inode":inode,"active_table":fault,"linear_table":self.mapper.linear()}),
+                ))
+            },
+        )?;
+        self.mapper
+            .switch(calls, self.scratch, &self.mapper.linear(), false)?;
+        self.remount(calls)?;
+        let persisted = fs::symlink_metadata(&target)?;
+        ensure!(
+            persisted.is_file()
+                && persisted.len() == 63_074_304
+                && proof["device"] == persisted.dev()
+                && proof["inode"] == persisted.ino(),
+            "failed maintenance target changed identity after remount"
+        );
+        let mut header = [0u8; BLOCK as usize];
+        fs::File::open(&target)?.read_exact(&mut header)?;
+        ensure!(
+            header == [0; BLOCK as usize],
+            "failed target's first block persisted"
+        );
+        proof["remounted"] = json!(true);
+        proof["failed_header_zero"] = json!(true);
+        proof["failed_target_sha256"] = json!(sha(&target)?);
+        let images = calls.c.output.join("failed-images");
+        fs::create_dir_all(&images)?;
+        let copy = images.join(format!("{operation}.wdb"));
+        fs::copy(&target, &copy)?;
+        ensure!(
+            proof["failed_target_sha256"] == sha(&copy)?,
+            "copied failed maintenance target changed"
+        );
+        Ok((reply, proof, target))
+    }
+
+    pub(super) fn remount(&self, calls: &mut Calls<'_, '_>) -> Result<()> {
+        self.mapper.unmount(calls, self.scratch, false)?;
+        self.mapper.mount(calls, self.scratch)
+    }
+}
+
+fn assignment(name: &str, value: &Path) -> OsString {
+    let mut var = OsString::from(format!("{name}="));
+    var.push(value);
+    var
+}
+
+fn scratch_name(name: &str) -> bool {
+    name.strip_prefix(".wdb-compact-")
+        .and_then(|rest| rest.strip_suffix(".tmp"))
+        .is_some_and(|id| {
+            id.len() == 32
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
 }
 
 #[cfg(test)]

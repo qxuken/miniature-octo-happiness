@@ -533,6 +533,11 @@ jobs:
           sudo "$PWD/target/xtask/release/xtask" quota --maintenance --inode-enospc --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-inode-enospc"
           sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, phase: .failure.native_operation, free_inodes: .full.global_free_inodes, available_bytes: .full.available_bytes, released_free_inodes: .ballast_removed.global_free_inodes}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified}' target/maintenance-inode-enospc/evidence.json
           sudo sha256sum target/maintenance-inode-enospc/evidence.json
+      - name: Fail near-cap ext4 maintenance at writeback and verify all roots
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --writeback --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-writeback"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, failure, writeback}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified, mapper_absent}' target/maintenance-writeback/evidence.json
+          sudo sha256sum target/maintenance-writeback/evidence.json
       - name: Transfer private evidence ownership for upload
         if: always()
         run: |
@@ -551,6 +556,9 @@ jobs:
           if test -d target/maintenance-inode-enospc; then
             sudo chown -R --reference=. target/maintenance-inode-enospc
           fi
+          if test -d target/maintenance-writeback; then
+            sudo chown -R --reference=. target/maintenance-writeback
+          fi
       - name: Save quota test evidence (no crate or container publication)
         if: always()
         uses: actions/upload-artifact@v7
@@ -564,6 +572,7 @@ jobs:
             target/maintenance-quota/
             target/maintenance-inode-quota/
             target/maintenance-inode-enospc/
+            target/maintenance-writeback/
             target/maintenance-quota-build/release/weekend-compound-resource
             target/quota-build/release/examples/native_quota
   sanitizers:

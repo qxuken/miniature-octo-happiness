@@ -68,7 +68,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     #[cfg(unix)]
     assert!(matches!(
         kind.as_str(),
-        "enospc" | "quota" | "inode-quota" | "inode-enospc"
+        "enospc" | "quota" | "inode-quota" | "inode-enospc" | "writeback"
     ));
     #[cfg(windows)]
     assert!(matches!(kind.as_str(), "ntfs-enospc" | "ntfs-quota"));
@@ -135,6 +135,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             let errno = match kind.as_str() {
                 "quota" | "inode-quota" => 122,
                 "enospc" | "inode-enospc" => 28,
+                "writeback" => 5,
                 "ntfs-enospc" => 112,
                 "ntfs-quota" => std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
                     .unwrap()
@@ -144,10 +145,10 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             };
             assert_eq!(
                 native.category,
-                if matches!(errno, 122 | 1295) {
-                    NativeIoCategory::Quota
-                } else {
-                    NativeIoCategory::DiskFull
+                match errno {
+                    5 => NativeIoCategory::Other,
+                    122 | 1295 => NativeIoCategory::Quota,
+                    _ => NativeIoCategory::DiskFull,
                 }
             );
             assert_eq!(native.raw_os_error, Some(errno));
@@ -166,7 +167,12 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 let partial = partial(dir, op);
                 assert!(now.difference(&entries).eq([&partial]));
                 let size = fs::metadata(partial).unwrap().len();
-                assert!((MIB as u64..COMPACTED).contains(&size));
+                if kind == "writeback" {
+                    assert_eq!(native.operation, NativeIoOperation::Sync);
+                    assert_eq!(size, COMPACTED);
+                } else {
+                    assert!((MIB as u64..COMPACTED).contains(&size));
+                }
                 (size, "")
             };
             println!(

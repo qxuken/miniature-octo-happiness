@@ -18,12 +18,14 @@ pub enum Space {
     Enospc,
     InodeQuota,
     InodeEnospc,
+    Writeback,
 }
 impl Space {
     pub fn errno(self) -> i32 {
         match self {
             Self::Enospc | Self::InodeEnospc => 28,
             Self::Quota | Self::InodeQuota => 122,
+            Self::Writeback => 5,
         }
     }
     pub fn fails_at_create(self) -> bool {
@@ -35,13 +37,14 @@ impl Space {
             Self::Enospc => "enospc",
             Self::InodeQuota => "inode-quota",
             Self::InodeEnospc => "inode-enospc",
+            Self::Writeback => "writeback",
         }
     }
     pub fn category(self) -> &'static str {
-        if self.errno() == 28 {
-            "DiskFull"
-        } else {
-            "Quota"
+        match self {
+            Self::Enospc | Self::InodeEnospc => "DiskFull",
+            Self::Quota | Self::InodeQuota => "Quota",
+            Self::Writeback => "Other",
         }
     }
 }
@@ -149,6 +152,9 @@ pub fn maintenance<'a>(
     let expected = match mode {
         "space-fail" if space.fails_at_create() => {
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
+        }
+        "space-fail" if space == Space::Writeback => {
+            json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":"Other","raw":5,"native_operation":"Sync","partial_bytes":63_074_304,"source_unchanged":true,"backup_unchanged":true})
         }
         "space-fail" => {
             let partial = number(row, "partial_bytes")?;
@@ -493,6 +499,39 @@ mod tests {
         assert!(!check(mutate(&fail, "partial_bytes", json!(4096))));
         assert!(!check(mutate(&fail, "inventory_unchanged", json!(false))));
     }
+    #[test]
+    fn delayed_maintenance_writeback_requires_full_length_incomplete_target_and_sync_eio() {
+        let failure = json!({"stage":"fail","operation":"compact","pid":42,"error":14,"category":"Other","raw":5,"native_operation":"Sync","partial_bytes":63_074_304,"source_unchanged":true,"backup_unchanged":true});
+        let complete = resource_oracle::completion("space-fail", SOURCE);
+        maintenance(
+            &[failure.clone(), complete.clone()],
+            "space-fail",
+            "compact",
+            SOURCE,
+            Space::Writeback,
+            42,
+        )
+        .unwrap();
+        for (key, value) in [
+            ("native_operation", json!("Write")),
+            ("raw", json!(28)),
+            ("partial_bytes", json!(63_070_208)),
+            ("source_unchanged", json!(false)),
+        ] {
+            assert!(
+                maintenance(
+                    &[mutate(&failure, key, value), complete.clone()],
+                    "space-fail",
+                    "compact",
+                    SOURCE,
+                    Space::Writeback,
+                    42
+                )
+                .is_err()
+            );
+        }
+    }
+
     #[test]
     fn maintenance_partial_copy_requires_classified_errno_and_unchanged_inputs() {
         for space in [Space::Quota, Space::Enospc] {
