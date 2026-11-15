@@ -123,7 +123,11 @@ fn support_tools(c: &Campaign<'_>, opts: &Options) -> Result<BTreeMap<String, Pa
                 .into_iter()
                 .flatten(),
         )
-        .chain((opts.copy_barrier == Some(CopyBarrier::FileMetadata)).then_some("debugfs"))
+        .chain(
+            opts.copy_barrier
+                .is_some_and(CopyBarrier::fault_journal)
+                .then_some("debugfs"),
+        )
         .map(|name| {
             Ok((
                 name.into(),
@@ -861,7 +865,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
                 writeback::formatter(
                     &call.tools["mkfs.ext4"],
                     &s.image,
-                    opts.copy_barrier == Some(CopyBarrier::FileMetadata),
+                    opts.copy_barrier.is_some_and(CopyBarrier::fault_journal),
                 )
             } else {
                 quota_oracle::formatter(&call.tools["mkfs.ext4"], &s.image, space)
@@ -1175,7 +1179,7 @@ impl Guest {
         c.c.evidence["maintenance_negative"] = json!({"exit":negative.exit,"pid":negative.pid,"required_failure_rejected":true,"successful_copy_verified":true});
         fs::remove_file(path)?;
         let mut cases = vec![];
-        let operations = if space == Space::Writeback(CopyBarrier::FileMetadata) {
+        let operations = if space.fault_journal() {
             ["compact"].as_slice()
         } else {
             ["backup", "restore", "compact"].as_slice()
@@ -1236,10 +1240,22 @@ impl Guest {
                     "inode refusal left an unexpected directory entry"
                 );
             }
+            let cleanup = space == Space::Writeback(CopyBarrier::CleanupDirectory);
+            let (canonical, scratch) = if cleanup { (&b, &a) } else { (&a, &b) };
             ensure!(
-                sha(&original)? == a && sha(&backup)? == b,
-                "independent failure source hash changed"
+                &sha(&original)? == canonical && sha(&backup)? == b,
+                "incorrect canonical or backup image after recovery"
             );
+            if space.fault_journal() {
+                let target = target
+                    .as_ref()
+                    .context("missing journal recovery scratch")?;
+                ensure!(
+                    &sha(target)? == scratch,
+                    "incorrect scratch image after recovery"
+                );
+                data.phase(c, "space-check", "recovered-scratch", target, false)?;
+            }
             data.phase(
                 c,
                 "space-check",
@@ -1297,13 +1313,17 @@ impl Guest {
                     mapped["failed_target_sha256"] == sha(&target)?,
                     "retry modified the failed destination"
                 );
-                if space == Space::Writeback(CopyBarrier::FileMetadata) {
+                if space.fault_journal() {
+                    let scratch_mode = if space == Space::Writeback(CopyBarrier::FileMetadata) {
+                        0o600
+                    } else {
+                        0o640
+                    };
                     ensure!(
                         fs::metadata(&retried)?.mode() & 0o7777 == 0o640
-                            && fs::metadata(&target)?.mode() & 0o7777 == 0o600,
+                            && fs::metadata(&target)?.mode() & 0o7777 == scratch_mode,
                         "metadata retry changed the retained scratch mode or lost the source mode"
                     );
-                    data.phase(c, "space-check", "failed-metadata-scratch", &target, false)?;
                 }
             }
             data.phase(

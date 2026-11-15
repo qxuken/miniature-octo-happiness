@@ -855,6 +855,13 @@ impl<'a> MaintenanceFault<'a> {
         let destination = format!("failed-{operation}.wdb");
         let offset = self.barrier.offset();
         let early = self.barrier == CopyBarrier::Data;
+        let cleanup = self.barrier == CopyBarrier::CleanupDirectory;
+        let scratch_mode = if self.barrier.fault_namespace() {
+            0o640
+        } else {
+            0o600
+        };
+        let original_info = fs::symlink_metadata(source)?;
         let journal = if offset.is_none() {
             ensure!(
                 operation == "compact",
@@ -873,6 +880,13 @@ impl<'a> MaintenanceFault<'a> {
             Some(journal_sectors(&geometry.stdout, self.mapper.sectors)?)
         } else {
             None
+        };
+        let scratch_len = if early {
+            0
+        } else if cleanup {
+            original_info.len()
+        } else {
+            63_074_304
         };
         let mut argv = guest.fixture_argv(vec![
             path(&guest.data),
@@ -929,7 +943,7 @@ impl<'a> MaintenanceFault<'a> {
                 let info = fs::symlink_metadata(&target)?;
                 ensure!(
                     info.is_file()
-                        && info.len() == if early { 0 } else { 63_074_304 }
+                        && info.len() == scratch_len
                         && info.nlink() == 1
                         && info.uid() == guest.uid
                         && info.dev() == device
@@ -938,13 +952,25 @@ impl<'a> MaintenanceFault<'a> {
                     "wrong maintenance target identity or allocation boundary"
                 );
                 let (fault, mut boundary) = if let Some((start, after)) = journal {
+                    let canonical = fs::symlink_metadata(source)?;
                     ensure!(
-                        info.mode() & 0o7777 == 0o600,
-                        "metadata changed before the gate"
+                        canonical.is_file()
+                            && canonical.dev() == device
+                            && canonical.uid() == guest.uid
+                            && canonical.mode() & 0o7777 == 0o640
+                            && canonical.ino() != inode
+                            && if cleanup {
+                                inode == original_info.ino() && canonical.len() == 63_074_304
+                            } else {
+                                canonical.ino() == original_info.ino()
+                                    && canonical.len() == original_info.len()
+                            }
+                            && info.mode() & 0o7777 == scratch_mode,
+                        "wrong namespace or mode at journal gate"
                     );
                     (
                         self.mapper.error_range(start, after),
-                        json!({"journal_inode":8,"sector":start,"end_sector_exclusive":after,"length":(after-start)*SECTOR,"scratch_mode_before":0o600}),
+                        json!({"journal_inode":8,"sector":start,"end_sector_exclusive":after,"length":(after-start)*SECTOR,"scratch_mode_before":scratch_mode,"source_inode_before":canonical.ino()}),
                     )
                 } else {
                     let offset = offset.context("missing copy barrier offset")?;
@@ -982,7 +1008,7 @@ impl<'a> MaintenanceFault<'a> {
         let persisted = fs::symlink_metadata(&target)?;
         ensure!(
             persisted.is_file()
-                && persisted.len() == 63_074_304
+                && persisted.len() == if early { 63_074_304 } else { scratch_len }
                 && proof["device"] == persisted.dev()
                 && proof["inode"] == persisted.ino(),
             "failed maintenance target changed identity after remount"
@@ -1002,13 +1028,19 @@ impl<'a> MaintenanceFault<'a> {
                 proof["failed_header_zero"] = json!(true);
             }
         } else {
+            let canonical = fs::symlink_metadata(source)?;
             ensure!(
-                fs::metadata(source)?.mode() & 0o7777 == 0o640
-                    && persisted.mode() & 0o7777 == 0o600,
+                canonical.is_file()
+                    && canonical.dev() == persisted.dev()
+                    && canonical.mode() & 0o7777 == 0o640
+                    && proof["source_inode_before"] == canonical.ino()
+                    && persisted.mode() & 0o7777 == scratch_mode,
                 "unexpected source or scratch mode after remount"
             );
             proof["source_mode_remounted"] = json!(0o640);
-            proof["scratch_mode_remounted"] = json!(0o600);
+            proof["scratch_mode_remounted"] = json!(scratch_mode);
+            proof["source_inode_remounted"] = json!(canonical.ino());
+            proof["source_sha256_remounted"] = json!(sha(source)?);
         }
         proof["failed_target_sha256"] = json!(sha(&target)?);
         let images = calls.c.output.join("failed-images");

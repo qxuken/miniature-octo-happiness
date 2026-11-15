@@ -18,6 +18,8 @@ pub enum CopyBarrier {
     Slot,
     Witness,
     FileMetadata,
+    ExchangeDirectory,
+    CleanupDirectory,
 }
 
 impl CopyBarrier {
@@ -27,6 +29,8 @@ impl CopyBarrier {
             Self::Slot => "slot",
             Self::Witness => "witness",
             Self::FileMetadata => "file-metadata",
+            Self::ExchangeDirectory => "exchange-directory",
+            Self::CleanupDirectory => "cleanup-directory",
         }
     }
 
@@ -36,8 +40,16 @@ impl CopyBarrier {
             Self::Data => Some(0),
             Self::Slot => Some(4096),
             Self::Witness => Some(12288),
-            Self::FileMetadata => None,
+            Self::FileMetadata | Self::ExchangeDirectory | Self::CleanupDirectory => None,
         }
+    }
+
+    pub fn fault_journal(self) -> bool {
+        self.offset().is_none()
+    }
+
+    pub fn fault_namespace(self) -> bool {
+        matches!(self, Self::ExchangeDirectory | Self::CleanupDirectory)
     }
 }
 
@@ -70,7 +82,12 @@ impl Space {
             Self::Writeback(CopyBarrier::Slot) => "writeback-slot",
             Self::Writeback(CopyBarrier::Witness) => "writeback-witness",
             Self::Writeback(CopyBarrier::FileMetadata) => "writeback-file-metadata",
+            Self::Writeback(CopyBarrier::ExchangeDirectory) => "writeback-exchange-directory",
+            Self::Writeback(CopyBarrier::CleanupDirectory) => "writeback-cleanup-directory",
         }
+    }
+    pub fn fault_journal(self) -> bool {
+        matches!(self, Self::Writeback(barrier) if barrier.fault_journal())
     }
     pub fn category(self) -> &'static str {
         match self {
@@ -182,12 +199,20 @@ pub fn maintenance<'a>(
         "invalid maintenance expectation"
     );
     ensure!(
-        space != Space::Writeback(CopyBarrier::FileMetadata) || label == "compact",
-        "file metadata barrier requires in-place compaction"
+        !space.fault_journal() || label == "compact",
+        "journal barrier requires in-place compaction"
     );
     let expected = match mode {
         "space-fail" if space.fails_at_create() => {
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
+        }
+        "space-fail" if matches!(space, Space::Writeback(barrier) if barrier.fault_namespace()) => {
+            let scratch = if space == Space::Writeback(CopyBarrier::ExchangeDirectory) {
+                "original"
+            } else {
+                "absent"
+            };
+            json!({"stage":"fail","operation":label,"pid":pid,"error":15,"category":"Other","raw":5,"native_operation":"Sync","source_matches_backup":true,"scratch":scratch,"backup_unchanged":true})
         }
         "space-fail" if matches!(space, Space::Writeback(_)) => {
             let error = if space == Space::Writeback(CopyBarrier::Data) || label == "compact" {
@@ -209,7 +234,7 @@ pub fn maintenance<'a>(
         "space-retry" if space.fails_at_create() => {
             json!({"stage":"retry","operation":label,"pid":pid,"no_partial":true,"matches_backup":true})
         }
-        "space-retry" if space == Space::Writeback(CopyBarrier::FileMetadata) => {
+        "space-retry" if space.fault_journal() => {
             json!({"stage":"retry","operation":label,"pid":pid,"partial_verified_witnessed":true,"existing_rejected":false,"partial_preserved":true,"matches_backup":true})
         }
         "space-retry" if space == Space::Writeback(CopyBarrier::Witness) => {
@@ -673,6 +698,44 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn namespace_writeback_requires_uncertainty_and_the_matching_live_names() {
+        for (barrier, scratch) in [
+            (CopyBarrier::ExchangeDirectory, "original"),
+            (CopyBarrier::CleanupDirectory, "absent"),
+        ] {
+            let space = Space::Writeback(barrier);
+            let done = resource_oracle::completion("space-fail", SOURCE);
+            let failure = json!({"stage":"fail","operation":"compact","pid":42,"error":15,"category":"Other","raw":5,"native_operation":"Sync","source_matches_backup":true,"scratch":scratch,"backup_unchanged":true});
+            let verify = |row: Value| {
+                maintenance(
+                    &[row, done.clone()],
+                    "space-fail",
+                    "compact",
+                    SOURCE,
+                    space,
+                    42,
+                )
+                .is_ok()
+            };
+            assert!(verify(failure.clone()));
+            for (key, value) in [
+                ("error", json!(14)),
+                ("source_matches_backup", json!(false)),
+                (
+                    "scratch",
+                    json!(if scratch == "original" {
+                        "absent"
+                    } else {
+                        "original"
+                    }),
+                ),
+            ] {
+                assert!(!verify(mutate(&failure, key, value)), "{key}");
+            }
+        }
     }
 
     #[test]

@@ -76,6 +76,8 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             | "writeback-slot"
             | "writeback-witness"
             | "writeback-file-metadata"
+            | "writeback-exchange-directory"
+            | "writeback-cleanup-directory"
     ));
     #[cfg(windows)]
     assert!(matches!(kind.as_str(), "ntfs-enospc" | "ntfs-quota"));
@@ -85,6 +87,8 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     }
     let inode = matches!(kind.as_str(), "inode-quota" | "inode-enospc");
     let copy_metadata = matches!(kind.as_str(), "writeback-slot" | "writeback-witness");
+    let exchange = kind == "writeback-exchange-directory";
+    let cleanup = kind == "writeback-cleanup-directory";
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
@@ -138,7 +142,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 operation(dir, source, op, &dir.join(format!("failed-{op}.wdb")))
             })
             .unwrap_err();
-            let expected = if copy_metadata && !replaces_source(op) {
+            let expected = if exchange || cleanup || (copy_metadata && !replaces_source(op)) {
                 Error::OutcomeUnknown
             } else {
                 Error::Io
@@ -151,7 +155,9 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 "writeback"
                 | "writeback-slot"
                 | "writeback-witness"
-                | "writeback-file-metadata" => 5,
+                | "writeback-file-metadata"
+                | "writeback-exchange-directory"
+                | "writeback-cleanup-directory" => 5,
                 "ntfs-enospc" => 112,
                 "ntfs-quota" => std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
                     .unwrap()
@@ -168,9 +174,30 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 }
             );
             assert_eq!(native.raw_os_error, Some(errno));
-            assert_eq!(fs::read(source).unwrap(), before);
             assert_eq!(fs::read(&backup).unwrap(), good);
             let now = names(dir);
+            if exchange || cleanup {
+                assert_eq!(op, "compact");
+                assert_eq!(native.operation, NativeIoOperation::Sync);
+                assert_ne!(before, good);
+                assert_eq!(fs::read(source).unwrap(), good);
+                let scratch = if exchange {
+                    let path = partial(dir, op);
+                    assert!(now.difference(&entries).eq([&path]));
+                    assert_eq!(fs::read(path).unwrap(), before);
+                    "original"
+                } else {
+                    assert_eq!(now, entries);
+                    "absent"
+                };
+                println!(
+                    "{{\"stage\":\"fail\",\"operation\":\"{op}\",\"pid\":{pid},\"error\":{},\"category\":\"Other\",\"raw\":{errno},\"native_operation\":\"Sync\",\"source_matches_backup\":true,\"scratch\":\"{scratch}\",\"backup_unchanged\":true}}",
+                    failure.error as i32
+                );
+                complete(mode);
+                return;
+            }
+            assert_eq!(fs::read(source).unwrap(), before);
             let (size, inventory) = if inode {
                 assert_eq!(native.operation, NativeIoOperation::Create);
                 assert_eq!(now, entries);
@@ -212,14 +239,19 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             let partial = partial(dir, op);
             let bytes = fs::read(&partial).unwrap();
             let inspection = storage::inspect_file(&partial, limits(COPY));
-            let disposition = if kind == "writeback-file-metadata" {
+            let disposition = if kind == "writeback-file-metadata" || exchange || cleanup {
                 assert_eq!(op, "compact");
                 let info = inspection.unwrap();
                 assert_eq!(info.revision, FINAL);
                 assert!(info.witnessed);
                 assert_eq!(info.retained.len(), 64);
-                assert_eq!(info.committed_bytes, COMPACTED);
-                assert_eq!(bytes, fs::read(&backup).unwrap());
+                if cleanup {
+                    assert!(info.committed_bytes > COMPACTED);
+                    assert_eq!(fs::read(source).unwrap(), fs::read(&backup).unwrap());
+                } else {
+                    assert_eq!(info.committed_bytes, COMPACTED);
+                    assert_eq!(bytes, fs::read(&backup).unwrap());
+                }
                 "partial_verified_witnessed"
             } else if kind == "writeback-witness" {
                 let info = inspection.unwrap();
