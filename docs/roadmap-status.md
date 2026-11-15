@@ -1152,3 +1152,9 @@ witness full-sync injection and root-write rejection. Fresh process recovery
 selects 4/3/4/4/3, then reaches 4 with retained revision 2 in all five cases.
 The disabled injector fails the required assertion. The shared Linux runner
 was requalified on the exact `bc56084` shared library across all six cases.
+
+The [portable follower backup and reseed regression](follower-backup-restore.md#portable-native-regression)
+passed debug and release on macOS/APFS and Docker Linux/ext4. The old follower
+rejects the new stream without changing any files. The fresh follower reopens
+the restored revision 4 and retained revision 2 with its own durable receipt.
+The Windows-native result is pending.

@@ -1,5 +1,6 @@
 #![cfg(any(target_os = "macos", target_os = "linux", windows))]
 use std::{
+    collections::BTreeMap,
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -87,9 +88,11 @@ impl Server {
         }
     }
 }
-#[test]
-fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
-    let path = std::env::temp_dir().join(format!("weekend-replicate-cli-{}", std::process::id()));
+fn directory(scenario: &str) -> Directory {
+    let path = std::env::temp_dir().join(format!(
+        "weekend-replicate-{scenario}-{}",
+        std::process::id()
+    ));
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
@@ -97,10 +100,10 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     }
     #[cfg(not(unix))]
     fs::create_dir(&path).unwrap();
-    let dir = Directory(path);
-    let primary = dir.0.join("primary");
-    let source = primary.to_str().unwrap();
-    let db = Database::create_file(&primary, Limits::default()).unwrap();
+    Directory(path)
+}
+fn seed_primary(primary: &Path) {
+    let db = Database::create_file(primary, Limits::default()).unwrap();
     let c = db.create_collection().unwrap();
     let mut tx = db.begin();
     tx.put(c, b"key", &db.unsigned(1).unwrap()).unwrap();
@@ -111,7 +114,14 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     tx.put(c, b"key", &db.unsigned(2).unwrap()).unwrap();
     tx.commit().unwrap();
     drop(tx);
-    drop(db);
+}
+
+#[test]
+fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
+    let dir = directory("cli");
+    let primary = dir.0.join("primary");
+    seed_primary(&primary);
+    let source = primary.to_str().unwrap();
     let stream = "11111111111111111111111111111111";
     let description = run(&["describe", source, stream]);
     assert!(description.contains("verified_revision=4"));
@@ -273,9 +283,13 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
             .lines()
             .any(|line| line == ack)
     );
+    verify_follower(follower_path, stream, identity);
+}
+
+fn verify_follower(path: &Path, stream: &str, identity: &str) {
     let parse_id = |s: &str| u128::from_str_radix(s, 16).unwrap().to_be_bytes();
-    let f = weekend_db::replication::Follower::open(
-        follower,
+    let follower = weekend_db::replication::Follower::open(
+        path,
         weekend_db::replication::Enrollment {
             stream_id: parse_id(stream),
             file_identity: parse_id(identity),
@@ -283,23 +297,181 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         Limits::default(),
     )
     .unwrap();
-    let replica = f.replica().unwrap();
-    let c = replica.collection_id(1);
-    assert_eq!(replica.snapshot().revision(), 4);
+    let replica = follower.replica().unwrap();
     assert_eq!(replica.retained_ids().unwrap(), [1]);
-    assert_eq!(replica.retained_snapshot(1).unwrap().revision(), 2);
-    assert_eq!(
-        replica.snapshot().get(c, b"key").unwrap().unwrap().as_u64(),
-        Ok(2)
+    verify_records(
+        replica.snapshot(),
+        replica.retained_snapshot(1).unwrap(),
+        replica.collection_id(1),
     );
-    assert_eq!(
-        replica
-            .retained_snapshot(1)
+}
+
+fn verify_records(
+    current: weekend_db::Snapshot<'_>,
+    retained: weekend_db::Snapshot<'_>,
+    collection: weekend_db::CollectionId,
+) {
+    for (snapshot, revision, value) in [(current, 4, 2), (retained, 2, 1)] {
+        assert_eq!(snapshot.revision(), revision);
+        assert_eq!(snapshot.count(collection).unwrap(), 1);
+        assert_eq!(
+            snapshot.get(collection, b"key").unwrap().unwrap().as_u64(),
+            Ok(value)
+        );
+    }
+}
+
+fn files(dir: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+    fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            (entry.file_name().into(), fs::read(entry.path()).unwrap())
+        })
+        .collect()
+}
+
+#[test]
+fn native_authenticated_follower_backup_restore_and_reseed_keep_old_receipt() {
+    let dir = directory("follower-reseed");
+    let root = &dir.0;
+    let primary = root.join("primary");
+    seed_primary(&primary);
+    let source = primary.to_str().unwrap();
+    let old_stream = "11221122112211221122112211221122";
+    let new_stream = "22112211221122112211221122112211";
+    let description = run(&["describe", source, old_stream]);
+    let identity = description
+        .split_whitespace()
+        .find_map(|part| part.strip_prefix("file_identity="))
+        .unwrap();
+    let sender = root.join("sender");
+    let receiver = root.join("receiver");
+    credentials(&sender);
+    credentials(&receiver);
+    let sender_cert = sender.join("cert.der");
+    let receiver_cert = receiver.join("cert.der");
+    let old = root.join("old-follower");
+    let new = root.join("new-follower");
+    fs::create_dir(&old).unwrap();
+    fs::create_dir(&new).unwrap();
+    let old_path = old.to_str().unwrap();
+    let new_path = new.to_str().unwrap();
+    let serve = |path, stream| {
+        Server::start(
+            root,
+            &[
+                "serve",
+                path,
+                stream,
+                identity,
+                "127.0.0.1:0",
+                receiver.to_str().unwrap(),
+                sender_cert.to_str().unwrap(),
+                "--max-exchanges",
+                "1",
+            ],
+        )
+    };
+    let ship = |file: &Path, stream: &str, export: &str, address: &str| {
+        Command::new(BIN)
+            .args([
+                "ship",
+                file.to_str().unwrap(),
+                stream,
+                root.join(export).to_str().unwrap(),
+                address,
+                sender.to_str().unwrap(),
+                receiver_cert.to_str().unwrap(),
+                "--attempts",
+                "1",
+            ])
+            .output()
             .unwrap()
-            .get(c, b"key")
-            .unwrap()
-            .unwrap()
-            .as_u64(),
-        Ok(1)
+    };
+    let acknowledged = |output: std::process::Output, stream: &str| {
+        assert!(output.status.success(), "{output:?}");
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(text.lines().any(|line| line
+            == format!("local captured_revision=4 stream={stream} file_identity={identity}")));
+        let prefix = format!("follower durable_revision=4 stream={stream} digest=");
+        let receipt = text.lines().find(|line| line.starts_with(&prefix)).unwrap();
+        let digest = receipt.strip_prefix(&prefix).unwrap();
+        assert!(digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        receipt.to_owned()
+    };
+    run(&["follower-init", old_path, old_stream, identity]);
+    let (mut server, address) = serve(old_path, old_stream);
+    let old_receipt = acknowledged(
+        ship(&primary, old_stream, "export-original", &address),
+        old_stream,
     );
+    server.finished();
+    verify_follower(&old, old_stream, identity);
+
+    let selected = old.join("replica-0.wdb");
+    let old_files = files(&old);
+    let original_bytes = fs::read(&primary).unwrap();
+    let backup = root.join("backup");
+    let restored = root.join("restored");
+    weekend_db::storage::backup_file(&selected, &backup, Limits::default()).unwrap();
+    weekend_db::storage::restore_file(&backup, &restored, Limits::default()).unwrap();
+    let backup_bytes = fs::read(&backup).unwrap();
+    let restored_bytes = fs::read(&restored).unwrap();
+    assert_eq!(
+        weekend_db::storage::restore_file(&backup, &restored, Limits::default()),
+        Err(weekend_db::Error::AlreadyExists)
+    );
+    assert_eq!(fs::read(&restored).unwrap(), restored_bytes);
+    for file in [&backup, &restored] {
+        let database = Database::open_file(file, Limits::default()).unwrap();
+        assert_eq!(database.retained_ids().unwrap(), [1]);
+        verify_records(
+            database.snapshot(),
+            database.retained_snapshot(1).unwrap(),
+            database.collection_id(1),
+        );
+    }
+    let wrong = Command::new(BIN)
+        .args(["status", old_path, new_stream, identity])
+        .output()
+        .unwrap();
+    assert!(!wrong.status.success());
+    assert_eq!(
+        String::from_utf8(wrong.stderr).unwrap().trim_end(),
+        "ForeignStore"
+    );
+
+    let (mut server, address) = serve(old_path, old_stream);
+    let rejected = ship(&restored, new_stream, "wrong-stream-export", &address);
+    server.finished();
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("ForeignStore"));
+    let local = String::from_utf8(rejected.stdout).unwrap();
+    assert!(local.contains("local captured_revision=4"));
+    assert!(!local.contains("follower durable_revision="));
+    assert_eq!(files(&old), old_files);
+
+    run(&["follower-init", new_path, new_stream, identity]);
+    let (mut server, address) = serve(new_path, new_stream);
+    let new_receipt = acknowledged(
+        ship(&restored, new_stream, "new-stream-export", &address),
+        new_stream,
+    );
+    server.finished();
+    assert!(
+        run(&["status", new_path, new_stream, identity])
+            .lines()
+            .any(|line| line == new_receipt)
+    );
+    assert!(
+        run(&["status", old_path, old_stream, identity])
+            .lines()
+            .any(|line| line == old_receipt)
+    );
+    verify_follower(&new, new_stream, identity);
+    assert_eq!(files(&old), old_files);
+    assert_eq!(fs::read(&primary).unwrap(), original_bytes);
+    assert_eq!(fs::read(&backup).unwrap(), backup_bytes);
+    assert_eq!(fs::read(&restored).unwrap(), restored_bytes);
 }

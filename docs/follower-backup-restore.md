@@ -141,3 +141,33 @@ promotion or application schema/index reconciliation. The harness does not test
 power loss, interruption during copy, long-duration operation, Windows, remote
 host trust rotation, or recovery of commits absent from the selected follower.
 Existing storage fault tests and platform qualification remain separate evidence.
+
+## Portable native regression
+
+The regular `weekend-replicate` CLI integration suite now exercises the
+same restore and fresh-stream boundary on supported native hosts, including
+Windows. It uses the public storage backup/restore API and separate
+authenticated CLI processes for shipping and reopening both receipts.
+
+```sh
+cargo test --offline --locked -p weekend-replicate --test cli
+cargo test --offline --locked --release -p weekend-replicate --test cli
+```
+
+The source and restored copies are verified at revision 4 with retained
+checkpoint 1 at revision 2. Restore to an existing destination returns
+`AlreadyExists` and preserves its bytes. The old follower refuses status and
+authenticated upload under the new stream. The rejected upload logs a local
+capture with no durable receipt and leaves the old follower's full file
+inventory unchanged. The fresh follower reports its own stream's durable
+revision 4, and the original receipt and all source and backup bytes survive.
+
+Both tests passed in debug and release on macOS/APFS and Docker Linux/ext4.
+The CI native Windows job runs both profiles. The Windows result for this
+regression is pending.
+
+| Local proof | SHA-256 |
+|---|---|
+| macOS log | `277713aa9b4dcca103a895be339c08fdcf9e4515eed820320ab9bc162e967fa4` |
+| Linux log | `b10073110a0df948c157a108d5e4ed870f2ac7def33a52461d6ad28edb86587b` |
+| Test source | `b381a8b94d6a78f8b0e0c5cc33b09c8819e8c767e21deebc9a4f70836a82e6bf` |
