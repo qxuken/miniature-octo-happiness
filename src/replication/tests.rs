@@ -661,6 +661,122 @@ fn transport_partial_upload_write_error_stops_before_flushing() {
 }
 
 #[test]
+fn poll_header_flush_error_stops_before_receipt_read() {
+    struct Channel {
+        exchange: Exchange,
+        fail: bool,
+        failed: bool,
+        reads: usize,
+        writes: usize,
+        flushes: usize,
+    }
+    impl Read for Channel {
+        fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+            assert!(!self.failed, "poll reply read after failed request flush");
+            self.reads += 1;
+            self.exchange.read(bytes)
+        }
+    }
+    impl Write for Channel {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            assert!(!self.failed, "poll write after failed request flush");
+            self.writes += 1;
+            self.exchange.write(bytes)
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            assert!(!self.failed, "poll flush after failed request flush");
+            self.flushes += 1;
+            assert_eq!(self.exchange.sent.len(), 41);
+            if self.fail {
+                self.failed = true;
+                Err(io::ErrorKind::BrokenPipe.into())
+            } else {
+                self.exchange.flush()
+            }
+        }
+    }
+    fn image(export: &mut Export) -> Vec<u8> {
+        let store = export.storage.image_bytes();
+        let mut bytes = vec![0; store.length().unwrap() as usize];
+        read_all(store, 0, &mut bytes).unwrap();
+        bytes
+    }
+
+    for fail in [true, false] {
+        let disk = crate::storage::SimulatedDisk::new().unwrap();
+        let (source, [old, mut captured, _]) = exports_on(disk.clone());
+        let previous = ack(&old);
+        let expected = ack(&captured);
+        let descriptor = captured.descriptor();
+        let bytes = image(&mut captured);
+        let source_revision = source.snapshot().revision();
+        let source_bytes = disk.durable_image().unwrap();
+        let assert_stable = |export: &mut Export| {
+            assert_eq!(source.snapshot().revision(), source_revision);
+            assert!(!source.requires_recovery());
+            assert_eq!(disk.durable_image().unwrap(), source_bytes);
+            assert_eq!(export.descriptor(), descriptor);
+            assert_eq!(image(export), bytes);
+        };
+        let mut primary = Primary::new(&source, STREAM).unwrap();
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(previous)),
+            Ok(Some(previous))
+        );
+        let mut channel = Channel {
+            exchange: Exchange::new([Reply::Installed(expected)]),
+            fail,
+            failed: false,
+            reads: 0,
+            writes: 0,
+            flushes: 0,
+        };
+        let result = primary.poll(&mut channel);
+        let mut query = b"WDBREPL\x01\x00".to_vec();
+        query.extend_from_slice(&STREAM);
+        query.extend_from_slice(&[1; 16]);
+        assert_eq!(query.len(), 41);
+        assert_eq!(channel.exchange.sent, query);
+        assert_eq!(channel.writes, 1);
+        assert_eq!(channel.flushes, 1);
+        if fail {
+            assert_eq!(result, Err(Error::Io));
+            assert_eq!(channel.reads, 0);
+            assert_eq!(channel.exchange.replies.position(), 0);
+            assert_eq!(channel.exchange.replies.get_ref().len(), 57);
+            assert_eq!(primary.progress, Some(previous));
+            assert_eq!(
+                poll(&mut primary, Reply::Installed(previous)),
+                Ok(Some(previous))
+            );
+        } else {
+            assert_eq!(result, Ok(Some(expected)));
+            assert_eq!(channel.reads, 2);
+            assert_eq!(channel.exchange.replies.position(), 57);
+            assert_eq!(primary.progress, Some(expected));
+            assert_eq!(
+                poll(&mut primary, Reply::Installed(previous)),
+                Err(Error::Conflict)
+            );
+        }
+        assert_stable(&mut captured);
+
+        // Reconcile a potentially already durable follower receipt over a
+        // fresh healthy channel; a failed local query proves no remote absence.
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(expected)),
+            Ok(Some(expected))
+        );
+        assert_eq!(primary.progress, Some(expected));
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(previous)),
+            Err(Error::Conflict)
+        );
+        assert_stable(&mut captured);
+    }
+}
+
+#[test]
 fn primary_ship_accepts_newer_progress_only_before_uploading() {
     let (db, [old, mut offered, newer]) = exports();
     let (old, current, newer) = (ack(&old), ack(&offered), ack(&newer));

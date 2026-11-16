@@ -216,6 +216,56 @@ new production seams. It does not qualify actual TLS/kernel failures, follower
 installation, other callback instantiations, every transport error, the
 historical inventory denominator or compiler MC/DC.
 
+## R6: poll request errors precede progress reads
+
+`poll_header_flush_error_stops_before_receipt_read` forces the distinct
+`Primary::poll` caller at current `src/replication/mod.rs:301`:
+`wire::request(..., None)?`. R5 forces `ship`'s `Some(offer)` caller instead.
+Earlier poll receipt controls and fuzz channels keep request flushing healthy,
+so they do not discharge this propagation site.
+
+One `Channel` type and poll callsite compare failure versus acceptance after
+the complete 41-byte query has been written. Independent marker/command/stream/
+file-identity bytes establish the exact query; both controls make one write and
+one flush. A `BrokenPipe` flush returns exactly `Io`, makes zero reads, leaves
+all 57 queued Installed-receipt bytes unread and preserves the previous accepted
+progress (which still accepts its exact receipt). The healthy control makes
+two reads, consumes all 57 bytes, accepts the new receipt and rejects older
+progress. Both preserve source revision, health and every durable simulator
+byte, plus the capture descriptor and every export byte. Fresh healthy polling
+using the existing `Exchange` at a separate callsite reconciles the exact receipt.
+
+The isolated omission still invokes only poll's request, but discards its
+result. Both debug and release compile and fail the selected test at the exact
+`poll reply read after failed request flush` sentinel, before any later EOF or
+receipt processing. The sentinel establishes continuation sensitivity; later
+byte/state assertions are positive oracles without separate mutation credit.
+Queued replies remain scripted inputs. An unsuccessful local poll neither
+installs an image nor proves that a follower lacks an already durable receipt.
+
+Rust/Cargo 1.99.1 macOS arm64 full replication-feature library runs pass 145 tests
+per profile, including unchanged R4/R5 and this new control, with two test
+threads. Strict package test-target Clippy passes. Positive baselines precede
+the omission in fresh separate source/target copies with incremental builds
+disabled. Base `882b089817c5be107c0602f064b50c1aa8566154` plus only the test overlay
+is frozen; tested `src/replication/tests.rs` SHA-256 is
+`bf132cfa40f16f42665412d74603fb3e02be54596dd67ea5b3db6329c89f01b5`.
+Removing just the new 116-line test reproduces the complete prior test file.
+Runtime hashes remain those in R4. Source/patch identities, native process
+reports, logs and actual test binaries are indexed at
+`/private/tmp/weekend-poll-request-ttf3NA/evidence.json`.
+Protected local archive: `target/archived-proof/poll-request-882b089.tar.zst`,
+SHA-256 `5f6d66d76c8574564ec93e8ce6e5cee5886443017998807e84dcdf5d50b0a91f`.
+Root independently restores all 53 indexed payloads (49,541,787 bytes), checks
+the exact source/current-input/unique-omission identities and five raw bounded
+outcomes, and reproduces the complete prior test file. Four actual test binaries
+and the supervisor remain retained. Separate review has no remaining findings.
+
+This is one concrete generic-channel poll instantiation, not native transport
+fault injection, actual follower execution, a new runtime seam, other generic
+instantiations, whole-module closure or compiler MC/DC. Historical inventory
+counts and the immutable R4/R5 proofs keep their existing scope.
+
 ## Inventory and limits
 
 The scanner includes possible platform branches, excludes cfg(test) and does not

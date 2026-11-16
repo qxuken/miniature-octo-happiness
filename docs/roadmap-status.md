@@ -3109,3 +3109,28 @@ raw bounded outcomes; independent review has no findings. Eight actual test
 binaries and the supervisor are retained in the protected archive named in the
 ledger. Runtime, dependencies, formats and both acknowledgment contracts are
 unchanged. Crates remain unpublished.
+
+## Poll request caller error
+
+The [R6 control](decisions/replication.md#r6-poll-request-errors-precede-progress-reads)
+forces `Primary::poll`'s distinct `None` request caller. One wrapper/callsite
+contrasts a full 41-byte query followed by flush failure against acceptance.
+Exact `Io` leaves all 57 receipt bytes unread, makes no reads and preserves old
+progress. Acceptance observes the new receipt; fresh healthy polling reconciles
+a potentially already durable follower. Source and export bytes stay unchanged.
+
+Rust 1.99.1 full replication-feature library runs pass 145 tests per profile,
+including unchanged R4/R5, plus strict Clippy. One isolated caller-only omission
+fails its intended read sentinel in both profiles. Base `882b089` plus only the
+test overlay is frozen. Root restores 53 indexed payloads (49,541,787 bytes),
+checks source/patch identities and five bounded outcomes; separate review has
+no findings. The ledger records the protected archive hash and retained actual
+binaries. This qualifies one generic poll caller, without actual follower,
+TLS/kernel, remote-nonpublication or compiler MC/DC claims. Crates stay private.
+
+The preceding tooling commit `4dc6fd8` also completes all fourteen required CI
+jobs on their first attempt. Its full-workflow status is retained separately
+from the original mutation artifact and later native-job terminal supplement;
+the original artifact remains scoped to its earlier capture time. Root checks
+the 23 status payloads and exact-head job metadata. This does not rebind later
+R4/R5/R6 tests or the immutable `7ec2cb5` delivered packages.

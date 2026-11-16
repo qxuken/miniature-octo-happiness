@@ -5998,3 +5998,13 @@ isolated omissions compile and fail their intended sentinel in both profiles.
 Root restores 85 proof payloads and separate review checks source/outcome scope.
 No runtime, format or acknowledgment contract changes; scripted replies do not
 establish actual follower state or remote nonpublication.
+
+The [poll request control](docs/decisions/replication.md#r6-poll-request-errors-precede-progress-reads)
+also forces the distinct `None` request caller. A complete 41-byte query followed
+by flush failure returns exact `Io` before any receipt read, preserves prior
+progress and leaves source/export bytes unchanged. Acceptance consumes the valid
+receipt; a fresh poll can reconcile an already durable follower. Ignoring only
+that caller's result fails the exact read sentinel in debug/release. The full
+replication-feature library passes 145 tests per profile, plus strict Clippy;
+root restores 53 proof payloads and separate review confirms the scoped evidence.
+Runtime, wire and acknowledgment contracts remain unchanged.
