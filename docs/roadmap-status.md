@@ -2684,3 +2684,26 @@ verifies all 2,074 indexed files. Archive SHA-256:
 `1b026cb1db389771b457e205149e3df27bf75afff196e5d9b6bb216c034b58fe`.
 Snapshot live peer-error retrieval, original worker native context, deployed
 sinks, native Windows and final-candidate qualification remain explicit gates.
+
+## Typed ownership, primary-ID and stored-kind admission
+
+The [T9 controls](decisions/typed-runtime.md#t9-typed-ownership-primary-ids-and-stored-field-kinds)
+reuse the typed runtime suite to distinguish foreign-table admission from a
+later missing-catalog lookup, directly exercise zero primary-ID rejection, and
+separate the stored-kind guard from a later scalar decoder rejection. Exact
+errors expose omissions that a category-only assertion would mask. Rejected
+drafts discard preceding edits and preserve current/retained catalog, schema,
+index and primary state plus durable bytes. Accepted controls commit their edits.
+
+Each of three isolated guard omissions compiles and fails its intended runtime
+assertion in debug and release after passing baselines. Root independently
+restored and checked all 32 proof payloads and twelve baseline/mutant outcomes;
+the protected archive is `target/archived-proof/typed-admission-703948c.tar.gz`,
+SHA-256 `f1cd04f901b124d84fef6ed7b8b157f1e16d20d2ecbe1b4907e8767b316b1cd0`.
+The complete suite also passes all 22 tests in both profiles with Rust 1.99.1.
+Production runtime, macros, formats and the 315-record denominator are unchanged.
+The ledger now has 47 E and 50 P records; this is scoped manual assurance,
+without a compiler MC/DC or whole-module completion claim. The foreign-table
+negative execution reaches the snapshot-backed instantiation first, and the
+stored-kind case qualifies defensive helper compatibility rather than a
+supported published descriptor-kind change.

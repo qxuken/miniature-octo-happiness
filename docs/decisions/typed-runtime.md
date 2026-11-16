@@ -183,7 +183,7 @@ controls above; E retains the narrower execution claim.
 | lib.rs:97:13 [3326–3328] | if / `read` | P | T2/T5 |
 | lib.rs:105:37 [3647–3648] | try_propagation / `read` | D | T2/T5 |
 | lib.rs:105:67 [3677–3678] | try_propagation / `read` | I | T2/T5 |
-| lib.rs:106:9 [3688–3690] | if / `read` | E | T2/T5 |
+| lib.rs:106:9 [3688–3690] | if / `read` | P | T9 |
 | lib.rs:112:9 [3883–3885] | if / `read` | P | T2/T5 |
 | lib.rs:112:12 [3886–3936] | short_circuit_and / `read` | C | T2/T5 |
 | lib.rs:112:51 [3925–3926] | try_propagation / `read` | D | T2/T5 |
@@ -200,7 +200,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:108:9 [2497–2560] | short_circuit_and / `is_consistent` | C | T1/T4/T5 |
 | store.rs:130:21 [3193–3194] | try_propagation / `field` | D | T1/T4/T5 |
 | store.rs:133:20 [3295–3296] | try_propagation / `uint` | D | T1/T4/T5 |
-| store.rs:136:5 [3387–3389] | if / `id_key` | P | T1/T4/T5 |
+| store.rs:136:5 [3387–3389] | if / `id_key` | P | T9 |
 | store.rs:143:77 [3595–3596] | try_propagation / `row_id` | D | T1/T4/T5 |
 | store.rs:144:15 [3613–3614] | try_propagation / `row_id` | D | T1/T4/T5 |
 | store.rs:156:43 [3859–3860] | try_propagation / `parse` | D | T1/T4/T5 |
@@ -294,7 +294,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:396:58 [12917–12918] | try_propagation / `restore_table` | D | T1/T4/T5 |
 | store.rs:396:86 [12945–12946] | try_propagation / `restore_table` | D | T1/T4/T5 |
 | store.rs:396:88 [12947–12948] | try_propagation / `restore_table` | D | T1/T4/T5 |
-| store.rs:404:5 [13121–13123] | if / `info` | E | T1/T4/T5 |
+| store.rs:404:5 [13121–13123] | if / `info` | P | T9 |
 | store.rs:408:63 [13352–13353] | try_propagation / `info` | D | T1/T4/T5 |
 | store.rs:409:59 [13412–13413] | try_propagation / `info` | D | T1/T4/T5 |
 | store.rs:410:6 [13420–13421] | try_propagation / `info` | D | T1/T4/T5 |
@@ -458,7 +458,7 @@ controls above; E retains the narrower execution claim.
 
 ## Results and source binding
 
-Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P; T8 adds the current-version skip pair. Current counts are C 21, D 195, E 49, I 2, P 48. All 315 source records are listed; the production source and denominator are unchanged.
+Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P; T8 adds the current-version skip pair; T9 adds ownership and stored-kind pairs and directly qualifies primary-ID admission. Current counts are C 21, D 195, E 47, I 2, P 50. All 315 source records are listed; the production source and denominator are unchanged.
 
 Debug and release each passed 26 existing model tests, two process-evolution
 tests, and six doctests (one documentation example ignored). All eleven new directed
@@ -732,3 +732,128 @@ This closes the named feasible skip/continue pair and shows one isolated guard
 omission is observable. It adds no test boilerplate or runtime functionality,
 compiler-instrumented MC/DC result, whole-module completion claim, or execution
 on other platforms/compilers.
+
+
+## T9: typed ownership, primary IDs and stored field kinds
+
+Three finite tests add direct controls for `store.rs:404`, `store.rs:136` and
+`lib.rs:106`. They reuse the existing Row model and snapshot-row comparison,
+plus one small seeded-store helper. Isolated runs use clean base commit
+`703948c4848b9fd802875d15a9a2dc0c4d465063` plus only the exact
+`tests/runtime_decisions.rs` overlay. Typed runtime and macro production inputs
+remain unchanged. Each new test passes independently in debug and release on
+macOS arm64 with Rust 1.99.1 (`58cf8f9c3`, LLVM 23.1.1), offline/locked with all
+features. Targeted Clippy with warnings denied, formatting and diff checks pass.
+T7/T8 retain their separately recorded source and execution scope.
+
+### Foreign table ownership without catalog masking
+
+`assurance_foreign_table_rejects_before_an_absent_catalog_key_can_mask_ownership`
+compares a valid local Row table with a valid table from another live Store.
+The foreign table's catalog key is absent from the receiving Store. Both cases
+use unchanged `Read::get<Row>` and `Write::get<Row>` callsites. Correct ownership
+returns the local row; foreign ownership returns exact `Engine(ForeignStore)`.
+A caught write-side rejection leaves the outer Write terminal (`Closed`) and
+discards its preceding unique-field edit. The accepted control commits that
+edit. Source-store bytes/current/retained rows and target retained rows remain
+identical in both cases; rejected target writes preserve its full durable image
+and current catalog/schema/index/primary rows. Current lookups and index checks
+remain consistent.
+
+The earlier compacted-copy test has the same table key in the new catalog.
+Suppressing the typed ownership check there can still return `ForeignStore`
+from a later core collection check, masking the omission. Here the first
+foreign lookup instead becomes `Engine(NotFound)`, exposing the missing early
+ownership rejection. The isolated mutation fails first in the snapshot-backed
+Read call, before the later Write check. Its negative execution is therefore
+scoped to `info<Row, Snapshot>`; baseline predicate/behavior controls also cover
+the separate transaction-backed Write instantiation. No per-instantiation
+compiler MC/DC count is inferred.
+
+### Direct primary-ID-zero admission
+
+`assurance_zero_primary_id_rejects_lookup_and_insert_without_partial_writes`
+compares valid nonzero lookup/insertion IDs with zero through fixed API
+callsites. The nonzero insert commits along with a preceding staged edit. Zero
+returns exact `InvalidId`, poisons the draft even when caught, and makes its
+outer closure return `Closed`; neither the earlier edit, zero primary nor its
+unique-index claim is published. Direct zero lookup also returns `InvalidId`,
+while the valid lookup resolves its expected row. Rejected current bytes and
+all current/retained system/index/primary rows remain identical.
+
+Earlier invalid migration-ID cases stop at `migrate_ids`' separate zero/duplicate
+check (`store.rs:782`); they cannot establish `id_key(0)`'s own outcome at line
+136. This new pair directly exercises the non-generic helper through insert
+and lookup. Suppressing its guard changes the zero insert to `Ok(())`; the
+mutation fails there before the subsequent lookup. It does not claim sensitivity
+to omission of individual callers' helper invocations, nor test every integer ID.
+
+### Stored kind versus Rust kind before scalar fallback
+
+`assurance_stored_kind_rejects_before_the_scalar_decoder_can_mask_the_error`
+passes valid standalone immutable schema/record handles to
+`__private::read::<u64>`. Both records have the correct kind for their supplied
+schema, and both schemas contain the requested field. One descriptor is Unsigned
+and returns 7; the other is Bytes and returns exactly
+`InvalidField { id: 1, reason: "stored schema kind differs from Rust type" }`.
+The same generic helper and lexical callsite serve both controls. The caller
+update callback executes once in either case, ruling out earlier admission as
+the reason for rejection.
+
+This is defensive helper/model compatibility coverage. The alternative
+standalone schemas are never published as conflicting immutable descriptors;
+no supported table-kind change or bypass of normal registration is claimed.
+The call runs inside a typed update after another staged insert. The rejected
+helper error aborts the whole draft, while the accepted conversion commits.
+Both controls preserve the input schema and full raw record, including its
+unknown field and envelope extension, and every retained system/index/primary
+row. Rejection preserves the complete current durable image and rows; current
+index checks remain consistent.
+
+Disabling only `field.kind != T::KIND` does not make this input succeed:
+`schema.read_field` accepts its physically correct Bytes value, then the u64
+scalar decoder rejects it. An `is_err()` or category-only assertion would mask
+the omission. The new exact-error assertion detects the fallback's different
+`"wrong scalar kind"` reason. Existing lookup-kind tests target a distinct guard
+at `store.rs:578` and are not substituted for this helper pair.
+
+### Isolated omissions, provenance and limits
+
+Each case has a separate archived-base source copy and fresh Cargo target with
+`CARGO_INCREMENTAL=0`. Positive baselines pass in both profiles before changing
+only the selected guard to `if (predicate) && false`, retaining predicate
+evaluation and the rejection body. All three mutations compile and exit 101
+from the intended named test assertion in both debug and release:
+
+| Selected omission | Actual versus required result |
+|---|---|
+| `info` ownership guard | `Engine(NotFound)` versus `Engine(ForeignStore)` |
+| `id_key` zero guard | `Ok(())` versus `InvalidId` |
+| `read::<u64>` stored-kind guard | `InvalidField` with `"wrong scalar kind"` versus the explicit stored-schema/Rust-kind reason |
+
+No omission was applied to shared production source. There was no observed
+runtime defect and no runtime edit. These are specific functional/predicate
+controls and omission-sensitivity results, not compiler-instrumented MC/DC,
+whole-module completion, all generic instantiations, or other-platform evidence.
+
+Local proof: `/private/tmp/weekend-typed-admission-dm_di240/`. It retains the base
+source tar, exact test source/patch, source/compiler identities, six focused
+host baseline logs, strict Clippy output, and each isolated case's positive and
+negative logs/production patch. `evidence.json` SHA-256 is
+`21802eba77d8841578c7d58bde13a8c8541d3737766c1ddf287c5cd536c33bbe`.
+The verified compact archive `/private/tmp/weekend-typed-admission-dm_di240.tar.gz`
+contains the report and all 32 indexed payloads; its SHA-256 is
+`f1cd04f901b124d84fef6ed7b8b157f1e16d20d2ecbe1b4907e8767b316b1cd0`.
+Build outputs and reconstructed source copies remain separately in the proof
+directory. Original production hashes remain the T7 pins above; the final test
+source SHA-256 for this tranche is
+`00a3c88b7e6847a7bc41207528345a74faf1fb78768584b136da1b0ba6d38d8d`.
+
+Root independently restored all 32 indexed payloads and verified the twelve
+baseline/mutant command results, their compiled assertion failures and the exact
+test-source digest. The protected copy is
+`target/archived-proof/typed-admission-703948c.tar.gz`, with the same archive
+digest above. The complete 22-test `runtime_decisions` suite also passes in
+debug and release with Rust 1.99.1, offline/locked, all features; its logs are
+retained at `/private/tmp/weekend-typed-admission-full/`. This broader regression
+run is separate from the archive's focused omission experiments.

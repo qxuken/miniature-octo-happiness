@@ -1103,3 +1103,309 @@ fn assurance_migration_rejects_forward_rows_before_conversion() -> Result<()> {
     }
     Ok(())
 }
+
+fn assurance_seeded_rows(
+    name: &str,
+    slug: &str,
+    identity: u8,
+) -> Result<(
+    Store,
+    weekend_db_typed::engine::storage::SimulatedDisk,
+    weekend_db_typed::Table<Row>,
+    u64,
+)> {
+    use weekend_db_typed::engine::storage::SimulatedDisk;
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [identity; 16], Limits::default())?;
+    let table = store.table::<Row>(name)?;
+    store.write(|w| w.insert(&table, 1, &Row { slug: slug.into() }))?;
+    let retained = store.checkpoint()?;
+    Ok((store, disk, table, retained))
+}
+
+#[test]
+fn assurance_foreign_table_rejects_before_an_absent_catalog_key_can_mask_ownership() -> Result<()> {
+    for foreign in [false, true] {
+        let (source, source_disk, source_table, source_root) =
+            assurance_seeded_rows("foreign-only", "foreign", 84)?;
+        let (target, disk, local_table, retained) = assurance_seeded_rows("local", "local", 85)?;
+        let table = if foreign { &source_table } else { &local_table };
+        let db = target.database();
+        let source_db = source.database();
+        let current = db.snapshot();
+        let historical = db.retained_snapshot(retained)?;
+        let source_current = source_db.snapshot();
+        let source_history = source_db.retained_snapshot(source_root)?;
+        let image = disk.durable_image()?;
+        let source_image = source_disk.durable_image()?;
+        assert!(
+            current
+                .get(db.collection_id(1), b"table/foreign-only")?
+                .is_none()
+        );
+        let expected = Error::Engine(weekend_db_typed::engine::Error::ForeignStore);
+        let read = target.read(|r| Ok(r.get(table, 1)?.map(|doc| doc.slug.clone())));
+        assert_eq!(
+            read,
+            if foreign {
+                Err(expected.clone())
+            } else {
+                Ok(Some("local".into()))
+            }
+        );
+        assert_eq!(disk.durable_image()?, image);
+        let outcome = target.write(|w| {
+            w.update(&local_table, 1, |row| {
+                row.slug = "staged".into();
+                Ok(())
+            })?;
+            let read = w.get(table, 1).map(|doc| doc.map(|doc| doc.slug.clone()));
+            assert_eq!(
+                read,
+                if foreign {
+                    Err(expected.clone())
+                } else {
+                    Ok(Some("staged".into()))
+                }
+            );
+            Ok(())
+        });
+        assert_eq!(
+            outcome,
+            if foreign {
+                Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+            } else {
+                Ok(())
+            }
+        );
+        let collections = [1, 2, 3, local_table.collection().as_u64()];
+        if foreign {
+            assert_eq!(disk.durable_image()?, image);
+            same_snapshot_rows(db, &db.snapshot(), &current, &collections)?;
+        } else {
+            assert_eq!(db.snapshot().revision(), current.revision() + 1);
+        }
+        same_snapshot_rows(
+            db,
+            &db.retained_snapshot(retained)?,
+            &historical,
+            &collections,
+        )?;
+        let source_collections = [1, 2, 3, source_table.collection().as_u64()];
+        assert_eq!(source_disk.durable_image()?, source_image);
+        same_snapshot_rows(
+            source_db,
+            &source_db.snapshot(),
+            &source_current,
+            &source_collections,
+        )?;
+        same_snapshot_rows(
+            source_db,
+            &source_db.retained_snapshot(source_root)?,
+            &source_history,
+            &source_collections,
+        )?;
+        target.read(|r| {
+            let slug = if foreign { "local" } else { "staged" };
+            assert_eq!(r.get(&local_table, 1)?.unwrap().slug, slug);
+            assert_eq!(r.find(&local_table, Row::SLUG, slug)?.unwrap().id(), 1);
+            assert!(r.check_indexes(&local_table)?.is_consistent());
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+#[test]
+fn assurance_zero_primary_id_rejects_lookup_and_insert_without_partial_writes() -> Result<()> {
+    for invalid in [false, true] {
+        let (store, disk, table, retained) = assurance_seeded_rows("rows", "base", 86)?;
+        let db = store.database();
+        let current = db.snapshot();
+        let historical = db.retained_snapshot(retained)?;
+        let image = disk.durable_image()?;
+        let outcome = store.write(|w| {
+            w.update(&table, 1, |row| {
+                row.slug = "staged".into();
+                Ok(())
+            })?;
+            let result = w.insert(
+                &table,
+                if invalid { 0 } else { 2 },
+                &Row { slug: "new".into() },
+            );
+            assert_eq!(
+                result,
+                if invalid {
+                    Err(Error::InvalidId)
+                } else {
+                    Ok(())
+                }
+            );
+            Ok(())
+        });
+        assert_eq!(
+            outcome,
+            if invalid {
+                Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+            } else {
+                Ok(())
+            }
+        );
+        let read = store.read(|r| {
+            Ok(r.get(&table, if invalid { 0 } else { 1 })?
+                .map(|doc| doc.slug.clone()))
+        });
+        assert_eq!(
+            read,
+            if invalid {
+                Err(Error::InvalidId)
+            } else {
+                Ok(Some("staged".into()))
+            }
+        );
+        let collections = [1, 2, 3, table.collection().as_u64()];
+        if invalid {
+            assert_eq!(disk.durable_image()?, image);
+            same_snapshot_rows(db, &db.snapshot(), &current, &collections)?;
+        } else {
+            assert_eq!(db.snapshot().revision(), current.revision() + 1);
+        }
+        same_snapshot_rows(
+            db,
+            &db.retained_snapshot(retained)?,
+            &historical,
+            &collections,
+        )?;
+        store.read(|r| {
+            assert_eq!(
+                r.get(&table, 1)?.unwrap().slug,
+                if invalid { "base" } else { "staged" }
+            );
+            assert_eq!(r.get(&table, 2)?.is_some(), !invalid);
+            assert_eq!(r.find(&table, Row::SLUG, "new")?.is_some(), !invalid);
+            assert!(r.check_indexes(&table)?.is_consistent());
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+#[test]
+fn assurance_stored_kind_rejects_before_the_scalar_decoder_can_mask_the_error() -> Result<()> {
+    use std::cell::Cell;
+    for mismatch in [false, true] {
+        let (store, disk, table, retained) = assurance_seeded_rows("rows", "base", 87)?;
+        let db = store.database();
+        // Standalone immutable schema/record handles, never conflicting published descriptors.
+        let schema = Schema::build(
+            db,
+            900,
+            1,
+            &[FieldSpec {
+                id: 1,
+                name: "value",
+                kind: if mismatch {
+                    Kind::Bytes
+                } else {
+                    Kind::Unsigned
+                },
+                required: true,
+                nullable: false,
+                default: None,
+            }],
+            &[],
+        )?;
+        let value = if mismatch {
+            db.bytes(b"7")?
+        } else {
+            db.unsigned(7)?
+        };
+        let record = Record::new(db, &schema)?
+            .set(1, &value)?
+            .set(99, &db.bytes(b"unknown")?)?;
+        let record = Record::from_value(
+            record
+                .as_value()
+                .map_set(b"extension", &db.bytes(b"keep")?)?,
+        )?;
+        schema.validate(&record)?;
+        let record_before = record.as_value().clone();
+        let schema_before = schema.as_value().clone();
+        let current = db.snapshot();
+        let historical = db.retained_snapshot(retained)?;
+        let image = disk.durable_image()?;
+        let calls = Cell::new(0);
+        let outcome = store.write(|w| {
+            w.insert(
+                &table,
+                2,
+                &Row {
+                    slug: "staged".into(),
+                },
+            )?;
+            let result = w.update(&table, 1, |row| {
+                calls.set(calls.get() + 1);
+                let decoded = __private::read::<u64>(&record, &schema, 1, 1, None)?;
+                row.slug = decoded.to_string();
+                Ok(())
+            });
+            assert_eq!(
+                result,
+                if mismatch {
+                    Err(Error::InvalidField {
+                        id: 1,
+                        reason: "stored schema kind differs from Rust type",
+                    })
+                } else {
+                    Ok(())
+                }
+            );
+            Ok(())
+        });
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            outcome,
+            if mismatch {
+                Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+            } else {
+                Ok(())
+            }
+        );
+        assert_eq!(record.as_value(), &record_before);
+        assert_eq!(schema.as_value(), &schema_before);
+        assert_eq!(record.field(99)?.unwrap().as_bytes()?, b"unknown");
+        assert_eq!(
+            record
+                .as_value()
+                .map_get(b"extension")?
+                .unwrap()
+                .as_bytes()?,
+            b"keep"
+        );
+        let collections = [1, 2, 3, table.collection().as_u64()];
+        if mismatch {
+            assert_eq!(disk.durable_image()?, image);
+            same_snapshot_rows(db, &db.snapshot(), &current, &collections)?;
+        } else {
+            assert_eq!(db.snapshot().revision(), current.revision() + 1);
+        }
+        same_snapshot_rows(
+            db,
+            &db.retained_snapshot(retained)?,
+            &historical,
+            &collections,
+        )?;
+        store.read(|r| {
+            assert_eq!(
+                r.get(&table, 1)?.unwrap().slug,
+                if mismatch { "base" } else { "7" }
+            );
+            assert_eq!(r.get(&table, 2)?.is_some(), !mismatch);
+            assert_eq!(r.find(&table, Row::SLUG, "staged")?.is_some(), !mismatch);
+            assert!(r.check_indexes(&table)?.is_consistent());
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
