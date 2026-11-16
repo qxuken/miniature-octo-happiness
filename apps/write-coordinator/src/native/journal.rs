@@ -216,6 +216,74 @@ impl Journal {
         Ok(reply)
     }
 
+    fn check(&self, send: &mut impl FnMut(&str) -> AppResult<String>) -> AppResult<String> {
+        let reply = send(&format!(
+            "journal-check {} {}",
+            hex(&self.state.identity),
+            self.state.slot
+        ))?;
+        if reply.starts_with("error ") {
+            return Err(format!("journal check failed: {reply}").into());
+        }
+        let mut words = reply.split(' ');
+        let (Some("checkpoint"), Some(revision), Some(value), Some(receipt), None) = (
+            words.next(),
+            words.next(),
+            words.next(),
+            words.next(),
+            words.next(),
+        ) else {
+            return Err("invalid coordinator checkpoint response".into());
+        };
+        let revision = canonical_number(revision)?;
+        let value = canonical_number(value)?;
+        if revision < INITIAL_REVISION {
+            return Err("invalid coordinator checkpoint revision".into());
+        }
+        let remote = if receipt == "-" {
+            None
+        } else {
+            let receipt = Receipt::from_bytes(&unhex::<33>(receipt)?, revision)?;
+            if receipt.revision == revision && receipt.value != value {
+                return Err("coordinator checkpoint value disagrees with its head receipt".into());
+            }
+            Some(receipt)
+        };
+        let state = self.state;
+        let required = state
+            .pending
+            .map_or_else(|| state.floor(), |intent| intent.expected);
+        if revision < required {
+            return Err(
+                format!("behind {revision} {value}: journal requires revision {required}").into(),
+            );
+        }
+        if let Some(intent) = state.pending {
+            let intended = Receipt {
+                sequence: state.sequence()?,
+                expected: intent.expected,
+                value: intent.value,
+                revision: intent.expected.checked_add(1).ok_or(Error::Exhausted)?,
+            };
+            if remote == Some(intended) {
+                return Ok(format!("pending-committed {revision} {value}"));
+            }
+        }
+        if remote != state.last {
+            let receipt = remote.map_or_else(|| "receipt 0".to_owned(), |receipt| receipt.reply());
+            return Err(format!(
+                "receipt-mismatch {revision} {value}: coordinator reports {receipt}"
+            )
+            .into());
+        }
+        let status = match state.pending {
+            None => "aligned",
+            Some(intent) if revision == intent.expected => "pending-eligible",
+            Some(_) => "pending-stale",
+        };
+        Ok(format!("{status} {revision} {value}"))
+    }
+
     fn status(&self) -> AppResult<()> {
         let mut stdout = io::stdout().lock();
         writeln!(
@@ -254,14 +322,15 @@ fn parse_state(reply: &str, kind: &str) -> AppResult<(u64, u64)> {
     if actual != kind {
         return Err("unexpected coordinator response".into());
     }
-    let parse = |word: &str| -> AppResult<u64> {
-        let number: u64 = word.parse()?;
-        if word != number.to_string() {
-            return Err("invalid coordinator number".into());
-        }
-        Ok(number)
-    };
-    Ok((parse(revision)?, parse(value)?))
+    Ok((canonical_number(revision)?, canonical_number(value)?))
+}
+
+fn canonical_number(word: &str) -> AppResult<u64> {
+    let number: u64 = word.parse()?;
+    if word != number.to_string() {
+        return Err("invalid coordinator number".into());
+    }
+    Ok(number)
 }
 
 fn number(word: &OsStr) -> AppResult<u64> {
@@ -313,6 +382,12 @@ pub(super) fn run(args: &[OsString]) -> AppResult<()> {
             writeln!(io::stdout().lock(), "{reply}")?;
             Ok(())
         }
+        [action, path, port, flag, secret] if action == "check" && flag == "--secret-file" => {
+            let journal = Journal::open(Path::new(path))?;
+            let reply = journal.check(&mut sender(port, secret)?)?;
+            writeln!(io::stdout().lock(), "{reply}")?;
+            Ok(())
+        }
         [action, path, port, expected, value, flag, secret]
             if action == "set" && flag == "--secret-file" =>
         {
@@ -357,6 +432,73 @@ mod tests {
 
     fn open(disk: &SimulatedDisk) -> Journal {
         Journal::load(Database::open_on(disk.clone(), Limits::default()).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn journal_check_observes_without_resolving_an_intent() {
+        let local = SimulatedDisk::new().unwrap();
+        let mut journal = create(&local);
+        journal
+            .save(State {
+                pending: Some(INTENT),
+                ..journal.state
+            })
+            .unwrap();
+        let before = local.durable_image().unwrap();
+        let mut remote =
+            Database::create_on(SimulatedDisk::new().unwrap(), IDENTITY, Limits::default())
+                .unwrap();
+        sequenced::initialize(&remote).unwrap();
+        assert_eq!(
+            journal
+                .check(&mut |command| Ok(sequenced::handle(&mut remote, command)?))
+                .unwrap(),
+            "pending-eligible 3 0"
+        );
+        assert_eq!(
+            sequenced::handle(&mut remote, "set-seq 6 1 3 14").unwrap(),
+            "committed 4"
+        );
+        assert_eq!(
+            journal
+                .check(&mut |command| Ok(sequenced::handle(&mut remote, command)?))
+                .unwrap(),
+            "pending-stale 4 14"
+        );
+        assert_eq!(local.durable_image().unwrap(), before);
+        assert_eq!(
+            sequenced::handle(&mut remote, "receipt 7").unwrap(),
+            "receipt 0"
+        );
+    }
+
+    #[test]
+    fn journal_check_rejects_invalid_checkpoint_responses() {
+        let local = SimulatedDisk::new().unwrap();
+        let journal = create(&local);
+        let receipt = hex(&Receipt {
+            sequence: 1,
+            expected: 3,
+            value: 20,
+            revision: 4,
+        }
+        .encode());
+        for reply in [
+            "value 3 0".into(),
+            "checkpoint 3 0".into(),
+            "checkpoint 3 0 - extra".into(),
+            "checkpoint 2 0 -".into(),
+            "checkpoint 03 0 -".into(),
+            "checkpoint 3 +0 -".into(),
+            "checkpoint 3 0 bad".into(),
+            format!("checkpoint 3 20 {receipt}"),
+            format!("checkpoint 4 21 {receipt}"),
+        ] {
+            assert!(
+                journal.check(&mut |_| Ok(reply.clone())).is_err(),
+                "{reply}"
+            );
+        }
     }
 
     #[test]

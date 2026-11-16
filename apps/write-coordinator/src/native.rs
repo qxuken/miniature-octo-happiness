@@ -27,6 +27,7 @@ write-coordinator serve-sequenced <file> <port> --secret-file <file>
 write-coordinator journal init <file> <port> <slot> --secret-file <file>
 write-coordinator journal set <file> <port> <expected-revision> <unsigned-value> --secret-file <file>
 write-coordinator journal resume <file> <port> --secret-file <file>
+write-coordinator journal check <file> <port> --secret-file <file>
 write-coordinator journal status <file>
 client commands: get, set <expected-revision> <unsigned-value>,
 set-id <request-id> <expected-revision> <unsigned-value>,

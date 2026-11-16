@@ -251,6 +251,8 @@ cargo run -p write-coordinator -- journal init writer-7.db 8400 7 \
 cargo run -p write-coordinator -- journal set writer-7.db 8400 3 20 \
   --secret-file coordinator.secret
 cargo run -p write-coordinator -- journal status writer-7.db
+cargo run -p write-coordinator -- journal check writer-7.db 8400 \
+  --secret-file coordinator.secret
 cargo run -p write-coordinator -- journal resume writer-7.db 8400 \
   --secret-file coordinator.secret
 ```
@@ -280,22 +282,45 @@ lineage. A restore at the exact recorded predecessor looks like the original
 history to a client whose next reply was lost. Recovery of external effects and
 selection of the authoritative endpoint remain operator decisions.
 
+### Compare a journal with an isolated coordinator
+
+`journal check` sends one authenticated request for the journal's lineage and
+assigned slot. The coordinator reads its revision, counter and slot receipt
+from one snapshot. The check keeps the journal lease while it compares the
+response. It records no intent, clears no pending write and advances neither
+database's revision. Opening the journal uses the normal file recovery path.
+Use a live coordinator build that supports the check command.
+
+| Output | Meaning at the observed coordinator revision |
+|---|---|
+| `aligned REV VALUE` | No pending write. The slot's exact receipt, or an empty slot, matches the journal. |
+| `pending-committed REV VALUE` | The exact pending request is the coordinator's latest receipt in that slot. Use `resume` against the chosen authority to record the acknowledgment in the journal. |
+| `pending-eligible REV VALUE` | The predecessor matches and the head equals the pending precondition. A restored predecessor can produce this result even when the discarded history included the write. |
+| `pending-stale REV VALUE` | The predecessor matches and the head is newer than the pending precondition. |
+
+These four observations exit successfully. For a cutover with paused writers,
+require `aligned` and compare `REV VALUE` with the previously recorded
+checkpoint for every journal. An older revision (`behind`), a changed slot
+receipt (`receipt-mismatch`), a foreign store, or an invalid or unavailable
+reply exits unsuccessfully. Each check covers one slot at one moment. The
+operator still chooses the authority and reconciles external effects and
+any histories that share the observed slot receipt.
+
 ### Back up and restore a coordinator with active journals
 
-1. Pause submissions and compare each writer's `journal status` with the
-   server's `identity`, `get` and `receipt <slot>` responses. Resolve pending
-   writes against the current authority before taking a coordinated backup.
-   Record the server identity, revision, counter, and receipts for all
-   assigned slots.
+1. Pause submissions and run `journal check` for every assigned slot. Resolve
+   pending writes against the current authority before taking a coordinated
+   backup. Record the common `aligned` revision and counter, and the identity
+   and receipt from each journal's `status`.
 2. Stop the server and close all journal commands. Use `weekend-admin backup`
    on the coordinator and each journal while writes are paused. Use a fresh
    destination for every file and retain the originals as a set.
 3. Restore each backup to a fresh path. Check the restored files with
    `weekend-admin check`. Start only the restored coordinator on an isolated
-   loopback port and compare its identity, counter and receipts with the
-   checkpoint. Match each restored `journal status` to its slot's receipt.
-   A `journal resume` with an empty pending slot reports the local receipt,
-   so the server receipt comparison still matters.
+   loopback port. Match each restored `journal status` to the checkpoint
+   and require `journal check` to return `aligned` with the checkpoint's
+   revision and counter. `journal resume` with an empty pending slot
+   reports the journal's local acknowledgment.
 4. Route the writers to the verified server using the restored journal paths.
    Keep the old coordinator stopped and preserve the old files until the
    checkpoint and continued writes have been verified.

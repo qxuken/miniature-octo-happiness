@@ -1,5 +1,5 @@
 use std::io::{self, Read};
-use weekend_db::{Database, Error, Result as DbResult};
+use weekend_db::{CollectionId, Database, Error, Result as DbResult, Snapshot};
 #[path = "sequenced.rs"]
 pub(crate) mod sequenced;
 pub(crate) const COLLECTION: u64 = 1;
@@ -48,11 +48,17 @@ pub(crate) fn state(db: &Database) -> DbResult<(u64, u64)> {
 
 fn state_in(db: &Database, collection: u64) -> DbResult<(u64, u64)> {
     let snapshot = db.snapshot();
-    let value = snapshot
-        .get(db.collection_id(collection), KEY)?
+    Ok((
+        snapshot.revision(),
+        counter_at(&snapshot, db.collection_id(collection))?,
+    ))
+}
+
+fn counter_at(snapshot: &Snapshot<'_>, collection: CollectionId) -> DbResult<u64> {
+    snapshot
+        .get(collection, KEY)?
         .ok_or(Error::NotFound)?
-        .as_u64()?;
-    Ok((snapshot.revision(), value))
+        .as_u64()
 }
 
 pub(crate) fn handle(db: &mut Database, line: &str) -> DbResult<String> {

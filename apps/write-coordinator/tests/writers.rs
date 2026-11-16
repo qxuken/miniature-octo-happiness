@@ -716,6 +716,8 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
     let file = dir.0.join("primary.db");
     let foreign = dir.0.join("foreign.db");
     let divergent = dir.0.join("divergent.db");
+    let backup = dir.0.join("backup.db");
+    let restored = dir.0.join("restored.db");
     let journal = dir.0.join("writer.db");
     let key = dir.0.join("secret");
     let token = "4".repeat(64);
@@ -732,7 +734,10 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
                 .success()
         );
     }
-    storage::backup_file(&file, &divergent, Limits::default()).unwrap();
+    storage::backup_file(&file, &backup, Limits::default()).unwrap();
+    for destination in [&restored, &divergent] {
+        storage::restore_file(&backup, destination, Limits::default()).unwrap();
+    }
 
     let run = |action, tail: &[&str]| {
         Command::new(BIN)
@@ -746,6 +751,22 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
         assert!(output.status.success(), "journal {action}: {output:?}");
         String::from_utf8(output.stdout).unwrap()
     };
+    let check = |port, expected: Result<&str, &str>| {
+        let before = fs::read(journal).unwrap();
+        let output = run("check", &[port, "--secret-file", key]);
+        match expected {
+            Ok(line) => {
+                assert!(output.status.success(), "{output:?}");
+                assert_eq!(output.stdout, format!("{line}\n").as_bytes());
+            }
+            Err(message) => {
+                assert!(!output.status.success(), "{output:?}");
+                assert!(output.stdout.is_empty());
+                assert!(String::from_utf8(output.stderr).unwrap().contains(message));
+            }
+        }
+        assert_eq!(fs::read(journal).unwrap(), before);
+    };
     let (mut primary, client) =
         configured_service("serve-sequenced", file.to_str().unwrap(), key, &token);
     let port = client.address.port().to_string();
@@ -755,6 +776,7 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
         checked("init", &[&port, "0", "--secret-file", key]),
         format!("journal {identity} 0\nreceipt 0\n")
     );
+    check(&port, Ok("aligned 3 0"));
 
     let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
     proxy.set_nonblocking(true).unwrap();
@@ -779,12 +801,20 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
     drop(withheld);
     let pending = format!("journal {identity} 0\nreceipt 0\npending 1 3 42\n");
     assert_eq!(checked("status", &[]), pending);
+    check(&port, Ok("pending-committed 4 42"));
     assert_eq!(client.request("receipt 0"), "receipt 1 3 42 4");
     primary.stop();
+
+    let (mut stale, stale_client) =
+        configured_service("serve-sequenced", restored.to_str().unwrap(), key, &token);
+    let stale_port = stale_client.address.port().to_string();
+    check(&stale_port, Ok("pending-eligible 3 0"));
+    assert_eq!(stale_client.request("receipt 0"), "receipt 0");
 
     let (mut other, other_client) =
         configured_service("serve-sequenced", foreign.to_str().unwrap(), key, &token);
     let other_port = other_client.address.port().to_string();
+    check(&other_port, Err("ForeignStore"));
     assert!(
         !run("resume", &[&other_port, "--secret-file", key])
             .status
@@ -797,6 +827,7 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
     let (_primary, client) =
         configured_service("serve-sequenced", file.to_str().unwrap(), key, &token);
     let port = client.address.port().to_string();
+    check(&port, Ok("pending-committed 4 42"));
     for _ in 0..2 {
         assert_eq!(
             checked("resume", &[&port, "--secret-file", key]),
@@ -808,6 +839,10 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
         checked("status", &[]),
         format!("journal {identity} 0\nreceipt 1 3 42 4\n")
     );
+    check(&port, Ok("aligned 4 42"));
+    check(&stale_port, Err("behind 3 0"));
+    assert_eq!(stale_client.request("get"), "value 3 0");
+    stale.stop();
 
     let (_other, other_client) =
         configured_service("serve-sequenced", divergent.to_str().unwrap(), key, &token);
@@ -817,6 +852,7 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
         format!("identity {identity}")
     );
     assert_eq!(other_client.request("set-seq 0 1 3 777"), "committed 4");
+    check(&other_port, Err("receipt-mismatch 4 777"));
     assert!(
         !run("set", &[&other_port, "4", "99", "--secret-file", key])
             .status
@@ -826,6 +862,8 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
         checked("status", &[]),
         format!("journal {identity} 0\nreceipt 1 3 42 4\npending 2 4 99\n")
     );
+    check(&other_port, Err("receipt-mismatch 4 777"));
+    check(&port, Ok("pending-eligible 4 42"));
     assert_eq!(other_client.request("get"), "value 4 777");
     assert_eq!(client.request("get"), "value 4 42");
     assert_eq!(
@@ -1062,6 +1100,10 @@ fn native_journal_workload_resumes_after_verified_restore() {
             assert_eq!(
                 journal("status", journal_path, &[]),
                 format!("journal {identity} {slot}\n{receipt}\n"),
+            );
+            assert_eq!(
+                journal("check", journal_path, &[&port, "--secret-file", key]),
+                format!("aligned {revision} {writes}\n"),
             );
             for _ in 0..2 {
                 assert_eq!(

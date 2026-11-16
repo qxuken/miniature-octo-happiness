@@ -1,5 +1,5 @@
-use super::{KEY, state_in};
-use weekend_db::{Database, Error, Result, Validation, Value};
+use super::{KEY, counter_at, state_in};
+use weekend_db::{CollectionId, Database, Error, Result, Snapshot, Validation, Value};
 
 const FORMAT_COLLECTION: u64 = 1;
 const DATA_COLLECTION: u64 = 2;
@@ -141,13 +141,32 @@ fn value_reply(db: &Database) -> Result<String> {
     Ok(format!("value {revision} {value}"))
 }
 
-fn receipt_reply(db: &Database, slot: &str) -> Result<String> {
-    let snapshot = db.snapshot();
+fn receipt_at(
+    snapshot: &Snapshot<'_>,
+    collection: CollectionId,
+    slot: &str,
+) -> Result<Option<Receipt>> {
     let key = slot_key(slot)?;
-    let Some(bytes) = snapshot.get(db.collection_id(DATA_COLLECTION), &key)? else {
-        return Ok("receipt 0".to_owned());
-    };
-    Ok(Receipt::decode(&bytes, snapshot.revision())?.reply())
+    snapshot
+        .get(collection, &key)?
+        .as_ref()
+        .map(|bytes| Receipt::decode(bytes, snapshot.revision()))
+        .transpose()
+}
+
+fn receipt_reply(db: &Database, slot: &str) -> Result<String> {
+    let receipt = receipt_at(&db.snapshot(), db.collection_id(DATA_COLLECTION), slot)?;
+    Ok(receipt.map_or_else(|| "receipt 0".to_owned(), |receipt| receipt.reply()))
+}
+
+fn checkpoint_reply(db: &Database, slot: &str) -> Result<String> {
+    let snapshot = db.snapshot();
+    let collection = db.collection_id(DATA_COLLECTION);
+    let revision = snapshot.revision();
+    let value = counter_at(&snapshot, collection)?;
+    let receipt = receipt_at(&snapshot, collection, slot)?
+        .map_or_else(|| "-".to_owned(), |receipt| hex(&receipt.encode()));
+    Ok(format!("checkpoint {revision} {value} {receipt}"))
 }
 
 enum Predecessor {
@@ -171,6 +190,10 @@ pub(crate) fn handle(db: &mut Database, line: &str) -> Result<String> {
         ["journal-receipt", identity, slot] => {
             require_identity(db, identity)?;
             receipt_reply(db, slot)
+        }
+        ["journal-check", identity, slot] => {
+            require_identity(db, identity)?;
+            checkpoint_reply(db, slot)
         }
         [
             "journal-set",
@@ -294,7 +317,9 @@ mod tests {
             (1, 4, 5, 33, 1),        // receipt claims a future revision
             (1, u64::MAX, 0, 33, 1), // wrapped revision
         ] {
-            let mut db = Database::new().unwrap();
+            let mut db =
+                Database::create_on(MemoryStore::new().unwrap(), [7; 16], Limits::default())
+                    .unwrap();
             initialize(&db).unwrap();
             let mut encoded = Receipt {
                 sequence,
@@ -314,6 +339,11 @@ mod tests {
             tx.commit().unwrap();
             drop(tx);
             assert_eq!(handle(&mut db, "receipt 0"), Err(Error::Corrupt));
+            let identity = hex(&[7; 16]);
+            assert_eq!(
+                handle(&mut db, &format!("journal-check {identity} 0")),
+                Err(Error::Corrupt)
+            );
             assert_eq!(handle(&mut db, "set-seq 0 1 4 30"), Err(Error::Corrupt));
             assert_eq!(handle(&mut db, "get").unwrap(), "value 4 0");
         }

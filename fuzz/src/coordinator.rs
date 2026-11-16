@@ -146,11 +146,16 @@ fn sequenced_requests(input: &[u8]) {
                 _ => None,
             };
             (
-                format!("journal-set {identity} {slot} {sequence} {previous} {expected} {replacement}"),
+                format!(
+                    "journal-set {identity} {slot} {sequence} {previous} {expected} {replacement}"
+                ),
                 error,
             )
         } else {
-            (format!("set-seq {slot} {sequence} {expected} {replacement}"), None)
+            (
+                format!("set-seq {slot} {sequence} {expected} {replacement}"),
+                None,
+            )
         };
         let want = if let Some(error) = guard_error {
             Err(error)
@@ -191,6 +196,31 @@ fn sequenced_requests(input: &[u8]) {
         assert_eq!(
             sequenced::handle(&mut db, &format!("receipt {slot}")),
             Ok(receipt)
+        );
+        let checkpoint_receipt = if sequence == 0 {
+            "-".to_owned()
+        } else {
+            [1u8]
+                .into_iter()
+                .chain(
+                    [sequence, expected, replacement, acknowledgment]
+                        .into_iter()
+                        .flat_map(u64::to_le_bytes),
+                )
+                .map(|byte| format!("{byte:02x}"))
+                .collect()
+        };
+        let identity = if op[0] & 128 == 0 { "3e" } else { "3f" }.repeat(16);
+        let wanted_checkpoint = if op[0] & 128 == 0 {
+            Ok(format!(
+                "checkpoint {revision} {current} {checkpoint_receipt}"
+            ))
+        } else {
+            Err(Error::ForeignStore)
+        };
+        assert_eq!(
+            sequenced::handle(&mut db, &format!("journal-check {identity} {slot}")),
+            wanted_checkpoint
         );
     }
 }
