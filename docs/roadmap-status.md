@@ -2275,3 +2275,19 @@ Docker Linux/ext4 passes 191 tests and strict core Clippy. Windows x64 strict
 cross-Clippy passes. Native Windows execution of the embedded scenario and
 deployment-scale lag and resource qualification remain open.
 [Embedded API and verification](replication-operations.md#live-export-and-polling-from-an-embedded-primary)
+
+## Authenticated live replication over an accelerated month
+
+At `8539e7e`, a native macOS primary ships 31 snapshots over pinned mutual TLS
+to the regular Docker Linux/ext4 follower. The writer retains one daily root
+and commits a heartbeat during each of the 30 in-flight offers. Fresh polls
+recover all four dropped ship replies. Before the last shipment the primary
+and follower report revisions 93 and 92. Both reopen at 93 with all 31 retained
+roots, and the final selected image matches the 36,851,712-byte export.
+
+Across 30 daily samples, the p95 verified capture takes 315.796 ms and the p95
+shipment takes 279.809 ms. The p95 wait from upload flush to the first reply
+byte takes 176.276 ms. The sender peaks at about 663 MiB RSS with
+default limits. Follower memory, disk-only installation timing, WAN behavior
+and deployment budgets remain open.
+[Workload, reproduction and evidence](live-replication-month.md)

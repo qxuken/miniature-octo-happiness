@@ -585,3 +585,7 @@ cargo test --locked -p weekend-db --all-features --test replication \
 | Native replication and concurrency under ThreadSanitizer | `macos-tsan.log` |
 | Docker Linux ext4 run and toolchain | `linux.log` |
 | Windows MSVC x64 cross-Clippy | `windows-cross-clippy.log` |
+
+The [authenticated Mac-to-Linux month workload](live-replication-month.md)
+exercises the embedded primary against the actual TLS follower CLI, including
+31 installs, four dropped replies and all 31 retained roots after reopen.
