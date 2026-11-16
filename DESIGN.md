@@ -5702,3 +5702,13 @@ The fixed-input revision-93 export matches byte for byte on macOS and Linux.
 The [staging qualification](docs/fresh-image-staging.md) records the allocation
 failure control, repeated export RSS, cross-platform checks and authenticated
 month replay with all 31 retained roots.
+
+## CRC-64 update throughput
+
+The storage and logical encoders and verifiers use a shared eight-byte CRC-64
+update. Compile-time tables derive every byte position from the original ECMA
+polynomial. The encoder mixes input in stream order and stores the checksum
+using the format's original byte order. The bit-recurrence test, golden
+histories and fixed-image comparison verify the byte contract across updates
+and padding. The [CRC-64 report](docs/crc64-performance.md) records the paired
+inspection and export timings, authenticated follower recovery and fuzz checks.

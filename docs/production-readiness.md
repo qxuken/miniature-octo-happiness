@@ -207,6 +207,9 @@ qualification is a separate release-candidate requirement.
   phase. A large authenticated process-kill drill checks reopening on both sides
   of manifest selection.
   [Follower installation and interruption](follower-installation-profile.md)
+  [CRC-64 verification throughput](crc64-performance.md) measures the shared
+  disk checksum update and repeats the exact-image and authenticated recovery
+  checks after the change.
 - **Offline CRDT writers.** Specify lawful merge and resolution contracts
   for app records, enforce or clearly protect reserved rows, and qualify
   policy/schema evolution, actor identity and replacement, replay,

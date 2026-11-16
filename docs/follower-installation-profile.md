@@ -94,3 +94,7 @@ all 142 core library tests and strict core Clippy.
 | `run/interruptions.log` | `02b19d3e3b5fb58f9010a8f96d48b8250a4b92fffcd8dfe8cc742dc35c894e6f` |
 | `run/first.wdb` | `d0da420bcf352c15b550ac00089e6c0f65bb3b114ab8ee33d6b678b03412c040` |
 | `run/next.wdb` | `a4f26da47f1812d9e58777c325472fa8a863138990b4ee7235a95a6eb38fe7c1` |
+
+The [CRC-64 replay](crc64-performance.md#authenticated-follower-replay) repeats
+the phase and interruption controls after changing the storage checksum
+implementation. Daily graph verification p95 is 31.854 ms in that replay.

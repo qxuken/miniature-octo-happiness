@@ -586,3 +586,14 @@ destination empty with no write or sync calls and restores the exact live byte
 count before the successful control. Native macOS, Docker Linux/ext4 and macOS
 AddressSanitizer with a rebuilt standard library pass the sweep. These controls
 supplement the previous source-bound ledgers and final-candidate native gates.
+
+## CRC-64 word and tail paths
+
+At `e1fd1db`, the byte and bit recurrence generates the readonly tables at
+compile time. Runtime `update_crc` traverses complete eight-byte words and a
+zero to seven byte tail. The reference test exercises every byte at every word
+position, all tail lengths, empty parts and resumed updates from arbitrary
+states. The existing known vector, zeroed checksum-field and padding checks
+keep their scope. Golden images, raw byte comparison and checksum-repaired
+recovery tests verify callers through the original disk and logical formats.
+[Exact comparison and recovery replay](../crc64-performance.md)

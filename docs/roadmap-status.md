@@ -2306,8 +2306,9 @@ baseline. The Linux phase RSS samples are nearly equal.
 The authenticated month replay checks each durable receipt, all 31 retained
 roots and the exact selected image after reopen. Its macOS sender peaks at
 about 106 MiB RSS, compared with 663 MiB previously. The macOS workspace and
-targeted Docker Linux tests and strict Windows cross-Clippy pass. Follower
-memory, other workload shapes and final-candidate native evidence remain open.
+targeted Docker Linux tests and strict Windows cross-Clippy pass. The native
+Windows x64/NTFS run at `d2ed354` confirms the staged-budget and byte controls,
+both golden histories and the live-overlap test in debug and release.
 [Staging protocol, regression controls and results](fresh-image-staging.md)
 
 ## Linux follower installation and large-snapshot interruption
@@ -2326,3 +2327,15 @@ recover the same revision-94 receipt, with no manifest or selected-byte change.
 The fresh-image allocation sweep covers 39 failure allowances before any
 destination write and verifies exact live-charge rollback.
 [Method, durable outcomes and raw evidence](follower-installation-profile.md)
+
+## CRC-64 word verification and authenticated recovery replay
+
+At `e1fd1db`, the checksum processes eight-byte words with tables derived from
+the original polynomial. The paired 16-inspection probe runs in 0.529–0.540 s
+on macOS and 0.551–0.638 s on Docker Linux after the change. All fixed-input
+exports still have the same bytes. The authenticated Linux replay reduces graph
+verification p95 from 81.922 to 31.854 ms. Its sync observations are higher.
+Both interruption boundaries recover the same revisions and exact receipts
+with every retained root verified. Native Windows CRC execution and deployment
+latency targets remain open.
+[Compatibility evidence, benchmarks and checks](crc64-performance.md)

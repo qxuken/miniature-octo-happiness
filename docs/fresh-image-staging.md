@@ -124,3 +124,14 @@ Compare the final `copy-15.wdb` to `snapshot-31.wdb` from the same month run.
 | Paired macOS and Linux logs | `paired-baseline.*`, `paired-candidate.*`, `linux.log` |
 | Budget and trace controls | `budget-before.log`, `budget-after.log`, `budget-64m*.csv`, `write-parity.log` |
 | Authenticated replay `month/live-month.csv` | `ab935256e36d38135316e925344d65a4787affae2797db3b3025d4acc745778d` |
+
+## Native Windows staging
+
+The native minimum-Rust job at PR head `d2ed354` passed on Windows x64/fixed
+NTFS with Rust 1.99.0. The staged-budget control, byte and adapter write parity,
+both golden histories and the live overlap test passed in debug and release.
+The clean PR merge was `6ab53de1827f55ff6595a2ab0f2000b4bcd8032d`. Delivered
+codec, storage and test source matched the branch. The evidence ZIP SHA-256 is
+`3d6bceb77fe1ecb23b6d898470284dc9c90daeeaaddfce694afb984f77e7d4e9`.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43779480765/job/133013181483)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43779480765/artifacts/14188370957).
