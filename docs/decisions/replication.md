@@ -143,6 +143,79 @@ This supplemental callsite evidence does not rebind the historical source
 inventory below or close every transport error, platform or compiler MC/DC
 obligation.
 
+## R5: request and upload errors stop at their caller
+
+`transport_header_flush_error_stops_before_receipt_read` and
+`transport_partial_upload_write_error_stops_before_flushing` use one shared
+non-generic assertion helper, `Channel` type and `Primary::ship` callsite.
+Each fixes its fault stage and varies only failure versus acceptance. The
+existing R4 body and runtime remain unchanged.
+
+| Control | Accepted writes | Write calls | Read calls / reply bytes consumed | Flush calls |
+|---|---|---|---|---|
+| Header flush returns `BrokenPipe` | Exact 89-byte header | 1 | 0 / 0 | 1 |
+| First image write accepts one byte, next returns `BrokenPipe` | Exact header plus first image byte | 3 | 1 / 1 (Ready only) | 1 |
+| Healthy, at either fixed stage | Exact header plus every image byte | `1 + ceil(image length / REGION)` | 3 / 58 | 2 |
+
+Both failures return exactly `Io`, leave all terminal receipt bytes unread,
+preserve the previous accepted progress and still accept its exact receipt.
+Both healthy controls accept the exact new receipt and reject older progress.
+Independent header bytes and the captured image supply the exact sent-byte
+oracle. Source revision, health and the complete durable simulator image remain
+unchanged, as do the export descriptor and every export byte. Fresh healthy
+reconciliation accepts an exact immediate receipt at a separate callsite using
+the existing `Exchange` type.
+
+The header stage forces the previously untested caller propagation at current
+`src/replication/mod.rs:336`; R4 holds that flush healthy, while the earlier
+zero-capacity wire control fails writing instead. The partial-write stage
+separates `ship`'s outer `visit_image` propagation at 342–344 from its inner
+channel-write callback at 343. The existing direct callback-error test exercises
+`visit_image` itself. A native upload-kill may still end in `Io` from later EOF
+if its caller ignores the upload error, so that outcome alone does not identify
+either propagation site.
+
+The wrapper forbids reads after failed header flush, and writes/flushes/reads
+after failed upload write. The image fixture explicitly exceeds one region,
+so ignoring the inner callback error reaches another write. Three isolated
+production-copy omissions compile and fail their intended sentinel in both
+debug and release:
+
+| Omitted propagation | First forbidden continuation detected |
+|---|---|
+| Ignore the result of the still-invoked `wire::request` | `reply read after failed header flush` |
+| Ignore the result of the still-invoked `visit_image` | `flush after failed upload write` |
+| Invoke `channel.write_all`, discard its error and return `Ok(())` | `write after failed upload write` |
+
+These are distinct caller sites, without a later EOF masking detection. The
+sentinels demonstrate continuation sensitivity; no separate mutation credit is
+claimed for every subsequent state/count oracle. Scripted Ready/Installed bytes
+are control inputs, not evidence that a real follower acknowledged partial
+input. A local transport failure makes no remote-nonpublication promise.
+
+The frozen base is `6338f937ceaceaf2fab30989ee2d1f662c8ae48b` plus only the
+test overlay, whose `src/replication/tests.rs` SHA-256 is
+`f9acf0a82fa99ff1d6fe61f6ef2432ff9a90c4a585aab893333b26697e01389d`.
+The current runtime hash is the same as R4. Rust/Cargo 1.99.1 macOS arm64 full
+replication-feature library runs pass 144 tests in each profile, including R4
+and both new tests, with two test threads. Strict package test-target Clippy
+passes. Fresh separate source/target copies and disabled incremental builds
+isolate all six red controls. Source identities, patches, native process
+reports, logs and actual test binaries are indexed at
+`/private/tmp/weekend-request-upload-4McCvY/evidence.json`.
+Protected local archive: `target/archived-proof/request-upload-6338f93.tar.zst`,
+SHA-256 `88fe485e46ee1a049de6ebe2cf46825ba319a3b8c5f3dee6566f25196ac2891a`.
+Root restores and checks all 85 indexed payloads (65,330,373 bytes), the exact
+base/current source identities, three unique runtime-copy mutations and nine
+raw bounded outcomes. Removing the new helper/two-test block reproduces the
+entire prior test file byte-for-byte. Eight actual test binaries and the
+supervisor remain retained; independent review has no remaining findings.
+
+This is concrete generic-channel caller evidence, without runtime changes or
+new production seams. It does not qualify actual TLS/kernel failures, follower
+installation, other callback instantiations, every transport error, the
+historical inventory denominator or compiler MC/DC.
+
 ## Inventory and limits
 
 The scanner includes possible platform branches, excludes cfg(test) and does not

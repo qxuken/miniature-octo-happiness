@@ -5984,3 +5984,17 @@ Root and separate review verify source reconstruction, exact mutations, original
 ZIP and process outcomes. The [recorded result](docs/windows-identity-mutations.md#recorded-native-windows-result)
 preserves source/archive identities and the distinction between that completed
 artifact gate and other workflow checks still running at capture.
+
+[Request/upload caller controls](docs/decisions/replication.md#r5-request-and-upload-errors-stop-at-their-caller)
+now distinguish header-flush failure from a partial upload write. One helper and
+channel type compare each fixed stage against acceptance, checking exact byte
+prefixes, I/O counts, unread receipts, old progress and unchanged source/export
+bytes. Read/flush/write sentinels expose ignored request, outer visitor and inner
+write errors independently, preventing a later EOF from masking continuation.
+
+The full replication-feature library passes 144 tests per debug/release profile,
+including the unchanged earlier flush control, plus strict Clippy. All three
+isolated omissions compile and fail their intended sentinel in both profiles.
+Root restores 85 proof payloads and separate review checks source/outcome scope.
+No runtime, format or acknowledgment contract changes; scripted replies do not
+establish actual follower state or remote nonpublication.

@@ -3085,3 +3085,27 @@ source closure. The report records the protected archive and ZIP hashes. This
 closes both named runtime mutation gates; it is separate from native baseline
 CI at `721cbdb`, actual CSP failures and other job/workflow checks still running
 at capture. No reruns, cancellations, publication or runtime changes are involved.
+
+## Snapshot request and partial-upload caller errors
+
+The [R5 controls](decisions/replication.md#r5-request-and-upload-errors-stop-at-their-caller)
+force header flush failure after all 89 header bytes, and an upload that accepts
+one image byte before `BrokenPipe`. Both return exact `Io` before forbidden
+later I/O, preserve prior progress and leave terminal receipts unread. Accepted
+controls upload exact bytes and observe the new receipt. Source revision,
+health, durable image, export descriptor and export bytes stay unchanged.
+
+Three distinct propagation omissions fail debug/release at read, flush and write
+sentinels. The image spans multiple regions so an ignored inner write error
+reaches another write; later EOF cannot supply misleading detection. One shared
+helper/channel/callsite varies only acceptance versus failure at each fixed
+stage. Queued replies remain synthetic, with no remote-nonpublication claim.
+
+Rust 1.99.1 full replication-feature library runs pass 144 tests in each profile
+with two test threads, plus strict Clippy. R4 and all prior tests remain intact.
+The frozen proof is base `6338f93` plus only the test overlay. Root restores all
+85 indexed payloads (65,330,373 bytes), checks three unique mutations and nine
+raw bounded outcomes; independent review has no findings. Eight actual test
+binaries and the supervisor are retained in the protected archive named in the
+ledger. Runtime, dependencies, formats and both acknowledgment contracts are
+unchanged. Crates remain unpublished.

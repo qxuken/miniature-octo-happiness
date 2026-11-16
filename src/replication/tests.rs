@@ -496,6 +496,170 @@ fn upload_flush_failure_preserves_progress_and_leaves_the_terminal_reply_unread(
     }
 }
 
+#[derive(Clone, Copy)]
+enum TransportFault {
+    HeaderFlush,
+    PartialUploadWrite,
+}
+
+fn assert_transport_failure_stops_before_receipt(fault: TransportFault) {
+    struct Channel {
+        exchange: Exchange,
+        fault: TransportFault,
+        fail: bool,
+        header_failed: bool,
+        write_failed: bool,
+        writes: usize,
+        reads: usize,
+        flushes: usize,
+    }
+    impl Read for Channel {
+        fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+            assert!(!self.header_failed, "reply read after failed header flush");
+            assert!(!self.write_failed, "reply read after failed upload write");
+            self.reads += 1;
+            self.exchange.read(bytes)
+        }
+    }
+    impl Write for Channel {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            assert!(!self.header_failed, "write after failed header flush");
+            assert!(!self.write_failed, "write after failed upload write");
+            self.writes += 1;
+            if self.fail && matches!(self.fault, TransportFault::PartialUploadWrite) {
+                if self.exchange.sent.len() == 89 {
+                    return self.exchange.write(&bytes[..1]);
+                }
+                if self.exchange.sent.len() == 90 {
+                    self.write_failed = true;
+                    return Err(io::ErrorKind::BrokenPipe.into());
+                }
+            }
+            self.exchange.write(bytes)
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            assert!(!self.header_failed, "flush after failed header flush");
+            assert!(!self.write_failed, "flush after failed upload write");
+            self.flushes += 1;
+            if self.fail
+                && matches!(self.fault, TransportFault::HeaderFlush)
+                && self.exchange.sent.len() == 89
+            {
+                self.header_failed = true;
+                Err(io::ErrorKind::BrokenPipe.into())
+            } else {
+                self.exchange.flush()
+            }
+        }
+    }
+    fn image(export: &mut Export) -> Vec<u8> {
+        let store = export.storage.image_bytes();
+        let mut bytes = vec![0; store.length().unwrap() as usize];
+        read_all(store, 0, &mut bytes).unwrap();
+        bytes
+    }
+
+    for fail in [true, false] {
+        let disk = crate::storage::SimulatedDisk::new().unwrap();
+        let (source, [old, mut offered, _]) = exports_on(disk.clone());
+        let previous = ack(&old);
+        let expected = ack(&offered);
+        let descriptor = offered.descriptor();
+        let bytes = image(&mut offered);
+        // The inner-callback omission must reach a later image chunk rather
+        // than relying on an eventual terminal EOF to reveal continuation.
+        assert!(bytes.len() > REGION);
+        assert_eq!(bytes.len() as u64, descriptor.length);
+        let source_revision = source.snapshot().revision();
+        let source_bytes = disk.durable_image().unwrap();
+        let mut primary = Primary::new(&source, STREAM).unwrap();
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(previous)),
+            Ok(Some(previous))
+        );
+        let mut channel = Channel {
+            exchange: Exchange::new([Reply::Ready, Reply::Installed(expected)]),
+            fault,
+            fail,
+            header_failed: false,
+            write_failed: false,
+            writes: 0,
+            reads: 0,
+            flushes: 0,
+        };
+        let result = primary.ship(&mut offered, &mut channel);
+        let mut sent = b"WDBREPL\x01\x01".to_vec();
+        sent.extend_from_slice(&STREAM);
+        sent.extend_from_slice(&[1; 16]);
+        sent.extend_from_slice(&descriptor.revision.to_le_bytes());
+        sent.extend_from_slice(&descriptor.length.to_le_bytes());
+        sent.extend_from_slice(&descriptor.digest);
+        assert_eq!(sent.len(), 89);
+        sent.extend_from_slice(&bytes);
+        if fail {
+            assert_eq!(result, Err(Error::Io));
+            let (sent_bytes, writes, reads, consumed) = match fault {
+                TransportFault::HeaderFlush => (89, 1, 0, 0),
+                TransportFault::PartialUploadWrite => (90, 3, 1, 1),
+            };
+            assert_eq!(channel.exchange.sent, sent[..sent_bytes]);
+            assert_eq!(channel.writes, writes);
+            assert_eq!(channel.reads, reads);
+            assert_eq!(channel.flushes, 1);
+            assert_eq!(channel.exchange.replies.position(), consumed);
+            assert_eq!(channel.exchange.replies.get_ref().len(), 58);
+            assert_eq!(primary.progress, Some(previous));
+            assert_eq!(
+                poll(&mut primary, Reply::Installed(previous)),
+                Ok(Some(previous))
+            );
+        } else {
+            assert_eq!(result, Ok(expected));
+            assert_eq!(channel.exchange.sent, sent);
+            assert_eq!(channel.writes, 1 + bytes.len().div_ceil(REGION));
+            assert_eq!(channel.reads, 3);
+            assert_eq!(channel.flushes, 2);
+            assert_eq!(channel.exchange.replies.position(), 58);
+            assert_eq!(primary.progress, Some(expected));
+            assert_eq!(
+                poll(&mut primary, Reply::Installed(previous)),
+                Err(Error::Conflict)
+            );
+        }
+        assert!(!source.requires_recovery());
+        assert_eq!(source.snapshot().revision(), source_revision);
+        assert_eq!(disk.durable_image().unwrap(), source_bytes);
+        assert_eq!(offered.descriptor(), descriptor);
+        assert_eq!(image(&mut offered), bytes);
+
+        // Scripted receipt bytes detect forbidden continuation, not a real
+        // follower's state. Reconciliation uses a fresh healthy channel; a
+        // local transport error makes no remote-nonpublication promise.
+        let mut retry = Exchange::new([Reply::Installed(expected)]);
+        assert_eq!(primary.ship(&mut offered, &mut retry), Ok(expected));
+        assert_eq!(retry.replies.position(), 57);
+        assert_eq!(primary.progress, Some(expected));
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(previous)),
+            Err(Error::Conflict)
+        );
+        assert_eq!(source.snapshot().revision(), source_revision);
+        assert_eq!(disk.durable_image().unwrap(), source_bytes);
+        assert_eq!(offered.descriptor(), descriptor);
+        assert_eq!(image(&mut offered), bytes);
+    }
+}
+
+#[test]
+fn transport_header_flush_error_stops_before_receipt_read() {
+    assert_transport_failure_stops_before_receipt(TransportFault::HeaderFlush);
+}
+
+#[test]
+fn transport_partial_upload_write_error_stops_before_flushing() {
+    assert_transport_failure_stops_before_receipt(TransportFault::PartialUploadWrite);
+}
+
 #[test]
 fn primary_ship_accepts_newer_progress_only_before_uploading() {
     let (db, [old, mut offered, newer]) = exports();
