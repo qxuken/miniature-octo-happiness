@@ -1,41 +1,8 @@
 use super::*;
 use sha2::{Digest, Sha256};
-use std::io::{ErrorKind, Write};
 use weekend_db::replication::{Enrollment, Follower};
 
 const STREAM: &str = "11221122112211221122112211221122";
-const MAX_TMPFS_BYTES: u64 = 8 * 1024 * 1024;
-
-fn tmpfs_space(path: &Path) -> (u64, u64) {
-    let output = Command::new("stat")
-        .args(["-f", "-c", "%T %S %b %a", "--"])
-        .arg(path)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-    let text = String::from_utf8(output.stdout).unwrap();
-    let fields: Vec<_> = text.split_ascii_whitespace().collect();
-    let ["tmpfs", block, blocks, available] = fields.as_slice() else {
-        panic!("expected a private tmpfs: {text}");
-    };
-    let block: u64 = block.parse().unwrap();
-    let capacity = block.checked_mul(blocks.parse().unwrap()).unwrap();
-    let available = block.checked_mul(available.parse().unwrap()).unwrap();
-    assert!(block > 0 && capacity <= MAX_TMPFS_BYTES && available <= capacity);
-    (block, available)
-}
-
-fn assert_full(path: &Path) {
-    let (block, available) = tmpfs_space(path);
-    assert_eq!(available, 0);
-    let probe = path.join("space-probe");
-    let mut file = fs::File::create_new(&probe).unwrap();
-    let error = file.write_all(&vec![0; block as usize]).unwrap_err();
-    assert_eq!(error.kind(), ErrorKind::StorageFull);
-    drop(file);
-    fs::remove_file(probe).unwrap();
-}
-
 fn receipt(output: &str) -> &str {
     output
         .lines()
@@ -46,17 +13,7 @@ fn receipt(output: &str) -> &str {
 #[test]
 #[ignore = "requires a dedicated empty Linux tmpfs no larger than 8 MiB"]
 fn authenticated_follower_reopens_at_the_old_receipt_when_tmpfs_is_full() {
-    let mount = PathBuf::from(std::env::var_os("WEEKEND_TEST_FOLLOWER_TMPFS").unwrap());
-    let mount_type = Command::new("findmnt")
-        .args(["-n", "-o", "FSTYPE", "--mountpoint"])
-        .arg(&mount)
-        .output()
-        .unwrap();
-    assert!(mount_type.status.success(), "{mount_type:?}");
-    assert_eq!(mount_type.stdout, b"tmpfs\n");
-    let (_, empty_space) = tmpfs_space(&mount);
-    assert!(empty_space >= 1024 * 1024);
-    assert!(fs::read_dir(&mount).unwrap().next().is_none());
+    let (mount, empty_space) = test_tmpfs::empty_mount("WEEKEND_TEST_FOLLOWER_TMPFS");
 
     let dir = directory("follower-full-storage");
     let root = &dir.0;
@@ -172,7 +129,7 @@ fn authenticated_follower_reopens_at_the_old_receipt_when_tmpfs_is_full() {
         let old_files = files(&follower.0);
         assert_eq!(old_files.len(), 2);
 
-        let (block, available) = tmpfs_space(&follower.0);
+        let (block, available) = test_tmpfs::space(&follower.0);
         let length = exact_image.len() as u64;
         assert!(length > 2 * block && length.is_multiple_of(block) && length < available);
         let room = if selection_failure {
@@ -180,12 +137,7 @@ fn authenticated_follower_reopens_at_the_old_receipt_when_tmpfs_is_full() {
         } else {
             length / block / 2 * block
         };
-        let ballast = follower.0.join("ballast");
-        fs::File::create_new(&ballast)
-            .unwrap()
-            .write_all(&vec![0x6a; (available - room) as usize])
-            .unwrap();
-        assert_eq!(tmpfs_space(&follower.0).1, room);
+        let ballast = test_tmpfs::fill(&follower.0, room);
 
         let (mut server, address) = serve(path);
         let failed = send(&address, &next_image, &next_ticket);
@@ -194,7 +146,7 @@ fn authenticated_follower_reopens_at_the_old_receipt_when_tmpfs_is_full() {
         assert!(transcript.starts_with("local captured_revision=5 "));
         assert!(!transcript.contains("follower durable_revision="));
         assert_eq!(server.exit_status().success(), !selection_failure);
-        assert_full(&follower.0);
+        test_tmpfs::assert_full(&follower.0);
         let staged = fs::read(follower.0.join("replica-1.wdb")).unwrap();
         assert_eq!(staged.len() as u64, room);
         assert_eq!(staged, exact_image[..staged.len()]);
@@ -216,7 +168,7 @@ fn authenticated_follower_reopens_at_the_old_receipt_when_tmpfs_is_full() {
         assert!(polled.contains("local verified_revision=5"));
         assert_eq!(receipt(&polled), prior);
         verify_follower(&follower.0, STREAM, identity);
-        assert_full(&follower.0);
+        test_tmpfs::assert_full(&follower.0);
         for (file, bytes) in &old_files {
             assert_eq!(fs::read(follower.0.join(file)).unwrap(), *bytes);
         }
@@ -286,6 +238,6 @@ fn authenticated_follower_reopens_at_the_old_receipt_when_tmpfs_is_full() {
             staged.len()
         );
     }
-    assert_eq!(tmpfs_space(&mount).1, empty_space);
+    assert_eq!(test_tmpfs::space(&mount).1, empty_space);
     assert!(fs::read_dir(&mount).unwrap().next().is_none());
 }

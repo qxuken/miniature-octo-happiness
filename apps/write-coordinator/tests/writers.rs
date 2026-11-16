@@ -20,6 +20,13 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(target_os = "linux")]
+#[path = "writers/journal_space.rs"]
+mod journal_space;
+#[cfg(target_os = "linux")]
+#[path = "../../support/test_tmpfs.rs"]
+mod test_tmpfs;
+
 const BIN: &str = env!("CARGO_BIN_EXE_write-coordinator");
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 // Keep the capacity workload out of the journal CLI's socket deadline.
@@ -667,50 +674,50 @@ fn sequenced_clients_preserve_receipts_through_restart_and_restore() {
     );
 }
 
+fn accept_journal_request(
+    listener: &std::net::TcpListener,
+    client: &AuthenticatedClient,
+    verb: &str,
+) -> (std::net::TcpStream, String) {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let mut socket = loop {
+        match listener.accept() {
+            Ok((socket, _)) => break socket,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline, "journal did not send {verb}");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => panic!("accepting {verb}: {error}"),
+        }
+    };
+    socket.set_nonblocking(false).unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    socket
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut line = String::new();
+    BufReader::new((&mut socket).take(257))
+        .read_line(&mut line)
+        .unwrap();
+    let prefix = format!("auth {} ", client.token);
+    let command = line
+        .strip_prefix(&prefix)
+        .and_then(|line| line.strip_suffix('\n'))
+        .expect("journal sent a complete authenticated request");
+    assert_eq!(command.split(' ').next(), Some(verb));
+    (socket, command.to_owned())
+}
+
 #[test]
 fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
-    use std::net::{TcpListener, TcpStream};
+    use std::net::TcpListener;
     use weekend_db::{Limits, storage};
 
     let _exclusive = STORAGE_WORKLOAD
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-
-    fn relay(
-        listener: &TcpListener,
-        client: &AuthenticatedClient,
-        verb: &str,
-    ) -> (TcpStream, String) {
-        let deadline = Instant::now() + Duration::from_secs(15);
-        let mut socket = loop {
-            match listener.accept() {
-                Ok((socket, _)) => break socket,
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    assert!(Instant::now() < deadline, "journal did not send {verb}");
-                    std::thread::sleep(Duration::from_millis(5));
-                }
-                Err(error) => panic!("accepting {verb}: {error}"),
-            }
-        };
-        socket.set_nonblocking(false).unwrap();
-        socket
-            .set_read_timeout(Some(Duration::from_secs(5)))
-            .unwrap();
-        socket
-            .set_write_timeout(Some(Duration::from_secs(5)))
-            .unwrap();
-        let mut line = String::new();
-        BufReader::new((&mut socket).take(257))
-            .read_line(&mut line)
-            .unwrap();
-        let prefix = format!("auth {} ", client.token);
-        let command = line
-            .strip_prefix(&prefix)
-            .and_then(|line| line.strip_suffix('\n'))
-            .expect("journal sent a complete authenticated request");
-        assert_eq!(command.split(' ').next(), Some(verb));
-        (socket, client.request(command))
-    }
 
     let dir = Directory::new();
     let file = dir.0.join("primary.db");
@@ -791,11 +798,13 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
         "--secret-file",
         key,
     ]);
-    let (mut preflight, reply) = relay(&proxy, &client, "journal-get");
+    let (mut preflight, command) = accept_journal_request(&proxy, &client, "journal-get");
+    let reply = client.request(&command);
     assert_eq!(reply, "value 3 0");
     writeln!(preflight, "{reply}").unwrap();
     drop(preflight);
-    let (withheld, reply) = relay(&proxy, &client, "journal-set");
+    let (withheld, command) = accept_journal_request(&proxy, &client, "journal-set");
+    let reply = client.request(&command);
     assert_eq!(reply, "committed 4");
     interrupted.stop();
     drop(withheld);

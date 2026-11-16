@@ -16,6 +16,9 @@ mod full_storage;
 #[path = "cli/log_backpressure.rs"]
 mod log_backpressure;
 mod support;
+#[cfg(target_os = "linux")]
+#[path = "../../support/test_tmpfs.rs"]
+mod test_tmpfs;
 use support::credentials;
 use weekend_db::{Database, Limits};
 const BIN: &str = env!("CARGO_BIN_EXE_weekend-replicate");
