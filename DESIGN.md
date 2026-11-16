@@ -5929,3 +5929,19 @@ one existing ignore, plus strict all-test-target Clippy. These are bounded
 caller-level controls, not new runtime/format changes, compiler MC/DC, native
 filesystem failure injection or a new full artifact qualification. The
 immutable `7ec2cb5` artifacts keep their original identity.
+
+The [native identity tranche](docs/native-identity-assurance.md) next extracts
+private callback cores while preserving the existing CSPRNG calls, flags,
+error/diagnostic policy and creation order. Deterministic Mac/Linux tests and
+the private creation-body controls detect thirty intended debug/release mutant
+outcomes. The signed-negative Linux case proves `Io` alone is insufficient when
+an oversized-count fallback masks lost native context. A single Windows callback
+type contrasts zero, positive and negative status with identical terminal bytes;
+its native execution/runtime-mutation gates remain pending at this checkpoint.
+
+Combined macOS core checks pass 330 tests per profile with two existing ignores,
+strict Clippy and real Windows cfg compilation. This changes internal function
+factoring, without adding a public provider, global hook, dependency or format.
+No binary-identity or entropy-quality claim follows. Current source inventory
+and remaining generic/native/platform scope are recorded separately from the
+earlier ledgers and immutable artifacts.

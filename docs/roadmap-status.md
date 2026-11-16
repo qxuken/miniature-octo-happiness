@@ -2966,3 +2966,45 @@ the [native ledger](decisions/native-storage.md); a private deterministic seam
 can test retry/progress/status rules without changing the public API or entropy
 source. Actual kernel/CSP failures and unsupported targets retain separate scope.
 Crates remain unpublished.
+
+## Native identity admission and creation order
+
+The preceding caller-test commit `c56993c` has fourteen successful hosted jobs
+on their first attempt. Its tested merge `2bfb2ef` has the same tree as that
+commit; both new caller tests execute on macOS, Linux and Windows. Independently
+verified CI evidence retains 41 indexed files. Those results qualify the
+committed caller tests, and do not qualify the following native extraction.
+
+The [native identity tranche](native-identity-assurance.md) factors the existing
+OS calls through private callback cores and the existing engine creation body
+through a private provider parameter. Native CSPRNGs, ABI arguments, supported
+targets, public APIs, error categories, retry policy and operation order are
+preserved. This is internal factoring, not a new public hook, dependency or
+byte/wire format. No code-generation identity is claimed.
+
+Mac/Linux controls exercise first/third nonzero success and complete-zero
+exhaustion. Linux additionally qualifies signed-negative errno capture, short
+progress, interruption, initial/partial zero or oversized counts, and exact
+native operation/category/raw context. The private creation-body test uses one
+path/provider instantiation to prove validation before entropy and identity
+error before pathname conversion; fixed identity survives real file reopen.
+Thirty isolated debug/release mutant outcomes detect the stated omissions,
+reorderings and category/identity substitutions. Independent review finds no
+actionable code or proof issue, and root restores/rehashes all 384 component
+proof payloads plus 34 Windows-refinement payloads.
+
+The combined overlay passes 330 core library/integration tests per macOS
+debug/release profile with two existing ignores, plus strict Clippy. Linux
+arm64 Rust 1.99.0 passes its five focused controls per profile and sixteen red
+outcomes in the bounded ext4/read-only-cache profile, followed by owned cleanup.
+Final Windows status 0/1/negative controls share one callback type and terminal
+bytes. Real Windows cfg compilation passes, including separately compiled guard
+variants; native execution and runtime mutant detection remain pending.
+
+The source inventory remains 8,047 records, 131 files and 3,383 blind spots with
+zero parse failures. Only four source hashes change; 228 records lie in those
+files and sixteen in the focused identity/creation boundaries. Equal totals
+are not coverage credit. The [report](native-identity-assurance.md) records exact
+source/proof identities, callback-instantiation limits and native/kernel gates.
+The next concrete assurance step is native Windows execution of both guard
+mutants through maintained bounded Rust tooling. Crates remain unpublished.

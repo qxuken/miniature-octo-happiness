@@ -236,6 +236,37 @@ ok_or), so the appendix remains 141 source records. These supplemental arithmeti
 conditions are stated explicitly instead of hiding them from the syntactic
 inventory denominator.
 
+## T10: file-creation ordering and identity propagation
+
+The [native identity follow-up](../native-identity-assurance.md) extracts the
+existing creation body into private `create_file_using`; the public native
+factory simply forwards its unchanged arguments and native identity function.
+Limits validation still precedes entropy, which precedes pathname conversion
+and `FileStore::create`. No public injection interface or new database state
+is introduced.
+
+`file_creation_orders_validation_entropy_and_path_access` uses one `ProbePath`
+and function-pointer provider instantiation for invalid limits, an identity
+`Io`, and successful fixed identity. Forbidden operations panic, proving the
+first two errors return before their later stages. Healthy creation/reopen
+preserves the exact selected 16-byte identity. Leaf-only cleanup in an
+exclusively created temporary directory leaves each test command's owned
+temporary root empty.
+
+Focused macOS debug/release and strict Clippy pass. Three isolated body
+mutations fail in each profile: acquiring identity before validating limits,
+swallowing its error and substituting another nonzero identity. This is direct
+control of that private body instantiation. It does not inject actual OS
+entropy failure through every public generic wrapper. Existing native path,
+exclusive-create and lease suites cover the following file-creation stage;
+other callback/native error paths retain their stated delegation. T8's earlier
+no-seam statement is historical, and its other proofs/dispositions remain.
+
+The four changed files have 228 source records, including sixteen in the
+creation/identity focus. The current full-workspace inventory is separate from
+the historical 141-record engine table below; no MC/DC denominator is inferred
+from either count.
+
 ## Source-record appendix
 
 Each row names source line/kind in the pinned source and the evidence group above.

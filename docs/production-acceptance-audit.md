@@ -141,6 +141,15 @@ isolated ordering/category/propagation mutations fail the intended assertions
 in debug and release. These close those named controls; they do not relabel
 other delegated errors, native faults or compiler MC/DC as qualified.
 
+The subsequent [native identity tranche](native-identity-assurance.md) adds
+private deterministic controls for existing CSPRNG admission and creation-body
+ordering. Mac/Linux controls and thirty isolated debug/release mutation outcomes
+are qualified; the combined core suites pass 330 tests per profile with two
+existing ignores. Final Windows controls compile for their real target, while
+native execution and runtime detection of both Windows guard mutations remain
+separate gates. This does not qualify kernel/CSP fault occurrence, entropy
+quality, unsupported ABIs or every generic instantiation.
+
 The [exact-7e0e44f campaign](fuzz-qualification-7e0e44f.md) completed 22 targets
 and 1,442,896 actual runs, with 244 unchanged seeds and separate 29-test replay.
 The earlier [exact-21 campaign](fuzz-qualification-21e5d26.md) retains its own

@@ -83,17 +83,28 @@ pub(crate) fn identity() -> Result<[u8; 16]> {
     if !SUPPORTED {
         return Err(Error::UnsupportedPlatform);
     }
+    identity_with(
+        |suffix| {
+            // The exclusive writable suffix is valid for this exact length.
+            // Flags 0 wait for initialized kernel randomness; no PRNG fallback.
+            unsafe { getrandom(suffix.as_mut_ptr().cast(), suffix.len(), 0) }
+        },
+        io::Error::last_os_error,
+    )
+}
+fn identity_with(
+    mut read: impl FnMut(&mut [u8]) -> isize,
+    mut last_error: impl FnMut() -> io::Error,
+) -> Result<[u8; 16]> {
     for _ in 0..3 {
         let mut id = [0; 16];
         let mut offset = 0;
         while offset < id.len() {
             let n = retry(NativeIoOperation::Random, || {
-                // The writable suffix is valid for the requested length. No
-                // flags: wait for initialized kernel randomness; no PRNG fallback.
-                let n =
-                    unsafe { getrandom(id[offset..].as_mut_ptr().cast(), id.len() - offset, 0) };
+                let n = read(&mut id[offset..]);
                 if n < 0 {
-                    Err(io::Error::last_os_error())
+                    // Capture errno immediately after the negative result.
+                    Err(last_error())
                 } else {
                     Ok(n as usize)
                 }
@@ -224,6 +235,224 @@ pub(super) fn copy_metadata(from: &File, to: &File, mem: &Memory) -> Result<()> 
         return Err(Error::Io);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod identity_decisions {
+    use super::*;
+    use crate::storage::NativeIoCategory;
+    use std::cell::{Cell, RefCell};
+
+    #[test]
+    fn identity_fills_only_the_remaining_suffix_without_errno() {
+        let mut calls = 0;
+        let id = identity_with(
+            |suffix| {
+                calls += 1;
+                match calls {
+                    1 => {
+                        assert_eq!(suffix.len(), 16);
+                        suffix[..5].fill(0x11);
+                        5
+                    }
+                    2 => {
+                        assert_eq!(
+                            suffix.len(),
+                            11,
+                            "short read advances only its filled prefix"
+                        );
+                        assert!(suffix.iter().all(|byte| *byte == 0));
+                        suffix.fill(0x22);
+                        11
+                    }
+                    _ => panic!("completed identity requested another read"),
+                }
+            },
+            || panic!("nonnegative result consulted errno"),
+        )
+        .unwrap();
+        assert_eq!(calls, 2);
+        assert_eq!(&id[..5], &[0x11; 5]);
+        assert_eq!(&id[5..], &[0x22; 11]);
+    }
+
+    #[test]
+    fn identity_retries_eintr_at_the_same_suffix_without_terminal_context() {
+        let events = RefCell::new(Vec::new());
+        let calls = Cell::new(0);
+        let failure = diagnostics::capture::<()>(|| {
+            let id = identity_with(
+                |suffix| {
+                    let call = calls.get();
+                    calls.set(call + 1);
+                    events.borrow_mut().push(suffix.len());
+                    match call {
+                        0 => {
+                            assert_eq!(suffix.len(), 16);
+                            suffix[..5].fill(0x33);
+                            5
+                        }
+                        1 => {
+                            assert_eq!(suffix.len(), 11);
+                            -1
+                        }
+                        2 => {
+                            assert_eq!(suffix.len(), 11, "EINTR preserves the unfilled suffix");
+                            assert!(suffix.iter().all(|byte| *byte == 0));
+                            suffix.fill(0x44);
+                            11
+                        }
+                        _ => panic!("interrupted identity exceeded its script"),
+                    }
+                },
+                || {
+                    assert_eq!(
+                        calls.get(),
+                        2,
+                        "errno follows the negative read immediately"
+                    );
+                    events.borrow_mut().push(0);
+                    io::Error::from_raw_os_error(4)
+                },
+            )?;
+            assert_eq!(&id[..5], &[0x33; 5]);
+            assert_eq!(&id[5..], &[0x44; 11]);
+            // A later unrelated error exposes any incorrectly recorded EINTR.
+            Err(Error::Invalid)
+        })
+        .unwrap_err();
+        assert_eq!(calls.get(), 3);
+        assert_eq!(&*events.borrow(), &[16, 11, 0, 11]);
+        assert_eq!(failure.error, Error::Invalid);
+        assert_eq!(failure.native, None);
+        assert_eq!(failure.verification, None);
+    }
+
+    #[test]
+    fn identity_terminal_errors_preserve_random_operation_errno_and_mapping() {
+        for (progress, code, expected, category) in [
+            (false, 13, Error::Io, NativeIoCategory::Permission),
+            (true, 11, Error::Busy, NativeIoCategory::Other),
+        ] {
+            let calls = Cell::new(0);
+            let events = RefCell::new(Vec::new());
+            let failure = diagnostics::capture(|| {
+                identity_with(
+                    |suffix| {
+                        let call = calls.get();
+                        calls.set(call + 1);
+                        if progress && call == 0 {
+                            assert_eq!(suffix.len(), 16);
+                            suffix[..5].fill(7);
+                            events.borrow_mut().push("progress");
+                            5
+                        } else {
+                            assert_eq!(call, usize::from(progress));
+                            assert_eq!(suffix.len(), if progress { 11 } else { 16 });
+                            events.borrow_mut().push("negative");
+                            -1
+                        }
+                    },
+                    || {
+                        assert_eq!(events.borrow().last().copied(), Some("negative"));
+                        events.borrow_mut().push("errno");
+                        io::Error::from_raw_os_error(code)
+                    },
+                )
+            })
+            .unwrap_err();
+            assert_eq!(calls.get(), 1 + usize::from(progress));
+            assert_eq!(failure.error, expected, "terminal errno mapping");
+            let native = failure
+                .native
+                .expect("terminal random error has native context");
+            assert_eq!(
+                native.operation,
+                NativeIoOperation::Random,
+                "random operation attribution"
+            );
+            assert_eq!(native.raw_os_error, Some(code));
+            assert_eq!(native.category, category);
+            assert_eq!(events.borrow().last().copied(), Some("errno"));
+        }
+    }
+
+    #[test]
+    fn identity_rejects_zero_and_oversized_progress_without_errno() {
+        for (progress, answer) in [(false, 0), (false, 17), (true, 0), (true, 12)] {
+            let mut calls = 0;
+            let failure = diagnostics::capture(|| {
+                identity_with(
+                    |suffix| {
+                        calls += 1;
+                        assert!(
+                            calls <= 1 + usize::from(progress),
+                            "invalid progress did not terminate"
+                        );
+                        if progress && calls == 1 {
+                            assert_eq!(suffix.len(), 16);
+                            suffix[..5].fill(9);
+                            5
+                        } else {
+                            assert_eq!(suffix.len(), if progress { 11 } else { 16 });
+                            // Report impossible progress without unsafe or out-of-slice writes.
+                            answer
+                        }
+                    },
+                    || panic!("invalid nonnegative progress consulted errno"),
+                )
+            })
+            .unwrap_err();
+            assert_eq!(calls, 1 + usize::from(progress));
+            assert_eq!(failure.error, Error::Io);
+            assert_eq!(failure.native, None);
+        }
+    }
+
+    #[test]
+    fn identity_accepts_first_or_third_final_byte_and_rejects_exactly_three_zeros() {
+        for success_at in [0, 2] {
+            let mut calls = 0;
+            let id = identity_with(
+                |suffix| {
+                    assert_eq!(suffix.len(), 16);
+                    assert!(calls <= success_at);
+                    suffix.fill(0);
+                    if calls == success_at {
+                        suffix[15] = 0x7d;
+                    }
+                    calls += 1;
+                    16
+                },
+                || panic!("complete nonnegative read consulted errno"),
+            )
+            .expect("first/third final-byte-only identity succeeds");
+            let mut expected = [0; 16];
+            expected[15] = 0x7d;
+            assert_eq!(id, expected);
+            assert_eq!(calls, success_at + 1);
+        }
+        let mut calls = 0;
+        let failure = diagnostics::capture(|| {
+            identity_with(
+                |suffix| {
+                    calls += 1;
+                    assert!(
+                        calls <= 3,
+                        "only three complete zero identities are attempted"
+                    );
+                    assert_eq!(suffix.len(), 16);
+                    suffix.fill(0);
+                    16
+                },
+                || panic!("zero identity consulted errno"),
+            )
+        })
+        .unwrap_err();
+        assert_eq!(calls, 3);
+        assert_eq!(failure.error, Error::Io);
+        assert_eq!(failure.native, None);
+    }
 }
 
 #[cfg(test)]

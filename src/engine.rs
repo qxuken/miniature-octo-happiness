@@ -407,8 +407,17 @@ impl Database {
     }
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn create_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
+        Self::create_file_using(path, limits, crate::storage::file_identity)
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    fn create_file_using(
+        path: impl AsRef<std::path::Path>,
+        limits: Limits,
+        make_identity: impl FnOnce() -> Result<[u8; 16]>,
+    ) -> Result<Self> {
+        // Entropy failure must return before even converting the pathname.
         limits.validate()?;
-        let identity = crate::storage::file_identity()?;
+        let identity = make_identity()?;
         Self::create_on(crate::storage::FileStore::create(path)?, identity, limits)
     }
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
@@ -936,6 +945,84 @@ impl Transaction<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    #[test]
+    fn file_creation_orders_validation_entropy_and_path_access() {
+        use std::path::{Path, PathBuf};
+
+        enum ProbePath {
+            Forbidden,
+            Owned(PathBuf),
+        }
+        impl AsRef<Path> for ProbePath {
+            fn as_ref(&self) -> &Path {
+                match self {
+                    Self::Forbidden => panic!("pathname touched after failed identity"),
+                    Self::Owned(path) => path.as_path(),
+                }
+            }
+        }
+        fn forbidden_entropy() -> Result<[u8; 16]> {
+            panic!("entropy touched before limits validation")
+        }
+        fn failed_entropy() -> Result<[u8; 16]> {
+            Err(Error::Io)
+        }
+        fn fixed_identity() -> Result<[u8; 16]> {
+            Ok([0x59; 16])
+        }
+        // Every control uses the same path/provider types and caller
+        // instantiation. No global entropy source or filesystem hook is changed.
+        type Entropy = fn() -> Result<[u8; 16]>;
+        let invalid = Limits {
+            max_depth: 0,
+            ..Limits::default()
+        };
+        for (limits, provider, expected) in [
+            (invalid, forbidden_entropy as Entropy, Error::Invalid),
+            (Limits::default(), failed_entropy as Entropy, Error::Io),
+        ] {
+            assert_eq!(
+                Database::create_file_using(ProbePath::Forbidden, limits, provider).err(),
+                Some(expected)
+            );
+        }
+
+        struct OwnedDirectory(PathBuf);
+        impl Drop for OwnedDirectory {
+            fn drop(&mut self) {
+                // This directory was exclusively created below. Never remove
+                // arbitrary contents or follow a cleanup path outside it.
+                let _ = std::fs::remove_file(self.0.join("store.wdb"));
+                let _ = std::fs::remove_dir(&self.0);
+            }
+        }
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "weekend-identity-factory-{}-{stamp}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let directory = OwnedDirectory(directory);
+        let path = directory.0.join("store.wdb");
+        let db = Database::create_file_using(
+            ProbePath::Owned(path.clone()),
+            Limits::default(),
+            fixed_identity as Entropy,
+        )
+        .unwrap();
+        assert_eq!(db.storage_identity(), Ok([0x59; 16]));
+        assert_eq!(db.snapshot().revision(), 0);
+        drop(db);
+        let reopened = Database::open_file(&path, Limits::default()).unwrap();
+        assert_eq!(reopened.storage_identity(), Ok([0x59; 16]));
+        assert_eq!(reopened.snapshot().revision(), 0);
+    }
+
     #[test]
     fn revision_exhaustion_is_atomic() {
         let db = Database::new().unwrap();

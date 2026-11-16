@@ -117,6 +117,28 @@ syscall errors remain target/native qualifications; no forged handle is used to
 force them. Multiple file-type predicates can overlap. This audit does not label
 all of them independently covered because a path-level rejection occurred.
 
+## N6: private identity admission cores
+
+The [native identity follow-up](../native-identity-assurance.md) factors existing
+macOS/Linux/Windows identity bodies into file-local callback cores. Their native
+wrappers preserve the same CSPRNGs, arguments, supported-architecture gate,
+three-zero retry policy, signed progress/error handling and diagnostics. No
+public provider, global replacement or environment switch is added.
+
+Mac/Linux deterministic controls now directly reach the formerly delegated
+core admission/error paths. Actual kernel/CSP fault occurrence remains separate.
+Eight Mac and sixteen Linux debug/release red outcomes detect the stated
+mutations, including Linux's otherwise masked signed-negative error context.
+The Windows status-zero/positive/negative cases use one callback type with the
+same terminal bytes. Real Windows target checks pass, while native execution
+and two runtime mutation gates are still pending. The report records source
+hashes, exact caller/closure scopes, inventory and retained proof identities.
+
+The older N4/N5 descriptions and source tables retain their historical hashes
+and locations. This supplement does not relabel their other native D rows or
+claim compiler MC/DC. Unsupported-ABI execution and entropy quality remain
+outside these deterministic controls.
+
 ## Native constants and ABI checks
 
 A C probe compiled with installed headers verifies actual values rather than

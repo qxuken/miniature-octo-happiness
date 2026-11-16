@@ -47,11 +47,15 @@ pub(super) fn full_sync(file: &File) -> Result<()> {
     })
 }
 pub(crate) fn identity() -> Result<[u8; 16]> {
+    identity_with(|id| unsafe {
+        arc4random_buf(id.as_mut_ptr().cast(), id.len());
+    })
+}
+
+fn identity_with(mut fill: impl FnMut(&mut [u8; 16])) -> Result<[u8; 16]> {
     for _ in 0..3 {
         let mut id = [0; 16];
-        unsafe {
-            arc4random_buf(id.as_mut_ptr().cast(), id.len());
-        }
+        fill(&mut id);
         if id != [0; 16] {
             return Ok(id);
         }
@@ -96,6 +100,42 @@ pub(super) fn copy_metadata(from: &File, to: &File, _mem: &Memory) -> Result<()>
 #[cfg(test)]
 mod decision_tests {
     use super::*;
+    #[test]
+    fn identity_accepts_first_or_third_complete_nonzero_attempt() {
+        for success in [1, 3] {
+            let mut calls = 0;
+            let mut expected = [0; 16];
+            expected[15] = 7;
+            assert_eq!(
+                identity_with(|id| {
+                    calls += 1;
+                    assert!(calls <= success, "continued after success");
+                    assert_eq!(*id, [0; 16]);
+                    if calls == success {
+                        id[15] = 7;
+                    }
+                }),
+                Ok(expected)
+            );
+            assert_eq!(calls, success);
+        }
+    }
+
+    #[test]
+    fn identity_rejects_exactly_three_complete_zero_attempts() {
+        let mut calls = 0;
+        let failure = diagnostics::capture(|| {
+            identity_with(|id| {
+                calls += 1;
+                assert_eq!(*id, [0; 16]);
+            })
+        })
+        .unwrap_err();
+        assert_eq!(failure.error, Error::Io);
+        assert!(failure.native.is_none());
+        assert_eq!(calls, 3);
+    }
+
     #[test]
     fn native_error_mapping_preserves_raw_code_and_operation() {
         for (code, expected) in [
