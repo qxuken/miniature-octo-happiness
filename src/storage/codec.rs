@@ -1240,7 +1240,10 @@ pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recov
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Database, Limits, storage::SimulatedDisk};
+    use crate::{
+        Database, Limits,
+        storage::{IoKind, SimulatedDisk, Storage},
+    };
     const ID: [u8; 16] = *b"codec-test-00001";
     #[test]
     fn cache_forks_preserve_indexes_first_match_and_rollback_every_allocation() {
@@ -3319,6 +3322,36 @@ mod tests {
             (disk.durable_image().unwrap(), disk.trace().unwrap())
         };
         assert_eq!(write(segmented), write(contiguous));
+
+        let baseline = mem.usage().0;
+        for allowance in 0..128 {
+            let disk = SimulatedDisk::new().unwrap();
+            mem.fail_after(Some(allowance));
+            let result = Storage::create(disk.clone(), &mem, &head, 2, ID, &retention);
+            mem.fail_after(None);
+            match result {
+                Ok(storage) => {
+                    drop(storage);
+                    assert_eq!(mem.usage().0, baseline);
+                    assert!(!disk.durable_image().unwrap().is_empty());
+                    assert!(allowance > 0);
+                    eprintln!("checked {allowance} fresh-image allocation failures");
+                    return;
+                }
+                Err(error) => {
+                    assert_eq!(error, Error::OutOfMemory);
+                    assert!(disk.durable_image().unwrap().is_empty());
+                    assert!(
+                        disk.trace()
+                            .unwrap()
+                            .iter()
+                            .all(|event| event.kind == IoKind::Length)
+                    );
+                    assert_eq!(mem.usage().0, baseline);
+                }
+            }
+        }
+        panic!("fresh-image preparation never succeeded");
     }
 
     #[test]
