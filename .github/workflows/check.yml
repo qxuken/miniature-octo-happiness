@@ -677,9 +677,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install 1.99.1 --profile minimal
-      - run: rustup toolchain install nightly --profile minimal --component rust-src
+      - if: matrix.kind == 'address'
+        run: rustup toolchain install nightly --profile minimal --component rust-src
+      - if: matrix.kind == 'thread'
+        run: rustup toolchain install nightly-2026-11-12 --profile minimal --component rust-src
       - run: cargo +1.99.1 fetch --locked
-      - run: cargo +1.99.1 xtask sanitizers ${{ matrix.kind }}
+      - if: matrix.kind == 'address'
+        run: cargo +1.99.1 xtask sanitizers address
+      - name: Build the pinned Darwin ThreadSanitizer runtime
+        if: matrix.kind == 'thread'
+        run: |
+          mkdir -p target
+          bash tools/macos-tsan/build-runtime.sh target/macos-tsan-runtime
+      - name: Calibrate the patched runtime and run the complete workspace
+        if: matrix.kind == 'thread'
+        run: |
+          runtime=target/macos-tsan-runtime
+          pin=$(awk 'NR == 1 { print $1 }' "$runtime/runtime.sha256")
+          cargo +1.99.1 xtask sanitizers thread --toolchain nightly-2026-11-12 \
+            --runtime "$runtime/libclang_rt.tsan_osx_dynamic.dylib" --runtime-sha256 "$pin"
       - name: Save bounded sanitizer diagnostics
         uses: actions/upload-artifact@v7
         if: always()
@@ -688,6 +704,9 @@ jobs:
           path: |
             target/sanitizer-${{ matrix.kind }}-evidence/*.json
             target/sanitizer-${{ matrix.kind }}-evidence/*.log
+            target/macos-tsan-runtime/*.log
+            target/macos-tsan-runtime/*.txt
+            target/macos-tsan-runtime/*.sha256
           if-no-files-found: warn
   c-address:
     runs-on: ubuntu-latest

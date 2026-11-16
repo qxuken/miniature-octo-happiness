@@ -68,14 +68,9 @@ credential-rotation replay passed all four tests.
 A standalone Rust program using only `std::fs::read_dir` and
 `std::io::Error::last_os_error` across short-lived threads reproduced
 the warning in four runs with the same toolchain. The archive contains
-the repro, command and logs. Both the local
-nightly and the 2026-11-16 Rust nightly use the LLVM snapshot
-`0a5579eb649d3634a9c30ac873300cc2944fa070`. Its Darwin ARM64 runtime
-reports an empty thread-local storage range. LLVM corrected that range
-in `4a3ac30`. That change fits the observed reuse of thread-local
-addresses. The macOS TSan gate stays open pending a run with a runtime
-carrying the fix and a full workspace pass.
-[LLVM Darwin ARM64 thread-local storage fix](https://github.com/llvm/llvm-project/commit/4a3ac30a53ba0417941cab04f51c6ce8a8a67feb).
+the repro, command and logs. The [runtime follow-up](#macos-threadsanitizer-runtime)
+isolates the change that clears the warning and keeps the deliberate
+race controls effective.
 
 The preceding hosted Linux job at `94c3782` recorded one unexpected
 `CliFailure` in the replica-progress malformed-input test. The native
@@ -90,6 +85,51 @@ results and standalone TSan repro, and original hosted ZIPs. Its SHA-256 is
 `4cdec52c040c12ed210f5be273b901b104c3fb0b309a7f6c5a64389e88db2a0c`.
 Restoring the archive and rerunning the strict verifier reproduced the
 complete matrix report byte for byte.
+
+## macOS ThreadSanitizer runtime
+
+The local nightly and the 2026-11-16 Rust nightly share LLVM snapshot
+`0a5579eb649d3634a9c30ac873300cc2944fa070`. Its Darwin ARM64 runtime
+reports an empty thread-specific data (TSD) range. The LLVM fix in
+`4a3ac30` gives the runtime the TSD bounds. Applying that fix alone
+still reproduced the standard-library `errno` warning in four runs.
+The loader reported the exact patched dylib on every run. A native
+probe measured `errno` 52 bytes before the TSD start on macOS 27.0.1.
+The earlier instrumentation history at that address can survive the
+retirement of its pthread. [LLVM TSD fix](https://github.com/llvm/llvm-project/commit/4a3ac30a53ba0417941cab04f51c6ce8a8a67feb),
+[Darwin pthread source](https://github.com/apple/darwin-libpthread/blob/main/src/pthread.c).
+
+The local compiler-rt patch resets the shadow-memory cell for `errno`
+when a new macOS arm64 thread starts and the address lies outside the
+TSD range. The same instrumented safe executable passed four times with
+that patch. A deliberately unsynchronized ordinary write and a race on
+a live thread's `errno` still produced reports. The hosted macOS job at
+`63a3d17` had reproduced the original warning using its bundled runtime.
+[Hosted failure and retained diagnostics](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43813246788/job/133119401849).
+
+The full macOS workspace at `651654c` passed 692 tests with six
+registered skips in 60 summaries using the patched runtime. The
+runtime SHA-256 was
+`0cb807f73e2431a6ed6fee228e235aa75564426a770269d199a9a06025d10597`.
+The linker audit checked the runtime and search path in 54 native test
+binaries. Cargo compiled one proc-macro test for the host. The
+supervisor verified process cleanup and the workspace logs contain
+zero ThreadSanitizer warnings.
+
+The ThreadSanitizer workflow selects `nightly-2026-11-12` and rebuilds
+compiler-rt from the pinned Rust fork with both patches. The runner
+checks the runtime SHA-256, confirms the library loaded in all three
+calibration controls, and runs the entire all-feature workspace with
+instrumented std. The patch applies only to the diagnostic runtime.
+
+```sh
+mkdir -p target
+bash tools/macos-tsan/build-runtime.sh target/macos-tsan-runtime
+runtime=target/macos-tsan-runtime
+pin=$(awk 'NR == 1 { print $1 }' "$runtime/runtime.sha256")
+cargo +1.99.1 xtask sanitizers thread --toolchain nightly-2026-11-12 \
+  --runtime "$runtime/libclang_rt.tsan_osx_dynamic.dylib" --runtime-sha256 "$pin"
+```
 
 ## Four-platform result at `c5970bd`
 

@@ -208,11 +208,12 @@ harness-level scope reference.
    it also requires all three isolated profiles on every platform.
    The same source has exact combined-artifact failure runs, native
    macOS workspace ASan, hosted Linux x64 C/Rust ASan and bounded
-   fuzz/replay evidence. The macOS TSan workspace gate remains open
-   after an `errno` report also reproduced by a standalone standard
-   library program. Extended fuzzing, workload limits, device assumptions
-   and support decisions still need final candidate evidence or owner
-   approval.
+   fuzz/replay evidence. The [local macOS TSan run](private-delivery.md#macos-threadsanitizer-runtime)
+   also passed the full pinned workspace with rebuilt std and a
+   calibrated runtime that resets reused pthread `errno` shadow memory.
+   Hosted coverage with this runtime, extended fuzzing, workload limits,
+   device assumptions and support decisions retain separate acceptance
+   actions.
 4. **Qualify continuous coordinator operation.** The sequenced profile gives
    each writer one retryable receipt and an explicit way to retire it when the
    next write commits. A native process test interrupts a journal client after
