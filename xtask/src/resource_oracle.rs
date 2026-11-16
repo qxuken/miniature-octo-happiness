@@ -256,7 +256,7 @@ fn contention_samples(detail: &Value) -> Result<()> {
 }
 
 #[cfg(unix)]
-const BREADTH_PHASES: [&str; 18] = [
+const BREADTH_PHASES: [&str; 24] = [
     "near_cap",
     "image_limit",
     "reopen",
@@ -275,6 +275,12 @@ const BREADTH_PHASES: [&str; 18] = [
     "slot_through_checksum",
     "witness_before_checksum",
     "witness_through_checksum",
+    "tail_before_fit",
+    "tail_before_recovered",
+    "tail_exact_fit",
+    "tail_exact_recovered",
+    "tail_limit_rejected",
+    "tail_compact_retry",
 ];
 
 #[cfg(unix)]
@@ -566,9 +572,11 @@ pub fn compound_breadth(rows: &[Value], source: &str) -> Result<()> {
             && (1..source_bytes).contains(&compact)
             && (compact + 4 * MIB..64 * MIB).contains(&appended)
             && appended - compact > 64 * MIB - appended
+            && (64 * MIB - appended).is_multiple_of(4096)
             && (appended + 1..=64 * MIB).contains(&retried),
         "bad breadth source, compacted or appended image size"
     );
+    let last_fit = compact + (64 * MIB - appended);
     for (index, (row, phase)) in rows.iter().zip(BREADTH_PHASES).enumerate() {
         ensure!(row["phase"] == phase, "wrong breadth phase: {phase}");
         if phase == "overlapping_drafts" {
@@ -598,6 +606,13 @@ pub fn compound_breadth(rows: &[Value], source: &str) -> Result<()> {
                 (appended, Some(false), 134, first_digest)
             }
             "append_torn" => (compact + 4096, Some(true), 133, old_digest),
+            "tail_before_fit" => (last_fit - 1, Some(true), 133, old_digest),
+            "tail_exact_fit" => (last_fit, Some(true), 133, old_digest),
+            "tail_limit_rejected" => (last_fit + 1, Some(true), 133, old_digest),
+            "tail_before_recovered" | "tail_exact_recovered" => {
+                (64 * MIB, Some(false), 134, first_digest)
+            }
+            "tail_compact_retry" => (appended, Some(true), 134, first_digest),
             _ => (
                 if index < 3 { source_bytes } else { compact },
                 None,
@@ -1109,9 +1124,13 @@ mod tests {
                     }
                     7 => (134, FIRST, None, 62_840_832),
                     8 | 9 => (135, RETRIED, None, 62_967_808),
-                    10 | 17 => (134, FIRST, Some(true), 62_840_832),
+                    10 | 17 | 23 => (134, FIRST, Some(true), 62_840_832),
                     11 | 14 => (133, OLD, Some(true), 62_840_832),
                     13 => (133, OLD, Some(true), 58_527_744),
+                    18 => (133, OLD, Some(true), 62_791_679),
+                    20 => (133, OLD, Some(true), 62_791_680),
+                    22 => (133, OLD, Some(true), 62_791_681),
+                    19 | 21 => (134, FIRST, Some(false), 64 * MIB),
                     _ => (134, FIRST, Some(false), 62_840_832),
                 };
                 json!({
@@ -1139,6 +1158,11 @@ mod tests {
             (13, "file_bytes", json!(58_523_648)),
             (14, "revision", json!(134)),
             (16, "inspected_witness", json!(true)),
+            (18, "file_bytes", json!(62_791_680)),
+            (19, "file_bytes", json!(64 * MIB - 1)),
+            (21, "inspected_witness", json!(true)),
+            (22, "revision", json!(134)),
+            (23, "digest", json!(OLD)),
         ] {
             let mut bad = rows.clone();
             bad[index][field] = replacement;

@@ -13,7 +13,9 @@ use std::{
 };
 use weekend_db::{
     CollectionId, Database, Error, Snapshot, Transaction, TransactionState, Value,
-    storage::{self, ByteStore, Crash, Fault, FileStore, IoKind, MAX_IMAGE_BYTES, SimulatedDisk},
+    storage::{
+        self, ByteStore, Crash, Fault, FileStore, IoEvent, IoKind, MAX_IMAGE_BYTES, SimulatedDisk,
+    },
 };
 #[path = "breadth_sustained.rs"]
 pub(super) mod sustained;
@@ -299,6 +301,130 @@ fn recover(phase: &str, disk: &SimulatedDisk, updates: Updates, witnessed: bool,
     );
 }
 
+fn retry_torn_append(
+    image: &[u8],
+    append: &[u8],
+    publication: &[IoEvent],
+    append_sync: usize,
+    witness_sync: usize,
+) {
+    let last_fit = MAX_IMAGE_BYTES - image.len() - append.len();
+    assert!(last_fit > 0 && last_fit + 1 < append.len());
+    assert_eq!(last_fit % storage::REGION, 0);
+    for (prefix, old_phase, recovered_phase) in [
+        (last_fit - 1, "tail_before_fit", "tail_before_recovered"),
+        (last_fit, "tail_exact_fit", "tail_exact_recovered"),
+        (last_fit + 1, "tail_limit_rejected", "tail_compact_retry"),
+    ] {
+        let start = Instant::now();
+        let disk = SimulatedDisk::from_image(image).unwrap();
+        let db = Database::open_on(disk.clone(), limits(CORE)).unwrap();
+        let physical = image.len() + prefix;
+        let (cut, write) = publication[..append_sync]
+            .iter()
+            .enumerate()
+            .find(|(_, io)| {
+                io.kind == IoKind::Write
+                    && (io.offset as usize..=io.offset as usize + io.len).contains(&physical)
+            })
+            .unwrap();
+        disk.arm(
+            cut,
+            Fault::Tear {
+                prefix: physical - write.offset as usize,
+                durable: false,
+            },
+        );
+        let mut draft = stage(&db, 0..WRITES, PROBE_EPOCH);
+        assert_eq!(draft.commit(), Err(Error::Io));
+        assert_eq!(draft.state(), TransactionState::Aborted);
+        assert!(db.requires_recovery());
+        assert_eq!(disk.trace().unwrap(), publication[..=cut]);
+        drop(draft);
+        drop(db);
+        // Keep every completed segment and the final partial segment.
+        disk.crash(Crash::PersistAll).unwrap();
+
+        let next = physical.next_multiple_of(storage::REGION);
+        let bytes = disk.durable_image().unwrap();
+        assert_eq!(bytes.len(), physical);
+        assert!(bytes[..image.len()] == *image && bytes[image.len()..] == append[..prefix]);
+        let old = storage::inspect_on(disk.clone(), limits(CORE)).unwrap();
+        assert_eq!(old.revision, FINAL);
+        assert!(old.witnessed);
+        let db = Database::open_on(disk.clone(), limits(CORE)).unwrap();
+        let space = db.storage_space().unwrap();
+        assert_eq!(space.committed_bytes, image.len() as u64);
+        assert_eq!(space.physical_bytes, physical as u64);
+        assert_eq!(space.next_append_offset, next as u64);
+        assert!(disk.durable_image().unwrap() == bytes);
+
+        if prefix > last_fit {
+            disk.arm(usize::MAX, Fault::Error);
+            let mut retry = stage(&db, 0..WRITES, PROBE_EPOCH);
+            assert_eq!(retry.commit(), Err(Error::Limit));
+            assert_eq!(retry.state(), TransactionState::Failed);
+            assert!(
+                disk.trace()
+                    .unwrap()
+                    .iter()
+                    .all(|io| io.kind == IoKind::Length)
+            );
+            assert!(!db.requires_recovery());
+            assert!(disk.durable_image().unwrap() == bytes);
+            state(old_phase, &db, Updates::Seed, start.elapsed(), Some(true));
+            drop(retry);
+            drop(db);
+
+            let mut db = Database::open_on(disk.clone(), limits(256 * MIB)).unwrap();
+            let compact = SimulatedDisk::new().unwrap();
+            db.compact_to(compact.clone()).unwrap();
+            drop(db);
+            assert!(disk.durable_image().unwrap() == bytes);
+            assert!(compact.durable_image().unwrap() == image);
+            drop(bytes);
+            drop(disk);
+            let db = Database::open_on(compact.clone(), limits(CORE)).unwrap();
+            assert_eq!(stage(&db, 0..WRITES, PROBE_EPOCH).commit(), Ok(FINAL + 1));
+            drop(db);
+            recover(recovered_phase, &compact, Updates::First, true, start);
+            continue;
+        }
+
+        state(old_phase, &db, Updates::Seed, start.elapsed(), Some(true));
+        disk.arm(
+            witness_sync,
+            Fault::SyncError(Crash::Torn {
+                write: 0,
+                prefix: 64,
+            }),
+        );
+        let mut retry = stage(&db, 0..WRITES, PROBE_EPOCH);
+        assert_eq!(retry.commit(), Err(Error::OutcomeUnknown));
+        assert_eq!(retry.state(), TransactionState::Failed);
+        assert_eq!(db.snapshot().revision(), FINAL);
+        assert!(db.requires_recovery());
+        let trace = disk.trace().unwrap();
+        assert_eq!(trace.len(), witness_sync + 1);
+        let first_write = trace.iter().find(|io| io.kind == IoKind::Write).unwrap();
+        assert_eq!(first_write.offset, next as u64);
+        let last_write = &trace[append_sync - 1];
+        assert_eq!(
+            (last_write.kind, last_write.offset + last_write.len as u64),
+            (IoKind::Write, MAX_IMAGE_BYTES as u64)
+        );
+        drop(retry);
+        drop(db);
+        let durable = disk.durable_image().unwrap();
+        assert_eq!(durable.len(), MAX_IMAGE_BYTES);
+        assert!(durable[image.len()..physical] == bytes[image.len()..]);
+        assert!(durable[physical..next].iter().all(|&byte| byte == 0));
+        drop(durable);
+        drop(bytes);
+        recover(recovered_phase, &disk, Updates::First, false, start);
+    }
+}
+
 fn simulate(compacted: &Path) {
     let image = fs::read(compacted).unwrap();
     let start = Instant::now();
@@ -306,14 +432,16 @@ fn simulate(compacted: &Path) {
     let db = Database::open_on(disk.clone(), limits(CORE)).unwrap();
     disk.arm(usize::MAX, Fault::Error);
     assert_eq!(stage(&db, 0..WRITES, PROBE_EPOCH).commit(), Ok(FINAL + 1));
-    let syncs: Vec<_> = disk
-        .trace()
-        .unwrap()
+    let trace = disk.trace().unwrap();
+    let syncs: Vec<_> = trace
         .iter()
         .enumerate()
         .filter_map(|(index, event)| (event.kind == IoKind::Sync).then_some(index))
         .collect();
     let [append_sync, slot_sync, witness_sync] = syncs.try_into().unwrap();
+    let first_write = trace.iter().find(|io| io.kind == IoKind::Write).unwrap();
+    assert_eq!(first_write.offset, image.len() as u64);
+    let append_bytes = disk.durable_image().unwrap()[image.len()..].to_vec();
     drop(db);
     recover("acknowledged", &disk, Updates::First, true, start);
     drop(disk);
@@ -381,6 +509,7 @@ fn simulate(compacted: &Path) {
         drop(db);
         recover(phase, &disk, updates, witnessed, start);
     }
+    retry_torn_append(&image, &append_bytes, &trace, append_sync, witness_sync);
 }
 
 // Arm after open's stabilization syncs. The next writer pauses after its
