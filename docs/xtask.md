@@ -13,6 +13,7 @@ cargo xtask check --skip-odin
 cargo xtask build --release --features crdt,replication
 cargo xtask package --output target/private-package --features crdt,replication
 cargo xtask package --help
+cargo xtask verify-delivery --source FULL-GIT-HASH --matrix /path/to/extracted-proof
 cargo xtask sanitizers address
 cargo xtask sanitizers thread
 cargo xtask c-sanitizers --cc clang
@@ -39,6 +40,11 @@ the [conversion ledger](xtask-conversion.md) and [helper runbook](helper-control
 The alias builds xtask offline/locked into `target/xtask`; the initial fetch supplies its
 locked tooling dependencies. There are 20 private project manifests, all with
 `publish=false`.
+
+`verify-delivery` checks four previously collected minimum-Rust reports and
+their retained packages and traces against the exact Git commit. It reads
+the delivered files without executing them. See the [delivery matrix and
+directory layout](private-delivery.md#four-platform-result-at-c5970bd).
 
 ## Existing checks and package contract
 

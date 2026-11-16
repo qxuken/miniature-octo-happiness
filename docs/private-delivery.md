@@ -1,5 +1,72 @@
 # Same-source private delivery qualification
 
+## Four-platform result at `c5970bd`
+
+The minimum-Rust delivery matrix passed at
+`c5970bd5a73d1e15471ce4f843c8b1806b5fdac3`, the tested merge of
+`693aaef6550867db7a8477dc88e77c26c6e44aa1` and
+`adfa390ee947acd5c6b7a9fadbb7d60bda17bb48`. Its tree is
+`6f257c7b81691a6c4388b66121638aaf231d3828`. All lanes used Rust and Cargo
+1.99.0 with the combined replication and CRDT feature mask (3).
+
+| Lane | Workspace passes per debug and release profile | Skips per profile | Verified payloads | Shared library SHA-256 |
+|---|---:|---:|---:|---|
+| macOS arm64/APFS | 686 | 6 | 3,358 | `40c2d659493e7ffe8c7b337350ca2ec0bbbcfadc626220d80b9db95ad4795981` |
+| Docker Linux arm64/ext4 | 722 | 7 | 3,361 | `fbdcb298abc0b2d3ed8e3d1d1b544af55b20c4013fc5d45c413f102c375c4b7c` |
+| Hosted Linux x64/ext4 | 722 | 7 | 3,355 | `ea0e07ed95e63e99233a9aa4858232634cd147ab70e74483b1503c81ca5da726` |
+| Hosted Windows x64/NTFS | 550 | 6 | 1,876 | `09db485578bf5b3c4e1e0d634b1f41389528bf6c77f03e5441d18958a43081ce` |
+
+The Rust verifier independently checks the 720 tracked files and 13
+locks against the Git archive, rehashes the controller, package and trace
+payloads, and binds each trace to the delivered library and Odin compiler.
+The macOS and Linux Rust, C and Odin transcripts and the Windows C, C++
+and Odin full traces matched the same 134-cell oracle byte for byte.
+Windows passed all 30 outcomes, including the legacy formats, whole-
+collection modes and five rejection cases per consumer. Odin's Windows
+assertions return `0xc000001d`; the verifier checks the nonzero status,
+empty stdout and the expected absence of a database and final
+attestation. A substituted Git source and a modified dylib each caused
+the verifier to exit with no success report.
+
+The hosted minimum jobs supplied ZIP `14199198921` (Linux x64, SHA-256
+`ab364551b003010e757dc88c82cd7f451e7aa6d7c1d41b713846cfa238acb39d`)
+and ZIP `14200036176` (Windows x64, SHA-256
+`042ab82fcd9420222a8441fb5f7e5850c0e3f0abd72cd846a43387c08b591ff2`).
+Both downloads matched the recorded digests before extraction.
+[Linux job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43808059882/job/133103261390),
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43808059882/job/133103261687).
+
+The same macOS source passed package relocation for the three isolated
+feature masks (0, 1 and 2). The combined dylib passed five injected cases
+each through C and Odin. The C test also exhausted an owned APFS volume
+and observed kernel `ENOSPC` with zero injection hits. Reopening while
+full recovered revision 3 and retained revision 2. After space was freed,
+retry advanced to revision 4 with retained revision 2 still readable.
+
+Place the four extracted evidence directories directly under one
+directory named by `--matrix`. Use the Git bundle in the proof archive
+to recover the tested merge object if needed. Run the verifier from the
+checkout that contains the command.
+
+```sh
+cargo +1.99.0 xtask verify-delivery \
+  --source c5970bd5a73d1e15471ce4f843c8b1806b5fdac3 \
+  --matrix /path/to/extracted-proof
+```
+
+The local archive `target/archived-proof/private-delivery-c5970bd.tar.zst`
+retains the source archive and bundle, both original hosted ZIPs, all
+four evidence trees and the macOS fault runs. Its SHA-256 is
+`10c1c9787b4bcb23adfa9df43ad31f5ce1b472aaf355caa4a04371ff62872758`.
+Re-extraction reproduced the complete verifier report byte for byte.
+
+This result covers combined private delivery across the four lanes and
+the isolated feature masks on macOS. Isolated Linux and Windows feature
+profiles and the final candidate's sanitizer, fuzz, workload, recovery
+and owner approval gates retain their own evidence requirements.
+
+## Earlier arm64 result at `384ca0a`
+
 The macOS arm64/APFS and Docker Linux arm64/ext4 lanes ran from clean
 `384ca0a225b46da863094192701d32a26409e73d` with Rust and Cargo 1.99.0.
 The new macOS command uses the same checks and output structure as

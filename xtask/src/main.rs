@@ -20,6 +20,8 @@ mod coverage_executables;
 #[cfg(unix)]
 mod delivered_faults;
 mod delivery;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+mod delivery_matrix;
 #[cfg(unix)]
 mod faults;
 #[cfg(unix)]
@@ -187,6 +189,9 @@ enum Task {
     /// Qualify the declared minimum Rust compiler and exact macOS artifacts on APFS.
     #[cfg(target_os = "macos")]
     MacosMsrv(msrv::Options),
+    /// Verify one exact-source minimum-Rust private delivery matrix.
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    VerifyDelivery(delivery_matrix::Options),
     /// Verify publication errors and fresh recovery using the exact Windows DLL.
     #[cfg(windows)]
     WindowsFaults(windows_trace::FaultOptions),
@@ -391,6 +396,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::LinuxMsrv(options) => msrv::run(&run, options),
         #[cfg(target_os = "macos")]
         Task::MacosMsrv(options) => msrv::run(&run, options),
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+        Task::VerifyDelivery(options) => delivery_matrix::run(&mut run, options),
         #[cfg(windows)]
         Task::WindowsFaults(options) => windows_trace::run_faults(&mut run, options),
         #[cfg(windows)]

@@ -25,7 +25,9 @@ pub struct Options {
     odin: bool,
 }
 
-fn minimum(root: &Path) -> Result<String> {
+pub(crate) const EVIDENCE_EXCLUSIONS: &[&str] = &["build", "trace/cargo-target", "evidence.json"];
+
+pub(crate) fn minimum(root: &Path) -> Result<String> {
     let manifest: toml::Value = toml::from_str(&fs::read_to_string(root.join("Cargo.toml"))?)?;
     let version = manifest["package"]["rust-version"]
         .as_str()
@@ -418,10 +420,8 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             .is_empty(),
             "qualification modified checkout"
         );
-        c.evidence["artifact_sha256"] = json!(qualification_inventory(
-            &c.output,
-            &["build", "trace/cargo-target", "evidence.json"]
-        )?);
+        c.evidence["artifact_sha256"] =
+            json!(qualification_inventory(&c.output, EVIDENCE_EXCLUSIONS)?);
         Ok(())
     })();
     c.finish(result)

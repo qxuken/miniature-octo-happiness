@@ -365,7 +365,8 @@ pub(crate) fn qualification_inventory(
                 .strip_prefix(root)?
                 .to_str()
                 .context("UTF-8 trace path")?
-                .replace('\\', "/");
+                .replace(std::path::MAIN_SEPARATOR, "/");
+            ensure!(!name.contains('\\'), "ambiguous trace input path");
             if (skip.contains(&"cargo-target")
                 && file.file_name().is_some_and(|n| n == "cargo-target"))
                 || skip
@@ -392,7 +393,10 @@ pub(crate) fn qualification_inventory(
                     .checked_add(meta.len())
                     .context("trace byte overflow")?;
                 ensure!(*total <= 8 * 1024 * 1024 * 1024, "trace byte budget");
-                out.insert(name, sha(&file)?);
+                ensure!(
+                    out.insert(name, sha(&file)?).is_none(),
+                    "duplicate trace input path"
+                );
             }
         }
         Ok(())

@@ -72,10 +72,10 @@ impl<'de> Deserialize<'de> for Unique {
 pub fn json(bytes: &[u8]) -> Result<Value> {
     Ok(serde_json::from_slice::<Unique>(bytes)?.0)
 }
-pub fn read_json(file: &Path) -> Result<Value> {
+fn json_bytes(file: &Path) -> Result<Vec<u8>> {
     let meta = fs::symlink_metadata(file)?;
     ensure!(
-        meta.is_file() && meta.len() <= 2 * 1024 * 1024,
+        meta.is_file() && !reparse(&meta) && meta.len() <= 2 * 1024 * 1024,
         "nonregular or oversized JSON input"
     );
     let mut bytes = vec![];
@@ -83,7 +83,16 @@ pub fn read_json(file: &Path) -> Result<Value> {
         .take(2 * 1024 * 1024 + 1)
         .read_to_end(&mut bytes)?;
     ensure!(bytes.len() <= 2 * 1024 * 1024, "JSON grew beyond limit");
-    json(&bytes)
+    Ok(bytes)
+}
+pub fn read_json(file: &Path) -> Result<Value> {
+    json(&json_bytes(file)?)
+}
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+pub fn read_json_hashed(file: &Path) -> Result<(Value, String)> {
+    use sha2::{Digest, Sha256};
+    let bytes = json_bytes(file)?;
+    Ok((json(&bytes)?, format!("{:x}", Sha256::digest(bytes))))
 }
 pub(crate) fn reparse(meta: &fs::Metadata) -> bool {
     #[cfg(windows)]

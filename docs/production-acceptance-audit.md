@@ -200,8 +200,12 @@ harness-level scope reference.
    cases. At [`384ca0a`](private-delivery.md), the shared minimum-Rust runner
    binds macOS and Linux arm64 workspace tests, private packages and exact
    Rust/C/Odin traces. macOS also verifies the three isolated feature masks
-   and fault recovery against the combined dylib. The other platform and
-   release gates must bind to the same final candidate.
+   and fault recovery against the combined dylib. At
+   [`c5970bd`](private-delivery.md#four-platform-result-at-c5970bd), the
+   verifier binds the combined macOS arm64, Linux arm64, Linux x64 and
+   Windows x64 suites, packages and consumer traces to one tested merge.
+   Isolated Linux and Windows feature profiles and the other release gates
+   still need evidence for the final candidate.
 4. **Qualify continuous coordinator operation.** The sequenced profile gives
    each writer one retryable receipt and an explicit way to retire it when the
    next write commits. A native process test interrupts a journal client after
