@@ -96,6 +96,17 @@ controls full pending queue with zero/nonzero effective writes and pre-admission
 failure. The durable branches have the same boolean at two distinct points;
 both execute in the matching tear fixtures.
 
+`durable_tear_growth_allocation_failure_leaves_both_images_and_pending_queue_unchanged`
+adds a sparse one-byte tear on an empty image with trace capacity prepared before
+the instance-local allocation hook. Three allocations admit the prefix copy,
+pending capacity and volatile capacity: a non-durable tear then returns Io with
+the volatile prefix installed. The same budget with immediate durability enabled
+returns OutOfMemory at durable-image capacity reservation, preserving both empty
+images and the live lease. A subsequent PersistAll crash proves no pending write
+was admitted. Four allocations admit the durable tear, which returns Io with both
+images extended to 33 bytes. These paired controls cover this reservation's error
+outcome; ordinary publication allocation sweeps do not enable immediate tears.
+
 `failed_sync_preserves_only_its_selected_pending_writes` covers ordinary failed
 sync variants and SyncError with DropAll, PersistAll, Mask and Torn. Following
 successful sync persists the complete volatile image. Crash policies and fault
@@ -191,3 +202,10 @@ and 10 `compaction` tests (76 tests per profile). Strict Clippy for the library
 and new integration target passed. The source inventory completed with zero
 parse failures. This run does not add Windows, Linux, 32-bit, or physical
 power-loss evidence; it does not claim mutation or compiler MC/DC measurement.
+
+For the sparse durable-tear reservation regression, local macOS all-feature debug
+and release checks passed the targeted test, 70 storage unit tests and 45 related
+integration tests per profile: 10 `storage_decisions`, 4 `bytestore`, 17
+`durability`, 3 `headroom` and 11 `compaction`. Strict Clippy passed for the
+`storage_decisions` target. This adds failure evidence for the instance-local
+durable-image reservation, without changing the constructor or platform boundary.

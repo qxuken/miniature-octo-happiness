@@ -273,6 +273,59 @@ fn crash_and_sync_allocation_failures_keep_prior_images_and_lease() {
 
 #[test]
 #[cfg(feature = "fault-injection")]
+fn durable_tear_growth_allocation_failure_leaves_both_images_and_pending_queue_unchanged() {
+    for (durable, budget, expected_result) in [
+        (false, 3, Err(Error::Io)),
+        (true, 3, Err(Error::OutOfMemory)),
+        (true, 4, Err(Error::Io)),
+    ] {
+        let mut disk = SimulatedDisk::new().unwrap();
+        disk.lock().unwrap();
+        disk.length().unwrap(); // Reserve trace capacity before installing the budget.
+        disk.arm(0, Fault::Tear { prefix: 1, durable });
+        // Copy, pending capacity and volatile capacity use three allocations.
+        // An immediately durable sparse tear also needs durable-image capacity.
+        disk.fail_allocations_after(Some(budget));
+        let result = disk.write(32, &[9]);
+        disk.fail_allocations_after(None);
+        assert_eq!(
+            result, expected_result,
+            "durable={durable}, budget={budget}"
+        );
+        let trace = disk.trace().unwrap();
+        assert_eq!(trace.len(), 1);
+        assert_eq!(
+            (trace[0].kind, trace[0].offset, trace[0].len),
+            (IoKind::Write, 32, 1)
+        );
+
+        let failed = result == Err(Error::OutOfMemory);
+        let mut written = [0; 33];
+        written[32] = 9;
+        let volatile = if failed { &[][..] } else { &written[..] };
+        assert_eq!(disk.length(), Ok(volatile.len() as u64));
+        let mut out = vec![7; volatile.len()];
+        assert_eq!(disk.read(0, &mut out), Ok(volatile.len()));
+        assert_eq!(out, volatile);
+        assert_eq!(
+            disk.durable_image().unwrap(),
+            if durable && !failed {
+                &written[..]
+            } else {
+                &[][..]
+            }
+        );
+        let mut competing = disk.clone();
+        assert_eq!(competing.lock(), Err(Error::Busy));
+
+        // PersistAll exposes an accidentally queued write after failed admission.
+        disk.crash(Crash::PersistAll).unwrap();
+        assert_eq!(disk.durable_image().unwrap(), volatile);
+    }
+}
+
+#[test]
+#[cfg(feature = "fault-injection")]
 fn trace_copy_and_first_event_failures_leave_io_state_unchanged() {
     let mut disk = SimulatedDisk::new().unwrap();
     disk.lock().unwrap();
