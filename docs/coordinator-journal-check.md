@@ -46,7 +46,18 @@ scenarios with 1,152 writes each. After each of nine restore cutovers, both
 restored journals reported the same aligned checkpoint and replayed their
 separate local receipts. The final coordinator head was revision 1155.
 Strict Clippy passed on both platforms and on the Windows MSVC x64 cross-target.
-Native Windows execution of the journal-check revision is a separate CI result.
+
+Native Windows NTFS x64 with Rust 1.99.0 passed the journal-check simulator,
+malformed reply cases and the process restart/restore case in both debug and
+release. The artifact identifies clean test merge
+`27f3e3eb7f3d7787cf0bf9b97b829dbcb83bd92a` with branch parent
+`f88e737fa59610d979fd90ec436fdf7356c326fe`. The packaged journal, sequenced
+protocol, entry point and integration test match that parent byte for byte.
+The proof ZIP SHA-256 is
+`fb4e9df72f962a46dd880d64b9eceeb4b3f8f1a37ec0efbe3432fe9985749c61`.
+The nine-cutover workloads above ran on macOS and Docker Linux.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43786314888/job/133034630409),
+[verified artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43786314888/artifacts/14190583584).
 
 | Local sample | Journal write p50 / p95 | Complete journal cutover range |
 |---|---|---|
