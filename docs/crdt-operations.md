@@ -210,9 +210,11 @@ and disabled local edits during staging.
 macOS arm64/APFS with Rust 1.99.1 and Docker Linux arm64/ext4 with Rust
 1.99.0 passed all 20 app tests in debug and release, plus strict Clippy.
 The former pre-ALPN CLI replay on macOS also passed with this new binary.
-The three Windows MSVC x64 test executables cross-linked using
-`cargo-xwin 0.23.1`. Native Windows execution of the guarded profile
-requires its own result.
+The native Windows x64 minimum-Rust run passed the guarded process test
+in debug and release on NTFS at tested merge
+`ca7ff4dd9f841b39147c087fda0e4ecf953830bf` (PR head `cf5f615`).
+The source copies and both test transcript digests matched the
+qualification record. [Hosted Windows artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43805417242/artifacts/14197999873)
 
 ```sh
 cargo test --locked --offline -p study-peer --all-targets
@@ -265,8 +267,14 @@ handshake cancellation. Each triggers the corresponding test failure.
 All 22 app tests pass in debug and release on macOS arm64/APFS with Rust
 1.99.1 and Docker Linux arm64/ext4 with Rust 1.99.0, with strict Clippy and
 12 additional repetitions of both new tests per platform. The pre-ALPN
-upgrade replay passes on macOS. Windows MSVC x64 cross-links all three test
-executables. Native Windows execution is a separate result.
+upgrade replay passes on macOS. At tested merge
+`44aba9a8b26a51325ccf9074fb4b639cd4c16abe` (PR head `c8625ff`), hosted
+Linux x86-64 passed the full-diagnostics and admission tests. Native Windows
+x64 passed the admission test and the guarded roster test. Both hosted
+profiles used Rust 1.99.0 and passed in debug and release. The
+uploaded app source matched the PR head in both packages.
+[Hosted Linux artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43806559102/artifacts/14198798493),
+[hosted Windows artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43806559102/artifacts/14198493777)
 
 The release macOS-to-Linux [peer soak](study-peer-soak.md) passed ten
 offline-edit and convergence rounds with forced restarts of both peers
