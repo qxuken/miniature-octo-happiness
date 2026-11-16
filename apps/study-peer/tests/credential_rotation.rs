@@ -222,10 +222,14 @@ impl Peer {
     }
 
     fn spawn(mut command: Command, name: String, logs: &Path, incoming: &Relay, log: &Log) -> Self {
+        command.stderr(File::create(logs.join(format!("{name}.stderr"))).unwrap());
+        Self::spawn_redirected(command, name, incoming, log)
+    }
+
+    fn spawn_redirected(mut command: Command, name: String, incoming: &Relay, log: &Log) -> Self {
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(File::create(logs.join(format!("{name}.stderr"))).unwrap())
             .spawn()
             .unwrap();
         let input = child.stdin.take().unwrap();
@@ -299,6 +303,7 @@ impl Peer {
         self.input.flush().unwrap();
     }
 }
+
 impl Drop for Peer {
     fn drop(&mut self) {
         if self.child.try_wait().ok().flatten().is_none() {
@@ -935,11 +940,11 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
     loop {
         assert_eq!(stale.report().0, 0);
         assert_eq!(staged_b.report().0, 0);
-        if ["stale-a", "staged-b"].iter().all(|name| {
-            fs::read_to_string(logs.join(format!("{name}.stderr")))
-                .unwrap()
-                .contains("incoming sync: ForeignStore")
-        }) {
+        if stale.command("incoming").ends_with(" error ForeignStore")
+            && staged_b
+                .command("incoming")
+                .ends_with(" error ForeignStore")
+        {
             break;
         }
         assert!(
@@ -997,4 +1002,101 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
         old.each_ref().map(|path| fs::read(path).unwrap()),
         old_bytes
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn rejected_handshake_cannot_block_sync_with_full_stderr() {
+    use std::{
+        io::{ErrorKind, Read},
+        os::{fd::OwnedFd, unix::net::UnixStream},
+    };
+
+    let private = Private::new();
+    let root = &private.0;
+    let logs = root.join("logs");
+    private_dir(&logs);
+    let log = Arc::new(Mutex::new(File::create(logs.join("events.log")).unwrap()));
+    for actor in ["a", "b"] {
+        once(
+            BIN,
+            &[
+                "init".as_ref(),
+                root.join(format!("{actor}.db")).as_os_str(),
+                actor.as_ref(),
+                ID.as_ref(),
+            ],
+            &logs,
+            &format!("initialize-{actor}"),
+        );
+        provision(root, actor, "old", &logs);
+    }
+    for actor in ["a", "b"] {
+        activate(root, actor, "old", &log);
+    }
+    let (mut unread, mut writer) = UnixStream::pair().unwrap();
+    writer.set_nonblocking(true).unwrap();
+    let mut filled = 0;
+    loop {
+        match writer.write(&[b'x'; 4096]) {
+            Ok(n) if n > 0 => {
+                filled += n;
+                assert!(filled < 8 * 1024 * 1024);
+            }
+            Err(error) if error.kind() == ErrorKind::WouldBlock => break,
+            result => panic!("could not fill diagnostics stream: {result:?}"),
+        }
+    }
+    loop {
+        match writer.write(b"x") {
+            Ok(1) => filled += 1,
+            Err(error) if error.kind() == ErrorKind::WouldBlock => break,
+            result => panic!("could not fill diagnostics stream: {result:?}"),
+        }
+    }
+    assert!(filled > 0);
+    writer.set_nonblocking(false).unwrap();
+
+    let (ra, rb) = (Relay::new(), Relay::new());
+    let mut a = Peer::start(root, &logs, "a", "sender", &rb, &ra, &log);
+    let mut command = Command::new(BIN);
+    command
+        .arg("run")
+        .arg(root.join("b.db"))
+        .args(["b", ID, "127.0.0.1:0", &ra.address.to_string()])
+        .arg(root.join("b-active"))
+        .arg(root.join("b-pin.der"))
+        .arg("--no-push")
+        .stderr(Stdio::from(OwnedFd::from(writer)));
+    let mut b = Peer::spawn_redirected(command, "receiver-b".into(), &rb, &log);
+    let address = rb.target.lock().unwrap().unwrap();
+    let mut rejected = TcpStream::connect(address).unwrap();
+    rejected
+        .set_read_timeout(Some(Duration::from_millis(250)))
+        .unwrap();
+    rejected.shutdown(Shutdown::Write).unwrap();
+    let _ = rejected.read(&mut [0]);
+
+    assert_eq!(a.local("edit 1 12 40 50"), 3);
+    assert_eq!(a.command("push on"), "push on");
+    let until = Instant::now() + Duration::from_secs(6);
+    loop {
+        let (acks, report) = a.report();
+        if acks > 0 && report.ends_with(" ack 12") {
+            break;
+        }
+        assert!(
+            Instant::now() < until,
+            "authenticated sync stalled while stderr was full: {report}"
+        );
+        thread::sleep(Duration::from_millis(25));
+    }
+    b.state().assert_values(12, 40, 50, &[1]);
+    assert!(b.command("incoming").contains(" failed=1 busy=0 error "));
+    a.stop(false);
+    b.stop(false);
+    let mut diagnostics = Vec::new();
+    unread.read_to_end(&mut diagnostics).unwrap();
+    assert_eq!(diagnostics, vec![b'x'; filled]);
+    assert_eq!(core(root, "a").0, core(root, "b").0);
 }

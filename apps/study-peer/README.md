@@ -41,6 +41,10 @@ on the remote peer. `push off` pauses future outgoing attempts while the
 listener stays available. Use `quit` to stop and repeat `run` to reopen the
 existing file. By default, outgoing sync starts on launch.
 
+`incoming` reports served exchanges, failures, busy refusals and the last
+incoming error since startup. These counts describe the receiver.
+`peer` still reports covering replies to this process's outgoing offers.
+
 ## TLS admission and coordinated upgrades
 
 The [actor roster cutover](../../docs/crdt-operations.md#staged-roster-cutover)
@@ -62,6 +66,11 @@ retains SAN `study-peer` and a three-second absolute exchange budget, now includ
 TCP connect. Before application admission, the handshake must finish, pending
 writes must drain, and the exact configured leaf pin and ALPN must match. Disk
 work is outside the socket deadline; local and remote acknowledgments stay separate.
+
+Each process handles up to four incoming TLS sessions at a time. The merge
+and reply path runs one incoming exchange at a time. When either limit is
+reached, the receiver closes the excess connection and the caller retries
+with its existing backoff. [Admission and shutdown checks](../../docs/crdt-operations.md#bounded-study-peer-admission)
 
 Credentials are trusted local configuration: prevent concurrent untrusted edits.
 Certificates/pins must be regular, nonempty and at most 64 KiB; PKCS#8 keys at

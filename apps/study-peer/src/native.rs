@@ -1,3 +1,4 @@
+mod admission;
 mod protocol;
 use protocol::{Enrollment, StudyReplica, command, utf8};
 mod roster;
@@ -15,11 +16,11 @@ use std::{
     net::{SocketAddr, TcpListener},
     path::Path,
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering::Relaxed},
     },
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tls::{Credentials, Incoming, Tls, bounded_file};
 use weekend_db::{Database, Error, Limits};
@@ -33,7 +34,7 @@ study-peer run-policy <file> <a|b> <policy-file> <listen-addr> <peer-addr> <cred
 study-peer checkpoint-roster <old-a> <old-b> <old-policy-file>
 study-peer stage-roster <old-a> <old-b> <old-policy-file> <new-a> <new-b> <new-policy-file> [--expect-old <checkpoint>]
 study-peer verify-roster <a> <b> <policy-file> [--expect-staged <receipt>]
-commands: edit <lesson> <minutes> <weekly-goal> <session-limit>, practice <minutes>, show, peer, push on|off, quit";
+commands: edit <lesson> <minutes> <weekly-goal> <session-limit>, practice <minutes>, show, peer, incoming, push on|off, quit";
 const COLLECTION_ROW: u64 = 1;
 const POLL: Duration = Duration::from_millis(250);
 const MAX_BACKOFF: Duration = Duration::from_secs(2);
@@ -163,7 +164,7 @@ fn run<S: io::Read + Write>(
     enrollment: Enrollment,
     network: Network,
     options: RunOptions,
-    incoming: impl Fn(Incoming) -> S + Send,
+    incoming: impl Fn(Incoming) -> S + Send + Sync,
 ) -> AppResult<()> {
     let replica = StudyReplica::open(
         db,
@@ -178,8 +179,9 @@ fn run<S: io::Read + Write>(
     } = network;
     listener.set_nonblocking(true)?;
     let pushing = AtomicBool::new(options.pushing);
-    let stop = AtomicBool::new(false);
+    let stop = Arc::new(AtomicBool::new(false));
     let status = Mutex::new(PeerStatus::default());
+    let incoming_status = Mutex::new(admission::Status::default());
     let stdout = io::stdout();
     writeln!(stdout.lock(), "ready {}", listener.local_addr()?)?;
 
@@ -187,28 +189,11 @@ fn run<S: io::Read + Write>(
         let stop_receiving = &stop;
         let receiving_replica = &replica;
         let server = &tls;
+        let received = &incoming_status;
         let receiving = scope.spawn(move || {
-            while !stop_receiving.load(Relaxed) {
-                match listener.accept() {
-                    Ok((socket, _)) => {
-                        let result =
-                            server
-                                .accept_at(socket, Instant::now(), None)
-                                .and_then(|stream| {
-                                    Ok(receiving_replica.serve_authenticated(incoming(stream))?)
-                                });
-                        if let Err(error) = result {
-                            eprintln!("incoming sync: {error}");
-                        }
-                    }
-                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                        thread::park_timeout(Duration::from_millis(25));
-                    }
-                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                    Err(error) => return Err(error),
-                }
-            }
-            Ok(())
+            admission::receive(listener, server, stop_receiving, received, |stream| {
+                Ok(receiving_replica.serve_authenticated(incoming(stream))?)
+            })
         });
         let outgoing = scope.spawn(|| {
             let mut delay = POLL;
@@ -258,6 +243,10 @@ fn run<S: io::Read + Write>(
                             }
                         };
                         writeln!(stdout.lock(), "{reply}")?;
+                    }
+                    ["incoming"] => {
+                        let report = incoming_status.lock().unwrap().report();
+                        writeln!(stdout.lock(), "{report}")?;
                     }
                     ["edit" | "practice", ..] if options.sync_only => {
                         writeln!(
