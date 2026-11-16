@@ -234,9 +234,9 @@ volume was detached and removed.
 | `macos-odin/relocated-package/libweekend_db.dylib` | `68267299bb198361056a77f2e3a16c21e52a846527f269b0791b7c996d6319a5` |
 | `linux-c/result/evidence.json` | `b1554154ecb0a0ec8ed8c6a254b5737c3b02b3ad224fa46c0c70012b626bff7d` |
 
-The Odin profile covers the five modeled syscall outcomes. Actual filesystem
-exhaustion below uses the C consumer. Other Odin platforms and device
-power-loss behavior retain separate gates.
+The macOS Odin profile covers the five interposed syscall outcomes. Actual
+APFS exhaustion below uses the C consumer. The [Linux arm64 Odin profile](#optimized-odin-consumer-on-linux-arm64)
+also exercises actual tmpfs exhaustion.
 
 ### Actual APFS append exhaustion against the dylib
 
@@ -294,6 +294,69 @@ All 211 listed Windows files rehashed and the two DLL copies matched.
 | Seed, failed commit and full reopen image | `077f9eb0545e4c5dc02af46c06b06604d034073838d045874e50860d5a04886b` |
 | Retry image | `8397e1f8bb05e6caf2e30278b9f27cfe9e983b5c8f61a1153aea0d1a551c6812` |
 | Linux regression evidence | `b13a52f29771e90d1ba69912435ac7e0149eb67d1188710736bd77e49805a196` |
+
+## Optimized Odin consumer on Linux arm64
+
+Pass the unpacked Linux compiler to the Docker runner. Its toolchain directory
+is mounted read-only with the compiler, core library and runtime files. The
+controller checks the worker's compiler digest, consumer language and exact
+package manifest before accepting the copied proof.
+
+```sh
+image=sha256:bda5ef43469a7d63b240adcbc5a5b0599be442bce204d12936f6083224f56b18
+cargo xtask faults delivered --image "$image" --odin /path/to/linux/odin \
+  --package target/linux-package --output target/linux-odin-faults
+cargo xtask faults delivered --image "$image" \
+  --package target/linux-package --output target/linux-c-faults
+```
+
+The Linux Odin and C consumers use the same guarded ballast helper. It requires
+explicit runner authorization, an actual tmpfs of at most 8 MiB and exclusive
+creation of the ballast file. The two consumers independently check their ABI
+outputs and data. In the exhaustion case the commit receives kernel errno 28,
+returns `IO` with zero output revision and leaves the live view at revision 3.
+A fresh process opens revision 3 after the exercise removes its ballast.
+Request 42 is absent, so one retry commits revision 4 and preserves retained
+revision 2. The independent oracle also requires zero injection hits, root-slot
+writes, witness writes and sync calls for that case.
+
+The other five cases use the worker's ext4 volume and the same independent
+oracle and expected revisions as the Linux C table above. The Odin consumer
+uses the packaged bindings and `-o:speed`, checks the unsigned request marker
+and every current and retained payload byte, and rejects the disabled injector
+at the commit-status comparison. The recovery processes open the exact
+relocated shared library with no interposer loaded.
+
+The private combined-feature packages and runner were built from clean
+`b4a88a5517c579407aa1cff928a3d1cf411b6304`. The Docker worker ran on Linux
+arm64 with Rust 1.99.0, Clang 16.0.6 and Odin `dev-2026-10-nightly:84bc3fc`.
+The pinned Odin archive and compiler digests are in the
+[Linux minimum-package ledger](linux-minimum-package.md).
+The local proof directory is `target/odin-linux-fault-validation/`. It
+includes the Dockerfile and image build log, source archive, package manifests,
+shared libraries, loader logs and each phase's observed values.
+
+All six Linux Odin and C result rows matched. The five interposed rows also
+matched the native APFS Odin rerun using the macOS package from the same
+source. The eight Rust fault-runner controls passed in debug and release,
+and strict Clippy passed. Direct guard controls with the built Linux Odin
+consumer refused an unarmed 8 MiB tmpfs, an ordinary filesystem and a
+9 MiB tmpfs. No ballast file was created in those controls. Both Docker
+campaigns verified container and volume removal.
+
+| Evidence under `target/odin-linux-fault-validation/` | SHA-256 |
+|---|---|
+| `source.tar` | `709d6732c966dc100ab61564ab0e9fede91061b0224d43c037d86ff225e22758` |
+| `linux-package/manifest.json` | `36a99ddbf073f43f746386562966ac39e3b487f1c98ef1f95cd2e1601880c27c` |
+| `linux-package/libweekend_db.so` | `560b1850013dab6c2936301458ca5679766071fdeb629e8e799294ee582a39be` |
+| `linux-odin/evidence.json` | `aaf21533ca144791fd7406d3d5797b356a4c7025b7238a55a3572e2eba21ea54` |
+| `linux-odin/result/evidence.json` | `a41e2e60ae507a9e42e906af63a1f3831fa0e004b928de050615af64eb4128a4` |
+| `linux-c/result/evidence.json` | `ac9b6edc3a19d3254dbd6494d459e77e7b53555a9e187c4b82944964ada714f8` |
+| `macos-odin/evidence.json` | `9728258a65012cb9e39238d9324856c3e42faa6d249b088b29f55a0f26d767db` |
+
+Linux x86_64 and Windows Odin fault execution, native persistent-volume
+exhaustion through the Odin binding, and physical power interruption remain
+separate qualification gates.
 
 ## Native Windows delivered C gate
 

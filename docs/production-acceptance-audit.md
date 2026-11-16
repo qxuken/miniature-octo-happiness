@@ -170,7 +170,8 @@ harness-level scope reference.
    finite samples do not establish service limits.
 2. **Qualify remaining delivered failure profiles and transitions.** Named
    binary/credential upgrades and both transaction validation modes now have
-   native evidence. Exact-package C and [macOS Odin](delivered-c-faults.md#optimized-odin-consumer-on-apfs)
+   native evidence. Exact-package C and Odin on [macOS](delivered-c-faults.md#optimized-odin-consumer-on-apfs)
+   and [Linux arm64](delivered-c-faults.md#optimized-odin-consumer-on-linux-arm64)
    exercise uncertain-I/O reconciliation in a fresh process. Other language/platform failure profiles,
    compound failures, actor-generation rollout and each further promised version
    retain their separate obligations. Do not credit one profile to all surfaces.
