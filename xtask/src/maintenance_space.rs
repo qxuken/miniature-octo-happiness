@@ -744,6 +744,20 @@ mod native {
                     "wrong source or scratch image at APFS {step} gate"
                 );
                 let (fill, available) = bounded_fill(data, &images.ballast, true)?;
+                let at_capacity = json!({
+                    "phase": step,
+                    "pid": pid,
+                    "ballast_bytes": fill,
+                    "available_bytes": available,
+                    "canonical_inode": canonical.ino(),
+                    "scratch_inode": temporary.ino(),
+                    "canonical_sha256": live_source_hash,
+                    "scratch_sha256": live_scratch_hash,
+                });
+                fs::write(
+                    gate_root.join("before-release.json"),
+                    serde_json::to_vec_pretty(&at_capacity)?,
+                )?;
                 fs::create_dir(&ready)?;
                 Ok((
                     pid,

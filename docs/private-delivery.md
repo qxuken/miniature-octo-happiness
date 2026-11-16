@@ -122,6 +122,33 @@ checks the runtime SHA-256, confirms the library loaded in all three
 calibration controls, and runs the entire all-feature workspace with
 instrumented std. The patch applies only to the diagnostic runtime.
 
+The maintained command passed on a clean `a16d10e` checkout with
+the independently rebuilt runtime SHA-256
+`d2aad029c8e571d9f3861798eb382f4367ef3e6fa78eae41b2bd071c9f619734`.
+All 692 workspace tests passed with six registered skips. The safe
+calibration exited successfully, both deliberate race processes
+reported the expected warning, and process cleanup verified for every
+command. The preceding local run at `730df6f` had no sanitizer warnings
+and failed the [sampled-poll fixture deadline](replica-progress.md#sampled-poll-qualification).
+
+The hosted macOS arm64 run at tested merge `2ee9552` passed all three
+calibration controls and the full workspace. It recorded the same 692
+passes and six skips, with zero workspace TSan warnings and verified
+process cleanup. The rehashed hosted ZIP SHA-256 is
+`e331f25e2374ebb5da34fbbe3abd4a6328ce6465147ee416e94864b80fadf0c0`.
+Its runtime SHA-256 is
+`69788c428a6d870b501240428cf88ea0f19b6712f0689165853d614cf6fbaba1`.
+[Hosted macOS job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43830635422/job/133174864250).
+
+The local archive
+`target/archived-proof/macos-tsan-and-native-controls-a16d10e.tar.zst`
+retains the candidate sources, runtime variants and patches, loader
+controls, workspace reports, and hosted and local APFS evidence. Its
+SHA-256 is
+`47994d8ac77ea4acbbcd32ec629f0dc0fffe2cd7ed2ff9ae78a5830fae6a1296`.
+After extraction, the runtime files and both APFS gate records
+matched their recorded SHA-256 digests.
+
 ```sh
 mkdir -p target
 bash tools/macos-tsan/build-runtime.sh target/macos-tsan-runtime

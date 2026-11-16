@@ -1057,6 +1057,25 @@ private APFS image was detached and removed.
 | Existing copy-exhaustion regression | `b527aea73ed1d83a279dcfa8e321f8658740c1bb5d720f952e226976a476c0b4` |
 | Independent audit | `68a4150ef005fefab68d00d72a4830717f6594a1deb9ae170f28a22f9e42d878` |
 
+A later hosted macOS 26.7.2 run at `2ee9552` reached the exchange gate
+and completed compaction from 66,154,496 to 63,074,304 bytes. The
+fixture expected an actual kernel `ENOSPC` refusal and failed that
+check. The controller verified process and private-volume cleanup.
+The failed report has no post-fill availability sample, so the
+amount of space available to the namespace operation is unresolved.
+This run supplies a failed qualification result for the native
+exchange-refusal profile.
+[Hosted exchange run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43830635422/job/133174864304),
+[retained diagnostics](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43830635422/artifacts/14208493843).
+
+The controller now saves `before-release.json` on the host before
+releasing either namespace gate. The record binds the child PID,
+canonical and scratch image hashes and inodes, ballast bytes and
+available bytes. A failed child leaves the measurement in the archived
+report. Local exchange and cleanup runs on macOS 27.0.1 with the
+`a16d10e` fixture each recorded 68,706,304 ballast bytes and 5,849,088
+available bytes. Both qualification profiles and volume cleanup passed.
+
 The next profile fills the volume after exchange, before unlinking the old image.
 
 ## APFS compaction cleanup after allocation reaches ENOSPC
