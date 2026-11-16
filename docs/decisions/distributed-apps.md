@@ -164,6 +164,16 @@ database worker and admits limited concurrent socket work.
 The controls cover the named resource and mutation gates. Operator shutdown,
 deployment rate budgets and remote trust retain separate scope.
 
+## Coordinator operator-stop follow-up
+
+The [operator stop controls](../coordinator-shutdown.md) cover the stop flag at
+socket readiness and before dispatch. A native process with a partial frame
+stops listening, joins its workers and reopens the last receipt. The ext4
+append-pause control keeps the lease while the listener closes. It finishes
+an admitted write and discards a queued write before dispatch. The dispatcher
+unwind control checks that a failed worker requests stop and the owner sees
+the failed join. Native Windows console-event delivery is a separate gate.
+
 The AST inventory excludes cfg(test), does not expand derives/raw macro bodies,
 and does not inspect iterator combinator internals, dependencies, OS kernels or
 hidden formatting/allocation decisions. Runtime closures are included only as

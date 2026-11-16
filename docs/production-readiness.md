@@ -229,6 +229,9 @@ qualification is a separate release-candidate requirement.
   The [bounded loopback coordinator](coordinator-admission.md) separates
   concurrent socket admission from the single database worker and tests
   overload, pre-dispatch expiry and journal retry.
+  The [operator stop drill](coordinator-shutdown.md) closes admission during
+  a synchronized append, finishes that command and verifies its exact receipt
+  after restart.
 - **Workload-driven expansion.** Ordered cursors and range queries,
   larger images, bounded incremental or online maintenance, richer
   indexes and query APIs, multiple file-owning processes, additional

@@ -149,6 +149,23 @@ These limits bound admitted connections and queued commands within the
 service. The OS owns the TCP backlog. A burst that fills every slot can still
 delay other clients. [Admission, timeout and restart evidence](../../docs/coordinator-admission.md)
 
+### Stop and restart
+
+On macOS and Linux, send `SIGTERM` or `SIGINT` to the coordinator process.
+In an attached Windows console, use Ctrl+C or Ctrl+Break. The coordinator
+closes the listener and lets the dispatched command finish. It discards queued
+commands that have yet to start. An incomplete exchange can take its remaining
+read deadline to close. The coordinator exits after its workers finish and it
+releases the file lease. Start the next process on the same file after exit.
+[Windows console control signals](https://learn.microsoft.com/en-us/windows/console/ctrl-c-and-ctrl-break-signals)
+
+Wait for exit before backup, compaction or restart. If the client missed a
+reply, retry with the same request identity or use `journal resume`. A forced
+stop during publication uses the normal reopen and receipt-reconciliation
+path. Windows service-manager shutdown and host power loss require their own
+operating procedures.
+[Operator stop and recovery evidence](../../docs/coordinator-shutdown.md)
+
 ## Sequenced requests for long-running writers
 
 Start this profile with a fresh database and a configured secret file.

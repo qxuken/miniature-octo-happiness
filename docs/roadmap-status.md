@@ -2352,3 +2352,18 @@ receivers skip database work. A journal resumes its exact staged intent after
 Busy and acknowledges one commit. macOS and Linux rerun the native receipt
 capacity tests and both 1,152-write maintenance workloads.
 [Admission protocol, restart controls and evidence](coordinator-admission.md)
+
+## Coordinator graceful stop at a native publication boundary
+
+The native Windows minimum-Rust run at `e1065dd` passes the earlier admission,
+deadline and journal retry controls in debug and release. At `56b8f2e`, the
+macOS/Linux coordinator handles `SIGTERM` and `SIGINT` and releases its file
+lease after its workers finish. The ext4 overlay pauses after append sync and
+keeps revision 3 selected while a second complete command queues. SIGTERM
+closes the listener with the lease held. Releasing the pause produces the
+revision-4 receipt, and restart replays it with the queued slot empty.
+
+macOS and Linux pass both extended maintenance cases, and macOS
+ThreadSanitizer passes the service and operator controls. Windows cross-Clippy
+passes. Native delivery of Windows console stop events remains open.
+[Stop behavior, phase checks and reproduction](coordinator-shutdown.md)

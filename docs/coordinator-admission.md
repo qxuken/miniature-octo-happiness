@@ -72,12 +72,20 @@ and local receipt persistence.
 These are finite observations on separate hosts. Strict Clippy passed on both
 platforms and on the Windows MSVC x64 cross-target. Native macOS
 ThreadSanitizer (`nightly-2026-11-12`) passed the three queue controls and the
-live incomplete-request overlap control. Native Windows admission tests remain
-pending.
+live incomplete-request overlap control.
+
+At PR head `e1065dd`, native Windows x64/fixed NTFS on Rust 1.99.0 passed the
+admission, expiry, journal Busy retry and legacy capacity cases in debug and
+release. The clean merge was `3673a8bb9404383d9e5e6beb05a1eb53c03ec9dc`.
+The delivered service and process-test sources match the branch. The ZIP
+digest is `8e6a164dbf61ef97c1335ef7fba736efb559b666c4eb505cdb067498a6b72abc`.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43783141644/job/133024703877)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43783141644/artifacts/14189622732).
 
 The source, first reproduced Linux observer failure, terminal logs and
 checksums are stored under `target/coordinator-admission-proof/`. The final
 archive is `6849ef62f8fe258c48b03dedfa561f4312430ef5` and has SHA-256
 `5f5548db07a6203417daaf3e30875cb3c55138de5e8decce1bcff3fb59dadc97`.
-The bounded loopback profile retains separate release gates for service-level
-latency targets, remote authorization and graceful operator shutdown.
+[Graceful operator shutdown](coordinator-shutdown.md) has a separate signal
+and recovery campaign. Service-level latency targets and remote authorization
+remain deployment gates.
