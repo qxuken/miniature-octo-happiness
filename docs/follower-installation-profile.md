@@ -62,6 +62,63 @@ manifest and selected bytes unchanged. The result covers process interruption
 on the Docker ext4 profile. Physical power interruption and other deployment
 platforms remain separate qualification gates.
 
+## Authenticated follower recovery on a full Linux tmpfs
+
+The sender first installs revision 4 with retained revision 2. It then
+captures locally committed revision 5 once. The 307,200-byte export adds a
+256 KiB value. The same saved export and descriptor are used for the failed
+send, retry and replay over pinned mutual TLS.
+
+| Space left before the install | Failed install and reopen |
+|---|---|
+| 151,552 bytes | The inactive slot stops at that exact prefix of the export. The manifest and selected image stay byte-identical. The server can still report the previous receipt. |
+| 307,200 bytes | The entire inactive image matches the export. With no space left for manifest publication, the server returns an error and exits requiring recovery. The previous manifest and selected image stay byte-identical. |
+
+In both cases the sender reports its local revision 5 capture and receives
+no follower acknowledgment for it. An independent allocation probe gets
+kernel `ENOSPC` with zero available bytes. A new follower process opens
+the still-full filesystem and returns the exact previous revision 4 receipt
+on a fresh authenticated poll. The test verifies the current record, the
+entire retained revision 2 view and the unchanged manifest and selected
+bytes while the ballast is still present.
+
+After removing only the ballast, one retry produces the exact revision 5
+receipt. Its digest matches the saved export. The installed file matches
+the export byte for byte, the current and retained values verify, and a
+second send of the same export leaves every follower file unchanged.
+The source export and descriptor stay byte-identical through the attempts.
+
+The test is intentionally opt-in. Set `WEEKEND_TEST_FOLLOWER_TMPFS` to a
+dedicated empty Linux tmpfs mount no larger than 8 MiB, and keep the sender,
+build and logs on a separate filesystem. The test checks the mount and
+capacity before creating its owned directories.
+
+```sh
+cargo test --offline --locked -p weekend-replicate --test cli \
+  full_storage::authenticated_follower_reopens_at_the_old_receipt_when_tmpfs_is_full \
+  -- --exact --ignored --nocapture
+```
+
+The source archive and Docker reproduction script for
+`4fbfaa27c6ca75ce09ea57779a6d85786253512b` are under
+`target/follower-native-full-proof/`. The script uses the pinned Rust 1.99.0
+Docker image, puts the sender and build on an ext4 volume and gives the
+follower a separate 8 MiB tmpfs. This checks operating-system exhaustion
+and process reopen. Persistent-device power interruption remains a
+separate gate.
+
+Both failure cases passed in debug and release on Docker Linux arm64
+with Rust 1.99.0. The 24 ordinary application tests and strict Clippy
+passed on Docker Linux and native macOS. The owned Linux container and
+volume were absent after the run. The exhaustion case ran on Linux.
+
+| Reproduction input | SHA-256 |
+|---|---|
+| `source.tar` | `2c96616607a4e47860eea80aa133c3399e23bf41d30b4cf4ebb400ec2abc0b78` |
+| `run-docker.sh` | `61ff051e688be638757a1f2c34e0f175ca4fdcf12521b56a7f9a029b053e6792` |
+| `final.log` | `f303d243a6df25a90895145882a8438aa42066cea1b6a936b98b1d72c10e96c0` |
+| `macos.log` | `52213ef9e2ffda9223e93fb7f0c210c2b6b19ed5b7dfd5327b8873f8d05f42e5` |
+
 ## Reproduction and evidence
 
 The proof directory is `target/follower-phase-qualification/`. Its archived

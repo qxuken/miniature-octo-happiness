@@ -180,6 +180,9 @@ harness-level scope reference.
    The hosted [Windows Odin profile](delivered-c-faults.md#optimized-odin-consumer-on-windows)
    passed six exact-DLL outcomes, plus a native NTFS exhaustion, full-volume
    reopen and retry with retained revision 2 intact.
+   The [authenticated Linux follower full-space drill](follower-installation-profile.md#authenticated-follower-recovery-on-a-full-linux-tmpfs)
+   verifies the exact previous durable receipt while tmpfs is full at both
+   staged image writing and manifest selection, then checks exact retry and replay.
    Other language/platform failure profiles,
    compound failures, actor-generation rollout and each further promised version
    retain their separate obligations. Do not credit one profile to all surfaces.
