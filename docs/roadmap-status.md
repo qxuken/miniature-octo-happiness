@@ -2272,8 +2272,9 @@ source unchanged and allow a successful retry.
 Native macOS all-feature workspace tests and Clippy pass, including 16 tests
 under ThreadSanitizer in the replication and concurrency suites. Exact-source
 Docker Linux/ext4 passes 191 tests and strict core Clippy. Windows x64 strict
-cross-Clippy passes. Native Windows execution of the embedded scenario and
-deployment-scale lag and resource qualification remain open.
+cross-Clippy passes. The native Windows minimum-Rust job passes the embedded
+scenario in debug and release at PR head `c9746c1`. Deployment-scale lag and
+resource qualification remain open.
 [Embedded API and verification](replication-operations.md#live-export-and-polling-from-an-embedded-primary)
 
 ## Authenticated live replication over an accelerated month
@@ -2291,3 +2292,20 @@ byte takes 176.276 ms. The sender peaks at about 663 MiB RSS with
 default limits. Follower memory, disk-only installation timing, WAN behavior
 and deployment budgets remain open.
 [Workload, reproduction and evidence](live-replication-month.md)
+
+## Segmented staging for fresh images
+
+At `a39de6c`, 64 KiB append segments replace the large contiguous staging buffer
+for fresh images. They preserve exact object bytes, protected-region write
+boundaries and all three durability syncs. The fixed revision-93/31-root copy
+has identical bytes on macOS/APFS and Docker Linux/ext4. The same 64 MiB copy
+budget rejected the baseline and admits the candidate. Sixteen repeated
+macOS exports peak at about 103 MiB RSS, compared with 630 MiB in the paired
+baseline. The Linux phase RSS samples are nearly equal.
+
+The authenticated month replay checks each durable receipt, all 31 retained
+roots and the exact selected image after reopen. Its macOS sender peaks at
+about 106 MiB RSS, compared with 663 MiB previously. The macOS workspace and
+targeted Docker Linux tests and strict Windows cross-Clippy pass. Follower
+memory, other workload shapes and final-candidate native evidence remain open.
+[Staging protocol, regression controls and results](fresh-image-staging.md)

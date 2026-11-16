@@ -566,8 +566,16 @@ manifest-growth test left to its separate maintenance qualification. Docker
 Linux arm64/ext4 passed 191 core and selected integration tests, one maintenance
 ignore and strict core Clippy from the exact archived source. The suites included
 allocation, compaction, retention, storage decisions, and both golden byte
-histories. Windows MSVC x64 strict cross-Clippy passed. Native Windows execution
-of the live-capture test is tracked separately.
+histories. Windows MSVC x64 strict cross-Clippy passed.
+
+At PR head `c9746c1`, the native Windows x64/fixed-NTFS minimum-Rust job
+ran `live_export_pins_old_roots_while_the_native_source_changes` successfully
+in debug and release on Rust 1.99.0. The job ran from clean PR test merge
+`c02e66c14cb62b55d4029a43058cdce7bb3a2761`. The engine, storage and test
+blobs matched the branch. The archive SHA-256 is
+`c63b1e624e28579fb3f2ef4c0cf4e19e79953953f8c7a739a43f24ba113dc5d4`.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43777168601/job/133005969663)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43777168601/artifacts/14187137921).
 
 Run the native overlap test and the source-preservation controls from the
 archived checkout:

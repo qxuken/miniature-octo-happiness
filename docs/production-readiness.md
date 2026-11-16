@@ -200,6 +200,9 @@ qualification is a separate release-candidate requirement.
   The accelerated Mac-to-Linux month checks live writes, durable receipt
   reconciliation and retained history with the regular TLS follower.
   [Workload and measured resource costs](live-replication-month.md)
+  Fresh-image staging limits individual append buffers to 64 KiB. Measure
+  repeated-copy memory and check exact bytes and durability boundaries.
+  [Fresh-image staging qualification](fresh-image-staging.md)
 - **Offline CRDT writers.** Specify lawful merge and resolution contracts
   for app records, enforce or clearly protect reserved rows, and qualify
   policy/schema evolution, actor identity and replacement, replay,

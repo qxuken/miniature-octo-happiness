@@ -565,3 +565,21 @@ Fresh inventory: 2,604 records/51 files, 319 macro blind spots, zero parse
 failures. Historical tables keep their original spans/hashes; these mappings
 are supplemental directed/delegated/invariant evidence, not a new compiler
 MC/DC score or an exhaustive distributed/device qualification.
+
+## Fresh-image append staging follow-up
+
+At `a39de6c`, fresh-image creation stages up to 64 KiB per segment and writes
+through the same region-splitting adapter helper as contiguous append staging.
+Both paths share the object header, payload and zero-padding checksum logic.
+[Exact bytes, native budget and replay results](../fresh-image-staging.md)
+
+| Decision or boundary | Executed control |
+|---|---|
+| No segment, partially filled segment and full segment | `segmented_append_preserves_the_bytes_and_adapter_write_boundaries` crosses multiple segments with objects larger than one segment. The contiguous control has the same object offsets, bytes and ordered writes plus sync. |
+| Segment reservation rejected versus accepted | `live_copy_stages_large_values_within_the_copy_budget` rejects at 512 KiB with an empty durable destination and retries at 800 KiB using the same destination. The accepted image matches the quiescent export and reopens through the saved descriptor. |
+| Append body failure prevents further publication and slot or witness errors retain uncertainty | Existing storage, native compaction, retention and replication failure tests pass. Ordered adapter write parity confirms the new segment boundaries preserve where the failure injection acts. |
+| End of image and invalid object bounds | `writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic` retains the last accepted region and exact end after rejecting a further append. Golden disk histories and the fixed-input export verify offsets and checksums across both encoding paths. |
+
+The staging controls supplement the previous source-bound ledgers. Further
+independent segment allocation injection and final-candidate native qualification
+remain tracked separately.

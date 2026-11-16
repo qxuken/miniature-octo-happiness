@@ -132,3 +132,8 @@ write rates and deployment memory/latency targets remain separate gates.
 The run directory also retains platform/build logs, the final export and a
 cleanup record. The Docker container, data volume and test credentials were
 removed after verification.
+
+The [segmented staging replay](fresh-image-staging.md#authenticated-month-replay)
+repeats this schedule and measures about 106 MiB peak sender RSS. It retains
+the 31-root and exact selected-image oracle and recovers the same four lost
+replies by fresh polling.

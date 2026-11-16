@@ -5687,3 +5687,18 @@ profile pass. Exact proof scopes and remaining gates are in the linked report.
 This changes tooling only: engine serialization, durability barriers and separate
 follower durability acknowledgment stay unchanged. All crates remain private;
 no additional product MC/DC score or production-release closure is claimed.
+
+## Segmented fresh image staging
+
+Fresh creation, compaction copies and logical import stage encoded objects in
+charged 64 KiB segments. The destination write begins after the complete image
+candidate prepares. The encoder shares the same header, CRC and zero padding
+across contiguous and segmented staging. Full segments end on protected region
+boundaries, so the adapter's write order and append, root-slot and witness syncs
+continue to establish the same durability protocol. The follower's durable
+receipt still follows verified installation and durable manifest selection.
+
+The fixed-input revision-93 export matches byte for byte on macOS and Linux.
+The [staging qualification](docs/fresh-image-staging.md) records the allocation
+failure control, repeated export RSS, cross-platform checks and authenticated
+month replay with all 31 retained roots.
