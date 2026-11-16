@@ -15,6 +15,19 @@ Privileged quota controllers use the prebuilt native xtask executable.
 These commands use POSIX process inspection. Windows has its own native check,
 build, package and cleanup entry points.
 
+The hosted macOS helper run at `63a3d17` failed before the expected
+RSS-probe diagnostic appeared. A controlled 125 ms delay at the first
+observation reproduced that failure. The old 100 ms command deadline
+expired before the injected sampler error could fire, and the supervisor
+still reaped the child. The sampler cases now use a five-second ceiling.
+The control keeps the 125 ms delay, checks the exact sampler diagnostic
+and verifies retirement. The cases exercising timeout and other cleanup
+failures keep their existing 100 ms ceiling.
+The complete xtask unit suite passed on macOS (201 tests) and Docker
+Linux arm64 (232 tests). The focused release control also passed on
+Linux.
+[Hosted macOS helper log](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43813246788/job/133119401956).
+
 ## Ownership and terminal reports
 
 `xtask supervise` accepts one bounded JSON request on stdin. The request names an

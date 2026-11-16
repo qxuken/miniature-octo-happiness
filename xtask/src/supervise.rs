@@ -1143,6 +1143,10 @@ mod unix {
                 if self.mode == "both" {
                     anyhow::bail!("observation failed")
                 }
+                if self.mode == "sampler-summary" {
+                    // Model a runner that delays the first observation.
+                    thread::sleep(Duration::from_millis(125));
+                }
                 exited(pid)
             }
             fn kill_group(&mut self, pid: i32) -> Result<()> {
@@ -1210,8 +1214,9 @@ mod unix {
                 "both",
             ] {
                 let (_owned, mut request) = super::super::tests::fixture("exec sleep 30");
-                request.timeout_seconds = 0.1;
                 request.sample_rss = mode.starts_with("sampler");
+                // Give the injected sampler error time to fire after observation.
+                request.timeout_seconds = if request.sample_rss { 5.0 } else { 0.1 };
                 let mut report = Report::default();
                 execute_with(
                     &request,
@@ -1237,7 +1242,11 @@ mod unix {
                     } else {
                         "sampler timeout"
                     };
-                    assert!(report.failure.as_ref().unwrap().contains(diagnostic));
+                    assert!(
+                        report.failure.as_ref().unwrap().contains(diagnostic),
+                        "{mode}: {report:?}"
+                    );
+                    assert!(!report.timed_out, "{mode}: {report:?}");
                     assert!(report.cleanup_verified);
                 } else {
                     assert!(report.cleanup_failure.is_some(), "{mode}: {report:?}");
