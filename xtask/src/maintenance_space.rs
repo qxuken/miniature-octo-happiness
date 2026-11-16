@@ -163,17 +163,6 @@ mod native {
         }
     }
 
-    fn full(space: u64) -> bool {
-        #[cfg(windows)]
-        {
-            space == 0
-        }
-        #[cfg(target_os = "macos")]
-        {
-            space < HEADROOM
-        }
-    }
-
     #[derive(Args)]
     pub struct Options {
         #[arg(long)]
@@ -525,8 +514,9 @@ mod native {
         file.sync_all()?;
         drop(file);
         let available = free_space(dir)?;
+        // APFS can report available blocks after the kernel refuses a 4 KiB write.
         ensure!(
-            full(available)
+            (cfg!(target_os = "macos") || available == 0)
                 && (filled - previous).abs_diff(free.saturating_sub(available)) < oracle::MIB,
             "bounded kernel exhaustion required: free before {free}, free after {available}, bytes written {}",
             filled - previous
@@ -870,8 +860,9 @@ mod native {
         fixture.phase(proof, data, &source, "space-check", "full-source")?;
         fixture.phase(proof, data, &scratch, "space-check", "full-scratch")?;
         fixture.phase(proof, data, &backup, "space-check", "full-backup")?;
+        let (after_ballast, _) = bounded_fill(data, &ballast, false)?;
         ensure!(
-            fs::metadata(&ballast)?.len() == filled && full(free_space(data)?),
+            after_ballast == filled,
             "space released before full reopens"
         );
         fs::remove_file(&ballast)?;
@@ -1113,23 +1104,25 @@ mod native {
                 "space-check",
                 &format!("full-backup-{op}"),
             )?;
-            let after_reopen = available_space(data)?;
-            ensure!(
-                if quota_active {
-                    after_reopen == before_reopen
-                } else {
-                    full(after_reopen)
-                },
-                "fresh opens changed the pressure boundary"
-            );
+            #[cfg(windows)]
+            let after_reopen = {
+                let after_reopen = available_space(data)?;
+                let expected = if quota_active { before_reopen } else { 0 };
+                ensure!(
+                    after_reopen == expected,
+                    "fresh opens changed the pressure boundary"
+                );
+                after_reopen
+            };
             #[cfg(target_os = "macos")]
-            {
-                let (after_ballast, _) = bounded_fill(data, &ballast, false)?;
+            let after_reopen = {
+                let (after_ballast, after_reopen) = bounded_fill(data, &ballast, false)?;
                 ensure!(
                     before_ballast == after_ballast,
                     "fresh opens made additional space writable"
                 );
-            }
+                after_reopen
+            };
             if quota_active {
                 #[cfg(windows)]
                 {
