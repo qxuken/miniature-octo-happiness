@@ -149,6 +149,21 @@ partial path for explicit operator cleanup. The examples do not implement an
 automated recovery supervisor after an uncertain write. These limitations are
 not silently promoted to production guarantees by passing tests.
 
+## Coordinator admission follow-up
+
+The [bounded admission profile](../coordinator-admission.md) keeps a single
+database worker and admits limited concurrent socket work.
+
+| Decision | Control |
+|---|---|
+| Connection count reaches limit | A native listener rejects the ninth incomplete exchange with `error Busy`. Reopen verifies revision 3 and all eight empty slots. The release control reuses a dropped admission permit. |
+| Complete, authorized command meets a full queue | The queue control fills all eight slots, rejects an additional complete command, and observes the original entries. Existing wrong-secret and incomplete-frame cases cover rejection before queueing. |
+| Deadline expired versus admission receiver gone | The worker trace holds one valid command, then queues an expired command, a live command whose receiver drops, and another valid command. Only the valid commands publish, and both skipped request receipts remain empty. |
+| Overload after an intent becomes durable | A journal receives Busy, reopens with the pending command and submits an exact retry. The recovered receipt acknowledges one commit. |
+
+The controls cover the named resource and mutation gates. Operator shutdown,
+deployment rate budgets and remote trust retain separate scope.
+
 The AST inventory excludes cfg(test), does not expand derives/raw macro bodies,
 and does not inspect iterator combinator internals, dependencies, OS kernels or
 hidden formatting/allocation decisions. Runtime closures are included only as

@@ -226,6 +226,9 @@ qualification is a separate release-candidate requirement.
   reply. A high-availability variant would additionally need a
   leadership/fencing and failover contract. Independent local writes
   on one file still require the native lease contract.
+  The [bounded loopback coordinator](coordinator-admission.md) separates
+  concurrent socket admission from the single database worker and tests
+  overload, pre-dispatch expiry and journal retry.
 - **Workload-driven expansion.** Ordered cursors and range queries,
   larger images, bounded incremental or online maintenance, richer
   indexes and query APIs, multiple file-owning processes, additional

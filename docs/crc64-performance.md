@@ -79,6 +79,15 @@ integration tests with one maintenance ignore. Strict MSVC x64 cross-Clippy
 passed. The native Windows segmented-staging and golden results are tied to
 the earlier [staging checkpoint](fresh-image-staging.md#native-windows-staging).
 
+The CRC candidate also passed the native Windows x64/fixed-NTFS minimum
+compiler job at PR head `bf246aa`. The clean merge was
+`8c4473b060c19ae405385af1b5808420e8028f6a`. The bit-recurrence control,
+both golden histories and the live-copy budget case passed in debug and
+release, and the delivered codec source matched the branch. The ZIP digest
+is `37339c2a2b1e4a8ac9b5026e7c5d59c3ad0f48c91e740e81887cb5c2de910d8c`.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43781592295/job/133019787388)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43781592295/artifacts/14188589920).
+
 AddressSanitizer fuzz smoke at `nightly-2026-11-12` and cargo-fuzz 0.13.2
 completed 24,000 executions with the archived seeds and seed value 1.
 

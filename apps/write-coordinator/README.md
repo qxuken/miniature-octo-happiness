@@ -108,8 +108,7 @@ The server validates the token before accessing records or receipts.
 Missing and incorrect tokens receive `error Unauthorized` and cannot
 publish a revision. Credentials are never printed in replies or server
 error diagnostics. The file path appears in process arguments, while the
-secret contents do not. Requests have a total three-second read deadline,
-a 256-byte line bound, and a three-second reply write timeout.
+secret contents do not.
 
 Omitting `--secret-file` retains the original demo protocol and the server
 prints an explicit unauthenticated-demo notice to stderr. Both modes bind
@@ -118,6 +117,37 @@ administrators or processes able to inspect local traffic or process
 memory may obtain it. All clients with the shared secret have equal
 access. Remote transport, per-client authorization, connection-rate
 limits and credential revocation without restart require separate work.
+
+### Connection admission and overload
+
+The coordinator admits up to eight connections. Each connection reads one
+request line of at most 256 bytes, including its newline. A fully framed and
+authorized command can enter a FIFO queue of up to eight commands. One
+database worker owns the file and handles each command's preconditions,
+transaction and durable receipt together. Socket reads and reply writes run
+outside that worker, so a client with an unfinished line does not hold the
+database or block the other admitted connections.
+An observer can read the previous value while an unconfirmed write is still
+being framed or admitted. Use its durable receipt or wait for the expected
+revision before using that write as a checkpoint.
+
+The three-second deadline starts at accept and covers reading the request
+and waiting to start dispatch. An expired command is dropped before the
+database worker runs it. An operation that has started runs to completion
+under the storage contract, even if the client times out. Replies use a
+three-second socket write timeout.
+
+When the command queue is full, the service replies `error Busy` before
+dispatching the command. When all connection slots are occupied, the listener
+closes excess connections with a best-effort `error Busy` reply. The peer can
+observe EOF or a reset under saturation. An explicit Busy response means the
+request was not run. A transport failure can occur after dispatch. Use the
+same durable request identity on retry. A journal with a pending intent
+recovers it through `journal resume`.
+
+These limits bound admitted connections and queued commands within the
+service. The OS owns the TCP backlog. A burst that fills every slot can still
+delay other clients. [Admission, timeout and restart evidence](../../docs/coordinator-admission.md)
 
 ## Sequenced requests for long-running writers
 

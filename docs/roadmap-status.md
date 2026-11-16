@@ -2336,6 +2336,19 @@ on macOS and 0.551–0.638 s on Docker Linux after the change. All fixed-input
 exports still have the same bytes. The authenticated Linux replay reduces graph
 verification p95 from 81.922 to 31.854 ms. Its sync observations are higher.
 Both interruption boundaries recover the same revisions and exact receipts
-with every retained root verified. Native Windows CRC execution and deployment
-latency targets remain open.
+with every retained root verified. The native Windows minimum-Rust job at
+`bf246aa` passed the CRC, golden byte and staged-budget controls in debug and
+release. Deployment latency targets remain open.
 [Compatibility evidence, benchmarks and checks](crc64-performance.md)
+
+## Bounded coordinator admission and dispatch
+
+At `6849ef6`, the loopback coordinator admits eight sockets and eight queued
+commands. A single database worker applies complete commands in queue order.
+A native regression commits revision 4 while an unfinished request holds a
+connection. At saturation the ninth connection receives Busy, and reopening
+preserves revision 3 and the empty slots. Queued expiry and dropped admission
+receivers skip database work. A journal resumes its exact staged intent after
+Busy and acknowledges one commit. macOS and Linux rerun the native receipt
+capacity tests and both 1,152-write maintenance workloads.
+[Admission protocol, restart controls and evidence](coordinator-admission.md)

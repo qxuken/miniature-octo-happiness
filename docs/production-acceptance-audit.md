@@ -80,7 +80,7 @@ an unoffered expansion, not a defect to fix speculatively.
 | C02 Causality/replay/resolution/bounds | Register event oracle, two-peer schedules, bounded frame/set/counter containers, repeated-sync no commits | Implemented finite models. Larger causal histories, forged-state shapes excluded from a harness and other policies need their own tests; no expansion by association. |
 | C03 Evolution, actor replacement and stale backup | [policy migration](crdt-policy-migration.md), [credential cutover](study-credential-cutover.md), [pre-ALPN CLI upgrade](study-cli-upgrade.md) and [staged roster cutover](crdt-operations.md#staged-roster-cutover) | macOS, Linux and native Windows qualify both the pinned coordinated CLI upgrade and an explicit fresh two-actor history. The CLI upgrade preserves offline edits through a reachable ALPN rejection with zero acknowledgments, then converges after both binaries are upgraded. The roster cutover verifies rejection of authenticated old-roster frames and continued sync in the new roster. Operator quiescence, stale-history reconciliation, additional version pairs and the final candidate remain open. |
 | C04 Membership/gossip/cross-record constraints | No offered dynamic membership/discovery/atomic distributed constraints | Outside profile. Do not introduce coordinator/CRDT abstractions solely to tick a roadmap row. |
-| W01 Coordinator auth, authorization, admission/backpressure | Loopback/optional shared secret, bounded line/frame, serial handling, native lease | Local-only trust boundary explicit. Remote TLS and per-principal authorization are missing only if owner promotes a remote coordinator. Public unauthenticated service is not supported. |
+| W01 Coordinator auth, authorization, admission/backpressure | Loopback and optional shared secret, bounded line/frame, [bounded admission and dispatch](coordinator-admission.md), one native database lease | Eight admitted connections and eight queued commands have explicit Busy and timeout outcomes. Native regression covers a slow connection alongside a durable write. Remote TLS and per-principal authorization remain separate gates if the owner promotes a remote coordinator. |
 | W02 Preconditions, durable receipts, restart/lost reply | Atomic record+receipt. The legacy [capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) passed both profiles on macOS, Linux and Windows. Sequenced requests retire predecessors atomically and reject stale sequences. The journal recovers lost replies and guards fresh writes by lineage and prior receipt. | Repeat journal qualification on the final native candidate, measure sustained writes and maintenance against service budgets, and obtain owner acceptance for client-side archives, slot assignment and stale-restore reconciliation. |
 | W03 HA leadership/fencing | Not implemented or promised | Outside selected single-owner profile. Do not infer safe failover from snapshot durability or the file lease on another host. |
 
@@ -190,6 +190,9 @@ harness-level scope reference.
    [journal lifecycle workload](roadmap-status.md#coordinator-and-journal-lifecycle)
    drives 1,152 writes with real local client journals and verifies each
    restored coordinator and journal pair at nine cutovers on macOS and Linux.
+   The [bounded admission replay](coordinator-admission.md) verifies both
+   lifecycle profiles with the connection and command limits, including
+   overload rejection and exact recovery of a staged journal intent.
    Compare measured write, space and cutover costs with the deployment's
    budgets. The owner accepts the slot and history policy before promoting
    this profile.
