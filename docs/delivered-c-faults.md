@@ -176,6 +176,68 @@ The original five macOS cases inject single syscall returns and recover
 through independent processes on a running kernel. Physical power
 interruption remains a separate gate.
 
+### Optimized Odin consumer on APFS
+
+Build a clean combined-feature package with the shipped Odin bindings, then
+run the Odin and C consumers against the same dylib.
+
+```sh
+cargo xtask package --features crdt,replication --odin --output target/private-package
+cargo xtask faults delivered --macos --odin "$(command -v odin)" \
+  --package target/private-package --output target/macos-odin-faults
+cargo xtask faults delivered --macos \
+  --package target/private-package --output target/macos-c-faults
+```
+
+The Odin consumer calls the packaged ABI directly using the packaged
+declarations. It keeps assertions enabled under `-o:speed` and checks ABI,
+format, features and the embedded source ID in both processes. The exercise
+checks that a full sync of an unrelated inode leaves the injection armed,
+reads the exact visible and retained rows, and verifies that failed and
+recovery-required transactions are terminal with a cleared revision output.
+A fresh process checks request 42 against the reopened state, retries only
+when the marker is absent and reopens the complete revision 4 again. Every
+retained row remains at revision 2. Loader logs verify the exact relocated
+dylib for both phases and the injector for the exercise phase only. The
+disabled-injector control must exit 65 at the commit-status comparison.
+
+Both consumers produced identical rows under the independent Rust oracle.
+
+| APFS case | Returned status | Visible revision | Fresh process reopens |
+|---|---|---:|---:|
+| Baseline | `OK` | 4 | 4 |
+| Append full sync | `IO` | 3 | 3 |
+| Root full sync | `OUTCOME_UNKNOWN` | 3 | 4 |
+| Witness full sync | `OUTCOME_UNKNOWN` | 3 | 4 |
+| Root-slot write | `OUTCOME_UNKNOWN` | 3 | 3 |
+
+The runner and package came from clean source
+`b2ddef866ee4c6d13b66f0aef3d72a094851551a`. The run used macOS 27.0.1 arm64,
+Rust 1.99.1, Apple clang 21.0.0 and Odin `dev-2026-10:a22aa1984`. The eight
+Rust helper controls passed in debug and release, and strict Clippy passed.
+The same runner passed all six Linux C cases, including tmpfs ENOSPC,
+against the historical `bc56084` package on Docker Linux arm64.
+The archived artifact lists independently rehashed 94 Odin files, 93 macOS C
+files, 109 files from a separate `--apfs-full` run and 788 files from the
+Linux worker. The `--apfs-full` C run against the same dylib also observed
+kernel `ENOSPC` with no synthetic hit, reopened revision 3 while full and
+reopened revision 4 after releasing the ballast and retrying. Its owned
+volume was detached and removed.
+
+| Proof under `target/odin-delivered-validation/` | SHA-256 |
+|---|---|
+| `source.tar` | `f988e22f2d034c8dbc09dd15cae237e428614438785f1768ddd5aa2613b1660c` |
+| `macos-odin/evidence.json` | `1d9c1d7447dec295795fd54dd93cdf6336e548eb357d0dbb25c0c30e338940de` |
+| `macos-c/evidence.json` | `45a3f8fff86cd25d9a102ea2027aa55ef87a88e2dc7cdcd2cc4d355c79de5934` |
+| `macos-c-full/evidence.json` | `af4cc238f3323502a8cd70468607c694b991a44825d959c82f9ebbd25cc1638e` |
+| `macos-odin/relocated-package/manifest.json` | `91c9cc5124b34471c43b4a5aab8804f2e344793a1c01ab86e4cd1a1aee67d680` |
+| `macos-odin/relocated-package/libweekend_db.dylib` | `68267299bb198361056a77f2e3a16c21e52a846527f269b0791b7c996d6319a5` |
+| `linux-c/result/evidence.json` | `b1554154ecb0a0ec8ed8c6a254b5737c3b02b3ad224fa46c0c70012b626bff7d` |
+
+The Odin profile covers the five modeled syscall outcomes. Actual filesystem
+exhaustion below uses the C consumer. Other Odin platforms and device
+power-loss behavior retain separate gates.
+
 ### Actual APFS append exhaustion against the dylib
 
 Add `--apfs-full` to run all five existing cases and the actual disk-full
