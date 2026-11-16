@@ -1,5 +1,5 @@
 //! Native minimum-compiler qualification using the normal check plan.
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 use crate::assurance::Campaign;
 #[cfg(windows)]
 use crate::windows_compatibility::Campaign;
@@ -236,7 +236,7 @@ fn run_trace(
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 fn run_trace(
     c: &mut Campaign<'_>,
     xtask: &Path,
@@ -272,7 +272,7 @@ fn run_trace(
     c.command(command, "native-trace", None, 300.)?;
     let trace_path = trace.join("evidence.json");
     let proof = delivery::read_json(&trace_path)?;
-    let library = sha(&package.join("libweekend_db.so"))?;
+    let library = sha(&package.join(Platform::host()?.library()))?;
     let mut languages = vec!["rust", "c"];
     if let Some(compiler) = compiler {
         let name = compiler.to_str().context("UTF-8 Odin compiler path")?;
@@ -325,7 +325,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         let host = "x86_64-pc-windows-msvc";
         #[cfg(windows)]
         let runtime_parent = c.output.clone();
-        #[cfg(target_os = "linux")]
+        #[cfg(unix)]
         let mut runtime = {
             // The copied-source build rejects compiler references to the original tree.
             let temp = dunce::canonicalize(std::env::temp_dir())?;
@@ -335,8 +335,13 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             );
             Scratch::new(&temp, "msrv-runtime")?
         };
-        #[cfg(target_os = "linux")]
+        #[cfg(unix)]
         let runtime_parent = runtime.path().to_owned();
+        #[cfg(unix)]
+        {
+            c.evidence["kernel"] = json!(c.command(cmd(["uname", "-a"]), "kernel", None, 30.)?);
+            c.env.insert("TMPDIR".into(), path(runtime.path()));
+        }
         #[cfg(target_os = "linux")]
         let host = {
             let arch = std::env::consts::ARCH;
@@ -344,7 +349,6 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
                 matches!(arch, "x86_64" | "aarch64"),
                 "unsupported Linux architecture"
             );
-            let kernel = c.command(cmd(["uname", "-a"]), "kernel", None, 30.)?;
             let machine = c.command(cmd(["uname", "-m"]), "machine", None, 30.)?;
             ensure!(machine == arch, "native Linux architecture mismatch");
             let mount = c.command(
@@ -365,10 +369,18 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
                 mount["filesystems"][0]["fstype"] == "ext4",
                 "native ext4 runtime required"
             );
-            c.evidence["kernel"] = json!(kernel);
             c.evidence["volume"] = mount["filesystems"][0].clone();
-            c.env.insert("TMPDIR".into(), path(runtime.path()));
             format!("{arch}-unknown-linux-gnu")
+        };
+        #[cfg(target_os = "macos")]
+        let host = {
+            let machine = c.command(cmd(["uname", "-m"]), "machine", None, 30.)?;
+            ensure!(
+                std::env::consts::ARCH == "aarch64" && machine == "arm64",
+                "native arm64 macOS required"
+            );
+            c.evidence["volume"] = crate::macos_volume::host_volume(runtime.path())?;
+            "aarch64-apple-darwin"
         };
         let rustc = c.command(cmd(["rustc", "-Vv"]), "rustc", None, 30.)?;
         let cargo = c.command(cmd(["cargo", "-V"]), "cargo", None, 30.)?;
@@ -390,7 +402,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         run_delivery(&mut c, &xtask, &rustc, &locks["Cargo.lock"], opts.odin)?;
         c.save()?;
         run_checks(&mut c, &run.root, &target, &runtime_parent, &xtask)?;
-        #[cfg(target_os = "linux")]
+        #[cfg(unix)]
         runtime.close()?;
         ensure!(
             committed_locks(&mut c, &run.root, "after")? == locks,

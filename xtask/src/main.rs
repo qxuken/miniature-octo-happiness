@@ -39,7 +39,7 @@ mod maintenance_space;
 mod migration;
 #[cfg(unix)]
 mod monthly_workload;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod msrv;
 #[cfg(unix)]
 mod mutations;
@@ -184,6 +184,9 @@ enum Task {
     /// Qualify the declared minimum Rust compiler and exact Linux artifacts on ext4.
     #[cfg(target_os = "linux")]
     LinuxMsrv(msrv::Options),
+    /// Qualify the declared minimum Rust compiler and exact macOS artifacts on APFS.
+    #[cfg(target_os = "macos")]
+    MacosMsrv(msrv::Options),
     /// Verify publication errors and fresh recovery using the exact Windows DLL.
     #[cfg(windows)]
     WindowsFaults(windows_trace::FaultOptions),
@@ -386,6 +389,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::WindowsMsrv(options) => msrv::run(&run, options),
         #[cfg(target_os = "linux")]
         Task::LinuxMsrv(options) => msrv::run(&run, options),
+        #[cfg(target_os = "macos")]
+        Task::MacosMsrv(options) => msrv::run(&run, options),
         #[cfg(windows)]
         Task::WindowsFaults(options) => windows_trace::run_faults(&mut run, options),
         #[cfg(windows)]
