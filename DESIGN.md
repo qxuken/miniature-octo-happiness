@@ -5780,3 +5780,28 @@ using the format's original byte order. The bit-recurrence test, golden
 histories and fixed-image comparison verify the byte contract across updates
 and padding. The [CRC-64 report](docs/crc64-performance.md) records the paired
 inspection and export timings, authenticated follower recovery and fuzz checks.
+
+## Current tooling and assurance checkpoints (2026-11-16)
+
+Maintained orchestration, supervision, fault runners and independent validators
+now run through the private Rust tooling. Current maintained sources contain no
+Python; the earlier sections record intermediate migration checkpoints. The
+[readiness roadmap](docs/roadmap-status.md) keeps exact source and platform scope
+for each result. No Cargo package is published.
+
+The [four-platform delivery checkpoint](docs/private-delivery.md) binds all 16
+combined/isolated packages, their native consumers, three benchmark samples and
+the 1,442,896-execution extended ASan campaign to exact source `7e0e44f`.
+Its restored archive revalidates all 22,192 indexed files. The later operational
+checkpoint separately verifies current/retained restore, coordinated journal
+reconciliation and the pre-structured service canaries on native platforms.
+Those results preserve separate local-commit and follower-durable outcomes.
+
+[Typed controls T7/T8](docs/decisions/typed-runtime.md#t7-emitted-field-validation-and-migration-version-admission)
+qualify generated nested-nullability validation, old-model migration admission,
+newer raw-row rejection and current-version conversion skipping. Debug/release
+controls verify exact errors, callback behavior, staged rollback and current and
+retained state. Five isolated omissions are detected after passing baselines.
+Generated call propagation, per-API predicate pairs and mutation sensitivity
+retain their different scopes; no compiler MC/DC percentage or whole-module
+completion follows from these tests.
