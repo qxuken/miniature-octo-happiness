@@ -1,5 +1,6 @@
 //! Verify the retained minimum-Rust delivery reports without running delivered binaries.
 use crate::{
+    benchmark,
     delivery::read_json_hashed,
     msrv::{EVIDENCE_EXCLUSIONS, ISOLATED_PACKAGES, check_isolated_manifest, minimum},
     source_archive,
@@ -21,6 +22,9 @@ pub struct Options {
     /// Directory containing the four extracted minimum-Rust evidence trees.
     #[arg(long)]
     matrix: PathBuf,
+    /// Optional retained benchmark evidence directory from the same clean commit.
+    #[arg(long)]
+    benchmark: Option<PathBuf>,
     /// Require the three isolated packages in every lane.
     #[arg(long)]
     require_isolated: bool,
@@ -585,6 +589,11 @@ pub fn run(run: &mut Run, options: Options) -> Result<()> {
         .iter()
         .filter(|(name, _)| name.as_str() == "Cargo.lock" || name.ends_with("/Cargo.lock"))
         .collect();
+    let benchmark = options
+        .benchmark
+        .as_deref()
+        .map(|root| benchmark::verify(root, &source, &tree))
+        .transpose()?;
     let mut report = verify(
         &options.matrix,
         &source,
@@ -595,6 +604,9 @@ pub fn run(run: &mut Run, options: Options) -> Result<()> {
     )?;
     report["source_archive_sha256"] = json!(archive);
     report["verifier_sha256"] = json!(sha(&std::env::current_exe()?)?);
+    if let Some(benchmark) = benchmark {
+        report["benchmark"] = benchmark;
+    }
     scratch.close()?;
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())

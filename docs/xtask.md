@@ -42,9 +42,15 @@ locked tooling dependencies. There are 20 private project manifests, all with
 `publish=false`.
 
 `verify-delivery` checks four previously collected minimum-Rust reports and
-their retained packages and traces against the exact Git commit. It reads
-the delivered files without executing them. See the [delivery matrix and
-directory layout](private-delivery.md#four-platform-result-at-c5970bd).
+their workspace test transcripts, retained packages and consumer traces
+against the exact Git commit. Pass `--benchmark PATH` to include a retained
+`cargo xtask benchmark --output PATH` run collected from the same clean
+commit. The verifier compares the recorded benchmark inputs against the Git
+archive, rehashes the raw samples and summary, checks the samples against
+the captured stdout, and recomputes the summary. The report records the
+benchmark evidence and CSV hashes. Verification reads the retained files
+without executing the binaries. See the [delivery matrix and directory
+layout](private-delivery.md#four-platform-result-at-c5970bd).
 
 ## Existing checks and package contract
 

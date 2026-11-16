@@ -15,6 +15,10 @@ and [packaged C and Odin publication-error recovery](delivered-c-faults.md).
 The [four-platform delivery matrix](private-delivery.md#combined-and-isolated-matrix-at-651654c)
 binds all four Cargo feature masks, exact consumer traces and bounded
 ASan/fuzz evidence to one tested revision.
+`verify-delivery` checks the debug and release workspace tests in each
+lane and can bind retained release microbenchmark samples to the same
+clean source revision with `--benchmark`. The release performance gate
+still requires workload measurements against declared budgets.
 
 The release scope includes the local embedded store, typed Rust, C/Odin,
 passive snapshot replication, fixed two-actor CRDT peers and the coordinator,

@@ -5,7 +5,7 @@ mod artifact_trace;
 mod assurance;
 #[cfg(unix)]
 mod atomic_model;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod benchmark;
 #[cfg(unix)]
 mod c_sanitizers;
@@ -83,6 +83,8 @@ mod snapshot_upgrade;
 mod soak;
 #[cfg(any(unix, windows))]
 mod source_archive;
+#[cfg(any(unix, windows))]
+mod source_inventory;
 #[cfg(unix)]
 mod sqlite_baseline;
 #[cfg(unix)]
