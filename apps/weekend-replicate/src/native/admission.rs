@@ -1,5 +1,5 @@
 use super::{
-    AppResult, SessionError,
+    AppResult,
     tls::{Incoming, Tls},
 };
 use std::{
@@ -42,9 +42,8 @@ pub(super) fn serve(
 ) -> AppResult<()> {
     admit(listener, tls, maximum, MAX_HANDSHAKES, |pending| {
         for channel in pending {
-            if let Err(error) = follower.serve_authenticated(channel) {
-                eprintln!("{}", SessionError::Replication(error));
-            }
+            // Peer-controlled errors must not write to a blocking diagnostics sink.
+            let _ = follower.serve_authenticated(channel);
             // Stop before touching another channel if manifest publication failed.
             follower.progress()?;
         }
@@ -99,12 +98,11 @@ fn admit(
                 let ready = ready.clone();
                 let worker = thread::Builder::new()
                     .name("snapshot-tls".into())
-                    .spawn_scoped(scope, move || match tls.accept_at(socket, started) {
-                        Ok(channel) => {
+                    .spawn_scoped(scope, move || {
+                        if let Ok(channel) = tls.accept_at(socket, started) {
                             // An overloaded connection closes without a protocol reply.
                             let _ = ready.try_send(channel);
                         }
-                        Err(error) => eprintln!("{}", SessionError::Authentication(error)),
                     })?;
                 handshakes.push(Handshake {
                     socket: cancel,

@@ -345,11 +345,13 @@ fn ship(
     }
     Err("no transfer attempt configured".into())
 }
+#[cfg(test)]
 #[derive(Debug)]
 enum SessionError {
     Authentication(Box<dyn std::error::Error + Send + Sync>),
     Replication(Error),
 }
+#[cfg(test)]
 impl std::fmt::Display for SessionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -358,6 +360,7 @@ impl std::fmt::Display for SessionError {
         }
     }
 }
+#[cfg(test)]
 impl std::error::Error for SessionError {}
 #[cfg(test)]
 fn serve_one(follower: &mut Follower, tls: &Tls, socket: TcpStream) -> Result<(), SessionError> {

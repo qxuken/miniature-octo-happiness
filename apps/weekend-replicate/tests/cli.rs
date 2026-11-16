@@ -12,6 +12,9 @@ use std::{
 #[cfg(target_os = "linux")]
 #[path = "cli/full_storage.rs"]
 mod full_storage;
+#[cfg(target_os = "linux")]
+#[path = "cli/log_backpressure.rs"]
+mod log_backpressure;
 mod support;
 use support::credentials;
 use weekend_db::{Database, Limits};
@@ -40,13 +43,17 @@ impl Drop for Server {
 }
 impl Server {
     fn start(root: &Path, args: &[&str]) -> (Self, String) {
+        Self::start_with_stderr(root, args, Stdio::inherit())
+    }
+
+    fn start_with_stderr(root: &Path, args: &[&str], stderr: Stdio) -> (Self, String) {
         let log = root.join("server.log");
         let output = fs::File::create(&log).unwrap();
         let mut server = Self(
             Command::new(BIN)
                 .args(args)
                 .stdout(output)
-                .stderr(Stdio::inherit())
+                .stderr(stderr)
                 .spawn()
                 .unwrap(),
         );
