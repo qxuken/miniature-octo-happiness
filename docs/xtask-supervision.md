@@ -62,9 +62,12 @@ Rust owns pipes, deadlines, output accounting, signals, RSS probes and retiremen
   outer journal. Recycled identities are excluded within the precision of the
   platform's start identity. This is trusted-suite ownership tracking.
 * Process inventories enforce a two-second budget and an 8 MiB ceiling.
-  Permission errors retiring a macOS zombie-only group are accepted only after
-  proving leader exit and absence of live group members. Probe/journal errors
-  still attempt direct group retirement and reaping, then fail qualification.
+  Only a macOS native `io::Error` carrying raw `EPERM` is eligible for the
+  zombie-only group exception. The bounded native `waitid(WNOWAIT)` must observe
+  leader exit, followed by a fresh inventory proving no live group members,
+  before `Child.wait` releases the leader PID. Other group errors remain failures.
+  Probe/journal errors still attempt direct group retirement and reaping, then
+  fail qualification.
 * SIGINT/SIGTERM produce cancellation outcomes. Fault campaigns keep a handler
   across commands so cancellation between commands still reaches Docker cleanup.
   Cleanup attempts both owned container and volume retirement, then queries both
@@ -307,3 +310,63 @@ against the existing exact Linux package from `bc56084`. The controller
 verified the inner evidence SHA-256
 `d3aa5dc269d1d5cf9820dee347c1abb09d07e522e1c15a6ee4bf40fce892872c`
 and confirmed that its owned container and volume were absent.
+
+## macOS group-retirement observation control (2026-11-16)
+
+[Hosted TSan job 133361482380](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43885237017/job/133361482380)
+at tested merge `6859d412405a242f65928a4873bd2e4e0af7c5a1` fails the existing
+detached-session retirement assertion with native `EPERM`, despite eventually
+reaping the root. Its intermediate exit and process-table observations were not
+logged. The following control establishes a feasible failure pattern, without
+claiming that exact hosted schedule or naturally reproducing kernel `EPERM`.
+
+The deterministic `Inspect` seam keeps a real owned session leader unreaped.
+It injects group `EPERM` and an immediate false exit observation; the real
+bounded native wait then observes exit, and the inventory proves group absence
+before reaping. The old implementation fails this assertion in debug and
+release. A separate old-code control demonstrates that arbitrary `EIO` was
+incorrectly suppressed after immediate exit and an empty group. That failing
+loop stops at its first `EIO` assertion; later old-code reasons are not credited.
+
+The corrected control passes and preserves failure for inventory errors, live
+groups and late exit. Error-type controls reject `EIO`, `EACCES`, permission kind
+without a native code and arbitrary text. The Linux control also rejects raw
+`EPERM`. Fake live rows use only the actual owned root PID; the late-exit guard
+owns its cleanup. No new signals, threads or product behavior are introduced.
+
+The final tooling overlay on base `d05a056cc756df6042bf604bb3b65148a68dff6f`
+has supervisor SHA-256
+`6d6d33782914b2478e06cd2623659bf1eeaad5dc615d4b7faf7b0136b9a72107`.
+Mac arm64 Rust 1.99.1 passes the complete xtask suite in debug and release,
+**217 tests plus one existing skip per profile**, and strict all-target Clippy.
+The existing real detached-session test passes in both profiles. A single
+offline Linux arm64 Rust 1.99.1 reason control passes all five cases in pinned
+image `sha256:bda5ef43469a7d63b240adcbc5a5b0599be442bce204d12936f6083224f56b18`;
+its owned container and volume are removed and independently absent. This is
+portable error-policy coverage, not a full Linux suite or filesystem drill.
+
+Retained proof is `/private/tmp/weekend-supervision-eperm-d05-1VV7G8/`.
+Its `evidence.json` SHA-256 is
+`d3e64c5d5bca60f8cc064799703df086ba93e35ac7c2425f84f63f120a9c8b8b`.
+The sibling `.tar.gz` archive SHA-256 is
+`bca9f438722a1cac68e7b0216e28e540fe9119737f6fd60d504ced4ba4fc7121`;
+all 228 indexed payloads verify after extraction. It retains baseline source
+archive/bundle, exact overlays, actual final executables, 36 bounded command
+records, logs and cleanup evidence. All 14 lockfiles match the base. Initial
+full runs from an archive without Git metadata fail four Git-dependent coverage
+controls; those failed logs remain included. Fresh full runs with authentic base
+Git metadata and the truthful one-file dirty overlay pass.
+
+This local tooling evidence does not turn the historical `6859d41` CI failure
+into a pass, qualify a new clean candidate, or substitute for a full TSan rerun.
+The immutable product checkpoint and its retained proofs remain separate.
+
+Root independently restored all 228 proof payloads, checked all 36 bounded
+outcomes and log byte counts, matched the base Git archive and final source,
+and verified the four authoritative pre-fix assertion failures. Both final
+profiles contain 210 passing unit tests and seven integration tests; one unit
+test remains ignored. The protected archive is
+`target/archived-proof/supervision-eperm-d05a056.tar.gz`, with the digest above.
+Independent source review found no actionable issue. A fresh immutable-source
+qualification will rerun the delivered packages and campaigns after this tooling
+change rather than relabel the older failed source.

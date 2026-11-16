@@ -5863,3 +5863,13 @@ It is separate from measured condition coverage. The
 [fourteen-lock dependency check](docs/locked-dependency-review-3db5bcd.md)
 also retains exact locks, audit tool and immutable advisory inputs. Final
 same-source package, attribution and deployment acceptance remain separate.
+
+The historical `6859d41` checkpoint binds sixteen packages, three benchmark
+samples and 1,448,892 ASan fuzz executions to one source, with fully restored
+proof. Its CI retains one failing supervisor cleanup control. A deterministic
+tooling regression reproduces delayed exit observation after macOS group
+`EPERM`; the corrected supervisor proves exit and group absence before reaping
+the reserved PID and retains all unsupported errors. This changes qualification
+tooling only. The [recorded results](docs/roadmap-status.md#historical-6859-checkpoint-and-supervisor-correction)
+keep the failed source distinct from the next clean candidate qualification;
+storage barriers and separate local/follower acknowledgment remain unchanged.

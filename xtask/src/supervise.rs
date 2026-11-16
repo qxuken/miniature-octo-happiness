@@ -795,14 +795,16 @@ mod unix {
                 }
             }
         }
+        let mut pending_group_error = None;
         if let Err(e) = inspect.kill_group(root) {
-            // macOS can report EPERM for a group whose only member is a zombie.
-            let gone = inspect.exited(child.id()).unwrap_or(false)
-                && inspect.table().is_ok_and(|t| {
-                    !t.values()
-                        .any(|r| r.group == root && !r.state.starts_with('Z'))
-                });
-            if !gone {
+            // Only macOS's native EPERM is eligible for the zombie-only
+            // exception. An immediate observation can precede exit.
+            if cfg!(target_os = "macos")
+                && e.downcast_ref::<io::Error>()
+                    .is_some_and(|error| error.raw_os_error() == Some(libc::EPERM))
+            {
+                pending_group_error = Some(e);
+            } else {
                 errors.push(format!("retire process group: {e:#}"));
             }
         }
@@ -812,6 +814,20 @@ mod unix {
         loop {
             match exited(child.id()) {
                 Ok(true) => {
+                    if let Some(error) = pending_group_error.take() {
+                        // waitid(WNOWAIT) still pins the root PID. Prove group
+                        // absence before wait releases it, never afterward.
+                        match inspect.table() {
+                            Ok(t)
+                                if !t.values().any(|row| {
+                                    row.group == root && !row.state.starts_with('Z')
+                                }) => {}
+                            Ok(_) => errors.push(format!("retire process group: {error:#}")),
+                            Err(probe) => errors.push(format!(
+                                "retire process group: {error:#}; retirement inspection: {probe:#}"
+                            )),
+                        }
+                    }
                     match child.wait() {
                         Ok(status) => {
                             report.returncode =
@@ -834,6 +850,9 @@ mod unix {
                 }
                 _ => thread::sleep(Duration::from_millis(10)),
             }
+        }
+        if let Some(error) = pending_group_error {
+            errors.push(format!("retire process group: {error:#}"));
         }
         if let Err(e) = journal(request, owned, true) {
             errors.push(format!("{e:#}"));
@@ -1200,6 +1219,209 @@ mod unix {
             assert!(inspect.0);
             assert_eq!(report.returncode, Some(2));
             assert!(report.cleanup_verified);
+        }
+
+        struct OwnedRoot(Child);
+        impl Drop for OwnedRoot {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+
+        struct GroupError {
+            root: Identity,
+            mode: &'static str,
+            killed: bool,
+            reaped: bool,
+            immediate_checks: usize,
+            proof_tables: usize,
+        }
+        impl Inspect for GroupError {
+            fn table(&mut self) -> Result<BTreeMap<i32, Identity>> {
+                if self.reaped {
+                    return Ok(BTreeMap::new());
+                }
+                if !self.killed {
+                    return Ok(BTreeMap::from([(self.root.pid, self.root.clone())]));
+                }
+                self.proof_tables += 1;
+                if self.mode == "late" {
+                    return Ok(BTreeMap::from([(self.root.pid, self.root.clone())]));
+                }
+                // A positive native waitid still succeeds here only while the
+                // real owned child remains unreaped and its PID is reserved.
+                assert!(exited(self.root.pid as u32)?);
+                if self.mode == "probe" {
+                    anyhow::bail!("injected retirement table failure");
+                }
+                if self.mode == "live" {
+                    // Never invent a foreign PID that cleanup might signal.
+                    let mut live = self.root.clone();
+                    live.state = "S".into();
+                    return Ok(BTreeMap::from([(live.pid, live)]));
+                }
+                let rows = table()?;
+                assert!(
+                    !rows
+                        .values()
+                        .any(|row| { row.group == self.root.pid && !row.state.starts_with('Z') })
+                );
+                Ok(rows)
+            }
+            fn exited(&mut self, pid: u32) -> Result<bool> {
+                assert_eq!(pid, self.root.pid as u32);
+                self.immediate_checks += 1;
+                if matches!(self.mode, "delayed" | "late") {
+                    Ok(false)
+                } else {
+                    exited(pid)
+                }
+            }
+            fn kill_group(&mut self, pid: i32) -> Result<()> {
+                assert_eq!(pid, self.root.pid);
+                self.killed = true;
+                if self.mode != "late" {
+                    // Signal only our actual unreaped child. The seam injects
+                    // the group syscall result, not ownership or native waitid.
+                    signal(pid, libc::SIGKILL)?;
+                    let end = Instant::now() + Duration::from_secs(2);
+                    while !exited(pid as u32)? {
+                        ensure!(Instant::now() < end, "owned root did not exit");
+                        thread::sleep(Duration::from_millis(1));
+                    }
+                }
+                match self.mode {
+                    "other-io" => Err(io::Error::from_raw_os_error(libc::EIO).into()),
+                    "access" => Err(io::Error::from_raw_os_error(libc::EACCES).into()),
+                    "kind-only" => {
+                        Err(io::Error::new(io::ErrorKind::PermissionDenied, "injected").into())
+                    }
+                    "text" => anyhow::bail!("injected group permission denied"),
+                    _ => Err(io::Error::from_raw_os_error(libc::EPERM).into()),
+                }
+            }
+            fn reaped(&mut self) -> Result<()> {
+                self.reaped = true;
+                Ok(())
+            }
+        }
+
+        fn group_error_control(mode: &'static str) -> (Result<()>, Report, GroupError) {
+            let (_owned, request) = super::super::tests::fixture("");
+            let mut command = Command::new("/bin/sh");
+            command
+                .args(["-c", "read -r release"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            // SAFETY: only setsid runs in the child before exec.
+            unsafe {
+                command.pre_exec(|| {
+                    if libc::setsid() < 0 {
+                        return Err(io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
+            }
+            let mut child = OwnedRoot(command.spawn().unwrap());
+            let pid = child.0.id() as i32;
+            let identity = table().unwrap().remove(&pid).unwrap();
+            assert_eq!(identity.group, pid);
+            let mut inspect = GroupError {
+                root: identity,
+                mode,
+                killed: false,
+                reaped: false,
+                immediate_checks: 0,
+                proof_tables: 0,
+            };
+            let mut report = Report {
+                pid: Some(child.0.id()),
+                ..Report::default()
+            };
+            let result = retire(
+                &mut child.0,
+                &request,
+                &mut report,
+                &mut BTreeMap::new(),
+                &mut inspect,
+            );
+            // The late-exit negative intentionally leaves the child alive at
+            // the bounded reap deadline. Its guard still owns and retires it.
+            let _ = child.0.kill();
+            child.0.wait().unwrap();
+            let rc = unsafe { libc::waitpid(pid, std::ptr::null_mut(), libc::WNOHANG) };
+            assert_eq!(rc, -1);
+            assert_eq!(
+                io::Error::last_os_error().raw_os_error(),
+                Some(libc::ECHILD)
+            );
+            (result, report, inspect)
+        }
+
+        #[cfg(target_os = "macos")]
+        #[test]
+        fn group_eperm_waits_for_native_exit_and_live_group_proof_before_reap() {
+            let (result, report, inspect) = group_error_control("delayed");
+            assert!(
+                result.is_ok(),
+                "{result:?}; {report:?}; immediate={} proof_tables={}",
+                inspect.immediate_checks,
+                inspect.proof_tables
+            );
+            assert_eq!(report.returncode, Some(-9));
+            assert!(report.cleanup_verified && inspect.reaped);
+            assert_eq!(inspect.proof_tables, 1);
+        }
+
+        #[test]
+        fn arbitrary_group_errors_are_not_hidden_by_an_exited_empty_group() {
+            for mode in [
+                "other-io",
+                "access",
+                "kind-only",
+                "text",
+                #[cfg(not(target_os = "macos"))]
+                "native-permission",
+            ] {
+                let (result, report, inspect) = group_error_control(mode);
+                assert!(
+                    result.is_err(),
+                    "{mode}: {report:?}; immediate={} proof_tables={}",
+                    inspect.immediate_checks,
+                    inspect.proof_tables
+                );
+                assert!(
+                    result
+                        .unwrap_err()
+                        .to_string()
+                        .contains("retire process group")
+                );
+                assert_eq!(report.returncode, Some(-9));
+                assert!(!report.cleanup_verified);
+                assert!(inspect.reaped);
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        #[test]
+        fn group_eperm_cannot_hide_probe_live_group_or_late_exit_failures() {
+            for mode in ["probe", "live", "late"] {
+                let (result, report, inspect) = group_error_control(mode);
+                assert!(result.is_err(), "{mode}: {report:?}");
+                let reason = result.unwrap_err().to_string();
+                assert!(reason.contains("retire process group"), "{mode}: {reason}");
+                assert!(!report.cleanup_verified);
+                if mode == "late" {
+                    assert!(reason.contains("worker reap deadline"));
+                    assert_eq!(report.returncode, None);
+                    assert!(!inspect.reaped);
+                } else {
+                    assert_eq!(report.returncode, Some(-9));
+                    assert!(inspect.reaped && inspect.proof_tables > 0);
+                }
+            }
         }
         #[test]
         fn probe_wait_sampler_and_combined_failures_still_reap() {

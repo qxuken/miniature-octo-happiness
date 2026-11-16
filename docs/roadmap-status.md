@@ -2830,3 +2830,42 @@ unchanged raw results and excluded as preliminary. Attribution/license approval,
 registry metadata, undisclosed defects and final package review retain their
 separate scope. The next coherent step is one immutable candidate bundle;
 additional generic E-label sweeps are not a substitute for that qualification.
+
+## Historical 6859 checkpoint and supervisor correction
+
+The immutable source `6859d412405a242f65928a4873bd2e4e0af7c5a1`, tested merge
+of branch `d05a056`, passes all sixteen minimum-Rust packages across Mac arm64,
+Linux arm64/x64 and Windows x64. Combined/isolated consumers, relocation,
+attribution and exact traces pass. Debug/release workspace counts are 728/6
+passes/skips on Mac, 764/8 on Linux and 592/6 on Windows. Three seventeen-case
+benchmark samples and an all-22-target ASan campaign bind to that same source:
+1,448,892 actual executions, 244 unchanged seeds and 29 stable replay tests.
+Fresh Mac/Linux administrative and coordinator-local recovery rehearsals each
+pass 38 expected outcomes; follower durability remains a separate contract.
+
+The checkpoint is **not all CI green**: thirteen jobs pass, while TSan stops
+with 712 passes, one supervisor-control failure and five skips, before later
+doctests. The existing detached-session cleanup control reports native `EPERM`.
+Its intermediate kernel observations were not logged. All nine newly selected
+worker/typed/scalar tests pass; this does not convert the failed job to a pass.
+
+The [supervisor correction](xtask-supervision.md#macos-group-retirement-observation-control-2026-11-16)
+first reproduces a feasible delayed-observation failure and an independently
+swallowed `EIO` at the existing `Inspect` seam. Only macOS native `EPERM` can
+now wait for bounded positive exit and fresh no-live-group proof while the PID
+remains reserved. Probe, live-group, late-exit and other error cases fail closed.
+Mac debug/release pass 217 xtask tests plus one existing skip; strict Clippy
+passes. Linux executes the portable five-reason control, including raw `EPERM`.
+Source review and restored 228-payload proof checks pass. No product runtime,
+durability barrier, wire format or acknowledgment contract changes.
+
+The historical product archive
+`target/archived-proof/private-delivery-6859d41-checkpoint.tar.zst`, SHA-256
+`f26329ecae71c2845feb74d9bb44335b3ce2235e2318452eee0396d8dceae7a8`,
+restores all 27,256 indexed files. Public strict verification of the restored
+sixteen packages, benchmarks and extended fuzz campaign reproduces report
+`8872dcadb462ebe256d70009a2de0623d487c3f38fe70419e1a4d799e0fbc90d`
+byte for byte. The archive retains the failed CI, actual binaries, source,
+corpora, notices, independent reviews and recovery evidence. This source is a
+historical checkpoint; the corrected qualification tool needs a new immutable
+same-source matrix and full TSan run. Crates remain unpublished.
