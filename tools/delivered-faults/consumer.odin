@@ -189,9 +189,9 @@ recover :: proc(path: string, mode: int, verify_only := false) {
     reopened: u64 = 4 if mode == 0 || mode == 2 || mode == 3 else 3
     published := verify(database, reopened)
     if verify_only {
-        assert(mode == 6 && !published)
+        assert((mode == 5 || mode == 6) && !published)
         ok(db.wdb_close(database))
-        fmt.println(`{"mode":6,"reopened":3,"retained_revision":2,"verified":true}`)
+        fmt.printf("%c\"mode\":%d,\"reopened\":3,\"retained_revision\":2,\"verified\":true%c\n", '{', mode, '}')
         return
     }
     if !published {

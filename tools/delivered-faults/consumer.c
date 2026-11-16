@@ -103,7 +103,7 @@ int main(int argc,char **argv) {
     seed_only=!recovering && !strcmp(argv[1],"seed");
 #endif
     int mode=seed_only?5:atoi(recovering?argv[4]:argv[1]);assert(mode>=0 && mode<=LAST_MODE);
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__linux__)
     assert(!verify_only || mode==5);
 #else
     assert(!verify_only || mode==6);
@@ -161,10 +161,8 @@ int main(int argc,char **argv) {
     uint64_t revision;
     wdb_tx *tx=NULL;
 #if defined(__linux__)
-    char ballast[1024];
     if(mode==5) {
         fill_tmpfs=(void(*)(const char*))dlsym(RTLD_DEFAULT,"qualification_fill_tmpfs");assert(fill_tmpfs);
-        assert(snprintf(ballast,sizeof ballast,"%s/ballast",argv[2])>0);
         fill_tmpfs(argv[2]);
     }
 #endif
@@ -209,9 +207,6 @@ int main(int argc,char **argv) {
         revision=99;assert(wdb_tx_commit(tx,&revision)==WDB_CLOSED && revision==0);OK(wdb_tx_release(tx));
     }
     disarm();OK(wdb_close(db));
-#if defined(__linux__)
-    if(mode==5)assert(unlink(ballast)==0);
-#endif
     printf("{\"mode\":%d,\"status\":%d,\"visible\":%d,\"hits\":%d,\"syncs\":%d,\"root_writes\":%d,\"witness_writes\":%d,\"native_errno\":%d,\"verified\":true}\n",mode,status,mode==0?4:3,hits,syncs,roots,witnesses,native_error);
     return 0;
 }

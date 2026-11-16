@@ -663,6 +663,10 @@ exec /work/tool/debug/xtask faults delivered --worker --output /work/result "$@"
             "missing cases"
         );
         ensure!(
+            proof["tmpfs_exhaustion"]["verified"] == true,
+            "missing tmpfs exhaustion reopen evidence"
+        );
+        ensure!(
             inventory(&runner)? == runner_before,
             "runner source changed"
         );
@@ -736,6 +740,39 @@ fn observes_library(log: &str, path: &Path, macos: bool) -> bool {
                 .is_some_and(|(_, loaded)| loaded == expected)
         }
     })
+}
+
+fn phase_observation(text: &str) -> Result<Value> {
+    let mut rows = text.lines().filter(|line| line.starts_with('{'));
+    let row = rows.next().context("missing complete phase")?;
+    ensure!(rows.next().is_none(), "duplicate complete phase");
+    Ok(serde_json::from_str(row)?)
+}
+
+fn available_kib(c: &mut Campaign, data: &Path, label: &str) -> Result<u64> {
+    let output = c.ok(
+        v(&["df", "--output=avail", "-k", "--", &s(data)]),
+        label,
+        30.,
+    )?;
+    let mut lines = output.lines();
+    ensure!(lines.next().is_some(), "missing df header");
+    let available = lines
+        .next()
+        .context("missing available space")?
+        .trim()
+        .parse()?;
+    ensure!(lines.next().is_none(), "multiple filesystem rows");
+    Ok(available)
+}
+
+fn last_phase_pid(c: &Campaign) -> Result<u64> {
+    c.evidence["commands"]
+        .as_array()
+        .and_then(|commands| commands.last())
+        .and_then(|command| command["outcome"]["pid"].as_u64())
+        .filter(|pid| *pid > 0)
+        .context("phase process identity missing")
 }
 
 fn exercise_package(
@@ -969,6 +1006,46 @@ fn exercise_package(
             )?;
             let mut clean = env.clone();
             clean.insert(loader_flag.into(), loader_value.into());
+            let full = if mode == 5 {
+                let exercise_pid = last_phase_pid(&c)?;
+                let database = data.join("database.wdb");
+                let before = available_kib(&mut c, &data, "space-after-enospc")?;
+                ensure!(before == 0, "tmpfs still has available space");
+                let original = sha(&database)?;
+                let reopen = c.call(
+                    v(&[&s(&binary), "full", &s(&data), source, "5"]),
+                    "verify-while-full",
+                    90.,
+                    Some(clean.clone()),
+                    &[0],
+                )?;
+                let full_pid = last_phase_pid(&c)?;
+                let observation = phase_observation(&reopen)?;
+                crate::delivered_faults::full_space_phase(&observation, true)?;
+                ensure!(
+                    full_pid != exercise_pid
+                        && observes_library(&reopen, &package.join(library), macos)
+                        && !observes_library(&reopen, &output.join(&shim), macos),
+                    "full-space reopen process or loader mismatch"
+                );
+                let after = available_kib(&mut c, &data, "space-after-full-reopen")?;
+                ensure!(
+                    after == 0 && sha(&database)? == original,
+                    "full-space reopen changed database bytes or free space"
+                );
+                let archived = output.join("tmpfs-full.wdb");
+                fs::copy(&database, &archived)?;
+                ensure!(
+                    sha(&archived)? == original,
+                    "archived full-space image changed"
+                );
+                fs::remove_file(data.join("ballast"))?;
+                let freed = available_kib(&mut c, &data, "space-after-ballast")?;
+                ensure!(freed > 4096, "ballast removal did not restore headroom");
+                Some((exercise_pid, full_pid, original, observation, freed))
+            } else {
+                None
+            };
             let recovery = c.call(
                 v(&[
                     &s(output.join("consumer")),
@@ -989,16 +1066,11 @@ fn exercise_package(
                     && !observes_library(&recovery, &output.join(&shim), macos),
                 "loader/injector mismatch"
             );
-            let one = |text: &str| -> Result<Value> {
-                let rows: Vec<_> = text.lines().filter(|l| l.starts_with('{')).collect();
-                ensure!(rows.len() == 1, "missing/duplicate complete phase");
-                Ok(serde_json::from_str(rows[0])?)
-            };
             let phases = output.join(format!("phases-{mode}.json"));
             fs::write(
                 &phases,
                 serde_json::to_vec(
-                    &json!({"exercise":one(&exercise)?,"recovery":one(&recovery)?,"mode":mode}),
+                    &json!({"exercise":phase_observation(&exercise)?,"recovery":phase_observation(&recovery)?,"mode":mode}),
                 )?,
             )?;
             let phases = crate::delivery::read_json(&phases)?;
@@ -1007,6 +1079,27 @@ fn exercise_package(
                 &phases["recovery"],
                 mode,
             )?);
+            if let Some((exercise_pid, full_pid, original, observation, freed)) = full {
+                let retry_pid = last_phase_pid(&c)?;
+                ensure!(
+                    retry_pid != exercise_pid && retry_pid != full_pid,
+                    "retry process identity repeated"
+                );
+                let database = data.join("database.wdb");
+                let archived = output.join("tmpfs-retry.wdb");
+                let retried = sha(&database)?;
+                fs::copy(&database, &archived)?;
+                ensure!(
+                    retried != original && sha(&archived)? == retried,
+                    "retried or archived database bytes"
+                );
+                c.evidence["tmpfs_exhaustion"] = json!({
+                    "verified":true, "exercise_pid":exercise_pid, "full_reopen_pid":full_pid,
+                    "retry_pid":retry_pid, "full_reopen":observation, "available_kib_on_failure":0,
+                    "available_kib_after_full_reopen":0, "available_kib_after_ballast":freed,
+                    "full_sha256":original, "retry_sha256":retried
+                });
+            }
         }
         if apfs_full {
             #[cfg(target_os = "macos")]

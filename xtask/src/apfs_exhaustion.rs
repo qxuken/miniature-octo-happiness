@@ -69,7 +69,7 @@ pub(super) fn run(
             };
 
         let seed = phase(proof, "seed", "seed", false, false)?;
-        delivered_faults::apfs_phase(&seed, false)?;
+        delivered_faults::full_space_phase(&seed, false)?;
         let database = data.join("database.wdb");
         let seeded = sha(&database)?;
         let ballast = data.join("ballast");
@@ -78,7 +78,7 @@ pub(super) fn run(
         let (before_ballast, before_reopen) = bounded_fill(data, &ballast, false)?;
         let failed = sha(&database)?;
         let full = phase(proof, "full", "full", true, false)?;
-        delivered_faults::apfs_phase(&full, true)?;
+        delivered_faults::full_space_phase(&full, true)?;
         let (after_ballast, after_reopen) = bounded_fill(data, &ballast, false)?;
         ensure!(
             before_ballast == after_ballast && sha(&database)? == failed,

@@ -51,10 +51,6 @@ exercise :: proc(directory, path: string, mode: int) {
         probe_unrelated(directory)
     }
     verify_commit(database, tx, mode, hooks)
-    if mode == 5 {
-        ballast := strings.clone_to_cstring(fmt.tprintf("%s/ballast", directory), context.temp_allocator)
-        assert(posix.unlink(ballast) == .OK)
-    }
 }
 
 main :: proc() {
@@ -62,16 +58,18 @@ main :: proc() {
     no_core: posix.rlimit
     assert(posix.setrlimit(.CORE, &no_core) == .OK)
     recovering := len(os.args) == 5
+    verify_only := recovering && os.args[1] == "full"
     if recovering {
-        assert(os.args[1] == "recover")
+        assert(verify_only || os.args[1] == "recover")
     }
     mode, valid := strconv.parse_int(os.args[4] if recovering else os.args[1])
     assert(valid && mode >= 0 && mode < MODE_COUNT)
+    assert(!verify_only || mode == 5)
     verify_identity(os.args[3])
 
     path := fmt.tprintf("%s/database.wdb", os.args[2])
     if recovering {
-        recover(path, mode)
+        recover(path, mode, verify_only)
     } else {
         exercise(os.args[2], path, mode)
     }
