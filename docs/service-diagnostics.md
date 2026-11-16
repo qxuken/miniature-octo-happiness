@@ -213,6 +213,12 @@ sources/locks. Independent code review found no actionable issue. This is
 scoped working-tree qualification; native Windows worker execution, deployed
 log sinks and an immutable final-candidate matrix remain separate.
 
+The later [exact `7ec2cb5` checkpoint](candidate-qualification-7ec2cb5.md)
+adds native Windows debug/release execution of all three worker carrier,
+stale-context and precedence controls and a same-source four-platform matrix.
+It does not generalize Linux tmpfs ENOSPC to Windows disk-full/writeback or
+qualify deployment log sinks.
+
 ### Hosted initial-API qualification at `703948c`
 
 All 14 [Engine](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43872005208)

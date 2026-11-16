@@ -178,3 +178,11 @@ logs match the pinned source and retained worker proof. The protected copy is
 `target/archived-proof/service-runtime-delta-3db5bcd.tar.gz`, with the same
 archive digest above. This adds independent attribution verification, not a
 new product execution or condition-coverage result.
+
+The later [immutable `7ec2cb5` candidate](candidate-qualification-7ec2cb5.md)
+executes the worker carrier, stale-context and precedence controls in native
+Windows debug/release and includes them in its four-platform package matrix.
+This closes ordinary Windows execution left open above. Actual ENOSPC remains
+the named Linux tmpfs profile; native Windows disk-full/writeback, deployed
+log sinks and device qualification are separate obligations. No new MC/DC
+result is inferred from this platform execution.

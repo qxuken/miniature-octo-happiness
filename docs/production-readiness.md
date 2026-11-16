@@ -2,6 +2,9 @@
 
 The [execution status](roadmap-status.md) tracks the full scope including
 distributed features and remaining gates. Cargo packages stay private.
+The [current immutable candidate](candidate-qualification-7ec2cb5.md) consolidates
+the named four-platform packages, sanitizer checks, benchmark/fuzz evidence and
+fresh recovery workloads; owner, device and broader qualification gates remain.
 The [acceptance audit](production-acceptance-audit.md) maps individual requirements
 to source-bound evidence and separates remaining local work from platform,
 device and owner decisions.

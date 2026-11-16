@@ -8,6 +8,13 @@ The intended scope includes the embedded engine, typed Rust, C/Odin consumers,
 passive snapshot replication, fixed two-actor CRDT peers and the coordinator;
 each retains its own qualification boundary.
 
+The latest [immutable `7ec2cb5` checkpoint](candidate-qualification-7ec2cb5.md)
+supersedes package/sanitizer/benchmark/fuzz candidate consolidation below:
+sixteen packages, 1,442,916 extended ASan executions and 29 stable replays,
+with original reports and independent reviews retained. The historical source
+identities below are preserved; this documentation is not a new artifact build
+or release approval.
+
 ## Source and build identities
 
 The four-platform delivery checkpoint is the full tested merge
@@ -73,8 +80,11 @@ Mac/Linux/Windows structured/default regressions. The later
 separately qualifies local terminal storage context on Mac and actual Linux
 tmpfs exhaustion without changing sender wire replies. These runtime changes
 are outside the four-platform `7e0e44f` package checkpoint; its artifacts are
-not relabelled as builds containing them. Native Windows worker and final
-delivered-candidate qualification remain separate.
+not relabelled as builds containing them. The later
+[`7ec2cb5` matrix](candidate-qualification-7ec2cb5.md) includes these runtime
+changes and executes the three native Windows worker carrier controls in both
+profiles. Actual Windows disk-full/writeback and deployment log sinks retain
+their separate qualification scope.
 
 Packages expose version, source identity, physical format, ABI and feature mask.
 Ordinary builds can report source `unknown`; private package manifests and
@@ -140,7 +150,7 @@ and the [publication contract](../DESIGN.md).
   candidate-wide passes by association.
 - The bound benchmark retains measurements and recomputes aggregation; its
   verifier does not verify the actual benchmark binary. Three microbenchmark
-  samples and the bound 1,442,896-execution finite campaign do not establish deployment
+  samples and the current bound 1,442,916-execution finite campaign do not establish deployment
   latency, throughput, memory budgets, sustained fuzzing or long-running service
   behavior. Select budgets and execute representative candidate workloads.
 - Complete remaining feasible decision/failure pairs, relevant generated and

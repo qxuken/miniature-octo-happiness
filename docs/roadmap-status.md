@@ -3,11 +3,15 @@
 Release scope includes the local store, typed Rust, snapshot replication,
 CRDT peers and coordinator, as requested on 2026-11-09. The project uses
 `MIT OR Apache-2.0`. Cargo packages stay private with `publish = false`.
+The [immutable `7ec2cb5` qualification](candidate-qualification-7ec2cb5.md)
+records the latest same-source package, sanitizer, fuzz, benchmark and recovery
+checkpoint. Older entries below retain their historical source and scope.
 The project name is provisional. Baseline `1e883c8` checkpoints the prior
 decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
+| Current immutable candidate | [`7ec2cb5`](candidate-qualification-7ec2cb5.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,442,916 actual runs), 29 stable replays and fresh Mac/Linux incident rehearsals. Workspace ASan/TSan pass on the same source. Fourteen required CI results pass after one explicitly recorded retry of an unacquired coverage job; twelve passed results are reused. Owner, device, broader decision/workload and support acceptance remain open. |
 | Credential cutover | Stopped-endpoint [snapshot](snapshot-credential-cutover.md) and [StudyProgress](study-credential-cutover.md) leaf/pin replacement passed native macOS, Linux and Windows debug/release. The tests verify stale identities, preserved local progress and retained roots, and repeat sync. Live reload, actor migration and other versions remain separate. |
 | Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The historical [source audits](decisions/README.md) classify 2,561 explicit records across 51 files, including shared TLS separately for each binary profile. Later VALUE/DATA index and [buffer-growth controls](serialization-buffer-growth.md) have separate mappings; fresh [shared-cache inventory](serialization-cache-sharing.md) has 2,604 records and 319 macro blind spots. Historical mappings, supplemental FFI/derive mappings and current inventory counts remain distinct. Signed alternate leaves are rejected by both exact-pin checks. Directed [handshake pairs](tls-handshake-decisions.md) now establish unfinished-handshake/pending-write independence at both endpoints; four guard omissions are detected. Delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
 | Fuzzing | All 22 targets passed the [exact-7e0e44f extended ASan campaign](fuzz-qualification-7e0e44f.md): 1,442,896 actual executions, including 40,217 register-causality executions, under per-target 100,000-run/120-second bounds. All 244 seeds and scoped source/lock hashes stayed unchanged; separate stable replay passed 29 tests. The strict delivery verifier binds this campaign, three benchmark samples and all 16 four-platform packages to that same source. Earlier campaigns keep their original scope. Longer campaigns and broader oracles remain. |
@@ -2869,3 +2873,47 @@ byte for byte. The archive retains the failed CI, actual binaries, source,
 corpora, notices, independent reviews and recovery evidence. This source is a
 historical checkpoint; the corrected qualification tool needs a new immutable
 same-source matrix and full TSan run. Crates remain unpublished.
+
+## Immutable corrected candidate at 7ec2cb5
+
+The [candidate report](candidate-qualification-7ec2cb5.md) binds all sixteen
+minimum-Rust combined/isolated packages across four platforms to tested merge
+`7ec2cb59b8bba2c9d1dda915f8ee880304fd730c`, tree
+`d7cc0023644c2da2fd5526346fa379b9ab3074f0`. Workspace debug/release pass
+731/6 on Mac, 765/8 on Linux and 592/6 on Windows (passes/ignored per profile).
+Same-source rebuilt-std workspace ASan/TSan and calibrated Linux C/Rust ASan
+pass. All fourteen required CI job types pass after one targeted retry of an
+unacquired coverage job. Twelve prior successful Engine results are reused,
+not reexecuted; the original cancellation and historical failed TSan remain
+recorded separately. Hosted and supplemental local library coverage both
+measure 90.62% lines, 88.90% regions and zero MC/DC conditions.
+
+Three seventeen-case benchmark samples, all 22 extended ASan fuzz targets
+(1,442,916 actual executions, 244 unchanged seeds), and 29 stable replays bind
+to the same source. Strict verification and independent replay agree byte for
+byte. Fresh Mac/Linux incident rehearsals each pass 38 expected outcomes.
+Thirty Study offline/sync rounds, sixty edits and six paired SIGKILL/restarts
+converge at revision 62 with repeat sync adding no commits. The authenticated
+Mac/APFS-to-Docker-Linux/ext4 snapshot calendar passes 31 installations and 32
+polls, reconciles four discarded replies, reopens all 31 retained views and
+finishes at revision 93/gap zero with exact selected-image bytes. Local commits
+and follower durable acknowledgments remain separate.
+
+Native Windows now executes all three worker carrier controls in both
+profiles. Linux-only tmpfs ENOSPC does not become a Windows disk-full/writeback
+claim. The latest report distinguishes complete Git identity from each
+controller's narrower file inventory, and exact-lock carry-forward from a new
+dependency scan. These are finite same-source qualification results, not
+global MC/DC, a continuous month, physical power-loss or release approval.
+
+The full private checkpoint archive
+`target/archived-proof/private-delivery-7ec2cb5-checkpoint.tar.zst`, SHA-256
+`a2d1b077acc3098f59a043da78a73457859f38f0b2033db98938c004ec860d82`,
+freshly restores and verifies all 28,824 indexed payloads. The restored original
+verifier reproduces its strict report byte for byte. A separately rebuilt
+exact-source verifier agrees except for its explicitly verified own-binary
+hash. Independent reviews find no unresolved issue in the named product,
+incident, benchmark, snapshot or documentation scope. This closes immutable
+retention/restoration for this finite candidate, while broader feasible
+decision/error/version profiles, deployment budgets, notices/support acceptance
+and native/device promises retain their distinct gates. Nothing is published.

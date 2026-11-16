@@ -1,5 +1,14 @@
 # Same-source private delivery qualification
 
+## Current checkpoint at `7ec2cb5`
+
+The [immutable candidate report](candidate-qualification-7ec2cb5.md) records all
+sixteen Rust 1.99.0 packages on macOS arm64, Linux arm64/x64 and Windows x64,
+same-source ASan/TSan, three benchmark samples, the extended 22-target fuzz
+campaign and fresh Mac/Linux recovery workloads. It distinguishes the original
+unacquired coverage cancellation from its one targeted successful retry. The
+earlier checkpoints below retain their identities and narrower scopes.
+
 ## Four-platform checkpoint at `7e0e44f`
 
 The combined and isolated package matrix passes at tested merge

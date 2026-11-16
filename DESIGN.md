@@ -3972,7 +3972,16 @@ For the replication case, also measure export pause and follower lag.
 
 Require crash/reopen tests preserving acknowledged commits and retained roots; compaction must preserve selected history and reclaim released history. Exercise same-record conflicts, independent existing records, absence/scan dependencies and allocation failures. Explicitly demonstrate historical inspection; do not imply restoration from it. The relevant contracts are specified above.
 
-The present design also lacks a stable disk format, proven recovery, inspection/export/repair tools, established bindings, ordered range queries and automatic index/schema enforcement. **Inference:** these delivery costs may outweigh any algorithmic advantage for an early adopter. A small trustworthy state store with one convincing workload would establish usefulness beyond learning; expanding toward a general database before that would not establish demand. The relevant contracts are specified above.
+At the initial assessment, disk-format qualification, recovery evidence,
+inspection/export/repair tools, bindings and schema/index enforcement were
+delivery gaps. Later sections implement the v2 codec and recovery checks,
+inspection, logical export/import, explicit complete-root salvage, C/Odin
+bindings and the typed schema/index layer. Those implementations retain their
+documented evidence and provisional support contracts; they are not missing
+features to implement again. Ordered range queries remain outside the current
+offering. **Inference:** the cost of qualification and support may still
+outweigh an algorithmic advantage for an early adopter. A checkpoint-heavy
+consumer and matched measurements are the useful test of demand.
 
 
 ## Decision summary and deferred alternatives
@@ -5873,3 +5882,24 @@ the reserved PID and retains all unsupported errors. This changes qualification
 tooling only. The [recorded results](docs/roadmap-status.md#historical-6859-checkpoint-and-supervisor-correction)
 keep the failed source distinct from the next clean candidate qualification;
 storage barriers and separate local/follower acknowledgment remain unchanged.
+
+The [immutable `7ec2cb5` qualification](docs/candidate-qualification-7ec2cb5.md)
+now binds all sixteen four-platform packages, three seventeen-case benchmark
+samples, 1,442,916 actual extended ASan fuzz executions and 29 stable replay
+tests to the corrected tool source. Same-source workspace ASan/TSan pass.
+Fourteen required CI results pass after one targeted retry of an unacquired
+coverage job; twelve already successful results are reused. Fresh Mac/Linux
+incident rehearsals preserve exact current/retained state; the thirty-round
+Study peer workload checks current states, revisions and covering replies.
+Their separate acknowledgment contracts remain unchanged. This
+closes the named candidate-consolidation action at finite scope; owner budgets,
+broader decision/workload profiles and actual device qualification remain.
+
+The same-source authenticated snapshot calendar also reconciles four discarded
+replies, reopens all 31 retained views and finishes at revision 93/gap zero with
+an exact selected-image/export match. The complete private archive is freshly
+restored and all 28,824 indexed files verified. Strict replay matches the
+retained report; a fresh exact-source verifier changes only its reported
+own-binary hash. The candidate report records identities and reproduction
+limits without converting these finite workloads into a wall-clock month or
+physical-device guarantee.
