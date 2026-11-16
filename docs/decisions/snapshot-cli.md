@@ -394,5 +394,33 @@ queue and the existing serial protocol path. One worker owns the follower
 through verification and durable publication. The extracted listener readiness
 wrapper reuses the coordinator's Unix `poll` and Windows `WSAPoll` calls.
 Transient interruption and spurious readiness are retried. OS wait, accept and
-thread-creation errors, prolonged load and fairness remain separate coverage.
+thread-creation errors and fairness remain separate coverage.
 [Bounded follower admission](../replication-operations.md#bounded-follower-admission)
+
+## S9: peer failures with blocked diagnostics
+
+A Linux CLI test fills the server's stderr pipe before service starts.
+Four rejected TLS handshakes previously blocked the admission workers in
+diagnostic writes. The authenticated poll then failed. The listener and
+follower worker now keep network failures off the process log path. The
+same poll returns the exact installed revision 4 receipt with the pipe
+still full. The server exits at the finite accept limit, the pipe contents
+and manifest are byte-identical, and reopen verifies the selected image
+and retained revision 2. Terminal CLI diagnostics and external log sink
+supervision retain their own scope.
+
+## S10: cancelable handshake I/O
+
+The Windows native cancellation test at `9859b73` timed out while the
+server tried to shut down a stalled socket through a duplicated handle.
+The handshake now checks one shared admission cancellation flag between
+bounded socket waits. A transient timeout renews the individual socket
+wait within the original deadline. A cancellation returns
+`ConnectionAborted`. An authenticated channel continues with the
+remaining original deadline.
+
+Both TLS binaries run a test that holds a real handshake idle through
+three 100 ms waits, signals cancellation and checks the socket error.
+The follower admission test also requires prompt cancellation on worker
+failure in finite and unlimited service.
+[Saturation evidence and platform results](../follower-overload.md)

@@ -322,15 +322,24 @@ provides no durable progress.
 authentication and excess connections. The server drains admitted work.
 When manifest publication requires recovery, the follower stops taking
 queued work, admission closes the listener and cancels stalled handshakes,
-and the process exits with the storage error. Restart `serve` to recover and
-verify the selected image. TLS configuration is still validated before
-binding a listener or opening the follower.
+and the process exits with the storage error. Pending handshakes check
+the cancellation signal in 100 ms I/O waits within the original socket
+deadline. Restart `serve` to recover and verify the selected image. TLS
+configuration is still validated before binding a listener or opening the
+follower.
+
+The listener and follower worker avoid writing peer errors to stderr.
+An authenticated request can still receive its protocol error, and the
+client reports failed or unconfirmed attempts. The server's startup line
+and terminal CLI errors use ordinary process output.
 
 The application caps are separate from the operating system listen backlog.
 A stalled authenticated upload occupies the follower worker until its deadline
-or in-progress local work completes. Sustained saturation, per-peer fairness
-and deployment capacity require separate qualification.
+or in-progress local work completes. The Linux saturation profile covers
+two full handshake deadline cycles and a full authenticated queue.
+Per-peer fairness and deployment capacity require separate qualification.
 [Month replay with a stalled handshake](live-replication-month.md#bounded-admission-with-a-stalled-tls-handshake)
+[Linux saturation and cancellation](follower-overload.md)
 
 ### Unconfirmed transfer, restart and retry
 

@@ -203,6 +203,9 @@ qualification is a separate release-candidate requirement.
   [Bounded follower admission](replication-operations.md#bounded-follower-admission)
   isolates stalled handshakes from snapshot work, caps the authenticated queue
   and cancels handshakes if the manifest worker stops.
+  The [Linux overload replay](follower-overload.md) exercises both caps
+  across three deadline windows with a blocked log pipe, checks descriptor and
+  thread recovery, and verifies exact follower receipts on retry.
   The accelerated Mac-to-Linux month checks live writes, durable receipt
   reconciliation and retained history with the regular TLS follower.
   [Workload and measured resource costs](live-replication-month.md)

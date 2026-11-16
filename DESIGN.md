@@ -4822,6 +4822,10 @@ Four concurrent TLS handshakes feed a four-channel authenticated queue
 with one follower worker. Saturated connections close and the finite accept
 count includes failed authentication and overload. A poisoned manifest stops
 the worker before its next request and cancels outstanding handshakes.
+Handshake reads and writes check cancellation between 100 ms waits within
+the original socket budget.
+Peer errors stay on the connection path, so a blocked diagnostics pipe
+cannot pin a handshake slot or the follower worker.
 Credentials are bounded regular files in trusted
 configuration directories; Unix private keys require owner-only modes and
 keygen uses 0700/0600. Windows transport supports externally ACL-protected keys,

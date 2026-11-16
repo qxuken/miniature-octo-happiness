@@ -2331,9 +2331,19 @@ while an earlier raw connection stalls. Separate tests saturate each
 limit and verify cancellation after a worker error. The accelerated
 macOS-to-Linux month completes 31 installs and 32 polls with the stalled
 socket still open. Reopening verifies revision 93, all 31 retained views
-and the exact selected export. Sustained saturation, WAN behavior and
-native Windows execution of this change remain open.
+and the exact selected export.
 [Admission replay and platform results](live-replication-month.md#bounded-admission-with-a-stalled-tls-handshake)
+
+At `7293df9`, a full stderr pipe no longer pins the follower's network
+workers. The native Linux run closes 19,320 excess connections across
+two handshake-saturation cycles and one authenticated queue cycle. The
+process returns to its baseline descriptor and thread counts. Revision 4
+and retained revision 2 survive until retry installs revision 5. After
+the Windows CI cancellation timeout at `9859b73`, the listener switches to
+checking cancellation between bounded socket waits. Both Windows compiler
+profiles cross-link the change. Native Windows execution, WAN behavior and
+deployment fairness remain open.
+[Repeated overload, Windows diagnosis and reproduction](follower-overload.md)
 
 ## Linux follower installation and large-snapshot interruption
 
