@@ -130,7 +130,9 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             | "writeback-witness"
             | "writeback-file-metadata"
             | "writeback-exchange-directory"
+            | "writeback-replacement-file"
             | "writeback-cleanup-directory"
+            | "writeback-cleanup-file"
     ));
     #[cfg(windows)]
     assert!(matches!(kind.as_str(), "ntfs-enospc" | "ntfs-quota"));
@@ -140,8 +142,12 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
     }
     let inode = matches!(kind.as_str(), "inode-quota" | "inode-enospc");
     let copy_metadata = matches!(kind.as_str(), "writeback-slot" | "writeback-witness");
-    let exchange = kind == "writeback-exchange-directory";
-    let cleanup = kind == "writeback-cleanup-directory";
+    let replacement_file = kind == "writeback-replacement-file";
+    let cleanup_file = kind == "writeback-cleanup-file";
+    let cleanup_directory = kind == "writeback-cleanup-directory";
+    let live_scratch = replacement_file || kind == "writeback-exchange-directory";
+    let published = live_scratch || cleanup_directory || cleanup_file;
+    let no_partial = inode || cleanup_file;
     let op = arguments[0].to_str().unwrap();
     assert!(op.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
     let pid = std::process::id();
@@ -222,7 +228,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 operation(dir, source, op, &dir.join(format!("failed-{op}.wdb")))
             })
             .unwrap_err();
-            let expected = if exchange || cleanup || (copy_metadata && !replaces_source(op)) {
+            let expected = if published || (copy_metadata && !replaces_source(op)) {
                 Error::OutcomeUnknown
             } else {
                 Error::Io
@@ -237,7 +243,9 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 | "writeback-witness"
                 | "writeback-file-metadata"
                 | "writeback-exchange-directory"
-                | "writeback-cleanup-directory" => 5,
+                | "writeback-replacement-file"
+                | "writeback-cleanup-directory"
+                | "writeback-cleanup-file" => 5,
                 "ntfs-enospc" => 112,
                 "ntfs-quota" => std::env::var("WEEKEND_PRIVATE_QUOTA_ERRNO")
                     .unwrap()
@@ -256,12 +264,12 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             assert_eq!(native.raw_os_error, Some(errno));
             assert_eq!(fs::read(&backup).unwrap(), good);
             let now = names(dir);
-            if exchange || cleanup {
+            if published {
                 assert_eq!(op, "compact");
                 assert_eq!(native.operation, NativeIoOperation::Sync);
                 assert_ne!(before, good);
                 assert_eq!(fs::read(source).unwrap(), good);
-                let scratch = if exchange {
+                let scratch = if live_scratch {
                     let path = partial(dir, op);
                     assert!(now.difference(&entries).eq([&path]));
                     assert_eq!(fs::read(path).unwrap(), before);
@@ -302,7 +310,10 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 "{{\"stage\":\"fail\",\"operation\":\"{op}\",\"pid\":{pid},\"error\":{},\"category\":\"{:?}\",\"raw\":{errno},\"native_operation\":\"{:?}\",\"partial_bytes\":{size},\"source_unchanged\":true,\"backup_unchanged\":true{inventory}}}",
                 failure.error as i32, native.category, native.operation
             );
-        } else if mode == "space-retry" && inode {
+        } else if mode == "space-retry" && no_partial {
+            if cleanup_file {
+                assert_eq!(op, "compact");
+            }
             assert_eq!(names(dir), [source.to_path_buf(), backup.clone()].into());
             let destination = dir.join(format!("failed-{op}.wdb"));
             operation(dir, source, op, &destination).unwrap();
@@ -319,13 +330,13 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
             let partial = partial(dir, op);
             let bytes = fs::read(&partial).unwrap();
             let inspection = storage::inspect_file(&partial, limits(COPY));
-            let disposition = if kind == "writeback-file-metadata" || exchange || cleanup {
+            let disposition = if kind == "writeback-file-metadata" || published {
                 assert_eq!(op, "compact");
                 let info = inspection.unwrap();
                 assert_eq!(info.revision, FINAL);
                 assert!(info.witnessed);
                 assert_eq!(info.retained.len(), 64);
-                if cleanup {
+                if cleanup_directory || replacement_file {
                     assert!(info.committed_bytes > COMPACTED);
                     assert_eq!(fs::read(source).unwrap(), fs::read(&backup).unwrap());
                 } else {
@@ -379,7 +390,7 @@ pub(super) fn run(dir: &Path, source: &Path, mode: &str, arguments: &[std::ffi::
                 "{{\"stage\":\"retry\",\"operation\":\"{op}\",\"pid\":{pid},\"{disposition}\":true,\"existing_rejected\":{existing},\"partial_preserved\":true,\"matches_backup\":true}}"
             );
         } else if mode == "space-retire" {
-            if !inode {
+            if !no_partial {
                 fs::remove_file(partial(dir, op)).unwrap();
             }
             if !replaces_source(op) {

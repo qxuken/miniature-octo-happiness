@@ -1323,11 +1323,7 @@ impl Guest {
             }
             let (fail, mapped, target) = if let Some(fault) = &mut writeback {
                 let (reply, evidence, target) = fault.fail(c, self, &original, op)?;
-                (
-                    data.record("space-fail", op, reply)?,
-                    evidence,
-                    Some(target),
-                )
+                (data.record("space-fail", op, reply)?, evidence, target)
             } else {
                 (
                     data.phase(c, "space-fail", op, &original, false)?,
@@ -1352,13 +1348,14 @@ impl Guest {
                     "inode refusal left an unexpected directory entry"
                 );
             }
-            let cleanup = space == Space::Writeback(CopyBarrier::CleanupDirectory);
-            let (canonical, scratch) = if cleanup { (&b, &a) } else { (&a, &b) };
+            let replacement =
+                matches!(space, Space::Writeback(barrier) if barrier.remount_keeps_replacement());
+            let (canonical, scratch) = if replacement { (&b, &a) } else { (&a, &b) };
             ensure!(
                 &sha(&original)? == canonical && sha(&backup)? == b,
                 "incorrect canonical or backup image after recovery"
             );
-            if space.fault_journal() {
+            if space.fault_journal() && space != Space::Writeback(CopyBarrier::CleanupFile) {
                 let target = target
                     .as_ref()
                     .context("missing journal recovery scratch")?;
@@ -1420,9 +1417,20 @@ impl Guest {
                 sha(&retried)? == b && sha(&backup)? == b,
                 "retry/backup bytes differ"
             );
-            if let Some(target) = target {
+            if space.fault_journal() {
                 ensure!(
-                    mapped["failed_target_sha256"] == sha(&target)?,
+                    fs::metadata(&retried)?.mode() & 0o7777 == 0o640,
+                    "metadata retry lost the source mode"
+                );
+            }
+            if let Some(target) = target {
+                let scratch_hash = if space == Space::Writeback(CopyBarrier::ReplacementFile) {
+                    &mapped["scratch_sha256_remounted"]
+                } else {
+                    &mapped["failed_target_sha256"]
+                };
+                ensure!(
+                    *scratch_hash == sha(&target)?,
                     "retry modified the failed destination"
                 );
                 if space.fault_journal() {
@@ -1432,9 +1440,8 @@ impl Guest {
                         0o640
                     };
                     ensure!(
-                        fs::metadata(&retried)?.mode() & 0o7777 == 0o640
-                            && fs::metadata(&target)?.mode() & 0o7777 == scratch_mode,
-                        "metadata retry changed the retained scratch mode or lost the source mode"
+                        fs::metadata(&target)?.mode() & 0o7777 == scratch_mode,
+                        "metadata retry changed the retained scratch mode"
                     );
                 }
             }

@@ -21,8 +21,16 @@ static off64_t offset;
 static char name_at_creation[64];
 static int seen_target, armed;
 static enum {
-    DATA, COPY_ROOT, FILE_METADATA, EXCHANGE_DIRECTORY, CLEANUP_DIRECTORY, NAMESPACE_ENOSPC
+    DATA, COPY_ROOT, FILE_METADATA, EXCHANGE_DIRECTORY, REPLACEMENT_FILE,
+    CLEANUP_DIRECTORY, CLEANUP_FILE, NAMESPACE_ENOSPC
 } phase;
+static enum {
+    BEFORE_EXCHANGE, EXCHANGED, EXCHANGE_SYNCED, REPLACEMENT_SYNCED, UNLINKED, UNLINK_SYNCED
+} publication;
+
+static int published_file_sync(void) {
+    return phase == REPLACEMENT_FILE || phase == CLEANUP_FILE;
+}
 
 static int scratch_name(const char *name) {
     static const char prefix[] = ".wdb-compact-";
@@ -57,6 +65,10 @@ __attribute__((constructor)) static void setup(void) {
             phase = FILE_METADATA;
         } else if (strcmp(barrier, "exchange-directory") == 0) {
             phase = EXCHANGE_DIRECTORY;
+        } else if (strcmp(barrier, "replacement-file") == 0) {
+            phase = REPLACEMENT_FILE;
+        } else if (strcmp(barrier, "cleanup-file") == 0) {
+            phase = CLEANUP_FILE;
         } else if (strcmp(barrier, "namespace-enospc") == 0) {
             phase = NAMESPACE_ENOSPC;
         } else {
@@ -91,6 +103,46 @@ static void await_arm(const struct stat *entry) {
         assert(now.tv_sec - started.tv_sec < deadline);
         nanosleep(&pause, NULL);
     }
+}
+
+int fsync(int fd) {
+    static int (*next)(int);
+    if (!next) {
+        next = (int (*)(int))dlsym(RTLD_NEXT, "fsync");
+        assert(next);
+    }
+    if (!published_file_sync() || publication == BEFORE_EXCHANGE) {
+        return next(fd);
+    }
+    struct stat info;
+    assert(fstat(fd, &info) == 0);
+    if (same_inode(&info, &directory)) {
+        assert(publication == EXCHANGED || publication == UNLINKED);
+        int result = next(fd);
+        assert(result == 0);
+        publication = publication == EXCHANGED ? EXCHANGE_SYNCED : UNLINK_SYNCED;
+        return result;
+    }
+    if (!same_inode(&info, &created)) {
+        return next(fd);
+    }
+    assert(publication == EXCHANGE_SYNCED || publication == UNLINK_SYNCED);
+    if (phase == REPLACEMENT_FILE || publication == UNLINK_SYNCED) {
+        await_arm(&created);
+        int result = next(fd);
+        int error = errno;
+        assert(result == -1 && error == EIO);
+        assert(fprintf(stderr, "kernel %s fsync: rc=%d errno=%d\n",
+                       phase == REPLACEMENT_FILE ? "replacement-file" : "cleanup-file",
+                       result, error) > 0);
+        assert(fflush(stderr) == 0);
+        errno = error;
+        return result;
+    }
+    int result = next(fd);
+    assert(result == 0);
+    publication = REPLACEMENT_SYNCED;
+    return result;
 }
 
 int openat(int dirfd, const char *name, int flags, ...) {
@@ -195,7 +247,7 @@ int renameat2(int from, const char *old, int to, const char *new, unsigned int f
         assert(next);
     }
     if (seen_target && (phase == EXCHANGE_DIRECTORY || phase == CLEANUP_DIRECTORY
-                       || phase == NAMESPACE_ENOSPC)
+                       || published_file_sync() || phase == NAMESPACE_ENOSPC)
         && strcmp(old, "source.wdb") == 0 && strcmp(new, name_at_creation) == 0) {
         assert(flags == RENAME_EXCHANGE);
         original = owned_entry(from, old);
@@ -212,6 +264,7 @@ int renameat2(int from, const char *old, int to, const char *new, unsigned int f
         struct stat live_source = owned_entry(from, old);
         struct stat live_scratch = owned_entry(to, new);
         assert(same_inode(&live_source, &created) && same_inode(&live_scratch, &original));
+        publication = EXCHANGED;
         return result;
     }
     return next(from, old, to, new, flags);
@@ -223,7 +276,8 @@ int unlinkat(int dirfd, const char *name, int flags) {
         next = (int (*)(int, const char *, int))dlsym(RTLD_NEXT, "unlinkat");
         assert(next);
     }
-    if (seen_target && (phase == CLEANUP_DIRECTORY || phase == NAMESPACE_ENOSPC)
+    if (seen_target && (phase == CLEANUP_DIRECTORY || phase == CLEANUP_FILE
+                       || phase == NAMESPACE_ENOSPC)
         && strcmp(name, name_at_creation) == 0) {
         assert(flags == 0);
         struct stat scratch = owned_entry(dirfd, name);
@@ -231,12 +285,15 @@ int unlinkat(int dirfd, const char *name, int flags) {
         assert(same_inode(&scratch, &original) && same_inode(&source, &created));
         if (phase == CLEANUP_DIRECTORY) {
             await_arm(&scratch);
-        } else {
+        } else if (phase == NAMESPACE_ENOSPC) {
             full_directory(dirfd, "unlink");
+        } else {
+            assert(publication == REPLACEMENT_SYNCED);
         }
         int result = next(dirfd, name, flags);
         assert(result == 0);
         assert(fstatat(dirfd, name, &scratch, AT_SYMLINK_NOFOLLOW) == -1 && errno == ENOENT);
+        publication = UNLINKED;
         return result;
     }
     return next(dirfd, name, flags);

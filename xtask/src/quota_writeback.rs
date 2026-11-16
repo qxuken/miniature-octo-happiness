@@ -8,7 +8,7 @@ use std::{
     collections::BTreeSet,
     ffi::OsString,
     io::{Read, Seek, SeekFrom},
-    os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt},
+    os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -854,7 +854,7 @@ impl<'a> MaintenanceFault<'a> {
         guest: &Guest,
         source: &Path,
         operation: &str,
-    ) -> Result<(Output, Value, PathBuf)> {
+    ) -> Result<(Output, Value, Option<PathBuf>)> {
         ensure!(
             sha(&self.shim)? == self.shim_hash,
             "staged writeback gate changed"
@@ -864,8 +864,10 @@ impl<'a> MaintenanceFault<'a> {
         let destination = format!("failed-{operation}.wdb");
         let offset = self.barrier.offset();
         let early = self.barrier == CopyBarrier::Data;
-        let cleanup = self.barrier == CopyBarrier::CleanupDirectory;
-        let scratch_mode = if self.barrier.fault_namespace() {
+        let cleanup_directory = self.barrier == CopyBarrier::CleanupDirectory;
+        let cleanup_file = self.barrier == CopyBarrier::CleanupFile;
+        let published_file = self.barrier.published_file_sync();
+        let scratch_mode = if self.barrier.live_scratch().is_some() {
             0o640
         } else {
             0o600
@@ -890,9 +892,9 @@ impl<'a> MaintenanceFault<'a> {
         } else {
             None
         };
-        let scratch_len = if early {
+        let gate_len = if early {
             0
-        } else if cleanup {
+        } else if cleanup_directory {
             original_info.len()
         } else {
             63_074_304
@@ -928,7 +930,7 @@ impl<'a> MaintenanceFault<'a> {
                 .into(),
             ],
         );
-        let (reply, (target, mut proof)) = held_fixture(
+        let (reply, (target, scratch, mut proof)) = held_fixture(
             calls,
             argv,
             &label,
@@ -948,11 +950,16 @@ impl<'a> MaintenanceFault<'a> {
                 );
                 let device: u64 = device.parse()?;
                 let inode: u64 = inode.parse()?;
-                let target = guest.data.join(name);
+                let scratch = guest.data.join(name);
+                let target = if published_file {
+                    source.to_path_buf()
+                } else {
+                    scratch.clone()
+                };
                 let info = fs::symlink_metadata(&target)?;
                 ensure!(
                     info.is_file()
-                        && info.len() == scratch_len
+                        && info.len() == gate_len
                         && info.nlink() == 1
                         && info.uid() == guest.uid
                         && info.dev() == device
@@ -962,24 +969,32 @@ impl<'a> MaintenanceFault<'a> {
                 );
                 let (fault, mut boundary) = if let Some((start, after)) = journal {
                     let canonical = fs::symlink_metadata(source)?;
-                    ensure!(
-                        canonical.is_file()
-                            && canonical.dev() == device
-                            && canonical.uid() == guest.uid
-                            && canonical.mode() & 0o7777 == 0o640
-                            && canonical.ino() != inode
-                            && if cleanup {
-                                inode == original_info.ino() && canonical.len() == 63_074_304
-                            } else {
-                                canonical.ino() == original_info.ino()
-                                    && canonical.len() == original_info.len()
-                            }
-                            && info.mode() & 0o7777 == scratch_mode,
-                        "wrong namespace or mode at journal gate"
-                    );
+                    if published_file {
+                        ensure!(
+                            inode != original_info.ino() && info.mode() & 0o7777 == 0o640,
+                            "replacement inode or mode differs at file sync gate"
+                        );
+                        verify_published_scratch(&scratch, device, &original_info, cleanup_file)?;
+                    } else {
+                        ensure!(
+                            canonical.is_file()
+                                && canonical.dev() == device
+                                && canonical.uid() == guest.uid
+                                && canonical.mode() & 0o7777 == 0o640
+                                && canonical.ino() != inode
+                                && if cleanup_directory {
+                                    inode == original_info.ino() && canonical.len() == 63_074_304
+                                } else {
+                                    canonical.ino() == original_info.ino()
+                                        && canonical.len() == original_info.len()
+                                }
+                                && info.mode() & 0o7777 == scratch_mode,
+                            "wrong namespace or mode at journal gate"
+                        );
+                    }
                     (
                         self.mapper.error_range(start, after),
-                        json!({"journal_inode":8,"sector":start,"end_sector_exclusive":after,"length":(after-start)*SECTOR,"scratch_mode_before":scratch_mode,"source_inode_before":canonical.ino()}),
+                        json!({"journal_inode":8,"sector":start,"end_sector_exclusive":after,"length":(after-start)*SECTOR,"source_inode_before":canonical.ino()}),
                     )
                 } else {
                     let offset = offset.context("missing copy barrier offset")?;
@@ -1002,13 +1017,40 @@ impl<'a> MaintenanceFault<'a> {
                 };
                 self.mapper.fault = Some(fault.clone());
                 self.mapper.switch(active, self.scratch, &fault, false)?;
-                boundary["target"] = json!(name);
+                boundary["target"] = json!(if published_file {
+                    "source.wdb"
+                } else {
+                    name.as_str()
+                });
+                if published_file {
+                    // The file is already clean. Dirty its inode so fsync
+                    // must commit a journal transaction at this barrier.
+                    let file = fs::OpenOptions::new()
+                        .read(true)
+                        .custom_flags(libc::O_NOFOLLOW)
+                        .open(&target)?;
+                    let opened = file.metadata()?;
+                    ensure!(
+                        opened.dev() == device && opened.ino() == inode,
+                        "replacement changed while opening the verified inode"
+                    );
+                    file.set_permissions(fs::Permissions::from_mode(0o740))?;
+                    ensure!(
+                        file.metadata()?.mode() & 0o7777 == 0o740,
+                        "pending replacement mode change missing"
+                    );
+                    boundary["scratch_name"] = json!(name);
+                    boundary["pending_source_mode"] = json!(0o740);
+                    boundary["scratch_present_at_gate"] = json!(!cleanup_file);
+                } else if journal.is_some() {
+                    boundary["scratch_mode_before"] = json!(scratch_mode);
+                }
                 boundary["barrier"] = json!(self.barrier.name());
                 boundary["device"] = json!(device);
                 boundary["inode"] = json!(inode);
                 boundary["active_table"] = json!(fault);
                 boundary["linear_table"] = json!(self.mapper.linear());
-                Ok((target, boundary))
+                Ok((target, scratch, boundary))
             },
         )?;
         self.mapper
@@ -1017,7 +1059,7 @@ impl<'a> MaintenanceFault<'a> {
         let persisted = fs::symlink_metadata(&target)?;
         ensure!(
             persisted.is_file()
-                && persisted.len() == if early { 63_074_304 } else { scratch_len }
+                && persisted.len() == if early { 63_074_304 } else { gate_len }
                 && proof["device"] == persisted.dev()
                 && proof["inode"] == persisted.ino(),
             "failed maintenance target changed identity after remount"
@@ -1047,9 +1089,30 @@ impl<'a> MaintenanceFault<'a> {
                 "unexpected source or scratch mode after remount"
             );
             proof["source_mode_remounted"] = json!(0o640);
-            proof["scratch_mode_remounted"] = json!(scratch_mode);
             proof["source_inode_remounted"] = json!(canonical.ino());
             proof["source_sha256_remounted"] = json!(sha(source)?);
+            if published_file {
+                let expected = format!("kernel {} fsync: rc=-1 errno=5", self.barrier.name());
+                ensure!(
+                    reply.stderr == format!("{expected}\n"),
+                    "missing exact kernel fsync result"
+                );
+                proof["kernel_fsync"] = json!({"return":-1,"errno":5});
+                verify_published_scratch(&scratch, persisted.dev(), &original_info, cleanup_file)?;
+                proof["scratch_present_after_remount"] = json!(!cleanup_file);
+                if !cleanup_file {
+                    let hash = sha(&scratch)?;
+                    fs::copy(&scratch, calls.c.output.join("original-scratch.wdb"))?;
+                    ensure!(
+                        sha(&calls.c.output.join("original-scratch.wdb"))? == hash,
+                        "copied original scratch changed"
+                    );
+                    proof["scratch_sha256_remounted"] = json!(hash);
+                }
+            }
+            if !cleanup_file {
+                proof["scratch_mode_remounted"] = json!(scratch_mode);
+            }
         }
         proof["failed_target_sha256"] = json!(sha(&target)?);
         let images = calls.c.output.join("failed-images");
@@ -1060,13 +1123,41 @@ impl<'a> MaintenanceFault<'a> {
             proof["failed_target_sha256"] == sha(&copy)?,
             "copied failed maintenance target changed"
         );
-        Ok((reply, proof, target))
+        Ok((reply, proof, (!cleanup_file).then_some(scratch)))
     }
 
     pub(super) fn remount(&self, calls: &mut Calls<'_, '_>) -> Result<()> {
         self.mapper.unmount(calls, self.scratch, false)?;
         self.mapper.mount(calls, self.scratch)
     }
+}
+
+fn verify_published_scratch(
+    scratch: &Path,
+    device: u64,
+    original: &fs::Metadata,
+    removed: bool,
+) -> Result<()> {
+    if removed {
+        ensure!(
+            fs::symlink_metadata(scratch)
+                .is_err_and(|err| err.kind() == std::io::ErrorKind::NotFound),
+            "unlinked original scratch returned"
+        );
+    } else {
+        let info = fs::symlink_metadata(scratch)?;
+        ensure!(
+            info.is_file()
+                && info.dev() == device
+                && info.ino() == original.ino()
+                && info.uid() == original.uid()
+                && info.nlink() == 1
+                && info.len() == original.len()
+                && info.mode() & 0o7777 == 0o640,
+            "scratch no longer names the original inode"
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn publish_full(

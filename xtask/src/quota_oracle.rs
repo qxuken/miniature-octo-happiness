@@ -19,7 +19,9 @@ pub enum CopyBarrier {
     Witness,
     FileMetadata,
     ExchangeDirectory,
+    ReplacementFile,
     CleanupDirectory,
+    CleanupFile,
 }
 
 impl CopyBarrier {
@@ -30,7 +32,9 @@ impl CopyBarrier {
             Self::Witness => "witness",
             Self::FileMetadata => "file-metadata",
             Self::ExchangeDirectory => "exchange-directory",
+            Self::ReplacementFile => "replacement-file",
             Self::CleanupDirectory => "cleanup-directory",
+            Self::CleanupFile => "cleanup-file",
         }
     }
 
@@ -40,7 +44,11 @@ impl CopyBarrier {
             Self::Data => Some(0),
             Self::Slot => Some(4096),
             Self::Witness => Some(12288),
-            Self::FileMetadata | Self::ExchangeDirectory | Self::CleanupDirectory => None,
+            Self::FileMetadata
+            | Self::ExchangeDirectory
+            | Self::ReplacementFile
+            | Self::CleanupDirectory
+            | Self::CleanupFile => None,
         }
     }
 
@@ -48,8 +56,20 @@ impl CopyBarrier {
         self.offset().is_none()
     }
 
-    pub fn fault_namespace(self) -> bool {
-        matches!(self, Self::ExchangeDirectory | Self::CleanupDirectory)
+    pub fn published_file_sync(self) -> bool {
+        matches!(self, Self::ReplacementFile | Self::CleanupFile)
+    }
+
+    pub fn live_scratch(self) -> Option<&'static str> {
+        match self {
+            Self::ExchangeDirectory | Self::ReplacementFile => Some("original"),
+            Self::CleanupDirectory | Self::CleanupFile => Some("absent"),
+            _ => None,
+        }
+    }
+
+    pub fn remount_keeps_replacement(self) -> bool {
+        self.published_file_sync() || self == Self::CleanupDirectory
     }
 }
 
@@ -83,7 +103,9 @@ impl Space {
             Self::Writeback(CopyBarrier::Witness) => "writeback-witness",
             Self::Writeback(CopyBarrier::FileMetadata) => "writeback-file-metadata",
             Self::Writeback(CopyBarrier::ExchangeDirectory) => "writeback-exchange-directory",
+            Self::Writeback(CopyBarrier::ReplacementFile) => "writeback-replacement-file",
             Self::Writeback(CopyBarrier::CleanupDirectory) => "writeback-cleanup-directory",
+            Self::Writeback(CopyBarrier::CleanupFile) => "writeback-cleanup-file",
         }
     }
     pub fn fault_journal(self) -> bool {
@@ -219,12 +241,12 @@ pub fn maintenance<'a>(
         "space-fail" if space.fails_at_create() => {
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":"Create","partial_bytes":0,"source_unchanged":true,"backup_unchanged":true,"inventory_unchanged":true})
         }
-        "space-fail" if matches!(space, Space::Writeback(barrier) if barrier.fault_namespace()) => {
-            let scratch = if space == Space::Writeback(CopyBarrier::ExchangeDirectory) {
-                "original"
-            } else {
-                "absent"
+        "space-fail" if matches!(space, Space::Writeback(barrier) if barrier.live_scratch().is_some()) =>
+        {
+            let Space::Writeback(barrier) = space else {
+                unreachable!()
             };
+            let scratch = barrier.live_scratch().unwrap();
             json!({"stage":"fail","operation":label,"pid":pid,"error":15,"category":"Other","raw":5,"native_operation":"Sync","source_matches_backup":true,"scratch":scratch,"backup_unchanged":true})
         }
         "space-fail" if matches!(space, Space::Writeback(_)) => {
@@ -244,7 +266,9 @@ pub fn maintenance<'a>(
             );
             json!({"stage":"fail","operation":label,"pid":pid,"error":14,"category":space.category(),"raw":space.errno(),"native_operation":row["native_operation"],"partial_bytes":partial,"source_unchanged":true,"backup_unchanged":true})
         }
-        "space-retry" if space.fails_at_create() => {
+        "space-retry"
+            if space.fails_at_create() || space == Space::Writeback(CopyBarrier::CleanupFile) =>
+        {
             json!({"stage":"retry","operation":label,"pid":pid,"no_partial":true,"matches_backup":true})
         }
         "space-retry" if space.fault_journal() => {
@@ -745,10 +769,12 @@ mod tests {
     }
 
     #[test]
-    fn namespace_writeback_requires_uncertainty_and_the_matching_live_names() {
+    fn post_exchange_writeback_requires_uncertainty_and_the_matching_live_names() {
         for (barrier, scratch) in [
             (CopyBarrier::ExchangeDirectory, "original"),
+            (CopyBarrier::ReplacementFile, "original"),
             (CopyBarrier::CleanupDirectory, "absent"),
+            (CopyBarrier::CleanupFile, "absent"),
         ] {
             let space = Space::Writeback(barrier);
             let done = resource_oracle::completion("space-fail", SOURCE);
@@ -767,6 +793,8 @@ mod tests {
             assert!(verify(failure.clone()));
             for (key, value) in [
                 ("error", json!(14)),
+                ("native_operation", json!("Write")),
+                ("raw", json!(28)),
                 ("source_matches_backup", json!(false)),
                 (
                     "scratch",
@@ -779,6 +807,31 @@ mod tests {
             ] {
                 assert!(!verify(mutate(&failure, key, value)), "{key}");
             }
+        }
+    }
+
+    #[test]
+    fn post_exchange_retry_distinguishes_a_preserved_scratch_from_durable_unlink() {
+        let done = resource_oracle::completion("space-retry", SOURCE);
+        let absent = json!({"stage":"retry","operation":"compact","pid":42,"no_partial":true,"matches_backup":true});
+        let present = json!({"stage":"retry","operation":"compact","pid":42,"partial_verified_witnessed":true,"existing_rejected":false,"partial_preserved":true,"matches_backup":true});
+        for (barrier, good, wrong) in [
+            (CopyBarrier::ReplacementFile, &present, &absent),
+            (CopyBarrier::CleanupFile, &absent, &present),
+        ] {
+            let verify = |row: &Value| {
+                maintenance(
+                    &[row.clone(), done.clone()],
+                    "space-retry",
+                    "compact",
+                    SOURCE,
+                    Space::Writeback(barrier),
+                    42,
+                )
+                .is_ok()
+            };
+            assert!(verify(good));
+            assert!(!verify(wrong));
         }
     }
 

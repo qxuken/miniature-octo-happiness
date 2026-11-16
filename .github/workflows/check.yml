@@ -602,7 +602,7 @@ jobs:
           sudo sha256sum target/maintenance-writeback/evidence.json
       - name: Fail near-cap ext4 publication and cleanup flushes
         run: |
-          for barrier in slot witness file-metadata exchange-directory cleanup-directory; do
+          for barrier in slot witness file-metadata exchange-directory replacement-file cleanup-directory cleanup-file; do
             proof="$PWD/target/maintenance-writeback-$barrier"
             sudo "$PWD/target/xtask/release/xtask" quota --maintenance --writeback --copy-barrier "$barrier" --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$proof"
             sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, failure, writeback}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified, mapper_absent}' "$proof/evidence.json"
@@ -638,7 +638,7 @@ jobs:
           if test -d target/maintenance-namespace-enospc; then
             sudo chown -R --reference=. target/maintenance-namespace-enospc
           fi
-          for barrier in slot witness file-metadata exchange-directory cleanup-directory; do
+          for barrier in slot witness file-metadata exchange-directory replacement-file cleanup-directory cleanup-file; do
             if test -d "target/maintenance-writeback-$barrier"; then
               sudo chown -R --reference=. "target/maintenance-writeback-$barrier"
             fi
@@ -662,7 +662,9 @@ jobs:
             target/maintenance-writeback-witness/
             target/maintenance-writeback-file-metadata/
             target/maintenance-writeback-exchange-directory/
+            target/maintenance-writeback-replacement-file/
             target/maintenance-writeback-cleanup-directory/
+            target/maintenance-writeback-cleanup-file/
             target/maintenance-quota-build/release/weekend-compound-resource
             target/quota-build/release/examples/native_quota
   sanitizers:
