@@ -3299,7 +3299,7 @@ for `tools/mutations.py`.
 
 ### FOL-V1. Durable installation and progress
 
-The [follower fault test](src/replication/follower/tests.rs#L174) starts
+The [follower fault test](src/replication/follower/tests.rs#L428) starts
 with primary revision 2 installed and offers revision 3. It checks the
 terminal wire reply, then drops the receiver, crashes the simulated
 stores, reopens, and polls for progress. The reported acknowledgment and
@@ -3332,9 +3332,28 @@ restart and the offered revision after the second. If the selected
 image is missing or damaged, reopen returns `Corrupt` and reports no
 revision even though the old image remains.
 
+#### Torn prefixes during follower installation
+
+The retained-view fixture starts with follower revision 3 installed and
+offers revision 4. Both images carry retained revision 2. A failed staging
+sync persists only one chosen prefix from the first, middle or last write.
+Across 15 such cases the sender gets `Io` and a fresh follower reports the
+exact revision 3 receipt.
+
+The manifest sweep exercises both reused root and witness slots and each
+distinct persisted metadata prefix. It compares the full surviving manifest
+and both image files against a byte-splice oracle. All 320 cases return
+`RecoveryRequired` on the wire and keep the live manifest unavailable until
+reopen. The reopened follower reports revision 3 when the new root is
+incomplete. A complete new root selects revision 4 even when the matching
+witness needs repair. Retry uploads the image only when the manifest selected
+revision 3. After another simulated crash, it reopens revision 4 and retained
+revision 2 in every case.
+[Fixture, results and reproduction](docs/follower-installation-profile.md#torn-staging-and-manifest-prefixes)
+
 ### FOL-V2. Image verification
 
-The [verification test](src/replication/follower/tests.rs#L296)
+The [verification test](src/replication/follower/tests.rs#L550)
 starts with the same installed revision 2 for each case. It holds all
 other checks passing while failing one check. The four conditions of the
 [replica rejection guard](src/storage/mod.rs#L344) are an identity
@@ -3357,7 +3376,7 @@ the candidate is fully synced and the manifest sees no I/O.
 
 ### FOL-V3. Older and duplicate offers
 
-The [lost-reply test](src/replication/follower/tests.rs#L391) reopens at
+The [lost-reply test](src/replication/follower/tests.rs#L645) reopens at
 revision 3 after F8. It exercises the condition that returns the installed
 acknowledgment when an offer is older or exactly matches the installed
 offer.

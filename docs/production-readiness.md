@@ -211,6 +211,8 @@ qualification is a separate release-candidate requirement.
   reopens the previous receipt while image staging or manifest selection
   has exhausted Linux tmpfs. The sender retries the same captured image
   after freeing space.
+  The [prefix-tear sweep](follower-installation-profile.md#torn-staging-and-manifest-prefixes)
+  compares exact surviving bytes, reopened receipts and retained views.
   [CRC-64 verification throughput](crc64-performance.md) measures the shared
   disk checksum update and repeats the exact-image and authenticated recovery
   checks after the change.

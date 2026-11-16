@@ -184,6 +184,9 @@ harness-level scope reference.
    The [authenticated Linux follower full-space drill](follower-installation-profile.md#authenticated-follower-recovery-on-a-full-linux-tmpfs)
    verifies the exact previous durable receipt while tmpfs is full at both
    staged image writing and manifest selection, then checks exact retry and replay.
+   The [follower prefix-tear sweep](follower-installation-profile.md#torn-staging-and-manifest-prefixes)
+   verifies 335 simulated cases, including both manifest root and witness
+   parities, and an additional crash after successful receipt recovery.
    Other language/platform failure profiles,
    compound failures, actor-generation rollout and each further promised version
    retain their separate obligations. Do not credit one profile to all surfaces.

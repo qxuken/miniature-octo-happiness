@@ -119,6 +119,58 @@ volume were absent after the run. The exhaustion case ran on Linux.
 | `final.log` | `f303d243a6df25a90895145882a8438aa42066cea1b6a936b98b1d72c10e96c0` |
 | `macos.log` | `52213ef9e2ffda9223e93fb7f0c210c2b6b19ed5b7dfd5327b8873f8d05f42e5` |
 
+## Torn staging and manifest prefixes
+
+The simulator installs revision 3 and offers revision 4. Both images retain
+revision 2 and the test verifies the retained row at each reopened head.
+Each run starts from identical durable bytes for its fixture. The test
+advances the manifest with an empty transaction for the other parity, so
+both sets of root and witness regions are reused.
+
+| Simulated failure | Cases | Receipt after reopening |
+|---|---:|---|
+| Only one prefix of a staged image write persists when sync fails | 15 | Revision 3 |
+| Manifest root or witness write tears or its sync persists a prefix | 320 | Revision 3 with an incomplete new root, otherwise revision 4 |
+
+The staging test chooses five lengths from each of the first, middle and
+last writes. It checks the entire surviving image, including any zero-filled
+gap, and proves that manifest bytes and the selected image did not change.
+The manifest test takes every prefix that changes the persisted bytes plus
+the physical full-region endpoint. It combines immediate durable tears,
+volatile tears followed by either crash policy, and failed syncs that
+persist a prefix before the next crash drops or persists pending writes.
+
+Each manifest case compares the exact expected bytes with the surviving
+manifest. Read-only inspection checks the selected revision and witness
+before writable reopen can stabilize it. The first poll after reopening
+returns the selected receipt. An upload occurs only when retry finds the old
+receipt. Every successful retry survives another simulated crash, preserving
+the exact new receipt and retained view.
+
+```sh
+cargo test --offline --locked -p weekend-db --lib --all-features \
+  replication::follower::tests -- --nocapture
+```
+
+This is fault-model evidence. The native Linux full-filesystem and
+process-interruption drills above exercise different failure mechanisms.
+Native follower writeback errors and device power interruption remain
+separate cases.
+
+The exact `4ad1832c7ecd70d4deead37242f6ffcbc54aa664` source passed 145
+macOS and 148 Docker Linux arm64 core tests in debug and release. Both
+platforms passed eight replication integration tests and strict Clippy.
+macOS also passed all ten follower tests under AddressSanitizer with a
+rebuilt standard library from `nightly-2026-11-12`. The Docker run used the
+pinned Rust 1.99.0 image and its owned container and volume were removed.
+
+| Evidence under `target/follower-torn-prefix-proof/` | SHA-256 |
+|---|---|
+| `source.tar` | `c76b7697050d074e2e2d468ea6cedb93a836d346d5c1e6d768e8d436d582ffaf` |
+| `macos.log` | `94f841a80287f5f5c81a643ff554e6e071a71fc71a980aa3beaa3dfdc1edba9f` |
+| `linux.log` | `b49a0e8ae58735c530ee772db23d17a045ea8929b49783bb6f31433d0f6efc51` |
+| `asan.log` | `ed3f2758712047360196218f7e210203a82f7dad4553cd3d4916eae4d3cbd8da` |
+
 ## Reproduction and evidence
 
 The proof directory is `target/follower-phase-qualification/`. Its archived
