@@ -30,6 +30,8 @@ mod follower_backup;
 mod fuzz;
 #[cfg(unix)]
 mod helper_controls;
+#[cfg(unix)]
+mod incident_recovery;
 #[cfg(any(unix, test))]
 mod instrumentation;
 #[cfg(unix)]
@@ -236,6 +238,9 @@ enum Task {
     /// Run discovered fuzz targets with bounded ASan execution and evidence.
     #[cfg(unix)]
     Fuzz(fuzz::Options),
+    /// Rehearse offline administrative restore and isolated journal reconciliation.
+    #[cfg(unix)]
+    IncidentRecovery(incident_recovery::Options),
     /// Dynamically load the exact shared library and verify its C ABI.
     AbiSmoke(abi::Options),
     /// Generate raw Odin bindings, or verify them against the C header.
@@ -387,6 +392,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::AtomicModel(options) => atomic_model::run(&run, options),
         #[cfg(unix)]
         Task::Fuzz(options) => fuzz::run(&run, options),
+        #[cfg(unix)]
+        Task::IncidentRecovery(options) => incident_recovery::run(&run, options),
         Task::AbiSmoke(options) => abi::run(options),
         Task::OdinBindings { check } => odin::run(&root, check),
         Task::WindowsConsumers(options) => toolchain::windows_consumers(&mut run, options),

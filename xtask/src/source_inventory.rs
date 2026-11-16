@@ -41,6 +41,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "tools/sqlite-baseline",
         "tools/soak",
         "tools/monthly-workload",
+        "tools/incident-recovery",
     ] {
         walk(root, &root.join(name), &mut out, false)?;
     }
