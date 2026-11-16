@@ -417,7 +417,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:806:18 [28011–28012] | try_propagation / `migrate_ids` | D | T3/T4/T5 |
 | store.rs:819:71 [28388–28389] | try_propagation / `migrate_record` | D | T3/T4/T5 |
 | store.rs:820:9 [28399–28401] | if / `migrate_record` | P | T7 |
-| store.rs:823:9 [28500–28502] | if / `migrate_record` | E | T3/T4/T5 |
+| store.rs:823:9 [28500–28502] | if / `migrate_record` | P | T8 |
 | store.rs:826:42 [28614–28615] | try_propagation / `migrate_record` | D | T3/T4/T5 |
 | store.rs:829:57 [28736–28737] | try_propagation / `migrate_record` | D | T3/T4/T5 |
 | store.rs:830:10 [28748–28749] | try_propagation / `migrate_record` | D | T3/T4/T5 |
@@ -458,7 +458,7 @@ controls above; E retains the narrower execution claim.
 
 ## Results and source binding
 
-Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P, giving C 21, D 195, E 50, I 2, P 47. All 315 source records are listed; the production source and denominator are unchanged.
+Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P; T8 adds the current-version skip pair. Current counts are C 21, D 195, E 49, I 2, P 48. All 315 source records are listed; the production source and denominator are unchanged.
 
 Debug and release each passed 26 existing model tests, two process-evolution
 tests, and six doctests (one documentation example ignored). All eleven new directed
@@ -670,3 +670,65 @@ cargo +1.99.1 test --offline --locked --target-dir target/xtask \
 cargo +1.99.1 clippy --offline --locked --target-dir target/xtask \
   -p weekend-db-typed --all-features --test runtime_decisions -- -D warnings
 ```
+
+
+## T8: current-version migration skip
+
+The existing
+`assurance_migration_rejects_forward_rows_before_conversion` also qualifies
+`store.rs:823`, `doc.version() == T::VERSION`, without new test code. Its target
+model/catalog remain v2. Row versions 1 and 2 both make the preceding
+`doc.version() > T::VERSION` guard false: v1 reaches the converter once and
+returns its exact `InvalidId` sentinel; v2 returns `Ok(0)` without invoking it.
+The accepted v2 control commits the preceding separate-table edit; the v1
+callback-error control discards that edit and preserves the complete current
+image. Both controls preserve all retained catalog/schema/index/primary rows.
+Thus the current-version predicate's skip and continue outcomes are distinguished
+without changing the preceding forward-version predicate.
+
+Within each of `migrate::<RowV2>` and `migrate_ids::<RowV2>`, the versions loop
+reuses the same lexical API callsite and callback type. The two API/callback
+instantiations are separate evidence; their results are not pooled into a
+compiler MC/DC count. The newer-row v3 rejection in T7 retains its different,
+explicit raw-corruption scope.
+
+On 2026-11-16, the test and production code were frozen directly from clean
+commit `32fb0d68b43735fbe4f551d25d64445f487f7e0a` with `git archive`. No working-tree
+source or test overlay was used. The single selected integration test passes in
+debug and release with all features, offline/locked, Rust 1.99.1 (`58cf8f9c3`,
+LLVM 23.1.1) on macOS arm64. These passing baselines execute both migration APIs
+and all three row versions.
+
+In only that isolated source copy, the selected guard becomes
+`if (doc.version() == T::VERSION) && false`, preserving predicate evaluation and
+the existing skip body. Both debug and release compile, then fail the intended
+runtime assertion: the v2 row calls the converter and returns `Err(InvalidId)`
+instead of `Ok(0)`. There is no masking by the earlier forward-version guard or
+a later schema error. The test stops first in its all-row `migrate::<RowV2>`
+case; this mutation result does **not** claim separate negative execution of the
+selected-ID monomorphization. Its positive predicate/behavior controls still ran
+in both unmodified baselines.
+
+The copy and fresh target are owned by
+`/private/tmp/weekend-typed-current-skip-w2tyxa5t/`. All four runs disable
+incremental compilation with `CARGO_INCREMENTAL=0`. The omission was never
+applied to shared production source. The compact verified archive
+`/private/tmp/weekend-typed-current-skip-w2tyxa5t.tar.gz` contains the exact clean
+source tar, source/compiler identities, one-line mutation patch, commands and
+four logs. Its SHA-256 is
+`d8e52ac5ae98eb117a866eb72b38a1cb3fef58adeebadeb5b5042793fcd544ca`;
+the same archive is retained at
+`target/archived-proof/typed-current-skip-32fb0d6.tar.gz`.
+Root review restored all eight indexed payloads and checked the four
+baseline/mutation logs independently.
+`evidence.json` SHA-256 is
+`8df90a6ff539a4a40967ad729b0670c7fb17092cb44a5ab150811bdd2e488d53`.
+The unchanged test SHA-256 remains
+`f71b8e022802cc96ec819f7848e684ee3b616ba7ed12912ec26a1d4a7bd047f5`,
+and production `store.rs` remains
+`2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa`.
+
+This closes the named feasible skip/continue pair and shows one isolated guard
+omission is observable. It adds no test boilerplate or runtime functionality,
+compiler-instrumented MC/DC result, whole-module completion claim, or execution
+on other platforms/compilers.

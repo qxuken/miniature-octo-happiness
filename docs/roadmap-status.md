@@ -2606,3 +2606,47 @@ devices and symlinks before moving any tree into an isolated retirement
 directory. Both retained archive digests still match after cleanup. Available
 disk space increased from about 53 to 63 GiB. Recorded `/private/tmp` run paths
 are historical locations; recover those payloads from the indexed archives.
+
+## Generated validation and migration admission follow-up
+
+The [T7/T8 controls](decisions/typed-runtime.md#t7-emitted-field-validation-and-migration-version-admission)
+reuse the typed runtime suite to verify generated nested-nullability validation,
+both old-model migration admission guards, newer raw-row rejection and the
+current-version conversion skip. The suite passes 19 tests in debug/release
+with Rust 1.99.1 and targeted strict Clippy. Rejected writes preserve preceding
+staged work's rollback, current and retained catalog/schema/index/primary state,
+and durable bytes. Callbacks and exact errors distinguish the version paths.
+
+Five isolated omissions compile and fail their intended runtime assertions in
+both profiles after passing baselines. Each case uses a distinct Cargo target
+with incremental compilation disabled; the contaminated initial shared-target
+attempt is retained and excluded. Generated validation is qualified as emitted
+call propagation and omission sensitivity, without a same-generated-function
+MC/DC claim. The two migration API/callback instantiations keep separate scope;
+the skip-guard mutant stops in the all-row instantiation first.
+
+No runtime source or new test boilerplate was needed for the skip follow-up.
+Four typed guard records move from E to P; the unchanged 315-record ledger now
+has 49 E and 48 P records. This is a scoped manual ledger update, not compiler
+MC/DC or whole-module completion. Root independently restored and checked the
+50-payload T7 and eight-payload T8 archives under `target/archived-proof`.
+
+## Hosted verification of the operational checkpoint
+
+Both [Engine](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43857550408)
+and [bounded fuzz](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43857550556)
+workflows pass all 14 jobs for head
+`bbcf68dcfbb1246e24ed2a2cb80b1d12da12c21c`, tested as merge
+`6d638b3db5931032e9b743d3c7d56ce06cdea281`. The pre-structured diagnostic
+canaries pass debug/release on macOS, Linux and Windows, including the minimum
+compiler and relevant sanitizer jobs. Linux minimum passes 739 tests with eight
+skips per profile; Windows minimum passes 567 with six. The bounded campaign
+records 20,739 actual executions across all 22 targets and 244 seeds, with all
+26 process cleanup checks passing. No rerun, cancellation or fix was needed.
+
+`target/archived-proof/hosted-ci-bbcf68d.tar.zst` retains all 14 terminal logs,
+five digest-verified artifact ZIPs and exact source/job metadata. Root restoration
+checks all 54 indexed files. Archive SHA-256:
+`58a036ad3235b8b48e96995c947acbe27ec5e643efe36398f7e20948e1ced2db`.
+This checkpoint predates the opt-in structured API and the T7/T8 additions;
+it supplies no qualification claim for those later changes.
