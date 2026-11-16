@@ -75,6 +75,18 @@ library passed five service controls and the native operator-stop test.
 The archived Linux log contains both the clean source suite and the distinct
 overlay run at the real append barrier.
 
-The stop contract covers the loopback coordinator. Windows console event
-execution, service-manager shutdown and physical-device behavior need their
-own qualification evidence.
+### Native Windows console
+
+The hosted minimum-compiler job ran the operator-stop test with Ctrl+Break
+and the dispatched-versus-queued test in debug and release on x64 Windows
+NTFS with Rust 1.99.0. Both passed. The verified artifact identifies the
+clean test merge `5b0254cd6a3a51a6b4b89bedb929868afb9c27e5`, whose branch
+parent is `860508667abd280df6a8cdb9364b831768b2ce8b`. The packaged
+`stop.rs`, `service.rs` and `writers.rs` match that parent byte for byte.
+The downloaded ZIP SHA-256 is
+`ec5446f4408d55bfbcbee890fb4ed705a03a4990a855e20e378f39398ec8c665`.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43784736123/job/133029731112),
+[verified artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43784736123/artifacts/14189319100).
+
+The stop contract covers the loopback coordinator. Service-manager shutdown
+and physical-device behavior need their own qualification evidence.
