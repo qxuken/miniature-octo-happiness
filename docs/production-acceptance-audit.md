@@ -193,6 +193,10 @@ harness-level scope reference.
    The [bounded admission replay](coordinator-admission.md) verifies both
    lifecycle profiles with the connection and command limits, including
    overload rejection and exact recovery of a staged journal intent.
+   The [journal check drill](coordinator-journal-check.md) compares the
+   head and exact assigned-slot receipt from one snapshot. Its restore cases
+   cover a lost reply, an older head and a different receipt at the same
+   revision. It can also check both journals after each of nine cutovers.
    Compare measured write, space and cutover costs with the deployment's
    budgets. The owner accepts the slot and history policy before promoting
    this profile.

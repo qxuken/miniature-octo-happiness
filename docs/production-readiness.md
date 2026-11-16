@@ -232,6 +232,9 @@ qualification is a separate release-candidate requirement.
   The [operator stop drill](coordinator-shutdown.md) closes admission during
   a synchronized append, finishes that command and verifies its exact receipt
   after restart.
+  The [journal check drill](coordinator-journal-check.md) distinguishes an
+  exact pending receipt, an older restore and a changed receipt at the same
+  revision. It compares a single coordinator snapshot before cutover.
 - **Workload-driven expansion.** Ordered cursors and range queries,
   larger images, bounded incremental or online maintenance, richer
   indexes and query APIs, multiple file-owning processes, additional
