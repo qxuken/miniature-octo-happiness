@@ -1,4 +1,5 @@
 mod support;
+use std::collections::BTreeMap;
 use support::{Model, Rng};
 use weekend_db::{
     Database, Error, Limits, TransactionState,
@@ -893,6 +894,166 @@ fn abandoned_synced_or_torn_append_is_not_published_and_can_be_skipped() {
         disk.crash(Crash::DropAll).unwrap();
         assert_eq!(state(&open(&disk)), expected);
     }
+}
+
+#[test]
+fn sparse_append_survivors_do_not_publish_and_retries_skip_them() {
+    fn stage_append<'db>(db: &'db Database, payload: &[u8]) -> weekend_db::Transaction<'db> {
+        let collection = db.collection_id(1);
+        let mut tx = db.begin();
+        tx.put(collection, b"b", &db.integer(19).unwrap()).unwrap();
+        tx.put(collection, b"large", &db.bytes(payload).unwrap())
+            .unwrap();
+        tx.delete(collection, b"shared").unwrap();
+        tx
+    }
+
+    let (seed, db) = base_store();
+    db.retain_snapshot(&db.snapshot()).unwrap();
+    staged(&db).commit().unwrap();
+    db.retain_snapshot(&db.snapshot()).unwrap();
+    let old_revision = db.snapshot().revision();
+    let old_rows = state(&db);
+    let old_retained = retained_rows(&db);
+    drop(db);
+    let original = seed.durable_image().unwrap();
+    let original_info = inspect_on(seed, Limits::default()).unwrap();
+    assert!(original_info.witnessed);
+
+    let mut rng = Rng(0xb4e7_d9a8_6c31_5f02);
+    let payload: Vec<_> = (0..4 * REGION + 137).map(|_| rng.next() as u8).collect();
+    let mut expected_rows: BTreeMap<_, _> = old_rows.iter().cloned().collect();
+    expected_rows.insert(b"b".to_vec(), Model::Int(19));
+    expected_rows.insert(b"large".to_vec(), Model::Bytes(payload.clone()));
+    expected_rows.remove(b"shared".as_slice());
+    let expected_rows: Rows = expected_rows.into_iter().collect();
+
+    let control = SimulatedDisk::from_image(&original).unwrap();
+    let mut db = open(&control);
+    control.arm(usize::MAX, Fault::Error);
+    assert_eq!(stage_append(&db, &payload).commit(), Ok(old_revision + 1));
+    assert_eq!(state(&db), expected_rows);
+    assert_eq!(retained_rows(&db), old_retained);
+    let control_trace = control.trace().unwrap();
+    let control_bytes = control.durable_image().unwrap();
+    let [append_sync, _, _] = commit_barriers(&control_trace);
+    let append_writes = &control_trace[1..append_sync];
+    assert_eq!(control_trace[0].kind, IoKind::Length);
+    assert!((4..=8).contains(&append_writes.len()));
+    let mut end = original.len().next_multiple_of(REGION);
+    for event in append_writes {
+        assert_eq!((event.kind, event.offset), (IoKind::Write, end as u64));
+        end += event.len;
+    }
+    assert_eq!(end, control_bytes.len());
+    let control_copy = SimulatedDisk::new().unwrap();
+    db.compact_to(control_copy.clone()).unwrap();
+    let compact_bytes = control_copy.durable_image().unwrap();
+
+    let masks = (0..(1 << append_writes.len())).map(Crash::Mask);
+    let tears = append_writes.iter().enumerate().flat_map(|(write, event)| {
+        [0, 1, event.len / 2, event.len - 1, event.len]
+            .into_iter()
+            .map(move |prefix| Crash::Torn { write, prefix })
+    });
+    let mut cases = 0;
+    for policy in masks.chain(tears) {
+        cases += 1;
+        let mut expected_bytes = original.clone();
+        for (index, event) in append_writes.iter().enumerate() {
+            let len = match policy {
+                Crash::Mask(mask) if mask & (1 << index) != 0 => event.len,
+                Crash::Torn { write, prefix } if write == index => prefix,
+                _ => 0,
+            };
+            if len != 0 {
+                let start = event.offset as usize;
+                let end = start + len;
+                expected_bytes.resize(end, 0);
+                expected_bytes[start..end].copy_from_slice(&control_bytes[start..end]);
+            }
+        }
+
+        let disk = SimulatedDisk::from_image(&original).unwrap();
+        let db = open(&disk);
+        disk.arm(append_sync, Fault::SyncError(policy));
+        let mut tx = stage_append(&db, &payload);
+        assert_eq!(tx.commit(), Err(Error::Io), "{policy:?}");
+        assert_eq!(tx.state(), TransactionState::Aborted, "{policy:?}");
+        assert_eq!(disk.trace().unwrap(), control_trace[..=append_sync]);
+        assert_eq!(db.begin().commit(), Err(Error::RecoveryRequired));
+        assert_eq!(db.snapshot().revision(), old_revision, "{policy:?}");
+        assert_eq!(state(&db), old_rows, "{policy:?}");
+        assert_eq!(retained_rows(&db), old_retained, "{policy:?}");
+        drop(tx);
+        drop(db);
+        disk.crash(Crash::DropAll).unwrap();
+        assert!(
+            disk.durable_image().unwrap() == expected_bytes,
+            "{policy:?}"
+        );
+
+        disk.arm(usize::MAX, Fault::Error);
+        let mut expected_info = original_info.clone();
+        expected_info.physical_bytes = expected_bytes.len() as u64;
+        assert_eq!(
+            inspect_on(disk.clone(), Limits::default()).unwrap(),
+            expected_info,
+            "{policy:?}"
+        );
+        assert!(
+            disk.trace()
+                .unwrap()
+                .iter()
+                .all(|event| matches!(event.kind, IoKind::Length | IoKind::Read))
+        );
+        assert!(
+            disk.durable_image().unwrap() == expected_bytes,
+            "{policy:?}"
+        );
+        let db = open(&disk);
+        assert_eq!(db.snapshot().revision(), old_revision, "{policy:?}");
+        assert_eq!(state(&db), old_rows, "{policy:?}");
+        assert_eq!(retained_rows(&db), old_retained, "{policy:?}");
+
+        disk.arm(usize::MAX, Fault::Error);
+        assert_eq!(
+            stage_append(&db, &payload).commit(),
+            Ok(old_revision + 1),
+            "{policy:?}"
+        );
+        let retry_offset = expected_bytes.len().next_multiple_of(REGION);
+        let first_write = disk.trace().unwrap()[1];
+        assert_eq!(
+            (first_write.kind, first_write.offset),
+            (IoKind::Write, retry_offset as u64),
+            "{policy:?}"
+        );
+        let retried = disk.durable_image().unwrap();
+        assert!(
+            retried[APPEND_START..expected_bytes.len()] == expected_bytes[APPEND_START..],
+            "{policy:?}"
+        );
+        assert!(
+            retried[expected_bytes.len()..retry_offset]
+                .iter()
+                .all(|&byte| byte == 0),
+            "{policy:?}"
+        );
+        drop(db);
+        disk.crash(Crash::DropAll).unwrap();
+        let mut db = open(&disk);
+        assert_eq!(db.snapshot().revision(), old_revision + 1, "{policy:?}");
+        assert_eq!(state(&db), expected_rows, "{policy:?}");
+        assert_eq!(retained_rows(&db), old_retained, "{policy:?}");
+        let copy = SimulatedDisk::new().unwrap();
+        db.compact_to(copy.clone()).unwrap();
+        assert!(copy.durable_image().unwrap() == compact_bytes, "{policy:?}");
+    }
+    eprintln!(
+        "append writes: {}; sparse and torn crash cases: {cases}",
+        append_writes.len()
+    );
 }
 
 #[cfg(feature = "fault-injection")]

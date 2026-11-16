@@ -79,6 +79,34 @@ fn crash_policies_cover_writes_beyond_the_mask_word_and_prefix_bounds() {
 }
 
 #[test]
+fn empty_persisted_prefix_does_not_extend_the_durable_image() {
+    let original = b"stable";
+    let tear = Crash::Torn {
+        write: 0,
+        prefix: 0,
+    };
+    for during_sync in [false, true] {
+        let mut disk = SimulatedDisk::from_image(original).unwrap();
+        disk.lock().unwrap();
+        assert_eq!(disk.write(32, b"new"), Ok(3));
+        assert_eq!(disk.length(), Ok(35));
+
+        let crash = if during_sync {
+            disk.arm(0, Fault::SyncError(tear));
+            assert_eq!(disk.sync(), Err(Error::Io));
+            assert_eq!(disk.durable_image().unwrap(), original);
+            Crash::DropAll
+        } else {
+            tear
+        };
+        disk.crash(crash).unwrap();
+        assert_eq!(disk.durable_image().unwrap(), original);
+        disk.lock().unwrap();
+        assert_eq!(disk.length(), Ok(original.len() as u64));
+    }
+}
+
+#[test]
 fn byte_ranges_and_one_shot_faults_leave_a_usable_lease() {
     let mut disk = SimulatedDisk::new().unwrap();
     disk.lock().unwrap();

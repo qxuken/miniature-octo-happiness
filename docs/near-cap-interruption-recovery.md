@@ -205,6 +205,19 @@ record the new scope. Production source/AST decisions are unchanged: the prior
 new compiler MC/DC percentage. The existing namespace and graph/slot ledgers
 are reused; these added drills do not manufacture new independent conditions.
 
+### Sparse append recovery
+
+The durability suite also simulates an append sync failure across eight pending
+writes. It tests all 256 masked subsets and five torn prefixes per write, for
+296 cases. The byte oracle verifies the exact physical end and sparse holes,
+and read-only inspection finds the previous witnessed revision. Reopening
+preserves the current rows and two retained snapshots. A successful retry
+starts at the aligned physical end, preserves the abandoned bytes and reopens
+with the expected rows. Its compact copy matches the uninterrupted control
+byte for byte. A separate ByteStore regression verifies that persisting an
+empty prefix leaves the durable length unchanged, including during a failed
+sync. Both tests passed on macOS arm64 with Rust 1.99.1 in debug and release.
+
 ## Reproduction and provenance
 
 ```sh

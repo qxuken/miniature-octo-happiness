@@ -24,7 +24,8 @@ pub enum Crash {
     PersistAll,
     /// Persist a selected subset of pending write calls in reverse call order.
     Mask(u64),
-    /// Persist only a prefix of one pending write call.
+    /// Persist only a prefix of one pending write call. An empty prefix leaves
+    /// the durable image and its length unchanged.
     Torn {
         write: usize,
         prefix: usize,
@@ -198,7 +199,9 @@ fn survive(mem: &Memory, disk: &Disk, policy: Crash) -> Result<Vec<u8>> {
             }
         }
         Crash::Torn { write, prefix } => {
-            if let Some(pending) = disk.pending.get(write) {
+            if prefix != 0
+                && let Some(pending) = disk.pending.get(write)
+            {
                 apply(
                     mem,
                     &mut image,
