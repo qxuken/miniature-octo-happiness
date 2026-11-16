@@ -249,7 +249,10 @@ qualification is a separate release-candidate requirement.
   causal history growth, resource limits, and recovery from stale
   backups. Test mixed generation, enrollment mismatch, unauthorized
   writes, independently applied resolution, and zero extra commits
-  after repeat sync. Membership changes, discovery/gossip, larger
+  after repeat sync. The [staged roster cutover](crdt-operations.md#staged-roster-cutover)
+  checks the reviewed source checkpoint before creating fresh actor files
+  and verifies the staged identities and causal payload after authenticated
+  sync. Membership changes, discovery/gossip, larger
   rosters, and cross-record constraints each need their own design and
   assurance evidence if offered.
 - **Write coordinator.** To ship it beyond the loopback demo, define

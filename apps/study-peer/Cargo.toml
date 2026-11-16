@@ -9,7 +9,5 @@ license = "MIT OR Apache-2.0"
 [target.'cfg(any(target_os = "macos", target_os = "linux", windows))'.dependencies]
 rcgen = { version = "0.14.10", default-features = false, features = ["ring"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std"] }
-weekend-db = { path = "../..", features = ["crdt"] }
-
-[dev-dependencies]
 sha2 = { version = "0.10.9", default-features = false }
+weekend-db = { path = "../..", features = ["crdt"] }

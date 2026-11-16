@@ -4,10 +4,11 @@ use super::{
     study::StudyProgress,
     tls::bounded_file,
 };
+use sha2::{Digest, Sha256};
 use std::path::Path;
 use weekend_db::{
     Database, Error, Limits, Result,
-    crdt::{Actor, GrowSet, Policy},
+    crdt::{Actor, GrowSet, Policy, Record},
 };
 
 fn parse_id(id: &str) -> AppResult<[u8; 16]> {
@@ -107,7 +108,7 @@ impl Visible {
     }
 }
 
-fn agreed(a: &Database, b: &Database, policy: Policy) -> Result<Visible> {
+fn agreed(a: &Database, b: &Database, policy: Policy) -> Result<StudyProgress> {
     let read = |db: &Database, actor| {
         StudyReplica::open(db, db.collection_id(COLLECTION_ROW), policy, actor)?.read()
     };
@@ -115,7 +116,61 @@ fn agreed(a: &Database, b: &Database, policy: Policy) -> Result<Visible> {
     if left != read(b, policy.actors[1])? {
         return Err(Error::Conflict);
     }
-    Visible::read(left)
+    Ok(left)
+}
+
+#[derive(Clone, Copy)]
+enum Receipt {
+    Checkpoint,
+    Staged,
+}
+
+impl Receipt {
+    fn line(self, pair: [&Database; 2], policy: Policy, state: StudyProgress) -> Result<String> {
+        let tag = match self {
+            Self::Checkpoint => "study-roster-checkpoint-v1",
+            Self::Staged => "study-roster-stage-v1",
+        };
+        let mut hash = Sha256::new();
+        hash.update(tag);
+        hash.update(policy.collection);
+        hash.update(policy.generation.to_le_bytes());
+        for actor in policy.actors {
+            hash.update(actor);
+        }
+        for db in pair {
+            hash.update(db.storage_identity()?);
+            if matches!(self, Self::Checkpoint) {
+                hash.update(db.snapshot().revision().to_le_bytes());
+            }
+        }
+        let mut payload = [0; StudyProgress::<true>::SIZE];
+        state.encode(&mut payload)?;
+        hash.update(StudyProgress::<true>::FORMAT);
+        hash.update(payload);
+        Ok(format!("{tag} {:x}\n", hash.finalize()))
+    }
+
+    fn require(
+        self,
+        expected: &[u8],
+        pair: [&Database; 2],
+        policy: Policy,
+        state: StudyProgress,
+    ) -> Result<()> {
+        if self.line(pair, policy, state)?.as_bytes() != expected {
+            return Err(Error::Conflict);
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn checkpoint(files: [&Path; 2], policy: Policy) -> AppResult<()> {
+    let a = Database::open_file(files[0], Limits::default())?;
+    let b = Database::open_file(files[1], Limits::default())?;
+    let state = agreed(&a, &b, policy)?;
+    print!("{}", Receipt::Checkpoint.line([&a, &b], policy, state)?);
+    Ok(())
 }
 
 pub(super) fn stage(
@@ -123,6 +178,7 @@ pub(super) fn stage(
     old: Policy,
     new_files: [&Path; 2],
     new: Policy,
+    expected_old: Option<&[u8]>,
 ) -> AppResult<()> {
     if new.collection == old.collection
         || new.generation <= old.generation
@@ -132,7 +188,11 @@ pub(super) fn stage(
     }
     let a = Database::open_file(old_files[0], Limits::default())?;
     let b = Database::open_file(old_files[1], Limits::default())?;
-    let visible = agreed(&a, &b, old)?;
+    let state = agreed(&a, &b, old)?;
+    if let Some(expected) = expected_old {
+        Receipt::Checkpoint.require(expected, [&a, &b], old, state)?;
+    }
+    let visible = Visible::read(state)?;
     if visible.minutes > u64::MAX / 2 {
         return Err(Error::Limit.into());
     }
@@ -142,9 +202,13 @@ pub(super) fn stage(
     enroll(&right, enrollment("b", new)?)?;
     // Seed A only. Authenticated staging sync brings the same causal state to B.
     seeded.update(|state, actor| visible.seed(state, actor))?;
-    if Visible::read(seeded.read()?)? != visible {
+    let seed = seeded.read()?;
+    if Visible::read(seed)? != visible {
         return Err(Error::Corrupt.into());
     }
+    let receipt = expected_old
+        .map(|_| Receipt::Staged.line([&left, &right], new, seed))
+        .transpose()?;
     println!(
         "staged generation={} old_revisions={} {}",
         new.generation,
@@ -152,13 +216,24 @@ pub(super) fn stage(
         b.snapshot().revision()
     );
     visible.report();
+    if let Some(receipt) = receipt {
+        print!("{receipt}");
+    }
     Ok(())
 }
 
-pub(super) fn verify(files: [&Path; 2], policy: Policy) -> AppResult<()> {
+pub(super) fn verify(
+    files: [&Path; 2],
+    policy: Policy,
+    expected_staged: Option<&[u8]>,
+) -> AppResult<()> {
     let a = Database::open_file(files[0], Limits::default())?;
     let b = Database::open_file(files[1], Limits::default())?;
-    let visible = agreed(&a, &b, policy)?;
+    let state = agreed(&a, &b, policy)?;
+    if let Some(expected) = expected_staged {
+        Receipt::Staged.require(expected, [&a, &b], policy, state)?;
+    }
+    let visible = Visible::read(state)?;
     println!(
         "verified generation={} revisions={} {}",
         policy.generation,

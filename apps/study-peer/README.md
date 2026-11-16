@@ -46,7 +46,9 @@ existing file. By default, outgoing sync starts on launch.
 The [actor roster cutover](../../docs/crdt-operations.md#staged-roster-cutover)
 uses a fresh collection, generation and actor IDs. It stages the existing
 visible StudyProgress in two new files, synchronizes over TLS with local
-edits disabled, and verifies the pair before resuming edits. The original
+edits disabled, and checks the exact staged pair before resuming edits.
+Save the old-pair checkpoint before staging so agreeing stale copies cannot
+silently replace the reviewed old history. The original
 `run` command still opens generation 7 with actor IDs `[1; 16]` and
 `[2; 16]`. Use `run-policy` for explicit enrollment.
 

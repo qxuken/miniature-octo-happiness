@@ -685,6 +685,7 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
     private_dir(&logs);
     let log = Arc::new(Mutex::new(File::create(logs.join("events.log")).unwrap()));
     let old = [root.join("a.db"), root.join("b.db")];
+    let stale = [root.join("stale-a.db"), root.join("stale-b.db")];
     let new = [root.join("fresh-a.db"), root.join("fresh-b.db")];
     let old_policy = root.join("old.policy");
     let new_policy = root.join("new.policy");
@@ -716,32 +717,41 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
         );
         let db = Database::open_file(&old[slot], Limits::default()).unwrap();
         db.retain_snapshot(&db.snapshot()).unwrap();
-        if slot == 0 {
-            Replica::<StudyProgress>::open(&db, db.collection_id(1), policy(), [1; 16])
-                .unwrap()
-                .update(|state, actor| {
-                    state.planned.insert(4, actor)?;
-                    state.planned.insert(6, actor)?;
-                    state.planned.remove(6)?;
-                    Ok(())
-                })
-                .unwrap();
-        }
+        drop(db);
+        fs::copy(&old[slot], &stale[slot]).unwrap();
     }
+    let db = Database::open_file(&old[0], Limits::default()).unwrap();
+    Replica::<StudyProgress>::open(&db, db.collection_id(1), policy(), [1; 16])
+        .unwrap()
+        .update(|state, actor| {
+            state.planned.insert(4, actor)?;
+            state.planned.insert(6, actor)?;
+            state.planned.remove(6)?;
+            Ok(())
+        })
+        .unwrap();
+    drop(db);
     for actor in ["a", "b"] {
         activate(root, actor, "old", &log);
     }
 
-    let stage = |configuration: &Path, targets: [&Path; 2]| {
-        Command::new(BIN)
+    let stage_input = |inputs: &[PathBuf; 2],
+                       configuration: &Path,
+                       targets: [&Path; 2],
+                       checkpoint: Option<&Path>| {
+        let mut command = Command::new(BIN);
+        command
             .arg("stage-roster")
-            .args(&old)
+            .args(inputs)
             .arg(&old_policy)
             .args(targets)
-            .arg(configuration)
-            .output()
-            .unwrap()
+            .arg(configuration);
+        if let Some(checkpoint) = checkpoint {
+            command.arg("--expect-old").arg(checkpoint);
+        }
+        command.output().unwrap()
     };
+    let stage = |configuration, targets| stage_input(&old, configuration, targets, None);
     let reject = |output: std::process::Output, expected: &str| {
         assert!(!output.status.success(), "{output:?}");
         assert_eq!(String::from_utf8(output.stderr).unwrap().trim(), expected);
@@ -805,6 +815,64 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
             .all(|(_, _, prior)| prior.unwrap().0 == StudyProgress::default())
     );
 
+    let checkpoint = |files: &[PathBuf; 2], label| {
+        once(
+            BIN,
+            &[
+                "checkpoint-roster".as_ref(),
+                files[0].as_os_str(),
+                files[1].as_os_str(),
+                old_policy.as_os_str(),
+            ],
+            &logs,
+            label,
+        )
+    };
+    let selected = checkpoint(&old, "selected-checkpoint");
+    assert!(selected.starts_with("study-roster-checkpoint-v1 "));
+    assert_eq!(selected, checkpoint(&old, "reopened-checkpoint"));
+    assert_ne!(selected, checkpoint(&stale, "stale-checkpoint"));
+    let selected_path = root.join("selected.checkpoint");
+    fs::write(&selected_path, &selected).unwrap();
+    let guarded_stage =
+        |inputs, paths| stage_input(inputs, &new_policy, paths, Some(&selected_path));
+    reject(guarded_stage(&stale, targets), "Conflict");
+    assert!(new.iter().all(|p| !p.exists()));
+    event(
+        &log,
+        "two agreeing stale copies rejected before destination creation",
+    );
+    for (slot, file) in stale.iter().enumerate() {
+        let db = Database::open_file(file, Limits::default()).unwrap();
+        assert!(db.snapshot().revision() < old_ids[slot].1);
+        for _ in db.snapshot().revision()..old_ids[slot].1 {
+            db.retain_snapshot(&db.snapshot()).unwrap();
+        }
+        assert_eq!(db.snapshot().revision(), old_ids[slot].1);
+        let old_db = Database::open_file(&old[slot], Limits::default()).unwrap();
+        assert_eq!(
+            db.storage_identity().unwrap(),
+            old_db.storage_identity().unwrap()
+        );
+    }
+    reject(guarded_stage(&stale, targets), "Conflict");
+    assert!(new.iter().all(|p| !p.exists()));
+    event(
+        &log,
+        "agreeing copies with matching identities and revisions but different CRDT state rejected",
+    );
+
+    for (source, destination) in old.iter().zip(&stale) {
+        fs::copy(source, destination).unwrap();
+    }
+    assert_eq!(checkpoint(&stale, "byte-copy-checkpoint"), selected);
+    let db = Database::open_file(&stale[0], Limits::default()).unwrap();
+    db.retain_snapshot(&db.snapshot()).unwrap();
+    drop(db);
+    reject(guarded_stage(&stale, targets), "Conflict");
+    assert!(new.iter().all(|p| !p.exists()));
+    event(&log, "same causal payload at a different revision rejected");
+
     let partial = root.join("partial-a");
     let occupied = root.join("occupied");
     fs::write(&occupied, b"preserve").unwrap();
@@ -814,21 +882,44 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
     assert_eq!(partial_db.snapshot().revision(), 0);
     drop(partial_db);
 
-    let staged = stage(&new_policy, targets);
+    let staged = guarded_stage(&old, targets);
     assert!(staged.status.success(), "{staged:?}");
     let visible = "visible minutes=12 completed=[1, 2] planned=[4] goal=Some(40) limit=Some(50)";
     let staged = String::from_utf8(staged.stdout).unwrap();
     event(&log, staged.trim());
     assert!(staged.lines().any(|line| line == visible));
-    let verify = || {
-        Command::new(BIN)
-            .arg("verify-roster")
-            .args(&new)
-            .arg(&new_policy)
-            .output()
-            .unwrap()
+    let stage_receipt = |report: &str| {
+        let receipt = report
+            .lines()
+            .find(|line| line.starts_with("study-roster-stage-v1 "))
+            .unwrap();
+        format!("{receipt}\n")
     };
-    reject(verify(), "Conflict");
+    let receipt = root.join("staged.receipt");
+    fs::write(&receipt, stage_receipt(&staged)).unwrap();
+    let alternate = guarded_stage(
+        &old,
+        [
+            root.join("alternate-a.db").as_path(),
+            root.join("alternate-b.db").as_path(),
+        ],
+    );
+    assert!(alternate.status.success(), "{alternate:?}");
+    let alternate_receipt = root.join("alternate.receipt");
+    fs::write(
+        &alternate_receipt,
+        stage_receipt(&String::from_utf8(alternate.stdout).unwrap()),
+    )
+    .unwrap();
+    let verify = |expected: Option<&Path>| {
+        let mut command = Command::new(BIN);
+        command.arg("verify-roster").args(&new).arg(&new_policy);
+        if let Some(expected) = expected {
+            command.arg("--expect-staged").arg(expected);
+        }
+        command.output().unwrap()
+    };
+    reject(verify(Some(&receipt)), "Conflict");
 
     // Reuse the old TLS pins for this controlled attempt so the core sees
     // the authenticated frame with the wrong collection and actor roster.
@@ -875,7 +966,9 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
     let staged_revisions = converge(&mut a, &mut b, 12, 40, 50, &[1, 2]);
     a.stop(true);
     b.stop(false);
-    let verified = verify();
+    reject(verify(Some(&alternate_receipt)), "Conflict");
+    reject(verify(Some(&selected_path)), "Conflict");
+    let verified = verify(Some(&receipt));
     assert!(verified.status.success(), "{verified:?}");
     let verified = String::from_utf8(verified.stdout).unwrap();
     event(&log, verified.trim());
@@ -894,7 +987,8 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
     converge(&mut a, &mut b, 19, 50, 40, &[1, 2, 3, 5]);
     a.stop(false);
     b.stop(false);
-    let final_report = verify();
+    reject(verify(Some(&receipt)), "Conflict");
+    let final_report = verify(None);
     assert!(final_report.status.success(), "{final_report:?}");
     assert!(String::from_utf8(final_report.stdout).unwrap().lines().any(|line|
         line == "visible minutes=19 completed=[1, 2, 3, 5] planned=[4] goal=Some(50) limit=Some(40)"

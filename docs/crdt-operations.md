@@ -110,20 +110,27 @@ study-policy-v1 0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a 8 03030303030303030303030303030
    disable `edit` and `practice` on a restarted endpoint. Stop both actors
    and preserve the old files. Local exclusive leases protect the files
    opened by the command. Operators also stop any remote or copied writers.
-2. Stage the reviewed state while both old files are quiescent.
+2. Capture a checkpoint from the reviewed old pair while both files are
+   quiescent. Keep the checkpoint in the trusted cutover record before
+   substituting any archived or restored copies. Then stage against it.
 
    ```sh
-   study-peer stage-roster old-a.db old-b.db old.policy new-a.db new-b.db new.policy
+   study-peer checkpoint-roster old-a.db old-b.db old.policy > old.checkpoint
+   study-peer stage-roster old-a.db old-b.db old.policy new-a.db new-b.db new.policy \
+     --expect-old old.checkpoint > stage.report
+   grep '^study-roster-stage-v1 ' stage.report > stage.receipt
    ```
 
-   The command holds both old leases, checks exact equality of the old
-   causal payloads and checks that the practice total fits in one actor
-   component. It creates two new native stores. It seeds the total,
-   completed and currently planned topics and effective register values on
-   actor A only. Old causal dots and tombstones remain in the old files.
-   Save the `visible` line in the cutover record. An error may leave one
-   or both partial destinations. Keep old routes frozen and use fresh
-   paths for a retry after inspecting the failed pair.
+   Check both commands exited successfully before using the staging receipt.
+   Each old-pair command holds both old leases and requires exact equality
+   of the causal payloads. Guarded staging checks the checkpoint before
+   creating either destination and checks that the practice total fits in
+   one actor component. It seeds the total, completed and currently planned
+   topics and effective register values on actor A only. Old causal dots
+   and tombstones stay in the old files. Save the report with the checkpoint
+   and receipt. An error may leave one or both partial destinations. Keep old
+   routes frozen and use fresh paths for a retry after inspecting the failed
+   pair.
 3. Provision and pin fresh TLS identities for the new actors. Start both
    new stores with `run-policy` and `--sync-only` on staging routes, using
    their respective policy slot and peer address.
@@ -143,20 +150,38 @@ study-policy-v1 0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a 8 03030303030303030303030303030
    and keep the deployed staging files frozen during verification.
 
    ```sh
-   study-peer verify-roster new-a.db new-b.db new.policy
+   study-peer verify-roster new-a.db new-b.db new.policy --expect-staged stage.receipt
    ```
 
-   Verification requires exact causal payload equality. Compare its
-   `visible` line with the saved staging output. Once verified, route the
-   new actors to each other and restart them without `--sync-only`.
-   Keep the old routes and actor identities retired for writes.
+   Verification requires exact causal payload equality and checks that the
+   pair matches the staging receipt. Once verified, route the new actors
+   to each other and restart them without `--sync-only`. Keep the old
+   routes and actor identities retired for writes.
 
 The filesystem writes and route change are separate operations. Before new
 writes, the operator can discard the staging pair and keep the frozen old
 history. Once new writes are acknowledged, reconciliation must preserve
-them before any further migration. Arbitrary stale backups still require
-review of all available histories. The stage command requires a reconciled
-pair and rejects divergent inputs.
+them before any further migration. The operator must choose the old pair
+that covers all acknowledged edits before generating the checkpoint.
+
+The checkpoint and staging receipt are each one ASCII line with a version
+marker, a space, a lowercase SHA-256 digest and a line feed. Both bind the
+ordered storage identities, policy and exact encoded StudyProgress record.
+The checkpoint also binds both old revisions. The staging receipt compares
+the agreed seed payload after exchange, so its digest can survive B's local
+revision advancing during staging. These are trusted operator records. Store
+them independently of old database restores and protect them alongside the
+policy files. They cover the selected StudyProgress record. Archive
+verification and quiescence of remote copies remain operator duties.
+The shorter forms of `stage-roster` and `verify-roster` still perform their
+pair-equality checks for existing callers.
+
+The digest hashes, in order, the marker bytes with no delimiter, the
+16-byte collection ID, the generation as an unsigned 64-bit little-endian
+integer, both 16-byte actor IDs, and the storage identity for each slot
+A then B. In the checkpoint, each storage identity is followed by its
+unsigned 64-bit little-endian revision. The final inputs are the 8-byte
+StudyProgress format marker and the canonical `Record::encode` payload.
 
 ## Evidence and fuzzing
 

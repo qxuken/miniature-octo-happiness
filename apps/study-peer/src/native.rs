@@ -10,6 +10,7 @@ mod tls;
 mod study;
 
 use std::{
+    ffi::OsString,
     io::{self, BufRead, Write},
     net::{SocketAddr, TcpListener},
     path::Path,
@@ -29,8 +30,9 @@ const USAGE: &str = "study-peer keygen <credentials-dir>
 study-peer init <file> <a|b> <32-hex-collection-id>
 study-peer run <file> <a|b> <collection-id> <listen-addr> <peer-addr> <credentials-dir> <peer-cert.der> [--no-push] [--sync-only]
 study-peer run-policy <file> <a|b> <policy-file> <listen-addr> <peer-addr> <credentials-dir> <peer-cert.der> [--no-push] [--sync-only]
-study-peer stage-roster <old-a> <old-b> <old-policy-file> <new-a> <new-b> <new-policy-file>
-study-peer verify-roster <a> <b> <policy-file>
+study-peer checkpoint-roster <old-a> <old-b> <old-policy-file>
+study-peer stage-roster <old-a> <old-b> <old-policy-file> <new-a> <new-b> <new-policy-file> [--expect-old <checkpoint>]
+study-peer verify-roster <a> <b> <policy-file> [--expect-staged <receipt>]
 commands: edit <lesson> <minutes> <weekly-goal> <session-limit>, practice <minutes>, show, peer, push on|off, quit";
 const COLLECTION_ROW: u64 = 1;
 const POLL: Duration = Duration::from_millis(250);
@@ -48,7 +50,7 @@ struct RunOptions {
 }
 
 impl RunOptions {
-    fn parse(args: &[std::ffi::OsString]) -> AppResult<Self> {
+    fn parse(args: &[OsString]) -> AppResult<Self> {
         let mut options = Self {
             pushing: true,
             sync_only: false,
@@ -66,6 +68,14 @@ impl RunOptions {
     }
 }
 
+fn expected_receipt(args: &[OsString], flag: &str) -> AppResult<Option<Vec<u8>>> {
+    match args {
+        [] => Ok(None),
+        [option, path] if option == flag => Ok(Some(bounded_file(Path::new(path), 128)?)),
+        _ => Err(USAGE.into()),
+    }
+}
+
 pub fn main() -> AppResult<()> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     match args.as_slice() {
@@ -77,17 +87,25 @@ pub fn main() -> AppResult<()> {
         [command, path, actor, id] if command == "init" => {
             initialize(Path::new(path), Enrollment::parse(actor, id)?)
         }
-        [command, a, b, old, target_a, target_b, new] if command == "stage-roster" => {
+        [command, a, b, policy] if command == "checkpoint-roster" => roster::checkpoint(
+            [Path::new(a), Path::new(b)],
+            roster::policy_file(Path::new(policy))?,
+        ),
+        [command, a, b, old, target_a, target_b, new, options @ ..]
+            if command == "stage-roster" =>
+        {
             roster::stage(
                 [Path::new(a), Path::new(b)],
                 roster::policy_file(Path::new(old))?,
                 [Path::new(target_a), Path::new(target_b)],
                 roster::policy_file(Path::new(new))?,
+                expected_receipt(options, "--expect-old")?.as_deref(),
             )
         }
-        [command, a, b, policy] if command == "verify-roster" => roster::verify(
+        [command, a, b, policy, options @ ..] if command == "verify-roster" => roster::verify(
             [Path::new(a), Path::new(b)],
             roster::policy_file(Path::new(policy))?,
+            expected_receipt(options, "--expect-staged")?.as_deref(),
         ),
         [
             command,
