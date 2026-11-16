@@ -217,6 +217,10 @@ qualification is a separate release-candidate requirement.
   exercises eight staged-image and manifest sync faults through pinned TLS.
   A second witness fault prevents startup on either manifest slot before
   a fault-free reopen stabilizes the exact receipt.
+  The [ext4 journal drill](follower-installation-profile.md#ext4-journal-errors-during-follower-staging)
+  fails both staged-file syncs and the parent sync with empty and reused
+  inactive filenames. Every reopened follower reports the old selection
+  until retry commits a new one.
   [CRC-64 verification throughput](crc64-performance.md) measures the shared
   disk checksum update and repeats the exact-image and authenticated recovery
   checks after the change.

@@ -2338,10 +2338,18 @@ server from listening. After recovery succeeds, the first authenticated
 poll returns revision 5. Each case preserves retained revision 2, the
 exact selected bytes and the separation between local and follower
 acknowledgments. Retries and duplicate transfers reconcile the same saved
-capture. The Linux run passed 42 focused release tests. Follower namespace
-and journal failures, other platforms and device power loss retain
-separate gates.
+capture. The Linux run passed 42 focused release tests. Other platforms
+and device power loss retain separate gates.
 [Fault boundaries, receipts and reproduction](follower-installation-profile.md#kernel-writeback-eio-during-follower-installation-and-recovery)
+
+At `9ede235`, eight ext4 journal faults cover both staged-file syncs and
+the parent-directory sync with a previously empty or reused inactive
+filename. Each case keeps follower revision 4 selected and retained
+revision 2 intact, even when the complete new file survives remount.
+Retry returns the exact revision 5 receipt and another remount preserves
+both image files. Follower enrollment and maintenance fault qualification
+retain separate gates.
+[Journal fault matrix and reproduction](follower-installation-profile.md#ext4-journal-errors-during-follower-staging)
 
 ## CRC-64 word verification and authenticated recovery replay
 

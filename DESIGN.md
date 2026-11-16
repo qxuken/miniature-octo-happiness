@@ -3364,6 +3364,15 @@ without a follower receipt for that attempt. Retrying the same capture
 and repeating it after success preserve the exact recovered receipt.
 [Profile, offsets and results](docs/follower-installation-profile.md#kernel-writeback-eio-during-follower-installation-and-recovery)
 
+Ext4 journal `EIO` at either staged-file sync or the parent-directory sync
+also leaves follower revision 4 selected and acknowledged. Ext4 may
+recover the original inactive image, no inactive file or the complete
+new image. The manifest keeps the previous receipt authoritative until
+retry verifies the image and commits revision 5. The Linux drill verifies
+the live and reopened receipt, exact selected bytes and retained revision 2
+with both an empty and a reused inactive filename.
+[Directory and journal fault results](docs/follower-installation-profile.md#ext4-journal-errors-during-follower-staging)
+
 ### FOL-V2. Image verification
 
 The [verification test](src/replication/follower/tests.rs#L550)

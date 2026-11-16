@@ -238,8 +238,69 @@ opt-in integration cases were skipped in that regression command.
 | `regression.log` | `e11fecafb27f1b13368a9c1809be768503bc6754b59638b1e1f0b24e113a7520` |
 
 This run qualifies sector writeback errors on the stated Linux profile.
-Follower namespace and journal failures, other platforms and physical
-device power interruption retain separate gates.
+The next drill covers journal failures during staging. Other platforms
+and physical device power interruption retain separate gates.
+
+## Ext4 journal errors during follower staging
+
+The release CLI from `9ede235bff91779dd8552cbb8cf23153e33ad96a` ran on Docker
+Linux arm64 with kernel `7.0.14-linuxkit` and Rust 1.99.0. For each case the
+follower used a fresh 256 MiB ext4 loop image with 4 KiB blocks and fast
+commits disabled. The test started with follower revision 4 and offered
+primary revision 5 over pinned mutual TLS. It ran once with an empty
+inactive filename and again with an older revision 3 image in that slot.
+Both selected images retained revision 2.
+
+The Linux file adapter synchronizes the newly staged file, its parent
+directory, and the file again before the follower verifies and selects
+the image. The test paused before the chosen `fsync` and checked the
+descriptor's inode, kind and mount against the staged path. It mapped the
+owned ext4 journal's contiguous transaction extent through the kernel
+device-mapper error target, leaving the journal superblock and the rest
+of the filesystem addressable. Earlier syncs at each gate returned zero.
+The selected kernel `fsync` returned `EIO` in all eight cases.
+
+| Failed sync | Inactive filename after remount if initially empty | Inactive filename after remount if it previously held revision 3 |
+|---|---|---|
+| First staged-file sync | Absent | Original revision 3 bytes and inode |
+| Parent directory sync | Exact revision 5 bytes at the staged inode | Exact revision 5 bytes at the staged inode |
+| Parent directory sync with a pending sibling directory creation | Exact revision 5 bytes, probe directory absent | Exact revision 5 bytes, probe directory absent |
+| Second staged-file sync | Exact revision 5 bytes at the staged inode | Exact revision 5 bytes at the staged inode |
+
+In every case the sender reported its local revision 5 capture, returned
+`Io` and received no follower acknowledgment for the failed transfer.
+The live server still returned its exact revision 4 receipt. After the
+mapper was restored and ext4 remounted, read-only inspection found the
+old witnessed manifest with identical bytes and the selected revision 4
+image still matched the saved export. A fresh authenticated poll returned
+the same receipt. The test checked every current and retained row in
+that image and in the revision 5 image selected on retry.
+
+Retry shipped the same saved export and descriptor and obtained the
+exact revision 5 receipt. Duplicate shipment left the manifest unchanged.
+Another remount preserved both exact image files and the final witnessed
+manifest. These are observed ext4 journal outcomes. Follower enrollment
+and maintenance errors, other platforms and device power interruption
+retain separate gates.
+
+The local archive `target/archived-proof/follower-ext4-journal-9ede235.tar.zst`
+holds the source, runner, fixture, gate, exports, ordered syscall traces,
+manifest copies and audit. Extract it and run `bash run-linux.sh` with the
+same pinned Docker image and cached Cargo dependencies as the sector
+writeback drill. The shell runner bounds both endpoints and verifies removal
+of the owned ext4 devices, container, volume and generated credentials.
+All 10 follower unit tests, eight native replication integration tests and
+24 CLI/application tests passed in release mode. Two opt-in integration
+cases were skipped by those ordinary regression commands.
+
+| Evidence | SHA-256 |
+|---|---|
+| Local compressed archive | `b97deb1855190db2300521b530b7b057bce025489e8eb515cdc18aa2ef46bebc` |
+| `source.tar` | `50f506167dcd251c5b46fdc7fe87036ad28cdc3cb574e9a438772f47aad2bb20` |
+| `run-linux.sh` | `a1c95644346c76ac7792ab1562a026c64974010db30b35ca663146a388275f76` |
+| Release `weekend-replicate` | `b19cff9929990830d38aa184fbfcec7b03ea08923af9912bda0722667dd2529b` |
+| `namespace-gate.so` | `75d465d3db5a2dd23cf4cb103e537a801d97b05280e00bebb7e9b71e906be6db` |
+| `audit.log` | `88ceb78b20cf5524fee35e5a99b6169216223a0a2a6ac01a81f2854ea222b34c` |
 
 ## Reproduction and evidence
 
