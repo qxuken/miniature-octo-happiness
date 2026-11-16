@@ -165,7 +165,8 @@ them before any further migration. The operator must choose the old pair
 that covers all acknowledged edits before generating the checkpoint.
 
 The checkpoint and staging receipt are each one ASCII line with a version
-marker, a space, a lowercase SHA-256 digest and a line feed. Both bind the
+marker, a space, a lowercase SHA-256 digest and a line feed. Preserve that
+line ending when extracting the receipt on Windows. Both bind the
 ordered storage identities, policy and exact encoded StudyProgress record.
 The checkpoint also binds both old revisions. The staging receipt compares
 the agreed seed payload after exchange, so its digest can survive B's local
@@ -182,6 +183,49 @@ integer, both 16-byte actor IDs, and the storage identity for each slot
 A then B. In the checkpoint, each storage identity is followed by its
 unsigned 64-bit little-endian revision. The final inputs are the 8-byte
 StudyProgress format marker and the canonical `Record::encode` payload.
+
+### Guarded cutover results
+
+The native process test at `0608bf5807545e6b1a976da87220f26cf175fb13`
+checks both guards with the actual `study-peer` executable. It keeps the
+old files and their retained roots byte-identical.
+
+| Input to guarded cutover | Result |
+|---|---|
+| Two agreeing restored copies from before the acknowledged old edits | Staging returns `Conflict` before creating either destination |
+| Both archived lineages brought to the selected revision numbers using retained-root commits, with their older causal state intact | Staging returns `Conflict` |
+| The selected causal state in both files, with one extra retain commit | Staging returns `Conflict` |
+| Two exact copies of the reviewed files | Checkpoint is identical |
+| The selected new pair before authenticated sync | Verification returns `Conflict` |
+| The selected pair after authenticated sync, using a receipt from a separately staged pair seeded with the same record | Verification returns `Conflict` |
+| The selected receipt after sync and a staging peer restart | Both files verify at revision 3 with 12 minutes, completed topics 1 and 2, planned topic 4, goal 40 and limit 50 |
+| The original staging receipt after both peers accept new edits and converge | Guarded verification returns `Conflict`. The resumed pair reaches 19 minutes on both actors, and repeat sync adds no commits |
+
+Three separate test mutations omit the old revision, omit the exact record
+bytes, or omit the staged storage identities from the hash. The native
+case fails each time at the corresponding acceptance check. The existing
+test still checks authenticated old-generation rejection, fresh TLS pins,
+and disabled local edits during staging.
+
+macOS arm64/APFS with Rust 1.99.1 and Docker Linux arm64/ext4 with Rust
+1.99.0 passed all 20 app tests in debug and release, plus strict Clippy.
+The former pre-ALPN CLI replay on macOS also passed with this new binary.
+The three Windows MSVC x64 test executables cross-linked using
+`cargo-xwin 0.23.1`. Native Windows execution of the guarded profile
+requires its own result.
+
+```sh
+cargo test --locked --offline -p study-peer --all-targets
+cargo test --locked --offline --release -p study-peer --all-targets
+cargo clippy --locked --offline -p study-peer --all-targets -- -D warnings
+cargo xtask study-cli-upgrade --new 0608bf5807545e6b1a976da87220f26cf175fb13 \
+  --output target/guarded-roster-upgrade
+```
+
+The local archive `target/archived-proof/study-roster-cutover-0608bf5.tar.zst`
+contains the frozen source, native logs, mutation outputs and upgrade
+evidence. Its SHA-256 is
+`abc0ddce7d1ab9de75c03adf0b02b3910053557eb2fcb97d0467c3f33dd854ce`.
 
 ## Evidence and fuzzing
 

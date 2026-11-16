@@ -908,18 +908,26 @@ passed at `d33770200d8d7dff75a88a2eb7fc345166138c03`. The six previous
 maintenance writeback profiles passed in the same run. All 34 Linux quota
 tests passed. Strict Clippy passed for the controller and compound fixture
 on Linux, and for the compound fixture on macOS. The owned mapper, mount
-and loop were removed in every profile. Hosted x86_64 now runs both cases
-in the Linux quota job. Physical devices and other filesystems need their
-own fault evidence.
+and loop were removed in every profile. Hosted Ubuntu 24.04 x86_64/ext4
+also passed both cases with kernel `7.0.0-1017-azure` and Rust 1.99.1.
+It tested merge `0c9fb62f694582c48c970010c20ca8691af2cc89` from PR head
+`881dc2d`. Physical devices and other filesystems need their own fault
+evidence.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43804248463/job/133091240860),
+[Hosted artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43804248463/artifacts/14198275422)
 
 The audit compared each frozen Git archive, rehashed its 718 source files
 and every recorded payload, and checked fresh-process reopen and command
 cleanup records.
 
-| Profile | Payloads | Bounded commands | Fixture phases | Controller evidence SHA-256 |
-|---|---:|---:|---:|---|
-| Replacement file | 300 | 98 | 15 | `e8e257bc338213511e73f74e354f8be41a1e227c5f509b397bdf8d3263cc0d89` |
-| Cleanup file | 296 | 97 | 14 | `bb7789be0f4917ea0e03cd782a73c010d181d37b9a54d6c3c5b86739cdcb67a1` |
+| Profile | Payloads | Bounded commands | Fixture phases | Docker controller SHA-256 | Hosted controller SHA-256 |
+|---|---:|---:|---:|---|---|
+| Replacement file | 300 | 98 | 15 | `e8e257bc338213511e73f74e354f8be41a1e227c5f509b397bdf8d3263cc0d89` | `30a893e2835217ea4c12c3477fa65765ec6433cd1d48e4d40e60a145b144f084` |
+| Cleanup file | 296 | 97 | 14 | `bb7789be0f4917ea0e03cd782a73c010d181d37b9a54d6c3c5b86739cdcb67a1` | `e5afd1cdf659960d699343215ed347134710833f9d1d9ced108859f2fbc18d1a` |
+
+The hosted audit also matched the uploaded fixture and both gate binaries
+to the hashes recorded during execution. The hosted ZIP SHA-256 is
+`69fc43a83c929be265082437b7595e99bc9b1c9d2a0d5de939ca109bfe3a0e3d`.
 
 The local archive `target/archived-proof/near-cap-late-sync-d337702.tar.zst`
 contains the controller evidence and images, replay and audit scripts, and
