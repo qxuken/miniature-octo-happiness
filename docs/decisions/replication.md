@@ -91,6 +91,58 @@ native image is empty; nonempty is reachable for a contract-violating custom
 Images implementation and is not counted as infeasible for the generic code.
 Lease failure/release semantics delegate to native/simulator locking suites.
 
+## R4: upload flush failure precedes receipt observation
+
+`upload_flush_failure_preserves_progress_and_leaves_the_terminal_reply_unread`
+directly exercises `Primary::ship`'s post-upload flush propagation at current
+`src/replication/mod.rs:345`. Existing receipt-admission, lost-reply and storage
+fault controls did not force this flush: their scripted channels return `Ok`
+from `flush`. This adds one concrete delegated transport-error control without
+changing runtime code or adding a production seam.
+
+The same `FlushControl` type and shipping callsite compare an accepted exchange
+with one whose second flush returns `BrokenPipe`. Header flush and all writes
+succeed. Independent header bytes plus every captured image byte establish the
+complete 89-byte request and upload; both controls make exactly two flush calls.
+On failure, shipping returns exactly `Io`, consumes only the one-byte Ready
+(all 57 terminal receipt bytes remain unread), preserves the previous accepted
+progress and still accepts that exact previous receipt. The accepted control
+consumes all 58 reply bytes, advances progress and rejects the older receipt.
+Both controls preserve source revision, health and the complete durable
+simulator image, plus the export descriptor and every export byte. A fresh
+healthy channel's exact immediate receipt then reconciles progress; it uses the
+existing `Exchange` type at a separate shipping callsite.
+
+The prequeued valid terminal receipt can represent a follower that already
+committed even though the sender reports a local flush error. This test makes
+no claim of remote nonpublication, a real follower installation, TLS/kernel
+fault injection or durability beyond the supplied receipt contract.
+
+Rust/Cargo 1.99.1 focused debug/release and strict package test-target Clippy pass
+on macOS arm64. Fresh isolated source copies replace only the post-upload call
+with `let _ = channel.flush();`; both profiles compile and fail the exact
+shipping-result assertion at `src/replication/tests.rs:458`: actual
+`Ok(DurableAck { ... })`, expected `Err(Io)`. This first failure detects the
+omission; no separate mutant sensitivity is claimed for each later oracle.
+Positive baselines precede the omission, targets are separate and incremental
+builds are disabled. Shared production source was never mutated.
+
+The proof freezes base `721cbdb01424e67c339c0fc8fb306050f0ca929f` plus only the
+test overlay. Current production `src/replication/mod.rs` SHA-256 is
+`69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf`;
+the tested `src/replication/tests.rs` SHA-256 is
+`b55ae891a38d0a0b7fdf96d4a099897844256d383c6fc2b0be78e941b1d315a3`.
+Requests, native process reports, logs, source/patch identities and actual test
+binaries are indexed at `/private/tmp/weekend-upload-flush-wPX8xe/evidence.json`.
+The protected local archive is `target/archived-proof/upload-flush-721cbdb.tar.zst`,
+SHA-256 `dd4ef14e67a5e094bac5aa50ee6dbb3a43f44e1a635270a7b6ab79111d68c07e`.
+Root independently restores and rehashes all 53 indexed payloads, verifies the
+base Git archive, exact test/runtime/mutant identities and all five raw process
+outcomes. Four actual test binaries and the supervisor remain retained.
+This supplemental callsite evidence does not rebind the historical source
+inventory below or close every transport error, platform or compiler MC/DC
+obligation.
+
 ## Inventory and limits
 
 The scanner includes possible platform branches, excludes cfg(test) and does not

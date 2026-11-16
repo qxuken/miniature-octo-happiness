@@ -151,8 +151,16 @@ separate gates. This does not qualify kernel/CSP fault occurrence, entropy
 quality, unsupported ABIs or every generic instantiation.
 Native Windows subsequently executes the three controls and creation-body test
 at `721cbdb` in both profiles. The [maintained Windows mutation path](windows-identity-mutations.md)
-has passing portable checks and cross-Clippy, while actual production-mutant
-detection still needs its own native CI evidence.
+has passing portable checks and cross-Clippy. The exact-`4dc6fd8` native Windows
+artifact subsequently verifies both mutations in debug/release, eight PE test
+binaries and seventeen clean Job reports. This closes the two named mutation
+gates, without inferring success of other still-running workflow checks.
+
+The sender's [post-upload flush propagation](decisions/replication.md#r4-upload-flush-failure-precedes-receipt-observation)
+also has direct accepted/error controls and debug/release omission sensitivity.
+Failure leaves the terminal receipt unread and prior sender progress intact;
+reconciliation permits an already durable follower. This test-only addition
+does not infer remote nonpublication or close other delegated transport errors.
 
 The [exact-7e0e44f campaign](fuzz-qualification-7e0e44f.md) completed 22 targets
 and 1,442,896 actual runs, with 244 unchanged seeds and separate 29-test replay.

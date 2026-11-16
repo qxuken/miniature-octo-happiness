@@ -130,8 +130,9 @@ core admission/error paths. Actual kernel/CSP fault occurrence remains separate.
 Eight Mac and sixteen Linux debug/release red outcomes detect the stated
 mutations, including Linux's otherwise masked signed-negative error context.
 The Windows status-zero/positive/negative cases use one callback type with the
-same terminal bytes. Real Windows target checks pass, while native execution
-and two runtime mutation gates are still pending. The report records source
+same terminal bytes. Real Windows target checks and native debug/release
+baselines pass at `721cbdb`; both named status/diagnostic mutations are detected
+natively at `4dc6fd8`. The report records source
 hashes, exact caller/closure scopes, inventory and retained proof identities.
 
 The older N4/N5 descriptions and source tables retain their historical hashes

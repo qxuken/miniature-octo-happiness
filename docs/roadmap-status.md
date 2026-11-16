@@ -3031,7 +3031,7 @@ loose-parser control fails at its intended malformed-footer assertion. The
 compile-only artifact probe records Cargo's actual libtest shape. Independent
 source/docs review has no remaining findings; root restores and checks all
 113 indexed payloads and four actual executables in the protected proof archive
-recorded in the report. Native Windows must still run all eight production
+recorded in the report. At that checkpoint Windows still had to run all eight
 baseline/mutant commands and preserve their evidence before that gate closes.
 
 The next feasible caller control is the snapshot sender's flush after uploading
@@ -3039,3 +3039,49 @@ the image and before reading/observing the follower receipt. Its failure must
 preserve the sender's previous progress, while allowing that the follower may
 already be durable. Engine/wire bytes and both acknowledgment contracts are
 unchanged. Crates remain unpublished.
+
+## Snapshot upload flush propagation
+
+The preceding native-identity commit `721cbdb` has fourteen successful hosted
+jobs on their first attempt, including ASan, TSan and bounded fuzzing. Its tested
+merge `f386b4b` has the exact committed head tree. Compact CI evidence preserves
+36 indexed files, with the named new native controls passing both profiles on
+macOS, Linux and Windows. This status excludes later `4dc6fd8` tooling and the
+following uncommitted-at-test-time regression.
+
+The [R4 regression](decisions/replication.md#r4-upload-flush-failure-precedes-receipt-observation)
+directly controls the sender's flush after a complete upload. The same wrapper
+and shipping callsite produce accepted or failed flush outcomes with identical
+Ready/exact-receipt bytes. An independent 89-byte header and every image byte
+verify the upload. Exact `Io` leaves the 57-byte terminal receipt unread and
+preserves previous progress; the accepted control observes it. Both preserve
+source health, revision, durable bytes and immutable export contents. A fresh
+healthy exchange reconciles the exact receipt without inferring that a local
+flush error prevented follower durability.
+
+Rust 1.99.1 focused debug/release and strict package test-target Clippy pass.
+One isolated caller-only error-propagation omission fails in both profiles at
+the intended `Ok(DurableAck)` versus `Err(Io)` assertion. The proof freezes base
+`721cbdb` plus only the test overlay; later tooling changes are excluded. Root restores
+and checks all 53 indexed payloads, actual binaries, source/patch identities and
+five raw process outcomes; the ledger records the protected archive hash.
+This closes that named delegated channel error, without claiming every I/O
+failure, actual follower/TLS/kernel fault or compiler MC/DC. Crates stay private.
+
+## Native Windows identity mutation gate closed
+
+The [recorded Windows result](windows-identity-mutations.md#recorded-native-windows-result)
+binds artifact `14267427327` to exact head `4dc6fd8` and merge `4807a49`, with
+equal trees. Four one-test baselines and four intended mutant failures pass in
+debug/release, through seventeen clean bounded Job reports. All eight actual
+x64 PE binaries, unique production-only mutations and preserved test bytes are
+verified. The 751 input hashes reconstruct as 248 exact Git blobs and 503 valid
+CRLF checkout forms. Shallow raw parents are supplemented by retained Git API
+metadata; the runner executable is not uploaded, and its digest is recorded.
+
+Root independently restores 65 proof payloads, extracts the original 47-file
+ZIP and verifies source/results/executables. Separate review checks the complete
+source closure. The report records the protected archive and ZIP hashes. This
+closes both named runtime mutation gates; it is separate from native baseline
+CI at `721cbdb`, actual CSP failures and other job/workflow checks still running
+at capture. No reruns, cancellations, publication or runtime changes are involved.

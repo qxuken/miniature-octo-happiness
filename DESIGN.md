@@ -5957,7 +5957,30 @@ derived loose-parser negative control fails at the intended assertion.
 
 Native Windows CI at `721cbdb`/merge `f386b4b` now passes all three new identity
 controls and the engine creation-body test in both profiles. This closes their
-native baseline gate. The new production-mutation runner still requires native
-CI execution; local cross-compilation and portable controls do not close it.
+native baseline gate. At that checkpoint the production-mutation runner still
+required native execution; portable controls could not close that gate.
 This tranche changes tooling, without changing publication, either acknowledgment
 contract, dependencies, engine code or formats. Crates remain unpublished.
+
+The snapshot sender's [post-upload flush control](docs/decisions/replication.md#r4-upload-flush-failure-precedes-receipt-observation)
+now forces a channel flush error after all image bytes have been written and
+before the terminal receipt is read. One wrapper/callsite contrasts exact `Io`,
+unread receipt and unchanged accepted progress against successful observation.
+Source/export bytes remain unchanged, and a fresh channel can reconcile a
+receipt that was already durable remotely. Local flush failure is not evidence
+that the follower failed to commit.
+
+Focused debug/release and strict Clippy pass; isolated omission of only that
+error propagation fails the intended result assertion in both profiles. Root
+restores all 53 proof payloads and independent review checks the source/receipt
+scope. This is a test-only transport callsite qualification, with no runtime,
+wire, publication or acknowledgment-contract change; other transport and native
+failure obligations remain separate.
+
+Native Windows artifact `14267427327` at `4dc6fd8`/merge `4807a49` now closes
+the two named identity mutation gates: four accepted baselines and four intended
+failures, eight retained x64 PE test binaries and seventeen clean Job reports.
+Root and separate review verify source reconstruction, exact mutations, original
+ZIP and process outcomes. The [recorded result](docs/windows-identity-mutations.md#recorded-native-windows-result)
+preserves source/archive identities and the distinction between that completed
+artifact gate and other workflow checks still running at capture.

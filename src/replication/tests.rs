@@ -36,8 +36,11 @@ impl Write for Exchange {
 }
 
 fn exports() -> (Database, [Export; 3]) {
-    let mut db =
-        Database::create_on(MemoryStore::new().unwrap(), [1; 16], Limits::default()).unwrap();
+    exports_on(MemoryStore::new().unwrap())
+}
+
+fn exports_on(source: impl ByteStore + 'static) -> (Database, [Export; 3]) {
+    let mut db = Database::create_on(source, [1; 16], Limits::default()).unwrap();
     let mut primary = Primary::new(&db, STREAM).unwrap();
     let exports = std::array::from_fn(|revision| {
         if revision != 0 {
@@ -382,6 +385,114 @@ fn primary_poll_rejects_invalid_progress_without_losing_its_last_ack() {
         } else if case == "advance" {
             assert_eq!(poll(&mut primary, installed(current)), Err(Error::Conflict));
         }
+    }
+}
+
+#[test]
+fn upload_flush_failure_preserves_progress_and_leaves_the_terminal_reply_unread() {
+    struct FlushControl {
+        exchange: Exchange,
+        fail_second: bool,
+        flushes: usize,
+    }
+    impl Read for FlushControl {
+        fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+            self.exchange.read(bytes)
+        }
+    }
+    impl Write for FlushControl {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.exchange.write(bytes)
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            self.flushes += 1;
+            if self.fail_second && self.flushes == 2 {
+                Err(io::ErrorKind::BrokenPipe.into())
+            } else {
+                self.exchange.flush()
+            }
+        }
+    }
+    fn image(export: &mut Export) -> Vec<u8> {
+        let store = export.storage.image_bytes();
+        let mut bytes = vec![0; store.length().unwrap() as usize];
+        read_all(store, 0, &mut bytes).unwrap();
+        bytes
+    }
+
+    for fail_second in [true, false] {
+        let disk = crate::storage::SimulatedDisk::new().unwrap();
+        let (source, [old, mut offered, _]) = exports_on(disk.clone());
+        let previous = ack(&old);
+        let expected = ack(&offered);
+        let descriptor = offered.descriptor();
+        let bytes = image(&mut offered);
+        assert_eq!(bytes.len() as u64, descriptor.length);
+        let source_revision = source.snapshot().revision();
+        let source_bytes = disk.durable_image().unwrap();
+        let mut primary = Primary::new(&source, STREAM).unwrap();
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(previous)),
+            Ok(Some(previous))
+        );
+        let mut channel = FlushControl {
+            exchange: Exchange::new([Reply::Ready, Reply::Installed(expected)]),
+            fail_second,
+            flushes: 0,
+        };
+        let result = primary.ship(&mut offered, &mut channel);
+
+        // Independent wire header followed by every captured image byte. Only
+        // the upload flush can fail; header flush and every write succeed.
+        let mut sent = b"WDBREPL\x01\x01".to_vec();
+        sent.extend_from_slice(&STREAM);
+        sent.extend_from_slice(&[1; 16]);
+        sent.extend_from_slice(&descriptor.revision.to_le_bytes());
+        sent.extend_from_slice(&descriptor.length.to_le_bytes());
+        sent.extend_from_slice(&descriptor.digest);
+        assert_eq!(sent.len(), 89);
+        sent.extend_from_slice(&bytes);
+        assert_eq!(channel.exchange.sent, sent);
+        assert_eq!(channel.flushes, 2);
+        if fail_second {
+            assert_eq!(result, Err(Error::Io));
+            assert_eq!(channel.exchange.replies.position(), 1);
+            assert_eq!(channel.exchange.replies.get_ref().len(), 58);
+            assert_eq!(primary.progress, Some(previous));
+            assert_eq!(
+                poll(&mut primary, Reply::Installed(previous)),
+                Ok(Some(previous))
+            );
+        } else {
+            assert_eq!(result, Ok(expected));
+            assert_eq!(channel.exchange.replies.position(), 58);
+            assert_eq!(primary.progress, Some(expected));
+            assert_eq!(
+                poll(&mut primary, Reply::Installed(previous)),
+                Err(Error::Conflict)
+            );
+        }
+        assert_eq!(source.snapshot().revision(), source_revision);
+        assert!(!source.requires_recovery());
+        assert_eq!(disk.durable_image().unwrap(), source_bytes);
+        assert_eq!(offered.descriptor(), descriptor);
+        assert_eq!(image(&mut offered), bytes);
+
+        // A queued receipt may represent an already durable follower despite
+        // the local flush error. Reconcile over a fresh healthy channel rather
+        // than inferring that the remote did not commit.
+        let mut retry = Exchange::new([Reply::Installed(expected)]);
+        assert_eq!(primary.ship(&mut offered, &mut retry), Ok(expected));
+        assert_eq!(retry.replies.position(), 57);
+        assert_eq!(primary.progress, Some(expected));
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(previous)),
+            Err(Error::Conflict)
+        );
+        assert_eq!(source.snapshot().revision(), source_revision);
+        assert_eq!(disk.durable_image().unwrap(), source_bytes);
+        assert_eq!(offered.descriptor(), descriptor);
+        assert_eq!(image(&mut offered), bytes);
     }
 }
 
