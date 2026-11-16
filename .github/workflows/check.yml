@@ -251,7 +251,7 @@ jobs:
         run: |
           cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-mac-build
           cargo xtask macos-maintenance-space --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-maintenance-space
-          cargo xtask macos-maintenance-space --namespace-enospc --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-namespace-enospc
+          bash tools/resource-envelope/qualify-macos-exchange.sh target/maintenance-mac-build/release/weekend-compound-resource "$WEEKEND_DB_SOURCE_ID" target/macos-namespace-enospc
           cargo xtask macos-maintenance-space --cleanup-enospc --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-cleanup-enospc
       - name: Save macOS maintenance exhaustion evidence
         if: always() && runner.os == 'macOS'

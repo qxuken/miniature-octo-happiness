@@ -78,6 +78,14 @@ fn verify_phase(
     );
     let expected = match mode {
         #[cfg(any(target_os = "macos", test))]
+        "space-exchange"
+            if profile == Profile::Apfs
+                && label == "compact"
+                && row["stage"] == "exchange-completed" =>
+        {
+            json!({"stage":"exchange-completed","operation":label,"pid":pid,"before_bytes":66_154_496,"after_bytes":63_074_304})
+        }
+        #[cfg(any(target_os = "macos", test))]
         "space-exchange" if profile == Profile::Apfs && label == "compact" => {
             json!({"stage":"exchange","operation":label,"pid":pid,"error":15,"native_operation":"Exchange","category":"DiskFull","raw":28})
         }
@@ -815,6 +823,26 @@ mod native {
     ) -> Result<()> {
         use std::os::unix::fs::MetadataExt;
         let images = NamespaceImages::install(fixture, proof, seed, data)?;
+        let capacity =
+            namespace_pressure(run, fixture, proof, data, &images, NamespacePhase::Exchange)?;
+        if capacity.observation["stage"] == "exchange-completed" {
+            let free = verify_published_at_capacity(
+                fixture,
+                proof,
+                data,
+                &images,
+                &capacity,
+                capacity.scratch_inode,
+            )?;
+            proof["exchange_completed_at_capacity"] = json!({
+                "observation":capacity.observation,"original_inode":images.original_meta.ino(),
+                "canonical_inode":capacity.scratch_inode,"ballast_bytes":capacity.filled,
+                "free_at_exchange":capacity.available,"free_after_remount":free,
+                "scratch_absent_after_remount":true,"canonical_sha256":images.backup_hash,
+                "advanced_with_ballast":true,
+            });
+            return Ok(());
+        }
         let AtCapacity {
             scratch,
             scratch_inode,
@@ -822,7 +850,7 @@ mod native {
             available,
             observation,
             ..
-        } = namespace_pressure(run, fixture, proof, data, &images, NamespacePhase::Exchange)?;
+        } = capacity;
         let NamespaceImages {
             source,
             backup,
@@ -906,21 +934,20 @@ mod native {
     }
 
     #[cfg(target_os = "macos")]
-    fn qualify_cleanup(
-        run: &Run,
+    fn verify_published_at_capacity(
         fixture: &mut Fixture<'_>,
         proof: &mut Value,
-        seed: &Path,
         data: &Path,
-    ) -> Result<()> {
+        images: &NamespaceImages,
+        full: &AtCapacity,
+        new_inode: u64,
+    ) -> Result<u64> {
         use std::os::unix::fs::MetadataExt;
-        let images = NamespaceImages::install(fixture, proof, seed, data)?;
-        let full = namespace_pressure(run, fixture, proof, data, &images, NamespacePhase::Cleanup)?;
         proof["cleanup_mount"] = macos_volume::remount(proof, fixture.output, &fixture.env)?;
         let canonical = fs::symlink_metadata(&images.source)?;
         ensure!(
             canonical.is_file()
-                && canonical.ino() == full.canonical_inode
+                && canonical.ino() == new_inode
                 && canonical.mode() & 0o7777 == 0o640
                 && canonical.nlink() == 1
                 && !full.scratch.try_exists()?
@@ -959,6 +986,27 @@ mod native {
             &images.backup,
             &fixture.output.join("backup.wdb"),
             COPY_BYTES,
+        )?;
+        Ok(free)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn qualify_cleanup(
+        run: &Run,
+        fixture: &mut Fixture<'_>,
+        proof: &mut Value,
+        seed: &Path,
+        data: &Path,
+    ) -> Result<()> {
+        let images = NamespaceImages::install(fixture, proof, seed, data)?;
+        let full = namespace_pressure(run, fixture, proof, data, &images, NamespacePhase::Cleanup)?;
+        let free = verify_published_at_capacity(
+            fixture,
+            proof,
+            data,
+            &images,
+            &full,
+            full.canonical_inode,
         )?;
         proof["maintenance_cases"].as_array_mut().unwrap().push(json!({"operation":"compact","cleanup":full.observation,"old_inode":full.scratch_inode,"canonical_inode":full.canonical_inode,"ballast_bytes":full.filled,"free_before_unlink":full.available,"free_after_remount":free,"scratch_absent_after_remount":true,"canonical_sha256":images.backup_hash,"advanced_with_ballast":true}));
         Ok(())
@@ -1314,6 +1362,11 @@ mod native {
             for name in ["rejected-backup.wdb", "restored.wdb", "compact.wdb"] {
                 fs::remove_file(seed.join(name))?;
             }
+            #[cfg(target_os = "macos")]
+            ensure!(
+                proof["exchange_completed_at_capacity"].is_null(),
+                "APFS exchange completed at capacity without the required kernel ENOSPC"
+            );
             Ok(())
         })();
         proof["verified"] = json!(result.is_ok());
@@ -1394,6 +1447,37 @@ mod tests {
             ("raw", json!(5)),
             ("native_operation", json!("Write")),
             ("error", json!(14)),
+        ] {
+            let mut invalid = row.clone();
+            invalid[field] = value;
+            assert!(verify(invalid, Profile::Apfs).is_err(), "{field}");
+        }
+    }
+
+    #[test]
+    fn apfs_completed_exchange_requires_the_success_shape() {
+        let source = "1111111111111111111111111111111111111111";
+        let done = oracle::completion("space-exchange", source);
+        let row = json!({
+            "stage":"exchange-completed","operation":"compact","pid":41,
+            "before_bytes":66_154_496,"after_bytes":63_074_304
+        });
+        let verify = |row, profile| {
+            verify_phase(
+                &[row, done.clone()],
+                source,
+                "space-exchange",
+                "compact",
+                41,
+                profile,
+            )
+        };
+        verify(row.clone(), Profile::Apfs).unwrap();
+        assert!(verify(row.clone(), Profile::Ntfs).is_err());
+        for (field, value) in [
+            ("after_bytes", json!(66_154_496)),
+            ("raw", json!(28)),
+            ("pid", json!(42)),
         ] {
             let mut invalid = row.clone();
             invalid[field] = value;

@@ -40,15 +40,22 @@ fn compact_at_capacity(source: &Path, gate: PathBuf, pid: u32, cleanup: bool) {
             Ok(())
         })
     });
-    if cleanup {
-        let stats = result.expect("expected APFS to retire the old image at capacity");
-        println!(
-            "{{\"stage\":\"cleanup\",\"operation\":\"compact\",\"pid\":{pid},\"before_bytes\":{},\"after_bytes\":{}}}",
-            stats.before_bytes, stats.after_bytes,
-        );
-        return;
-    }
-    let failure = result.expect_err("expected kernel namespace exhaustion");
+    let failure = match result {
+        Ok(stats) => {
+            let stage = if cleanup {
+                "cleanup"
+            } else {
+                "exchange-completed"
+            };
+            println!(
+                "{{\"stage\":\"{stage}\",\"operation\":\"compact\",\"pid\":{pid},\"before_bytes\":{},\"after_bytes\":{}}}",
+                stats.before_bytes, stats.after_bytes,
+            );
+            return;
+        }
+        Err(failure) if !cleanup => failure,
+        Err(failure) => panic!("expected APFS to retire the old image at capacity: {failure:?}"),
+    };
     assert_eq!(failure.error, Error::OutcomeUnknown);
     assert!(failure.verification.is_none());
     let native = failure.native.unwrap();

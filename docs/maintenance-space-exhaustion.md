@@ -1076,6 +1076,53 @@ report. Local exchange and cleanup runs on macOS 27.0.1 with the
 `a16d10e` fixture each recorded 68,706,304 ballast bytes and 5,849,088
 available bytes. Both qualification profiles and volume cleanup passed.
 
+The next two hosted macOS runs passed the strict exchange and cleanup
+profiles at tested merges `5d9c4f9` and `fba9f7c`. At `fba9f7c`, the
+rehash matched both pre-release records. Each recorded 68,706,304 ballast
+bytes and 5,849,088 available bytes. The exchange received kernel
+`ENOSPC (28)`, retained the original and scratch images, and advanced
+after retry. The cleanup run advanced with the ballast in place.
+[First hosted rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43832652617/job/133181441786),
+[rerun with capacity records](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43834835778/job/133188772929).
+
+### Bounded retries for the hosted exchange check
+
+If APFS allows exchange, the controller verifies the exact new canonical
+inode and bytes after remount, confirms the scratch name has disappeared,
+and checks the backup, revision 212 and all 64 retained roots. It then
+commits revision 213 with the ballast in place and checks both files
+again. After process and volume cleanup it records the completed
+exchange and returns a nonzero verdict for the strict refusal profile.
+
+The hosted script uses up to three fresh private images and keeps their
+reports under `attempt-1`, `attempt-2` and `attempt-3`. It retries only
+after this verified completed-exchange outcome. The required result is
+a genuine kernel `ENOSPC` at exchange with the existing reopen and
+retry evidence. Any different error or missing report stops the script.
+
+```sh
+bash tools/resource-envelope/qualify-macos-exchange.sh \
+  target/maintenance-mac-build/release/weekend-compound-resource \
+  "$WEEKEND_DB_SOURCE_ID" target/macos-namespace-retry
+```
+
+The native retry control used an intentionally underfilled first image
+to exercise a completed exchange. The controller verified both files
+and the next commit, left the strict verdict failed, and retired the
+volume. The second attempt used normal ballast and recorded
+`OutcomeUnknown / Exchange / DiskFull` with kernel errno 28. The
+scratch survived remount, retry matched the exact backup, and revision
+213 passed the fresh-process check. The script stopped after two
+attempts. Separate controls reached the three-attempt ceiling and
+rejected missing reports, changed source IDs, cleanup failures,
+unverified state and unrelated errors without retry.
+
+The local archive `target/archived-proof/apfs-exchange-retry-fd7b34d.tar.zst`
+contains the four hosted downloads, the three local reports, the exact
+source bundle and fixture overlays, and the controller checks. SHA-256
+`b35d5fb52c184b8408c4a13a0530784c00faf27f4983fac7a6e8c3589388a9b7`.
+All seven artifact inventories matched after extraction.
+
 The next profile fills the volume after exchange, before unlinking the old image.
 
 ## APFS compaction cleanup after allocation reaches ENOSPC
