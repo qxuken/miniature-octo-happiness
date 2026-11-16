@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     replication::{Export, Primary, visit_image},
-    storage::{Crash, Fault, IoKind, MemoryStore, SimulatedDisk},
+    storage::{Crash, Fault, IoKind, MemoryStore, SimulatedDisk, inspect_on},
 };
 use std::io::Cursor;
 
@@ -86,7 +86,7 @@ struct Fixture {
     first_ack: DurableAck,
 }
 impl Fixture {
-    fn exports(identity: [u8; 16]) -> (Export, Export) {
+    fn exports(identity: [u8; 16], retain: bool) -> (Export, Export) {
         let limits = Limits::default();
         let mut db = Database::create_on(MemoryStore::new().unwrap(), identity, limits).unwrap();
         let mut primary = Primary::new(&db, [2; 16]).unwrap();
@@ -95,6 +95,9 @@ impl Fixture {
         tx.put(id, b"key", &db.unsigned(1).unwrap()).unwrap();
         tx.commit().unwrap();
         drop(tx);
+        if retain {
+            db.retain_snapshot(&db.snapshot()).unwrap();
+        }
         let first = primary
             .export_to(&mut db, MemoryStore::new().unwrap())
             .unwrap();
@@ -108,7 +111,10 @@ impl Fixture {
         (first, next)
     }
     fn new() -> Self {
-        let (mut first, next) = Self::exports([1; 16]);
+        Self::with_exports(false)
+    }
+    fn with_exports(retain: bool) -> Self {
+        let (mut first, next) = Self::exports([1; 16], retain);
         let enrollment = first.enrollment;
         let limits = Limits::default();
         let manifest = SimulatedDisk::new().unwrap();
@@ -168,6 +174,254 @@ fn check(receiver: &Receiver<Slots>, ack: DurableAck, value: u64) {
             .as_u64(),
         Ok(value)
     );
+}
+
+fn check_retained(receiver: &Receiver<Slots>, ack: DurableAck, value: u64) {
+    check(receiver, ack, value);
+    let view = &receiver.installed.as_ref().unwrap().1;
+    assert_eq!(view.retained_ids().unwrap(), [1]);
+    let retained = view.retained_snapshot(1).unwrap();
+    let collection = view.collection_id(1);
+    assert_eq!(view.snapshot().count(collection).unwrap(), 1);
+    assert_eq!(retained.revision(), 2);
+    assert_eq!(retained.count(collection).unwrap(), 1);
+    assert_eq!(
+        retained.get(collection, b"key").unwrap().unwrap().as_u64(),
+        Ok(1)
+    );
+}
+
+#[test]
+fn torn_staging_sync_keeps_the_exact_old_receipt() {
+    let mut fixture = Fixture::with_exports(true);
+    let (mut receiver, _, _, candidate) = fixture.start();
+    let ack = Exchange::offer(&mut fixture.next)
+        .serve(&mut receiver)
+        .unwrap()
+        .unwrap();
+    let complete = candidate.durable_image().unwrap();
+    let trace = candidate.trace().unwrap();
+    let sync = trace
+        .iter()
+        .position(|event| event.kind == IoKind::Sync)
+        .unwrap();
+    let writes: Vec<_> = trace[..sync]
+        .iter()
+        .filter(|event| event.kind == IoKind::Write)
+        .collect();
+    assert!(writes.len() >= 3);
+    drop(receiver);
+
+    for index in [0, writes.len() / 2, writes.len() - 1] {
+        let event = writes[index];
+        let offset = usize::try_from(event.offset).unwrap();
+        for prefix in [0, 1, event.len / 2, event.len - 1, event.len] {
+            let (mut receiver, manifest, slots, candidate) = fixture.start();
+            candidate.arm(
+                sync,
+                Fault::SyncError(Crash::Torn {
+                    write: index,
+                    prefix,
+                }),
+            );
+            let mut offer = Exchange::offer(&mut fixture.next);
+            assert_eq!(offer.serve(&mut receiver), Err(Error::Io));
+            assert_eq!(offer.output.first(), Some(&1));
+            assert_eq!(offer.terminal_reply(), Err(Error::Io));
+            let mut poll = Exchange::request(fixture.enrollment, None);
+            assert_eq!(poll.serve(&mut receiver), Ok(Some(fixture.first_ack)));
+            assert!(manifest.trace().unwrap().is_empty());
+            drop(receiver);
+            manifest.crash(Crash::DropAll).unwrap();
+            candidate.crash(Crash::DropAll).unwrap();
+
+            let mut expected = vec![0; offset + prefix];
+            expected[offset..].copy_from_slice(&complete[offset..offset + prefix]);
+            assert_eq!(candidate.durable_image().unwrap(), expected);
+            assert_eq!(manifest.durable_image().unwrap(), fixture.manifest);
+            assert_eq!(
+                slots.0[0].as_ref().unwrap().durable_image().unwrap(),
+                fixture.image
+            );
+            let mut reopened = fixture.reopen(&manifest, &slots);
+            check_retained(&reopened, fixture.first_ack, 1);
+            assert_eq!(
+                Exchange::request(fixture.enrollment, None).serve(&mut reopened),
+                Ok(Some(fixture.first_ack))
+            );
+            let retry_disk = SimulatedDisk::new().unwrap();
+            reopened.images.0[1] = Some(retry_disk.clone());
+            assert_eq!(
+                Exchange::offer(&mut fixture.next).serve(&mut reopened),
+                Ok(Some(ack))
+            );
+            assert_eq!(retry_disk.durable_image().unwrap(), complete);
+            check_retained(&reopened, ack, 2);
+            let installed = reopened.images.clone();
+            drop(reopened);
+            manifest.crash(Crash::DropAll).unwrap();
+            retry_disk.crash(Crash::DropAll).unwrap();
+            check_retained(&fixture.reopen(&manifest, &installed), ack, 2);
+        }
+    }
+}
+
+#[test]
+fn every_distinct_torn_manifest_prefix_preserves_the_selected_receipt() {
+    let mut cases = 0;
+    for shift in [false, true] {
+        let mut fixture = Fixture::with_exports(true);
+        if shift {
+            // Reuse the other root and witness without changing the selected image.
+            let (receiver, manifest, _, _) = fixture.start();
+            receiver.manifest.begin().commit().unwrap();
+            drop(receiver);
+            fixture.manifest = manifest.durable_image().unwrap();
+        }
+        let (mut receiver, manifest, _, candidate) = fixture.start();
+        let previous = receiver.manifest.snapshot().revision();
+        let ack = Exchange::offer(&mut fixture.next)
+            .serve(&mut receiver)
+            .unwrap()
+            .unwrap();
+        let staged = candidate.durable_image().unwrap();
+        let complete = manifest.durable_image().unwrap();
+        let trace = manifest.trace().unwrap();
+        let [_, root_sync, witness_sync]: [usize; 3] = trace
+            .iter()
+            .enumerate()
+            .filter_map(|(step, event)| (event.kind == IoKind::Sync).then_some(step))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        drop(receiver);
+
+        let parity = (previous + 1) as usize % 2;
+        let root = (1 + parity) * REGION..(2 + parity) * REGION;
+        let witness = (3 + parity) * REGION..(4 + parity) * REGION;
+        for (sync, region) in [(root_sync, root.clone()), (witness_sync, witness.clone())] {
+            let write = sync - 1;
+            let event = &trace[write];
+            assert_eq!(
+                (event.kind, event.offset, event.len),
+                (IoKind::Write, region.start as u64, REGION)
+            );
+            let old = &fixture.manifest[region.clone()];
+            let new = &complete[region.clone()];
+            assert!(old.iter().any(|&byte| byte != 0));
+            let prefixes = std::iter::once(0)
+                .chain(
+                    old.iter()
+                        .zip(new)
+                        .enumerate()
+                        .filter_map(|(i, (a, b))| (a != b).then_some(i + 1)),
+                )
+                .chain(std::iter::once(REGION));
+            for prefix in prefixes {
+                let tear = |durable| Fault::Tear { prefix, durable };
+                let sync_tear = Fault::SyncError(Crash::Torn { write: 0, prefix });
+                for (step, fault, crash, surviving) in [
+                    (write, tear(true), Crash::DropAll, prefix),
+                    (write, tear(false), Crash::PersistAll, prefix),
+                    (write, tear(false), Crash::DropAll, 0),
+                    (sync, sync_tear, Crash::DropAll, prefix),
+                    (sync, sync_tear, Crash::PersistAll, REGION),
+                ] {
+                    let case = (parity, region.start, prefix, fault, crash);
+                    let (mut receiver, manifest, slots, candidate) = fixture.start();
+                    manifest.arm(step, fault);
+                    let mut offer = Exchange::offer(&mut fixture.next);
+                    assert_eq!(
+                        offer.serve(&mut receiver),
+                        Err(Error::OutcomeUnknown),
+                        "{case:?}"
+                    );
+                    assert_eq!(offer.output.first(), Some(&1));
+                    assert_eq!(
+                        offer.terminal_reply(),
+                        Err(Error::RecoveryRequired),
+                        "{case:?}"
+                    );
+                    assert_eq!(
+                        receiver.progress(),
+                        Err(Error::RecoveryRequired),
+                        "{case:?}"
+                    );
+                    assert_eq!(manifest.trace().unwrap(), trace[..=step], "{case:?}");
+                    drop(receiver);
+                    manifest.crash(crash).unwrap();
+                    candidate.crash(Crash::DropAll).unwrap();
+
+                    let mut expected = complete.clone();
+                    expected[region.start + surviving..region.end]
+                        .copy_from_slice(&old[surviving..]);
+                    if sync == root_sync {
+                        expected[witness.clone()]
+                            .copy_from_slice(&fixture.manifest[witness.clone()]);
+                    }
+                    assert!(manifest.durable_image().unwrap() == expected, "{case:?}");
+                    assert_eq!(candidate.durable_image().unwrap(), staged);
+                    assert_eq!(
+                        slots.0[0].as_ref().unwrap().durable_image().unwrap(),
+                        fixture.image
+                    );
+
+                    let published = expected[root.clone()] == complete[root.clone()];
+                    let witnessed =
+                        !published || expected[witness.clone()] == complete[witness.clone()];
+                    let info = inspect_on(manifest.clone(), Limits::default()).unwrap();
+                    assert_eq!(
+                        (info.revision, info.witnessed),
+                        (previous + u64::from(published), witnessed),
+                        "{case:?}"
+                    );
+                    assert!(manifest.durable_image().unwrap() == expected, "{case:?}");
+                    let mut reopened = fixture.reopen(&manifest, &slots);
+                    let (selected, value) = if published {
+                        (ack, 2)
+                    } else {
+                        (fixture.first_ack, 1)
+                    };
+                    check_retained(&reopened, selected, value);
+                    assert_eq!(
+                        Exchange::request(fixture.enrollment, None).serve(&mut reopened),
+                        Ok(Some(selected))
+                    );
+                    let settled = manifest.durable_image().unwrap();
+                    if !published {
+                        reopened.images.0[1] = Some(SimulatedDisk::new().unwrap());
+                    }
+                    let mut retry = Exchange::offer(&mut fixture.next);
+                    assert_eq!(retry.serve(&mut reopened), Ok(Some(ack)));
+                    assert_eq!(retry.output.first(), Some(&(if published { 2 } else { 1 })));
+                    if published {
+                        assert_eq!(manifest.durable_image().unwrap(), settled);
+                    }
+                    assert_eq!(
+                        reopened.images.0[1]
+                            .as_ref()
+                            .unwrap()
+                            .durable_image()
+                            .unwrap(),
+                        staged
+                    );
+                    assert_eq!(reopened.manifest.snapshot().revision(), previous + 1);
+                    check_retained(&reopened, ack, 2);
+                    let installed = reopened.images.clone();
+                    drop(reopened);
+                    manifest.crash(Crash::DropAll).unwrap();
+                    installed.0[1]
+                        .as_ref()
+                        .unwrap()
+                        .crash(Crash::DropAll)
+                        .unwrap();
+                    check_retained(&fixture.reopen(&manifest, &installed), ack, 2);
+                    cases += 1;
+                }
+            }
+        }
+    }
+    eprintln!("manifest prefix cases across both parities: {cases}");
 }
 
 #[test]
@@ -299,7 +553,7 @@ fn image_verification_failures_preserve_the_reported_revision() {
     let mut fixture = Fixture::new();
     let good = Exchange::offer(&mut fixture.next);
     let image = &good.input.get_ref()[89..];
-    let foreign = Exchange::offer(&mut Fixture::exports([7; 16]).1);
+    let foreign = Exchange::offer(&mut Fixture::exports([7; 16], false).1);
     let foreign = &foreign.input.get_ref()[89..];
     assert_eq!(image.len(), foreign.len());
     let mut trailing = image.to_vec();
