@@ -580,6 +580,9 @@ Both paths share the object header, payload and zero-padding checksum logic.
 | Append body failure prevents further publication and slot or witness errors retain uncertainty | Existing storage, native compaction, retention and replication failure tests pass. Ordered adapter write parity confirms the new segment boundaries preserve where the failure injection acts. |
 | End of image and invalid object bounds | `writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic` retains the last accepted region and exact end after rejecting a further append. Golden disk histories and the fixed-input export verify offsets and checksums across both encoding paths. |
 
-The staging controls supplement the previous source-bound ledgers. Further
-independent segment allocation injection and final-candidate native qualification
-remain tracked separately.
+At `a6393e0`, the parity fixture also injects failure at each of the 39 charged
+allocations needed to create that multi-segment image. Every failure leaves the
+destination empty with no write or sync calls and restores the exact live byte
+count before the successful control. Native macOS, Docker Linux/ext4 and macOS
+AddressSanitizer with a rebuilt standard library pass the sweep. These controls
+supplement the previous source-bound ledgers and final-candidate native gates.

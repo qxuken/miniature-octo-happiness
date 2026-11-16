@@ -203,6 +203,10 @@ qualification is a separate release-candidate requirement.
   Fresh-image staging limits individual append buffers to 64 KiB. Measure
   repeated-copy memory and check exact bytes and durability boundaries.
   [Fresh-image staging qualification](fresh-image-staging.md)
+  The Linux follower profile measures both live graphs and each installation
+  phase. A large authenticated process-kill drill checks reopening on both sides
+  of manifest selection.
+  [Follower installation and interruption](follower-installation-profile.md)
 - **Offline CRDT writers.** Specify lawful merge and resolution contracts
   for app records, enforce or clearly protect reserved rows, and qualify
   policy/schema evolution, actor identity and replacement, replay,

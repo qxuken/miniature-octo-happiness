@@ -2309,3 +2309,20 @@ about 106 MiB RSS, compared with 663 MiB previously. The macOS workspace and
 targeted Docker Linux tests and strict Windows cross-Clippy pass. Follower
 memory, other workload shapes and final-candidate native evidence remain open.
 [Staging protocol, regression controls and results](fresh-image-staging.md)
+
+## Linux follower installation and large-snapshot interruption
+
+The authenticated month replay at `a6393e0` measures 68,120 KiB follower RSS
+high-water through the last installation. Across the 30 daily installs, p95
+image sync is 9.549 ms, hash readback 80.764 ms, graph verification 81.922 ms
+and manifest selection 0.925 ms. At peak, the two decoded image graphs
+account for 66,041,884 requested core bytes.
+
+Two native Linux `SIGKILL` cases use the same saved revision-94 export and
+descriptor. Image-sync interruption reopens the byte-identical revision-93
+selection. Interruption after the manifest commit reopens revision 94. Both
+validate all 31 retained roots. A fresh TLS poll and a duplicate shipment
+recover the same revision-94 receipt, with no manifest or selected-byte change.
+The fresh-image allocation sweep covers 39 failure allowances before any
+destination write and verifies exact live-charge rollback.
+[Method, durable outcomes and raw evidence](follower-installation-profile.md)

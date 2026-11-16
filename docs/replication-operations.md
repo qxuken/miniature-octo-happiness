@@ -26,6 +26,13 @@ available through `replica()`, while `progress()` returns
 `RecoveryRequired`. Close and reopen before serving further requests.
 Corrupt selected images require investigation and an explicit fresh seed.
 
+The replica limit supplied to `Follower::create` or `Follower::open` applies to
+each decoded image. During installation the follower keeps the selected graph
+in memory while it verifies the candidate and durably publishes the manifest.
+The manifest and TLS connection use separate memory. Account for both image
+graphs when sizing a follower that accepts large snapshots.
+[Linux installation and memory measurements](follower-installation-profile.md#installation-timing-and-memory)
+
 ## Manifest growth and maintenance
 
 Native followers admit new image installations only while the physical
@@ -92,6 +99,12 @@ namespace deletion. Transfer retry also replaces its inactive staging
 slot. Cleanup never chooses an older image after selected-image corruption.
 The dedicated directory remains private to cooperating processes. Hostile
 concurrent namespace edits are outside this contract.
+
+An authenticated Linux process-kill drill verified the same boundary with a
+35 MiB image and 31 retained roots. Killing after the staged image sync reopened
+the old revision. Killing after manifest publication reopened the new revision,
+and a fresh poll and duplicate ship recovered its exact receipt.
+[Large-snapshot interruption results](follower-installation-profile.md#process-interruption-at-the-two-durability-boundaries)
 
 ## Explicit reseeding
 

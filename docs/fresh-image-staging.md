@@ -79,6 +79,15 @@ selected image. This run used a fresh random file identity and recorded digest
 The original and replay are separate single runs. Follower RSS, disk-only
 installation latency and deployment thresholds remain open.
 
+The later [Linux follower profile](follower-installation-profile.md) measures
+RSS, staged image sync and verification separately. It also kills the follower
+before and after manifest selection and checks the same retained-history oracle.
+
+The allocation sweep at `a6393e0` fails each of the 39 charged allocations in
+the multi-segment creation fixture. It verifies zero destination writes or
+syncs and exact live-charge rollback, then succeeds. The sweep passes native
+macOS, Docker Linux and macOS AddressSanitizer (`nightly-2026-11-12`).
+
 ### Reproduce and inspect
 
 The release probe source is recorded at
