@@ -2,6 +2,11 @@
 
 This is a requirement-by-requirement acceptance review of
 [production-readiness.md](production-readiness.md), not a new qualification run.
+The latest [e2d2268 PR checkpoint](candidate-qualification-e2d2268.md) refreshes
+the sixteen-package matrix, CI/sanitizer, benchmark and 22-target fuzz evidence.
+The [remaining-work handoff](remaining-roadmap.md) records what is still open.
+Operational workloads and the detailed historical rows below keep their named
+source/profile; they are not all refreshed by the new checkpoint.
 The later [immutable `7ec2cb5` checkpoint](candidate-qualification-7ec2cb5.md)
 consolidates the named four-platform package, sanitizer, benchmark/fuzz and
 fresh recovery evidence. This closes that candidate-consolidation action for

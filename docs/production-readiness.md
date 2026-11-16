@@ -2,9 +2,12 @@
 
 The [execution status](roadmap-status.md) tracks the full scope including
 distributed features and remaining gates. Cargo packages stay private.
-The [current immutable candidate](candidate-qualification-7ec2cb5.md) consolidates
-the named four-platform packages, sanitizer checks, benchmark/fuzz evidence and
-fresh recovery workloads; owner, device and broader qualification gates remain.
+The [current PR checkpoint](candidate-qualification-e2d2268.md) consolidates the
+named four-platform packages, CI/sanitizer checks and benchmark/fuzz evidence.
+The [unfinished-work handoff](remaining-roadmap.md) lists the next implementation,
+qualification, device and owner steps. Fresh operational workloads retain their
+historical [7ec2cb5 evidence](candidate-qualification-7ec2cb5.md); this checkpoint
+does not claim to rerun them or complete production readiness.
 The [acceptance audit](production-acceptance-audit.md) maps individual requirements
 to source-bound evidence and separates remaining local work from platform,
 device and owner decisions.

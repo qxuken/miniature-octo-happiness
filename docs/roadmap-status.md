@@ -3,15 +3,18 @@
 Release scope includes the local store, typed Rust, snapshot replication,
 CRDT peers and coordinator, as requested on 2026-11-09. The project uses
 `MIT OR Apache-2.0`. Cargo packages stay private with `publish = false`.
-The [immutable `7ec2cb5` qualification](candidate-qualification-7ec2cb5.md)
-records the latest same-source package, sanitizer, fuzz, benchmark and recovery
-checkpoint. Older entries below retain their historical source and scope.
+The [immutable `e2d2268` qualification](candidate-qualification-e2d2268.md)
+records the latest same-source package, CI/sanitizer, fuzz and benchmark
+checkpoint. The [remaining-work handoff](remaining-roadmap.md) lists unfinished
+release gates. Recovery and distributed rehearsals retain their historical
+[7ec2cb5 checkpoint](candidate-qualification-7ec2cb5.md); they were not rerun
+for e2d2268. Older entries below retain their historical source and scope.
 The project name is provisional. Baseline `1e883c8` checkpoints the prior
 decision tests and first four fuzz targets.
 
 | Gate | Progress and remaining evidence |
 |---|---|
-| Current immutable candidate | [`7ec2cb5`](candidate-qualification-7ec2cb5.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,442,916 actual runs), 29 stable replays and fresh Mac/Linux incident rehearsals. Workspace ASan/TSan pass on the same source. Fourteen required CI results pass after one explicitly recorded retry of an unacquired coverage job; twelve passed results are reused. Owner, device, broader decision/workload and support acceptance remain open. |
+| Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |
 | Credential cutover | Stopped-endpoint [snapshot](snapshot-credential-cutover.md) and [StudyProgress](study-credential-cutover.md) leaf/pin replacement passed native macOS, Linux and Windows debug/release. The tests verify stale identities, preserved local progress and retained roots, and repeat sync. Live reload, actor migration and other versions remain separate. |
 | Decision ledger | Scoped metadata, graph, transaction, memory, FFI, I/O, simulator and replacement pairs exist. The historical [source audits](decisions/README.md) classify 2,561 explicit records across 51 files, including shared TLS separately for each binary profile. Later VALUE/DATA index and [buffer-growth controls](serialization-buffer-growth.md) have separate mappings; fresh [shared-cache inventory](serialization-cache-sharing.md) has 2,604 records and 319 macro blind spots. Historical mappings, supplemental FFI/derive mappings and current inventory counts remain distinct. Signed alternate leaves are rejected by both exact-pin checks. Directed [handshake pairs](tls-handshake-decisions.md) now establish unfinished-handshake/pending-write independence at both endpoints; four guard omissions are detected. Delegated failures, generated-code inventory and compiler MC/DC measurement remain separate obligations. |
 | Fuzzing | All 22 targets passed the [exact-7e0e44f extended ASan campaign](fuzz-qualification-7e0e44f.md): 1,442,896 actual executions, including 40,217 register-causality executions, under per-target 100,000-run/120-second bounds. All 244 seeds and scoped source/lock hashes stayed unchanged; separate stable replay passed 29 tests. The strict delivery verifier binds this campaign, three benchmark samples and all 16 four-platform packages to that same source. Earlier campaigns keep their original scope. Longer campaigns and broader oracles remain. |
