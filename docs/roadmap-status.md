@@ -2650,3 +2650,37 @@ checks all 54 indexed files. Archive SHA-256:
 `58a036ad3235b8b48e96995c947acbe27ec5e643efe36398f7e20948e1ced2db`.
 This checkpoint predates the opt-in structured API and the T7/T8 additions;
 it supplies no qualification claim for those later changes.
+
+## Opt-in structured service diagnostics
+
+Code checkpoint `e195e068f38025374203ae2eba60975bd1857789` adds leading
+`--diagnostics=json` to both TLS CLIs. The [closed-field API](service-diagnostics.md)
+caps records at 1 KiB, captures actual storage context and defers Study incoming
+diagnostics without worker output. Default text, original error/downcast and
+retry behavior, wire protocol and acknowledgment contracts remain unchanged.
+
+A lost terminal reply followed by connection refusal now has an explicit
+regression: the diagnostic remains unconfirmed, while independent reopen/poll
+finds the exact durable revision-4 receipt and retained revision 2. Reusing the
+same export returns that receipt without another manifest publication.
+Root review also found and fixed a fuzz build integration regression by restoring
+the pure protocol module; no diagnostic shim or TLS dependency entered fuzzing.
+Parallel process fixtures exposed a coarse-clock root collision, fixed with a
+per-process atomic serial. The reproduction failures lived in tool output;
+the retained final reports record the passing corrected profiles.
+
+Clean-`e195e06` macOS debug/release each pass 68 app tests and strict Clippy.
+Final Docker Linux arm64/ext4 passes 69 with one registered tmpfs-only skip per
+profile, plus strict Clippy. The Linux profile freezes `bbcf68d` plus 14 exact
+runtime/test inputs; those hashes match the committed implementation. Both
+platforms pass locked/offline fuzz library checks, 29 deterministic replays and
+100-execution `peer_transport` ASan smokes with unchanged inputs and cleanup.
+These smokes establish integration, without a sustained campaign claim.
+
+`target/archived-proof/structured-diagnostics-e195e06.tar.zst` retains final
+Mac/Linux proof, the explicitly pre-fix Linux profile, selected app executables,
+source/overlay inputs, smoke evidence and cleanup records. Fresh restoration
+verifies all 2,074 indexed files. Archive SHA-256:
+`1b026cb1db389771b457e205149e3df27bf75afff196e5d9b6bb216c034b58fe`.
+Snapshot live peer-error retrieval, original worker native context, deployed
+sinks, native Windows and final-candidate qualification remain explicit gates.

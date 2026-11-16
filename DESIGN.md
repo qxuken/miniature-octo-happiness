@@ -5805,3 +5805,20 @@ retained state. Five isolated omissions are detected after passing baselines.
 Generated call propagation, per-API predicate pairs and mutation sensitivity
 retain their different scopes; no compiler MC/DC percentage or whole-module
 completion follows from these tests.
+
+## Opt-in bounded service diagnostics
+
+The TLS CLIs accept leading `--diagnostics=json`, with closed enum/numeric
+records bounded to 1 KiB including newline. Default text, original errors and
+retry decisions, storage barriers and wire receipts remain unchanged. Native
+and verification details come from actual instrumented storage boundaries;
+unknown errors are not formatted or traversed. Study defers incoming diagnostic
+snapshots to its existing operator query. Its reusable command protocol stays
+independent of the CLI/TLS observer.
+
+A diagnostic is not a `DurableAck`. A connection refusal can follow an earlier
+durable installation whose reply was lost. Failed shipment records therefore
+remain `unconfirmed` and require poll/reconciliation of the existing export.
+The [service report](docs/service-diagnostics.md) records that concrete failure,
+unchanged receipt replay and retained roots, Mac/Linux checks and the remaining
+snapshot worker/live-query and deployment qualifications.

@@ -259,6 +259,15 @@ work. Test timings are observations, not service or recovery-time budgets.
 
 ## Original bounded canary drill (historical)
 
+The final structured implementation and the explicitly pre-fix profile are
+retained in `target/archived-proof/structured-diagnostics-e195e06.tar.zst`.
+Its SHA-256 is
+`1b026cb1db389771b457e205149e3df27bf75afff196e5d9b6bb216c034b58fe`.
+Root restoration verified all 2,074 indexed files. Separate clean-`e195e06`
+macOS debug/release logs each record 68 passes and no skips, with strict Clippy.
+The archive retains exact Mac debug/release binaries; older smoke and Linux
+overlay reports keep their actual source identities.
+
 Retained payloads are also preserved in the
 [operational qualification archive](roadmap-status.md#administrative-recovery-and-service-output-rehearsal),
 whose complete file index passed a fresh restoration check.
