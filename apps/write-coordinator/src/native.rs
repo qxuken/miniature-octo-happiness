@@ -1,6 +1,7 @@
 mod journal;
 mod protocol;
 mod service;
+mod stop;
 use protocol::{COLLECTION, KEY, sequenced};
 #[cfg(test)]
 use protocol::{MAX_RECEIPTS, handle, state};

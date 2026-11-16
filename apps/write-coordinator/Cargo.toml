@@ -8,3 +8,13 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 weekend-db = { path = "../..", default-features = false }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.191"
+signal-hook = { version = "0.4.5", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Networking_WinSock", "Win32_System_Console"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_System_Threading"] }

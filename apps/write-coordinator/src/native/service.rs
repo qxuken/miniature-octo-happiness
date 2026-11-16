@@ -1,14 +1,14 @@
+use super::stop::{Stop, wait_for_connection};
 use super::{AppResult, Profile, Secret, TIMEOUT, protocol, read_line, time_remaining};
 use std::{
     io::{self, Write},
     net::{SocketAddr, TcpListener, TcpStream},
     path::Path,
     sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering::Relaxed},
+        atomic::{AtomicBool, Ordering::Relaxed},
         mpsc::{self, Receiver, SyncSender, TrySendError},
     },
-    thread,
+    thread::{self, ScopedJoinHandle},
     time::Instant,
 };
 use weekend_db::{Database, Limits, Result as DbResult};
@@ -16,20 +16,10 @@ use weekend_db::{Database, Limits, Result as DbResult};
 const MAX_CONNECTIONS: usize = 8;
 const MAX_QUEUED_COMMANDS: usize = 8;
 
-struct Admission(Arc<AtomicUsize>);
-impl Admission {
-    fn acquire(active: &Arc<AtomicUsize>) -> Option<Self> {
-        active
-            .try_update(Relaxed, Relaxed, |count| {
-                (count < MAX_CONNECTIONS).then_some(count + 1)
-            })
-            .ok()?;
-        Some(Self(active.clone()))
-    }
-}
-impl Drop for Admission {
+struct StopOnExit<'a>(&'a AtomicBool);
+impl Drop for StopOnExit<'_> {
     fn drop(&mut self) {
-        self.0.fetch_sub(1, Relaxed);
+        self.0.store(true, Relaxed);
     }
 }
 
@@ -41,9 +31,13 @@ struct Request {
 
 fn dispatch_requests(
     requests: Receiver<Request>,
+    stopping: &AtomicBool,
     mut dispatch: impl FnMut(&str) -> DbResult<String>,
 ) {
     for request in requests {
+        if stopping.load(Relaxed) {
+            break;
+        }
         if Instant::now() >= request.deadline {
             continue;
         }
@@ -56,12 +50,24 @@ fn dispatch_requests(
     }
 }
 
+fn reap_connections(connections: &mut Vec<ScopedJoinHandle<'_, ()>>) -> io::Result<()> {
+    while let Some(finished) = connections.iter().position(|worker| worker.is_finished()) {
+        connections
+            .swap_remove(finished)
+            .join()
+            .map_err(|_| io::Error::other("coordinator connection worker panicked"))?;
+    }
+    Ok(())
+}
+
 pub(super) fn serve(
     path: &Path,
     address: SocketAddr,
     secret: Option<Secret>,
     profile: Profile,
 ) -> AppResult<()> {
+    let stop = Stop::register()?;
+    let stopping = stop.requested();
     let mut db = Database::open_file(path, Limits::default())?;
     let dispatch: fn(&mut Database, &str) -> DbResult<String> = match profile {
         Profile::Legacy => {
@@ -74,38 +80,76 @@ pub(super) fn serve(
         }
     };
     let listener = TcpListener::bind(address)?;
-    let (requests, pending) = mpsc::sync_channel(MAX_QUEUED_COMMANDS);
-    thread::Builder::new()
-        .name("coordinator-database".into())
-        .spawn(move || {
-            dispatch_requests(pending, |command| dispatch(&mut db, command));
-        })?;
-    let active = Arc::new(AtomicUsize::new(0));
-    let secret = secret.map(Arc::new);
-    writeln!(io::stdout().lock(), "ready {}", listener.local_addr()?)?;
-    for incoming in listener.incoming() {
-        let mut stream = incoming?;
-        let deadline = Instant::now() + TIMEOUT;
-        let Some(admission) = Admission::acquire(&active) else {
-            // Saturation must never make the listener wait on the peer.
-            if stream.set_nonblocking(true).is_ok() {
-                let _ = stream.write_all(b"error Busy\n");
-            }
-            continue;
-        };
-        let requests = requests.clone();
-        let secret = secret.clone();
-        thread::Builder::new()
-            .name("coordinator-connection".into())
-            .spawn(move || {
-                let _admission = admission;
-                if let Err(error) = serve_connection(stream, deadline, secret.as_deref(), &requests)
-                {
-                    eprintln!("client connection: {error}");
-                }
+    listener.set_nonblocking(true)?;
+    let secret = secret.as_ref();
+    thread::scope(|scope| {
+        let (requests, pending) = mpsc::sync_channel(MAX_QUEUED_COMMANDS);
+        let database = thread::Builder::new()
+            .name("coordinator-database".into())
+            .spawn_scoped(scope, move || {
+                let _stop_on_exit = StopOnExit(stopping);
+                dispatch_requests(pending, stopping, |command| dispatch(&mut db, command));
             })?;
-    }
-    Ok(())
+        let mut connections = Vec::with_capacity(MAX_CONNECTIONS);
+        let mut result: AppResult<()> = (|| {
+            writeln!(io::stdout().lock(), "ready {}", listener.local_addr()?)?;
+            while !stopping.load(Relaxed) {
+                match wait_for_connection(&listener) {
+                    Ok(true) => {}
+                    Ok(false) => continue,
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(error) => return Err(error.into()),
+                }
+                if stopping.load(Relaxed) {
+                    break;
+                }
+                let mut stream = match listener.accept() {
+                    Ok((stream, _)) => stream,
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                        ) =>
+                    {
+                        continue;
+                    }
+                    Err(error) => return Err(error.into()),
+                };
+                let deadline = Instant::now() + TIMEOUT;
+                reap_connections(&mut connections)?;
+                if connections.len() == MAX_CONNECTIONS {
+                    // Saturation must never make the listener wait on the peer.
+                    if stream.set_nonblocking(true).is_ok() {
+                        let _ = stream.write_all(b"error Busy\n");
+                    }
+                    continue;
+                }
+                let requests = requests.clone();
+                connections.push(
+                    thread::Builder::new()
+                        .name("coordinator-connection".into())
+                        .spawn_scoped(scope, move || {
+                            if let Err(error) =
+                                serve_connection(stream, deadline, secret, &requests)
+                            {
+                                eprintln!("client connection: {error}");
+                            }
+                        })?,
+                );
+            }
+            Ok(())
+        })();
+        stopping.store(true, Relaxed);
+        drop(listener);
+        drop(requests);
+        for worker in connections.into_iter().chain([database]) {
+            if worker.join().is_err() && result.is_ok() {
+                result =
+                    Err(io::Error::other("coordinator worker panicked during shutdown").into());
+            }
+        }
+        result
+    })
 }
 
 fn serve_connection(
@@ -114,6 +158,7 @@ fn serve_connection(
     secret: Option<&Secret>,
     requests: &SyncSender<Request>,
 ) -> io::Result<()> {
+    stream.set_nonblocking(false)?;
     stream.set_write_timeout(Some(TIMEOUT))?;
     let request = read_line(&stream, deadline)?;
     let command = match secret {
@@ -156,16 +201,16 @@ mod tests {
 
     #[test]
     fn a_released_connection_slot_can_be_reused() {
-        let active = Arc::new(AtomicUsize::new(0));
-        let mut held: Vec<_> = (0..MAX_CONNECTIONS)
-            .map(|_| Admission::acquire(&active).unwrap())
-            .collect();
-        assert!(Admission::acquire(&active).is_none());
-        drop(held.pop());
-        held.push(Admission::acquire(&active).unwrap());
-        assert!(Admission::acquire(&active).is_none());
-        drop(held);
-        assert_eq!(active.load(Relaxed), 0);
+        thread::scope(|scope| {
+            let mut connections = vec![scope.spawn(|| {})];
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !connections[0].is_finished() {
+                assert!(Instant::now() < deadline);
+                thread::yield_now();
+            }
+            reap_connections(&mut connections).unwrap();
+            assert!(connections.is_empty());
+        });
     }
 
     #[test]
@@ -206,6 +251,7 @@ mod tests {
         let mut db = Database::new().unwrap();
         protocol::sequenced::initialize(&db).unwrap();
         let wait = Duration::from_secs(5);
+        let stopping = AtomicBool::new(false);
         thread::scope(|scope| {
             let enqueue = |command: &str, deadline| {
                 let (admitted, start) = mpsc::sync_channel(1);
@@ -219,8 +265,9 @@ mod tests {
                 start
             };
             let database = &mut db;
+            let stopping = &stopping;
             let worker = scope.spawn(move || {
-                dispatch_requests(pending, |command| {
+                dispatch_requests(pending, stopping, |command| {
                     if command == "set-seq 0 1 3 11" {
                         started.send(()).unwrap();
                         resume.recv_timeout(wait).unwrap();
@@ -269,5 +316,79 @@ mod tests {
             protocol::sequenced::handle(&mut db, "receipt 3").unwrap(),
             "receipt 0"
         );
+    }
+
+    #[test]
+    fn shutdown_completes_dispatched_write_and_drops_queued_write() {
+        use weekend_db::storage::{Crash, SimulatedDisk};
+
+        let (requests, pending) = mpsc::sync_channel(MAX_QUEUED_COMMANDS);
+        let (release, resume) = mpsc::channel();
+        let stopping = AtomicBool::new(false);
+        let disk = SimulatedDisk::new().unwrap();
+        let limits = Limits::default();
+        let mut db = Database::create_on(disk.clone(), [7; 16], limits).unwrap();
+        protocol::sequenced::initialize(&db).unwrap();
+        let wait = Duration::from_secs(5);
+        thread::scope(|scope| {
+            let database = &mut db;
+            let stop = &stopping;
+            let worker = scope.spawn(move || {
+                dispatch_requests(pending, stop, |command| {
+                    resume.recv_timeout(wait).unwrap();
+                    protocol::sequenced::handle(database, command)
+                });
+            });
+            let submit = |command: &str| {
+                let (admitted, start) = mpsc::sync_channel(1);
+                requests
+                    .send(Request {
+                        command: command.into(),
+                        deadline: Instant::now() + wait,
+                        admitted,
+                    })
+                    .unwrap();
+                start
+            };
+            let running = submit("set-seq 0 1 3 42").recv_timeout(wait).unwrap();
+            let queued = submit("set-seq 1 1 4 99");
+            drop(requests);
+            stopping.store(true, Relaxed);
+            release.send(()).unwrap();
+            assert_eq!(running.recv_timeout(wait).unwrap(), "committed 4");
+            assert!(matches!(
+                queued.recv_timeout(wait),
+                Err(mpsc::RecvTimeoutError::Disconnected)
+            ));
+            worker.join().unwrap();
+        });
+        drop(db);
+        disk.crash(Crash::DropAll).unwrap();
+        let mut db = Database::open_on(disk, limits).unwrap();
+        assert_eq!(
+            protocol::sequenced::handle(&mut db, "set-seq 0 1 3 42").unwrap(),
+            "committed 4"
+        );
+        assert_eq!(
+            protocol::sequenced::handle(&mut db, "get").unwrap(),
+            "value 4 42"
+        );
+        assert_eq!(
+            protocol::sequenced::handle(&mut db, "receipt 1").unwrap(),
+            "receipt 0"
+        );
+    }
+
+    #[test]
+    fn dispatcher_unwind_requests_shutdown() {
+        let stopping = AtomicBool::new(false);
+        thread::scope(|scope| {
+            let worker = scope.spawn(|| {
+                let _stop_on_exit = StopOnExit(&stopping);
+                panic!("dispatcher failure");
+            });
+            assert!(worker.join().is_err());
+        });
+        assert!(stopping.load(Relaxed));
     }
 }

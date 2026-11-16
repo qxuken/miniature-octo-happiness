@@ -55,8 +55,13 @@ struct Process {
 
 impl Process {
     fn start(args: &[&str]) -> Self {
-        let mut child = Command::new(BIN)
-            .args(args)
+        let mut command = Command::new(BIN);
+        command.args(args);
+        Self::start_command(command)
+    }
+
+    fn start_command(mut command: Command) -> Self {
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -91,6 +96,18 @@ impl Process {
     fn stop(&mut self) {
         self.child.kill().unwrap();
         assert!(!self.child.wait().unwrap().success());
+    }
+
+    fn wait_for_success(&mut self) {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            if let Some(exit) = self.child.try_wait().unwrap() {
+                assert!(exit.success(), "operator stop exited with {exit}");
+                return;
+            }
+            assert!(Instant::now() < deadline, "operator stop did not finish");
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 }
 
@@ -401,6 +418,115 @@ fn excess_connections_receive_busy_without_publishing_requests() {
     for slot in 0..8 {
         assert_eq!(client.request(&format!("receipt {slot}")), "receipt 0");
     }
+}
+
+#[test]
+fn operator_shutdown_releases_the_lease_and_preserves_receipts() {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        use windows_sys::Win32::{
+            System::Console::GetConsoleCP, System::Threading::CREATE_NEW_CONSOLE,
+        };
+        // SAFETY: queries this process's console and accepts no pointers.
+        if unsafe { GetConsoleCP() } == 0 {
+            // A test started by a detached CI runner needs a console shared
+            // with its server child to send a targeted console event.
+            let marker = "WEEKEND_TEST_OPERATOR_CONSOLE";
+            assert!(
+                std::env::var_os(marker).is_none(),
+                "test child did not acquire a console"
+            );
+            let mut command = Command::new(std::env::current_exe().unwrap());
+            command
+                .args([
+                    "operator_shutdown_releases_the_lease_and_preserves_receipts",
+                    "--exact",
+                ])
+                .env(marker, "1")
+                .creation_flags(CREATE_NEW_CONSOLE);
+            Process::start_command(command).wait_for_success();
+            return;
+        }
+    }
+
+    #[cfg(unix)]
+    for signal in ["-TERM", "-INT"] {
+        exercise_operator_stop(signal);
+    }
+    #[cfg(windows)]
+    exercise_operator_stop();
+}
+
+fn exercise_operator_stop(#[cfg(unix)] signal: &str) {
+    let dir = Directory::new();
+    let path = dir.0.join("coordinator.wdb");
+    let path = path.to_str().unwrap();
+    let secret = dir.0.join("secret");
+    let secret_path = secret.to_str().unwrap();
+    let token = "c3".repeat(32);
+    write_secret(&secret, &token);
+    assert!(
+        Command::new(BIN)
+            .args(["init-sequenced", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let mut command = Command::new(BIN);
+    command.args(["serve-sequenced", path, "0", "--secret-file", secret_path]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        use windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+        command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    }
+    let mut server = Process::start_command(command);
+    let ready = server.receive();
+    let client = AuthenticatedClient {
+        address: ready.strip_prefix("ready ").unwrap().parse().unwrap(),
+        token: token.clone(),
+    };
+    assert_eq!(client.request("set-seq 0 1 3 42"), "committed 4");
+    let mut stalled = std::net::TcpStream::connect(client.address).unwrap();
+    write!(stalled, "auth {token} set-seq 1 1 4 99").unwrap();
+    assert_eq!(client.request("get"), "value 4 42");
+
+    assert!(server.child.try_wait().unwrap().is_none());
+    #[cfg(unix)]
+    assert!(
+        Command::new("/bin/kill")
+            .args([signal, &server.child.id().to_string()])
+            .status()
+            .unwrap()
+            .success()
+    );
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+        // SAFETY: the owned, still-unreaped server was created as a process
+        // group in this console. CTRL_BREAK targets that group only.
+        assert_ne!(
+            unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, server.child.id()) },
+            0
+        );
+    }
+    let closed_by = Instant::now() + Duration::from_secs(2);
+    while std::net::TcpStream::connect_timeout(&client.address, Duration::from_millis(100)).is_ok()
+    {
+        assert!(
+            Instant::now() < closed_by,
+            "listener still accepts connections during operator stop"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    server.wait_for_success();
+    drop(stalled);
+
+    let (_server, client) = configured_service("serve-sequenced", path, secret_path, &token);
+    assert_eq!(client.request("get"), "value 4 42");
+    assert_eq!(client.request("set-seq 0 1 3 42"), "committed 4");
+    assert_eq!(client.request("receipt 1"), "receipt 0");
 }
 
 #[test]
