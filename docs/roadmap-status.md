@@ -2479,3 +2479,22 @@ deliberate engine mutations fail the new deterministic replay. macOS
 and Docker Linux pass 29 stable replay tests each. The macOS ASan
 campaign completes 96,962 executions with no reported finding.
 [Boundaries, mutation results and reproduction](fuzz-repeated-recovery.md)
+
+## Private-delivery benchmark binding and APFS counters
+
+The `0fe8ff7` delivery verifier can bind retained microbenchmark
+samples to the same immutable source as the four package lanes.
+It recomputes the summary and rejects a changed summary even when its
+enclosing checksum is updated. The historical matrix output stays
+compatible when the optional benchmark is omitted.
+[Source and measurement verification](private-delivery.md#retained-benchmark-evidence)
+
+The `487a786` APFS controller bases full-space checks on an actual
+refused 4 KiB allocation and exact ballast accounting. It repeats the
+allocation after fresh opens. The reported free-byte counter remains
+an observation. This corrects a hosted failure with 11,735,040 bytes
+reported free after kernel `ENOSPC`. An explicit counter-offset
+control reproduces the old failure, and the updated controller passes
+that control plus exact-source copy, exchange and cleanup profiles
+with ordinary counters.
+[Counter control, results and evidence](maintenance-space-exhaustion.md#reported-apfs-availability-after-a-refused-allocation)

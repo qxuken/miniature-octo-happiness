@@ -1,5 +1,51 @@
 # Same-source private delivery qualification
 
+## Retained benchmark evidence
+
+The `0fe8ff7` verifier accepts an optional `--benchmark` directory.
+It requires a clean successful report from the same full Git commit
+as the four delivered lanes. The scoped source inventory and workspace
+lock must match the archived tree. The verifier checks the exact
+offline, locked release build and sample commands, successful process
+retirement, raw CSV hashes, captured stdout, compaction setting and
+recomputed summary.
+
+The existing clean `651654c` four-platform matrix passes with three
+new macOS compaction benchmark samples from that same revision.
+Removing the optional benchmark field reproduces the historical
+report. Its only difference from the archived matrix is the newly
+built verifier's hash. An actual changed-source report rejects before
+success output. Changing a summary value and updating its reported
+hash also rejects because the aggregation disagrees with the raw
+samples.
+
+```sh
+cargo xtask verify-delivery \
+  --source 651654c4641def4f97aa2b4388f08a00f9e15f41 \
+  --matrix target/private-delivery-651654c --require-isolated \
+  --benchmark target/benchmark-651654c
+```
+
+The retained benchmark report SHA-256 is
+`6dcfa75d73a879ada3b436adbe4a88bc4b075e63caab325faa60773adfb3a8cf`.
+Its recomputed summary SHA-256 is
+`931e8de65bba63e590b2b31604da865b97350463255bfefde7ec700c2f47ef98`.
+The integrated report SHA-256 is
+`3d0dcd02b70768a0294930ee0c24bfa1a7e63a9bd24edd7e56378e4d7772a266`.
+The local archive
+`target/archived-proof/benchmark-delivery-0fe8ff7.tar.zst`
+restores all 65 indexed files with matching checksums. Archive SHA-256
+`3e38fa41525bb6fc4a830002d922af491f9ad64f2de0fa5cb4aaa93cdddc6f42`.
+The complete delivery trees remain in the separately recorded
+`private-delivery-651654c.tar.zst` archive.
+
+The benchmark producer records a binary hash and retains measurements.
+The optional verifier binds the source and retained measurement files.
+Verifying the actual benchmark binary and qualifying deployment service
+budgets require further evidence. The local xtask suite passes 203
+unit tests and seven integration tests. Native and Windows MSVC
+cross-target strict Clippy pass.
+
 ## Combined and isolated matrix at `651654c`
 
 The strict delivery matrix passed at

@@ -201,6 +201,10 @@ harness-level scope reference.
    source, feature, compiler, artifact and filesystem scope. Final package,
    source-consumer, sanitizer, mutation/corpus and workload evidence must be
    reconciled against the chosen immutable candidate. The
+   [optional benchmark binding](private-delivery.md#retained-benchmark-evidence)
+   now verifies retained release microbenchmark measurements against that
+   same source revision and recomputes the summary from raw samples.
+   The
    [private `f70e405` checkpoint](roadmap-status.md#private-artifact-checkpoint-f70e405)
    binds same-source native packages, a relocatable Rust source package, five
    exact consumer transcripts and eleven delivered C publication and recovery

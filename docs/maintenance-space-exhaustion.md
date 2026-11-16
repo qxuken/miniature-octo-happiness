@@ -494,6 +494,45 @@ stayed at revision 212. Evidence JSON SHA-256 is
 | Advanced source | `61ac286e4c393865e5da765319cf7f83752fd7ba9882c376b0b70cb995f98920` |
 | Preserved backup | `cc77c7bbeef10a0d9ff41db0db598f2deb407a8ed3952df3ea54ba37da032288` |
 
+### Reported APFS availability after a refused allocation
+
+The hosted macOS run at branch parent `32e56a1` stopped during
+ballast calibration. The private volume reported 129,241,088 bytes
+available initially and 11,735,040 after accepting 117,506,048 ballast
+bytes and refusing a 4 KiB write with kernel `ENOSPC`. The byte
+accounting agreed exactly. The controller had also required the
+reported remainder to be below the separate 8 MiB copy reserve.
+The private image cleanup passed before the run returned failure.
+[Hosted report](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43840979835/artifacts/14213596571).
+
+The `487a786` controller uses the kernel's refused allocation plus
+bounded capacity and byte accounting. After fresh opens it repeats
+the same ballast allocation and verifies that no additional bytes
+can be written. The copy fixture still requires native `ENOSPC`,
+preserved source and backup, a partial destination, and exact retry
+after space is freed.
+
+The diagnostic control adds 5,885,952 bytes only to the reported
+availability, preserving all native filesystem operations. The old
+controller then reproduces the 11,735,040-byte rejection. Applying the
+controller change with that same offset permits all three copy cases
+to finish, each with an 8 MiB partial output. Reopen reports the same
+availability and retains every root. This control isolates the
+counter threshold. The hosted filesystem's higher reading was observed
+directly, and its underlying allocation behavior remains platform-specific.
+
+The exact `487a786` fixture also passes all three native macOS profiles
+with unmodified counters. The copy cases preserve revision 212 and
+all retained roots, produce exact retry copies, and advance the source
+to 213. The separate exchange and cleanup cases pass remount, retry
+and private-image cleanup. The local archive
+`target/archived-proof/apfs-available-counter-487a786.tar.zst`
+contains that source, the three exact-source runs, the earlier
+diagnostic red/green control with its explicit offset patch and base
+source, and the original hosted ZIP. All 229 listed run artifacts
+match after extraction. Archive SHA-256
+`32ac205be0f8a1e622c76c6a9ed2747c82f5141479a363cd35b456f1727684eb`.
+
 ## Injected namespace and sync errors
 
 The `namespace-failures` resource profile runs the production
