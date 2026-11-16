@@ -1,5 +1,96 @@
 # Same-source private delivery qualification
 
+## Combined and isolated matrix at `651654c`
+
+The strict delivery matrix passed at
+`651654c4641def4f97aa2b4388f08a00f9e15f41`, the tested merge of
+`693aaef6550867db7a8477dc88e77c26c6e44aa1` and
+`28d1aa4caef901a5860fafea2d697c98a1f3e66d`. The Git tree is
+`061c42cb55c5c81aac750e8ab47ab4467f73dbaa`. The verifier recomputed the
+Git archive SHA-256
+`1e09fe639e5e9d8b8fcf8b97eeba75c009e57a8fd69aba294ac61ab9a2dce898`.
+Every lane used Rust and Cargo 1.99.0.
+
+| Lane | Workspace passes per debug and release profile | Skips per profile | Verified payloads | Cargo and runtime feature masks |
+|---|---:|---:|---:|---|
+| macOS arm64/APFS | 692 | 6 | 3,471 | 0, 1, 2, 3 |
+| Docker Linux arm64/ext4 | 728 | 7 | 3,474 | 0, 1, 2, 3 |
+| Hosted Linux x64/ext4 | 728 | 7 | 3,466 | 0, 1, 2, 3 |
+| Hosted Windows x64/NTFS | 555 | 6 | 2,003 | 0, 1, 2, 3 |
+
+All 16 packages passed C11, C++17 and Odin consumers and relocation.
+The four combined builds also passed their Rust source consumer and
+exact 134-cell trace. The Windows trace ran all 30 C/C++/Odin outcomes.
+The archived `matrix.json` records the manifest and shared-library hashes
+for each profile. A negative control changed the recorded runtime mask
+for the real base package to 3 and updated the enclosing hashes. The
+verifier rejected the mask. The earlier combined-only archive still
+verifies in historical mode and rejects when `--require-isolated` is set.
+
+The two hosted delivery ZIPs matched their GitHub SHA-256 digests before
+extraction. Linux x64 artifact `14200955909` had digest
+`aefbeb56d18d003987c7f40b634663e88088f96c7378d8788b2affdfd75c1d29`.
+Windows x64 artifact `14200064276` had digest
+`f26c48bd7352668c70092efe6503648c17d9ce2be00bc86c953a3247492283bd`.
+[Linux job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43810815103/job/133111846569),
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43810815103/job/133111845822).
+
+The macOS C and Odin fault runners passed against the same combined
+dylib. The C runner also exercised actual APFS append exhaustion.
+On Linux arm64 both C and Odin passed the injected cases and actual
+tmpfs exhaustion. The hosted Linux x64 Odin runner passed the same six
+cases. On Windows x64, Odin passed six publication cases and actual
+NTFS exhaustion against the exact combined DLL. In each full-volume
+test a fresh process reopened revision 3
+with retained revision 2, then retry reached revision 4 after space
+was freed. The runner reports bind these cases to the package manifest
+and to the rehashed library.
+
+The same Git revision passed the hosted Linux x64 C/Rust AddressSanitizer
+diagnostics with four calibration controls and the memory, thread and file
+consumers. Both fail-required budget mutations exited with the expected
+failure and passed the process-cleanup check. The hosted fuzz smoke and
+separate replay step passed. The campaign completed 21,016 actual runs
+across 22 targets with 242 unchanged seeds. Both hosted jobs recorded
+Rust nightly commit `5f4effd579500175af844241eb179e756190f1e7`.
+[C/Rust sanitizer and atomic model](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43810815103/job/133111845774),
+[fuzz smoke and replay](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43810815166/job/133111846020).
+
+Native macOS workspace AddressSanitizer passed 692 tests, with six
+registered skips in 60 summaries. The run used `nightly-2026-11-12`,
+Rust commit `3ef0c22cdb86ac42dc6b8f0f1ec36857daa6f2a1`, and rebuilt
+the standard library. The matching ThreadSanitizer workspace run failed.
+It reported a read and write of `errno` through Rust's standard library
+in separate threads during the Study peer credential-rotation suite.
+The earlier writer thread was already finished. The focused
+credential-rotation replay passed all four tests.
+
+A standalone Rust program using only `std::fs::read_dir` and
+`std::io::Error::last_os_error` across short-lived threads reproduced
+the warning in four runs with the same toolchain. The archive contains
+the repro, command and logs. Both the local
+nightly and the 2026-11-16 Rust nightly use the LLVM snapshot
+`0a5579eb649d3634a9c30ac873300cc2944fa070`. Its Darwin ARM64 runtime
+reports an empty thread-local storage range. LLVM corrected that range
+in `4a3ac30`. That change fits the observed reuse of thread-local
+addresses. The macOS TSan gate stays open pending a run with a runtime
+carrying the fix and a full workspace pass.
+[LLVM Darwin ARM64 thread-local storage fix](https://github.com/llvm/llvm-project/commit/4a3ac30a53ba0417941cab04f51c6ce8a8a67feb).
+
+The preceding hosted Linux job at `94c3782` recorded one unexpected
+`CliFailure` in the replica-progress malformed-input test. The native
+Linux configuration tests at `651654c` passed that test. Four diagnostic
+workspace-tool runs on Docker Linux arm64 also passed, leaving the
+earlier failure's cause unresolved.
+[Preceding Linux job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43810346853/job/133110400654).
+
+The local archive `target/archived-proof/private-delivery-651654c.tar.zst`
+retains the Git source, four delivery trees, fault evidence, sanitizer
+results and standalone TSan repro, and original hosted ZIPs. Its SHA-256 is
+`4cdec52c040c12ed210f5be273b901b104c3fb0b309a7f6c5a64389e88db2a0c`.
+Restoring the archive and rerunning the strict verifier reproduced the
+complete matrix report byte for byte.
+
 ## Four-platform result at `c5970bd`
 
 The minimum-Rust delivery matrix passed at

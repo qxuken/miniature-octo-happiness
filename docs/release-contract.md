@@ -67,8 +67,9 @@ and Linux C/C++ relocation checks passed after fixing a temporary install-name
 dependency; the package is moved and its build directory removed before checks.
 See [Windows packaging](windows-private-package.md) and
 [Odin packaging](odin-private-package.md) for scope and evidence.
-The [same-source minimum-Rust run](private-delivery.md) ties the workspace
-tests, exact packages and optimized traces together on macOS and Linux arm64.
+The [same-source minimum-Rust run](private-delivery.md#combined-and-isolated-matrix-at-651654c)
+ties workspace tests, the four feature masks and optimized combined traces
+together on macOS arm64, Linux arm64 and x64 and Windows x64.
 
 Incompatible byte formats require a new version, read-only rejection by
 unsupported readers, logical migration, archived source and rollback tests.

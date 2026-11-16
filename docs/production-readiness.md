@@ -12,6 +12,9 @@ Recent local evidence includes [stopped credential cutovers](snapshot-credential
 Further gates now cover actual [snapshot](snapshot-cli-upgrade.md) and
 [study](study-cli-upgrade.md) CLI upgrades, [both delivered validation modes](artifact-trace-validation-modes.md),
 and [packaged C and Odin publication-error recovery](delivered-c-faults.md).
+The [four-platform delivery matrix](private-delivery.md#combined-and-isolated-matrix-at-651654c)
+binds all four Cargo feature masks, exact consumer traces and bounded
+ASan/fuzz evidence to one tested revision.
 
 The release scope includes the local embedded store, typed Rust, C/Odin,
 passive snapshot replication, fixed two-actor CRDT peers and the coordinator,

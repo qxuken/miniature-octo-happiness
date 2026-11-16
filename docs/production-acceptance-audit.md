@@ -147,7 +147,7 @@ harness-level scope reference.
 | Allocation and I/O failure matrix | Simulator, corruption/fault sweeps, current/retained state oracles, [native drills](native-fault-drills.md), [actual Linux append EDQUOT](native-quota.md) | The named native quota append/recovery profile passes. Eight [compound-pressure cases](compound-resource-envelope.md) now verify exact old/new roots and a later acknowledged commit with all 64 retained roots; the persistence faults are simulated. The [composed near-cap drill](near-cap-interruption-recovery.md) adds 108 recovery cases per Mac/Linux OS and two failed opens before a healthy handle, full current/retained data and later acknowledged 213/214 reopening. Longer sequences, all-offset/torn-prefix breadth and other failure phases/platforms retain separate obligations. No blanket closure follows from one recovery test. |
 | Native platform/filesystem matrix | Exact-21 Mac/Docker aarch64 Linux ext4 checks plus [cd7cdfe hosted Mac arm64, Linux x86_64 and Windows MSVC x86_64](hosted-qualification-cd7cdfe.md) | Actual Windows and x86 Linux execution now exists for the named profiles. Other advertised ABI/filesystem/feature combinations and final candidate consolidation remain; neither hosted nor container success proves a deployed physical device's flush behavior. |
 | Compatibility manifest and upgrade/rollback | [storage cases](storage-compatibility-21e5d26.md), logical/v2 fixtures, typed retained migration | Local: promised CLI/config directions; owner chooses supported versions. Historical pre-1 reader compatibility is not every future version. |
-| Binary delivery | [private artifact/source evidence](local-qualification-21e5d26.md), relocation, symbols and notices | Shared consumer traces are now recorded in their exact artifact scope. Local: final feature-isolated/combined candidate matrix. Owner: final clean candidate, support matrix, retained evidence bundle and attribution review. |
+| Binary delivery | [Four-platform feature matrix at `651654c`](private-delivery.md#combined-and-isolated-matrix-at-651654c), relocation, symbols and notices | The 16 delivered packages pass their exact native consumer and relocation checks. The combined packages bind the Rust source consumers and exact traces. Owner: final clean candidate, support matrix, retained evidence bundle and attribution review. |
 | Long-lived soak and reproducibility | Finite soak, accelerated month and cross-OS peer rounds; corrected launcher rejects incomplete round sequences and persists failures | The [Mac/Linux 1,800-second runs](soak.md#extended-macos-and-linux-controls-at-7a9e661) now retain exact-state/resource checks and bounded cleanup; wall-clock longevity cannot be inferred from simulated calendar days. |
 | Performance/scale | [SQLite comparison](sqlite-baseline.md), resource latencies, monthly workload metrics | The [paired sustained workload](compound-resource-envelope.md#sustained-fresh-snapshot-acquisition) reports reader and writer tails, memory and maintenance time. The [fixed-arrival follow-up](compound-resource-envelope.md#fixed-arrival-snapshot-queueing) adds queue and response tails at one rate. The [sampled replica diagnostics](replica-progress.md#sampled-polling) measure revision gap, receipt age and catch-up. [Segmented staging](fresh-image-staging.md) lowers peak macOS sender RSS from about 663 to 106 MiB in the month replay. The [Linux follower profile](follower-installation-profile.md#installation-timing-and-memory) records 68,120 KiB process high-water RSS and measures each installation phase. The [CRC-64 replay](crc64-performance.md) verifies identical bytes, improves fixed-file inspection times on both platforms and measures 31.854 ms graph verification p95 on the Linux follower. Other traffic patterns, platforms and owner service budgets remain open. |
 | Support and release | Security owner/contact, private patch policy, unsafe review and scoped runbooks | Owner: supported versions, response goals, exceptions, incident/rollback drills. No production release is currently qualified merely because package tooling says candidate-eligible. |
@@ -204,8 +204,15 @@ harness-level scope reference.
    [`c5970bd`](private-delivery.md#four-platform-result-at-c5970bd), the
    verifier binds the combined macOS arm64, Linux arm64, Linux x64 and
    Windows x64 suites, packages and consumer traces to one tested merge.
-   Isolated Linux and Windows feature profiles and the other release gates
-   still need evidence for the final candidate.
+   At [`651654c`](private-delivery.md#combined-and-isolated-matrix-at-651654c)
+   it also requires all three isolated profiles on every platform.
+   The same source has exact combined-artifact failure runs, native
+   macOS workspace ASan, hosted Linux x64 C/Rust ASan and bounded
+   fuzz/replay evidence. The macOS TSan workspace gate remains open
+   after an `errno` report also reproduced by a standalone standard
+   library program. Extended fuzzing, workload limits, device assumptions
+   and support decisions still need final candidate evidence or owner
+   approval.
 4. **Qualify continuous coordinator operation.** The sequenced profile gives
    each writer one retryable receipt and an explicit way to retire it when the
    next write commits. A native process test interrupts a journal client after
