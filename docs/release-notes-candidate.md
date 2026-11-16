@@ -64,6 +64,18 @@ recorded separately. The changes affect tools and tests; they do not change
 the engine, typed, macro or service runtime source or relabel the four-platform
 packages as builds of that later commit.
 
+Service runtime checkpoint `e195e068f38025374203ae2eba60975bd1857789`
+adds leading `--diagnostics=json` to both TLS CLIs. Bounded enum/numeric records
+preserve default text and original errors, retry behavior and acknowledgment
+contracts. Hosted head `703948c` passes all 14 jobs, including native
+Mac/Linux/Windows structured/default regressions. The later
+[worker handoff](service-diagnostics.md#snapshot-follower-worker-terminal-context)
+separately qualifies local terminal storage context on Mac and actual Linux
+tmpfs exhaustion without changing sender wire replies. These runtime changes
+are outside the four-platform `7e0e44f` package checkpoint; its artifacts are
+not relabelled as builds containing them. Native Windows worker and final
+delivered-candidate qualification remain separate.
+
 Packages expose version, source identity, physical format, ABI and feature mask.
 Ordinary builds can report source `unknown`; private package manifests and
 runtime queries must agree on the actual delivered identity. Fault injection

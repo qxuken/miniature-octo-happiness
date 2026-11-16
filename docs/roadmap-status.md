@@ -2727,3 +2727,37 @@ the archived inputs to clean `f751c5a`. The protected archive is
 The unchanged 315-record ledger now has 46 E and 51 P records. The result is
 functional omission sensitivity with explicit instantiation limits, not a
 compiler MC/DC measurement or whole-module completion.
+
+## Initial structured-API hosted checks and worker context
+
+All 14 hosted jobs pass at head `703948c`, tested merge
+`656a25d90c41ca12cd812967eda9ad170c642065`, with no rerun or cancellation.
+Both CLIs' default/JSON canaries and lost-reply/refused-reconnect regression
+execute on native Mac, Linux and Windows. Minimum compiler profiles pass
+756/8 (Linux) and 584/6 (Windows) tests/skips per debug/release profile.
+ASan and calibrated TSan each pass 720/6; bounded fuzzing completes 20,849
+executions across 22 targets and 244 seeds. The retained 53-payload CI archive
+and [source limitations](service-diagnostics.md#hosted-initial-api-qualification-at-703948c)
+keep this checkpoint separate from the later worker and typed assurance work.
+
+The snapshot worker now hands safe terminal context across its existing join,
+preserving panic/admission/worker error precedence and the original error value.
+Each serve/progress exchange starts a fresh scope; nonfatal session failures
+remain suppressed without worker output. Current and retained receipt state,
+wire errors and the distinction between local commit and follower durability
+remain unchanged. Full Mac debug/release app suites each pass 71 tests and
+strict Clippy. Linux minimum debug/release each pass six admission controls and
+four actual tmpfs ENOSPC scenarios, including reopen at 4/retained 2 while full
+and exact retry/replay at 5 after freeing space. The server alone reports its
+local `write/disk_full/28`; the sender keeps wire `Io` and unconfirmed outcome.
+
+Root restores all 983 indexed worker-proof files and checks source/lock
+stability, 34 bounded process reports, native fault outcomes and retained tested
+app binaries. Archive `target/archived-proof/snapshot-worker-context-703948c.tar.zst`
+SHA-256: `94e72b0d9585a0f5c620dcb0e2465f88eee3cf6f6ac4533c0e73f6f07b197a6a`.
+The CI archive `target/archived-proof/hosted-ci-703948c.tar.zst` SHA-256 is
+`3e8fa8db1c8e3fdea8744c309a4c646733448067c7ce0f2955a7fb309632ee4c`.
+Live snapshot peer-error retrieval stays explicitly deferred; current poll/status
+promise durability observations, not suppressed peer-error history. No extra
+thread, queue or protocol request is introduced. Windows worker, deployment
+sinks and immutable candidate qualification retain separate gates.

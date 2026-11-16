@@ -2,6 +2,7 @@ use super::{
     AppResult,
     tls::{Incoming, Tls},
 };
+use crate::diagnostics::{self, Diagnostic, Phase};
 use std::{
     io,
     net::TcpListener,
@@ -40,10 +41,12 @@ pub(super) fn serve(
 ) -> AppResult<()> {
     admit(listener, tls, maximum, MAX_HANDSHAKES, |pending| {
         for channel in pending {
-            // Peer-controlled errors must not write to a blocking diagnostics sink.
-            let _ = follower.serve_authenticated(channel);
-            // Stop before touching another channel if manifest publication failed.
-            follower.progress()?;
+            diagnostics::storage(Phase::Replication, || {
+                // Peer errors remain suppressed. The pure progress gate retains
+                // any context from this same exchange only when recovery is needed.
+                let _ = follower.serve_authenticated(channel);
+                follower.progress().map(|_| ())
+            })?;
         }
         Ok(())
     })
@@ -56,11 +59,14 @@ fn admit(
     handshake_limit: usize,
     consume: impl FnOnce(Receiver<Incoming>) -> AppResult<()> + Send,
 ) -> AppResult<()> {
+    let settings = diagnostics::settings();
     thread::scope(|scope| {
         let (ready, pending) = mpsc::sync_channel(MAX_READY);
         let follower = thread::Builder::new()
             .name("snapshot-follower".into())
-            .spawn_scoped(scope, move || consume(pending))?;
+            .spawn_scoped(scope, move || {
+                diagnostics::capture(settings, Phase::Replication, || consume(pending))
+            })?;
         let mut handshakes = Vec::with_capacity(handshake_limit);
         let cancellation = Arc::new(AtomicBool::new(false));
         let mut result = (|| -> io::Result<()> {
@@ -128,19 +134,31 @@ fn admit(
             }
         }
         drop(ready);
-        let serviced = follower
-            .join()
-            .map_err(|_| io::Error::other("snapshot follower worker panicked"))?;
-        result?;
-        serviced
+        finish(result, follower.join())
     })
+}
+
+fn finish(
+    admission: io::Result<()>,
+    worker: thread::Result<(AppResult<()>, Option<Diagnostic>)>,
+) -> AppResult<()> {
+    // Preserve the existing precedence: worker panic, admission, worker error.
+    let (serviced, diagnostic) =
+        worker.map_err(|_| io::Error::other("snapshot follower worker panicked"))?;
+    admission?;
+    diagnostics::propagate(serviced, diagnostic)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::native::tls::Credentials;
-    use std::{io::Read, net::TcpStream};
+    use std::{
+        fs,
+        io::{Read, Write},
+        net::TcpStream,
+        path::PathBuf,
+    };
     use weekend_db::Error;
 
     fn listener() -> (TcpListener, std::net::SocketAddr) {
@@ -157,6 +175,220 @@ mod tests {
             Tls::new(&client, server.certificate()).unwrap(),
             Tls::new(&server, client.certificate()).unwrap(),
         )
+    }
+
+    fn settings(enabled: bool) -> diagnostics::Settings {
+        let mut args = vec!["serve".into()];
+        if enabled {
+            args.insert(0, "--diagnostics=json".into());
+        }
+        diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut args)
+    }
+
+    struct TruncatedImage(PathBuf);
+    impl TruncatedImage {
+        fn new() -> Self {
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let serial = NEXT.fetch_add(1, Relaxed);
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "snapshot-carrier-PRIVATE_CANARY-{}-{nonce}-{serial}",
+                std::process::id()
+            ));
+            let mut file = fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path)
+                .unwrap();
+            let image = Self(path);
+            file.write_all(b"PRIVATE_CANARY").unwrap();
+            image
+        }
+    }
+    impl Drop for TruncatedImage {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
+    }
+    fn inspect_truncated(image: &TruncatedImage) -> AppResult<()> {
+        diagnostics::storage(Phase::StorageVerify, || {
+            weekend_db::storage::inspect_file(&image.0, weekend_db::Limits::default()).map(|_| ())
+        })?;
+        Ok(())
+    }
+
+    // Tests the existing worker-result carrier with real inspection context;
+    // the consumer is a fixture, not evidence of follower installation failure.
+    #[test]
+    fn worker_join_preserves_real_verification_context_and_original_error() {
+        for enabled in [false, true] {
+            let image = TruncatedImage::new();
+            let config = settings(enabled);
+            let (listener, address) = listener();
+            let (client, server) = pair();
+            let (finished, outcome) = mpsc::channel();
+            thread::scope(|scope| {
+                scope.spawn(|| {
+                    finished
+                        .send(diagnostics::capture(config, Phase::Replication, || {
+                            admit(listener, &server, 1, MAX_HANDSHAKES, |pending| {
+                                let mut channel = pending.recv_timeout(Duration::from_secs(5))?;
+                                channel.read_exact(&mut [0])?;
+                                inspect_truncated(&image)
+                            })
+                        }))
+                        .unwrap()
+                });
+                let mut channel = client.connect(address).unwrap();
+                channel.write_all(&[0]).unwrap();
+                channel.flush().unwrap();
+                let (result, diagnostic) = outcome.recv_timeout(Duration::from_secs(5)).unwrap();
+                assert_eq!(
+                    result.as_ref().err().unwrap().downcast_ref::<Error>(),
+                    Some(&Error::Corrupt)
+                );
+                if enabled {
+                    let json = diagnostic.unwrap().json(config).to_string();
+                    assert!(json.len() < 1024 && !json.contains("PRIVATE_CANARY"));
+                    assert!(json.contains(
+                        "\"phase\":\"storage_verify\",\"category\":\"engine\",\"code\":\"Corrupt\""
+                    ));
+                    assert!(
+                        json.contains(
+                            "\"verification\":{\"stage\":\"image_length\",\"offset\":null}"
+                        )
+                    );
+                } else {
+                    assert!(diagnostic.is_none());
+                }
+            });
+            assert_eq!(fs::read(&image.0).unwrap(), b"PRIVATE_CANARY");
+        }
+    }
+
+    #[test]
+    fn nonfatal_and_successful_channels_do_not_leak_context_to_a_later_failure() {
+        let image = TruncatedImage::new();
+        let config = settings(true);
+        let (listener, address) = listener();
+        let (client, server) = pair();
+        let (finished, outcome) = mpsc::channel();
+        thread::scope(|scope| {
+            scope.spawn(|| {
+                finished
+                    .send(diagnostics::capture(config, Phase::Replication, || {
+                        admit(listener, &server, 3, MAX_HANDSHAKES, |pending| {
+                            for step in 0..3 {
+                                let mut channel = pending.recv_timeout(Duration::from_secs(5))?;
+                                channel.set_test_deadline(Instant::now() + Duration::from_secs(5));
+                                let mut marker = [0];
+                                channel.read_exact(&mut marker)?;
+                                assert_eq!(marker[0], step);
+                                diagnostics::storage(Phase::Replication, || {
+                                    if step == 0 {
+                                        // A failed peer operation with a healthy progress gate.
+                                        assert_eq!(
+                                            weekend_db::storage::inspect_file(
+                                                &image.0,
+                                                weekend_db::Limits::default()
+                                            ),
+                                            Err(Error::Corrupt)
+                                        );
+                                    }
+                                    if step == 2 { Err(Error::Limit) } else { Ok(()) }
+                                })?;
+                                channel.write_all(&marker)?;
+                                channel.flush()?;
+                            }
+                            Ok(())
+                        })
+                    }))
+                    .unwrap()
+            });
+            let mut channels = Vec::new();
+            for marker in 0..3 {
+                let mut channel = client.connect(address).unwrap();
+                channel.set_test_deadline(Instant::now() + Duration::from_secs(5));
+                channel.write_all(&[marker]).unwrap();
+                channel.flush().unwrap();
+                if marker < 2 {
+                    let mut acknowledged = [0];
+                    channel.read_exact(&mut acknowledged).unwrap();
+                    assert_eq!(acknowledged, [marker]);
+                }
+                channels.push(channel);
+            }
+            let (result, diagnostic) = outcome.recv_timeout(Duration::from_secs(5)).unwrap();
+            assert_eq!(
+                result.as_ref().err().unwrap().downcast_ref::<Error>(),
+                Some(&Error::Limit)
+            );
+            let json = diagnostic.unwrap().json(config).to_string();
+            assert!(json.contains("\"code\":\"Limit\",\"native\":null,\"verification\":null"));
+        });
+    }
+
+    #[test]
+    fn admission_error_and_worker_panic_keep_their_existing_precedence() {
+        for enabled in [false, true] {
+            let image = TruncatedImage::new();
+            let config = settings(enabled);
+            let worker = thread::scope(|scope| {
+                scope
+                    .spawn(|| {
+                        diagnostics::capture(config, Phase::Replication, || {
+                            inspect_truncated(&image)
+                        })
+                    })
+                    .join()
+            });
+            let (result, diagnostic) = diagnostics::capture(config, Phase::Replication, || {
+                finish(Err(io::Error::from_raw_os_error(22)), worker)
+            });
+            assert_eq!(
+                result
+                    .as_ref()
+                    .err()
+                    .unwrap()
+                    .downcast_ref::<io::Error>()
+                    .unwrap()
+                    .raw_os_error(),
+                Some(22)
+            );
+            if enabled {
+                let json = diagnostic.unwrap().json(config).to_string();
+                assert!(json.contains("\"os_code\":22"));
+                assert!(json.contains("\"verification\":null"));
+                assert!(!json.contains("image_length") && !json.contains("Corrupt"));
+            } else {
+                assert!(diagnostic.is_none());
+            }
+
+            let (result, diagnostic) = diagnostics::capture(config, Phase::Replication, || {
+                finish(
+                    Err(io::Error::from_raw_os_error(22)),
+                    Err(Box::new("PRIVATE_PANIC_CANARY")),
+                )
+            });
+            let error = result
+                .as_ref()
+                .err()
+                .unwrap()
+                .downcast_ref::<io::Error>()
+                .unwrap();
+            assert_eq!(error.kind(), io::ErrorKind::Other);
+            assert_eq!(error.to_string(), "snapshot follower worker panicked");
+            if enabled {
+                let json = diagnostic.unwrap().json(config).to_string();
+                assert!(!json.contains("PRIVATE_PANIC_CANARY") && !json.contains("os_code\":22"));
+                assert!(json.contains("\"native\":null,\"verification\":null"));
+            } else {
+                assert!(diagnostic.is_none());
+            }
+        }
     }
 
     fn assert_closed(mut socket: TcpStream) {

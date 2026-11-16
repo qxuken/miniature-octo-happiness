@@ -130,13 +130,113 @@ manifest. The retained revision-2 state also remains intact.
 
 This implementation does **not** add a snapshot stdin/control thread or a live
 snapshot peer-error query. Snapshot admission still suppresses peer-controlled
-errors; a terminal failure propagated from its follower worker currently has
-the caller's replication phase and engine category, without the original worker's
-native/verification context. That is a remaining observability gap. This first
-API step does not close all F06 deployment obligations. The frozen Linux
-structured result follows below. Windows execution of this implementation and
-final-candidate reruns remain separate qualifications; the historical Linux
-canary proof near the end of this document predates the structured API.
+errors. The terminal worker-context handoff below retains safe local context
+when the existing recovery gate terminates the worker. It does not close all
+F06 deployment obligations. The earlier frozen Linux
+structured result follows below. The hosted `703948c` checkpoint below also
+qualifies the initial structured API on native Windows; it predates the later
+worker handoff. Final-candidate reruns remain separate qualifications, and the
+historical Linux canary proof near the end predates the structured API.
+
+### Snapshot follower-worker terminal context
+
+The follow-up atop clean `703948c4848b9fd802875d15a9a2dc0c4d465063` copies
+the safe diagnostic alongside the existing follower worker's terminal result.
+The existing join returns `(AppResult<()>, Option<Diagnostic>)`; it does not
+wrap or replace the original error. Worker panic still takes precedence over
+an admission/control error, which still takes precedence over an ordinary
+worker error. A higher-priority failure does not inherit the discarded worker's
+storage context. No new queue, thread, control reader or worker output is added.
+
+Each channel's unchanged `serve_authenticated` and immediate `progress()` gate
+form one synchronous diagnostic operation. The gate only reads whether manifest
+recovery is required. A nonfatal session error followed by healthy progress
+discards its context. A fatal gate keeps the original `RecoveryRequired` result
+and may retain native/verification context observed during that same exchange.
+The next channel starts with fresh context. Only main formats a fatal record.
+These fields describe local server observations; they are not added to protocol
+replies, forwarded to the sender or treated as a durability acknowledgment.
+
+Focused native macOS tests cover the existing worker-result carrier using a
+real truncated-file inspection, preserving the original `Corrupt` downcast and
+`storage_verify/image_length` context across the join. This is a **carrier test**,
+not an installation-failure qualification. A separate three-authenticated-channel
+consumer fixture covers a nonfatal failed inspection, a successful operation and
+a later context-free `Limit` error. Admission-error and worker-panic precedence
+tests ensure lower-priority verification details cannot leak into their records.
+All six admission tests pass. Complete macOS arm64 app debug and release
+profiles each pass 71 tests with no failures or skips; strict Clippy passes.
+An earlier carrier fixture dropped its clients too early and observed EOF.
+The final fixture retains the clients and acknowledges its first two steps
+before proceeding. That reproduction and ten supplemental repeat successes
+existed only in tool output; retained qualification uses the final full-profile
+logs, without a fabricated raw repetition record.
+
+The dedicated Linux arm64 tmpfs fixture passes in debug and release at the
+declared minimum Rust 1.99.0, with strict Clippy and all six carrier tests.
+Each profile exercises both default and JSON modes. Actual outcomes are
+nonfatal staging exhaustion without a server error record, and fatal
+manifest-selection exhaustion with server
+`RecoveryRequired` plus local `write/disk_full/28`. The sender must still observe
+the existing wire `Io` with no server-native fields and an unconfirmed outcome.
+The old revision-4 receipt and retained revision 2 reopen while the volume is
+full; releasing ballast permits exact revision-5 retry and idempotent replay.
+Staging stops after 151,552 of 307,200 image bytes; selection exhaustion occurs
+after the complete 307,200-byte image. The volume is empty again after each
+profile. This uses an isolated 8 MiB tmpfs with other files/builds on ext4,
+not simulated ENOSPC. The exact two-file overlay above is applied to a clean
+`703948c` source archive; typed T9/T10 changes are excluded. All 744 source
+inputs and 14 lockfiles remain unchanged during execution. Tested application
+binaries, compiler/source identities, raw command/process results and owned
+container/volume cleanup are retained; the separate Linux libtest executables
+were not copied before volume removal and are not claimed as retained.
+
+Live snapshot peer-error retrieval remains explicitly deferred. Snapshot has no
+operator input loop comparable to Study's existing `incoming` command. A getter
+alone would provide no external retrieval path; stdin needs another reader or
+platform-specific multiplexing, a sidecar adds storage/lifecycle rules, and a
+new authenticated request needs a separate versioned wire decision. Current
+`poll` reports authoritative durability, and offline `status` requires the
+follower lease. Neither reports suppressed peer-error history. This limitation
+does not alter the offered poll/reconcile/retry workflow. A future telemetry
+request must remain separate from receipts and may be unavailable under load;
+no new thread, queue, file, unsolicited worker output or wire request is added
+by this handoff.
+
+Root independently restored all 983 payloads from
+`target/archived-proof/snapshot-worker-context-703948c.tar.zst`, SHA-256
+`94e72b0d9585a0f5c620dcb0e2465f88eee3cf6f6ac4533c0e73f6f07b197a6a`.
+The restored review checks the 919-file Linux index, 744 source inputs, all
+34 bounded host/Linux process results and output lengths, eight ENOSPC
+scenarios, both 71-test Mac logs, retained executable hashes and unchanged
+sources/locks. Independent code review found no actionable issue. This is
+scoped working-tree qualification; native Windows worker execution, deployed
+log sinks and an immutable final-candidate matrix remain separate.
+
+### Hosted initial-API qualification at `703948c`
+
+All 14 [Engine](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43872005208)
+and [bounded-fuzz](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43872005204)
+jobs pass for head `703948c4848b9fd802875d15a9a2dc0c4d465063`, tested as
+merge `656a25d90c41ca12cd812967eda9ad170c642065`. Root fetched that exact
+merge and verified its tree equals the head's tree. No fix, rerun or cancellation
+was needed. Both CLIs' default and JSON canaries, CLI-local observation and
+lost-reply/refused-reconnect regressions pass debug/release on native Mac,
+Linux and Windows. Linux minimum Rust 1.99.0 passes 756 tests with eight skips
+per profile; Windows minimum passes 584 with six. Both workspace sanitizer
+profiles pass 720 with six skips using rebuilt std; TSan retains its separately
+calibrated runtime. The 22-target ASan campaign records 20,849 actual executions
+and 244 seeds, including 1,000 `peer_transport` executions; stable replay passes
+29 tests. These are finite checks, not a sustained deployment qualification.
+
+The retained archive `target/archived-proof/hosted-ci-703948c.tar.zst`, SHA-256
+`3e8fa8db1c8e3fdea8744c309a4c646733448067c7ce0f2955a7fb309632ee4c`,
+restores all 53 indexed payloads, 14 terminal logs and five original
+service-digest-verified artifact ZIPs. An independent review checks all 3,558
+Linux and 2,049 Windows artifact payload hashes. Windows minimum's individual
+source inventory covers 26 driver/tool files; app/typed source identity rests
+on the exact clean checkout, rather than individual app hashes. This checkpoint
+contains T7/T8 tests but no T9/T10/T11 additions or worker-context handoff.
 
 ### Final Linux structured-results and pure-protocol seam
 
@@ -254,7 +354,7 @@ Campaign retains the raw libFuzzer log and its parsed completed count under
 This qualifies the named Docker arm64/ext4 debug/release profile. It does not
 extend the earlier `bbcf68d` hosted CI or sanitizer results to the uncommitted
 overlay. Native Windows, a clean final candidate, additional OS/I/O/TLS causes,
-snapshot worker-context propagation and deployment log sinks remain separate
+the later snapshot worker-context handoff and deployment log sinks remain separate
 work. Test timings are observations, not service or recovery-time budgets.
 
 ## Original bounded canary drill (historical)
@@ -420,6 +520,6 @@ The [native diagnostic contract](verification-diagnostics.md) offers a separate
 path-free, record-free `StorageFailure` with authoritative error and optional
 native operation/category/code and verification stage/offset. The original
 canary drill did not capture those fields. The structured API above now captures
-them at its instrumented boundaries. Additional boundaries, snapshot worker
-context, deployment sinks and platforms need separate review and execution.
+them at its instrumented boundaries. Additional boundaries, live snapshot
+peer-error retrieval, deployment sinks and platforms need separate review and execution.
 Arbitrary application logging remains outside this evidence.

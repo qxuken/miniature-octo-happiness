@@ -5820,5 +5820,15 @@ A diagnostic is not a `DurableAck`. A connection refusal can follow an earlier
 durable installation whose reply was lost. Failed shipment records therefore
 remain `unconfirmed` and require poll/reconciliation of the existing export.
 The [service report](docs/service-diagnostics.md) records that concrete failure,
-unchanged receipt replay and retained roots, Mac/Linux checks and the remaining
-snapshot worker/live-query and deployment qualifications.
+unchanged receipt replay and retained roots. Hosted `703948c` passes all 14 jobs,
+including the initial structured API's Mac/Linux/Windows debug/release checks.
+The later snapshot worker handoff retains safe local terminal context through
+its existing join without replacing errors or adding worker output. Per-channel
+scopes discard nonfatal session context; panic/admission/worker precedence stays
+unchanged. Mac full app profiles each pass 71 tests. Linux minimum debug/release
+verify four actual tmpfs ENOSPC scenarios each: reopen receipt 4/retained 2 while
+full, exact retry/replay at 5 after freeing space, server-local native context
+and unchanged sender wire `Io` with unconfirmed outcome. Indexed proof is retained.
+Live snapshot peer-error retrieval is explicitly deferred; native Windows
+worker execution, deployed log sinks and final-candidate qualification remain
+separate. Poll/status keep their existing durability contract.
