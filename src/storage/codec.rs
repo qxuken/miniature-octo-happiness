@@ -15,21 +15,61 @@ const VALUE: u32 = 1;
 const DATA: u32 = 2;
 const COMMIT: u32 = 3;
 
+static CRC_TABLES: [[u64; 256]; 8] = crc_tables();
+
+const fn crc_tables() -> [[u64; 256]; 8] {
+    const POLYNOMIAL: u64 = 0x42f0e1eba9ea3693;
+    let mut tables = [[0; 256]; 8];
+    let mut byte = 0;
+    while byte < 256 {
+        let mut crc = (byte as u64) << 56;
+        let mut bit = 0;
+        while bit < 8 {
+            crc = if crc & (1 << 63) != 0 {
+                (crc << 1) ^ POLYNOMIAL
+            } else {
+                crc << 1
+            };
+            bit += 1;
+        }
+        tables[0][byte] = crc;
+        byte += 1;
+    }
+    // Row n advances the single-byte remainder through n more zero bytes.
+    let mut row = 1;
+    while row < tables.len() {
+        let mut byte = 0;
+        while byte < 256 {
+            let crc = tables[row - 1][byte];
+            tables[row][byte] = (crc << 8) ^ tables[0][(crc >> 56) as usize];
+            byte += 1;
+        }
+        row += 1;
+    }
+    tables
+}
+
 /// CRC-64/ECMA-182: polynomial 0x42f0e1eba9ea3693, init/xorout zero,
 /// non-reflected. Checksums are damage detection, not authentication.
 pub(crate) fn crc(bytes: &[u8]) -> u64 {
     update_crc(0, bytes)
 }
 fn update_crc(mut crc: u64, bytes: &[u8]) -> u64 {
-    for byte in bytes {
-        crc ^= u64::from(*byte) << 56;
-        for _ in 0..8 {
-            crc = if crc & (1 << 63) != 0 {
-                (crc << 1) ^ 0x42f0e1eba9ea3693
-            } else {
-                crc << 1
-            };
-        }
+    let (words, tail) = bytes.as_chunks::<8>();
+    for word in words {
+        // Earlier bytes have more zero-byte advances before the word ends.
+        let [a, b, c, d, e, f, g, h] = (crc ^ u64::from_be_bytes(*word)).to_be_bytes();
+        crc = CRC_TABLES[7][usize::from(a)]
+            ^ CRC_TABLES[6][usize::from(b)]
+            ^ CRC_TABLES[5][usize::from(c)]
+            ^ CRC_TABLES[4][usize::from(d)]
+            ^ CRC_TABLES[3][usize::from(e)]
+            ^ CRC_TABLES[2][usize::from(f)]
+            ^ CRC_TABLES[1][usize::from(g)]
+            ^ CRC_TABLES[0][usize::from(h)];
+    }
+    for &byte in tail {
+        crc = (crc << 8) ^ CRC_TABLES[0][usize::from(((crc >> 56) as u8) ^ byte)];
     }
     crc
 }
@@ -2733,6 +2773,44 @@ mod tests {
         assert_eq!(checksum(&h, 64), u64_at(&h, 64));
         h[REGION - 1] = 1;
         assert_ne!(checksum(&h, 64), u64_at(&h, 64));
+    }
+
+    #[test]
+    fn crc_words_and_incremental_tails_match_the_bit_recurrence() {
+        fn reference(mut crc: u64, bytes: &[u8]) -> u64 {
+            for &byte in bytes {
+                for shift in (0..8).rev() {
+                    let high_bit = (crc >> 63) ^ u64::from((byte >> shift) & 1);
+                    crc <<= 1;
+                    if high_bit != 0 {
+                        crc ^= 0x42f0e1eba9ea3693;
+                    }
+                }
+            }
+            crc
+        }
+
+        for byte in 0..=u8::MAX {
+            assert_eq!(crc(&[byte]), reference(0, &[byte]));
+            for position in 0..8 {
+                let mut word = [0; 8];
+                word[position] = byte;
+                assert_eq!(crc(&word), reference(0, &word));
+            }
+        }
+
+        let data: [u8; 263] = std::array::from_fn(|i| (i as u8).wrapping_mul(197));
+        for initial in [0, u64::MAX, 0x0123456789abcdef] {
+            for offset in 0..8 {
+                let bytes = &data[offset..];
+                let expected = reference(initial, bytes);
+                assert_eq!(update_crc(initial, bytes), expected);
+                for split in 0..=bytes.len() {
+                    let (prefix, suffix) = bytes.split_at(split);
+                    assert_eq!(update_crc(update_crc(initial, prefix), suffix), expected);
+                }
+            }
+        }
     }
 
     #[test]
