@@ -432,8 +432,7 @@ Linux arm64/ext4 against the exact `b4a88a5` package. The available space
 was zero through the full-volume reopen and 8,108 KiB after ballast removal
 in both runs. All six outcome rows matched. The eight Rust fault controls
 passed in debug and release, strict Clippy passed, and macOS C/APFS
-exhaustion and the five Odin injection cases still passed. The hosted
-x86_64 result above used the earlier two-process tmpfs case.
+exhaustion and the five Odin injection cases still passed.
 
 | Local evidence under `target/odin-tmpfs-full-reopen/` | SHA-256 |
 |---|---|
@@ -442,6 +441,25 @@ x86_64 result above used the earlier two-process tmpfs case.
 | `linux-c/result/evidence.json` | `3943430514630fa3285d1a1363a5c1dcd046d10a5450195ee2df7a1d7e8cdf1a` |
 | `macos-c/evidence.json` | `011b80ce2f91ffab0ee18cbc5b75c39b00e5701b7f168bc723ae5b296237500e` |
 | `macos-odin/evidence.json` | `140dd0560e7e407587998e36c970b61184cf15d4fd6702d04ca35a43b2008352` |
+
+The subsequent hosted x86_64 run passed the expanded Odin check. It used
+the verified same-source package from merge
+`5e7c36193f60a36f63f3a362915da6327bf53173` with branch parent `c95ab30`.
+The distinct full-volume reopen selected revision 3 with retained revision
+2, preserved the database hash and left zero available KiB. Removing the
+ballast recovered 8,108 KiB and the retry reopened revision 4. All 847
+listed worker artifacts rehashed, including the full and retried images.
+The relocated library, package manifest and runner inputs matched their
+verified sources, and Docker cleanup passed.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43790815249/job/133048570811),
+[native evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43790815249/artifacts/14192338241).
+
+| Hosted expanded check | SHA-256 |
+|---|---|
+| ZIP | `4302aa10bb7b8389100cb7488f244c0399768a7be218d3f6af223542bbdd25b7` |
+| Package manifest | `1495bdfe9c50932159ea74023b0a1fc0fc132b795bc67b0e37525b2279f70ad3` |
+| Exact `.so` | `7fda9ddd99648259f19fb249600c0fd6c6ff47006a4a3ab94b86aa1dfb291184` |
+| Result evidence | `25deb29fab271a4becc646e8cce1fa379498d3ccfa7b4f9e95bb4d2034ab85ee` |
 
 ## Native Windows delivered C gate
 
