@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use crate::{
     assurance::{self, Campaign},
-    support::{Run, cmd, path, sha},
+    support::{Run, Scratch, cmd, path, sha},
 };
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use crate::{
@@ -44,6 +44,36 @@ pub struct Options {
     pub output: Option<PathBuf>,
     #[arg(long, default_value = "target/fuzz-build")]
     pub build_directory: PathBuf,
+    /// Require an owned runtime directory on Linux ext4. Caller must also place build outputs on native Linux storage.
+    #[arg(long, value_name = "DIRECTORY")]
+    pub linux_ext4_runtime: Option<PathBuf>,
+}
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn ext4_mount(text: &str, runtime: &str) -> Result<Value> {
+    let report: Value = serde_json::from_str(text)?;
+    let rows = report["filesystems"]
+        .as_array()
+        .context("missing runtime filesystem records")?;
+    ensure!(rows.len() == 1, "ambiguous runtime filesystem records");
+    let row = &rows[0];
+    let mount = row["target"]
+        .as_str()
+        .context("missing runtime mount target")?;
+    // These are Linux paths even when inspecting retained proof on Windows.
+    ensure!(
+        runtime.starts_with('/')
+            && mount.starts_with('/')
+            && (mount == "/"
+                || runtime == mount
+                || runtime
+                    .strip_prefix(mount)
+                    .is_some_and(|s| s.starts_with('/')))
+            && row["fstype"] == "ext4"
+            && row["source"].as_str().is_some_and(|s| !s.is_empty())
+            && row["options"].as_str().is_some_and(|s| !s.is_empty()),
+        "runtime requires one covering native ext4 mount"
+    );
+    Ok(row.clone())
 }
 fn targets(manifest: &str) -> Result<Vec<String>> {
     let manifest: toml::Table = toml::from_str(manifest)?;
@@ -103,7 +133,40 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         ))
     });
     let mut c = Campaign::new(run, &output, SCOPE)?;
+    let mut runtime = None;
     let result = (|| {
+        if let Some(parent) = options.linux_ext4_runtime {
+            ensure!(
+                cfg!(target_os = "linux"),
+                "ext4 runtime qualification requires Linux"
+            );
+            let parent = dunce::canonicalize(assurance::absolute(&run.root, &parent))?;
+            ensure!(
+                parent.is_dir() && !parent.starts_with(&run.root),
+                "runtime parent must be a directory outside the source checkout"
+            );
+            runtime = Some(Scratch::new(&parent, "fuzz-runtime")?);
+            let directory = runtime.as_ref().unwrap().path();
+            c.evidence["runtime"] = json!({"directory":directory,"required_filesystem":"ext4","admitted":false,"cleanup_verified":false});
+            let mount = c.command(
+                vec![
+                    "findmnt".into(),
+                    "--json".into(),
+                    "--target".into(),
+                    path(directory),
+                    "--output".into(),
+                    "TARGET,SOURCE,FSTYPE,OPTIONS".into(),
+                ],
+                "runtime-filesystem",
+                None,
+                30.,
+            )?;
+            c.evidence["runtime"]["mount"] =
+                ext4_mount(&mount, directory.to_str().context("UTF-8 runtime path")?)?;
+            c.evidence["runtime"]["admitted"] = json!(true);
+            c.env.insert("TMPDIR".into(), path(directory));
+            c.save()?;
+        }
         let before_seeds = assurance::seeds(&run.root)?;
         let before_lock = sha(&run.root.join("fuzz/Cargo.lock"))?;
         let toolchain = format!("+{}", options.toolchain);
@@ -161,6 +224,17 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                 path("-timeout=10"),
                 path(format!("-artifact_prefix={}/", artifacts.display())),
             ]);
+            if let Some(runtime) = &runtime {
+                // Bind the selected directory to the supervised argv without
+                // retaining unrelated (potentially sensitive) environment values.
+                command.splice(
+                    ..0,
+                    [
+                        path("/usr/bin/env"),
+                        path(format!("TMPDIR={}", runtime.path().display())),
+                    ],
+                );
+            }
             let label = format!("target-{name}");
             let outcome = c.command(command, &label, None, (options.seconds + 600) as f64);
             let mut log =
@@ -197,7 +271,11 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         );
         Ok(())
     })();
-    c.finish(result)
+    let cleanup = runtime.as_mut().map_or(Ok(()), Scratch::close);
+    if runtime.is_some() {
+        c.evidence["runtime"]["cleanup_verified"] = json!(cleanup.is_ok());
+    }
+    c.finish(result.and(cleanup))
 }
 // A retained campaign is evidence, not executable input. Bound every read and
 // reject links (including Windows reparse points) before inspecting its contents.
@@ -306,10 +384,35 @@ pub fn verify(root: &Path, source: &str, tree: &Path) -> Result<Value> {
     let commands = report["commands"]
         .as_array()
         .context("missing fuzz commands")?;
+    let runtime = report.get("runtime");
     ensure!(
-        rows.len() == available.len() && commands.len() == available.len() + 4,
+        rows.len() == available.len()
+            && commands.len() == available.len() + 4 + usize::from(runtime.is_some()),
         "incomplete fuzz target or command inventory"
     );
+    if let Some(runtime) = runtime {
+        let directory = runtime["directory"]
+            .as_str()
+            .context("missing runtime directory")?;
+        let command = successful_command(root, commands, "runtime-filesystem")?;
+        let log = String::from_utf8(retained_log(root, "runtime-filesystem.stdout.log")?)?;
+        ensure!(
+            runtime["required_filesystem"] == "ext4"
+                && runtime["admitted"] == true
+                && runtime["cleanup_verified"] == true
+                && command["argv"]
+                    == json!([
+                        "findmnt",
+                        "--json",
+                        "--target",
+                        directory,
+                        "--output",
+                        "TARGET,SOURCE,FSTYPE,OPTIONS"
+                    ])
+                && runtime["mount"] == ext4_mount(&log, directory)?,
+            "runtime filesystem qualification mismatch"
+        );
+    }
     let source_command = successful_command(root, commands, "source")?;
     let dirty = successful_command(root, commands, "dirty")?;
     let rustc = successful_command(root, commands, "rustc-version")?;
@@ -371,6 +474,17 @@ pub fn verify(root: &Path, source: &str, tree: &Path) -> Result<Value> {
         let argv = command["argv"]
             .as_array()
             .context("missing fuzz arguments")?;
+        let argv = if let Some(runtime) = runtime {
+            ensure!(
+                argv.len() >= 2
+                    && argv[0] == "/usr/bin/env"
+                    && argv[1] == format!("TMPDIR={}", runtime["directory"].as_str().unwrap()),
+                "fuzz target runtime directory mismatch {name}"
+            );
+            &argv[2..]
+        } else {
+            argv.as_slice()
+        };
         let seeds = tree.join("fuzz/seeds").join(&name).is_dir();
         let offset = 11 + usize::from(seeds);
         ensure!(
@@ -443,6 +557,43 @@ pub fn verify(root: &Path, source: &str, tree: &Path) -> Result<Value> {
 #[cfg(all(test, any(target_os = "linux", target_os = "macos", windows)))]
 mod tests {
     use super::*;
+    #[test]
+    fn ext4_runtime_admission_rejects_other_filesystems_and_ambiguous_mounts() {
+        let row = json!({"target":"/runtime","source":"/dev/vdb","fstype":"ext4","options":"rw,relatime"});
+        let valid = json!({"filesystems":[row.clone()]});
+        let check = |value: &Value| ext4_mount(&value.to_string(), "/runtime/owned");
+        assert_eq!(check(&valid).unwrap(), row);
+        for filesystem in ["fuseblk", "virtiofs", "overlay", "tmpfs", ""] {
+            let mut wrong = valid.clone();
+            wrong["filesystems"][0]["fstype"] = json!(filesystem);
+            assert!(check(&wrong).is_err(), "{filesystem}");
+        }
+        for wrong in [
+            json!({}),
+            json!({"filesystems":[]}),
+            json!({"filesystems":[row.clone(),row.clone()]}),
+        ] {
+            assert!(check(&wrong).is_err());
+        }
+        for target in ["runtime", "/runtime/other", "/runtim", ""] {
+            let mut wrong = valid.clone();
+            wrong["filesystems"][0]["target"] = json!(target);
+            assert!(check(&wrong).is_err(), "{target}");
+        }
+        for field in ["source", "options", "fstype", "target"] {
+            let mut wrong = valid.clone();
+            wrong["filesystems"][0]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(check(&wrong).is_err(), "{field}");
+        }
+        assert!(ext4_mount("not json", "/runtime/owned").is_err());
+        assert!(ext4_mount(&valid.to_string(), "runtime/owned").is_err());
+        let mut root = valid;
+        root["filesystems"][0]["target"] = json!("/");
+        assert!(check(&root).is_ok());
+    }
     fn fixture(tree: &Path, root: &Path) -> Value {
         fs::create_dir_all(tree.join("fuzz/seeds/first")).unwrap();
         fs::write(
@@ -532,6 +683,70 @@ mod tests {
             "source_hashes":source_inventory::snapshot(tree).unwrap(),"seed_sha256":source_inventory::seeds(tree).unwrap(),
             "lockfile_sha256":crate::support::sha(&tree.join("fuzz/Cargo.lock")).unwrap(),
             "toolchain":"rustc version","cargo_fuzz":"cargo-fuzz version","commands":commands,"targets":targets})
+    }
+    #[test]
+    fn delivery_fuzz_binds_optional_ext4_runtime_to_mount_command_and_cleanup() {
+        let mut scratch =
+            crate::support::Scratch::new(&std::env::temp_dir(), "fuzz-runtime-proof").unwrap();
+        let tree = scratch.path().join("source");
+        let root = scratch.path().join("proof");
+        let mut report = fixture(&tree, &root);
+        let mount = json!({"target":"/runtime","source":"/dev/vdb","fstype":"ext4","options":"rw,relatime"});
+        let output = json!({"filesystems":[mount.clone()]}).to_string();
+        let mut command = report["commands"][2].clone();
+        command["name"] = json!("runtime-filesystem");
+        command["argv"] = json!([
+            "findmnt",
+            "--json",
+            "--target",
+            "/runtime/owned",
+            "--output",
+            "TARGET,SOURCE,FSTYPE,OPTIONS"
+        ]);
+        command["stdout"] = json!("runtime-filesystem.stdout.log");
+        command["stderr"] = json!("runtime-filesystem.stderr.log");
+        command["supervision"]["stdout_bytes"] = json!(output.len());
+        command["supervision"]["stderr_bytes"] = json!(0);
+        fs::write(root.join("runtime-filesystem.stdout.log"), output).unwrap();
+        fs::write(root.join("runtime-filesystem.stderr.log"), "").unwrap();
+        fs::write(
+            root.join("runtime-filesystem.process.json"),
+            command["supervision"].to_string(),
+        )
+        .unwrap();
+        report["commands"].as_array_mut().unwrap().push(command);
+        report["runtime"] = json!({"directory":"/runtime/owned","required_filesystem":"ext4","admitted":true,"cleanup_verified":true,"mount":mount});
+        for index in 0..2 {
+            let command = &mut report["commands"][index + 4]["argv"];
+            command
+                .as_array_mut()
+                .unwrap()
+                .splice(..0, [json!("/usr/bin/env"), json!("TMPDIR=/runtime/owned")]);
+            report["targets"][index]["command"] = command.clone();
+        }
+        let check = |record: &Value| {
+            fs::write(root.join("evidence.json"), record.to_string()).unwrap();
+            verify(&root, "source-id", &tree)
+        };
+        assert!(check(&report).is_ok());
+        for (field, value) in [
+            ("directory", json!("/another/runtime")),
+            ("required_filesystem", json!("overlay")),
+            ("admitted", json!(false)),
+            ("cleanup_verified", json!(false)),
+            ("mount", json!({})),
+        ] {
+            let mut wrong = report.clone();
+            wrong["runtime"][field] = value;
+            assert!(check(&wrong).is_err(), "{field}");
+        }
+        let mut wrong = report.clone();
+        wrong["commands"][4]["argv"][1] = json!("TMPDIR=/host-bind");
+        wrong["targets"][0]["command"] = wrong["commands"][4]["argv"].clone();
+        assert!(check(&wrong).is_err());
+        report.as_object_mut().unwrap().remove("runtime");
+        assert!(check(&report).is_err());
+        scratch.close().unwrap();
     }
     #[test]
     fn delivery_fuzz_requires_archive_inputs_complete_targets_and_actual_logs() {

@@ -37,6 +37,23 @@ Rows stay open until evidence is recorded. Physical power-loss qualification
 needs the declared OS/filesystem/device stack. Configured CI and executed
 qualification are recorded separately.
 
+### Snapshot flush schedules and Linux runtime correction (2026-11-17)
+
+The [snapshot filesystem checkpoint](snapshot-flush-filesystem.md) adds exact
+Ready/terminal flush schedules, seven seeds, a captured retry regression and a
+standalone native-file regression. The Linux failure reproduced without database
+code on a host-shared `fuseblk` mount. Both build and runtime files now use a
+named ext4 volume for this qualification; an opt-in xtask admission check rejects
+the former setup before running targets. Zero-progress reads still fail, and
+local commit and follower durable acknowledgments remain separate.
+
+macOS and Linux passed 31 replay tests in each profile, strict fuzz Clippy and
+1,000 actual ASan runs for each snapshot target. Real negative/positive runtime
+admission controls and six controller tests passed. The record includes the
+intermittent failure and setup failures, not just successful reruns. This is
+scoped progress on base `9f086d3`, not a replacement for the immutable candidate
+or closure of the full production roadmap. Crates remain unpublished.
+
 
 Exact `2490631` [local qualification](local-qualification-2490631.md) passed the
 listed macOS/Docker Linux, sanitizer, package, feature-profile, model and bounded

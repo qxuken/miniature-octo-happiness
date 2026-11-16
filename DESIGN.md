@@ -6008,3 +6008,15 @@ that caller's result fails the exact read sentinel in debug/release. The full
 replication-feature library passes 145 tests per profile, plus strict Clippy;
 root restores 53 proof payloads and separate review confirms the scoped evidence.
 Runtime, wire and acknowledgment contracts remain unchanged.
+
+Snapshot schedule coverage now includes Ready and terminal response flush
+failures, with exact response/consumption counts and current plus retained
+roots checked after every reopen. A terminal response failure may follow a
+durable follower install; accepted local response bytes do not prove receipt.
+The [Linux filesystem investigation](docs/snapshot-flush-filesystem.md) reproduced
+premature EOF in standalone file I/O on the Docker host-shared `fuseblk` mount.
+The qualification setup now places build and runtime files on native ext4 and
+offers explicit xtask runtime admission. Engine zero-progress rejection and
+durability barriers are unchanged. macOS and Linux each pass 31 stable replays
+in debug/release, strict fuzz Clippy and 1,000 actual ASan runs per snapshot
+target. Full candidate and physical-device acceptance remain separate gates.

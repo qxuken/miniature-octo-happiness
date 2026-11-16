@@ -36,5 +36,31 @@ fn main() -> io::Result<()> {
         "first-interrupted-cleanup",
         &[2, 0, 12, 0, 0, 0],
     )?;
+    for (name, bytes) in [
+        (
+            "interrupted-upload-duplicate-upgrade",
+            &[0, 0, 243, 243, 8, 1, 15, 0, 1, 1, 10, 0][..],
+        ),
+        ("ready-flush-first", &[6, 128, 10, 0, 0, 0, 10, 0][..]),
+        ("terminal-flush-first", &[8, 128, 10, 0, 0, 0, 10, 0][..]),
+        (
+            "ready-flush-upgrade",
+            &[0, 0, 7, 128, 10, 0, 1, 0, 10, 0][..],
+        ),
+        (
+            "terminal-flush-upgrade",
+            &[0, 0, 9, 128, 10, 0, 1, 0, 10, 0][..],
+        ),
+        (
+            "terminal-flush-duplicates",
+            &[0, 0, 8, 128, 10, 0, 1, 0, 9, 128, 10, 0][..],
+        ),
+        (
+            "first-flush-stale-and-duplicate",
+            &[1, 0, 6, 128, 10, 0, 7, 128, 10, 0][..],
+        ),
+    ] {
+        seed("snapshot_install_schedule", name, bytes)?;
+    }
     Ok(())
 }

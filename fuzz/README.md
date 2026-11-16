@@ -183,7 +183,7 @@ checks the exact durable acknowledgment, current value and retained value.
 The target exercises transport failures and native lifecycle behavior.
 Simulated filesystem faults are covered by the follower unit fault suite.
 
-Generate the 29 snapshot seeds with
+The original snapshot corpus contains 29 seeds. Generate the snapshot seeds with
 `cargo run --locked --manifest-path fuzz/Cargo.toml --example snapshot_seeds`.
 Stable replay is included in the fuzz library tests. On arm64 macOS,
 AddressSanitizer completed 1,000 snapshot frame executions and 587 native
@@ -192,6 +192,28 @@ no findings. Evidence is under
 `target/fuzz-evidence/tmp6nhpcqqd`. The native target requires a writable
 supported local filesystem and is slower because it performs real durable
 writes. Authentication remains the embedding application's responsibility.
+
+### Snapshot response flush faults
+
+For install-schedule modes 3 and 4, parameter bit 7 selects a flush failure
+instead of the original write failure. A clear bit preserves write 0/1 faults;
+a set bit selects flush 0/1. Other modes keep the entire parameter unchanged.
+The original 29 snapshot seed files retain their bytes; six additional seeds
+cover first installation, upgrade, duplicate and stale-offer flush paths. The
+same generator emits all 35 files. The target inventory is unchanged.
+
+The oracle checks exact accepted response bytes, write/flush/error counts and
+the input cursor, in addition to the existing durable reopen/current/retained
+state model. A failed Ready flush can be followed by an attempted Io reply;
+a failed terminal flush can leave the newly selected image durable. Duplicate
+or stale offers return the prior receipt without uploading an image, so their
+only flush is 0 and a configured flush-1 fault is not reached. Bytes accepted
+by this local channel do not prove that any peer received an acknowledgment.
+
+Stable replay covers both fault kinds with parameter values 0, 7, 128, 135 and
+255, prior states empty/first/latest, and both offered images. Every schedule
+still uses at most six two-byte commands. Qualification of this extension is
+separate from the historical smoke results above.
 
 ## Typed schema/index migration and derive targets
 
@@ -428,3 +450,13 @@ Clippy passed. Evidence, logs and post-run source hashes are under
 `4203e0a`, with concurrent unrelated FFI/test/doc edits, rather than an isolated
 release build. The run is bounded smoke evidence; it does not establish a
 coverage percentage, exhaustive causality exploration or a memory cap.
+## Linux runtime qualification
+
+Use native Linux storage for both build outputs and runtime files in Docker.
+The host-shared `fuseblk` mount reproduced premature EOF even in a standalone
+file test. `cargo xtask fuzz --linux-ext4-runtime /runtime` admits an owned
+runtime directory on ext4 and binds each target's `TMPDIR`; also set
+`--build-directory /runtime/asan` and native output/artifact paths. Generic
+fuzzing remains available without this profile option. The native-file test
+rejects zero progress, and the captured interrupted-upload sequence remains
+a stable replay. See the [failure analysis and results](../docs/snapshot-flush-filesystem.md).

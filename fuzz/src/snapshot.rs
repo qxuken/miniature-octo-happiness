@@ -21,6 +21,10 @@ struct Channel {
     outgoing: Vec<u8>,
     fail_write: Option<usize>,
     writes: usize,
+    fail_flush: Option<usize>,
+    flushes: usize,
+    write_errors: usize,
+    flush_errors: usize,
 }
 impl Channel {
     fn new(bytes: Vec<u8>) -> Self {
@@ -29,6 +33,10 @@ impl Channel {
             outgoing: Vec::new(),
             fail_write: None,
             writes: 0,
+            fail_flush: None,
+            flushes: 0,
+            write_errors: 0,
+            flush_errors: 0,
         }
     }
 }
@@ -42,13 +50,21 @@ impl Write for Channel {
         let step = self.writes;
         self.writes += 1;
         if self.fail_write == Some(step) {
+            self.write_errors += 1;
             return Err(io::ErrorKind::BrokenPipe.into());
         }
         self.outgoing.extend_from_slice(bytes);
         Ok(bytes.len())
     }
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        let step = self.flushes;
+        self.flushes += 1;
+        if self.fail_flush == Some(step) {
+            self.flush_errors += 1;
+            Err(io::ErrorKind::BrokenPipe.into())
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -224,12 +240,16 @@ pub fn snapshot_install_schedule(input: &[u8]) {
                     _ => bytes.truncate(usize::from(parameter) % 41),
                 }
             }
+            let request_length = bytes.len();
             let mut channel = Channel::new(bytes);
-            if mode == 3 {
-                channel.fail_write = Some(0);
-            }
-            if mode == 4 {
-                channel.fail_write = Some(1);
+            let flush_fault = parameter & 0x80 != 0;
+            if matches!(mode, 3 | 4) {
+                let step = usize::from(mode == 4);
+                if flush_fault {
+                    channel.fail_flush = Some(step);
+                } else {
+                    channel.fail_write = Some(step);
+                }
             }
             let duplicate = installed.is_some_and(|prior| prior >= index);
             let expected = if mode == 7 {
@@ -246,7 +266,62 @@ pub fn snapshot_install_schedule(input: &[u8]) {
                     _ => Ok(()),
                 }
             };
-            assert_eq!(follower.serve_authenticated(&mut channel), expected);
+            let observed = weekend_db::storage::with_native_diagnostics(|| {
+                follower.serve_authenticated(&mut channel)
+            });
+            assert_eq!(
+                observed.as_ref().map(|_| ()).map_err(|e| e.error),
+                expected,
+                "control={control} parameter={parameter} installed={installed:?} diagnostic={observed:?}"
+            );
+            if matches!(mode, 3 | 4) {
+                let outgoing = match (mode, duplicate, flush_fault) {
+                    (3, false, true) => vec![1, 10], // Ready, then attempted Io reply.
+                    (3, false, false) => vec![10],
+                    (3, true, true) | (4, true, _) => {
+                        reply(fixture.acknowledgments[installed.unwrap()])
+                    }
+                    (3, true, false) => Vec::new(),
+                    (4, false, true) => {
+                        let mut bytes = vec![1];
+                        bytes.extend(reply(fixture.acknowledgments[index]));
+                        bytes
+                    }
+                    (4, false, false) => vec![1],
+                    _ => unreachable!(),
+                };
+                // Accepted write bytes are local observations, not proof that
+                // a peer received any reply or acknowledgment.
+                assert_eq!(
+                    channel.outgoing, outgoing,
+                    "response byte transcript: {observed:?}"
+                );
+                assert_eq!(channel.writes, if duplicate { 1 } else { 2 });
+                let flushes = if duplicate {
+                    usize::from(mode == 4 || flush_fault)
+                } else {
+                    1 + usize::from(flush_fault)
+                };
+                assert_eq!(channel.flushes, flushes, "response flush transcript");
+                assert_eq!(
+                    channel.incoming.position(),
+                    if duplicate || mode == 3 {
+                        89
+                    } else {
+                        request_length as u64
+                    },
+                    "header versus complete image consumption"
+                );
+                let fault_reached = mode == 3 || !duplicate;
+                assert_eq!(
+                    channel.write_errors,
+                    usize::from(fault_reached && !flush_fault)
+                );
+                assert_eq!(
+                    channel.flush_errors,
+                    usize::from(fault_reached && flush_fault)
+                );
+            }
             if !duplicate && (mode == 0 || mode == 4) {
                 installed = Some(index);
             }
@@ -264,7 +339,14 @@ pub fn snapshot_install_schedule(input: &[u8]) {
         }
         // Every outcome is checked through a fresh lease and manifest recovery.
         drop(follower);
-        follower = Follower::open(&directory.0, enrollment, Limits::default()).unwrap();
+        follower = weekend_db::storage::with_native_diagnostics(|| {
+            Follower::open(&directory.0, enrollment, Limits::default())
+        })
+        .unwrap_or_else(|error| {
+            panic!(
+                "reopen control={control} parameter={parameter} installed={installed:?}: {error:?}"
+            )
+        });
         assert_eq!(
             follower.progress(),
             Ok(installed.map(|i| fixture.acknowledgments[i]))
@@ -297,6 +379,58 @@ pub fn snapshot_install_schedule(input: &[u8]) {
 }
 
 #[test]
+#[cfg(unix)]
+fn native_file_reads_do_not_report_eof_inside_synced_image() {
+    use std::os::unix::fs::FileExt;
+
+    // Deliberately use only std, without the database or a sanitizer runtime.
+    // This catches the host-shared Docker filesystem failure independently of
+    // snapshot verification. Zero progress must remain an error, never a retry.
+    let directory = Directory::new();
+    let path = directory.0.join("image");
+    for iteration in 0..128 {
+        let mut file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        let bytes = [iteration as u8; 4096];
+        for _ in 0..8 {
+            file.write_all(&bytes).unwrap();
+        }
+        file.sync_all().unwrap();
+        let mut read = [0; 4096];
+        for offset in (0..32768).step_by(4096) {
+            // Complete short positive reads, but reject premature EOF.
+            let mut filled = 0;
+            while filled < read.len() {
+                let count = file
+                    .read_at(&mut read[filled..], offset + filled as u64)
+                    .unwrap();
+                assert_ne!(
+                    count,
+                    0,
+                    "iteration={iteration} offset={offset} filled={filled} length={:?}",
+                    file.metadata().unwrap().len()
+                );
+                filled += count;
+            }
+            assert_eq!(read, bytes);
+        }
+        drop(file);
+        fs::remove_file(&path).unwrap();
+    }
+}
+
+#[test]
+fn interrupted_upload_duplicate_then_upgrade_reopens() {
+    snapshot_install_schedule(include_bytes!(
+        "../seeds/snapshot_install_schedule/interrupted-upload-duplicate-upgrade"
+    ));
+}
+
+#[test]
 fn snapshot_cases_replay() {
     for tag in 0..=11 {
         snapshot_frames(&[tag]);
@@ -317,5 +451,30 @@ fn snapshot_cases_replay() {
     }
     for malformed in 0..4 {
         snapshot_install_schedule(&[15, malformed, 1, 0]);
+    }
+    for prior in [None, Some(0), Some(1)] {
+        for index in 0..2 {
+            for mode in [3, 4] {
+                for parameter in [0, 7, 0x80, 0x87, 0xff] {
+                    let mut schedule = Vec::new();
+                    if let Some(prior) = prior {
+                        schedule.extend([prior, 0]);
+                    }
+                    schedule.extend([mode * 2 + index, parameter, 10, 0, index, 0, 12, 0, 10, 0]);
+                    snapshot_install_schedule(&schedule);
+                }
+            }
+        }
+    }
+    for seed in [
+        include_bytes!("../seeds/snapshot_install_schedule/ready-flush-first").as_slice(),
+        include_bytes!("../seeds/snapshot_install_schedule/terminal-flush-first").as_slice(),
+        include_bytes!("../seeds/snapshot_install_schedule/ready-flush-upgrade").as_slice(),
+        include_bytes!("../seeds/snapshot_install_schedule/terminal-flush-upgrade").as_slice(),
+        include_bytes!("../seeds/snapshot_install_schedule/terminal-flush-duplicates").as_slice(),
+        include_bytes!("../seeds/snapshot_install_schedule/first-flush-stale-and-duplicate")
+            .as_slice(),
+    ] {
+        snapshot_install_schedule(seed);
     }
 }
