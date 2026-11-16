@@ -209,3 +209,25 @@ integration tests per profile: 10 `storage_decisions`, 4 `bytestore`, 17
 `durability`, 3 `headroom` and 11 `compaction`. Strict Clippy passed for the
 `storage_decisions` target. This adds failure evidence for the instance-local
 durable-image reservation, without changing the constructor or platform boundary.
+
+The empty-prefix correction also required updating the follower staging
+oracle in `6e03837`. Its prior expectation allocated zero-filled bytes
+through the selected write's offset even when the persisted prefix was
+empty. Hosted library checks exposed that mismatch. The follower test
+now expects an empty new image for this case, while retaining every
+receipt, selected-image, retry and retained-root check.
+
+At `525ad6c`, Docker Linux arm64 Rust 1.99.0 passes the full all-feature
+workspace debug suite with 733 passes and eight registered ignores.
+Its release run passes 148 core unit tests and ten storage-decision
+tests, followed by all 29 fuzz replays. The Mac workspace run with the
+same verified source bytes passes 697 tests and six registered ignores.
+The first Linux run used a bare source archive and four tool tests
+failed because they require Git identity. The successful rerun used a
+Git bundle of the exact source and checked its clean detached commit.
+The local archive
+`target/archived-proof/follower-oracle-allocation-525ad6c.tar.zst`
+retains both Linux logs, the source bundle and tar, and the Mac source
+hashes and logs. All 24 indexed files match after extraction. Archive
+SHA-256
+`dd89e0fad5f78d7909a2c90dbcb94c1a75858a18f08abc099e275b50f6cc143e`.

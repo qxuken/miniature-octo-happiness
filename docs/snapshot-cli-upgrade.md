@@ -150,6 +150,14 @@ controller source-file hashes, including the new Linux controller module.
 | Mixed-OS `evidence.json` | `93b995625669ced6f39e8bfdb410f4d48c5021a033ba3e2540b9a81f6cbfd2e8` |
 | Native `evidence.json` | `6a4e2e640c5d9ecc32ba88f9e281d1527e2f244ff96db8e25c913a0bd1e3090a` |
 
+The integrated command is committed at `228f5f8`. The local archive
+`target/archived-proof/mixed-os-upgrade-228f5f8.tar.zst` retains
+the exact controller source and runner, overlay, reports, both platforms'
+executables and all indexed report files. Extraction and independent
+rehashing match all 1,607 mixed-OS and 205 native artifacts. Archive
+SHA-256
+`c220eefb6d19e2543dec15a688e93f43139f25ee25538dda28b06295db48e02b`.
+
 The restart coverage is endpoint process retirement/reopen on the same persisted
 volume. Container restart, machine crash and power-loss durability are separate
 qualifications.

@@ -2498,3 +2498,20 @@ control reproduces the old failure, and the updated controller passes
 that control plus exact-source copy, exchange and cleanup profiles
 with ordinary counters.
 [Counter control, results and evidence](maintenance-space-exhaustion.md#reported-apfs-availability-after-a-refused-allocation)
+
+## Mixed-version macOS-to-Linux upgrade and simulator checks
+
+The optional `snapshot-cli-upgrade --docker-image` flow passes both
+supported version directions with native Mac clients and a persisted
+Linux ext4 follower. It reopens the exact selected images with both
+versions' fixtures and repeats a successful shipment without changing
+the receipt or follower bytes.
+[Execution and source-bound artifacts](snapshot-cli-upgrade.md#recorded-mixed-os-result-2026-11-16)
+
+The simulator's sparse durable-tear allocation regression exercises the
+durable-image reservation failure while checking both images, pending
+writes and lease. Updating the follower's empty-prefix byte oracle
+restores agreement with the corrected zero-byte crash semantics.
+Full workspace debug runs pass on Mac and Docker Linux, with their
+separate platform counts and source records.
+[Decision pair and validation](decisions/simulator.md#executed-validation)
