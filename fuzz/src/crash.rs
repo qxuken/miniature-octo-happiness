@@ -47,7 +47,22 @@ fn stage<'db>(db: &'db Database, edits: &[(u8, Option<i64>)]) -> weekend_db::Tra
 }
 
 fn prefix(input: u8) -> usize {
-    [0, 63, 64, 72, REGION - 1, REGION][usize::from(input) % 6]
+    const CUTS: [usize; 13] = [
+        0,
+        63,
+        64,
+        72,
+        REGION - 1,
+        REGION,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+    ];
+    CUTS[usize::from(input) % CUTS.len()]
 }
 
 fn power_loss(kind: u8, arg: u8) -> Crash {
@@ -79,62 +94,134 @@ fn fault_for(kind: IoKind, mode: u8, arg: u8) -> Fault {
     }
 }
 
-// The root is the sole pending write at its barrier. A partial persistence
-// may validate, depending on which bytes differ from the previous slot.
-fn root_survives(policy: Crash) -> Option<bool> {
+// A metadata barrier has exactly one pending write at index zero.
+fn surviving_prefix(policy: Crash, pending: usize) -> usize {
     match policy {
-        Crash::DropAll => Some(false),
-        Crash::PersistAll => Some(true),
-        Crash::Mask(mask) => Some(mask & 1 != 0),
-        Crash::Torn { write, prefix } if write != 0 || prefix == 0 => Some(false),
-        Crash::Torn { prefix, .. } if prefix >= REGION => Some(true),
-        Crash::Torn { .. } => None,
+        Crash::PersistAll => pending,
+        Crash::Mask(mask) if mask & 1 != 0 => pending,
+        Crash::Torn { write: 0, prefix } => prefix.min(pending),
+        _ => 0,
     }
 }
 
-fn exact_revision(
-    acknowledged: bool,
-    step: usize,
-    append_sync: usize,
-    root_sync: usize,
-    fault: Fault,
-    crash: Crash,
-) -> Option<bool> {
-    if acknowledged || step > root_sync {
-        return Some(true);
+fn persisted_metadata(kind: IoKind, fault: Fault, crash: Crash) -> usize {
+    match (kind, fault) {
+        (IoKind::Write, Fault::Tear { prefix, durable }) => {
+            let immediate = if durable { prefix } else { 0 };
+            immediate.max(surviving_prefix(crash, prefix))
+        }
+        (IoKind::Sync, Fault::SyncError(during)) => {
+            surviving_prefix(during, REGION).max(surviving_prefix(crash, REGION))
+        }
+        (IoKind::Sync, _) => surviving_prefix(crash, REGION),
+        _ => 0,
     }
-    if step <= append_sync {
-        return Some(false);
-    }
-    if step < root_sync {
-        // The root write failed. No progress means no new root bytes.
-        return match fault {
-            Fault::Error | Fault::Short(0) => Some(false),
-            Fault::Tear { prefix: 0, .. } => Some(false),
-            Fault::Tear { prefix, durable } if prefix >= REGION => {
-                if durable {
-                    Some(true)
-                } else {
-                    root_survives(crash)
-                }
-            }
-            _ => None,
+}
+
+fn check_inspection(disk: &SimulatedDisk, image: &[u8], revision: u64, witnessed: bool) {
+    disk.arm(usize::MAX, Fault::Error);
+    let info = weekend_db::storage::inspect_on(disk.clone(), Limits::default()).unwrap();
+    disk.clear_fault();
+    assert_eq!((info.revision, info.witnessed), (revision, witnessed));
+    assert!(
+        disk.trace()
+            .unwrap()
+            .iter()
+            .all(|io| matches!(io.kind, IoKind::Read | IoKind::Length))
+    );
+    assert!(disk.durable_image().unwrap() == image);
+}
+
+fn interrupt_recovery(
+    disk: &SimulatedDisk,
+    image: &mut [u8],
+    revision: u64,
+    expected_witness: &[u8],
+    faults: &[[u8; 4]],
+) {
+    let witness = (3 + (revision & 1) as usize) * REGION;
+    let range = witness..witness + REGION;
+    check_inspection(
+        disk,
+        image,
+        revision,
+        image[range.clone()] == *expected_witness,
+    );
+
+    // Discover the I/O positions on a separate medium. The actual
+    // medium does not complete an open between generated failures.
+    let control = SimulatedDisk::from_image(image).unwrap();
+    control.arm(usize::MAX, Fault::Error);
+    assert_eq!(open(&control).snapshot().revision(), revision);
+    let trace = control.trace().unwrap();
+    let stabilize = trace.len() - 3;
+    let write = stabilize + 1;
+    let sync = stabilize + 2;
+    assert_eq!(
+        (trace[stabilize].kind, trace[sync].kind),
+        (IoKind::Sync, IoKind::Sync)
+    );
+    assert_eq!(
+        (trace[write].kind, trace[write].offset, trace[write].len),
+        (IoKind::Write, witness as u64, REGION),
+    );
+    assert!(
+        trace[..stabilize]
+            .iter()
+            .all(|io| matches!(io.kind, IoKind::Read | IoKind::Length))
+    );
+    let first = trace.iter().position(|io| io.kind == IoKind::Read).unwrap();
+    let last = trace
+        .iter()
+        .rposition(|io| io.kind == IoKind::Read)
+        .unwrap();
+    drop(control);
+
+    for &[cut, mode, power, arg] in faults {
+        let step = [first, last, stabilize, write, sync][usize::from(cut) % 5];
+        let fault = match (trace[step].kind, mode % 4) {
+            (IoKind::Write, 0) => Fault::Error,
+            (IoKind::Write, 1) => Fault::Short(0),
+            (IoKind::Write, tear) => Fault::Tear {
+                prefix: prefix(arg),
+                durable: tear == 3,
+            },
+            (kind, _) => fault_for(kind, mode, arg),
         };
-    }
-    let during_sync = match fault {
-        Fault::SyncError(policy) => root_survives(policy),
-        _ => Some(false),
-    };
-    match (during_sync, root_survives(crash)) {
-        (Some(true), _) | (_, Some(true)) => Some(true),
-        (Some(false), Some(false)) => Some(false),
-        _ => None,
+        let crash = power_loss(power, arg);
+        disk.arm(step, fault);
+        assert!(matches!(
+            Database::open_on(disk.clone(), Limits::default()),
+            Err(Error::Io)
+        ));
+        assert_eq!(disk.trace().unwrap(), trace[..=step]);
+        disk.crash(crash).unwrap();
+
+        if step >= write {
+            let persisted = persisted_metadata(trace[step].kind, fault, crash);
+            image[witness..witness + persisted].copy_from_slice(&expected_witness[..persisted]);
+        }
+        check_inspection(
+            disk,
+            image,
+            revision,
+            image[range.clone()] == *expected_witness,
+        );
     }
 }
 
 pub fn commit_crash(input: &[u8]) {
     let &[at, mode, power, arg, flags, ref program @ ..] = input else {
         return;
+    };
+    // The first two flags retain their original meanings. The next two
+    // give the number of four-byte recovery faults before the edit stream.
+    let recovery_bytes = usize::from((flags >> 2) & 3) * 4;
+    let Some((recovery, program)) = program.split_at_checked(recovery_bytes) else {
+        return;
+    };
+    let (recovery, []) = recovery.as_chunks::<4>() else {
+        unreachable!();
     };
     let edits: Vec<_> = program
         .as_chunks::<2>()
@@ -175,6 +262,9 @@ pub fn commit_crash(input: &[u8]) {
     assert_eq!(stage(&db, &edits).commit(), Ok(revision + 1));
     check(&db, revision + 1, &new);
     let trace = clean.trace().unwrap();
+    drop(db);
+    let complete = clean.durable_image().unwrap();
+    drop(clean);
     let syncs: Vec<_> = trace
         .iter()
         .enumerate()
@@ -229,6 +319,35 @@ pub fn commit_crash(input: &[u8]) {
     }
     drop(db);
     disk.crash(crash).unwrap();
+    // The control supplies the exact before/after record bytes. At every
+    // supported cut, the body ends up wholly old or wholly new. A torn
+    // checksum may equal the complete checksum because some bytes agree.
+    let mut metadata = image[..APPEND_START].to_vec();
+    let [root, witness] = [1 + index, 3 + index].map(|region| region * REGION);
+    assert!(image[root..root + REGION] != complete[root..root + REGION]);
+    if result.is_ok() || step > append_sync {
+        let (root_len, witness_len) = if result.is_ok() {
+            (REGION, REGION)
+        } else if step <= root_sync {
+            (persisted_metadata(trace[step].kind, fault, crash), 0)
+        } else {
+            (REGION, persisted_metadata(trace[step].kind, fault, crash))
+        };
+        for (start, len) in [(root, root_len), (witness, witness_len)] {
+            metadata[start..start + len].copy_from_slice(&complete[start..start + len]);
+        }
+    }
+    let mut durable = disk.durable_image().unwrap();
+    assert!(
+        durable[..APPEND_START] == metadata,
+        "metadata differs at step {step}, {fault:?}, {crash:?}"
+    );
+    let next = metadata[root..root + REGION] == complete[root..root + REGION];
+    let recovered = revision + u64::from(next);
+    let selected_witness = (3 + (recovered & 1) as usize) * REGION;
+    let reference = if next { &complete } else { &image };
+    let expected_witness = &reference[selected_witness..selected_witness + REGION];
+
     if flags & 2 != 0 {
         disk.arm(0, Fault::Error);
         assert!(matches!(
@@ -237,16 +356,12 @@ pub fn commit_crash(input: &[u8]) {
         ));
         disk.clear_fault();
     }
-    let db = open(&disk);
-    let recovered = db.snapshot().revision();
-    assert!(recovered == revision || recovered == revision + 1);
-    if let Some(next) = exact_revision(result.is_ok(), step, append_sync, root_sync, fault, crash) {
-        assert_eq!(
-            recovered,
-            revision + u64::from(next),
-            "step={step}, fault={fault:?}, crash={crash:?}"
-        );
+    if !recovery.is_empty() {
+        interrupt_recovery(&disk, &mut durable, recovered, expected_witness, recovery);
     }
+    let db = open(&disk);
+    durable[selected_witness..selected_witness + REGION].copy_from_slice(expected_witness);
+    assert!(disk.durable_image().unwrap() == durable);
     let current = if recovered == revision { &old } else { &new };
     check(&db, recovered, current);
     assert_eq!(db.begin().commit(), Ok(recovered + 1));

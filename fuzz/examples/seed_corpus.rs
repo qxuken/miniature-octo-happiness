@@ -44,6 +44,23 @@ fn main() -> io::Result<()> {
             &[at, mode, power, arg, flags, 0, 7, 0x81, 0, 4, 9],
         )?;
     }
+    for (name, setup, recovery) in [
+        (
+            "witness-repair-repeated-odd",
+            [2, 1, 0, 0, 12],
+            [[0, 0, 0, 0], [3, 3, 0, 2], [4, 3, 0, 0]],
+        ),
+        (
+            "witness-repair-repeated-even",
+            [2, 1, 0, 0, 13],
+            [[1, 0, 0, 0], [2, 1, 0, 0], [4, 7, 3, 2]],
+        ),
+    ] {
+        let mut input = setup.to_vec();
+        input.extend_from_slice(recovery.as_flattened());
+        input.extend([0, 7, 0x81, 0, 4, 9]);
+        seed("commit_crash", name, &input)?;
+    }
     for (name, commands) in [
         (
             "independent-edits",

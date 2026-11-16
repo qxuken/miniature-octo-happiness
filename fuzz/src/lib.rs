@@ -69,6 +69,45 @@ mod tests {
     }
 
     #[test]
+    fn publication_and_interrupted_witness_repair_replay() {
+        for seed in [
+            include_bytes!("../seeds/commit_crash/witness-repair-repeated-odd"),
+            include_bytes!("../seeds/commit_crash/witness-repair-repeated-even"),
+        ] {
+            commit_crash(seed);
+        }
+        for parity in 0..2 {
+            for barrier in [1, 2] {
+                for prefix in 0..13 {
+                    for (mode, power) in [(0, 0), (1, 1), (5, 2), (7, 3)] {
+                        commit_crash(&[
+                            barrier,
+                            mode,
+                            power,
+                            prefix,
+                            parity | 8,
+                            3,
+                            2,
+                            1,
+                            prefix, // Witness write fails with a persisted prefix.
+                            4,
+                            7,
+                            0,
+                            prefix, // Witness sync fails with a persisted prefix.
+                            0,
+                            7,
+                            0x81,
+                            0,
+                            4,
+                            9,
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn generated_values_and_history_replay() {
         ffi_ops(&[0, 24, 9, 1, 0, 1, 2, 1, 0, 2, 1, 2, 2, 1, 3, 4, 0, 0]);
         ffi_ops(&[
