@@ -5806,6 +5806,21 @@ Generated call propagation, per-API predicate pairs and mutation sensitivity
 retain their different scopes; no compiler MC/DC percentage or whole-module
 completion follows from these tests.
 
+[Typed follow-ups T9–T11](docs/decisions/typed-runtime.md#t9-typed-ownership-primary-ids-and-stored-field-kinds)
+qualify ownership without missing-catalog masking, direct primary-ID-zero
+admission, stored-field kind before scalar fallback, outer write poisoning
+after a caught panic, stored-record identity before decoder/schema fallback,
+and old-model insertion after catalog upgrade. Existing models and helpers
+serve the new controls; the outer poison check reuses its existing test.
+Scoped omissions compile and fail exact assertions after passing baselines.
+Full typed T11 debug/release each pass 60 tests plus one ignored doctest, and
+strict Clippy passes. Root restores and checks indexed source/log proof.
+The named feasible admission-guard batch is complete for the pinned source,
+with 54 P and 43 E records out of 315. Iteration/dispatch, structural and
+delegated limits stay explicit; scalar unique-key arm coverage, other generic
+instantiations, compiler MC/DC and final platforms remain separate. No typed
+runtime, macro or format change accompanies these assurance tests.
+
 ## Opt-in bounded service diagnostics
 
 The TLS CLIs accept leading `--diagnostics=json`, with closed enum/numeric

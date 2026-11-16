@@ -301,7 +301,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:411:5 [13427–13429] | if / `info` | P | T1/T4/T5 |
 | store.rs:411:8 [13430–13500] | short_circuit_or / `info` | C | T1/T4/T5 |
 | store.rs:422:40 [13729–13730] | try_propagation / `decode` | D | T1/T4/T5 |
-| store.rs:423:5 [13736–13738] | if / `decode` | E | T1/T4/T5 |
+| store.rs:423:5 [13736–13738] | if / `decode` | P | T11 |
 | store.rs:426:90 [13905–13906] | try_propagation / `decode` | D | T1/T4/T5 |
 | store.rs:427:41 [13948–13949] | try_propagation / `decode` | D | T1/T4/T5 |
 | store.rs:441:29 [14195–14196] | try_propagation / `get` | D | T3/T5 |
@@ -319,7 +319,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:468:38 [15154–15155] | try_propagation / `index_key` | D | T3/T5 |
 | store.rs:469:40 [15229–15230] | try_propagation / `index_key` | D | T3/T5 |
 | store.rs:472:40 [15338–15339] | try_propagation / `index_key` | D | T3/T5 |
-| store.rs:485:5 [15677–15679] | if / `record_keys` | E | T3/T5 |
+| store.rs:485:5 [15677–15679] | if / `record_keys` | P | T11 |
 | store.rs:488:90 [15846–15847] | try_propagation / `record_keys` | D | T3/T5 |
 | store.rs:489:25 [15873–15874] | try_propagation / `record_keys` | D | T3/T5 |
 | store.rs:491:43 [15949–15950] | try_propagation / `record_keys` | D | T3/T5 |
@@ -381,7 +381,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:670:69 [22724–22725] | try_propagation / `rebuild_indexes` | D | T3/T4/T5 |
 | store.rs:670:71 [22726–22727] | try_propagation / `rebuild_indexes` | D | T3/T4/T5 |
 | store.rs:692:56 [23573–23574] | try_propagation / `insert` | D | T3/T4/T5 |
-| store.rs:693:13 [23588–23590] | if / `insert` | E | T3/T4/T5 |
+| store.rs:693:13 [23588–23590] | if / `insert` | P | T11 |
 | store.rs:696:13 [23702–23704] | if / `insert` | P | T6 |
 | store.rs:696:51 [23740–23741] | try_propagation / `insert` | D | T3/T4/T5 |
 | store.rs:696:53 [23742–23743] | try_propagation / `insert` | D | T3/T4/T5 |
@@ -458,7 +458,7 @@ controls above; E retains the narrower execution claim.
 
 ## Results and source binding
 
-Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P; T8 adds the current-version skip pair; T9 adds ownership and stored-kind pairs and directly qualifies primary-ID admission; T10 qualifies outer write-poison admission. Current counts are C 21, D 195, E 46, I 2, P 51. All 315 source records are listed; the production source and denominator are unchanged.
+Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P; T8 adds the current-version skip pair; T9 adds ownership and stored-kind pairs and directly qualifies primary-ID admission; T10 qualifies outer write-poison admission; T11 qualifies stored-record type and insert-version admission. Current counts are C 21, D 195, E 43, I 2, P 54. All 315 source records are listed; the production source and denominator are unchanged.
 
 Debug and release each passed 26 existing model tests, two process-evolution
 tests, and six doctests (one documentation example ignored). All eleven new directed
@@ -920,3 +920,154 @@ the base Git archive, all nine input hashes and the single-guard mutation.
 The protected copy is
 `target/archived-proof/typed-outer-poison-f751c5a.tar.gz`, with the same archive
 digest above. No new test or runtime source was needed.
+
+## T11: stored-record identity and old-model insert admission
+
+Two tests qualify the three remaining identified feasible admission gaps at
+unchanged `store.rs:423`, `485` and `693`. They reuse Row/RowV2, the deliberately
+permissive handwritten `Manual<0>` model, the seeded-store helper and complete
+snapshot-row comparisons. There is no new model, dependency or runtime edit.
+All isolated inputs are clean commit
+`403936057c856acfc7cc3ba63aef00487def5727` plus only the exact
+`tests/runtime_decisions.rs` overlay; concurrent snapshot-worker changes are
+excluded. Typed production hashes remain the original pins above.
+
+### Stored-record type before decoder and schema fallbacks
+
+`assurance_stored_record_types_reject_before_decoder_and_schema_fallbacks`
+(`runtime_decisions.rs:1127`) keeps the receiving catalog, table handle,
+descriptor, record version and primary ID valid. A raw transaction writes a
+structurally valid record with either the correct positive type ID or another
+positive type ID. This is a deliberately pre-existing raw-access invariant
+breach, not a supported typed write or a repair operation.
+
+The same `Read::get<Manual<0>>` callsite returns the row or exact typed
+`TypeMismatch`. The existing manual decoder accepts any envelope; a generated
+decoder would independently return the same `TypeMismatch` and mask omission
+of `decode`'s guard. The same `Read::check_indexes` callsite accepts the valid
+row or returns exact typed `TypeMismatch`. Without `record_keys`' guard,
+subsequent schema validation instead returns `Schema(Incompatible)`; a generic
+error assertion would mask this omission.
+
+The baseline separately catches the same rejection from `Write::check_indexes`
+after a staged edit to another table. The outer Write returns exact `Closed`
+and publishes none of that edit. The accepted control commits it. Rejection
+preserves the complete durable image and current system/catalog, descriptor,
+index and both primary collections, including the exact pre-existing wrong-type
+row. Both controls preserve every corresponding retained row, and the side
+table's current index remains consistent. No claim is made that an index report
+for the deliberately corrupt table is available or that rejection repairs it.
+
+### Old-model insert after catalog upgrade
+
+`assurance_old_model_insert_rejects_newer_catalog_without_partial_writes`
+(`runtime_decisions.rs:1225`) retains the same Row-v1 handle and compares its
+catalog at v1 versus upgraded v2. An earlier update of an existing v1 row through
+the old model remains valid in either case. Inserting a fresh nonzero primary
+ID and unused unique value then returns `Ok(())` or exact `UnsupportedVersion`.
+The old descriptor remains published, excluding missing-schema, duplicate-ID
+and uniqueness failures as substitute rejection oracles.
+
+Catching the upgraded-catalog rejection leaves the outer Write `Closed` and
+preserves the complete current durable image and all current/retained
+system/schema/index/primary rows. The accepted control commits both changes.
+Exact primary and unique lookups and current index consistency distinguish
+successful insertion from an unobserved partial change.
+
+### Isolated omissions and qualification
+
+Each guard receives its own source copy from the clean archive. Every baseline
+and mutant command, separately in debug and release, uses an initially absent
+target directory and `CARGO_INCREMENTAL=0`. Each command has a 360-second bound
+and ten-second kill grace. After positive baselines pass, only the selected
+guard becomes `if (predicate) && false`, preserving predicate evaluation and
+its rejection body. All six mutants compile and fail the intended assertions
+with exit 101; none is a compile error or timeout:
+
+| Omitted guard | Actual versus required result | First failing observation |
+|---|---|---|
+| `decode` raw type, line 423 | `Ok(Some(()))` versus `Err(TypeMismatch)` | Snapshot-backed `get`, test line 1154 |
+| `record_keys` raw type, line 485 | `Err(Schema(Incompatible))` versus `Err(TypeMismatch)` | Snapshot-backed `check_indexes`, test line 1166 |
+| `insert` catalog version, line 693 | `Ok(())` versus `Err(UnsupportedVersion)` | Write `insert`, test line 1242 |
+
+The first two mutations fail before the later transaction-backed checks. Their
+omission sensitivity is scoped to those Snapshot instantiations; baseline
+Write poisoning/preservation evidence is separate. Mutants stop at their named
+first assertions and do not execute the later preservation assertions.
+
+On macOS arm64, Rust 1.99.1 (`58cf8f9c3`, LLVM 23.1.1), all six focused
+baselines pass. Full offline/locked, all-feature debug and release suites each
+pass 60 tests: 54 integration tests, including 24 runtime-decision tests, and
+six doctests; one documentation example remains ignored. Strict all-target
+Clippy with warnings denied passes. Source and lockfile input hashes match
+before and after qualification; all thirteen owned target directories are
+removed. These are functional/source-level controls, not compiler MC/DC or
+other-platform execution.
+
+Proof: `/private/tmp/weekend-typed-t11-d0dqac/`. `evidence.json` indexes 63
+retained payloads, including the exact base source tar, test source/patch,
+original and three mutated store sources, individual guard patches, compiler
+and source identities, runners, fifteen exact command records and logs, and
+hashes of the twelve focused executables. Build outputs and reconstructed
+source copies are excluded from the compact archive. The manifest SHA-256 is
+`6ea0a1c84001a82d47a067e8f6ed76270deaa720e87447e115a62f0b161cda39`.
+The restored archive `/private/tmp/weekend-typed-t11-d0dqac.tar.gz` verifies all
+63 indexed payloads; archive SHA-256 is
+`ffb01a4b6266c1617656bd995fa3c06033590534572df0a8d9b45159a1b3c011`.
+The final test source SHA-256 is
+`a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26`.
+
+Root independently restored all 63 indexed payloads and verified fifteen
+command outcomes, exact compiled mutation assertions, the clean base Git
+archive, all input hashes and each single-guard source transformation. The
+protected copy is
+`target/archived-proof/typed-admission-followup-4039360.tar.gz`, with the same
+archive digest above. Independent read-only review found no actionable issue.
+
+A preliminary runner setup at `/private/tmp/weekend-typed-t11-GoKeAT/` ran two
+passing baselines, then exited 43 because its substitution left the selected
+guard unchanged. No mutant command ran there. It is retained separately and
+excluded from the final proof above; the final runner checks the original line
+and constructs the changed line directly.
+
+### Finite guard-assurance boundary and remaining E evidence
+
+This completes the identified feasible admission-guard batch for the pinned
+typed runtime source. Completion means explicit accepted/rejected controls,
+unmasked exact oracles for the identified gaps, atomicity/retained-state
+baselines and the scoped omission results above. It does not mean zero E
+records, whole-module compiler MC/DC, every generic instantiation, every error
+at every propagation site or a complete supported-platform matrix.
+
+The remaining 43 E records deliberately retain their narrower dispositions:
+
+- Twenty-four loops retain execution evidence rather than an invented claim
+  to exhaust all iteration counts. Initialization/open's three-item loops have
+  fixed structural bounds. CRUD, restore, migration and index-repair tests
+  supply their existing functional and fault evidence.
+- Thirteen matches retain dispatch evidence. Error conversion/formatting,
+  Option/Presence, schema loading, index comparisons and checked-operation
+  results delegate callee failures as stated in T5. In particular, the
+  `index_key` match's Boolean/Integer/Unsigned unique-key arm matrix remains a
+  separate explicit execution limitation; scalar codec tests do not substitute
+  for those unique-index paths.
+- Five other `if` records already have behavioral alternatives: table entry
+  presence/type (`335/336`), physical field/key presence (`493`), update needing
+  migration (`719`), and existing index claim (`863`). Existing registration,
+  metadata, missing/default, CRUD and uniqueness tests remain their evidence.
+  They are not cosmetically relabelled or assigned additional mutation claims.
+- The non-Active outcome of `checked`'s guard at `638` is structurally excluded
+  by the current public Write interface: its transaction is private; typed
+  operations do not commit it; an earlier checked error aborts it while leaving
+  `failed=true`, blocking re-entry at `628`; outer commit occurs afterward at
+  `307`. This is a scoped invariant, not a fabricated terminal-transaction test
+  or a new I disposition. Removing that abort can also be masked by the outer
+  `write.failed` rejection.
+
+The second presence/key condition at `493` is intentionally unevaluated for an
+absent field; explicit null supplies the present-but-no-key control. Unsupported
+container keys are excluded by normal typed registration/validation but can be
+reached after raw metadata corruption, so no unconditional infeasibility claim
+is made. Standard-library allocation failures and individual schema/core/storage
+propagations retain the delegated limits in T5. Production inputs and the
+315-record denominator remain unchanged.

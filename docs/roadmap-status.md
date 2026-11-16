@@ -2761,3 +2761,30 @@ Live snapshot peer-error retrieval stays explicitly deferred; current poll/statu
 promise durability observations, not suppressed peer-error history. No extra
 thread, queue or protocol request is introduced. Windows worker, deployment
 sinks and immutable candidate qualification retain separate gates.
+
+## Finite typed admission-guard follow-up
+
+The [T11 controls](decisions/typed-runtime.md#t11-stored-record-identity-and-old-model-insert-admission)
+add two tests using existing models and snapshot helpers. A permissive manual
+decoder exposes stored-record type admission before generated validation could
+mask its omission. Exact `TypeMismatch` also distinguishes that guard from a
+later schema incompatibility. The second test keeps an old model handle while
+advancing the catalog and verifies fresh insertion rejects before publishing
+either the new row or a preceding edit. Current/retained raw collections and
+durable bytes stay exact on rejection; accepted controls commit their work.
+
+All six isolated positive baselines pass and six single-guard mutants compile
+and fail the intended assertions across debug/release. Complete typed profiles
+each pass 60 tests, with one ignored doctest, and strict Clippy passes. Root
+restores all 63 proof payloads, verifies fifteen command outcomes and binds the
+source archive and three exact mutations. Protected archive:
+`target/archived-proof/typed-admission-followup-4039360.tar.gz`, SHA-256
+`ffb01a4b6266c1617656bd995fa3c06033590534572df0a8d9b45159a1b3c011`.
+
+This completes the named feasible admission-guard batch for the pinned typed
+source, with 54 P and 43 E records out of 315. The remaining 24 loops, thirteen
+matches, five already controlled guards and one structural guard retain their
+explicit narrower evidence. Boolean/integer/unsigned unique-key dispatch,
+individual delegated failures, further generic instantiations, compiler MC/DC
+and final-platform qualification remain separate. Production runtime and wire
+formats are unchanged; no whole-module completion is claimed.

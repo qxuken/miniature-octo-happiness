@@ -1124,6 +1124,176 @@ fn assurance_seeded_rows(
 }
 
 #[test]
+fn assurance_stored_record_types_reject_before_decoder_and_schema_fallbacks() -> Result<()> {
+    for wrong_type in [false, true] {
+        let (mut store, disk, side, _) = assurance_seeded_rows("side", "side", 87)?;
+        // This existing handwritten model deliberately accepts any decoded
+        // envelope. Generated validation would mask decode's own type guard.
+        let table = store.table::<Manual<0>>("manual")?;
+        store.write(|w| w.insert(&table, 1, &Manual::<0>))?;
+        let retained = store.checkpoint()?;
+        let db = store.database();
+        let original = db
+            .snapshot()
+            .get(table.collection(), &1u64.to_le_bytes())?
+            .unwrap();
+        let altered = original.map_set(
+            b"type",
+            &db.unsigned(Manual::<0>::TYPE_ID + u64::from(wrong_type))?,
+        )?;
+        // The envelope remains structurally valid; only its positive type ID
+        // differs. Raw access deliberately bypasses the typed row invariant.
+        Record::from_value(altered.clone())?;
+        let mut tx = db.begin();
+        tx.put(table.collection(), &1u64.to_le_bytes(), &altered)?;
+        tx.commit()?;
+        drop(tx);
+        let current = db.snapshot();
+        let historical = db.retained_snapshot(retained)?;
+        let image = disk.durable_image()?;
+        assert_eq!(
+            store.read(|r| r.get(&table, 1).map(|row| row.map(|_| ()))),
+            if wrong_type {
+                Err(Error::TypeMismatch)
+            } else {
+                Ok(Some(()))
+            }
+        );
+        let check = store.read(|r| r.check_indexes(&table));
+        if wrong_type {
+            // Without record_keys' guard, schema validation still rejects with
+            // Schema(Incompatible). A category-only assertion would mask it.
+            assert_eq!(check, Err(Error::TypeMismatch));
+        } else {
+            let report = check?;
+            assert_eq!((report.records, report.expected_entries), (1, 0));
+            assert!(report.is_consistent());
+        }
+        let outcome = store.write(|w| {
+            w.update(&side, 1, |row| {
+                row.slug = "staged".into();
+                Ok(())
+            })?;
+            let check = w.check_indexes(&table);
+            if wrong_type {
+                assert_eq!(check, Err(Error::TypeMismatch));
+            } else {
+                assert!(check?.is_consistent());
+            }
+            Ok(())
+        });
+        assert_eq!(
+            outcome,
+            if wrong_type {
+                Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+            } else {
+                Ok(())
+            }
+        );
+        let collections = [
+            1,
+            2,
+            3,
+            side.collection().as_u64(),
+            table.collection().as_u64(),
+        ];
+        if wrong_type {
+            assert_eq!(disk.durable_image()?, image);
+            same_snapshot_rows(db, &db.snapshot(), &current, &collections)?;
+        } else {
+            assert_eq!(db.snapshot().revision(), current.revision() + 1);
+        }
+        same_snapshot_rows(
+            db,
+            &db.retained_snapshot(retained)?,
+            &historical,
+            &collections,
+        )?;
+        store.read(|r| {
+            assert_eq!(
+                r.get(&side, 1)?.unwrap().slug,
+                if wrong_type { "side" } else { "staged" }
+            );
+            assert!(r.check_indexes(&side)?.is_consistent());
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+#[test]
+fn assurance_old_model_insert_rejects_newer_catalog_without_partial_writes() -> Result<()> {
+    for upgraded in [false, true] {
+        let (mut store, disk, table, retained) = assurance_seeded_rows("rows", "a", 88)?;
+        if upgraded {
+            store.table::<RowV2>("rows")?;
+        }
+        let db = store.database();
+        let current = db.snapshot();
+        let historical = db.retained_snapshot(retained)?;
+        let image = disk.durable_image()?;
+        let outcome = store.write(|w| {
+            w.update(&table, 1, |row| {
+                row.slug = "staged".into();
+                Ok(())
+            })?;
+            // A fresh nonzero primary and unused unique value exclude later
+            // ID/duplicate/uniqueness errors as substitute rejection oracles.
+            assert_eq!(
+                w.insert(
+                    &table,
+                    2,
+                    &Row {
+                        slug: "fresh".into()
+                    }
+                ),
+                if upgraded {
+                    Err(Error::UnsupportedVersion)
+                } else {
+                    Ok(())
+                }
+            );
+            Ok(())
+        });
+        assert_eq!(
+            outcome,
+            if upgraded {
+                Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+            } else {
+                Ok(())
+            }
+        );
+        let collections = [1, 2, 3, table.collection().as_u64()];
+        if upgraded {
+            assert_eq!(disk.durable_image()?, image);
+            same_snapshot_rows(db, &db.snapshot(), &current, &collections)?;
+        } else {
+            assert_eq!(db.snapshot().revision(), current.revision() + 1);
+        }
+        same_snapshot_rows(
+            db,
+            &db.retained_snapshot(retained)?,
+            &historical,
+            &collections,
+        )?;
+        store.read(|r| {
+            assert_eq!(
+                r.get(&table, 1)?.unwrap().slug,
+                if upgraded { "a" } else { "staged" }
+            );
+            assert_eq!(
+                r.get(&table, 2)?.map(|row| row.slug.clone()),
+                if upgraded { None } else { Some("fresh".into()) }
+            );
+            assert!(r.find(&table, Row::SLUG, "fresh")?.is_some() != upgraded);
+            assert!(r.check_indexes(&table)?.is_consistent());
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+#[test]
 fn assurance_foreign_table_rejects_before_an_absent_catalog_key_can_mask_ownership() -> Result<()> {
     for foreign in [false, true] {
         let (source, source_disk, source_table, source_root) =
