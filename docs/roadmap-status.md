@@ -2442,3 +2442,16 @@ macOS and Linux pass both extended maintenance cases, and macOS
 ThreadSanitizer passes the service and operator controls. Windows cross-Clippy
 passes. Native delivery of Windows console stop events remains open.
 [Stop behavior, phase checks and reproduction](coordinator-shutdown.md)
+
+## Segmented append retry at the exact image cap
+
+The `d2cc402` full-width workload passes on macOS/APFS and Docker
+Linux/ext4. Prefixes at and one byte below the alignment cutoff allow
+the 1,024-key retry to fill the 64 MiB image. An interrupted witness
+leaves revision 134 unwitnessed, and reopening repairs it while
+preserving all 64 retained roots. One byte above the cutoff rejects
+the retry with `Limit` before a write. A verified compact copy
+preserves the source and lets the same transaction acknowledge revision
+134. A mutation that ignores the physical tail fails the new offset
+assertion.
+[Cutoffs, outcomes and reproduction](compound-resource-envelope.md#retry-after-a-segmented-append-tears-near-the-image-cap)

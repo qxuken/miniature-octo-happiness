@@ -754,6 +754,76 @@ absent after copyback. The macOS xtask suite passed 198 tests with one
 registered ignore. Docker Linux passed the 16 resource controls. Strict
 Clippy passed on both platforms.
 
+## Retry after a segmented append tears near the image cap
+
+At `d2cc402` the full-width workload first calibrates the actual append
+writes of the 1,024-key transaction. It stops inside the write that
+contains the selected cutoff and persists the completed segments plus
+the final partial segment. The failed transaction returns `Io`, aborts,
+and requires recovery. The exact old image and the surviving append
+prefix are compared with the successful control. Read-only inspection
+and a new handle select witnessed revision 133 with all 64 retained
+roots. The committed end stays at 58,523,648 bytes, and the next append
+starts at the physical end rounded up to a 4,096-byte boundary.
+
+| Surviving physical length | Next append offset | Outcome of the same transaction on a new handle | State after recovery |
+|---:|---:|---|---|
+| 62,791,679 bytes | 62,791,680 | Fits, then a torn witness gives `OutcomeUnknown` | Revision 134 at 67,108,864 bytes, with the witness repaired |
+| 62,791,680 bytes | 62,791,680 | Fits, then a torn witness gives `OutcomeUnknown` | Revision 134 at 67,108,864 bytes, with the witness repaired |
+| 62,791,681 bytes | 62,795,776 | `Limit` before any write or sync | Revision 133 and the torn image are unchanged |
+
+For the first two cases, the second fault occurs after a durable root
+slot. The failed retry leaves the live handle at revision 133. The
+abandoned bytes survive exactly, and the one-byte alignment gap in the
+first case is zero. After another crash, read-only inspection finds
+revision 134 unwitnessed. Opening it verifies the full graph and writes
+the missing witness before exposing the handle.
+
+For the one-byte-over case, the rejected transaction leaves the handle
+usable and the complete image unchanged. A verified compact copy leaves
+that source intact and reproduces the exact clean seed. The same
+1,024-key write acknowledges revision 134 on the copy and reopens it
+witnessed at 62,840,832 bytes.
+
+The controller now verifies all 24 states, including exact digests,
+physical lengths and witness status in the six added rows. Its negative
+controls reject changed lengths, revisions, digests and witness state.
+An engine mutation that starts the retry from the committed end fails
+at the new append-offset assertion. It writes at 58,523,648 instead of
+62,791,680. The fixture emits its original 18 state records before this
+control fails.
+
+```sh
+cargo xtask resource compound-breadth --revision d2cc402 \
+  --output target/compound-breadth-torn-tail-mac
+cargo xtask resource compound-breadth --revision d2cc402 \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/compound-breadth-torn-tail-linux
+```
+
+The macOS arm64/APFS run used Rust 1.99.1. The Docker Linux arm64/ext4
+run used Rust 1.99.0. They agree on the six added revisions, digests,
+lengths and witness states. Worker groups retired on both platforms,
+and the Linux container and volume were removed. Nine resource-oracle
+tests and 33 durability, retention and compaction tests passed on
+macOS. Strict Clippy passed for the xtask and the minimum-Rust fixture.
+
+| Evidence SHA-256 | macOS arm64 | Docker Linux arm64 |
+|---|---|---|
+| Controller report | `e0e9502db2cf4aceb377daf676a0c23b5c59bfbdf723c70d9f120952aaca4013` | `703dbcda4659b852337ce9586a51d1b557ee542aec2dc54bf7caa2d8cf97903c` |
+| Worker report | `1fa37d2290ab33ca9cd8e478126ebf76a34bf401465bb676d457a602a57c922e` | `0b82f9dc56d54a2fe38c4b4e779741ba33c126dd226ae3f511626233b4100d03` |
+
+The local archive `target/archived-proof/full-width-torn-tail-d2cc402.tar.zst`
+contains the source, both reports with all 36 listed worker artifacts, and
+the mutation patch and output. Both worker inventories matched after
+extraction. The archive SHA-256 is
+`95d3fc8dc43531791187411544ccf9a24475fe5fec5c08af68dfa556fa3df9a8`.
+
+These cases exercise three neighboring cutoffs and one particular
+second failure in the simulator. Other offsets and persistence orders,
+native Windows and physical interruption retain their own qualification
+gates.
+
 | Evidence in the corresponding output directory | macOS SHA-256 | Docker Linux SHA-256 |
 |---|---|---|
 | Release driver | `3b091ace373c04bef64c1ac2c6af70236611af68410c8701b4ee88cc0ccd9503` | `2c4ac967a87fd041329a33549b7e502eaa1defec7c6221b595c32e57644fa4e9` |
