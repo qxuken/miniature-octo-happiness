@@ -1,3 +1,4 @@
+use crate::diagnostics::{self, Phase};
 mod admission;
 mod capture_record;
 #[cfg(test)]
@@ -67,10 +68,12 @@ fn ack_line(ack: Option<DurableAck>) -> String {
     }
 }
 fn transport(dir: &OsStr, pin: &OsStr) -> AppResult<Tls> {
-    Tls::new(
-        &Credentials::load(Path::new(dir))?,
-        bounded_file(Path::new(pin), 65536)?.into(),
-    )
+    let credentials =
+        diagnostics::at(Phase::CredentialsLoad, || Credentials::load(Path::new(dir)))?;
+    let pin = diagnostics::at(Phase::CredentialsLoad, || {
+        bounded_file(Path::new(pin), 65536)
+    })?;
+    diagnostics::at(Phase::TlsConfig, || Tls::new(&credentials, pin.into()))
 }
 fn option(
     args: &[std::ffi::OsString],
@@ -91,17 +94,20 @@ fn option(
         _ => Err(USAGE.into()),
     }
 }
-pub(crate) fn main() -> AppResult<()> {
-    let args: Vec<_> = std::env::args_os().skip(1).collect();
+pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
     match args.as_slice() {
         [c] if c == "--help" || c == "-h" => {
             println!("{USAGE}");
             Ok(())
         }
-        [c, dir] if c == "keygen" => Credentials::create(Path::new(dir)),
+        [c, dir] if c == "keygen" => diagnostics::at(Phase::CredentialsLoad, || {
+            Credentials::create(Path::new(dir))
+        }),
         [c, source, stream] if c == "describe" => {
             let stream = identity(stream)?;
-            let info = weekend_db::storage::inspect_file(source, Limits::default())?;
+            let info = diagnostics::storage(Phase::StorageVerify, || {
+                weekend_db::storage::inspect_file(source, Limits::default())
+            })?;
             println!(
                 "local verified_revision={} stream={} file_identity={}",
                 info.revision,
@@ -117,12 +123,17 @@ pub(crate) fn main() -> AppResult<()> {
         }
         [c, dir, stream, file] if c == "follower-init" => {
             let e = enrollment(stream, file)?;
-            let f = Follower::create(dir, e, Limits::default())?;
+            let f = diagnostics::storage(Phase::StorageCreate, || {
+                Follower::create(dir, e, Limits::default())
+            })?;
             println!("{}", ack_line(f.progress()?));
             Ok(())
         }
         [c, dir, stream, file] if c == "status" => {
-            let f = Follower::open(dir, enrollment(stream, file)?, Limits::default())?;
+            let e = enrollment(stream, file)?;
+            let f = diagnostics::storage(Phase::StorageOpen, || {
+                Follower::open(dir, e, Limits::default())
+            })?;
             let s = f.status()?;
             println!("{}", ack_line(s.durable_ack));
             println!(
@@ -132,8 +143,11 @@ pub(crate) fn main() -> AppResult<()> {
             Ok(())
         }
         [c, dir, stream, file] if c == "cleanup-inactive" => {
-            let mut f = Follower::open(dir, enrollment(stream, file)?, Limits::default())?;
-            let removed = f.cleanup_inactive()?;
+            let e = enrollment(stream, file)?;
+            let mut f = diagnostics::storage(Phase::StorageOpen, || {
+                Follower::open(dir, e, Limits::default())
+            })?;
+            let removed = diagnostics::storage(Phase::Maintenance, || f.cleanup_inactive())?;
             println!("maintenance removed_inactive={removed}");
             println!("{}", ack_line(f.progress()?));
             Ok(())
@@ -141,9 +155,12 @@ pub(crate) fn main() -> AppResult<()> {
         [c, dir, stream, file] if c == "compact-manifest" => {
             #[cfg(any(target_os = "macos", target_os = "linux"))]
             {
-                let f = Follower::open(dir, enrollment(stream, file)?, Limits::default())?;
+                let e = enrollment(stream, file)?;
+                let f = diagnostics::storage(Phase::StorageOpen, || {
+                    Follower::open(dir, e, Limits::default())
+                })?;
                 let before = f.status()?.manifest_bytes;
-                let f = f.compact_manifest()?;
+                let f = diagnostics::storage(Phase::Maintenance, || f.compact_manifest())?;
                 let after = f.status()?;
                 println!(
                     "maintenance manifest_before={before} manifest_after={} maintenance_required={}",
@@ -175,7 +192,9 @@ pub(crate) fn main() -> AppResult<()> {
             let address = text(address)?.parse()?;
             let max = option(options, "--max-exchanges", usize::MAX, usize::MAX)?;
             let tls = transport(credentials, pin)?;
-            let follower = Follower::open(dir, e, Limits::default())?;
+            let follower = diagnostics::storage(Phase::StorageOpen, || {
+                Follower::open(dir, e, Limits::default())
+            })?;
             serve(follower, address, &tls, max)
         }
         [c, source, stream, export, descriptor] if c == "capture" => {
@@ -247,12 +266,17 @@ pub(crate) fn main() -> AppResult<()> {
             let stream = identity(stream)?;
             let address = text(address)?.parse()?;
             let tls = transport(credentials, pin)?;
-            let db = Database::open_file(source, Limits::default())?;
+            let db = diagnostics::storage(Phase::StorageOpen, || {
+                Database::open_file(source, Limits::default())
+            })?;
             let revision = db.snapshot().revision();
-            let mut primary = Primary::new(&db, stream)?;
+            let mut primary =
+                diagnostics::storage(Phase::Replication, || Primary::new(&db, stream))?;
             drop(db);
             println!("local verified_revision={revision}");
-            println!("{}", ack_line(primary.poll(tls.connect(address)?)?));
+            let channel = diagnostics::at(Phase::Connect, || tls.connect(address))?;
+            let ack = diagnostics::storage(Phase::Replication, || primary.poll(channel))?;
+            println!("{}", ack_line(ack));
             Ok(())
         }
         _ => Err(USAGE.into()),
@@ -274,9 +298,11 @@ fn announce(prepared: &Prepared) -> AppResult<()> {
     Ok(())
 }
 fn prepare(source: &Path, stream: [u8; 16], destination: &Path) -> AppResult<Prepared> {
-    let mut db = Database::open_file(source, Limits::default())?;
-    let mut primary = Primary::new(&db, stream)?;
-    let export = primary.export_file(&mut db, destination)?;
+    let mut db = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(source, Limits::default())
+    })?;
+    let mut primary = diagnostics::storage(Phase::Replication, || Primary::new(&db, stream))?;
+    let export = diagnostics::storage(Phase::Export, || primary.export_file(&mut db, destination))?;
     drop(db);
     Ok(Prepared { primary, export })
 }
@@ -286,11 +312,15 @@ fn prepare_saved(
     image: &Path,
     record: &Path,
 ) -> AppResult<Prepared> {
-    let descriptor = capture_record::load(record)?;
-    let db = Database::open_file(source, Limits::default())?;
-    let primary = Primary::new(&db, stream)?;
+    let descriptor = diagnostics::at(Phase::StorageVerify, || Ok(capture_record::load(record)?))?;
+    let db = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(source, Limits::default())
+    })?;
+    let primary = diagnostics::storage(Phase::Replication, || Primary::new(&db, stream))?;
     drop(db);
-    let export = primary.reopen_export_file(image, descriptor, Limits::default())?;
+    let export = diagnostics::storage(Phase::StorageVerify, || {
+        primary.reopen_export_file(image, descriptor, Limits::default())
+    })?;
     Ok(Prepared { primary, export })
 }
 fn deliver(
@@ -302,7 +332,9 @@ fn deliver(
 ) -> AppResult<()> {
     announce(&prepared)?;
     let ack = ship(&mut prepared, tls, address, attempts).map_err(|error| {
-        format!("transfer not confirmed; follower outcome may be uncertain: {error}. Poll on a fresh authenticated connection. {context}")
+        if diagnostics::settings().enabled { error } else {
+            format!("transfer not confirmed; follower outcome may be uncertain: {error}. Poll on a fresh authenticated connection. {context}").into()
+        }
     })?;
     println!("{}", ack_line(Some(ack)));
     Ok(())
@@ -314,9 +346,11 @@ fn ship(
     attempts: usize,
 ) -> AppResult<DurableAck> {
     for attempt in 0..attempts {
-        let result = tls
-            .connect(address)
-            .and_then(|channel| Ok(prepared.primary.ship(&mut prepared.export, channel)?));
+        let result = diagnostics::at(Phase::Connect, || tls.connect(address)).and_then(|channel| {
+            Ok(diagnostics::storage(Phase::Replication, || {
+                prepared.primary.ship(&mut prepared.export, channel)
+            })?)
+        });
         match result {
             Ok(ack) => return Ok(ack),
             Err(error) => {
@@ -370,11 +404,13 @@ fn serve_one(follower: &mut Follower, tls: &Tls, socket: TcpStream) -> Result<()
         .map_err(SessionError::Replication)
 }
 fn serve(follower: Follower, address: SocketAddr, tls: &Tls, maximum: usize) -> AppResult<()> {
-    let listener = TcpListener::bind(address)?;
+    let listener = diagnostics::at(Phase::Listen, || Ok(TcpListener::bind(address)?))?;
     listener.set_nonblocking(true)?;
     println!("ready {}", listener.local_addr()?);
     io::stdout().flush()?;
-    admission::serve(listener, follower, tls, maximum)
+    diagnostics::at(Phase::Replication, || {
+        admission::serve(listener, follower, tls, maximum)
+    })
 }
 
 #[cfg(test)]

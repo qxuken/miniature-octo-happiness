@@ -4,6 +4,7 @@ use super::{
     study::StudyProgress,
     tls::bounded_file,
 };
+use crate::diagnostics::{self, Phase};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use weekend_db::{
@@ -166,8 +167,12 @@ impl Receipt {
 }
 
 pub(super) fn checkpoint(files: [&Path; 2], policy: Policy) -> AppResult<()> {
-    let a = Database::open_file(files[0], Limits::default())?;
-    let b = Database::open_file(files[1], Limits::default())?;
+    let a = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(files[0], Limits::default())
+    })?;
+    let b = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(files[1], Limits::default())
+    })?;
     let state = agreed(&a, &b, policy)?;
     print!("{}", Receipt::Checkpoint.line([&a, &b], policy, state)?);
     Ok(())
@@ -186,8 +191,12 @@ pub(super) fn stage(
     {
         return Err(Error::Invalid.into());
     }
-    let a = Database::open_file(old_files[0], Limits::default())?;
-    let b = Database::open_file(old_files[1], Limits::default())?;
+    let a = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(old_files[0], Limits::default())
+    })?;
+    let b = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(old_files[1], Limits::default())
+    })?;
     let state = agreed(&a, &b, old)?;
     if let Some(expected) = expected_old {
         Receipt::Checkpoint.require(expected, [&a, &b], old, state)?;
@@ -196,8 +205,12 @@ pub(super) fn stage(
     if visible.minutes > u64::MAX / 2 {
         return Err(Error::Limit.into());
     }
-    let left = Database::create_file(new_files[0], Limits::default())?;
-    let right = Database::create_file(new_files[1], Limits::default())?;
+    let left = diagnostics::storage(Phase::StorageCreate, || {
+        Database::create_file(new_files[0], Limits::default())
+    })?;
+    let right = diagnostics::storage(Phase::StorageCreate, || {
+        Database::create_file(new_files[1], Limits::default())
+    })?;
     let seeded = enroll(&left, enrollment("a", new)?)?;
     enroll(&right, enrollment("b", new)?)?;
     // Seed A only. Authenticated staging sync brings the same causal state to B.
@@ -227,8 +240,12 @@ pub(super) fn verify(
     policy: Policy,
     expected_staged: Option<&[u8]>,
 ) -> AppResult<()> {
-    let a = Database::open_file(files[0], Limits::default())?;
-    let b = Database::open_file(files[1], Limits::default())?;
+    let a = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(files[0], Limits::default())
+    })?;
+    let b = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(files[1], Limits::default())
+    })?;
     let state = agreed(&a, &b, policy)?;
     if let Some(expected) = expected_staged {
         Receipt::Staged.require(expected, [&a, &b], policy, state)?;

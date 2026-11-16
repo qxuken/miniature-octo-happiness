@@ -34,6 +34,79 @@ impl Drop for Directory {
     }
 }
 
+#[test]
+fn cli_command_observation_preserves_storage_context_errors_and_retry_budget() {
+    let directory = Directory::new();
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Study,
+        &mut vec!["--diagnostics=json".into(), "run".into()],
+    );
+    let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+        observe_local_command(|| {
+            Ok(
+                Database::open_file(directory.0.join("missing"), Limits::default())?
+                    .snapshot()
+                    .revision(),
+            )
+        })
+    });
+    assert_eq!(
+        result.as_ref().err().unwrap().downcast_ref::<Error>(),
+        Some(&Error::NotFound)
+    );
+    let json = diagnostic.unwrap().json(settings).to_string();
+    assert!(
+        json.contains("\"phase\":\"local_command\",\"category\":\"engine\",\"code\":\"NotFound\"")
+    );
+    assert!(json.contains("\"native\":{\"operation\":"));
+
+    let database = Database::new().unwrap();
+    let replica = enroll(&database, Enrollment::new("a", COLLECTION).unwrap()).unwrap();
+    let before = database.snapshot().revision();
+    let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+        observe_local_command(|| command(&["practice", "PRIVATE_CANARY"], &database, &replica))
+    });
+    assert!(
+        result
+            .as_ref()
+            .err()
+            .unwrap()
+            .is::<std::num::ParseIntError>()
+    );
+    let json = diagnostic.unwrap().json(settings).to_string();
+    assert!(
+        json.contains(
+            "\"phase\":\"local_command\",\"category\":\"input\",\"code\":\"invalid_input\""
+        )
+    );
+    assert!(json.contains("\"native\":null,\"verification\":null"));
+    assert!(!json.contains("PRIVATE_CANARY"));
+    assert_eq!(database.snapshot().revision(), before);
+
+    let calls = std::cell::Cell::new(0);
+    let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+        observe_local_command(|| {
+            Ok(protocol::edit(&replica, |_, _| {
+                calls.set(calls.get() + 1);
+                Err(Error::Conflict)
+            })?)
+        })
+    });
+    assert_eq!(calls.get(), 3);
+    assert_eq!(
+        result.as_ref().err().unwrap().downcast_ref::<Error>(),
+        Some(&Error::Conflict)
+    );
+    assert!(
+        diagnostic
+            .unwrap()
+            .json(settings)
+            .to_string()
+            .contains("\"code\":\"Conflict\",\"native\":null,\"verification\":null")
+    );
+    assert_eq!(database.snapshot().revision(), before);
+}
+
 struct Worker {
     child: Child,
     input: ChildStdin,

@@ -1,3 +1,4 @@
+use crate::diagnostics::{self, Phase};
 use std::path::Path;
 use weekend_db::{
     Database, Error, Limits, Result,
@@ -18,16 +19,20 @@ pub(super) fn store(path: &Path, descriptor: ExportDescriptor) -> Result<()> {
     // The creation commit makes the directory entry durable before a
     // subsequent commit can expose the descriptor. Normal open stabilizes
     // a selected row after an interrupted descriptor commit.
-    let record = Database::create_file(path, Limits::default())?;
+    let record = diagnostics::storage(Phase::StorageCreate, || {
+        Database::create_file(path, Limits::default())
+    })?;
     let collection = record.create_collection()?;
     let mut tx = record.begin();
     tx.put(collection, KEY, &record.bytes(&bytes)?)?;
-    tx.commit()?;
+    diagnostics::storage(Phase::Export, || tx.commit())?;
     Ok(())
 }
 
 pub(super) fn load(path: &Path) -> Result<ExportDescriptor> {
-    let record = Database::open_file(path, Limits::default())?;
+    let record = diagnostics::storage(Phase::StorageOpen, || {
+        Database::open_file(path, Limits::default())
+    })?;
     let row = record
         .snapshot()
         .get(record.collection_id(1), KEY)

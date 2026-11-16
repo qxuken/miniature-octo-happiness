@@ -15,12 +15,14 @@ pub const BUDGET: Duration = Duration::from_secs(10);
 pub struct Root(pub PathBuf, &'static str);
 impl Root {
     pub fn new(app: &'static str) -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let sequence = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "{app}-diagnostics-{PATH_CANARY}-{}-{nonce}",
+            "{app}-diagnostics-{PATH_CANARY}-{}-{nonce}-{sequence}",
             std::process::id()
         ));
         #[cfg(unix)]

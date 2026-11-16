@@ -2,6 +2,7 @@ use super::{
     AppResult,
     tls::{Incoming, Tls},
 };
+use crate::diagnostics::{self, Diagnostic, Phase, Settings};
 use std::{
     io,
     net::TcpListener,
@@ -22,6 +23,7 @@ pub(super) struct Status {
     failed: u64,
     busy: u64,
     last_error: Option<Box<dyn std::error::Error + Send + Sync>>,
+    last_diagnostic: Option<Diagnostic>,
 }
 
 impl Status {
@@ -38,12 +40,23 @@ impl Status {
         }
     }
 
-    fn record(&mut self, result: AppResult<()>) {
+    pub(super) fn structured(&self, settings: Settings) -> diagnostics::JsonLine {
+        diagnostics::incoming(
+            settings,
+            self.served,
+            self.failed,
+            self.busy,
+            self.last_diagnostic,
+        )
+    }
+
+    fn record(&mut self, result: AppResult<()>, diagnostic: Option<Diagnostic>) {
         match result {
             Ok(()) => self.served = self.served.saturating_add(1),
             Err(error) => {
                 self.failed = self.failed.saturating_add(1);
                 self.last_error = Some(error);
+                self.last_diagnostic = diagnostic;
             }
         }
     }
@@ -62,6 +75,7 @@ pub(super) fn receive(
 ) -> AppResult<()> {
     let merge = Mutex::new(());
     let serve = &serve;
+    let settings = diagnostics::settings();
     thread::scope(|scope| {
         let mut workers = Vec::with_capacity(MAX_SESSIONS);
         let mut result = (|| -> AppResult<()> {
@@ -93,16 +107,23 @@ pub(super) fn receive(
                 let cancellation = Arc::clone(stop);
                 let merge = &merge;
                 workers.push(thread::Builder::new().spawn_scoped(scope, move || {
-                    match tls.accept_at(socket, accepted, Some(cancellation)) {
+                    let (result, diagnostic) =
+                        diagnostics::capture(settings, Phase::TlsHandshake, || {
+                            tls.accept_at(socket, accepted, Some(cancellation))
+                        });
+                    match result {
                         Ok(channel) => {
                             if let Ok(_guard) = merge.try_lock() {
-                                let outcome = serve(channel);
-                                status.lock().unwrap().record(outcome);
+                                let (outcome, diagnostic) =
+                                    diagnostics::capture(settings, Phase::Replication, || {
+                                        serve(channel)
+                                    });
+                                status.lock().unwrap().record(outcome, diagnostic);
                             } else {
                                 status.lock().unwrap().refuse();
                             }
                         }
-                        Err(error) => status.lock().unwrap().record(Err(error)),
+                        Err(error) => status.lock().unwrap().record(Err(error), diagnostic),
                     }
                 })?);
             }

@@ -443,6 +443,79 @@ fn lost_terminal_reply_reopens_exact_receipt_and_retries_same_export() {
     assert_eq!(recovered.revision, 4);
     assert_eq!(recovered.digest, descriptor.digest);
 }
+
+#[test]
+fn structured_connect_refusal_after_lost_reply_does_not_deny_a_durable_install() {
+    let dir = Directory::new();
+    let path = source(&dir);
+    let image = dir.0.join("export");
+    let mut prepared = prepare(&path, [1; 16], &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    let enrollment = enrollment_of(&prepared);
+    let mut receiver = follower(&dir, enrollment);
+    let folder = dir.0.join("follower");
+    let (client, server) = pair();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "ship".into()],
+    );
+    let (sent, diagnostic, recovered) = thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            let channel = server.accept(listener.accept().unwrap().0).unwrap();
+            drop(listener);
+            assert_eq!(
+                receiver.serve_authenticated(LoseTerminal {
+                    stream: channel,
+                    ready: false
+                }),
+                Err(Error::Io)
+            );
+            let ack = receiver.progress().unwrap().unwrap();
+            drop(receiver);
+            let reopened = Follower::open(&folder, enrollment, Limits::default()).unwrap();
+            check(&reopened, ack, 2);
+            ack
+        });
+        let (sent, diagnostic) = diagnostics::capture(settings, Phase::Replication, || {
+            ship(&mut prepared, &client, address, 2)
+        });
+        (sent, diagnostic.unwrap(), worker.join().unwrap())
+    });
+    assert_eq!(
+        sent.as_ref()
+            .err()
+            .unwrap()
+            .downcast_ref::<io::Error>()
+            .unwrap()
+            .kind(),
+        io::ErrorKind::ConnectionRefused
+    );
+    let json = diagnostic.json(settings).to_string();
+    assert!(
+        json.contains("\"phase\":\"connect\",\"category\":\"io\",\"code\":\"connection_refused\"")
+    );
+    assert!(json.contains("\"follower_outcome\":\"unconfirmed\""));
+    assert!(json.contains("\"guidance\":\"poll_or_reconcile_before_retry\""));
+    assert_eq!(recovered.revision, 4);
+    assert_eq!(recovered.digest, descriptor.digest);
+    assert!(image.is_file());
+    let mut receiver = Follower::open(&folder, enrollment, Limits::default()).unwrap();
+    let manifest_bytes = receiver.status().unwrap().manifest_bytes;
+    let (polled, served) = exchange(&mut receiver, &server, |address| {
+        Ok(prepared.primary.poll(client.connect(address)?)?.unwrap())
+    });
+    served.unwrap();
+    assert_eq!(polled.unwrap(), recovered);
+    let (retried, served) = exchange(&mut receiver, &server, |address| {
+        ship(&mut prepared, &client, address, 1)
+    });
+    served.unwrap();
+    assert_eq!(retried.unwrap(), recovered);
+    assert_eq!(receiver.status().unwrap().manifest_bytes, manifest_bytes);
+    check(&receiver, recovered, 2);
+}
 #[test]
 fn credential_bounds_and_fixture_loading() {
     let dir = Directory::new();

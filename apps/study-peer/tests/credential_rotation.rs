@@ -1007,6 +1007,12 @@ fn native_roster_cutover_stages_once_and_rejects_authenticated_old_peers() {
 #[cfg(unix)]
 #[test]
 fn rejected_handshake_cannot_block_sync_with_full_stderr() {
+    for structured in [false, true] {
+        rejected_handshake_with_full_stderr(structured);
+    }
+}
+#[cfg(unix)]
+fn rejected_handshake_with_full_stderr(structured: bool) {
     use std::{
         io::{ErrorKind, Read},
         os::{fd::OwnedFd, unix::net::UnixStream},
@@ -1060,6 +1066,9 @@ fn rejected_handshake_cannot_block_sync_with_full_stderr() {
     let (ra, rb) = (Relay::new(), Relay::new());
     let mut a = Peer::start(root, &logs, "a", "sender", &rb, &ra, &log);
     let mut command = Command::new(BIN);
+    if structured {
+        command.arg("--diagnostics=json");
+    }
     command
         .arg("run")
         .arg(root.join("b.db"))
@@ -1092,7 +1101,12 @@ fn rejected_handshake_cannot_block_sync_with_full_stderr() {
         thread::sleep(Duration::from_millis(25));
     }
     b.state().assert_values(12, 40, 50, &[1]);
-    assert!(b.command("incoming").contains(" failed=1 busy=0 error "));
+    let report = b.command("incoming");
+    if structured {
+        assert!(report.contains("\"failed\":1,\"busy\":0,\"last\":{\"phase\":\"tls_handshake\""));
+    } else {
+        assert!(report.contains(" failed=1 busy=0 error "));
+    }
     a.stop(false);
     b.stop(false);
     let mut diagnostics = Vec::new();
