@@ -69,6 +69,19 @@ Failure keeps the prior images and live lease; success installs survivors and
 invalidates the lease. Sync copy failure likewise preserves prior durable bytes
 and can be retried. No partially prepared survivor image becomes authoritative.
 
+### Empty torn prefixes at a sparse offset
+
+At `7f43297`, the present-write path applies a prefix only when the
+requested length is nonzero. For the length pair, the
+[sparse append recovery](../near-cap-interruption-recovery.md#sparse-append-recovery)
+test holds the pending write index fixed and chooses zero or one byte.
+Only the one-byte prefix extends the durable image to the sparse offset.
+For the index pair, the ByteStore bounds test holds the nonzero guard true.
+An in-range write contributes bytes and an absent write index preserves
+the durable image. The separate extent regression verifies a zero prefix
+under both a direct crash and a failed sync. The source table below
+retains its historical snapshot identity.
+
 ## S4: read/write/sync fault arms
 
 The new deferred-read table covers Short0/1/oversized, generic Error, Tear and

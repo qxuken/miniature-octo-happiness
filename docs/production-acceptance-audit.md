@@ -168,6 +168,9 @@ harness-level scope reference.
    combines an abandoned full-width append with a second publication fault
    at the image cap. It verifies every retained root, the interrupted retry's
    witness repair, and compact-copy recovery when one extra byte blocks retry.
+   The [sparse append oracle](near-cap-interruption-recovery.md#sparse-append-recovery)
+   additionally checks all 256 survived-write subsets and five torn prefixes
+   per write. An empty prefix leaves durable EOF unchanged.
    Affected-cache forks, persistent index memory and cold-open construction remain measured
    costs; pursue further optimization against owner memory/latency budgets.
    Final candidate/platform reruns remain separate from historical passes;

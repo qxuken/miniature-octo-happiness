@@ -218,6 +218,19 @@ byte for byte. A separate ByteStore regression verifies that persisting an
 empty prefix leaves the durable length unchanged, including during a failed
 sync. Both tests passed on macOS arm64 with Rust 1.99.1 in debug and release.
 
+The `7f43297` source passed all four ByteStore and 17 durability tests
+in each profile on macOS arm64 and Docker Linux arm64. All 29 deterministic
+fuzz replays also passed on Linux. The local
+`target/archived-proof/sparse-append-7f43297.tar.zst` includes the exact
+source and platform logs, with matching checksums after extraction.
+Its SHA-256 is
+`a588a517187447fe98704c17607f249ce6aa2efb16a726a1b02b76689d416cb5`.
+
+```sh
+cargo test --offline --locked --all-features -p weekend-db \
+  --test bytestore --test durability -- --nocapture
+```
+
 ## Reproduction and provenance
 
 ```sh
