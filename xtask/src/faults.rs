@@ -45,8 +45,8 @@ pub struct Delivered {
     /// Include real append ENOSPC on an owned APFS disk image.
     #[arg(long, requires = "macos")]
     apfs_full: bool,
-    /// Use the packaged Odin bindings and this compiler for the five macOS cases.
-    #[arg(long, requires = "macos", conflicts_with = "apfs_full")]
+    /// Use this Odin compiler with the packaged bindings. For Docker, pass the unpacked Linux compiler.
+    #[arg(long, conflicts_with = "apfs_full")]
     odin: Option<PathBuf>,
     #[arg(long, hide = true)]
     worker: bool,
@@ -274,7 +274,7 @@ pub fn run(run: &Run, task: Task) -> Result<()> {
         Task::Native(opts) => native(run, opts),
         Task::Delivered(opts) => {
             if opts.worker {
-                worker(run, &opts.output)
+                worker(run, &opts.output, opts.odin.as_deref())
             } else {
                 delivered(run, opts)
             }
@@ -477,6 +477,10 @@ pub(crate) fn stage_runner(root: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
+fn consumer_source(odin: bool) -> &'static str {
+    if odin { "consumer.odin" } else { "consumer.c" }
+}
+
 fn delivered(run: &Run, opts: Delivered) -> Result<()> {
     ensure!(
         !opts.macos || cfg!(target_os = "macos"),
@@ -513,7 +517,7 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
         image(&mut c, &opts.image)?;
         let inputs = output.join("inputs");
         fs::create_dir(&inputs)?;
-        for n in ["consumer.c", "faults.c"] {
+        for n in [consumer_source(odin.is_some()), "faults.c"] {
             fs::copy(
                 run.root.join("tools/delivered-faults").join(n),
                 inputs.join(n),
@@ -544,41 +548,62 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(env::var_os("HOME").unwrap()).join(".cargo"))
             .join("registry");
-        let script = "set -eu; cargo build --offline --locked --manifest-path /seed/runner/Cargo.toml -p xtask --target-dir /work/tool; exec /work/tool/debug/xtask faults delivered --worker --output /work/result";
-        let execution = c.ok(
-            vec![
-                "docker".into(),
-                "run".into(),
-                "--pull=never".into(),
-                "--name".into(),
-                name.clone(),
-                "--network=none".into(),
-                "--memory=2g".into(),
-                "--cpus=2".into(),
-                "--pids-limit=128".into(),
-                "--ulimit=core=0".into(),
-                "--tmpfs".into(),
-                "/faults:rw,size=8m,mode=700".into(),
-                "--mount".into(),
-                format!("type=volume,source={volume},target=/work"),
-                "--mount".into(),
-                format!(
-                    "type=bind,source={},target=/seed,readonly",
-                    output.display()
+        let script = r#"set -eu
+cargo build --offline --locked --manifest-path /seed/runner/Cargo.toml -p xtask --target-dir /work/tool
+exec /work/tool/debug/xtask faults delivered --worker --output /work/result "$@""#;
+        let mut docker = vec![
+            "docker".into(),
+            "run".into(),
+            "--pull=never".into(),
+            "--name".into(),
+            name.clone(),
+            "--network=none".into(),
+            "--memory=2g".into(),
+            "--cpus=2".into(),
+            "--pids-limit=128".into(),
+            "--ulimit=core=0".into(),
+            "--tmpfs".into(),
+            "/faults:rw,size=8m,mode=700".into(),
+            "--mount".into(),
+            format!("type=volume,source={volume},target=/work"),
+            "--mount".into(),
+            format!(
+                "type=bind,source={},target=/seed,readonly",
+                output.display()
+            ),
+            "--mount".into(),
+            format!(
+                "type=bind,source={},target=/usr/local/cargo/registry,readonly",
+                registry.display()
+            ),
+        ];
+        let mut worker_args = Vec::new();
+        let compiler_hash = if let Some(odin) = &odin {
+            let directory = odin.parent().context("Odin compiler directory")?;
+            let filename = odin.file_name().context("Odin compiler filename")?;
+            docker.extend(v(&[
+                "--mount",
+                &format!(
+                    "type=bind,source={},target=/odin,readonly",
+                    directory.display()
                 ),
-                "--mount".into(),
-                format!(
-                    "type=bind,source={},target=/usr/local/cargo/registry,readonly",
-                    registry.display()
-                ),
-                opts.image,
-                "sh".into(),
-                "-c".into(),
-                script.into(),
-            ],
-            "docker",
-            300.,
-        );
+            ]));
+            worker_args = v(&["--odin", &s(Path::new("/odin").join(filename))]);
+            let digest = sha(odin)?;
+            c.evidence["odin_compiler_sha256"] = json!(digest);
+            Some(digest)
+        } else {
+            None
+        };
+        docker.extend([
+            opts.image,
+            "sh".into(),
+            "-c".into(),
+            script.into(),
+            "sh".into(),
+        ]);
+        docker.extend(worker_args);
+        let execution = c.ok(docker, "docker", 300.);
         let copied = c.ok(
             v(&[
                 "docker",
@@ -594,6 +619,17 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
         let result = output.join("result");
         let proof: Value = serde_json::from_slice(&fs::read(result.join("evidence.json"))?)?;
         ensure!(proof["verified"] == true, "worker failed");
+        let language = if odin.is_some() { "Odin" } else { "C" };
+        ensure!(
+            proof["consumer_language"] == language && proof["package_manifest_sha256"] == manifest,
+            "worker used different consumer language or package"
+        );
+        if let Some((odin, digest)) = odin.as_ref().zip(compiler_hash.as_ref()) {
+            ensure!(
+                proof["odin"]["compiler_sha256"] == *digest && sha(odin)? == *digest,
+                "Odin compiler identity changed"
+            );
+        }
         for (name, digest) in proof["artifact_sha256"]
             .as_object()
             .context("artifact hashes")?
@@ -636,7 +672,7 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
     };
     finish(c, result, retired)
 }
-fn worker(run: &Run, output: &Path) -> Result<()> {
+fn worker(run: &Run, output: &Path, odin: Option<&Path>) -> Result<()> {
     ensure!(
         cfg!(target_os = "linux"),
         "delivered Docker worker requires Linux"
@@ -648,7 +684,7 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
         Path::new("/seed/inputs"),
         false,
         false,
-        None,
+        odin,
     )
 }
 
@@ -751,11 +787,7 @@ fn exercise_package(
         crate::delivered_faults::package(&package, library)?;
         let inputs = output.join("inputs");
         fs::create_dir(&inputs)?;
-        let consumer_source = if odin.is_some() {
-            "consumer.odin"
-        } else {
-            "consumer.c"
-        };
+        let consumer_source = consumer_source(odin.is_some());
         for name in [consumer_source, "faults.c"] {
             let input = input_seed.join(name);
             ensure!(
@@ -844,6 +876,11 @@ fn exercise_package(
             c.ok(args, "build-shim", 30.)?;
         }
         let binary = output.join("consumer");
+        let rpath = if macos {
+            "@loader_path/relocated-package"
+        } else {
+            "$ORIGIN/relocated-package"
+        };
         if let Some(odin) = odin {
             let compiler_hash = sha(odin)?;
             c.evidence["odin"] = json!({
@@ -859,8 +896,8 @@ fn exercise_package(
                     "-o:speed",
                     &format!("-out:{}", binary.display()),
                     &format!("-collection:weekend={}", package.join("bindings").display()),
-                    "-define:WEEKEND_DB_LIBRARY=../../libweekend_db.dylib",
-                    "-extra-linker-flags:-Wl,-rpath,@loader_path/relocated-package",
+                    &format!("-define:WEEKEND_DB_LIBRARY=../../{library}"),
+                    &format!("-extra-linker-flags:-Wl,-rpath,{rpath}"),
                 ]),
                 "build-consumer",
                 90.,
@@ -884,11 +921,7 @@ fn exercise_package(
                 &s(&package),
                 &s(inputs.join(consumer_source)),
                 &s(package.join(library)),
-                if macos {
-                    "-Wl,-rpath,@loader_path/relocated-package"
-                } else {
-                    "-Wl,-rpath,$ORIGIN/relocated-package"
-                },
+                &format!("-Wl,-rpath,{rpath}"),
                 "-o",
                 &s(&binary),
             ]);

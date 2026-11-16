@@ -17,8 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 #if defined(__linux__)
-#include <sys/statfs.h>
-#include <sys/statvfs.h>
 #define LAST_MODE 5
 #elif defined(__APPLE__)
 #define LAST_MODE 5
@@ -90,25 +88,7 @@ static wdb_database *seed_database(const char *path) {
     return db;
 }
 #if defined(__linux__)
-static void fill(const char *directory,char *ballast,size_t capacity) {
-    assert(getenv("QUALIFICATION_PRIVATE_TMPFS") && !strcmp(getenv("QUALIFICATION_PRIVATE_TMPFS"),"1"));
-    struct statfs fs;struct statvfs space;
-    assert(statfs(directory,&fs)==0 && (unsigned long)fs.f_type==0x01021994ul);
-    assert(statvfs(directory,&space)==0 && space.f_blocks*space.f_frsize<=8u*1024*1024);
-    assert(snprintf(ballast,capacity,"%s/ballast",directory)>0);
-    int fd=open(ballast,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600);assert(fd>=0);
-    uint8_t block[65536];memset(block,0x5a,sizeof block);
-    int full=0;
-    for(int i=0;i<256 && !full;++i) {
-        size_t written=0;
-        while(written<sizeof block) {
-            ssize_t n=write(fd,block+written,sizeof block-written);
-            if(n<0) {assert(errno==ENOSPC);full=1;break;}
-            assert(n>0);written+=(size_t)n;
-        }
-    }
-    assert(full);assert(close(fd)==0);
-}
+static void (*fill_tmpfs)(const char*);
 #endif
 int main(int argc,char **argv) {
 #if !defined(_WIN32)
@@ -182,7 +162,11 @@ int main(int argc,char **argv) {
     wdb_tx *tx=NULL;
 #if defined(__linux__)
     char ballast[1024];
-    if(mode==5)fill(argv[2],ballast,sizeof ballast);
+    if(mode==5) {
+        fill_tmpfs=(void(*)(const char*))dlsym(RTLD_DEFAULT,"qualification_fill_tmpfs");assert(fill_tmpfs);
+        assert(snprintf(ballast,sizeof ballast,"%s/ballast",argv[2])>0);
+        fill_tmpfs(argv[2]);
+    }
 #endif
     candidate(db,&tx);
 #if defined(_WIN32)

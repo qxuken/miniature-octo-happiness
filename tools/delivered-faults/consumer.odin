@@ -9,9 +9,16 @@ import "core:strings"
 import "core:sys/posix"
 import db "weekend:odin"
 
-#assert(ODIN_OS == .Darwin)
+#assert(ODIN_OS == .Darwin || ODIN_OS == .Linux)
 #assert(!ODIN_DISABLE_ASSERT)
 REQUEST_KEY :: string("request")
+when ODIN_OS == .Linux {
+    MODE_COUNT :: 6
+    PRELOAD :: "LD_PRELOAD"
+} else {
+    MODE_COUNT :: 5
+    PRELOAD :: "DYLD_INSERT_LIBRARIES"
+}
 
 ok :: proc(status: db.Status) {
     assert(status == db.WDB_OK, fmt.tprintf("unexpected status %d", status))
@@ -68,6 +75,9 @@ verify_view :: proc(view: db.Snapshot, revision: u64) -> bool {
     published := marker_status == db.WDB_OK
     assert(published == (revision == 4))
     if published {
+        kind: i32
+        ok(db.wdb_value_kind(marker, &kind))
+        assert(kind == db.WDB_UNSIGNED)
         request_id: u64
         ok(db.wdb_value_scalar(marker, &request_id))
         assert(request_id == 42)
@@ -131,8 +141,22 @@ candidate :: proc(database: db.Database) -> db.Transaction {
     return tx
 }
 
+probe_unrelated :: proc(directory: string) {
+    path := strings.clone_to_cstring(fmt.tprintf("%s/unrelated", directory), context.temp_allocator)
+    fd := posix.open(path, {.WRONLY, .CREAT, .EXCL}, {.IRUSR, .IWUSR})
+    assert(fd != -1)
+    when ODIN_OS == .Darwin {
+        // Darwin F_FULLFSYNC from <sys/fcntl.h>. Odin's POSIX enum omits it.
+        full_fsync := transmute(posix.FCNTL_Cmd)c.int(51)
+        assert(posix.fcntl(fd, full_fsync) == 0)
+    } else {
+        assert(posix.fsync(fd) == .OK)
+    }
+    assert(posix.close(fd) == .OK)
+}
+
 exercise :: proc(directory, path: string, mode: int) {
-    shim_path, present := os.lookup_env("DYLD_INSERT_LIBRARIES", context.temp_allocator)
+    shim_path, present := os.lookup_env(PRELOAD, context.temp_allocator)
     assert(present)
     shim, loaded := dynlib.load_library(shim_path)
     assert(loaded)
@@ -146,19 +170,21 @@ exercise :: proc(directory, path: string, mode: int) {
     count := cast(proc "c" (c.int) -> c.int)count_address
 
     database := seed(path)
+    if mode == 5 {
+        fill_address, has_fill := dynlib.symbol_address(shim, "qualification_fill_tmpfs")
+        assert(has_fill)
+        fill := cast(proc "c" (cstring))fill_address
+        fill(strings.clone_to_cstring(directory, context.temp_allocator))
+    }
     tx := candidate(database)
-    arm(strings.clone_to_cstring(path, context.temp_allocator), c.int(mode))
-    other := strings.clone_to_cstring(fmt.tprintf("%s/unrelated", directory), context.temp_allocator)
-    fd := posix.open(other, {.WRONLY, .CREAT, .EXCL}, {.IRUSR, .IWUSR})
-    assert(fd != -1)
-    // Darwin F_FULLFSYNC from <sys/fcntl.h>. Odin's POSIX enum omits it.
-    full_fsync := transmute(posix.FCNTL_Cmd)c.int(51)
-    assert(posix.fcntl(fd, full_fsync) == 0)
-    assert(posix.close(fd) == .OK)
+    arm(strings.clone_to_cstring(path, context.temp_allocator), c.int(0 if mode == 5 else mode))
+    if mode != 5 {
+        probe_unrelated(directory)
+    }
     assert(count(0) == 0 && count(1) == 0)
 
-    expected := [5]db.Status{db.WDB_OK, db.WDB_IO, db.WDB_OUTCOME_UNKNOWN,
-                             db.WDB_OUTCOME_UNKNOWN, db.WDB_OUTCOME_UNKNOWN}
+    expected := [6]db.Status{db.WDB_OK, db.WDB_IO, db.WDB_OUTCOME_UNKNOWN,
+                             db.WDB_OUTCOME_UNKNOWN, db.WDB_OUTCOME_UNKNOWN, db.WDB_IO}
     revision: u64 = 0xdead_beef_cafe_babe
     status := db.wdb_tx_commit(tx, &revision)
     if status != expected[mode] {
@@ -183,6 +209,10 @@ exercise :: proc(directory, path: string, mode: int) {
     }
     disarm()
     ok(db.wdb_close(database))
+    if mode == 5 {
+        ballast := strings.clone_to_cstring(fmt.tprintf("%s/ballast", directory), context.temp_allocator)
+        assert(posix.unlink(ballast) == .OK)
+    }
     fmt.printf("%c\"mode\":%d,\"status\":%d,\"visible\":%d,\"hits\":%d,\"syncs\":%d,\"root_writes\":%d,\"witness_writes\":%d,\"native_errno\":%d,\"verified\":true%c\n",
                '{', mode, status, visible, hits, syncs, roots, witnesses, native_error, '}')
 }
@@ -215,7 +245,7 @@ main :: proc() {
         assert(os.args[1] == "recover")
     }
     mode, valid := strconv.parse_int(os.args[4] if recovering else os.args[1])
-    assert(valid && mode >= 0 && mode < 5)
+    assert(valid && mode >= 0 && mode < MODE_COUNT)
 
     identity: [64]u8
     required: c.size_t

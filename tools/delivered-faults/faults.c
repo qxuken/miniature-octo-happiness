@@ -14,6 +14,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#if defined(__linux__)
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/statfs.h>
+#include <sys/statvfs.h>
+#endif
 static dev_t device;
 static ino_t inode;
 static int tracking, mode, fired, syncs, roots, witnesses, writes, native_error;
@@ -109,6 +117,40 @@ static ssize_t observed_pwrite(int fd, const void *bytes, size_t length, off_t a
 INTERPOSE(observed_fcntl, fcntl);
 INTERPOSE(observed_pwrite, pwrite);
 #elif defined(__linux__)
+void qualification_fill_tmpfs(const char *directory) {
+    const char *enabled = getenv("QUALIFICATION_PRIVATE_TMPFS");
+    assert(enabled && !strcmp(enabled, "1"));
+    struct statfs fs;
+    struct statvfs space;
+    assert(statfs(directory, &fs) == 0 && (unsigned long)fs.f_type == 0x01021994ul);
+    assert(statvfs(directory, &space) == 0 && space.f_frsize > 0);
+    assert(space.f_blocks <= (8u * 1024 * 1024) / space.f_frsize);
+
+    char path[1024];
+    int length = snprintf(path, sizeof path, "%s/ballast", directory);
+    assert(length > 0 && (size_t)length < sizeof path);
+    int fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+    assert(fd >= 0);
+    uint8_t block[65536];
+    memset(block, 0x5a, sizeof block);
+    int full = 0;
+    for (int i = 0; i < 256 && !full; ++i) {
+        size_t written = 0;
+        while (written < sizeof block) {
+            ssize_t count = write(fd, block + written, sizeof block - written);
+            if (count < 0) {
+                assert(errno == ENOSPC);
+                full = 1;
+                break;
+            }
+            assert(count > 0);
+            written += (size_t)count;
+        }
+    }
+    assert(full);
+    assert(close(fd) == 0);
+}
+
 int fsync(int fd) {
     static int (*next)(int);
     if(!next) { next=(int(*)(int))dlsym(RTLD_NEXT,"fsync");assert(next); }
