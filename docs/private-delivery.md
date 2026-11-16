@@ -1,5 +1,91 @@
 # Same-source private delivery qualification
 
+## Four-platform checkpoint at `7e0e44f`
+
+The combined and isolated package matrix passes at tested merge
+`7e0e44f98809b5a82a223604f05425dae3c9ab2b`, whose branch parent is
+`8ddf502b906befe2ad0364ec2246a309d06752bf`. Its Git tree is
+`2a5e4065fac6d49b1943adf05fc38b4afbc9c479` and source archive
+SHA-256 is
+`c9b156fd4025a00d38351151e53a71358fac1ffcf682aa6c3c8b1e5325fc7d07`.
+All four package lanes use Rust and Cargo 1.99.0.
+
+| Lane | Workspace passes per debug and release profile | Skips per profile | Rehashed payloads |
+|---|---:|---:|---:|
+| macOS arm64/APFS | 698 | 6 | 3,515 |
+| Docker Linux arm64/ext4 | 734 | 8 | 3,518 |
+| Hosted Linux x64/ext4 | 734 | 8 | 3,510 |
+| Hosted Windows x64/NTFS | 562 | 6 | 2,025 |
+
+The strict verifier checks all 16 packages with masks 0, 1, 2 and 3.
+Their C11, C++17 and Odin consumers and relocation checks pass.
+The combined packages also pass the fresh Rust source consumer and
+the exact 134-cell trace. The report binds every manifest, shared
+library and transcript to the archived source. It retains each
+filesystem's reported mount details.
+
+The hosted ZIPs match their published SHA-256 digests. Linux x64
+artifact `14216513014` has digest
+`9d2a83e0e5a9978b6dba3a27b43cc1f61fb799ca79d52c6d2caf86162383e5aa`.
+Windows x64 artifact `14217930125` has digest
+`fc2ee6be4ac255bdee67e80a52dc4092d0ecad71adf3a70a104fc427a16603f1`.
+[Linux job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43848281064/job/133233954223),
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43848281064/job/133233954359).
+
+All 13 jobs in that [Engine run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43848281064)
+also completed successfully. The same-source macOS workspace ASan and
+calibrated TSan runs each pass 698 tests with six skips. Both rebuild the
+standard library. The Linux x64 shared-runtime C/Rust ASan calibration
+detects both intentional invalid controls, while its memory, thread and
+file consumers pass. The macOS TSan calibration detects both intentional
+races, and the workspace emits no TSan warning. Its retained ZIP is artifact
+`14219040799`, SHA-256
+`cdd7c97a328e882ca57d8475d040f59138d32b92481917ad82ce8a8dffd2f644`.
+The native macOS job also passes actual APFS publication, maintenance,
+namespace and cleanup exhaustion checks.
+
+The retained library-only macOS coverage report recomputes 10,972 of
+12,108 lines (90.62%) and 20,229 of 22,755 regions (88.90%). Its compiler
+reports zero measured MC/DC conditions; these percentages do not measure
+MC/DC or all applications. Independent review matches all 322 scoped
+source hashes in each sanitizer/coverage report to the exact Git archive
+and checks retained command logs and process reports. ASan/C-ASan use
+nightly compiler `5f4effd579500175af844241eb179e756190f1e7`;
+TSan uses pinned `3ef0c22cdb86ac42dc6b8f0f1ec36857daa6f2a1` with the
+documented patched Darwin runtime. These diagnostic artifacts retain
+their compiler and instrumentation scope separately from the MSRV packages.
+
+The `6eb5f1a` verifier also binds three retained macOS microbenchmark
+samples and an all-22-target ASan smoke campaign to this exact source.
+The smoke records 275 actual executions with 1-run/1-second requested
+bounds, including seed initialization. The benchmark uses Rust 1.99.1
+and includes compaction. The combined report SHA-256 is
+`a38adfb4e29130319bd2adfffe10b81929d604d0b9c2c85c2ae0584412a5bb23`.
+Changing a completed execution count or removing a target from the
+retained campaign makes the public command reject before success output.
+
+The later [extended campaign](fuzz-qualification-7e0e44f.md) passes all 22
+targets with 1,442,896 actual executions under per-target 100,000-run and
+120-second bounds. The strict public verifier binds it to the same packages
+and benchmark samples. That report SHA-256 is
+`a70f827e3e846aa7de73767f7258d01db3ab250a1fb4aabf08cd0de749c77cbc`.
+A separate Rust 1.99.1 offline/locked build passes all 29 deterministic fuzz
+library tests against the same source. The extended campaign retains all 244
+seed identities, mutated corpora, logs and process reports; it sets no general
+fuzz-duration or production-performance policy.
+
+The local archive
+`target/archived-proof/private-delivery-7e0e44f.tar.zst`
+has SHA-256
+`63ea2a61ee8fb7298983870d184222db9e27a02add2952c973d5c0925137697c`.
+A fresh extraction verifies all 22,192 indexed files. Running the public
+strict verifier against its restored matrix, benchmark and extended campaign
+reproduces `extended.json` byte for byte. Rechecking the restored sanitizer
+and coverage source/process/log evidence also reproduces its reviewed summary.
+The archive retains exact source archives and Git history, the verifier and
+fuzz runner, actual benchmark executable, original hosted ZIPs, all campaign
+corpora and logs, negative controls, and the 29-test stable replay log.
+
 ## Retained fuzz evidence
 
 `verify-delivery --fuzz PATH` optionally requires a successful clean-source
