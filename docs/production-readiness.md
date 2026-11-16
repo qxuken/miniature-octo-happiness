@@ -213,6 +213,10 @@ qualification is a separate release-candidate requirement.
   after freeing space.
   The [prefix-tear sweep](follower-installation-profile.md#torn-staging-and-manifest-prefixes)
   compares exact surviving bytes, reopened receipts and retained views.
+  The [Linux ext4 writeback matrix](follower-installation-profile.md#kernel-writeback-eio-during-follower-installation-and-recovery)
+  exercises eight staged-image and manifest sync faults through pinned TLS.
+  A second witness fault prevents startup on either manifest slot before
+  a fault-free reopen stabilizes the exact receipt.
   [CRC-64 verification throughput](crc64-performance.md) measures the shared
   disk checksum update and repeats the exact-image and authenticated recovery
   checks after the change.

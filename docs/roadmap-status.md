@@ -2328,6 +2328,21 @@ The fresh-image allocation sweep covers 39 failure allowances before any
 destination write and verifies exact live-charge rollback.
 [Method, durable outcomes and raw evidence](follower-installation-profile.md)
 
+## Linux follower writeback and recovery
+
+The `af2b457` release CLI passed four native ext4 writeback fault cases on
+each manifest parity over pinned mutual TLS. Image, append and root-slot
+errors reopen follower revision 4. Witness errors leave an unwitnessed
+manifest root for follower revision 5. A second witness `EIO` prevents the
+server from listening. After recovery succeeds, the first authenticated
+poll returns revision 5. Each case preserves retained revision 2, the
+exact selected bytes and the separation between local and follower
+acknowledgments. Retries and duplicate transfers reconcile the same saved
+capture. The Linux run passed 42 focused release tests. Follower namespace
+and journal failures, other platforms and device power loss retain
+separate gates.
+[Fault boundaries, receipts and reproduction](follower-installation-profile.md#kernel-writeback-eio-during-follower-installation-and-recovery)
+
 ## CRC-64 word verification and authenticated recovery replay
 
 At `e1fd1db`, the checksum processes eight-byte words with tables derived from

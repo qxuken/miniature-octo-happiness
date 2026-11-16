@@ -3351,6 +3351,19 @@ revision 3. After another simulated crash, it reopens revision 4 and retained
 revision 2 in every case.
 [Fixture, results and reproduction](docs/follower-installation-profile.md#torn-staging-and-manifest-prefixes)
 
+#### Linux writeback errors during follower installation
+
+Kernel `EIO` at the staged-image, manifest append or root-slot sync
+reopens follower revision 4 on both manifest slot parities. At the witness
+sync, the new root survives and a read-only check sees it as unwitnessed.
+A second failed witness sync during startup prevents receipt reporting.
+Once the fault is removed, writable reopen writes the witness and an
+authenticated poll returns revision 5. All eight initial fault cases
+preserve retained revision 2. They report the local revision 5 capture
+without a follower receipt for that attempt. Retrying the same capture
+and repeating it after success preserve the exact recovered receipt.
+[Profile, offsets and results](docs/follower-installation-profile.md#kernel-writeback-eio-during-follower-installation-and-recovery)
+
 ### FOL-V2. Image verification
 
 The [verification test](src/replication/follower/tests.rs#L550)

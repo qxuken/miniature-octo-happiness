@@ -152,10 +152,10 @@ cargo test --offline --locked -p weekend-db --lib --all-features \
   replication::follower::tests -- --nocapture
 ```
 
-This is fault-model evidence. The native Linux full-filesystem and
-process-interruption drills above exercise different failure mechanisms.
-Native follower writeback errors and device power interruption remain
-separate cases.
+This is fault-model evidence. The full-filesystem, process-interruption and
+[ext4 writeback drills](#kernel-writeback-eio-during-follower-installation-and-recovery)
+exercise different failure mechanisms. Physical power interruption remains
+a separate device qualification.
 
 The exact `4ad1832c7ecd70d4deead37242f6ffcbc54aa664` source passed 145
 macOS and 148 Docker Linux arm64 core tests in debug and release. Both
@@ -170,6 +170,76 @@ pinned Rust 1.99.0 image and its owned container and volume were removed.
 | `macos.log` | `94f841a80287f5f5c81a643ff554e6e071a71fc71a980aa3beaa3dfdc1edba9f` |
 | `linux.log` | `b49a0e8ae58735c530ee772db23d17a045ea8929b49783bb6f31433d0f6efc51` |
 | `asan.log` | `ed3f2758712047360196218f7e210203a82f7dad4553cd3d4916eae4d3cbd8da` |
+
+## Kernel writeback EIO during follower installation and recovery
+
+The unchanged release CLI from `af2b4572282f712d1f227784ad47dfd2e0ecb380`
+shipped pinned mutual TLS snapshots on Docker Linux arm64 with kernel
+`7.0.14-linuxkit`, Rust 1.99.0 and ext4. Each case started on a fresh 64 MiB
+ext4 loop image. The follower had installed primary revision 4. The offered
+revision 5 contained a new 256 KiB value. Both images included retained
+revision 2. The same saved export and descriptor were used across the
+failed send, retry and replay. An extra initial install shifted the odd
+cases to the other manifest slot and image filename.
+
+An independent FIEMAP helper checked the inode and the physical mapping of a
+4 KiB file block while the process paused before its write. The harness
+directed only those eight sectors through the kernel device-mapper `error`
+target. All writes and syncs went through the real Linux filesystem.
+The pause hook forwarded the calls and recorded the returned
+`fsync = -1, errno = 5`. The sender announced the local revision 5 capture
+and exited with no follower acknowledgment in all eight cases.
+
+| Failed sync | File offset for even / odd target manifest (bytes) | Sender error | Manifest revision and witness after remount (even / odd) | First successful authenticated poll |
+|---|---:|---|---|---:|
+| Staged image | 0 / 0 | `Io` | 3 / 4, witnessed | 4 |
+| Manifest append | 61,440 / 73,728 | `Io` | 3 / 4, witnessed | 4 |
+| Manifest root | 4,096 / 8,192 | `RecoveryRequired` | 3 / 4, witnessed | 4 |
+| Manifest witness | 12,288 / 16,384 | `RecoveryRequired` | 4 / 5, unwitnessed | 5 |
+
+After the staged-image error, the same running server could still return
+the exact revision 4 receipt. Each manifest error made the server exit.
+For each witness case, a second block error during writable reopen stopped
+startup before the server listened. Another remount and read-only inspection
+found the same manifest bytes and unwitnessed root. With the fault cleared,
+writable reopen changed only the corresponding witness block and then
+reported revision 5.
+
+The test compared the selected image with its saved export, verified every
+current and retained row in the fixture and compared TLS receipts with
+the export's independently computed SHA-256. In the six cases that
+reopened at revision 4, retry committed the selection and returned
+revision 5. After the two witness cases, retry returned the recovered
+receipt with identical manifest bytes. A duplicate transfer and a final
+remount preserved the witnessed manifest and both exact image files.
+The owned mapper devices, loops, container, volume and generated
+credentials were removed.
+
+The local archive `target/archived-proof/follower-native-writeback-af2b457.tar.zst`
+contains the source tar, runner, pause and FIEMAP helpers, Rust fixture,
+exports, manifest copies and raw logs. Extract it into a fresh directory and
+run `bash run-linux.sh` with its pinned Docker image already present and
+locked Cargo dependencies cached in `~/.cargo/registry`. The included
+`image/Dockerfile` records the image preparation. The runner requires a
+disposable Linux Docker VM with loop and device-mapper support. It runs the
+release CLI from the archived tree with only an extra fixture example.
+The same build passed 10 follower unit tests, eight native replication
+integration tests and 24 CLI/application tests in release mode. The two
+opt-in integration cases were skipped in that regression command.
+
+| Evidence | SHA-256 |
+|---|---|
+| Local compressed archive | `6fa8aad5230196683c3c747e9432b9b4d9ddc5c15cba34a5bec42b53c2db2a08` |
+| `source.tar` | `5c8b61e8b945710fd7defe083018617162b5eda6d01f37a6cb647ab3c44a02fd` |
+| Docker image ID | `d276cf4b0967c0337be30eb9c302bf3b77794a7ade6b667968ebe5cbc037317c` |
+| Release `weekend-replicate` | `b19cff9929990830d38aa184fbfcec7b03ea08923af9912bda0722667dd2529b` |
+| `run-linux.sh` | `5c27417d1a76b83e87c173bed29abcfb4795ca02219e21b27c0891dc6140c34c` |
+| `even.log` / `odd.log` | `7b7b3ea78d46c0f3779caef5449761476b129796b982f40b4a79d5186e2d5885` / `a90334e16da8218d52eca5f7bc42ee3bd83d33b89957b3703c1eed5c9a0d5658` |
+| `regression.log` | `e11fecafb27f1b13368a9c1809be768503bc6754b59638b1e1f0b24e113a7520` |
+
+This run qualifies sector writeback errors on the stated Linux profile.
+Follower namespace and journal failures, other platforms and physical
+device power interruption retain separate gates.
 
 ## Reproduction and evidence
 
