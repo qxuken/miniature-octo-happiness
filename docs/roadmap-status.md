@@ -2468,3 +2468,14 @@ receipt while the coordinator remains at revision 4. The full-space
 case passes in debug and release. The authenticated follower's two
 existing full-space cases also pass with the shared fixture.
 [Journal states, proof and reproduction](coordinator-journal-check.md#client-journal-exhaustion-on-linux)
+
+## Exact metadata and repeated recovery fuzzing
+
+At `8acf944`, the crash oracle predicts exact root and witness bytes,
+checks both selected revisions and runs up to three failed recovery
+attempts after publication interruption. After a failed open it verifies
+the whole image and the read-only revision and witness result. Both
+deliberate engine mutations fail the new deterministic replay. macOS
+and Docker Linux pass 29 stable replay tests each. The macOS ASan
+campaign completes 96,962 executions with no reported finding.
+[Boundaries, mutation results and reproduction](fuzz-repeated-recovery.md)

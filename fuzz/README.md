@@ -9,7 +9,7 @@ seed inputs live under `seeds/`.
 |---|---|
 | `open_image_bytes` | Raw images up to 256 KiB. A rejected image must return a documented error before writes or syncs. A successful open may change only the selected witness and must preserve current and retained revision metadata across power-loss replay. |
 | `open_structured_image` | A real v2 fixture with roots 3 and 4 and retained revision 2. Directed cases check exact revision, row values, retained state, or error. The patch mode mutates metadata and graph regions and can repair CRCs to reach the structural checks. |
-| `commit_crash` | A generated transaction on a small retained history. It injects an I/O error, short write, tear, or sync failure, then simulates power loss. An independent copying map checks both possible logical states and the retained snapshot. The barrier oracle checks an exact revision where persistence is determined. Recovered stores must accept and preserve a later commit. |
+| `commit_crash` | A generated transaction on a small retained history. It injects an I/O error, short write, tear, or sync failure and can interrupt up to three additional recovery attempts. The metadata-prefix oracle predicts the exact selected revision and witness for the generated cuts. A copying map checks current and retained values, and a later commit must survive reopening. |
 | `txn_schedule` | Up to 32 commands interleave three drafts over two collections and four keys. An independent copying model and committed write history predict every commit or conflict and check reads, scans, final rows, revisions, terminal state, and pinned/retained snapshots. |
 | `value_ops` | Bounded map/list edits compared with the existing copying `BTreeMap`/`Vec` model. Includes nested values, common-prefix and empty keys, float bit patterns, list radix boundaries, invalid indices, and immutable histories surviving database drop. |
 | `image_and_ops` | Generated edits, retains, releases, empty commits, reopens and compact copies around a controlled image mutation. An independent model tracks full current and retained rows, publication/data revisions, and retained IDs. |
@@ -21,11 +21,11 @@ seed inputs live under `seeds/`.
 
 The raw image target compares revision metadata because it accepts
 arbitrary collections. The structured and crash targets compare full
-row state for their known collection. The crash target models one
-publication fault and can inject a second failure at the first recovery
-I/O. Arbitrary partial root persistence allows the whole prior or next
-revision. The simulator and these short runs are evidence for the
-modeled storage contract.
+row state for their known collection. The crash target derives the
+surviving metadata prefixes from the fault and crash policy and checks
+them against the calibrated before/after regions. The format fixture
+keeps the metadata body wholly old or wholly new at the generated
+cutoffs. The simulator provides evidence for the modeled storage contract.
 
 Use a nightly Rust toolchain and `cargo-fuzz`. The smoke run below keeps
 the mutable corpus in a temporary directory and uses AddressSanitizer.
@@ -75,9 +75,16 @@ are directed. Modes 1 and 2 use the low bit of the second byte to clear
 the newest witness. Cases 10–19 read up to twelve five-byte patches.
 Each patch specifies a region, a little-endian offset within that
 region, an XOR byte, and a checksum repair flag. The crash input starts
-with five bytes for I/O position, fault mode, crash policy, a parameter,
-and flags, followed by up to twelve key/value edits. The first three
-I/O positions directly select the append, root, and witness syncs.
+with five bytes for I/O position, fault mode, crash policy, a parameter
+and flags. The first three I/O positions directly select the append,
+root and witness syncs. Flag bit 0 chooses the slot parity, bit 1 requests
+the original failure at the first open operation, and bits 2–3 give the
+number of four-byte recovery faults before the key/value edits. Each
+recovery fault supplies the cut, fault mode, crash policy and parameter.
+Cuts select the first read, last read, stabilization sync, witness write
+or witness sync. The remaining bytes provide up to twelve key/value edits.
+The commit metadata and witness faults cover both ends and every interior
+byte of the eight-byte checksum.
 
 The schedule input consists of three-byte commands. Control bits 0–1
 select a draft modulo three, bit 2 selects a collection, and bit 3

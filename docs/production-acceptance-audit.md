@@ -128,7 +128,7 @@ harness-level scope reference.
 | Image plus operations | `image_and_ops` with logical state checks | Broaden graph/operation combinations and retain minimized regressions; no native interruption inference. |
 | Values/adversarial trees | Independent BTreeMap/Vec models and long/binary/prefix/list cases | Directed collision and adversarial complexity tests remain necessary in addition to fuzzing. |
 | Transaction programs/schedules | `txn_schedule`; planned `txn_program` is documented overlap, not a missing second executable | Exact compatible-success as well as conflict oracle matters. Additional programs only if they add behavior not already generated. |
-| Commit/history/compact crash | Commit and retention/compaction targets with simulated persistence oracles | Native physical loss and all compound failures remain outside model. |
+| Commit/history/compact crash | Commit and retention/compaction targets with simulated persistence oracles. [Repeated recovery fuzzing](fuzz-repeated-recovery.md) checks exact metadata and up to three failed opens after a publication fault. | The generated cuts, histories and persistence policies are bounded. Other compound failures and native physical loss remain separate. |
 | Replacement/backup | Namespace model and backup/restore oracles | Real namespaces/devices/ACL behavior require separate native checks. |
 | ByteStore contract | Progress/lease/fault scripts and independent byte model | Custom backend implementations still need their own conformance run. |
 | FFI operations | Valid live handles/buffers/foreign stores through actual exported functions | Rust-linked FFI harness is not a substitute for exact packaged C/Odin consumer execution or caller UB testing. |
