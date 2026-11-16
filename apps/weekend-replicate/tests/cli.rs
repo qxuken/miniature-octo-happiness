@@ -7,6 +7,9 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[cfg(target_os = "linux")]
+#[path = "cli/full_storage.rs"]
+mod full_storage;
 mod support;
 use support::credentials;
 use weekend_db::{Database, Limits};
@@ -60,11 +63,13 @@ impl Server {
         }
     }
     fn finished(&mut self) {
+        assert!(self.exit_status().success());
+    }
+    fn exit_status(&mut self) -> std::process::ExitStatus {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             if let Some(status) = self.0.try_wait().unwrap() {
-                assert!(status.success());
-                break;
+                return status;
             }
             assert!(Instant::now() < deadline, "server lifetime exceeded");
             thread::sleep(Duration::from_millis(10));
@@ -270,8 +275,11 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     verify_follower(follower_path, stream, identity);
 }
 
+fn parse_id(s: &str) -> [u8; 16] {
+    u128::from_str_radix(s, 16).unwrap().to_be_bytes()
+}
+
 fn verify_follower(path: &Path, stream: &str, identity: &str) {
-    let parse_id = |s: &str| u128::from_str_radix(s, 16).unwrap().to_be_bytes();
     let follower = weekend_db::replication::Follower::open(
         path,
         weekend_db::replication::Enrollment {
