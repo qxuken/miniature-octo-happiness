@@ -173,9 +173,12 @@ fn run<S: io::Read + Write>(
             while !stop_receiving.load(Relaxed) {
                 match listener.accept() {
                     Ok((socket, _)) => {
-                        let result = server.accept_at(socket, Instant::now()).and_then(|stream| {
-                            Ok(receiving_replica.serve_authenticated(incoming(stream))?)
-                        });
+                        let result =
+                            server
+                                .accept_at(socket, Instant::now(), None)
+                                .and_then(|stream| {
+                                    Ok(receiving_replica.serve_authenticated(incoming(stream))?)
+                                });
                         if let Err(error) = result {
                             eprintln!("incoming sync: {error}");
                         }

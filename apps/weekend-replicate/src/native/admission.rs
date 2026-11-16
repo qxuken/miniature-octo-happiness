@@ -4,8 +4,12 @@ use super::{
 };
 use std::{
     io,
-    net::{Shutdown, TcpListener, TcpStream},
-    sync::mpsc::{self, Receiver},
+    net::TcpListener,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering::Relaxed},
+        mpsc::{self, Receiver},
+    },
     thread::{self, ScopedJoinHandle},
     time::{Duration, Instant},
 };
@@ -18,16 +22,10 @@ const MAX_HANDSHAKES: usize = 4;
 const MAX_READY: usize = 4;
 const WAIT_MS: i32 = 10;
 
-struct Handshake<'scope> {
-    socket: TcpStream,
-    worker: ScopedJoinHandle<'scope, ()>,
-}
-
-fn reap(handshakes: &mut Vec<Handshake<'_>>) -> io::Result<()> {
-    while let Some(done) = handshakes.iter().position(|h| h.worker.is_finished()) {
+fn reap(handshakes: &mut Vec<ScopedJoinHandle<'_, ()>>) -> io::Result<()> {
+    while let Some(done) = handshakes.iter().position(ScopedJoinHandle::is_finished) {
         handshakes
             .swap_remove(done)
-            .worker
             .join()
             .map_err(|_| io::Error::other("snapshot TLS worker panicked"))?;
     }
@@ -64,6 +62,7 @@ fn admit(
             .name("snapshot-follower".into())
             .spawn_scoped(scope, move || consume(pending))?;
         let mut handshakes = Vec::with_capacity(handshake_limit);
+        let cancellation = Arc::new(AtomicBool::new(false));
         let mut result = (|| -> io::Result<()> {
             let mut accepted = 0;
             while accepted < maximum && !follower.is_finished() {
@@ -94,20 +93,17 @@ fn admit(
                 if handshakes.len() == handshake_limit {
                     continue;
                 }
-                let cancel = socket.try_clone()?;
                 let ready = ready.clone();
+                let cancel = cancellation.clone();
                 let worker = thread::Builder::new()
                     .name("snapshot-tls".into())
                     .spawn_scoped(scope, move || {
-                        if let Ok(channel) = tls.accept_at(socket, started) {
+                        if let Ok(channel) = tls.accept_at(socket, started, Some(cancel)) {
                             // An overloaded connection closes without a protocol reply.
                             let _ = ready.try_send(channel);
                         }
                     })?;
-                handshakes.push(Handshake {
-                    socket: cancel,
-                    worker,
-                });
+                handshakes.push(worker);
             }
             drop(listener);
 
@@ -122,12 +118,10 @@ fn admit(
             Ok(())
         })();
         if result.is_err() || follower.is_finished() {
-            for handshake in &handshakes {
-                let _ = handshake.socket.shutdown(Shutdown::Both);
-            }
+            cancellation.store(true, Relaxed);
         }
         for handshake in handshakes {
-            if handshake.worker.join().is_err() && result.is_ok() {
+            if handshake.join().is_err() && result.is_ok() {
                 result = Err(io::Error::other(
                     "snapshot TLS worker panicked during shutdown",
                 ));
@@ -146,7 +140,7 @@ fn admit(
 mod tests {
     use super::*;
     use crate::native::tls::Credentials;
-    use std::io::Read;
+    use std::{io::Read, net::TcpStream};
     use weekend_db::Error;
 
     fn listener() -> (TcpListener, std::net::SocketAddr) {

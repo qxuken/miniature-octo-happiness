@@ -9,7 +9,10 @@ use std::{
     io::{self, Read, Write},
     net::{SocketAddr, TcpStream},
     path::Path,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering::Relaxed},
+    },
     time::{Duration, Instant},
 };
 
@@ -94,7 +97,11 @@ impl Tls {
     ) -> AppResult<DeadlineStream<ClientConnection>> {
         let deadline = Instant::now() + TIMEOUT;
         let stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
-        self.client_session(DeadlineSocket { stream, deadline })
+        self.client_session(DeadlineSocket {
+            stream,
+            deadline,
+            cancellation: None,
+        })
     }
 
     fn client_session(
@@ -127,21 +134,28 @@ impl Tls {
 
     #[cfg(test)]
     pub(crate) fn accept(&self, socket: TcpStream) -> AppResult<Incoming> {
-        self.accept_at(socket, Instant::now())
+        self.accept_at(socket, Instant::now(), None)
     }
 
-    pub(crate) fn accept_at(&self, socket: TcpStream, accepted: Instant) -> AppResult<Incoming> {
+    pub(crate) fn accept_at(
+        &self,
+        socket: TcpStream,
+        accepted: Instant,
+        cancellation: Option<Arc<AtomicBool>>,
+    ) -> AppResult<Incoming> {
         let deadline = accepted + TIMEOUT;
         socket.set_nonblocking(false)?;
         self.server_session(DeadlineSocket {
             stream: socket,
             deadline,
+            cancellation,
         })
     }
 
     fn server_session(&self, mut socket: DeadlineSocket) -> AppResult<Incoming> {
         let mut tls = ServerConnection::new(self.server.clone())?;
         self.server_handshake(&mut tls, &mut socket)?;
+        socket.cancellation = None;
         Ok(DeadlineStream::new(StreamOwned::new(tls, socket))?)
     }
 
@@ -216,7 +230,10 @@ where
 struct DeadlineSocket {
     stream: TcpStream,
     deadline: Instant,
+    cancellation: Option<Arc<AtomicBool>>,
 }
+
+const CANCEL_POLL: Duration = Duration::from_millis(100);
 
 impl DeadlineSocket {
     #[cfg(test)]
@@ -224,6 +241,7 @@ impl DeadlineSocket {
         Self {
             stream,
             deadline: Instant::now() + TIMEOUT,
+            cancellation: None,
         }
     }
 
@@ -235,19 +253,47 @@ impl DeadlineSocket {
             Ok(remaining)
         }
     }
+
+    fn io(
+        &mut self,
+        mut operation: impl FnMut(&mut TcpStream, Duration) -> io::Result<usize>,
+    ) -> io::Result<usize> {
+        loop {
+            let mut remaining = self.remaining()?;
+            if let Some(canceled) = &self.cancellation {
+                if canceled.load(Relaxed) {
+                    return Err(io::ErrorKind::ConnectionAborted.into());
+                }
+                remaining = remaining.min(CANCEL_POLL);
+            }
+            match operation(&mut self.stream, remaining) {
+                Err(error)
+                    if self.cancellation.is_some()
+                        && matches!(
+                            error.kind(),
+                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                        ) => {}
+                result => return result,
+            }
+        }
+    }
 }
 
 impl Read for DeadlineSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.stream.set_read_timeout(Some(self.remaining()?))?;
-        self.stream.read(buf)
+        self.io(|stream, remaining| {
+            stream.set_read_timeout(Some(remaining))?;
+            stream.read(buf)
+        })
     }
 }
 
 impl Write for DeadlineSocket {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.stream.set_write_timeout(Some(self.remaining()?))?;
-        self.stream.write(buf)
+        self.io(|stream, remaining| {
+            stream.set_write_timeout(Some(remaining))?;
+            stream.write(buf)
+        })
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -387,6 +433,43 @@ mod deadline_tests {
             receiver.join().unwrap();
         });
     }
+
+    #[test]
+    fn pending_handshake_waits_for_cancellation_across_io_time_slices() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let server = Tls::new(&a, b.certificate()).unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let (accepted, started) = std::sync::mpsc::channel();
+        let (finished, result) = std::sync::mpsc::channel();
+        std::thread::scope(|scope| {
+            let cancel = cancellation.clone();
+            scope.spawn(move || {
+                let socket = listener.accept().unwrap().0;
+                let now = Instant::now();
+                accepted.send(()).unwrap();
+                let error = server
+                    .accept_at(socket, now, Some(cancel))
+                    .err()
+                    .expect("idle handshake unexpectedly succeeded");
+                finished.send(error).unwrap();
+            });
+            let _peer = TcpStream::connect(address).unwrap();
+            started.recv_timeout(Duration::from_secs(5)).unwrap();
+            assert!(matches!(
+                result.recv_timeout(CANCEL_POLL * 3),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ));
+            cancellation.store(true, Relaxed);
+            let error = result.recv_timeout(Duration::from_secs(2)).unwrap();
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::ConnectionAborted)
+            );
+        });
+    }
 }
 
 #[cfg(test)]
@@ -408,6 +491,7 @@ mod partial_handshake_tests {
                 let result = server.server_session(DeadlineSocket {
                     stream,
                     deadline: Instant::now() + Duration::from_secs(1),
+                    cancellation: None,
                 });
                 assert!(result.is_err());
                 // On Unix, WouldBlock after partial progress makes complete_io
@@ -618,7 +702,8 @@ mod study_legacy_decisions {
         assert!(
             tls.server_session(DeadlineSocket {
                 stream: peer,
-                deadline: Instant::now() + Duration::from_secs(1)
+                deadline: Instant::now() + Duration::from_secs(1),
+                cancellation: None,
             })
             .is_err()
         );
