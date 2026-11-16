@@ -85,10 +85,13 @@ source path are excluded explicitly, including Docker installations outside
 unqualified and produces no aggregate percentage. See the [coverage guide](coverage.md)
 and [parent executable guide](coverage-executables.md) for exact scope.
 
-`mutations` replays the [56 reviewed guard changes](mutations.md) in an owned
+`mutations` replays the [platform's reviewed guard changes](mutations.md) in an owned
 source copy. Nonempty baselines, failed-test diagnostics, restoration, original
 input stability and process retirement remain qualification gates. No original
 checkout or shared build cache is mutated.
+Unix retains its 56-case inventory. Windows has two native identity guard
+controls, each with fresh debug/release baselines and mutants supervised through
+the existing Job Object boundary; native runtime detection has its own CI gate.
 
 The check planner preserves the original Python pipeline: formatting, strict
 workspace Clippy, debug/release workspace tests, task CLI demo, renamed-dependency

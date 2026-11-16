@@ -29,6 +29,7 @@ pub fn environment(
     env.insert(path("CARGO_ENCODED_RUSTDOCFLAGS"), path(flags.join("\x1f")));
     env
 }
+#[cfg(any(unix, test))]
 pub fn address_environment(
     inherited: &BTreeMap<OsString, OsString>,
     build: &Path,

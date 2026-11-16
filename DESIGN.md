@@ -5945,3 +5945,19 @@ factoring, without adding a public provider, global hook, dependency or format.
 No binary-identity or entropy-quality claim follows. Current source inventory
 and remaining generic/native/platform scope are recorded separately from the
 earlier ledgers and immutable artifacts.
+
+The [Windows identity mutation runner](docs/windows-identity-mutations.md) now
+provides the maintained execution path for both status/diagnostic mutations.
+It preserves Unix's 56-case inventory and reuses Windows Job Object ownership,
+with fresh debug/release baseline/mutant targets and exact test/panic/result
+qualification. Eleven local controller tests pass per profile, two portable
+process controls pass, and strict Mac/Windows-target Clippy passes. Review found
+and fixed loose result parsing and the missing copied-source pin check; a
+derived loose-parser negative control fails at the intended assertion.
+
+Native Windows CI at `721cbdb`/merge `f386b4b` now passes all three new identity
+controls and the engine creation-body test in both profiles. This closes their
+native baseline gate. The new production-mutation runner still requires native
+CI execution; local cross-compilation and portable controls do not close it.
+This tranche changes tooling, without changing publication, either acknowledgment
+contract, dependencies, engine code or formats. Crates remain unpublished.

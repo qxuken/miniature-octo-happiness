@@ -32,7 +32,7 @@ mod fuzz;
 mod helper_controls;
 #[cfg(unix)]
 mod incident_recovery;
-#[cfg(any(unix, test))]
+#[cfg(any(unix, windows, test))]
 mod instrumentation;
 #[cfg(unix)]
 mod interactive;
@@ -45,7 +45,7 @@ mod migration;
 mod monthly_workload;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod msrv;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod mutations;
 mod notices;
 mod odin;
@@ -218,7 +218,7 @@ enum Task {
     #[cfg(unix)]
     Probe(probe::Options),
     /// Detect reviewed safe guard mutants in an isolated source checkout.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     Mutations(mutations::Options),
     /// Produce independent reports for exact parent test executables.
     #[cfg(unix)]
@@ -378,7 +378,7 @@ fn execute(cli: Cli) -> Result<()> {
         Task::SerializationScale(options) => serialization_scale::run(&run, options),
         #[cfg(unix)]
         Task::Probe(options) => probe::run(&run, options),
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         Task::Mutations(options) => mutations::run(&run, options),
         #[cfg(unix)]
         Task::CoverageExecutables(options) => coverage_executables::run(&run, options),

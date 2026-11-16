@@ -33,7 +33,7 @@ environment selector, application callback API or new database state.
 |---|---|
 | macOS core | First and third success with only byte 15 nonzero, exact returned bytes/call counts, and exactly three zero attempts returning `Io` without fabricated native context. Debug/release mutants for two/four attempts, unconditional admission and prefix-only admission fail the intended assertions. |
 | Linux core | Exact 5+11-byte assembly and suffix lengths; interruption retries the same suffix without leaving terminal context. Initial/partial terminal errors preserve error category, operation and raw errno. Initial/partial zero and oversized counts reject without invalid writes or consulting errno. First/third final-byte success and three-zero exhaustion retain exact call counts. Eight isolated mutations fail in both profiles: lost offset advance, omitted zero/oversize guards, premature errno consultation, wrong operation, too few attempts, category remapping and a missed signed-negative result. |
-| Windows core | Status 0, positive 1 and negative `0xc0000001` share one callback callsite/type, nonzero terminal bytes and zero/two preceding zero attempts. Exact success bytes or `Io`/`Random`/raw status distinguish admission outcomes. Separate controls cover first/third nonzero success and three-zero exhaustion. Native execution and runtime mutant detection remain pending below. |
+| Windows core | Status 0, positive 1 and negative `0xc0000001` share one callback callsite/type, nonzero terminal bytes and zero/two preceding zero attempts. Exact success bytes or `Io`/`Random`/raw status distinguish admission outcomes. Separate controls cover first/third nonzero success and three-zero exhaustion. Native baseline execution passes below; runtime mutant detection remains pending. |
 | Engine creation body | One `ProbePath` and function-pointer provider instantiation tests invalid limits before a forbidden entropy callback, then `Io` before a forbidden pathname conversion. A fixed nonzero identity creates an exclusively owned real file and survives reopen. Three isolated mutations fail in both profiles: late validation, ignored provider error and substituted identity. Every command leaves its owned temporary directory empty. |
 
 The signed-negative Linux mutation matters independently of the final `Io`:
@@ -74,6 +74,15 @@ Windows cfg-selected checks of the final combined source pass. The two Windows
 guard variants separately compile in their recorded isolated source slices.
 These are compilation results, not native execution or runtime mutant detection.
 
+Subsequent native Windows CI for head `721cbdb01424e67c339c0fc8fb306050f0ca929f`
+and tested merge `f386b4b0ed7eafff9fc3984f6a51cee009796de3` executes all three
+new identity controls and the creation-body test successfully in both debug
+and release (146 library tests per profile). The merge tree equals the head
+tree. This closes the baseline execution gate for that source; the
+[maintained Windows mutation runner](windows-identity-mutations.md) still needs
+native execution of both production mutations. Other CI jobs were still running
+when this native result was recorded.
+
 Root independently restores/rechecks all 384 indexed payloads of the three
 component proofs, plus 34 Windows-refinement payloads. They retain actual
 executables, exact base/overlays/mutations, native process reports and raw logs.
@@ -109,7 +118,7 @@ close old dispositions. The historical ledgers retain their hashes/locations.
 | Linux supported-architecture guard | Unchanged gate reviewed before the native call; no unsupported-ABI execution added. |
 | Linux retry/negative/progress/nonzero/loop records | Directed slice/status/diagnostic/call-count controls and eight mutations. For the progress OR, zero cannot also exceed a positive remaining length; both terms have accepted-progress controls. |
 | macOS loop/nonzero records | Directed output/call-count controls and four mutations; no invented native status-error path. |
-| Windows loop/status/nonzero records | Deterministic tests and real target compilation. Native baseline execution is the next CI gate; two compiled guard mutants still need a maintained bounded native execution path. |
+| Windows loop/status/nonzero records | Deterministic tests, real target compilation and native debug/release baseline execution at `721cbdb`. The maintained bounded Windows runner supplies the execution path; native runtime detection of both guard mutants remains pending. |
 
 Physical device behavior, other native failures, entropy quality, broader
 profiles and support/workload acceptance keep their separate gates. The

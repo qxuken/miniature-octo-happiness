@@ -8,8 +8,8 @@ cargo xtask mutations --case tls- --output target/tls-mutations-new
 cargo xtask mutations --output target/all-mutations-new
 ```
 
-The 56 reviewed guard mutations retain their original expressions, occurrence
-counts, package/test selection and replacement text in
+On Unix, the 56 reviewed guard mutations retain their original expressions,
+occurrence counts, package/test selection and replacement text in
 `xtask/tests/mutations.json`. Its provenance binds the retired Python controller.
 All source expressions are checked before an output or source copy is acquired.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
@@ -36,3 +36,34 @@ fuzzing. It deliberately avoids mutations that fabricate invalid raw pointers or
 invalidate object ownership. The source expressions and tests require review
 when implementations change; a source mismatch rejects rather than selecting a
 different expression silently.
+
+## Native Windows identity controls
+
+Windows selects the separate two-case `xtask/tests/mutations-windows.json`
+inventory. It requires a native MSVC host compiler:
+
+```sh
+cargo xtask mutations --case windows-rng- --toolchain 1.99.1 --output target/windows-rng-mutations-new
+```
+
+The guards reject a positive nonzero RNG status and preserve native diagnostics.
+Both select the exact status-zero/positive/negative test introduced in
+`721cbdb01424e67c339c0fc8fb306050f0ca929f`. The fixture pins that source file;
+each execution separately records its actual Git head, tree, parents, dirty
+status, copied input hashes, compiler and controller identity.
+
+Every case/profile has a successful one-test baseline and a separate mutant
+build, with fresh owned Cargo targets in debug and release. The existing
+Windows process boundary acquires a suspended child in its Job Object before
+resuming it, bounds runtime/output, and verifies retirement. A detection
+requires exit 101, the selected failed test, its intended assertion and a
+consistent nonempty result. Compilation errors, a different test, timeout,
+output overflow, cancellation or unverified cleanup cannot qualify.
+
+Evidence retains original/mutated source, raw logs/reports, hashes and the
+actual libtest executables identified by Cargo. Source restoration and original
+input stability are required. The Windows CI job uploads evidence even on
+failure, excluding disposable build caches and the full copied source tree.
+Unix keeps its existing inventory and controller behavior. Cross-compilation
+and classifier unit tests do not establish native mutant detection; the
+[identity report](native-identity-assurance.md) tracks that execution gate.

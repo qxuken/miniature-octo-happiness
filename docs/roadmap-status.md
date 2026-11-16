@@ -3008,3 +3008,34 @@ are not coverage credit. The [report](native-identity-assurance.md) records exac
 source/proof identities, callback-instantiation limits and native/kernel gates.
 The next concrete assurance step is native Windows execution of both guard
 mutants through maintained bounded Rust tooling. Crates remain unpublished.
+
+## Maintained Windows identity mutation path
+
+Native Windows CI for `721cbdb` tests merge `f386b4b`, whose tree equals the
+committed head. All three new identity controls and the creation-body test pass
+in debug and release (146 library tests per profile). This closes the baseline
+execution gate. The other workflow jobs were still running when this result was
+captured; no complete-workflow result or native mutant detection is inferred.
+
+The [new Windows controller](windows-identity-mutations.md) provides the missing
+bounded execution path for the two production mutations. It preserves the Unix
+56-case fixture and campaign behavior, uses existing suspended-child Job Object
+ownership, pins original/copied source and gives every baseline/mutant/profile
+a fresh Cargo target. Genuine selected-test failure, exact result counts,
+intended panic, owned artifact, restoration and process retirement are required.
+Review found and fixed loose result parsing and the preflight-to-copy pin gap.
+
+Local Rust 1.99.1 checks pass eleven controller tests per debug/release profile,
+two portable process controls and strict native/Windows-target Clippy. A derived
+loose-parser control fails at its intended malformed-footer assertion. The
+compile-only artifact probe records Cargo's actual libtest shape. Independent
+source/docs review has no remaining findings; root restores and checks all
+113 indexed payloads and four actual executables in the protected proof archive
+recorded in the report. Native Windows must still run all eight production
+baseline/mutant commands and preserve their evidence before that gate closes.
+
+The next feasible caller control is the snapshot sender's flush after uploading
+the image and before reading/observing the follower receipt. Its failure must
+preserve the sender's previous progress, while allowing that the follower may
+already be durable. Engine/wire bytes and both acknowledgment contracts are
+unchanged. Crates remain unpublished.

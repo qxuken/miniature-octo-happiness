@@ -1,0 +1,28 @@
+{
+  "source_commit": "721cbdb01424e67c339c0fc8fb306050f0ca929f",
+  "source_sha256": "42933c3f2718fa163da59e667c88634afe5d6c5ce5b2b47a073faa984438749e",
+  "cases": [
+    {
+      "file": "src/storage/windows.rs",
+      "test": "storage::windows::decision_tests::identity_rejects_every_nonzero_status_before_accepting_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "name": "windows-rng-status-negative",
+      "old": "if status != 0 {",
+      "new": "if status < 0 {"
+    },
+    {
+      "file": "src/storage/windows.rs",
+      "test": "storage::windows::decision_tests::identity_rejects_every_nonzero_status_before_accepting_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "name": "windows-rng-diagnostic-omission",
+      "old": "            diagnostics::record(\n                NativeIoOperation::Random,\n                &io::Error::from_raw_os_error(status),\n            );\n",
+      "new": ""
+    }
+  ]
+}

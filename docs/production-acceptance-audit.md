@@ -149,6 +149,10 @@ existing ignores. Final Windows controls compile for their real target, while
 native execution and runtime detection of both Windows guard mutations remain
 separate gates. This does not qualify kernel/CSP fault occurrence, entropy
 quality, unsupported ABIs or every generic instantiation.
+Native Windows subsequently executes the three controls and creation-body test
+at `721cbdb` in both profiles. The [maintained Windows mutation path](windows-identity-mutations.md)
+has passing portable checks and cross-Clippy, while actual production-mutant
+detection still needs its own native CI evidence.
 
 The [exact-7e0e44f campaign](fuzz-qualification-7e0e44f.md) completed 22 targets
 and 1,442,896 actual runs, with 244 unchanged seeds and separate 29-test replay.

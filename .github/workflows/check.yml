@@ -20,6 +20,21 @@ jobs:
         run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
+      - name: Detect the two native Windows RNG guard mutants in both profiles
+        if: runner.os == 'Windows'
+        id: windows_rng_mutations
+        continue-on-error: true
+        run: cargo xtask mutations --case windows-rng- --toolchain 1.99.1 --output target/windows-rng-mutations
+      - name: Save native Windows RNG mutation evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-rng-mutations-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-rng-mutations/**
+            !target/windows-rng-mutations/build-*/**
+            !target/windows-rng-mutations/source/**
       - name: Verify frozen typed schema rollout and rollback on NTFS
         if: runner.os == 'Windows'
         id: windows_typed_schema
@@ -330,6 +345,9 @@ jobs:
             target/release/*.dll
             target/release/*.dll.lib
             include/weekend_db.h
+      - name: Enforce native Windows RNG mutation results
+        if: always() && runner.os == 'Windows' && steps.windows_rng_mutations.outcome == 'failure'
+        run: exit 1
       - name: Enforce the Windows fault and compatibility results
         if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.windows_storage_wire.outcome == 'failure' || steps.windows_snapshot_upgrade.outcome == 'failure' || steps.windows_study_upgrade.outcome == 'failure' || steps.windows_replica_progress.outcome == 'failure' || steps.windows_follower_manifest.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
         shell: pwsh

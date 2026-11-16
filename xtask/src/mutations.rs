@@ -1,9 +1,12 @@
 //! Safe guard mutations in an owned source copy. Compilation failures, empty
 //! selections and supervision failures never count as a detected mutant.
+use crate::support::{Run, sha};
+#[cfg(unix)]
+use crate::support::{cmd, path};
+#[cfg(unix)]
 use crate::{
     assurance::{self, Campaign},
     instrumentation,
-    support::{Run, cmd, path, sha},
 };
 use anyhow::{Context, Result, ensure};
 use clap::Args;
@@ -14,7 +17,13 @@ use std::{
     fs,
     path::{Component, Path, PathBuf},
 };
+#[cfg(unix)]
 const FIXTURE: &str = include_str!("../tests/mutations.json");
+#[cfg(windows)]
+const FIXTURE: &str = include_str!("../tests/mutations-windows.json");
+#[cfg(any(windows, test))]
+#[path = "mutations_windows.rs"]
+mod windows;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Case {
@@ -46,8 +55,8 @@ pub struct Options {
     #[arg(long)]
     pub toolchain: Option<String>,
 }
-fn inventory() -> Result<Inventory> {
-    let data: Inventory = serde_json::from_str(FIXTURE)?;
+fn parse_inventory(fixture: &str) -> Result<Inventory> {
+    let data: Inventory = serde_json::from_str(fixture)?;
     ensure!(
         !data.source_commit.is_empty() && data.source_sha256.len() == 64,
         "mutation fixture provenance"
@@ -86,6 +95,9 @@ fn inventory() -> Result<Inventory> {
     }
     ensure!(!data.cases.is_empty(), "empty mutation inventory");
     Ok(data)
+}
+fn inventory() -> Result<Inventory> {
+    parse_inventory(FIXTURE)
 }
 fn apply(case: &Case, original: &str) -> Result<String> {
     let marker = "#[cfg(test)]\nmod ";
@@ -137,6 +149,7 @@ fn command(case: &Case, toolchain: Option<&str>) -> Vec<String> {
     );
     args
 }
+#[cfg(unix)]
 fn baseline(report: &crate::supervise::Report, log: &str) -> bool {
     report.success()
         && regex::Regex::new(r"(?m)^test result: ok\. ([1-9]\d*) passed; 0 failed;")
@@ -144,6 +157,7 @@ fn baseline(report: &crate::supervise::Report, log: &str) -> bool {
             .is_match(log)
         && !log.contains("running 0 tests")
 }
+#[cfg(unix)]
 fn caught(report: &crate::supervise::Report, log: &str) -> bool {
     report.returncode == Some(101)
         && assurance::qualifies(report, log, Some("test result: FAILED"))
@@ -174,6 +188,11 @@ fn copy_source(root: &Path, output: &Path, names: &str) -> Result<Value> {
             Err(e) => return Err(e.into()),
         };
         ensure!(!meta.file_type().is_symlink(), "source symlink: {name}");
+        #[cfg(windows)]
+        ensure!(
+            !crate::delivery::reparse(&meta),
+            "source reparse point: {name}"
+        );
         if !meta.is_file() {
             continue;
         }
@@ -188,6 +207,11 @@ fn copy_source(root: &Path, output: &Path, names: &str) -> Result<Value> {
     }
     Ok(Value::Object(hashes))
 }
+#[cfg(windows)]
+pub fn run(run: &Run, options: Options) -> Result<()> {
+    windows::run(run, options)
+}
+#[cfg(unix)]
 pub fn run(run: &Run, options: Options) -> Result<()> {
     let inventory = inventory()?;
     let selected = inventory
@@ -378,20 +402,26 @@ mod tests {
             fs::read_to_string(root.path().join("src/input.rs")).unwrap(),
             "original"
         );
-        fs::write(outside.path().join("secret.rs"), "unchanged").unwrap();
-        std::os::unix::fs::symlink(
-            outside.path().join("secret.rs"),
-            root.path().join("escape.rs"),
-        )
-        .unwrap();
-        let rejected = root.path().join("rejected");
-        fs::create_dir(&rejected).unwrap();
-        assert!(copy_source(root.path(), &rejected, "escape.rs\0").is_err());
-        assert_eq!(
-            fs::read_to_string(outside.path().join("secret.rs")).unwrap(),
-            "unchanged"
-        );
+        #[cfg(unix)]
+        {
+            fs::write(outside.path().join("secret.rs"), "unchanged").unwrap();
+            std::os::unix::fs::symlink(
+                outside.path().join("secret.rs"),
+                root.path().join("escape.rs"),
+            )
+            .unwrap();
+            let rejected = root.path().join("rejected");
+            fs::create_dir(&rejected).unwrap();
+            assert!(copy_source(root.path(), &rejected, "escape.rs\0").is_err());
+            assert_eq!(
+                fs::read_to_string(outside.path().join("secret.rs")).unwrap(),
+                "unchanged"
+            );
+        }
+        #[cfg(windows)]
+        let _ = outside;
     }
+    #[cfg(unix)]
     #[test]
     fn fixture_has_all_56_unique_safe_cases_and_preserves_test_commands() {
         let data = inventory().unwrap();
@@ -433,9 +463,13 @@ mod tests {
     fn every_frozen_expression_still_matches_current_production_source() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         for c in inventory().unwrap().cases {
+            #[cfg(unix)]
             apply(&c, &fs::read_to_string(root.join(&c.file)).unwrap()).unwrap();
+            #[cfg(windows)]
+            windows::apply_native(&c, &fs::read_to_string(root.join(&c.file)).unwrap()).unwrap();
         }
     }
+    #[cfg(unix)]
     #[test]
     fn compiler_failure_empty_selection_timeout_and_cleanup_failure_are_not_detection() {
         const FAILED: &str = "test result: FAILED. 0 passed; 1 failed;";
