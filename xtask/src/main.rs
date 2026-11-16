@@ -26,7 +26,7 @@ mod delivery_matrix;
 mod faults;
 #[cfg(unix)]
 mod follower_backup;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod fuzz;
 #[cfg(unix)]
 mod helper_controls;

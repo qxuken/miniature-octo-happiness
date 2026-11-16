@@ -1,5 +1,26 @@
 # Same-source private delivery qualification
 
+## Retained fuzz evidence
+
+`verify-delivery --fuzz PATH` optionally requires a successful clean-source
+`cargo xtask fuzz` campaign at the same full Git revision as all delivery
+lanes. The verifier compares the complete scoped source inventory, fuzz
+lockfile and seed hashes with the exact Git archive, requires every target
+in its fuzz manifest once, and checks ASan commands and successful process
+reports with verified cleanup. It recomputes completed counts from the
+retained stdout/stderr and matching combined logs, and requires each target's
+artifact directory to exist and be empty. Requested run budgets do not count
+as completed executions. The report adds the evidence digest and each
+target's actual completed count and log digest; omitting `--fuzz` preserves
+the existing report structure.
+
+Produce a campaign from the clean candidate with evidence and build outputs
+outside tracked source paths, then pass its retained directory alongside
+`--source`, `--matrix` and any other delivery options. This gate binds the
+retained campaign; it sets no minimum duration, execution count beyond one,
+or platform coverage policy. Native platform qualification and sustained
+fuzzing remain separate release requirements.
+
 ## Retained benchmark evidence
 
 The `0fe8ff7` verifier accepts an optional `--benchmark` directory.

@@ -93,7 +93,6 @@ fn walk(
     }
     Ok(())
 }
-#[cfg(unix)]
 pub fn seeds(root: &Path) -> Result<BTreeMap<String, String>> {
     let mut out = BTreeMap::new();
     walk(root, &root.join("fuzz/seeds"), &mut out, true)?;

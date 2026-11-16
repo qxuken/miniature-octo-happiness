@@ -2,6 +2,7 @@
 use crate::{
     benchmark,
     delivery::read_json_hashed,
+    fuzz,
     msrv::{EVIDENCE_EXCLUSIONS, ISOLATED_PACKAGES, check_isolated_manifest, minimum},
     source_archive,
     support::{Platform, Run, Scratch, qualification_inventory, sha, text},
@@ -25,6 +26,9 @@ pub struct Options {
     /// Optional retained benchmark evidence directory from the same clean commit.
     #[arg(long)]
     benchmark: Option<PathBuf>,
+    /// Optional retained complete ASan fuzz campaign from the same clean commit.
+    #[arg(long)]
+    fuzz: Option<PathBuf>,
     /// Require the three isolated packages in every lane.
     #[arg(long)]
     require_isolated: bool,
@@ -594,6 +598,11 @@ pub fn run(run: &mut Run, options: Options) -> Result<()> {
         .as_deref()
         .map(|root| benchmark::verify(root, &source, &tree))
         .transpose()?;
+    let fuzz = options
+        .fuzz
+        .as_deref()
+        .map(|root| fuzz::verify(root, &source, &tree))
+        .transpose()?;
     let mut report = verify(
         &options.matrix,
         &source,
@@ -606,6 +615,9 @@ pub fn run(run: &mut Run, options: Options) -> Result<()> {
     report["verifier_sha256"] = json!(sha(&std::env::current_exe()?)?);
     if let Some(benchmark) = benchmark {
         report["benchmark"] = benchmark;
+    }
+    if let Some(fuzz) = fuzz {
+        report["fuzz"] = fuzz;
     }
     scratch.close()?;
     println!("{}", serde_json::to_string_pretty(&report)?);

@@ -17,7 +17,11 @@ binds all four Cargo feature masks, exact consumer traces and bounded
 ASan/fuzz evidence to one tested revision.
 `verify-delivery` checks the debug and release workspace tests in each
 lane and can bind retained release microbenchmark samples to the same
-clean source revision with `--benchmark`. The release performance gate
+clean source revision with `--benchmark`. An optional `--fuzz` binds a
+complete retained ASan campaign, scoped source/lock/seed hashes, actual
+completed counts, empty artifact directories and verified process cleanup
+to that exact archived tree. It does not impose a minimum campaign duration.
+The release performance gate
 still requires workload measurements against declared budgets.
 
 The release scope includes the local embedded store, typed Rust, C/Odin,
