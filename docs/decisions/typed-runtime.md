@@ -1071,3 +1071,89 @@ reached after raw metadata corruption, so no unconditional infeasibility claim
 is made. Standard-library allocation failures and individual schema/core/storage
 propagations retain the delegated limits in T5. Production inputs and the
 315-record denominator remain unchanged.
+
+## T12: Boolean, Integer and Unsigned unique-key dispatch
+
+The existing `Scalars` model and
+`scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip`
+(`tests/models.rs:709`) now make its existing flag, signed and counter fields
+unique. No model, helper, dependency or runtime implementation is added. This
+qualifies the finite unique-key dispatch matrix left separate in T11; the
+`index_key` match at `store.rs:463` retains its E disposition. All dispositions
+and the 315-record denominator remain unchanged.
+
+Two rows independently exercise Boolean true/false, Integer i8 minimum/maximum
+and Unsigned u32 maximum/zero through actual typed `find` calls before and after
+reopen. Signed/unsigned values are widened to their stored 64-bit representation.
+Absent signed-zero and unsigned-one lookups supply miss controls. Existing
+binary and float behavior remains: the exact NaN payload is indexed and read,
+then an update replaces that key with negative zero while another row retains
+positive zero; the retained checkpoint still resolves the original NaN bits.
+Current and retained index reports remain consistent.
+
+The initial entire raw index collection must equal exactly ten independently
+assembled keys and unsigned owner IDs, not merely keys recreated by lookup.
+The current private layout is collection-ID LE64, field-ID LE64, one literal
+kind tag, then the payload. Fixture tags are Boolean 1, Integer 2, Unsigned 3,
+Float 4 and Bytes 5. Boolean payloads are one byte, integer/float payloads eight
+little-endian bytes, and byte-string payloads exact bytes. The fixture calls no
+runtime index encoder and derives no tags from `Kind`; correlated writer/lookup
+encoding errors therefore cannot satisfy this raw-entry oracle. This records
+the tested private implementation layout, not a new public-format promise.
+
+Each field 1/2/3 collision changes only that field on row 2; the other four
+unique values remain distinct or unchanged self-owned claims. It returns exact
+`UniqueViolation(field_id)`, avoiding an earlier different-field collision as
+a substitute oracle. A preceding nested-list edit to row 1 must roll back even
+when the collision error is caught: the outer Write returns `Closed`, revision
+stays unchanged, and every current/retained system/catalog, descriptor, index
+and primary row remains equal. Following the float update, MemoryStore reopen
+preserves complete current primary/index rows; every retained collection row
+still equals its pre-update snapshot. These are logical-row and byte-adapter
+reopen checks, not a complete durable-image comparison or native filesystem,
+crash or power-loss qualification.
+
+### Source and bounded execution
+
+All retained commands run from clean
+`3db5bcdd20de297b8b5424c1fbc2d1e316e2145d` plus only the exact `models.rs`
+overlay. Its original source SHA-256 is
+`6802b09817f9524d222735080a1c01bb927bfb8619ccdf0d94dc7db1dee3b8d8`;
+the final source SHA-256 is
+`ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932`.
+The exact patch SHA-256 is
+`ba542346362a258e30615bd42f3857a7bcd08e0eecfc4e1770caee35509cb65c`.
+The clean Git archive SHA-256 is
+`590eb6c5628e1201071d6f539209d65d3efab054e4904e6ef76556b20479d963`.
+Production inputs, other tests and Cargo manifests/lock remain unchanged.
+
+On macOS arm64 with Rust 1.99.1 (`58cf8f9c3`, LLVM 23.1.1), the focused test
+passes in debug and release. Full all-feature typed debug/release suites each
+pass 60 tests (54 integration tests and six doctests), with one ignored
+documentation example. Strict all-target Clippy with warnings denied passes.
+All five commands use offline/locked dependencies, `CARGO_INCREMENTAL=0`, a
+separate initially absent target and a 360-second timeout plus ten-second kill
+grace. Source/lock input hashes before and after match; all five owned targets
+are removed. Formatting and diff checks pass.
+
+Proof: `/private/tmp/weekend-typed-t12-L3NRSM/`. Its `evidence.json` indexes 27
+payloads, including the exact source tar, original/final test source and patch,
+source/compiler identities, runner, five command records and complete logs,
+and model executable hashes from the four test commands. The manifest SHA-256
+is `708f77a09c97ce6bd5dd862bb0666ea12e7e2512178ef2418cdfc0c75ffe19c4`.
+The compact archive `/private/tmp/weekend-typed-t12-L3NRSM.tar.gz` was restored
+and all 27 indexed payload hashes verified; its SHA-256 is
+`3ee3b0c59fe2018b08466f97c91e257c7875cf36046709de8a351d10747143f3`.
+Reconstructed source and build outputs are excluded from that archive.
+
+Root independently restored all 27 payloads, verified five command outcomes
+and full-suite totals, and matched the clean base archive, unchanged production
+inputs and exact test overlay. The protected copy is
+`target/archived-proof/typed-scalar-index-3db5bcd.tar.gz`, with the same archive
+digest above. Root code review found no actionable issue.
+
+This is dispatch execution and finite functional evidence, with no mutation
+experiment or automatic compiler MC/DC claim. It does not exhaust i64/u64
+ranges, all Rust field types/generic instantiations, delegated errors or other
+platforms. The structural, propagation, allocator and unsupported-container
+limits in T5/T11 remain in force; no E record is cosmetically promoted to P.

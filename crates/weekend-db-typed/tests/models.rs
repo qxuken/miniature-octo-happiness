@@ -692,11 +692,11 @@ fn custom_decoder_resource_failure_is_preserved_and_aborts_earlier_writes() -> R
 #[derive(Model)]
 #[weekend(type_id = 901, version = 1)]
 struct Scalars {
-    #[weekend(id = 1)]
+    #[weekend(id = 1, unique)]
     flag: bool,
-    #[weekend(id = 2)]
+    #[weekend(id = 2, unique)]
     signed: i8,
-    #[weekend(id = 3)]
+    #[weekend(id = 3, unique)]
     counter: u32,
     #[weekend(id = 4, unique)]
     float: f64,
@@ -708,7 +708,8 @@ struct Scalars {
 #[test]
 fn scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip() -> Result<()> {
     use weekend_db_typed::Bytes;
-    let mut store = Store::memory()?;
+    let backend = MemoryStore::new()?;
+    let mut store = Store::create_on(backend.clone(), [91; 16], engine::Limits::default())?;
     let table = store.table::<Scalars>("scalars")?;
     let bits = 0x7ff8_0000_0000_0042;
     store.write(|w| {
@@ -745,16 +746,158 @@ fn scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip() -> Result<
         Ok(())
     })?;
     store.write(|w| {
+        w.insert(
+            &table,
+            2,
+            &Scalars {
+                flag: false,
+                signed: i8::MAX,
+                counter: 0,
+                float: 0.0,
+                payload: Bytes(b"other".to_vec()),
+                nested: vec![],
+            },
+        )
+    })?;
+    store.read(|r| {
+        assert_eq!(r.find(&table, Scalars::FLAG, &true)?.unwrap().id(), 1);
+        assert_eq!(r.find(&table, Scalars::FLAG, &false)?.unwrap().id(), 2);
+        assert_eq!(r.find(&table, Scalars::SIGNED, &i8::MIN)?.unwrap().id(), 1);
+        assert_eq!(r.find(&table, Scalars::SIGNED, &i8::MAX)?.unwrap().id(), 2);
+        assert_eq!(
+            r.find(&table, Scalars::COUNTER, &u32::MAX)?.unwrap().id(),
+            1
+        );
+        assert_eq!(r.find(&table, Scalars::COUNTER, &0u32)?.unwrap().id(), 2);
+        assert!(r.find(&table, Scalars::SIGNED, &0i8)?.is_none());
+        assert!(r.find(&table, Scalars::COUNTER, &1u32)?.is_none());
+        let report = r.check_indexes(&table)?;
+        assert_eq!(report.records, 2);
+        assert_eq!(report.expected_entries, 10);
+        assert_eq!(report.stored_entries, 10);
+        assert!(report.is_consistent());
+        Ok(())
+    })?;
+    // Independent current private layout: collection LE64, field LE64,
+    // literal kind tag, then bool byte or signed/unsigned/float LE64 payload.
+    // Do not call the runtime index encoder or derive its tags from Kind.
+    let db = store.database();
+    let mut expected = Vec::new();
+    for (field, tag, bytes, owner) in [
+        (1u64, 1, vec![1], 1u64),
+        (1, 1, vec![0], 2),
+        (2, 2, i64::from(i8::MIN).to_le_bytes().to_vec(), 1),
+        (2, 2, i64::from(i8::MAX).to_le_bytes().to_vec(), 2),
+        (3, 3, u64::from(u32::MAX).to_le_bytes().to_vec(), 1),
+        (3, 3, 0u64.to_le_bytes().to_vec(), 2),
+        (4, 4, bits.to_le_bytes().to_vec(), 1),
+        (4, 4, 0u64.to_le_bytes().to_vec(), 2),
+        (5, 5, vec![0, 255, 1], 1),
+        (5, 5, b"other".to_vec(), 2),
+    ] {
+        let mut key = table.collection().as_u64().to_le_bytes().to_vec();
+        key.extend_from_slice(&field.to_le_bytes());
+        key.push(tag);
+        key.extend_from_slice(&bytes);
+        expected.push((key, owner));
+    }
+    expected.sort_unstable();
+    let actual: engine::Result<Vec<_>> = db
+        .snapshot()
+        .scan(db.collection_id(3))?
+        .into_iter()
+        .map(|(key, value)| Ok((key, value.as_u64()?)))
+        .collect();
+    assert_eq!(actual?, expected);
+    let retained = store.checkpoint()?;
+    let revision = db.snapshot().revision();
+    let mut before = Vec::new();
+    for id in [1, 2, 3, table.collection().as_u64()] {
+        before.push((id, db.snapshot().scan(db.collection_id(id))?));
+    }
+    for field in 1..=3 {
+        let result = store.write(|w| {
+            w.update(&table, 1, |row| {
+                row.nested.push(None);
+                Ok(())
+            })?;
+            // Only the selected field collides; every other unique field stays
+            // distinct, so an earlier unique check cannot mask this arm.
+            assert_eq!(
+                w.update(&table, 2, |row| {
+                    match field {
+                        1 => row.flag = true,
+                        2 => row.signed = i8::MIN,
+                        _ => row.counter = u32::MAX,
+                    }
+                    Ok(())
+                }),
+                Err(Error::UniqueViolation(field))
+            );
+            Ok(())
+        });
+        assert_eq!(result, Err(Error::Engine(engine::Error::Closed)));
+        assert_eq!(db.snapshot().revision(), revision);
+        for (id, rows) in &before {
+            assert_eq!(&db.snapshot().scan(db.collection_id(*id))?, rows);
+            assert_eq!(
+                &db.retained_snapshot(retained)?
+                    .scan(db.collection_id(*id))?,
+                rows
+            );
+        }
+    }
+    store.write(|w| {
         w.update(&table, 1, |v| {
             v.float = -0.0;
             Ok(())
         })
     })?;
+    let current_primary = db.snapshot().scan(table.collection())?;
+    let current_indexes = db.snapshot().scan(db.collection_id(3))?;
+    drop(store);
+    let mut store = Store::open_on(backend, engine::Limits::default())?;
+    let table = store.table::<Scalars>("scalars")?;
+    let db = store.database();
+    assert_eq!(db.snapshot().scan(table.collection())?, current_primary);
+    assert_eq!(db.snapshot().scan(db.collection_id(3))?, current_indexes);
     store.read(|r| {
-        assert!(r.find(&table, Scalars::FLOAT, &-0.0)?.is_some());
-        assert!(r.find(&table, Scalars::FLOAT, &0.0)?.is_none());
+        assert_eq!(r.find(&table, Scalars::FLAG, &true)?.unwrap().id(), 1);
+        assert_eq!(r.find(&table, Scalars::FLAG, &false)?.unwrap().id(), 2);
+        assert_eq!(r.find(&table, Scalars::SIGNED, &i8::MIN)?.unwrap().id(), 1);
+        assert_eq!(r.find(&table, Scalars::SIGNED, &i8::MAX)?.unwrap().id(), 2);
+        assert_eq!(
+            r.find(&table, Scalars::COUNTER, &u32::MAX)?.unwrap().id(),
+            1
+        );
+        assert_eq!(r.find(&table, Scalars::COUNTER, &0u32)?.unwrap().id(), 2);
+        let row = r.find(&table, Scalars::FLOAT, &-0.0)?.unwrap();
+        assert_eq!(row.id(), 1);
+        assert_eq!(row.float.to_bits(), (-0.0f64).to_bits());
+        assert_eq!(r.find(&table, Scalars::FLOAT, &0.0)?.unwrap().id(), 2);
+        assert!(
+            r.find(&table, Scalars::FLOAT, &f64::from_bits(bits))?
+                .is_none()
+        );
+        assert!(r.check_indexes(&table)?.is_consistent());
         Ok(())
     })?;
+    store.read_retained(retained, |r| {
+        let row = r
+            .find(&table, Scalars::FLOAT, &f64::from_bits(bits))?
+            .unwrap();
+        assert_eq!(row.id(), 1);
+        assert_eq!(row.float.to_bits(), bits);
+        assert!(r.find(&table, Scalars::FLOAT, &-0.0)?.is_none());
+        assert!(r.check_indexes(&table)?.is_consistent());
+        Ok(())
+    })?;
+    for (id, rows) in before {
+        assert_eq!(
+            db.retained_snapshot(retained)?.scan(db.collection_id(id))?,
+            rows
+        );
+    }
     Ok(())
 }
 

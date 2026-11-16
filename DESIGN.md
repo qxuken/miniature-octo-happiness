@@ -5821,6 +5821,14 @@ delegated limits stay explicit; scalar unique-key arm coverage, other generic
 instantiations, compiler MC/DC and final platforms remain separate. No typed
 runtime, macro or format change accompanies these assurance tests.
 
+[T12](docs/decisions/typed-runtime.md#t12-boolean-integer-and-unsigned-unique-key-dispatch)
+then qualifies the finite Boolean/Integer/Unsigned unique-key dispatch matrix
+using the existing scalar model/test, an independent ten-entry raw-key fixture,
+isolated uniqueness collisions, retained views and MemoryStore reopening.
+Both complete typed profiles pass 60 tests and strict Clippy; one doctest stays
+ignored. Runtime and the 315-record E/P dispositions remain unchanged. This is
+dispatch behavior evidence, separate from native crash tests or compiler MC/DC.
+
 ## Opt-in bounded service diagnostics
 
 The TLS CLIs accept leading `--diagnostics=json`, with closed enum/numeric

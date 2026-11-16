@@ -2788,3 +2788,23 @@ explicit narrower evidence. Boolean/integer/unsigned unique-key dispatch,
 individual delegated failures, further generic instantiations, compiler MC/DC
 and final-platform qualification remain separate. Production runtime and wire
 formats are unchanged; no whole-module completion is claimed.
+
+## Scalar unique-key dispatch
+
+[T12](decisions/typed-runtime.md#t12-boolean-integer-and-unsigned-unique-key-dispatch)
+extends the existing Scalars model/test to qualify Boolean, Integer and Unsigned
+unique-key paths. Exactly ten independently encoded raw keys and owner IDs
+check the writer/lookup pair against the private byte layout. Isolated collisions
+for each added field roll back preceding work, and current/retained rows,
+lookups and index reports survive MemoryStore reopen. Existing NaN payload and
+positive/negative-zero distinctions remain covered.
+
+Focused debug/release and complete typed profiles pass; each full profile has
+60 passing tests and one ignored doctest. Strict Clippy passes. Root restores
+all 27 indexed payloads and verifies five command outcomes plus clean base and
+test-overlay identities. Protected archive:
+`target/archived-proof/typed-scalar-index-3db5bcd.tar.gz`, SHA-256
+`3ee3b0c59fe2018b08466f97c91e257c7875cf36046709de8a351d10747143f3`.
+This closes the named finite scalar dispatch matrix without changing runtime,
+dependencies, formats or E/P dispositions. It supplies no native-filesystem,
+crash, mutation or compiler MC/DC qualification.
