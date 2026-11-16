@@ -861,10 +861,12 @@ dependencies = [
 name = "weekend-replicate"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "rcgen",
  "rustls",
  "sha2",
  "weekend-db",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

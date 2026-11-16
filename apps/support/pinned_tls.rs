@@ -125,9 +125,18 @@ impl Tls {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn accept(&self, socket: TcpStream) -> AppResult<Incoming> {
+        self.accept_at(socket, Instant::now())
+    }
+
+    pub(crate) fn accept_at(&self, socket: TcpStream, accepted: Instant) -> AppResult<Incoming> {
+        let deadline = accepted + TIMEOUT;
         socket.set_nonblocking(false)?;
-        self.server_session(DeadlineSocket::new(socket))
+        self.server_session(DeadlineSocket {
+            stream: socket,
+            deadline,
+        })
     }
 
     fn server_session(&self, mut socket: DeadlineSocket) -> AppResult<Incoming> {
@@ -210,6 +219,7 @@ struct DeadlineSocket {
 }
 
 impl DeadlineSocket {
+    #[cfg(test)]
     fn new(stream: TcpStream) -> Self {
         Self {
             stream,

@@ -2,6 +2,8 @@
 use std::{
     collections::BTreeMap,
     fs,
+    io::Read,
+    net::TcpStream,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
@@ -165,15 +167,35 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     assert!(ack.contains("digest="));
     let status = run(&["status", follower, stream, identity]);
     assert!(status.lines().any(|l| l == ack));
+    let mut server_args = server_args;
+    server_args[8] = "2";
     let (mut server, address) = Server::start(&dir.0, &server_args);
-    let polled = run(&[
-        "poll",
-        source,
-        stream,
-        &address,
-        a.to_str().unwrap(),
-        b_pin.to_str().unwrap(),
-    ]);
+    // Keep the first TCP connection open without sending a TLS ClientHello.
+    let stalled = TcpStream::connect(&address).unwrap();
+    let mut poll = Server(
+        Command::new(BIN)
+            .args([
+                "poll",
+                source,
+                stream,
+                &address,
+                a.to_str().unwrap(),
+                b_pin.to_str().unwrap(),
+            ])
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    assert!(poll.exit_status().success());
+    let mut polled = String::new();
+    poll.0
+        .stdout
+        .take()
+        .unwrap()
+        .read_to_string(&mut polled)
+        .unwrap();
+    assert!(server.0.try_wait().unwrap().is_none());
+    drop(stalled);
     server.finished();
     assert!(polled.contains("local verified_revision=4"));
     assert!(polled.lines().any(|l| l == ack));

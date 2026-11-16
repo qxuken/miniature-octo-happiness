@@ -1,6 +1,13 @@
 use std::{io, net::TcpListener, sync::atomic::AtomicBool};
 
+#[path = "../../../support/listener_ready.rs"]
+mod listener_ready;
+
 const WAIT_MS: i32 = 50;
+
+pub(super) fn wait_for_connection(listener: &TcpListener) -> io::Result<bool> {
+    listener_ready::wait_for_connection(listener, WAIT_MS)
+}
 
 #[cfg(unix)]
 pub(super) struct Stop {
@@ -33,23 +40,6 @@ impl Drop for Stop {
         for handler in self.handlers.drain(..) {
             signal_hook::low_level::unregister(handler);
         }
-    }
-}
-
-#[cfg(unix)]
-pub(super) fn wait_for_connection(listener: &TcpListener) -> io::Result<bool> {
-    use std::os::fd::AsRawFd;
-    let mut descriptor = libc::pollfd {
-        fd: listener.as_raw_fd(),
-        events: libc::POLLIN,
-        revents: 0,
-    };
-    // SAFETY: the listener stays open and descriptor holds one writable pollfd.
-    let ready = unsafe { libc::poll(&mut descriptor, 1, WAIT_MS) };
-    if ready < 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(ready != 0)
     }
 }
 
@@ -104,26 +94,5 @@ impl Drop for Stop {
             // SAFETY: removes the same static callback registered by this instance.
             unsafe { SetConsoleCtrlHandler(Some(console_stop), 0) };
         }
-    }
-}
-
-#[cfg(windows)]
-pub(super) fn wait_for_connection(listener: &TcpListener) -> io::Result<bool> {
-    use std::os::windows::io::AsRawSocket;
-    use windows_sys::Win32::Networking::WinSock::{
-        POLLRDNORM, SOCKET_ERROR, WSAGetLastError, WSAPOLLFD, WSAPoll,
-    };
-    let mut descriptor = WSAPOLLFD {
-        fd: listener.as_raw_socket() as usize,
-        events: POLLRDNORM,
-        revents: 0,
-    };
-    // SAFETY: the socket stays open and descriptor holds one writable WSAPOLLFD.
-    let ready = unsafe { WSAPoll(&mut descriptor, 1, WAIT_MS) };
-    if ready == SOCKET_ERROR {
-        // SAFETY: called on the same thread that made the failed Winsock call.
-        Err(io::Error::from_raw_os_error(unsafe { WSAGetLastError() }))
-    } else {
-        Ok(ready != 0)
     }
 }

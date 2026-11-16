@@ -18,7 +18,7 @@ use std::{
         atomic::{AtomicBool, Ordering::Relaxed},
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tls::{Credentials, Incoming, Tls, bounded_file};
 use weekend_db::{Database, Error, Limits};
@@ -173,7 +173,7 @@ fn run<S: io::Read + Write>(
             while !stop_receiving.load(Relaxed) {
                 match listener.accept() {
                     Ok((socket, _)) => {
-                        let result = server.accept(socket).and_then(|stream| {
+                        let result = server.accept_at(socket, Instant::now()).and_then(|stream| {
                             Ok(receiving_replica.serve_authenticated(incoming(stream))?)
                         });
                         if let Err(error) = result {

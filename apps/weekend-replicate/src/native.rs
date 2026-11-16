@@ -1,12 +1,15 @@
+mod admission;
 mod capture_record;
 #[cfg(test)]
 mod tests;
 #[path = "tls.rs"]
 mod tls;
+#[cfg(test)]
+use std::net::TcpStream;
 use std::{
     ffi::OsStr,
     io::{self, Write},
-    net::{SocketAddr, TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener},
     path::Path,
     thread,
     time::Duration,
@@ -356,25 +359,19 @@ impl std::fmt::Display for SessionError {
     }
 }
 impl std::error::Error for SessionError {}
+#[cfg(test)]
 fn serve_one(follower: &mut Follower, tls: &Tls, socket: TcpStream) -> Result<(), SessionError> {
     let channel = tls.accept(socket).map_err(SessionError::Authentication)?;
     follower
         .serve_authenticated(channel)
         .map_err(SessionError::Replication)
 }
-fn serve(mut follower: Follower, address: SocketAddr, tls: &Tls, maximum: usize) -> AppResult<()> {
+fn serve(follower: Follower, address: SocketAddr, tls: &Tls, maximum: usize) -> AppResult<()> {
     let listener = TcpListener::bind(address)?;
+    listener.set_nonblocking(true)?;
     println!("ready {}", listener.local_addr()?);
     io::stdout().flush()?;
-    for incoming in listener.incoming().take(maximum) {
-        let socket = incoming?;
-        if let Err(error) = serve_one(&mut follower, tls, socket) {
-            eprintln!("{error}");
-        }
-        // Never keep serving a poisoned manifest or report an old receipt as current.
-        follower.progress()?;
-    }
-    Ok(())
+    admission::serve(listener, follower, tls, maximum)
 }
 
 #[cfg(test)]

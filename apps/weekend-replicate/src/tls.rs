@@ -7,3 +7,4 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 #[path = "../../support/pinned_tls.rs"]
 mod implementation;
 pub(crate) use implementation::{Credentials, Tls, bounded_file};
+pub(crate) type Incoming = implementation::Incoming;
