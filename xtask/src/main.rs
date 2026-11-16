@@ -186,10 +186,10 @@ enum Task {
     LinuxMsrv(msrv::Options),
     /// Verify publication errors and fresh recovery using the exact Windows DLL.
     #[cfg(windows)]
-    WindowsFaults(windows_trace::Options),
+    WindowsFaults(windows_trace::FaultOptions),
     /// Verify real NTFS exhaustion and fresh recovery using the exact Windows DLL.
     #[cfg(windows)]
-    WindowsDiskFull(windows_trace::Options),
+    WindowsDiskFull(windows_trace::FaultOptions),
     /// Verify an actual NTFS owner quota and append recovery on a private VHD.
     #[cfg(windows)]
     WindowsQuota(windows_quota::Options),

@@ -4,21 +4,10 @@ import "core:c"
 import "core:dynlib"
 import "core:fmt"
 import "core:os"
-import "core:strconv"
-import "core:strings"
-import "core:sys/posix"
 import db "weekend:odin"
 
-#assert(ODIN_OS == .Darwin || ODIN_OS == .Linux)
 #assert(!ODIN_DISABLE_ASSERT)
 REQUEST_KEY :: string("request")
-when ODIN_OS == .Linux {
-    MODE_COUNT :: 6
-    PRELOAD :: "LD_PRELOAD"
-} else {
-    MODE_COUNT :: 5
-    PRELOAD :: "DYLD_INSERT_LIBRARIES"
-}
 
 ok :: proc(status: db.Status) {
     assert(status == db.WDB_OK, fmt.tprintf("unexpected status %d", status))
@@ -141,50 +130,31 @@ candidate :: proc(database: db.Database) -> db.Transaction {
     return tx
 }
 
-probe_unrelated :: proc(directory: string) {
-    path := strings.clone_to_cstring(fmt.tprintf("%s/unrelated", directory), context.temp_allocator)
-    fd := posix.open(path, {.WRONLY, .CREAT, .EXCL}, {.IRUSR, .IWUSR})
-    assert(fd != -1)
-    when ODIN_OS == .Darwin {
-        // Darwin F_FULLFSYNC from <sys/fcntl.h>. Odin's POSIX enum omits it.
-        full_fsync := transmute(posix.FCNTL_Cmd)c.int(51)
-        assert(posix.fcntl(fd, full_fsync) == 0)
-    } else {
-        assert(posix.fsync(fd) == .OK)
-    }
-    assert(posix.close(fd) == .OK)
+Fault_Hooks :: struct {
+    arm: proc "c" (cstring, c.int),
+    disarm: proc "c" (),
+    count: proc "c" (c.int) -> c.int,
 }
 
-exercise :: proc(directory, path: string, mode: int) {
-    shim_path, present := os.lookup_env(PRELOAD, context.temp_allocator)
-    assert(present)
-    shim, loaded := dynlib.load_library(shim_path)
-    assert(loaded)
-    defer assert(dynlib.unload_library(shim))
-    arm_address, has_arm := dynlib.symbol_address(shim, "qualification_arm")
-    disarm_address, has_disarm := dynlib.symbol_address(shim, "qualification_disarm")
-    count_address, has_count := dynlib.symbol_address(shim, "qualification_count")
-    assert(has_arm && has_disarm && has_count)
-    arm := cast(proc "c" (cstring, c.int))arm_address
-    disarm := cast(proc "c" ())disarm_address
-    count := cast(proc "c" (c.int) -> c.int)count_address
+fault_symbol :: proc(shim: dynlib.Library, name: string) -> rawptr {
+    symbol, found := dynlib.symbol_address(shim, name)
+    assert(found)
+    return symbol
+}
 
-    database := seed(path)
-    if mode == 5 {
-        fill_address, has_fill := dynlib.symbol_address(shim, "qualification_fill_tmpfs")
-        assert(has_fill)
-        fill := cast(proc "c" (cstring))fill_address
-        fill(strings.clone_to_cstring(directory, context.temp_allocator))
+bind_fault_hooks :: proc(shim: dynlib.Library) -> Fault_Hooks {
+    return {
+        cast(proc "c" (cstring, c.int))fault_symbol(shim, "qualification_arm"),
+        cast(proc "c" ())fault_symbol(shim, "qualification_disarm"),
+        cast(proc "c" (c.int) -> c.int)fault_symbol(shim, "qualification_count"),
     }
-    tx := candidate(database)
-    arm(strings.clone_to_cstring(path, context.temp_allocator), c.int(0 if mode == 5 else mode))
-    if mode != 5 {
-        probe_unrelated(directory)
-    }
-    assert(count(0) == 0 && count(1) == 0)
+}
 
-    expected := [6]db.Status{db.WDB_OK, db.WDB_IO, db.WDB_OUTCOME_UNKNOWN,
-                             db.WDB_OUTCOME_UNKNOWN, db.WDB_OUTCOME_UNKNOWN, db.WDB_IO}
+verify_commit :: proc(database: db.Database, candidate_tx: db.Transaction, mode: int, hooks: Fault_Hooks) {
+    assert(hooks.count(0) == 0 && hooks.count(1) == 0)
+    expected := [7]db.Status{db.WDB_OK, db.WDB_IO, db.WDB_OUTCOME_UNKNOWN,
+                             db.WDB_OUTCOME_UNKNOWN, db.WDB_OUTCOME_UNKNOWN, db.WDB_IO, db.WDB_IO}
+    tx := candidate_tx
     revision: u64 = 0xdead_beef_cafe_babe
     status := db.wdb_tx_commit(tx, &revision)
     if status != expected[mode] {
@@ -192,8 +162,8 @@ exercise :: proc(directory, path: string, mode: int) {
         os.exit(65)
     }
     assert(revision == (4 if mode == 0 else 0))
-    hits, syncs, roots, witnesses, native_error := count(0), count(1), count(2), count(3), count(5)
-    assert(count(4) > 0)
+    hits, syncs, roots, witnesses, native_error := hooks.count(0), hooks.count(1), hooks.count(2), hooks.count(3), hooks.count(5)
+    assert(hooks.count(4) > 0)
     visible: u64 = 4 if mode == 0 else 3
     verify(database, visible)
     revision = 99
@@ -207,21 +177,24 @@ exercise :: proc(directory, path: string, mode: int) {
         assert(db.wdb_tx_commit(tx, &revision) == db.WDB_CLOSED && revision == 0)
         ok(db.wdb_tx_release(tx))
     }
-    disarm()
+    hooks.disarm()
     ok(db.wdb_close(database))
-    if mode == 5 {
-        ballast := strings.clone_to_cstring(fmt.tprintf("%s/ballast", directory), context.temp_allocator)
-        assert(posix.unlink(ballast) == .OK)
-    }
     fmt.printf("%c\"mode\":%d,\"status\":%d,\"visible\":%d,\"hits\":%d,\"syncs\":%d,\"root_writes\":%d,\"witness_writes\":%d,\"native_errno\":%d,\"verified\":true%c\n",
                '{', mode, status, visible, hits, syncs, roots, witnesses, native_error, '}')
 }
 
-recover :: proc(path: string, mode: int) {
+recover :: proc(path: string, mode: int, verify_only := false) {
     database: db.Database
     ok(db.wdb_file_open(raw_data(path), c.size_t(len(path)), &database))
     reopened: u64 = 4 if mode == 0 || mode == 2 || mode == 3 else 3
-    if !verify(database, reopened) {
+    published := verify(database, reopened)
+    if verify_only {
+        assert(mode == 6 && !published)
+        ok(db.wdb_close(database))
+        fmt.println(`{"mode":6,"reopened":3,"retained_revision":2,"verified":true}`)
+        return
+    }
+    if !published {
         tx := candidate(database)
         revision: u64
         ok(db.wdb_tx_commit(tx, &revision))
@@ -236,28 +209,11 @@ recover :: proc(path: string, mode: int) {
     fmt.printf("%c\"mode\":%d,\"reopened\":%d,\"final\":4,\"retained_revision\":2,\"verified\":true%c\n", '{', mode, reopened, '}')
 }
 
-main :: proc() {
-    assert(len(os.args) == 4 || len(os.args) == 5)
-    no_core: posix.rlimit
-    assert(posix.setrlimit(.CORE, &no_core) == .OK)
-    recovering := len(os.args) == 5
-    if recovering {
-        assert(os.args[1] == "recover")
-    }
-    mode, valid := strconv.parse_int(os.args[4] if recovering else os.args[1])
-    assert(valid && mode >= 0 && mode < MODE_COUNT)
-
+verify_identity :: proc(source: string) {
     identity: [64]u8
     required: c.size_t
     ok(db.wdb_source_id(raw_data(identity[:]), len(identity), &required))
-    assert(required <= len(identity) && string(identity[:int(required)]) == os.args[3])
+    assert(required <= len(identity) && string(identity[:int(required)]) == source)
     assert(db.wdb_abi_version() == db.WDB_ABI_VERSION &&
            db.wdb_format_version() == db.WDB_FORMAT_VERSION && db.wdb_features() == 3)
-
-    path := fmt.tprintf("%s/database.wdb", os.args[2])
-    if recovering {
-        recover(path, mode)
-    } else {
-        exercise(os.args[2], path, mode)
-    }
 }

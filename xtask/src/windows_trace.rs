@@ -635,22 +635,40 @@ pub fn run(run: &mut crate::support::Run, opts: Options) -> Result<()> {
 }
 
 #[cfg(windows)]
-pub fn run_faults(run: &mut crate::support::Run, opts: Options) -> Result<()> {
-    qualify(run, opts, Campaign::InjectedFaults)
+#[derive(clap::Args)]
+pub struct FaultOptions {
+    #[command(flatten)]
+    package: Options,
+    /// Qualify the optimized Odin consumer using the package's compiler.
+    #[arg(long)]
+    odin: bool,
 }
 
 #[cfg(windows)]
-pub fn run_disk_full(run: &mut crate::support::Run, opts: Options) -> Result<()> {
-    qualify(run, opts, Campaign::DiskFull)
+pub fn run_faults(run: &mut crate::support::Run, opts: FaultOptions) -> Result<()> {
+    qualify(
+        run,
+        opts.package,
+        Campaign::InjectedFaults { odin: opts.odin },
+    )
+}
+
+#[cfg(windows)]
+pub fn run_disk_full(run: &mut crate::support::Run, opts: FaultOptions) -> Result<()> {
+    qualify(run, opts.package, Campaign::DiskFull { odin: opts.odin })
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Campaign {
     State,
     #[cfg(windows)]
-    InjectedFaults,
+    InjectedFaults {
+        odin: bool,
+    },
     #[cfg(windows)]
-    DiskFull,
+    DiskFull {
+        odin: bool,
+    },
 }
 
 fn qualify(run: &mut crate::support::Run, opts: Options, campaign: Campaign) -> Result<()> {
@@ -711,11 +729,30 @@ fn inputs(root: &Path) -> Result<BTreeMap<String, String>> {
         "tools/artifact-trace/odin/main.odin",
         "tools/artifact-trace/odin/attest_windows.odin",
         "tools/delivered-faults/consumer.c",
+        "tools/delivered-faults/consumer.odin",
+        "tools/delivered-faults/consumer_windows.odin",
         "tools/delivered-faults/windows_injector.h",
+        "tools/delivered-faults/windows_shim.c",
     ]
     .into_iter()
     .map(|name| Ok((name.into(), sha(&root.join(name))?)))
     .collect()
+}
+
+#[cfg(windows)]
+fn package_odin(info: &Value, env: &BTreeMap<OsString, OsString>) -> Result<std::path::PathBuf> {
+    ensure!(
+        info["odin"]["verified"] == true,
+        "verified Odin package required"
+    );
+    let compiler = crate::toolchain::which(OsStr::new("odin.exe"), env)
+        .context("packaged Odin profile requires the same compiler on PATH")?;
+    let compiler = dunce::canonicalize(compiler)?;
+    ensure!(
+        info["odin"]["compiler_sha256"] == sha(&compiler)?,
+        "Odin compiler differs from the package compiler"
+    );
+    Ok(compiler)
 }
 #[cfg(windows)]
 fn copy_package(from: &Path, to: &Path) -> Result<()> {
@@ -747,11 +784,11 @@ fn native(
     let before = inputs(&run.root)?;
     let scope = match campaign {
         Campaign::State => "Delivered Windows x64 finite state trace for packaged consumers",
-        Campaign::InjectedFaults => {
-            "Delivered Windows x64 C publication errors and fresh-process recovery"
+        Campaign::InjectedFaults { .. } => {
+            "Delivered Windows x64 publication errors and fresh-process recovery"
         }
-        Campaign::DiskFull => {
-            "Delivered Windows x64 C publication and recovery on a full private fixed NTFS virtual disk"
+        Campaign::DiskFull { .. } => {
+            "Delivered Windows x64 publication and recovery on a full private fixed NTFS virtual disk"
         }
     };
     let mut proof = json!({"verified":false,"native_windows_verified":false,"scope":scope,"engine_source_id":info["source_id"],"features":features,"manifest_sha256":pin,"commands":[],"source_before":before,"runner_sha256":sha(&std::env::current_exe()?)?});
@@ -833,7 +870,29 @@ fn native(
         );
         if campaign != Campaign::State {
             let driver = run.root.join("tools/delivered-faults");
-            fs::copy(driver.join("consumer.c"), input.join("fault_consumer.c"))?;
+            let use_odin = match campaign {
+                Campaign::InjectedFaults { odin } | Campaign::DiskFull { odin } => odin,
+                Campaign::State => unreachable!(),
+            };
+            let odin = if use_odin {
+                let compiler = package_odin(&info, &env)?;
+                let sources = input.join("odin");
+                fs::create_dir(&sources)?;
+                for name in ["consumer.odin", "consumer_windows.odin"] {
+                    fs::copy(driver.join(name), sources.join(name))?;
+                }
+                fs::copy(
+                    run.root
+                        .join("tools/artifact-trace/odin/attest_windows.odin"),
+                    sources.join("attest_windows.odin"),
+                )?;
+                fs::copy(driver.join("windows_shim.c"), input.join("windows_shim.c"))?;
+                proof["odin"] = info["odin"].clone();
+                Some(compiler)
+            } else {
+                fs::copy(driver.join("consumer.c"), input.join("fault_consumer.c"))?;
+                None
+            };
             fs::copy(
                 driver.join("windows_injector.h"),
                 input.join("windows_injector.h"),
@@ -845,11 +904,12 @@ fn native(
                     input: &input,
                     package: &relocated,
                     compiler: compiler.as_os_str(),
+                    odin: odin.as_deref(),
                     build: &env,
                     runtime: &runtime,
                 },
                 text(&info["source_id"])?,
-                campaign == Campaign::DiskFull,
+                matches!(campaign, Campaign::DiskFull { .. }),
             )?;
             verified(package, pin)?;
             verified(&relocated, pin)?;
@@ -857,14 +917,7 @@ fn native(
             return Ok(());
         }
         let odin = if info["odin"]["verified"] == true {
-            let compiler = crate::toolchain::which(OsStr::new("odin.exe"), &env)
-                .context("packaged Odin profile requires the same compiler on PATH")?;
-            let compiler = dunce::canonicalize(compiler)?;
-            let digest = sha(&compiler)?;
-            ensure!(
-                info["odin"]["compiler_sha256"] == digest,
-                "Odin compiler differs from the package compiler"
-            );
+            let compiler = package_odin(&info, &env)?;
             let odin_inputs = input.join("odin");
             fs::create_dir(&odin_inputs)?;
             for name in ["main.odin", "attest_windows.odin"] {
@@ -1054,10 +1107,10 @@ fn native(
         Campaign::State => {
             json!({"cases":proof["outcomes"].as_array().unwrap().len(),"cells":134,"dll_sha256":proof["c"]["dll_sha256"]})
         }
-        Campaign::InjectedFaults => {
+        Campaign::InjectedFaults { .. } => {
             json!({"cases":6,"disabled_injection_control":true,"dll_sha256":proof["dll_sha256"]})
         }
-        Campaign::DiskFull => {
+        Campaign::DiskFull { .. } => {
             json!({"cases":1,"dll_sha256":proof["dll_sha256"],"disk_full":proof["disk_full"],"volume_cleanup":proof["volume_cleanup"]})
         }
     };

@@ -51,7 +51,7 @@ mod native {
         delivery,
         support::{path, sha},
         trace_process::call,
-        windows_trace::{attestation, compiler_command},
+        windows_trace::{attestation, compiler_command, odin_command},
         windows_volume,
     };
     use anyhow::{Context, Result, ensure};
@@ -68,6 +68,7 @@ mod native {
         pub input: &'a Path,
         pub package: &'a Path,
         pub compiler: &'a OsStr,
+        pub odin: Option<&'a Path>,
         pub build: &'a BTreeMap<OsString, OsString>,
         pub runtime: &'a BTreeMap<OsString, OsString>,
     }
@@ -78,6 +79,7 @@ mod native {
         dll: &'a Path,
         digest: &'a str,
         source: &'a str,
+        shim: Option<&'a Path>,
     }
 
     impl Consumer<'_> {
@@ -97,19 +99,23 @@ mod native {
             };
             let before = dir.join(format!("{label}-before.json"));
             let after = dir.join(format!("{label}-after.json"));
+            let mut args = vec![
+                path(self.executable),
+                argument.into(),
+                path(data),
+                self.source.into(),
+                path(self.dll),
+                self.digest.into(),
+                path(&before),
+                path(&after),
+            ];
+            if let Some(shim) = self.shim.filter(|_| matches!(phase, Phase::Exercise)) {
+                args.push(path(shim));
+            }
             let report = call(
                 proof,
                 self.environment.output,
-                vec![
-                    path(self.executable),
-                    argument.into(),
-                    path(data),
-                    self.source.into(),
-                    path(self.dll),
-                    self.digest.into(),
-                    path(&before),
-                    path(&after),
-                ],
+                args,
                 dir,
                 label,
                 self.environment.runtime,
@@ -127,11 +133,14 @@ mod native {
                 pid,
             )?;
             if disabled {
+                let stderr = fs::read_to_string(dir.join("exercise.stderr"))?;
+                let refused = if self.shim.is_some() {
+                    report.exit == Some(65) && stderr.contains("unexpected ABI commit status")
+                } else {
+                    report.exit.is_some_and(|code| code != 0) && stderr.contains("status==expected")
+                };
                 ensure!(
-                    report.exit.is_some_and(|code| code != 0)
-                        && !after.exists()
-                        && fs::read_to_string(dir.join("exercise.stderr"))?
-                            .contains("status==expected"),
+                    refused && !after.exists(),
                     "disabled fault control missed the expected assertion"
                 );
                 return Ok(json!({"disabled":true,"exit":report.exit,"pid":pid}));
@@ -153,6 +162,50 @@ mod native {
             );
             Ok(json!({"pid":pid,"observation":row}))
         }
+    }
+
+    fn compile_shim(
+        proof: &mut Value,
+        env: &Environment<'_>,
+        build: &Path,
+        dll: &Path,
+        disabled: bool,
+    ) -> Result<()> {
+        let mut args = vec![
+            path(env.compiler),
+            "/nologo".into(),
+            "/W4".into(),
+            "/WX".into(),
+            "/O2".into(),
+            "/UNDEBUG".into(),
+            "/MD".into(),
+            "/utf-8".into(),
+            "/TC".into(),
+            "/std:c11".into(),
+            "/LD".into(),
+            path(env.input.join("windows_shim.c")),
+            format!("/Fo{}", dll.with_extension("obj").display()).into(),
+            format!("/Fe{}", dll.display()).into(),
+            "/link".into(),
+            "/INCREMENTAL:NO".into(),
+        ];
+        if disabled {
+            args.insert(1, "/DWDB_DISABLE_FAULTS".into());
+        }
+        call(
+            proof,
+            env.output,
+            args,
+            build,
+            if disabled {
+                "compile-disabled-shim"
+            } else {
+                "compile-shim"
+            },
+            env.build,
+            false,
+        )?;
+        Ok(())
     }
 
     fn disk_full(proof: &mut Value, driver: &Consumer<'_>, build: &Path) -> Result<()> {
@@ -218,30 +271,59 @@ mod native {
         fs::copy(env.package.join("weekend_db.dll"), &dll)?;
         let digest = sha(&dll)?;
         let exe = build.join("consumer.exe");
-        let disabled = build.join("disabled.exe");
-        for (consumer, disable) in [(&exe, false), (&disabled, true)] {
-            if exhaust && disable {
-                break;
-            }
-            let mut argv = compiler_command(env.compiler, false, env.input, env.package, consumer);
-            argv.insert(1, "/DWDB_WINDOWS_FAULTS".into());
-            if disable {
-                argv.insert(1, "/DWDB_DISABLE_FAULTS".into());
-            }
+        let shim = build.join("fault-shim.dll");
+        let disabled = build.join(if env.odin.is_some() {
+            "fault-disabled.dll"
+        } else {
+            "disabled.exe"
+        });
+        let shim_hash = if let Some(odin) = env.odin {
             call(
                 proof,
                 env.output,
-                argv,
+                odin_command(odin, env.input, env.package, &exe),
                 &build,
-                if disable {
-                    "compile-disabled"
-                } else {
-                    "compile"
-                },
+                "compile-odin",
                 env.build,
                 false,
             )?;
-        }
+            ensure!(
+                proof["odin"]["compiler_sha256"] == sha(odin)?,
+                "Odin compiler changed"
+            );
+            compile_shim(proof, &env, &build, &shim, false)?;
+            if !exhaust {
+                compile_shim(proof, &env, &build, &disabled, true)?;
+            }
+            Some(sha(&shim)?)
+        } else {
+            for (consumer, disable) in [(&exe, false), (&disabled, true)] {
+                if exhaust && disable {
+                    break;
+                }
+                let mut argv =
+                    compiler_command(env.compiler, false, env.input, env.package, consumer);
+                argv.insert(1, "/DWDB_WINDOWS_FAULTS".into());
+                if disable {
+                    argv.insert(1, "/DWDB_DISABLE_FAULTS".into());
+                }
+                call(
+                    proof,
+                    env.output,
+                    argv,
+                    &build,
+                    if disable {
+                        "compile-disabled"
+                    } else {
+                        "compile"
+                    },
+                    env.build,
+                    false,
+                )?;
+            }
+            None
+        };
+        proof["consumer_language"] = json!(if env.odin.is_some() { "Odin" } else { "C" });
         let exe_hash = sha(&exe)?;
         let driver = Consumer {
             environment: &env,
@@ -249,6 +331,7 @@ mod native {
             dll: &dll,
             digest: &digest,
             source,
+            shim: shim_hash.as_ref().map(|_| shim.as_path()),
         };
         if exhaust {
             disk_full(proof, &driver, &build)?;
@@ -269,14 +352,20 @@ mod native {
             let control = build.join("disabled");
             fs::create_dir(&control)?;
             let negative = Consumer {
-                executable: &disabled,
+                executable: if env.odin.is_some() { &exe } else { &disabled },
+                shim: env.odin.map(|_| disabled.as_path()),
                 ..driver
             };
             proof["disabled_injection"] =
                 negative.run(proof, &control, &control, 1, Phase::Exercise, true)?;
             ensure!(sha(&disabled)? == disabled_hash, "disabled control changed");
             proof["outcomes"] = json!(cases);
-            proof["disabled_consumer_sha256"] = json!(disabled_hash);
+            let key = if env.odin.is_some() {
+                "disabled_shim_sha256"
+            } else {
+                "disabled_consumer_sha256"
+            };
+            proof[key] = json!(disabled_hash);
         }
         ensure!(
             sha(&dll)? == digest
@@ -286,6 +375,10 @@ mod native {
         );
         proof["dll_sha256"] = json!(digest);
         proof["consumer_sha256"] = json!(exe_hash);
+        if let Some(digest) = shim_hash {
+            ensure!(sha(&shim)? == digest, "fault shim changed");
+            proof["shim_sha256"] = json!(digest);
+        }
         Ok(())
     }
 }

@@ -16,10 +16,10 @@ foreign kernel {
     SetErrorMode :: proc "system"(mode: win.UINT) -> win.UINT ---
 }
 
-run_windows_trace :: proc() {
+run_with_attested_dll :: proc(body: proc()) {
     // Turn critical, fault and file-open dialogs into ordinary process errors.
     SetErrorMode(0x0001 | 0x0002 | 0x8000)
-    assert(len(os.args) == 8)
+    assert(len(os.args) >= 8)
     module := win.GetModuleHandleW(win.utf8_to_wstring("weekend_db.dll"))
     assert(module != nil && win.GetProcAddress(module, "wdb_source_id") != nil)
     loaded, expected: [32768]u16
@@ -41,7 +41,7 @@ run_windows_trace :: proc() {
     loaded_path, conversion_error := win.utf16_to_utf8(loaded[:int(loaded_len)])
     assert(conversion_error == nil)
     attest_dll(dll, loaded_path, "before", os.args[6])
-    run_trace()
+    body()
     attest_dll(dll, loaded_path, "after", os.args[7])
 }
 

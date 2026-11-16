@@ -477,8 +477,12 @@ pub(crate) fn stage_runner(root: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
-fn consumer_source(odin: bool) -> &'static str {
-    if odin { "consumer.odin" } else { "consumer.c" }
+fn fixture_sources(odin: bool) -> &'static [&'static str] {
+    if odin {
+        &["consumer.odin", "consumer_posix.odin", "faults.c"]
+    } else {
+        &["consumer.c", "faults.c"]
+    }
 }
 
 fn delivered(run: &Run, opts: Delivered) -> Result<()> {
@@ -517,7 +521,7 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
         image(&mut c, &opts.image)?;
         let inputs = output.join("inputs");
         fs::create_dir(&inputs)?;
-        for n in [consumer_source(odin.is_some()), "faults.c"] {
+        for n in fixture_sources(odin.is_some()) {
             fs::copy(
                 run.root.join("tools/delivered-faults").join(n),
                 inputs.join(n),
@@ -787,8 +791,7 @@ fn exercise_package(
         crate::delivered_faults::package(&package, library)?;
         let inputs = output.join("inputs");
         fs::create_dir(&inputs)?;
-        let consumer_source = consumer_source(odin.is_some());
-        for name in [consumer_source, "faults.c"] {
+        for name in fixture_sources(odin.is_some()) {
             let input = input_seed.join(name);
             ensure!(
                 fs::symlink_metadata(&input)?.is_file(),
@@ -891,8 +894,7 @@ fn exercise_package(
                 v(&[
                     &s(odin),
                     "build",
-                    &s(inputs.join(consumer_source)),
-                    "-file",
+                    &s(&inputs),
                     "-o:speed",
                     &format!("-out:{}", binary.display()),
                     &format!("-collection:weekend={}", package.join("bindings").display()),
@@ -919,7 +921,7 @@ fn exercise_package(
                 "-Werror",
                 "-I",
                 &s(&package),
-                &s(inputs.join(consumer_source)),
+                &s(inputs.join("consumer.c")),
                 &s(package.join(library)),
                 &format!("-Wl,-rpath,{rpath}"),
                 "-o",

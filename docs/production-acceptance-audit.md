@@ -172,7 +172,11 @@ harness-level scope reference.
    binary/credential upgrades and both transaction validation modes now have
    native evidence. Exact-package C and Odin on [macOS](delivered-c-faults.md#optimized-odin-consumer-on-apfs)
    and [Linux arm64](delivered-c-faults.md#optimized-odin-consumer-on-linux-arm64)
-   exercise uncertain-I/O reconciliation in a fresh process. Other language/platform failure profiles,
+   exercise uncertain-I/O reconciliation in a fresh process. The
+   [Windows Odin runner](delivered-c-faults.md#optimized-odin-consumer-on-windows)
+   adds exact-DLL injected and real NTFS exhaustion checks to the hosted
+   minimum-toolchain job. Native execution remains pending.
+   Other language/platform failure profiles,
    compound failures, actor-generation rollout and each further promised version
    retain their separate obligations. Do not credit one profile to all surfaces.
 3. **Consolidate one final candidate bundle.** Existing results retain their

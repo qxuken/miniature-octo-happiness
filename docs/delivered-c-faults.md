@@ -354,9 +354,9 @@ campaigns verified container and volume removal.
 | `linux-c/result/evidence.json` | `ac9b6edc3a19d3254dbd6494d459e77e7b53555a9e187c4b82944964ada714f8` |
 | `macos-odin/evidence.json` | `9728258a65012cb9e39238d9324856c3e42faa6d249b088b29f55a0f26d767db` |
 
-Linux x86_64 and Windows Odin fault execution, native persistent-volume
-exhaustion through the Odin binding, and physical power interruption remain
-separate qualification gates.
+Linux x86_64 Odin fault execution and physical power interruption remain
+separate qualification gates. The [Windows Odin runner](#optimized-odin-consumer-on-windows)
+also covers native persistent-volume exhaustion.
 
 ## Native Windows delivered C gate
 
@@ -478,3 +478,36 @@ also has a separate native Rust gate. Physical power interruption remains open.
 | Database after failure and full-space reopen | `b217d3d57f129c8f795ed645c68272557073af5bc0cf4399b432d62188806949` |
 | Database after retry | `85a55ef35281bb798339d88febe87ffb1f1435116ab652a2bb28d79008b406ec` |
 | Independent archive rehash | `36a3dc1a4e302daf9a420f36f905034095dae12f0e3c27aae9fceb65c8db1209` |
+
+## Optimized Odin consumer on Windows
+
+Use an elevated x64 Windows session, a verified combined-feature package
+built with `--odin` and the same Odin compiler on `PATH`.
+
+```powershell
+$package = 'target/private-package'
+$pin = (Get-FileHash "$package/manifest.json" -Algorithm SHA256).Hash.ToLowerInvariant()
+cargo xtask windows-faults --odin --package $package --manifest-sha256 $pin --output target/windows-odin-faults
+cargo xtask windows-disk-full --odin --package $package --manifest-sha256 $pin --output target/windows-odin-full
+```
+
+The consumer builds with `-o:speed` and the packaged bindings and import
+library. The controller checks the compiler digest from the package manifest.
+Each process attests the path, bytes, ABI and source identity of its loaded
+DLL. Only the exercise process loads the private shim. It reuses the C
+consumer's import-table interceptors on the exact loaded DLL. The disabled
+shim control requires Odin exit 65 and the commit-status diagnostic after
+the before-attestation. Fresh processes verify current and retained payloads,
+and use request 42 to decide whether to retry.
+
+The same independent Windows oracle checks all six injected outcomes.
+For real exhaustion, the controller requires a separate open while the
+owned NTFS volume remains full, byte-identical database contents across that
+open, a successful retry after freeing space, and verified VHD cleanup.
+
+Local checks built the optimized x64 Odin PE, linked it against the qualified
+Windows import library, and built both x64 shim DLLs. Cross-target Rust
+Clippy passed. The refactored Odin consumer also passed the existing macOS
+and Docker Linux fault profiles. The Windows minimum-toolchain workflow runs
+both native Odin campaigns against its verified package. Native results
+remain pending.

@@ -402,6 +402,25 @@ jobs:
           $compiler[0].DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Verify the minimum compiler, workspace and exact delivered artifacts
         run: cargo xtask windows-msrv --odin --output target/windows-msrv
+      - name: Verify Odin publication faults and real NTFS exhaustion against the exact DLL
+        shell: pwsh
+        run: |
+          $package = 'target/windows-msrv/package'
+          $pin = (Get-FileHash "$package/manifest.json" -Algorithm SHA256).Hash.ToLowerInvariant()
+          cargo xtask windows-faults --odin --package $package --manifest-sha256 $pin --output target/windows-msrv-odin-faults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask windows-disk-full --odin --package $package --manifest-sha256 $pin --output target/windows-msrv-odin-full
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows Odin fault evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-odin-faults-${{ runner.arch }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            target/windows-msrv-odin-faults/
+            target/windows-msrv-odin-full/
       - name: Save Windows minimum-compiler evidence
         if: always()
         uses: actions/upload-artifact@v7

@@ -85,7 +85,8 @@ read32 :: proc(bytes: []u8) -> u32 {
 }
 main :: proc() {
     when ODIN_OS == .Windows {
-        run_windows_trace()
+        assert(len(os.args) == 8)
+        run_with_attested_dll(run_trace)
     } else {
         assert(len(os.args)==4)
         run_trace()
