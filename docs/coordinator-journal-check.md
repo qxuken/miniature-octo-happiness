@@ -89,3 +89,57 @@ CARGO_NET_OFFLINE=true cargo +nightly-2026-11-12 fuzz run \
 
 Two branches can share a visible checkpoint and slot receipt. Selecting the
 authority and checking external effects still require operator judgment.
+
+## Client journal exhaustion on Linux
+
+At `f239320` the test runs actual coordinator and journal processes on
+Linux arm64 with Rust 1.99.0. The journal is on an 8 MiB tmpfs with
+4 KiB blocks. The server database, builds and logs are on a separate
+ext4 volume. A one-block allocation probe confirms kernel `ENOSPC`
+with zero available bytes before each failure and after reopening
+with the ballast still present.
+
+| Point where the journal is full | Client observation | Reopened journal and coordinator |
+|---|---|---|
+| Before saving the intended write | `Io` and unsuccessful exit without a printed receipt | Witnessed local revision 2 has no pending intent. Server revision 3 still has value 0 and an empty slot. Both images match their originals. |
+| After a fresh process reopens the staged request and receives its coordinator receipt | `Io` and unsuccessful exit without a printed receipt | Witnessed local revision 3 keeps pending sequence 1, expectation 3 and value 42. A restarted server still has witnessed revision 4 and receipt `1 3 42 4`. |
+| A second resume while still full | `Io` again | The local pending image and committed server image are byte-identical to their pre-retry copies. |
+| Resume after removing only the ballast | `committed 4` | Witnessed local revision 4 records receipt `1 3 42 4` and clears pending. The server remains at revision 4. |
+
+Between the first two cases, a loopback relay forwards the authenticated
+preflight read and withholds the exact mutation. The test kills that
+client after seeing the outgoing mutation, then verifies the witnessed
+pending state before starting the real `resume`. While the journal is
+full, `status` and `check` run in fresh processes. The observed check
+moves from `pending-eligible 3 0` before submission to
+`pending-committed 4 42` after the server restarts. A final resume after
+the server has stopped reports the saved receipt without changing either
+image.
+
+Point `WEEKEND_TEST_JOURNAL_TMPFS` at a dedicated empty Linux tmpfs of
+at most 8 MiB. Keep the server's `TMPDIR` and the build outside that
+mount. Run once in debug and once with `--release`.
+
+```sh
+cargo test --offline --locked -p write-coordinator --test writers \
+  journal_space::full_journal_preserves_intent_and_replays_exact_coordinator_receipt \
+  -- --exact --ignored --nocapture
+```
+
+Both runs pass. The ordinary Linux coordinator suite passes 31 tests
+with three explicit ignores. The authenticated follower exhaustion
+case also passes in debug and release with the shared tmpfs fixture.
+The macOS debug suite passes 61 tests across the two apps. Strict
+Clippy passes for both apps on both platforms. The native exhaustion
+scope is Linux tmpfs with a separate ext4 server. Persistent-device
+exhaustion and other client filesystems require separate evidence.
+
+The 12 files in the local archive
+`target/archived-proof/coordinator-journal-full-f239320.tar.zst`
+match their checksums after extraction. The archive includes
+`run-linux.sh` for the pinned Docker image, the source tar, the
+executed release binaries, logs and verified container/volume cleanup.
+The source tar SHA-256 is
+`8ab428302d5807d51a17d71379865516b1073592d932524e3f594c82482a32fe`
+and the evidence archive SHA-256 is
+`29d2b7065835e6cd149acce6f2359f932817524f2fa1fd51308a39b159966d1a`.

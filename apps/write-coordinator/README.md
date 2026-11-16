@@ -266,6 +266,13 @@ latest receipt and any pending request. Use `resume` after a lost reply or a
 client interruption. It retries a pending request verbatim or reports the
 latest local acknowledgment when the pending request already cleared.
 
+A journal write can return `Io` when its filesystem fills before staging
+the request or after the coordinator records its receipt. Use `journal
+status` and `journal check` to distinguish an aligned journal from a
+pending request. After freeing space, use `journal resume` for the
+pending request so the client can reconcile the exact receipt.
+[Linux exhaustion and restart qualification](../../docs/coordinator-journal-check.md#client-journal-exhaustion-on-linux)
+
 Each journal write sends the coordinator database identity and the latest stored
 receipt as its predecessor. A fresh write requires the same lineage and exact
 predecessor on the server. A retry of the latest exact request can recover its

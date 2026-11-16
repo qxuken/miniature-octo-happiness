@@ -2455,3 +2455,16 @@ preserves the source and lets the same transaction acknowledge revision
 134. A mutation that ignores the physical tail fails the new offset
 assertion.
 [Cutoffs, outcomes and reproduction](compound-resource-envelope.md#retry-after-a-segmented-append-tears-near-the-image-cap)
+
+## Client journal exhaustion and exact receipt recovery
+
+At `f239320`, Linux tmpfs with zero available bytes rejects the
+journal's staging write and leaves coordinator revision 3 untouched.
+An interrupted client then leaves an exact pending intent. Once the
+coordinator commits revision 4, the full journal can reopen and verify
+that receipt but cannot save it locally. A second full-space retry
+preserves both images. Freeing space lets the journal save that same
+receipt while the coordinator remains at revision 4. The full-space
+case passes in debug and release. The authenticated follower's two
+existing full-space cases also pass with the shared fixture.
+[Journal states, proof and reproduction](coordinator-journal-check.md#client-journal-exhaustion-on-linux)

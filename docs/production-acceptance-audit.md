@@ -234,6 +234,11 @@ harness-level scope reference.
    cover a lost reply, an older head and a different receipt at the same
    revision on macOS, Linux and native Windows. It also checks both journals
    after each of nine cutovers on macOS and Docker Linux.
+   The [client journal exhaustion drill](coordinator-journal-check.md#client-journal-exhaustion-on-linux)
+   verifies both local failure boundaries at zero space on Linux tmpfs.
+   A staging failure leaves the server untouched. After the server
+   commits, the journal can reopen and resume the exact receipt without
+   a second coordinator commit.
    Compare measured write, space and cutover costs with the deployment's
    budgets. The owner accepts the slot and history policy before promoting
    this profile.

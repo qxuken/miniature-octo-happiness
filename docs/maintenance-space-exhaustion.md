@@ -1123,6 +1123,15 @@ source bundle and fixture overlays, and the controller checks. SHA-256
 `b35d5fb52c184b8408c4a13a0530784c00faf27f4983fac7a6e8c3589388a9b7`.
 All seven artifact inventories matched after extraction.
 
+The maintained retry script passed on its first hosted run at tested
+merge `ca13f956e5a63db912c22df6a958f9e6d38b6b20`, whose branch parent
+is `e0267d5`. Attempt 1 received kernel `ENOSPC (28)` at exchange and
+completed recovery and volume cleanup. All 45 listed artifacts matched
+the downloaded ZIP's inventory. The ZIP SHA-256 is
+`9914649062b4659570fe6bbea975a7eab9e2369727d1c079c575603bd1c366ad`.
+[Hosted check](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43837760587/job/133198550355),
+[downloaded artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43837760587/artifacts/14212811494).
+
 The next profile fills the volume after exchange, before unlinking the old image.
 
 ## APFS compaction cleanup after allocation reaches ENOSPC
