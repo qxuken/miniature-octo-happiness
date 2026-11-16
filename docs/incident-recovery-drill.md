@@ -1,5 +1,10 @@
 # Administrative incident and recovery drill
 
+The executed temporary paths below are historical. After restoration checks,
+their indexed payloads were retained in the
+[operational qualification archive](roadmap-status.md#administrative-recovery-and-service-output-rehearsal)
+and the temporary trees were retired.
+
 On 2026-11-16, a fresh Rust consumer passed a finite rehearsal on native
 macOS arm64/APFS using the retained debug `weekend-admin` and
 `write-coordinator` executables from tested merge

@@ -85,6 +85,9 @@ and coverage source/process/log evidence also reproduces its reviewed summary.
 The archive retains exact source archives and Git history, the verifier and
 fuzz runner, actual benchmark executable, original hosted ZIPs, all campaign
 corpora and logs, negative controls, and the 29-test stable replay log.
+The original temporary trees and completed worktrees were subsequently retired
+after restoration checks; the archive and its verification logs remain under
+`target/archived-proof`.
 
 ## Retained fuzz evidence
 

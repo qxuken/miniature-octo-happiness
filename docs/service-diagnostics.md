@@ -1,5 +1,9 @@
 # Bounded service diagnostic canary drill
 
+Retained payloads are also preserved in the
+[operational qualification archive](roadmap-status.md#administrative-recovery-and-service-output-rehearsal),
+whose complete file index passed a fresh restoration check.
+
 This F06 follow-up checks the actual `weekend-replicate` and `study-peer`
 process entry points. It covers operational stdout/stderr, including startup
 failure and a live service rejecting input. It does not add a logging framework,

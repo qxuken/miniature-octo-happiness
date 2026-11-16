@@ -2599,3 +2599,10 @@ restores all 1,951 indexed files with matching checksums. SHA-256:
 `03a5c88b1bb998bb0dab42863e421acc2f21435d6351ff3778b22a3ff5474dab`.
 It retains both incident reports, source archives/overlays, actual CLI/runner
 and consumer binaries, Mac test/Clippy logs, and Docker test/cleanup evidence.
+
+After verifying both restored archives, cleanup retired 17 owned temporary
+trees/logs and three completed worktrees. It checked archive digests, ownership,
+devices and symlinks before moving any tree into an isolated retirement
+directory. Both retained archive digests still match after cleanup. Available
+disk space increased from about 53 to 63 GiB. Recorded `/private/tmp` run paths
+are historical locations; recover those payloads from the indexed archives.
