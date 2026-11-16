@@ -308,6 +308,80 @@ fn write_secret(file: &std::path::Path, token: &str) {
 }
 
 #[test]
+fn incomplete_request_leaves_room_for_another_writer() {
+    let dir = Directory::new();
+    let path = dir.0.join("coordinator.wdb");
+    let path = path.to_str().unwrap();
+    let secret = dir.0.join("secret");
+    let token = "a1".repeat(32);
+    write_secret(&secret, &token);
+    assert!(
+        Command::new(BIN)
+            .args(["init-sequenced", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let (_server, client) =
+        configured_service("serve-sequenced", path, secret.to_str().unwrap(), &token);
+
+    let mut stalled = std::net::TcpStream::connect(client.address).unwrap();
+    write!(stalled, "auth {token} set-seq 0 1 3 9").unwrap();
+    let writer = client.send("set-seq 1 1 3 42");
+    writer
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let mut reply = String::new();
+    BufReader::new(writer).read_line(&mut reply).unwrap();
+    assert_eq!(reply, "committed 4\n");
+    drop(stalled);
+    assert_eq!(client.request("get"), "value 4 42");
+    assert_eq!(client.request("receipt 0"), "receipt 0");
+}
+
+#[test]
+fn excess_connections_receive_busy_without_publishing_requests() {
+    let dir = Directory::new();
+    let path = dir.0.join("coordinator.wdb");
+    let path = path.to_str().unwrap();
+    let secret = dir.0.join("secret");
+    let secret_path = secret.to_str().unwrap();
+    let token = "b2".repeat(32);
+    write_secret(&secret, &token);
+    assert!(
+        Command::new(BIN)
+            .args(["init-sequenced", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let (mut server, client) = configured_service("serve-sequenced", path, secret_path, &token);
+
+    let held: Vec<_> = (0..8)
+        .map(|slot| {
+            let mut socket = std::net::TcpStream::connect(client.address).unwrap();
+            write!(socket, "auth {token} set-seq {slot} 1 3 9").unwrap();
+            socket
+        })
+        .collect();
+    let excess = std::net::TcpStream::connect(client.address).unwrap();
+    excess
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let mut reply = String::new();
+    BufReader::new(excess).read_line(&mut reply).unwrap();
+    assert_eq!(reply, "error Busy\n");
+    drop(held);
+    server.stop();
+
+    let (_server, client) = configured_service("serve-sequenced", path, secret_path, &token);
+    assert_eq!(client.request("get"), "value 3 0");
+    for slot in 0..8 {
+        assert_eq!(client.request(&format!("receipt {slot}")), "receipt 0");
+    }
+}
+
+#[test]
 fn sequenced_clients_preserve_receipts_through_restart_and_restore() {
     use std::net::Shutdown;
     use weekend_db::{Limits, storage};

@@ -409,6 +409,46 @@ mod tests {
     }
 
     #[test]
+    fn busy_keeps_the_intent_for_exact_retry_after_reopen() {
+        let local = SimulatedDisk::new().unwrap();
+        let mut journal = create(&local);
+        let mut rejected = String::new();
+        assert!(
+            journal
+                .set(INTENT, &mut |command| {
+                    if command.starts_with("journal-get ") {
+                        Ok("value 3 0".to_owned())
+                    } else {
+                        command.clone_into(&mut rejected);
+                        Ok("error Busy".to_owned())
+                    }
+                })
+                .is_err()
+        );
+        drop(journal);
+
+        let medium = SimulatedDisk::new().unwrap();
+        let mut remote = Database::create_on(medium, IDENTITY, Limits::default()).unwrap();
+        sequenced::initialize(&remote).unwrap();
+        let mut journal = open(&local);
+        let pending = journal.state.pending.unwrap();
+        assert_eq!(
+            (pending.expected, pending.value),
+            (INTENT.expected, INTENT.value)
+        );
+        assert!(journal.state.last.is_none());
+        let reply = journal
+            .resume(&mut |command| {
+                assert_eq!(command, rejected);
+                Ok(sequenced::handle(&mut remote, command)?)
+            })
+            .unwrap();
+        assert_eq!(reply, "committed 4");
+        assert!(journal.state.pending.is_none());
+        assert_eq!(sequenced::handle(&mut remote, "get").unwrap(), "value 4 20");
+    }
+
+    #[test]
     fn failed_local_acknowledgment_reopens_pending_or_receipt_after_remote_commit() {
         let remote_medium = SimulatedDisk::new().unwrap();
         let mut remote =

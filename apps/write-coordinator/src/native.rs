@@ -1,12 +1,14 @@
 mod journal;
 mod protocol;
+mod service;
+use protocol::{COLLECTION, KEY, sequenced};
 #[cfg(test)]
-use protocol::MAX_RECEIPTS;
-use protocol::{COLLECTION, KEY, handle, sequenced, state};
+use protocol::{MAX_RECEIPTS, handle, state};
+use service::serve;
 use std::{
     ffi::OsStr,
     io::{self, BufRead, Read, Write},
-    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    net::{Ipv4Addr, SocketAddr, TcpStream},
     path::Path,
     time::{Duration, Instant},
 };
@@ -132,62 +134,17 @@ fn initialize(path: &Path) -> DbResult<()> {
     Ok(())
 }
 
-fn configure(stream: &TcpStream) -> io::Result<()> {
-    stream.set_read_timeout(Some(TIMEOUT))?;
-    stream.set_write_timeout(Some(TIMEOUT))
+fn time_remaining(deadline: Instant) -> io::Result<Duration> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .filter(|remaining| !remaining.is_zero())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "coordinator deadline exceeded"))
 }
 
-fn read_line(stream: &TcpStream) -> io::Result<String> {
-    let deadline = Instant::now() + TIMEOUT;
+fn read_line(stream: &TcpStream, deadline: Instant) -> io::Result<String> {
     protocol::read_line_from(&mut &*stream, || {
-        let remaining = deadline
-            .checked_duration_since(Instant::now())
-            .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "request deadline exceeded"))?;
-        stream.set_read_timeout(Some(remaining))
+        stream.set_read_timeout(Some(time_remaining(deadline)?))
     })
-}
-
-fn serve(
-    path: &Path,
-    address: SocketAddr,
-    secret: Option<Secret>,
-    profile: Profile,
-) -> AppResult<()> {
-    let mut db = Database::open_file(path, Limits::default())?;
-    let dispatch: fn(&mut Database, &str) -> DbResult<String> = match profile {
-        Profile::Legacy => {
-            state(&db)?;
-            handle
-        }
-        Profile::Sequenced => {
-            sequenced::admit(&db)?;
-            sequenced::handle
-        }
-    };
-    let listener = TcpListener::bind(address)?;
-    writeln!(io::stdout().lock(), "ready {}", listener.local_addr()?)?;
-    for stream in listener.incoming() {
-        let mut stream = stream?;
-        let result = (|| -> io::Result<()> {
-            configure(&stream)?;
-            let request = read_line(&stream)?;
-            let command = match &secret {
-                Some(secret) => secret.authorize(&request),
-                None => Some(request.as_str()),
-            };
-            let reply = match command {
-                Some(command) => {
-                    dispatch(&mut db, command).unwrap_or_else(|error| format!("error {error}"))
-                }
-                None => "error Unauthorized".to_owned(),
-            };
-            writeln!(stream, "{reply}")
-        })();
-        if let Err(error) = result {
-            eprintln!("client connection: {error}");
-        }
-    }
-    Ok(())
 }
 
 fn client(address: SocketAddr, secret: Option<Secret>) -> AppResult<()> {
@@ -208,13 +165,13 @@ fn client(address: SocketAddr, secret: Option<Secret>) -> AppResult<()> {
 
 fn request(address: SocketAddr, secret: Option<&Secret>, command: &str) -> AppResult<String> {
     let mut stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
-    configure(&stream)?;
+    stream.set_write_timeout(Some(TIMEOUT))?;
     if let Some(secret) = secret {
         writeln!(stream, "auth {} {command}", std::str::from_utf8(&secret.0)?)?;
     } else {
         writeln!(stream, "{command}")?;
     }
-    Ok(read_line(&stream)?)
+    Ok(read_line(&stream, Instant::now() + TIMEOUT)?)
 }
 
 #[cfg(test)]
