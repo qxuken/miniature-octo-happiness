@@ -275,6 +275,13 @@ weekend-replicate ship /data/primary.wdb STREAM_HEX /data/new-export.wdb \
   192.0.2.10:9443 /private/local-credentials /private/remote-cert.der --attempts 3
 ```
 
+If `follower-init` fails or is interrupted, use a fresh private empty
+directory for the next enrollment attempt. A recovered manifest can have
+a valid storage root before the follower enrollment row exists. If that
+row survived, a recovered follower can start and report `follower empty`.
+The first durable snapshot receipt follows a verified shipment.
+[Ext4 enrollment and fresh-directory recovery drill](follower-installation-profile.md#interrupted-follower-enrollment-on-ext4)
+
 `describe` uses read-only inspection and prints the current verified local
 revision, stream and file identity without stabilizing an unwitnessed root.
 `ship` opens/recover-verifies the primary, captures a verified immutable export,

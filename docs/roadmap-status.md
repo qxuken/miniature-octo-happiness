@@ -2347,9 +2347,17 @@ the parent-directory sync with a previously empty or reused inactive
 filename. Each case keeps follower revision 4 selected and retained
 revision 2 intact, even when the complete new file survives remount.
 Retry returns the exact revision 5 receipt and another remount preserves
-both image files. Follower enrollment and maintenance fault qualification
-retain separate gates.
+both image files.
 [Journal fault matrix and reproduction](follower-installation-profile.md#ext4-journal-errors-during-follower-staging)
+
+At `f5d3650`, 11 ext4 sync faults and three process interruptions during
+enrollment produced no receipt. An old directory could start only if
+the enrollment row survived. Its authenticated poll then reported an
+empty follower after witness repair. Every fresh-directory enrollment
+accepted the same saved revision 5 export, preserved retained revision 2
+and returned the exact receipt after another remount. Follower maintenance
+faults, other platform pairs and physical device faults retain separate gates.
+[Enrollment fault matrix and reproduction](follower-installation-profile.md#interrupted-follower-enrollment-on-ext4)
 
 ## CRC-64 word verification and authenticated recovery replay
 

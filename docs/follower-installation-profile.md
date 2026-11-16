@@ -279,9 +279,9 @@ that image and in the revision 5 image selected on retry.
 Retry shipped the same saved export and descriptor and obtained the
 exact revision 5 receipt. Duplicate shipment left the manifest unchanged.
 Another remount preserved both exact image files and the final witnessed
-manifest. These are observed ext4 journal outcomes. Follower enrollment
-and maintenance errors, other platforms and device power interruption
-retain separate gates.
+manifest. These are observed ext4 journal outcomes. The next drill
+covers initial enrollment. Maintenance errors, other platforms
+and device power interruption retain separate gates.
 
 The local archive `target/archived-proof/follower-ext4-journal-9ede235.tar.zst`
 holds the source, runner, fixture, gate, exports, ordered syscall traces,
@@ -301,6 +301,70 @@ cases were skipped by those ordinary regression commands.
 | Release `weekend-replicate` | `b19cff9929990830d38aa184fbfcec7b03ea08923af9912bda0722667dd2529b` |
 | `namespace-gate.so` | `75d465d3db5a2dd23cf4cb103e537a801d97b05280e00bebb7e9b71e906be6db` |
 | `audit.log` | `88ceb78b20cf5524fee35e5a99b6169216223a0a2a6ac01a81f2854ea222b34c` |
+
+## Interrupted follower enrollment on ext4
+
+The release CLI from `f5d3650a2019e705195079ff9b95773f4856684d` ran
+on Docker Linux arm64 with kernel `7.0.14-linuxkit`, Rust 1.99.0 and
+fresh 256 MiB ext4 loop images. The enrollment creates a revision 0
+manifest, a revision 1 collection and a revision 2 enrollment row.
+The row records the stream and primary identity with no image selected.
+The test failed 11 real syncs and killed the initializer at three
+metadata boundaries. No attempt printed enrollment success or a
+follower receipt.
+
+The three initial sync faults targeted the owned ext4 journal
+transaction extent. The directory case created a pending sibling
+directory after the first file sync. The second file-sync case changed
+the manifest mode just before the call. Both pending metadata changes
+rolled back after remount. The eight later faults targeted one 4 KiB
+block at a time, using FIEMAP to check the file offset and physical
+sectors before arming the device-mapper error target. Each intended
+`fsync` returned kernel `EIO`. For process interruption the controller
+killed only the gated initializer, before the targeted write.
+
+| Fault or process interruption | Read-only manifest after remount | Old directory at follower startup |
+|---|---|---|
+| First file sync during creation | Absent | `NotFound` before listening |
+| Parent sync, second file sync, or initial root sync, or kill before the initial root write | `Corrupt` | `Corrupt` before listening |
+| Initial witness sync | Revision 0, unwitnessed | `Corrupt` before listening |
+| Collection append or root sync | Revision 0, witnessed | `Corrupt` before listening |
+| Collection witness sync | Revision 1, unwitnessed | `Corrupt` before listening |
+| Enrollment append or root sync, or kill before the enrollment root write | Revision 1, witnessed | `Corrupt` before listening |
+| Enrollment witness sync or kill before the enrollment witness write | Revision 2, unwitnessed | Starts after witness stabilization and authenticated poll reports `follower empty` |
+
+A valid storage root can precede the enrollment row. Writable startup
+can stabilize an unwitnessed root before checking that row, so the
+revision 0 and 1 cases can repair a witness and still refuse to listen.
+In both revision 2 cases, successful startup changed only the witness
+block. The old directory never had a replica image or reported a
+durable snapshot. Repeating enrollment in a nonempty directory returned
+`AlreadyExists` and preserved its bytes.
+
+Using a fresh private directory succeeded in all 14 cases. A pinned TLS
+poll first reported an empty follower. Shipping the same saved primary
+revision 5 export then returned its exact receipt. A fresh server after
+another remount returned the same receipt for poll and duplicate delivery.
+The verified image matched the saved export byte for byte, including
+the live rows and retained revision 2. The old directory stayed as
+observed after the startup check.
+
+The local archive `target/archived-proof/follower-ext4-enrollment-f5d3650.tar.zst`
+contains the source, runner, syscall calibration, gate and fixture, export,
+manifest copies and audit. Extract it and run `bash run-linux.sh` with the
+pinned Docker image and cached dependencies used by the staging drill.
+The run passed 10 follower unit tests, eight native replication integration
+tests and 24 CLI/application tests in release mode. The two opt-in
+integration cases were skipped by the regression commands. The runner
+removed its owned mapper devices, loops, container, volume and credentials.
+
+| Evidence | SHA-256 |
+|---|---|
+| Local compressed archive | `f1d05ae97cd2b1d8e473c232d5a9bb00589ff032c0059c7227f6f10d6c4ff701` |
+| `source.tar` | `32c9f4b6a50acbcc0212d1d65441e07df5ca515a1a3e1cdd111636200f388c57` |
+| `run-linux.sh` | `55d337ef8217742d9bd5121e8d379ef49b552cdd87a30acdddc5b27ae18bae80` |
+| Release `weekend-replicate` | `b19cff9929990830d38aa184fbfcec7b03ea08923af9912bda0722667dd2529b` |
+| `audit.log` | `ab134e35a1f1760798c605fce6da64a4e50809dcc476ceed1a1447b53c8bbbd2` |
 
 ## Reproduction and evidence
 

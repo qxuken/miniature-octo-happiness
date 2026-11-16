@@ -3373,6 +3373,15 @@ the live and reopened receipt, exact selected bytes and retained revision 2
 with both an empty and a reused inactive filename.
 [Directory and journal fault results](docs/follower-installation-profile.md#ext4-journal-errors-during-follower-staging)
 
+Initial enrollment publishes an empty database, its collection, and then
+the enrollment row. A durable manifest root from either of the first two
+commits cannot start a follower. If the enrollment row's root survives an
+uncertain witness write, reopening stabilizes it and reports an empty
+follower. A snapshot receipt still requires verified image selection.
+All 14 Linux initial enrollment failures and interruptions recovered
+through the documented fresh-directory procedure.
+[Enrollment fault results](docs/follower-installation-profile.md#interrupted-follower-enrollment-on-ext4)
+
 ### FOL-V2. Image verification
 
 The [verification test](src/replication/follower/tests.rs#L550)

@@ -221,6 +221,10 @@ qualification is a separate release-candidate requirement.
   fails both staged-file syncs and the parent sync with empty and reused
   inactive filenames. Every reopened follower reports the old selection
   until retry commits a new one.
+  The [ext4 enrollment drill](follower-installation-profile.md#interrupted-follower-enrollment-on-ext4)
+  fails or interrupts initial manifest publication, checks for the
+  enrollment row before accepting startup, and verifies the first durable
+  shipment and retained view from a fresh directory.
   [CRC-64 verification throughput](crc64-performance.md) measures the shared
   disk checksum update and repeats the exact-image and authenticated recovery
   checks after the change.
