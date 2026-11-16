@@ -2707,3 +2707,23 @@ without a compiler MC/DC or whole-module completion claim. The foreign-table
 negative execution reaches the snapshot-backed instantiation first, and the
 stored-kind case qualifies defensive helper compatibility rather than a
 supported published descriptor-kind change.
+
+## Outer typed write admission after a caught panic
+
+The [T10 follow-up](decisions/typed-runtime.md#t10-outer-write-poison-admission-after-a-caught-callback-panic)
+reuses the existing callback-panic test without adding test or runtime code.
+Ordinary caught errors already abort the underlying transaction and would mask
+omission of `Store::write`'s outer poison check. The caught panic leaves staged
+work active, so suppressing only that outer guard changes exact `Closed` to
+`Ok(())`; isolated debug and release runs detect it after passing baselines.
+The test verifies current and retained typed rows, unique claims and current
+index consistency. Its memory store supplies no durable-byte oracle, and its
+accepted/terminal outer closure types differ.
+
+Root restored all 14 proof payloads, checked four command outcomes and bound
+the archived inputs to clean `f751c5a`. The protected archive is
+`target/archived-proof/typed-outer-poison-f751c5a.tar.gz`, SHA-256
+`cd108b695f12ac2b8207c707d280552c54383a506a43020fae3b0551615530d3`.
+The unchanged 315-record ledger now has 46 E and 51 P records. The result is
+functional omission sensitivity with explicit instantiation limits, not a
+compiler MC/DC measurement or whole-module completion.

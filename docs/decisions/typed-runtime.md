@@ -253,7 +253,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:278:40 [8230–8231] | try_propagation / `release_checkpoint` | D | T1/T4/T5 |
 | store.rs:293:52 [8682–8683] | try_propagation / `read_retained` | D | T1/T4/T5 |
 | store.rs:303:39 [9039–9040] | try_propagation / `write` | D | T1/T4/T5 |
-| store.rs:304:9 [9050–9052] | if / `write` | E | T1/T4/T5 |
+| store.rs:304:9 [9050–9052] | if / `write` | P | T10 |
 | store.rs:307:26 [9165–9166] | try_propagation / `write` | D | T1/T4/T5 |
 | store.rs:313:9 [9427–9429] | if / `table` | P | T1/T4/T5 |
 | store.rs:313:12 [9430–9465] | short_circuit_or / `table` | C | T1/T4/T5 |
@@ -458,7 +458,7 @@ controls above; E retains the narrower execution claim.
 
 ## Results and source binding
 
-Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P; T8 adds the current-version skip pair; T9 adds ownership and stored-kind pairs and directly qualifies primary-ID admission. Current counts are C 21, D 195, E 47, I 2, P 50. All 315 source records are listed; the production source and denominator are unchanged.
+Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P; T8 adds the current-version skip pair; T9 adds ownership and stored-kind pairs and directly qualifies primary-ID admission; T10 qualifies outer write-poison admission. Current counts are C 21, D 195, E 46, I 2, P 51. All 315 source records are listed; the production source and denominator are unchanged.
 
 Debug and release each passed 26 existing model tests, two process-evolution
 tests, and six doctests (one documentation example ignored). All eleven new directed
@@ -857,3 +857,66 @@ digest above. The complete 22-test `runtime_decisions` suite also passes in
 debug and release with Rust 1.99.1, offline/locked, all features; its logs are
 retained at `/private/tmp/weekend-typed-admission-full/`. This broader regression
 run is separate from the archive's focused omission experiments.
+
+## T10: outer write-poison admission after a caught callback panic
+
+The existing
+`caught_callback_panic_closes_the_write_before_another_callback` test
+(`tests/runtime_decisions.rs:17–95`) directly qualifies `Store::write`'s
+`write.failed` guard at `store.rs:304`. Clean source commit
+`f751c5a501686b40516e85e47394ccd1a02e9daf` supplies both production and test
+inputs, without an overlay or new test. Its focused positive baseline passes
+in debug and release on macOS arm64 with Rust 1.99.1 (`58cf8f9c3`, LLVM 23.1.1),
+offline/locked with all typed features.
+
+The test first accepts a clean callback, then stages a unique-field update,
+catches a second update callback's panic, and verifies that the poisoned Write
+refuses another callback with exact `Engine(Closed)`. Although its outer closure
+returns `Ok(())`, `Store::write` must return exact `Engine(Closed)`. Baseline
+assertions preserve current revision, both original primary rows and unique
+lookups, and both retained primary rows. The staged unique claim stays absent,
+current indexes remain consistent, and a fresh Write still succeeds.
+
+This uses `Store::memory`: there is **no durable-byte oracle**. It also does not
+compare complete raw collections or a retained-view index report. Successful and
+terminal outer `Store::write` calls use different closure types; they establish
+source-level outcomes, not a same-instantiation outer-function pair. The copied
+follow-up callback's separate same-`checked`-instantiation claim remains T6's
+scope and is not transferred to `Store::write`.
+
+Ordinary caught typed errors would mask removal of this outer guard: `checked`'s
+error arm aborts the underlying transaction (`store.rs:638–639`), so core commit
+can independently return `Closed` (`src/engine.rs:877–878`). A caught callback
+panic bypasses that error arm. The later refused call exits at `store.rs:628`
+before touching the transaction, leaving its earlier staged work active. This
+existing panic control therefore isolates the outer admission obligation.
+
+After both positive baselines passed, an isolated copy changed only
+`if write.failed` to `if write.failed && false`, retaining its rejection body.
+The omission compiles and fails the named test in **both debug and release**:
+at `runtime_decisions.rs:58`, the outer result becomes `Ok(())` instead of
+`Err(Engine(Closed))`. These failing runs stop at that assertion; their later
+preservation assertions are not reached. Baseline and mutant builds use
+distinct fresh targets with `CARGO_INCREMENTAL=0`. Shared production and test
+files were never mutated. This is functional omission sensitivity, not compiler
+MC/DC, coverage of every generic instantiation, or whole-module completion.
+
+Proof directory: `/private/tmp/weekend-typed-outer-poison-akpc0uny/`. Its
+`evidence.json` indexes 14 payloads, including the clean source tar, exact test
+and original/mutated store sources, single-guard patch, compiler/source
+identities, runner and all four command logs. The manifest SHA-256 is
+`c051cb8979c0c9573d479191078cb3bbd358b2e9802f700fcc53819981ff358e`.
+The compact archive
+`/private/tmp/weekend-typed-outer-poison-akpc0uny.tar.gz` was restored and every
+indexed payload and command outcome verified; its SHA-256 is
+`cd108b695f12ac2b8207c707d280552c54383a506a43020fae3b0551615530d3`.
+Build outputs and reconstructed sources are excluded. Production store SHA-256
+remains `2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa`;
+the unchanged test SHA-256 is
+`00a3c88b7e6847a7bc41207528345a74faf1fb78768584b136da1b0ba6d38d8d`.
+
+Root separately restored and verified the 14 payloads and four command outcomes,
+the base Git archive, all nine input hashes and the single-guard mutation.
+The protected copy is
+`target/archived-proof/typed-outer-poison-f751c5a.tar.gz`, with the same archive
+digest above. No new test or runtime source was needed.
