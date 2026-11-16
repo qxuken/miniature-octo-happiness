@@ -5855,3 +5855,11 @@ and unchanged sender wire `Io` with unconfirmed outcome. Indexed proof is retain
 Live snapshot peer-error retrieval is explicitly deferred; native Windows
 worker execution, deployed log sinks and final-candidate qualification remain
 separate. Poll/status keep their existing durability contract.
+
+The [current service source attribution](docs/service-runtime-decisions.md)
+binds 320 records across both binary profiles to existing named tests and
+reviews, retaining source ranges, macro blind spots and delegated failures.
+It is separate from measured condition coverage. The
+[fourteen-lock dependency check](docs/locked-dependency-review-3db5bcd.md)
+also retains exact locks, audit tool and immutable advisory inputs. Final
+same-source package, attribution and deployment acceptance remain separate.

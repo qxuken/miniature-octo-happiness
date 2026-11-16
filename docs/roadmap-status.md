@@ -2808,3 +2808,25 @@ test-overlay identities. Protected archive:
 This closes the named finite scalar dispatch matrix without changing runtime,
 dependencies, formats or E/P dispositions. It supplies no native-filesystem,
 crash, mutation or compiler MC/DC qualification.
+
+## Current service source attribution and locked dependencies
+
+The [bounded service delta](service-runtime-decisions.md) pins the shared
+diagnostic observer, callers and admission code at `3db5bcd`, retaining original
+machine IDs and byte ranges. Its two-binary scope has 320 records: 173 scoped
+execution mappings and 147 delegated propagations. Eight production and ten
+test/evidence inputs match the retained worker qualification. Root restores
+all twenty proof payloads and checks 674 source ranges. This supplies current
+source attribution without extending historical MC/DC or full-workspace claims;
+85 macro/derive blind spots and twelve test exclusions remain explicit.
+
+The [fresh dependency database review](locked-dependency-review-3db5bcd.md)
+passes all fourteen exact locks with pinned cargo-audit 0.22.2 against immutable
+RustSec `02e2517f`, parsing 1,509 advisories. All reports have zero reported
+vulnerabilities/warnings and no ignored/platform/severity filters. Root restores
+1,604 proof payloads, and independent review confirms exact lock, database, tool
+and report identity. An initial derived count aggregation is corrected from
+unchanged raw results and excluded as preliminary. Attribution/license approval,
+registry metadata, undisclosed defects and final package review retain their
+separate scope. The next coherent step is one immutable candidate bundle;
+additional generic E-label sweeps are not a substitute for that qualification.
