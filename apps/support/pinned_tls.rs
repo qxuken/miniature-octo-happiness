@@ -63,7 +63,7 @@ pub(crate) struct Tls {
     peer: CertificateDer<'static>,
 }
 
-pub(crate) type Incoming = StreamOwned<ServerConnection, DeadlineSocket>;
+pub(crate) type Incoming = DeadlineStream<ServerConnection>;
 
 impl Tls {
     pub(crate) fn new(local: &Credentials, peer: CertificateDer<'static>) -> AppResult<Self> {
@@ -91,7 +91,7 @@ impl Tls {
     pub(crate) fn connect(
         &self,
         address: SocketAddr,
-    ) -> AppResult<StreamOwned<ClientConnection, DeadlineSocket>> {
+    ) -> AppResult<DeadlineStream<ClientConnection>> {
         let deadline = Instant::now() + TIMEOUT;
         let stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
         self.client_session(DeadlineSocket { stream, deadline })
@@ -100,11 +100,11 @@ impl Tls {
     fn client_session(
         &self,
         mut socket: DeadlineSocket,
-    ) -> AppResult<StreamOwned<ClientConnection, DeadlineSocket>> {
+    ) -> AppResult<DeadlineStream<ClientConnection>> {
         let name = ServerName::try_from(SERVER_NAME)?;
         let mut tls = ClientConnection::new(self.client.clone(), name)?;
         self.client_handshake(&mut tls, &mut socket)?;
-        Ok(StreamOwned::new(tls, socket))
+        Ok(DeadlineStream::new(StreamOwned::new(tls, socket))?)
     }
 
     fn client_handshake<T: Read + Write>(
@@ -133,7 +133,7 @@ impl Tls {
     fn server_session(&self, mut socket: DeadlineSocket) -> AppResult<Incoming> {
         let mut tls = ServerConnection::new(self.server.clone())?;
         self.server_handshake(&mut tls, &mut socket)?;
-        Ok(StreamOwned::new(tls, socket))
+        Ok(DeadlineStream::new(StreamOwned::new(tls, socket))?)
     }
 
     fn server_handshake<T: Read + Write>(
@@ -163,7 +163,48 @@ impl Tls {
     }
 }
 
-pub(crate) struct DeadlineSocket {
+pub(crate) struct DeadlineStream<C>(StreamOwned<C, DeadlineSocket>);
+
+impl<C> DeadlineStream<C> {
+    fn new(stream: StreamOwned<C, DeadlineSocket>) -> io::Result<Self> {
+        stream.sock.remaining()?;
+        Ok(Self(stream))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_test_deadline(&mut self, deadline: Instant) {
+        self.0.sock.deadline = deadline;
+    }
+}
+
+// rustls can serve buffered plaintext or accept more plaintext without
+// reaching the socket. Apply the same cutoff before each application call.
+impl<C> Read for DeadlineStream<C>
+where
+    StreamOwned<C, DeadlineSocket>: Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.sock.remaining()?;
+        self.0.read(buf)
+    }
+}
+
+impl<C> Write for DeadlineStream<C>
+where
+    StreamOwned<C, DeadlineSocket>: Write,
+{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.sock.remaining()?;
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.sock.remaining()?;
+        self.0.flush()
+    }
+}
+
+struct DeadlineSocket {
     stream: TcpStream,
     deadline: Instant,
 }
@@ -299,6 +340,42 @@ mod deadline_tests {
             socket.write(&byte).unwrap_err().kind(),
             io::ErrorKind::TimedOut
         );
+    }
+
+    #[test]
+    fn expired_tls_stream_rejects_buffered_reads_and_new_output() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let client = Tls::new(&a, b.certificate()).unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::scope(|scope| {
+            let receiver = scope.spawn(|| {
+                let mut stream = server.accept(listener.accept().unwrap().0).unwrap();
+                let mut first = [0];
+                stream.read_exact(&mut first).unwrap();
+                assert_eq!(first, [42]);
+                assert_eq!(stream.0.conn.reader().into_first_chunk().unwrap(), &[43]);
+                assert!(!stream.0.conn.wants_write());
+                stream.set_test_deadline(Instant::now());
+                let mut remaining = [0];
+                for result in [
+                    stream.read(&mut remaining).map(|_| ()),
+                    stream.flush(),
+                    stream.write(&[44]).map(|_| ()),
+                ] {
+                    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+                }
+                assert_eq!(remaining, [0]);
+                assert_eq!(stream.0.conn.reader().into_first_chunk().unwrap(), &[43]);
+                assert!(!stream.0.conn.wants_write());
+            });
+            let mut stream = client.connect(address).unwrap();
+            stream.write_all(&[42, 43]).unwrap();
+            stream.flush().unwrap();
+            receiver.join().unwrap();
+        });
     }
 }
 

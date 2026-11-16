@@ -5,6 +5,8 @@ use std::{
     net::TcpListener,
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
+    sync::mpsc,
+    time::Instant,
 };
 struct Directory(PathBuf);
 impl Directory {
@@ -72,17 +74,17 @@ fn exchange(
         (sent, receiver.join().unwrap())
     })
 }
-fn check(f: &Follower, ack: DurableAck) {
+fn check(f: &Follower, ack: DurableAck, value: u64) {
     assert_eq!(f.progress().unwrap(), Some(ack));
     let r = f.replica().unwrap();
-    assert_eq!(r.snapshot().revision(), 4);
+    assert_eq!(r.snapshot().revision(), ack.revision);
     assert_eq!(
         r.snapshot()
             .get(r.collection_id(1), b"key")
             .unwrap()
             .unwrap()
             .as_u64(),
-        Ok(2)
+        Ok(value)
     );
     assert_eq!(r.retained_ids().unwrap(), [1]);
     assert_eq!(r.retained_snapshot(1).unwrap().revision(), 2);
@@ -125,11 +127,11 @@ fn authorized_install_reopen_poll_and_retry_release_primary_lease() {
     served.unwrap();
     let ack = sent.unwrap();
     assert_eq!(ack.revision, 4);
-    check(&f, ack);
+    check(&f, ack, 2);
     drop(f);
     drop(db);
     let mut f = Follower::open(dir.0.join("follower"), e, Limits::default()).unwrap();
-    check(&f, ack);
+    check(&f, ack, 2);
     let before = f.status().unwrap().manifest_bytes;
     let (sent, served) = exchange(&mut f, &server, |address| {
         ship(&mut prepared, &client, address, 1)
@@ -145,8 +147,143 @@ fn authorized_install_reopen_poll_and_retry_release_primary_lease() {
     });
     assert_eq!(sent.unwrap(), ack);
     served.unwrap();
-    check(&f, ack);
+    check(&f, ack, 2);
 }
+
+struct StallUpload<S> {
+    stream: S,
+    received_ready: bool,
+    follower_finished: mpsc::Receiver<()>,
+}
+
+impl<S: Read> Read for StallUpload<S> {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        let count = self.stream.read(bytes)?;
+        self.received_ready |= count != 0;
+        Ok(count)
+    }
+}
+
+impl<S: Write> Write for StallUpload<S> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if !self.received_ready {
+            return self.stream.write(bytes);
+        }
+        // Complete one region through real TLS, then keep the connection open
+        // while the follower waits for the next region.
+        assert_eq!(bytes.len(), weekend_db::storage::REGION);
+        self.stream.write_all(bytes)?;
+        self.stream.flush()?;
+        self.follower_finished
+            .recv_timeout(Duration::from_secs(10))
+            .expect("stalled follower did not finish");
+        Err(io::ErrorKind::TimedOut.into())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
+    }
+}
+
+#[test]
+fn stalled_authenticated_upload_preserves_the_previous_receipt() {
+    let dir = Directory::new();
+    let path = source(&dir);
+    let initial = dir.0.join("initial");
+    let mut prepared = prepare(&path, [1; 16], &initial).unwrap();
+    let e = enrollment_of(&prepared);
+    let (mut f, (client, server)) = (follower(&dir, e), pair());
+    let (sent, served) = exchange(&mut f, &server, |address| {
+        ship(&mut prepared, &client, address, 1)
+    });
+    served.unwrap();
+    let old_ack = sent.unwrap();
+    assert_eq!(old_ack.revision, 4);
+    check(&f, old_ack, 2);
+    drop(prepared);
+    drop(f);
+    let folder = dir.0.join("follower");
+    let manifest = folder.join("replica-manifest.wdb");
+    let old_bytes = fs::read(&manifest).unwrap();
+
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    let mut tx = db.begin();
+    tx.put(db.collection_id(1), b"key", &db.unsigned(3).unwrap())
+        .unwrap();
+    assert_eq!(tx.commit(), Ok(5));
+    drop(tx);
+    drop(db);
+    let image = dir.0.join("next");
+    let mut prepared = prepare(&path, e.stream_id, &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    let mut f = Follower::open(&folder, e, Limits::default()).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let (finished, wait) = mpsc::channel();
+    thread::scope(|scope| {
+        let receiver = scope.spawn(|| {
+            let mut channel = server.accept(listener.accept().unwrap().0).unwrap();
+            let start = Instant::now();
+            channel.set_test_deadline(start + Duration::from_secs(2));
+            let result = f.serve_authenticated(channel);
+            let elapsed = start.elapsed();
+            finished.send(()).unwrap();
+            assert_eq!(result, Err(Error::Io));
+            assert!(elapsed >= Duration::from_secs(1) && elapsed < Duration::from_secs(8));
+        });
+        let stalled = StallUpload {
+            stream: client.connect(address).unwrap(),
+            received_ready: false,
+            follower_finished: wait,
+        };
+        assert_eq!(
+            prepared.primary.ship(&mut prepared.export, stalled),
+            Err(Error::Io)
+        );
+        receiver.join().unwrap();
+    });
+    check(&f, old_ack, 2);
+    drop(f);
+    assert_eq!(fs::read(&manifest).unwrap(), old_bytes);
+    assert_eq!(
+        fs::read(folder.join("replica-0.wdb")).unwrap(),
+        fs::read(initial).unwrap()
+    );
+    assert_eq!(
+        fs::metadata(folder.join("replica-1.wdb")).unwrap().len(),
+        weekend_db::storage::REGION as u64
+    );
+
+    let mut f = Follower::open(&folder, e, Limits::default()).unwrap();
+    let (polled, served) = exchange(&mut f, &server, |address| {
+        Ok(prepared.primary.poll(client.connect(address)?)?.unwrap())
+    });
+    served.unwrap();
+    assert_eq!(polled.unwrap(), old_ack);
+    let (retried, served) = exchange(&mut f, &server, |address| {
+        ship(&mut prepared, &client, address, 1)
+    });
+    served.unwrap();
+    let installed = retried.unwrap();
+    assert_eq!(installed.revision, 5);
+    assert_eq!(installed.digest, descriptor.digest);
+    let manifest_size = f.status().unwrap().manifest_bytes;
+    let (repeated, served) = exchange(&mut f, &server, |address| {
+        ship(&mut prepared, &client, address, 1)
+    });
+    served.unwrap();
+    assert_eq!(repeated.unwrap(), installed);
+    assert_eq!(f.status().unwrap().manifest_bytes, manifest_size);
+    drop(prepared);
+    drop(f);
+    assert_eq!(
+        fs::read(folder.join("replica-1.wdb")).unwrap(),
+        fs::read(image).unwrap()
+    );
+    let f = Follower::open(&folder, e, Limits::default()).unwrap();
+    check(&f, installed, 3);
+}
+
 #[test]
 fn untrusted_leaf_and_wrong_or_absent_alpn_never_reach_core() {
     let a = Credentials::generate().unwrap();
@@ -283,11 +420,11 @@ fn lost_terminal_reply_reopens_exact_receipt_and_retries_same_export() {
             let before = f.progress().unwrap().unwrap();
             drop(f);
             let mut f = Follower::open(dir.0.join("follower"), e, Limits::default()).unwrap();
-            check(&f, before);
+            check(&f, before, 2);
             let bytes = f.status().unwrap().manifest_bytes;
             serve_one(&mut f, &server, listener.accept().unwrap().0).unwrap();
             assert_eq!(f.status().unwrap().manifest_bytes, bytes);
-            check(&f, before);
+            check(&f, before, 2);
             before
         });
         assert!(ship(&mut prepared, &client, address, 1).is_err());
