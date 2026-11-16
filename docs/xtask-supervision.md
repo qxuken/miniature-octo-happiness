@@ -28,6 +28,13 @@ Linux arm64 (232 tests). The focused release control also passed on
 Linux.
 [Hosted macOS helper log](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43813246788/job/133119401956).
 
+The hosted debug and release helper controls passed at `e1a3ada`.
+macOS arm64 passed 424 controls and Linux x64 passed 486, with two
+registered skips on each host. Both reports verified process cleanup
+for all eight suites.
+[macOS rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43829449438/job/133170961027),
+[Linux rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43829449438/job/133170961390).
+
 ## Ownership and terminal reports
 
 `xtask supervise` accepts one bounded JSON request on stdin. The request names an

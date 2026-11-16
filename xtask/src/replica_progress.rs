@@ -1170,6 +1170,8 @@ mod tests {
         let mut options = options(tmp.path());
         options.samples = Some(4);
         options.interval_ms = Some(100);
+        // Allow the three supervised commands in a sample to run under TSan.
+        options.timeout = 30.;
         script(
             &options.binary,
             &format!(
@@ -1205,7 +1207,7 @@ printf 'follower durable_revision=%s stream={STREAM} digest={}\n' "$next"
             .map(|line| delivery::json(line.as_bytes()).unwrap())
             .collect();
         assert_eq!(rows.len(), 4);
-        assert_eq!(rows[0]["revision_gap"], 1);
+        assert_eq!(rows[0]["revision_gap"], 1, "first sample: {}", rows[0]);
         assert_eq!(rows[1]["observation"]["error"], "cli_failure");
         assert_eq!(rows[2]["observation"]["error"], "follower_regression");
         for stale in &rows[1..3] {

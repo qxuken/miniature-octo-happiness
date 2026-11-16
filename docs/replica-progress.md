@@ -136,6 +136,16 @@ Clippy passed on both platforms and for the Rust 1.99.0 MSVC cross-target.
 The Docker container and volume were removed after copyback, and the reports
 verify credential cleanup.
 
+A macOS ThreadSanitizer workspace run at `730df6f` failed the sampled-poll
+fixture's first gap assertion. A concurrent replay recorded `timeout` in
+the first observation at 3,251 ms. The test's three-second ceiling could
+expire before the sample finished its supervised calls. The sampled-poll
+fixture now allows 30 seconds and prints the first full observation on
+failure. Its assertions still check the gap, unavailable sample, rejected
+regression and eventual catch-up. All 36 concurrent ThreadSanitizer
+replays passed after the change. The ten focused native macOS controls
+also passed, with one registered skip.
+
 Native Windows x64 on fixed NTFS passed the sampled scenario from the clean PR
 test merge `1ed2160db798b4b01bce33d40e714bb33cdab137` with PR head `80433c4`.
 The authenticated relay discarded 79 TLS reply bytes. The follower reopened at
