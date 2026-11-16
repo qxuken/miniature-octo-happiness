@@ -402,14 +402,11 @@ fn decode(bytes: &[u8], mem: &Memory) -> Result<Image> {
         retention: Retention { next_id, entries },
     };
     // Validate physical representability before a file destination is created.
-    codec::encode(
+    codec::encode_fresh(
         mem,
         &image.head,
         image.next,
         image.identity,
-        super::APPEND_START as u64,
-        None,
-        None,
         &image.retention,
     )?;
     Ok(image)

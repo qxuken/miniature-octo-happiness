@@ -228,16 +228,7 @@ impl Storage {
         }
         storage.identity = identity;
         // Prepare everything before modifying the previously empty byte store.
-        let candidate = codec::encode(
-            mem,
-            head,
-            next_collection,
-            identity,
-            APPEND_START as u64,
-            None,
-            None,
-            retention,
-        )?;
+        let candidate = codec::encode_fresh(mem, head, next_collection, identity, retention)?;
         let header = codec::header(identity);
         write_all(&mut *storage.backend, 0, &header)?;
         let zero = [0; REGION];
@@ -335,7 +326,9 @@ impl Storage {
         };
         let publication = codec::metadata(self.identity, slot, false);
         let witness = codec::metadata(self.identity, slot, true);
-        write_synced(&mut *self.backend, candidate.start, &candidate.bytes)
+        candidate
+            .write_append(&mut *self.backend)
+            .and_then(|_| self.backend.sync())
             .map_err(|_| Error::Io)
             .inspect_err(|_| self.poisoned = true)?;
         // From the first slot-write attempt onward the caller cannot infer the

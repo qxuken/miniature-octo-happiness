@@ -161,6 +161,53 @@ fn live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged() 
     assert_eq!(source.begin().commit(), Ok(3));
 }
 
+#[test]
+fn live_copy_stages_large_values_within_the_copy_budget() {
+    let limits = Limits::default();
+    let mut source = Database::create_on(MemoryStore::new().unwrap(), [4; 16], limits).unwrap();
+    let collection = source.create_collection().unwrap();
+    let mut tx = source.begin();
+    for key in 0..6 {
+        let value = source.bytes(&vec![key; 98 * 1024]).unwrap();
+        tx.put(collection, &[key], &value).unwrap();
+    }
+    assert_eq!(tx.commit(), Ok(2));
+    assert_eq!(source.retain_snapshot(&source.snapshot()), Ok(1));
+
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    let expected = primary
+        .export_to(&mut source, MemoryStore::new().unwrap())
+        .unwrap()
+        .descriptor();
+    let budget = Limits {
+        max_live_bytes: 800 * 1024,
+        ..limits
+    };
+    let destination = crate::storage::SimulatedDisk::new().unwrap();
+    assert_eq!(
+        primary
+            .export_live_to(
+                &source,
+                destination.clone(),
+                Limits {
+                    max_live_bytes: 512 * 1024,
+                    ..limits
+                },
+            )
+            .err(),
+        Some(Error::Limit)
+    );
+    assert!(destination.durable_image().unwrap().is_empty());
+    let export = primary
+        .export_live_to(&source, destination.clone(), budget)
+        .unwrap();
+    assert_eq!(export.descriptor(), expected);
+    drop(export);
+    primary
+        .reopen_export(destination, expected, budget)
+        .unwrap();
+}
+
 fn wrong_digest(mut ack: DurableAck) -> DurableAck {
     ack.digest[0] ^= 1;
     ack

@@ -1,5 +1,5 @@
 use super::diagnostics::{self, VerificationStage as Stage};
-use super::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, read_all};
+use super::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, read_all, write_all};
 use crate::memory::ChargedVec;
 use crate::{
     Error, Kind, Result, Value,
@@ -362,13 +362,82 @@ impl<T> CacheState<'_, T> {
 }
 
 pub(crate) struct Candidate {
-    pub start: u64,
-    pub bytes: ChargedVec<u8>,
+    start: u64,
+    bytes: AppendBytes,
     pub descriptor: u64,
     pub end: u64,
     pub cache: Shared<ValueCache>,
     pub data_cache: Shared<DataCache>,
 }
+impl Candidate {
+    pub(super) fn write_append(&self, backend: &mut dyn ByteStore) -> Result<()> {
+        let segments = match &self.bytes {
+            AppendBytes::Contiguous(bytes) => std::slice::from_ref(bytes),
+            AppendBytes::Segmented(segments) => segments.as_slice(),
+        };
+        let mut offset = self.start;
+        for segment in segments {
+            write_all(backend, offset, segment)?;
+            offset += segment.len() as u64;
+        }
+        Ok(())
+    }
+}
+
+// Keep fresh-image staging out of large contiguous heap allocations. Full
+// segments are region-aligned, so this changes allocation without changing
+// the ordered writes or their boundaries at the adapter.
+const APPEND_SEGMENT_BYTES: usize = 16 * REGION;
+
+enum AppendBytes {
+    Contiguous(ChargedVec<u8>),
+    Segmented(ChargedVec<ChargedVec<u8>>),
+}
+impl AppendBytes {
+    fn object(
+        &mut self,
+        mem: &Memory,
+        parts: [&[u8]; 3],
+        size: usize,
+        maximum: usize,
+    ) -> Result<()> {
+        match self {
+            Self::Contiguous(bytes) => {
+                mem.reserve_geometric(bytes, size, maximum)?;
+                for part in parts {
+                    bytes.extend_from_slice(part);
+                }
+            }
+            Self::Segmented(segments) => {
+                let mut remaining = size;
+                for mut part in parts {
+                    while !part.is_empty() {
+                        if segments
+                            .last()
+                            .is_none_or(|segment| segment.len() == APPEND_SEGMENT_BYTES)
+                        {
+                            mem.reserve_geometric(
+                                segments,
+                                1,
+                                MAX_IMAGE_BYTES.div_ceil(APPEND_SEGMENT_BYTES),
+                            )?;
+                            segments.push(ChargedVec::new());
+                        }
+                        let segment = segments.last_mut().expect("append segment");
+                        let available = (APPEND_SEGMENT_BYTES - segment.len()).min(remaining);
+                        mem.reserve_geometric(segment, available, APPEND_SEGMENT_BYTES)?;
+                        let len = available.min(part.len());
+                        segment.extend_from_slice(&part[..len]);
+                        part = &part[len..];
+                        remaining -= len;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 struct Writer<'a> {
     mem: &'a Memory,
     bytes: ChargedVec<u8>,
@@ -414,7 +483,8 @@ struct Encoder<'a> {
     identity: [u8; 16],
     revision: u64,
     start: u64,
-    bytes: ChargedVec<u8>,
+    end: u64,
+    bytes: AppendBytes,
     cache: CacheState<'a, ValueCache>,
     data_cache: CacheState<'a, DataCache>,
 }
@@ -423,33 +493,32 @@ impl Encoder<'_> {
         self.object_born(kind, payload, self.revision)
     }
     fn object_born(&mut self, kind: u32, payload: &[u8], born: u64) -> Result<(u64, u64)> {
-        let size = align(
-            (OBJECT_HEADER as u64)
-                .checked_add(payload.len() as u64)
-                .ok_or(Error::Limit)?,
-        )? as usize;
-        let offset = self
-            .start
-            .checked_add(self.bytes.len() as u64)
+        let length = OBJECT_HEADER
+            .checked_add(payload.len())
             .ok_or(Error::Limit)?;
+        let size = align(length as u64)? as usize;
+        let offset = self.end;
         let end = offset
             .checked_add(size as u64)
             .filter(|n| *n <= MAX_IMAGE_BYTES as u64)
             .ok_or(Error::Limit)?;
-        self.mem
-            .reserve_geometric(&mut self.bytes, size, MAX_IMAGE_BYTES - self.start as usize)?;
-        let old = self.bytes.len();
-        self.bytes.resize(old + size, 0);
-        let bytes = &mut self.bytes[old..];
-        bytes[..8].copy_from_slice(b"WDBOBJ01");
-        put32(bytes, 8, kind);
-        put32(bytes, 12, VERSION);
-        put64(bytes, 16, payload.len() as u64);
-        put64(bytes, 24, born);
-        bytes[32..48].copy_from_slice(&self.identity);
-        bytes[OBJECT_HEADER..OBJECT_HEADER + payload.len()].copy_from_slice(payload);
-        let crc = checksum(bytes, 48);
-        put64(bytes, 48, crc);
+        let mut header = [0; OBJECT_HEADER];
+        header[..8].copy_from_slice(b"WDBOBJ01");
+        put32(&mut header, 8, kind);
+        put32(&mut header, 12, VERSION);
+        put64(&mut header, 16, payload.len() as u64);
+        put64(&mut header, 24, born);
+        header[32..48].copy_from_slice(&self.identity);
+        let padding = &[0; REGION][..size - length];
+        let crc = update_crc(update_crc(crc(&header), payload), padding);
+        put64(&mut header, 48, crc);
+        self.bytes.object(
+            self.mem,
+            [&header, payload, padding],
+            size,
+            MAX_IMAGE_BYTES - self.start as usize,
+        )?;
+        self.end = end;
         Ok((offset, end))
     }
     fn value(&mut self, value: &Value) -> Result<u64> {
@@ -590,6 +659,51 @@ pub(crate) fn encode(
     old_data: Option<&Shared<DataCache>>,
     retention: &Retention,
 ) -> Result<Candidate> {
+    encode_with_append(
+        mem,
+        head,
+        next_collection,
+        identity,
+        start,
+        old_cache,
+        old_data,
+        retention,
+        AppendBytes::Contiguous(ChargedVec::new()),
+    )
+}
+
+pub(super) fn encode_fresh(
+    mem: &Memory,
+    head: &Head,
+    next_collection: u64,
+    identity: [u8; 16],
+    retention: &Retention,
+) -> Result<Candidate> {
+    encode_with_append(
+        mem,
+        head,
+        next_collection,
+        identity,
+        APPEND_START as u64,
+        None,
+        None,
+        retention,
+        AppendBytes::Segmented(ChargedVec::new()),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn encode_with_append(
+    mem: &Memory,
+    head: &Head,
+    next_collection: u64,
+    identity: [u8; 16],
+    start: u64,
+    old_cache: Option<&Shared<ValueCache>>,
+    old_data: Option<&Shared<DataCache>>,
+    retention: &Retention,
+    bytes: AppendBytes,
+) -> Result<Candidate> {
     if start < APPEND_START as u64 || !start.is_multiple_of(REGION as u64) {
         return Err(Error::Invalid);
     }
@@ -606,7 +720,8 @@ pub(crate) fn encode(
         identity,
         revision: head.revision,
         start,
-        bytes: ChargedVec::new(),
+        end: start,
+        bytes,
         cache,
         data_cache,
     };
@@ -3083,7 +3198,8 @@ mod tests {
             identity: ID,
             revision: 0,
             start: (MAX_IMAGE_BYTES - REGION) as u64,
-            bytes: ChargedVec::new(),
+            end: (MAX_IMAGE_BYTES - REGION) as u64,
+            bytes: AppendBytes::Contiguous(ChargedVec::new()),
             cache: CacheState::Owned(ValueCache::new()),
             data_cache: CacheState::Owned(DataCache::new()),
         };
@@ -3091,9 +3207,16 @@ mod tests {
             encoder.object(VALUE, &[0; 16]),
             Ok(((MAX_IMAGE_BYTES - REGION) as u64, MAX_IMAGE_BYTES as u64))
         );
-        let before = encoder.bytes.to_vec();
+        let AppendBytes::Contiguous(bytes) = &encoder.bytes else {
+            unreachable!()
+        };
+        let before = bytes.to_vec();
         assert_eq!(encoder.object(VALUE, &[0; 16]), Err(Error::Limit));
-        assert_eq!(&*encoder.bytes, before);
+        let AppendBytes::Contiguous(bytes) = &encoder.bytes else {
+            unreachable!()
+        };
+        assert_eq!(bytes.as_slice(), before);
+        assert_eq!(encoder.end, MAX_IMAGE_BYTES as u64);
     }
 
     #[test]
@@ -3127,16 +3250,75 @@ mod tests {
             identity: ID,
             revision: 0,
             start: APPEND_START as u64,
-            bytes: ChargedVec::new(),
+            end: APPEND_START as u64,
+            bytes: AppendBytes::Contiguous(ChargedVec::new()),
             cache: CacheState::Owned(ValueCache::new()),
             data_cache: CacheState::Owned(DataCache::new()),
         };
         let offset = encoder.data(&head, 1).unwrap();
-        let before = encoder.bytes.to_vec();
+        let AppendBytes::Contiguous(bytes) = &encoder.bytes else {
+            unreachable!()
+        };
+        let before = bytes.to_vec();
         assert_eq!(encoder.data(&head, 1), Ok(offset));
         assert_eq!(encoder.data(&head, 2), Err(Error::Invalid));
-        assert_eq!(&*encoder.bytes, before);
+        let AppendBytes::Contiguous(bytes) = &encoder.bytes else {
+            unreachable!()
+        };
+        assert_eq!(bytes.as_slice(), before);
         assert_eq!(encoder.data_cache.entries.len(), 1);
+    }
+
+    #[test]
+    fn segmented_append_preserves_the_bytes_and_adapter_write_boundaries() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let mut records = Map::new();
+        for key in 0..3 {
+            let value = Value::bytes_new(&mem, &vec![key; APPEND_SEGMENT_BYTES + 1]).unwrap();
+            records = records
+                .set(&mem, &[key], Record { revision: 1, value })
+                .unwrap();
+        }
+        let head = Head {
+            revision: 1,
+            data_revision: 1,
+            collections: Map::new()
+                .set(
+                    &mem,
+                    &1u64.to_le_bytes(),
+                    Collection {
+                        revision: 1,
+                        records,
+                    },
+                )
+                .unwrap(),
+        };
+        let retention = Retention {
+            next_id: 1,
+            entries: ChargedVec::new(),
+        };
+        let contiguous = encode(
+            &mem,
+            &head,
+            2,
+            ID,
+            APPEND_START as u64,
+            None,
+            None,
+            &retention,
+        )
+        .unwrap();
+        let segmented = encode_fresh(&mem, &head, 2, ID, &retention).unwrap();
+        assert_eq!(segmented.descriptor, contiguous.descriptor);
+        assert_eq!(segmented.end, contiguous.end);
+        let write = |candidate: Candidate| {
+            let mut disk = SimulatedDisk::new().unwrap();
+            disk.lock().unwrap();
+            candidate.write_append(&mut disk).unwrap();
+            disk.sync().unwrap();
+            (disk.durable_image().unwrap(), disk.trace().unwrap())
+        };
+        assert_eq!(write(segmented), write(contiguous));
     }
 
     #[test]
