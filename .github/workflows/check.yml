@@ -460,6 +460,33 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
         run: cargo xtask linux-msrv --odin --output target/linux-msrv
+      - name: Verify Odin publication faults and tmpfs exhaustion against the exact x86_64 library
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          package=target/linux-msrv/package
+          jq -e --arg source "$GITHUB_SHA" '.source == $source and .odin.verified == true' "$package/manifest.json"
+          printf '%s  %s\n' "$(jq -er '.odin.compiler_sha256' "$package/manifest.json")" "$ODIN_ROOT/odin" | sha256sum -c -
+          docker build --platform linux/amd64 --progress=plain \
+            --file tools/delivered-faults/linux-x64.Dockerfile \
+            --iidfile target/linux-odin-fault-image.txt tools/delivered-faults 2>&1 \
+            | tee target/linux-odin-fault-image.log
+          image=$(cat target/linux-odin-fault-image.txt)
+          test "$(docker image inspect --format '{{.Architecture}}' "$image")" = amd64
+          docker run --rm --pull=never --network=none "$image" rustc -vV
+          cargo xtask faults delivered --image "$image" --odin "$ODIN_ROOT/odin" \
+            --package "$package" --output target/linux-msrv-odin-faults
+      - name: Save Linux x86_64 Odin fault evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-linux-odin-faults-${{ runner.arch }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            target/linux-odin-fault-image.txt
+            target/linux-odin-fault-image.log
+            target/linux-msrv-odin-faults/
       - name: Save Linux minimum-compiler evidence
         if: always()
         uses: actions/upload-artifact@v7

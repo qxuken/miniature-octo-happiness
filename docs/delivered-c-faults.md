@@ -354,9 +354,51 @@ campaigns verified container and volume removal.
 | `linux-c/result/evidence.json` | `ac9b6edc3a19d3254dbd6494d459e77e7b53555a9e187c4b82944964ada714f8` |
 | `macos-odin/evidence.json` | `9728258a65012cb9e39238d9324856c3e42faa6d249b088b29f55a0f26d767db` |
 
-Linux x86_64 Odin fault execution and physical power interruption remain
-separate qualification gates. The [Windows Odin runner](#optimized-odin-consumer-on-windows)
-also covers native persistent-volume exhaustion.
+The [Linux x86_64 profile](#optimized-odin-consumer-on-linux-x86_64) runs
+the same fault oracle. The [Windows Odin runner](#optimized-odin-consumer-on-windows)
+also covers native persistent-volume exhaustion. Physical power
+interruption remains a separate gate.
+
+## Optimized Odin consumer on Linux x86_64
+
+The native Linux minimum-toolchain job reuses the package and pinned Odin
+compiler from its verified state trace. It checks that the package identifies
+the tested source and that the compiler digest matches the package manifest.
+The test image uses an amd64 Rust 1.99.0 base pinned by its OCI manifest and
+Debian Clang 16.0.6. The campaign runs in an offline container with its own
+ext4 volume and an 8 MiB tmpfs. Its proof includes both the image ID and the
+loader observations from the phase-specific consumers.
+
+```sh
+# From a native x86_64 Linux checkout after linux-msrv --odin succeeds
+docker build --platform linux/amd64 \
+  --file tools/delivered-faults/linux-x64.Dockerfile \
+  --iidfile target/linux-odin-fault-image.txt tools/delivered-faults
+cargo xtask faults delivered --image "$(cat target/linux-odin-fault-image.txt)" \
+  --odin "$(command -v odin)" --package target/linux-msrv/package \
+  --output target/linux-msrv-odin-faults
+```
+
+The local Docker Desktop run on arm64 used QEMU to execute the x86_64 Odin
+consumer against the previously qualified `10feae4` x86_64 package. The
+unmodified consumer and all six phases passed, with the same observations
+as on arm64. Actual tmpfs exhaustion returned errno 28 and reopened
+revision 3. One retry reopened revision 4 and preserved retained revision 2.
+The disabled-shim control exited 65. All 817 artifact hashes rechecked
+and the owned container and volume were removed.
+
+Rust's compiler crashed under QEMU, so the local worker used the same
+`b265740` Rust source cross-built with Rust 1.99.1 and Zig. The hosted job
+builds its worker with Rust 1.99.0 on native x86_64. That native result
+remains pending. Local proof is under `target/odin-linux-x64-fault-validation/`.
+
+| Local evidence | SHA-256 |
+|---|---|
+| Exact x86_64 packaged `.so` | `075212f21b1824a9b205533247c8408d21630c3282e93058b8f2693a122b3870` |
+| Odin compiler | `49e21d51855d60a618c493e929fe2b236d44de3daeb3a2c2f03f4c8aef566644` |
+| Docker image ID | `bf00f5b6b8f43b9efb1b9e11cc887df286b36952f6c28f21fd2bf6004627b7e2` |
+| Cross-built worker | `c70aea057b721954364b22083b354cd56ef302f122c22d64b5fc03633e54f543` |
+| Result evidence | `ba1e0c98f578b139484817d80ec952e62870e8b4bb56b21811d573a01fa5aa72` |
 
 ## Native Windows delivered C gate
 

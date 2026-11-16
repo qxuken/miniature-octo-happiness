@@ -173,6 +173,10 @@ harness-level scope reference.
    native evidence. Exact-package C and Odin on [macOS](delivered-c-faults.md#optimized-odin-consumer-on-apfs)
    and [Linux arm64](delivered-c-faults.md#optimized-odin-consumer-on-linux-arm64)
    exercise uncertain-I/O reconciliation in a fresh process. The
+   [Linux x86_64 Odin profile](delivered-c-faults.md#optimized-odin-consumer-on-linux-x86_64)
+   passed with the exact x86_64 package under emulation and is now in the
+   native Linux minimum-toolchain job.
+   The
    [Windows Odin runner](delivered-c-faults.md#optimized-odin-consumer-on-windows)
    adds exact-DLL injected and real NTFS exhaustion checks to the hosted
    minimum-toolchain job. Native execution remains pending.
