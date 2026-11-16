@@ -332,6 +332,194 @@ fn concurrent_add_wins_and_a_later_remove_survives_reopen_and_replay() {
 }
 
 #[test]
+fn exhausted_sync_resolution_preserves_the_entire_published_record() {
+    // Independent frame bytes use the existing StudyProgress wire layout. These
+    // boundary states enter through the real codec and actor-owned update checks,
+    // without rewriting a reserved row or simulating u64::MAX assignments.
+    fn frame(
+        actor: u8,
+        weekly: [(u64, Option<u64>); 2],
+        session: [(u64, Option<u64>); 2],
+    ) -> [u8; 2205] {
+        let mut bytes = [0; 2205];
+        bytes[..8].copy_from_slice(b"COURSES\x06");
+        bytes[8..24].copy_from_slice(&POLICY.collection);
+        bytes[24..32].copy_from_slice(&POLICY.generation.to_le_bytes());
+        bytes[32..48].copy_from_slice(&POLICY.actors[0]);
+        bytes[48..64].copy_from_slice(&POLICY.actors[1]);
+        bytes[64] = actor;
+        for (offset, entries) in [(2072, weekly), (2106, session)] {
+            for (index, (sequence, value)) in entries.into_iter().enumerate() {
+                let start = 65 + offset + index * 17;
+                bytes[start..start + 8].copy_from_slice(&sequence.to_le_bytes());
+                bytes[start + 8] = u8::from(value.is_some());
+                bytes[start + 9..start + 17]
+                    .copy_from_slice(&value.unwrap_or_default().to_le_bytes());
+            }
+        }
+        bytes
+    }
+
+    let offered = frame(0, [(1, Some(60)), (0, None)], [(1, Some(20)), (0, None)]);
+    let incoming = StudyProgress::<true>::decode(&offered[65..]).unwrap();
+    for sequence in [u64::MAX, u64::MAX - 1] {
+        let a = Database::new().unwrap();
+        let a_goal = Replica::<StudyProgress>::enroll(
+            &a,
+            a.create_collection().unwrap(),
+            POLICY,
+            POLICY.actors[0],
+        )
+        .unwrap();
+        a_goal
+            .update(|state, _| {
+                *state = incoming;
+                Ok(())
+            })
+            .unwrap();
+
+        let limits = Limits::default();
+        let disk = SimulatedDisk::new().unwrap();
+        let b = Database::create_on(disk.clone(), [20; 16], limits).unwrap();
+        let collection = b.create_collection().unwrap();
+        let b_goal =
+            Replica::<StudyProgress>::enroll(&b, collection, POLICY, POLICY.actors[1]).unwrap();
+        let stored = frame(
+            1,
+            [(0, None), (1, Some(90))],
+            [(0, None), (sequence, Some(30))],
+        );
+        let local = StudyProgress::<true>::decode(&stored[65..]).unwrap();
+        let mut actor = None;
+        b_goal
+            .update(|state, enrolled_actor| {
+                *state = local;
+                actor = Some(enrolled_actor);
+                Ok(())
+            })
+            .unwrap();
+        let actor = actor.unwrap();
+        assert_eq!(local.check_peer(incoming, actor), Ok(()));
+        let mut draft = local;
+        draft.merge(incoming);
+        assert_eq!(draft.weekly_goal.values().collect::<Vec<_>>(), [60, 90]);
+        assert_eq!(draft.session_limit.values().collect::<Vec<_>>(), [20, 30]);
+        let resolution = draft.resolve_conflicts(actor);
+        assert_eq!(draft.weekly_goal.values().collect::<Vec<_>>(), [90]);
+        if sequence == u64::MAX {
+            assert_eq!(resolution, Err(Error::Exhausted));
+            assert_eq!(draft.session_limit.values().collect::<Vec<_>>(), [20, 30]);
+        } else {
+            assert_eq!(resolution, Ok(()));
+            assert_eq!(draft.session_limit.values().collect::<Vec<_>>(), [20]);
+        }
+
+        let retained = b.retain_snapshot(&b.snapshot()).unwrap();
+        let revision = b.snapshot().revision();
+        let durable = disk.durable_image().unwrap();
+        assert_eq!(
+            b.snapshot()
+                .get(collection, StudyProgress::<true>::KEY)
+                .unwrap()
+                .unwrap()
+                .as_bytes()
+                .unwrap(),
+            &stored
+        );
+        let mut offer = Vec::new();
+        let mut reply = Vec::new();
+        let (ack, served) = exchange(
+            |stream| a_goal.push_authenticated(RecordOffer(stream, &mut offer)),
+            |stream| b_goal.serve_authenticated(RecordOffer(stream, &mut reply)),
+        );
+        assert_eq!(offer, offered);
+        let expected = if sequence == u64::MAX {
+            assert_eq!(served, Err(Error::Exhausted));
+            assert_eq!(ack, Err(Error::Io));
+            assert!(reply.is_empty());
+            assert_eq!(b.snapshot().revision(), revision);
+            assert_eq!(disk.durable_image().unwrap(), durable);
+            stored
+        } else {
+            assert_eq!(served, Ok(()));
+            assert_eq!(ack.unwrap().state, draft);
+            assert_eq!(b.snapshot().revision(), revision + 1);
+            let expected = frame(
+                1,
+                [(1, None), (2, Some(90))],
+                [(1, None), (u64::MAX, Some(20))],
+            );
+            assert_eq!(reply, expected);
+            let published = disk.durable_image().unwrap();
+            let mut repeated_reply = Vec::new();
+            let (ack, served) = exchange(
+                |stream| a_goal.push_authenticated(stream),
+                |stream| b_goal.serve_authenticated(RecordOffer(stream, &mut repeated_reply)),
+            );
+            assert_eq!(served, Ok(()));
+            assert_eq!(ack.unwrap().state, draft);
+            assert_eq!(repeated_reply, expected);
+            assert_eq!(b.snapshot().revision(), revision + 1);
+            assert_eq!(disk.durable_image().unwrap(), published);
+            expected
+        };
+        assert!(!b.requires_recovery());
+        assert_eq!(b.retained_ids().unwrap(), [retained]);
+        assert_eq!(
+            b.snapshot()
+                .get(collection, StudyProgress::<true>::KEY)
+                .unwrap()
+                .unwrap()
+                .as_bytes()
+                .unwrap(),
+            &expected
+        );
+        assert_eq!(
+            b.retained_snapshot(retained)
+                .unwrap()
+                .get(collection, StudyProgress::<true>::KEY)
+                .unwrap()
+                .unwrap()
+                .as_bytes()
+                .unwrap(),
+            &stored
+        );
+        let final_revision = b.snapshot().revision();
+        drop(b);
+        disk.crash(Crash::DropAll).unwrap();
+        let b = Database::open_on(disk, limits).unwrap();
+        let collection = b.collection_id(collection.as_u64());
+        let reopened =
+            Replica::<StudyProgress>::open(&b, collection, POLICY, POLICY.actors[1]).unwrap();
+        assert_eq!(
+            reopened.read(),
+            StudyProgress::<true>::decode(&expected[65..])
+        );
+        assert_eq!(b.snapshot().revision(), final_revision);
+        assert_eq!(b.retained_ids().unwrap(), [retained]);
+        assert_eq!(
+            b.snapshot()
+                .get(collection, StudyProgress::<true>::KEY)
+                .unwrap()
+                .unwrap()
+                .as_bytes()
+                .unwrap(),
+            &expected
+        );
+        assert_eq!(
+            b.retained_snapshot(retained)
+                .unwrap()
+                .get(collection, StudyProgress::<true>::KEY)
+                .unwrap()
+                .unwrap()
+                .as_bytes()
+                .unwrap(),
+            &stored
+        );
+    }
+}
+
+#[test]
 fn sync_resolves_both_fields_in_one_commit_and_repeat_sync_is_read_only() {
     let limits = Limits::default();
     let a = Database::create_on(SimulatedDisk::new().unwrap(), [10; 16], limits).unwrap();

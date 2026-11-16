@@ -499,6 +499,217 @@ mod decision_tests {
     use super::*;
     use crate::{Limits, memory::ChargedVec, tree::Map};
 
+    #[test]
+    fn cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease() {
+        fn graph(head: &Head, retention: &Retention) {
+            let value = |head: &Head| {
+                head.collections
+                    .get(&1u64.to_le_bytes())
+                    .unwrap()
+                    .records
+                    .get(b"k")
+                    .unwrap()
+                    .value
+                    .as_bytes()
+                    .unwrap()
+                    .to_vec()
+            };
+            assert_eq!(head.revision, 4);
+            assert_eq!(value(head), b"current");
+            assert_eq!(retention.entries.len(), 1);
+            assert_eq!(retention.entries[0].id, 1);
+            assert_eq!(retention.entries[0].head.revision, 2);
+            assert_eq!(value(&retention.entries[0].head), b"retained");
+        }
+        fn medium(disk: &SimulatedDisk, expected: &[u8]) {
+            assert_eq!(disk.durable_image().unwrap(), expected);
+            let mut probe = disk.clone();
+            probe.lock().expect("failed open released its lease");
+            let mut visible = vec![0; expected.len()];
+            assert_eq!(probe.length().unwrap(), expected.len() as u64);
+            read_all(&mut probe, 0, &mut visible).unwrap();
+            probe.unlock();
+            assert_eq!(visible, expected);
+        }
+
+        let original = {
+            let disk = SimulatedDisk::new().unwrap();
+            let db = crate::Database::create_on(disk.clone(), [7; 16], Limits::default()).unwrap();
+            let collection = db.create_collection().unwrap();
+            let mut tx = db.begin();
+            tx.put(collection, b"k", &db.bytes(b"retained").unwrap())
+                .unwrap();
+            assert_eq!(tx.commit(), Ok(2));
+            drop(tx);
+            assert_eq!(db.retain_snapshot(&db.snapshot()), Ok(1));
+            let mut tx = db.begin();
+            tx.put(collection, b"k", &db.bytes(b"current").unwrap())
+                .unwrap();
+            assert_eq!(tx.commit(), Ok(4));
+            disk.durable_image().unwrap()
+        };
+        // Revision 4 uses parity 0. Preserve its already-published witness as
+        // the byte oracle; do not reconstruct it with the code under test.
+        let witness = 3 * REGION;
+        assert_eq!(&original[witness..witness + 8], b"WDBACK01");
+        assert_eq!(
+            u64::from_le_bytes(original[witness + 32..witness + 40].try_into().unwrap()),
+            4
+        );
+        let mut unwitnessed = original.clone();
+        unwitnessed[witness..witness + REGION].fill(0);
+
+        let box_claims = (0..4)
+            .find(|&allowance| {
+                let disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
+                let mem = Memory::new(Limits::default()).unwrap();
+                mem.fail_after(Some(allowance));
+                let result = Storage::locked(disk.clone(), &mem);
+                mem.fail_after(None);
+                let success = result.is_ok();
+                if !success {
+                    assert_eq!(result.as_ref().err(), Some(&Error::OutOfMemory));
+                }
+                drop(result);
+                assert!(disk.trace().unwrap().is_empty());
+                assert_eq!(mem.usage().0, 0);
+                medium(&disk, &unwitnessed);
+                success
+            })
+            .expect("backend box calibration completes");
+        assert_eq!(box_claims, 1);
+
+        let mut decode_trace = Vec::new();
+        let decode_claims = (0..256)
+            .find(|&allowance| {
+                let mut disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
+                disk.lock().unwrap();
+                let mem = Memory::new(Limits::default()).unwrap();
+                mem.fail_after(Some(allowance));
+                let result = codec::recover(&mut disk, &mem);
+                mem.fail_after(None);
+                let success = result.is_ok();
+                if let Ok(recovered) = &result {
+                    assert!(!recovered.witnessed);
+                    assert_eq!(recovered.next_collection, 2);
+                    assert!(!recovered.cache.is_empty() && !recovered.data_cache.is_empty());
+                    graph(&recovered.head, &recovered.retention);
+                    decode_trace = disk.trace().unwrap();
+                } else {
+                    assert_eq!(result.as_ref().err(), Some(&Error::OutOfMemory));
+                }
+                drop(result);
+                disk.unlock();
+                assert_eq!(mem.usage().0, 0);
+                medium(&disk, &unwitnessed);
+                success
+            })
+            .expect("raw decoder calibration completes");
+
+        let phases = ["VALUE index", "VALUE header", "DATA index", "DATA header"];
+        // Identify each claim at the real constructors before applying its
+        // calibrated offset to Storage::open; do not assume four failures are
+        // later than the last decoder allocation merely from their read trace.
+        for allowance in 0..=phases.len() {
+            let mut disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
+            disk.lock().unwrap();
+            let mem = Memory::new(Limits::default()).unwrap();
+            let recovered = codec::recover(&mut disk, &mem).unwrap();
+            let mut phase = phases[0];
+            mem.fail_after(Some(allowance));
+            let prepared = (|| -> Result<_> {
+                let values = ValueCache::from_entries(&mem, recovered.cache)?;
+                phase = phases[1];
+                let values = mem.shared(values)?;
+                phase = phases[2];
+                let data = DataCache::from_entries(&mem, recovered.data_cache)?;
+                phase = phases[3];
+                Ok((values, mem.shared(data)?))
+            })();
+            mem.fail_after(None);
+            if allowance < phases.len() {
+                assert_eq!(phase, phases[allowance], "constructor claim calibration");
+                assert_eq!(prepared.as_ref().err(), Some(&Error::OutOfMemory));
+            } else {
+                assert!(prepared.is_ok());
+            }
+            drop(prepared);
+            drop(recovered.head);
+            drop(recovered.retention);
+            disk.unlock();
+            assert_eq!(mem.usage().0, 0);
+            medium(&disk, &unwitnessed);
+        }
+
+        for allowance in 0..=phases.len() {
+            let disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
+            let mem = Memory::new(Limits::default()).unwrap();
+            mem.fail_after(Some(box_claims + decode_claims + allowance));
+            let result = Storage::open(disk.clone(), &mem);
+            mem.fail_after(None);
+            let trace = disk.trace().unwrap();
+            if allowance < phases.len() {
+                assert_eq!(
+                    result.as_ref().err(),
+                    Some(&Error::OutOfMemory),
+                    "open {} preserves the core allocation error",
+                    phases[allowance]
+                );
+                assert!(
+                    trace
+                        .iter()
+                        .all(|e| matches!(e.kind, IoKind::Length | IoKind::Read)),
+                    "open {} issued stabilization I/O",
+                    phases[allowance]
+                );
+                assert_eq!(trace, decode_trace, "complete decode before cache failure");
+            } else {
+                let (storage, head, next_collection, retention) = result.as_ref().unwrap();
+                assert_eq!(storage.revision, 4);
+                assert_eq!(*next_collection, 2);
+                graph(head, retention);
+                assert_eq!(&trace[..decode_trace.len()], &decode_trace);
+                assert_eq!(
+                    &trace[decode_trace.len()..],
+                    &[
+                        IoEvent {
+                            kind: IoKind::Sync,
+                            offset: 0,
+                            len: 0
+                        },
+                        IoEvent {
+                            kind: IoKind::Write,
+                            offset: witness as u64,
+                            len: REGION
+                        },
+                        IoEvent {
+                            kind: IoKind::Sync,
+                            offset: 0,
+                            len: 0
+                        },
+                    ]
+                );
+            }
+            drop(result);
+            assert_eq!(
+                mem.usage().0,
+                0,
+                "failed/successful open reclaimed core charge"
+            );
+            medium(
+                &disk,
+                if allowance < phases.len() {
+                    &unwitnessed
+                } else {
+                    &original
+                },
+            );
+        }
+        eprintln!(
+            "cold-open calibration: box={box_claims}, decoder={decode_claims}, phases={phases:?}"
+        );
+    }
+
     fn fixture() -> (Storage, Memory, Shared<Head>, Retention, SimulatedDisk) {
         let mem = Memory::new(Limits::default()).unwrap();
         let head = mem

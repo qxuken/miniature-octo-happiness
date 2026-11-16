@@ -131,6 +131,16 @@ mutations and compiler line/branch data remain distinct evidence.
 
 ## Fuzz and dynamic-analysis acceptance
 
+Two test-only follow-ups on `1685fea` strengthen specific delegated caller
+boundaries: [K6](decisions/storage-core.md#k6-cold-open-cache-preparation-before-stabilization)
+forces core index/header allocation failures after a complete decode and before
+open stabilization; [C4](decisions/crdt.md#c4-automatic-resolution-failure-publishes-nothing)
+forces a real second-field resolution error after the first field changes its
+private draft. Both preserve their stated state/acknowledgment contracts, and
+isolated ordering/category/propagation mutations fail the intended assertions
+in debug and release. These close those named controls; they do not relabel
+other delegated errors, native faults or compiler MC/DC as qualified.
+
 The [exact-7e0e44f campaign](fuzz-qualification-7e0e44f.md) completed 22 targets
 and 1,442,896 actual runs, with 244 unchanged seeds and separate 29-test replay.
 The earlier [exact-21 campaign](fuzz-qualification-21e5d26.md) retains its own

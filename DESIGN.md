@@ -5903,3 +5903,29 @@ retained report; a fresh exact-source verifier changes only its reported
 own-binary hash. The candidate report records identities and reproduction
 limits without converting these finite workloads into a wall-clock month or
 physical-device guarantee.
+
+Two subsequent test-only controls qualify previously delegated caller failures
+on base `1685fea`. The [CRDT resolver control](docs/decisions/crdt.md#c4-automatic-resolution-failure-publishes-nothing)
+uses the existing StudyProgress record: weekly-goal resolution advances its
+private draft, then session-limit resolution exhausts its actor sequence.
+Serving returns `Exhausted` without a reply or publication, preserving current
+and retained bytes through crash/reopen. The adjacent accepted boundary commits
+both fields once; replay at the maximum sequence adds no commit. Lawful boundary
+fixtures pass the codec, public actor-owned update and peer admission.
+
+The [cold-open control](docs/decisions/storage-core.md#k6-cold-open-cache-preparation-before-stabilization)
+separately calibrates raw decoding and the four later
+VALUE/DATA index/header allocations. Each core `OutOfMemory` after decoding
+returns before stabilization writes/syncs, restores all live charge, releases
+the simulator lease and preserves both visible and durable bytes. Successful
+open restores the exact original revision-4 witness and retains revision 2.
+The witness oracle comes from the original published image rather than being
+recreated by the metadata encoder under test.
+
+Focused debug/release mutations detect ignored resolver errors, stabilization
+moved before index construction and a remapped allocation error. Combined local
+macOS Rust 1.99.1 checks pass 168 library/CRDT/replication tests per profile with
+one existing ignore, plus strict all-test-target Clippy. These are bounded
+caller-level controls, not new runtime/format changes, compiler MC/DC, native
+filesystem failure injection or a new full artifact qualification. The
+immutable `7ec2cb5` artifacts keep their original identity.

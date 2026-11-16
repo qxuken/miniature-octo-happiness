@@ -84,6 +84,51 @@ the publication fault suites cover both error boundaries. The metadata-zeroing
 loop always has four iterations when reached; fault sweeps cover early exit,
 not a fabricated empty range.
 
+## K6: cold-open cache preparation before stabilization
+
+`storage::decision_tests::cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease`
+exercises the later `Storage::open` VALUE/DATA index and shared-header construction
+at current `src/storage/mod.rs:249–250`, before stabilization at 254–261. The
+historical K4/E mapping below did not directly force these later core-domain
+allocation failures: the codec sweep stops at `codec::recover`, and the backend
+recovery sweep injects into the separate simulated-medium allocator.
+
+The fixture is a genuine nonempty current revision 4 with retained ID 1 at
+revision 2, holding different literal byte values. Only the selected parity-0
+witness region is zeroed; both valid root slots and the older witness remain.
+Raw recovery explicitly accepts that lawful unwitnessed newest root. The original
+published witness and complete pre-use image supply the success byte oracle;
+the test does not rebuild the expected witness with `codec::metadata`.
+
+Calibration first measures one backend-box claim and 34 raw-decoder claims.
+Separate constructor-prefix controls identify each subsequent VALUE index,
+VALUE header, DATA index and DATA header allocation rather than infer its phase
+from read completion alone. Actual `Storage::open` allowances 35–38 return exact
+`OutOfMemory`, retain the complete successful decoder read trace without any
+write/sync, preserve every visible/durable byte, reclaim core charge and release
+the lease. Allowance 39 succeeds, returns the literal current/retained graph and
+restores exactly the original image through sync/witness-write/sync.
+
+These measured claim counts and reused constructors locate injected failures;
+they are **calibration, not independent behavioral oracles or a public allocation
+count contract**. The independent observations are the literal graph, pre-use
+witness/image bytes, I/O absence/order, charge cleanup and lease reacquisition.
+
+Fresh exact-base `1685fea` source plus this test-only overlay passes the focused
+test in debug and release at Rust 1.99.1, offline/locked with incremental builds
+disabled and separate targets. Two isolated production-copy mutations also
+compile in both profiles: moving stabilization before cache preparation fails
+the no-I/O assertion; remapping the first index error to `Io` fails the exact
+`OutOfMemory` assertion. Each mutant stops at the first VALUE-index case; no
+later mutant-site credit is claimed. All six native reports verify cleanup.
+Proof is retained at `target/archived-proof/cold-open-cache-1685fea.tar.zst`.
+
+This adds scoped caller propagation/allocation-order assurance, not compiler
+MC/DC, native-filesystem/real-host-OOM evidence, every resource-error variant,
+or a new source-inventory denominator. The historical 57-record dispositions
+remain unchanged. No production source, injection seam, format, barrier or
+acknowledgment behavior changes in the main tree.
+
 ## Scope and residual obligations
 
 Every listed record has a disposition, but E is not automatic MC/DC credit for

@@ -2917,3 +2917,52 @@ incident, benchmark, snapshot or documentation scope. This closes immutable
 retention/restoration for this finite candidate, while broader feasible
 decision/error/version profiles, deployment budgets, notices/support acceptance
 and native/device promises retain their distinct gates. Nothing is published.
+
+## Caller failures before publication
+
+Two test-only follow-ups on base `1685fea` cover concrete promises that were
+previously supported only by separate callee tests and broader failure sweeps.
+No runtime code or byte/wire format changes.
+
+- [Cold-open cache preparation](decisions/storage-core.md#k6-cold-open-cache-preparation-before-stabilization):
+  a valid unwitnessed revision 4 with retained revision 2 reaches all four
+  VALUE/DATA index/header core allocation failures. Exact `OutOfMemory` leaves
+  every visible/durable byte unchanged, performs no stabilization I/O, reclaims
+  live charge and releases the simulator lease. The success control restores
+  the exact original witness/image. Allocation counts identify the failure
+  sites; literal graph/bytes/trace/lease observations supply the behavior oracle.
+- [Automatic resolution failure](decisions/crdt.md#c4-automatic-resolution-failure-publishes-nothing):
+  a lawful StudyProgress boundary lets weekly-goal resolution succeed in the
+  private draft before session-limit resolution exhausts its sequence. Serving
+  publishes nothing and sends no reply; current/retained bytes and revision
+  survive crash/reopen. The adjacent accepted boundary commits both fields
+  once, and replay after reaching `MAX` returns the same covering reply without
+  another commit.
+
+Each focused debug/release positive passes. Three isolated production-copy
+mutations fail in both profiles at the intended assertions: ignored resolver
+error, premature open stabilization and remapped cache error. Root independently
+restores and rehashes all 64 CRDT and 61 cold-open proof payloads, checks the
+exact source/patch/mutation identities and native process outcomes, and verifies
+that the main production Storage prefix and CRDT runtime are unchanged.
+Combined macOS arm64 Rust 1.99.1 debug/release each pass 146 library, 14 CRDT
+and eight replication tests, with one existing ignored replication test.
+Strict all-test-target Clippy passes; all 620 tracked non-Markdown inputs remain
+unchanged across those runs.
+
+Protected local archives and SHA-256:
+
+| Proof | Archive | SHA-256 |
+|---|---|---|
+| Resolver caller | `target/archived-proof/crdt-resolution-1685fea.tar.zst` | `1bc304123473b493b90ddbd579c4791dc23c90e131dba0ff11bb375a4d023301` |
+| Cold-open caller | `target/archived-proof/cold-open-cache-1685fea.tar.zst` | `0729a1d691d0b4cfbf914ef63cb7b8900f89baec3fa5f9f0fe1fc52a24fb3671` |
+| Combined root checks | `target/archived-proof/caller-failures-1685fea-root.tar.zst` | `325fc54ae8c8c4b612a43d7880d204df6588a02545d48f85eac723f8c5e2099a` |
+
+These are scoped caller/error/order controls, not compiler MC/DC, native
+filesystem failure injection or a new delivered-artifact/fuzz qualification.
+The `7ec2cb5` artifacts keep their original source identity. The next named local
+obligation is native identity admission/error handling, currently delegated in
+the [native ledger](decisions/native-storage.md); a private deterministic seam
+can test retry/progress/status rules without changing the public API or entropy
+source. Actual kernel/CSP failures and unsupported targets retain separate scope.
+Crates remain unpublished.

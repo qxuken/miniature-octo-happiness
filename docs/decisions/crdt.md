@@ -110,6 +110,48 @@ and admission-error propagation at every CRDT entrypoint remain delegated.
 admission directly and rejects a callback before execution after failed I/O.
 It also checks that policy resolution at sequence exhaustion preserves state.
 
+## C4: automatic resolution failure publishes nothing
+
+`exhausted_sync_resolution_preserves_the_entire_published_record` exercises the
+delegated error at `Replica::serve_authenticated` (`src/crdt.rs:494`) using the
+existing `StudyProgress<true>` record and both generated resolution layers.
+Independent 2,205-byte frame fixtures pass the real codec, public actor-owned
+`Replica::update` checks and peer-progress admission. They describe compatible
+offline histories at a register sequence boundary; the test does not perform
+`u64::MAX` individual assignments or rewrite a reserved row through the raw API.
+
+The receiver's weekly-goal resolution succeeds first. Its session-limit
+resolution then returns exactly `Exhausted` at its local sequence `u64::MAX`.
+A copied merged draft explicitly demonstrates this partial in-memory change.
+The actual serving caller returns `Exhausted`, writes no reply (the sender sees
+`Io`), keeps the entire current and retained row bytes and current revision,
+preserves the entire durable simulator image and remains healthy. Crash/drop
+and reopen preserve the exact current and retained bytes and retained ID.
+At the same serving callsite and `Replica<StudyProgress<true>>` instantiation,
+the `MAX-1` control resolves both fields in one commit and returns independently
+constructed covering-frame bytes. Replaying the original offer after resolution
+has reached `MAX` returns the same covering bytes without another commit or any
+durable-image change. Both branches reopen with their expected published state.
+
+The frozen base is `1685feab8ee45b6344f3b85e75b36a881dee9ed3` plus only the
+test overlay (`tests/crdt.rs` SHA-256
+`640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef`).
+Runtime hashes in the source table remain unchanged. Rust/Cargo 1.99.1 focused debug and release
+controls and strict test-target Clippy passed. A separate source copy omitting
+only the caller's error propagation (`let _ = local.payload.resolve_conflicts(self.actor);`)
+fails in both profiles at the exact serving-result assertion: actual `Ok(())`,
+expected `Err(Exhausted)`. Baselines precede omissions, targets are separate and
+`CARGO_INCREMENTAL=0`; production source was never mutated in the shared tree.
+Requests, native supervisor reports, logs, source archive/overlay, mutation and
+actual test binaries are indexed under
+`/private/tmp/weekend-crdt-resolution-Glq4uH/evidence.json`.
+
+This qualifies the named resolver error through one concrete serving
+instantiation and the no-op boundary replay. Other application callback errors,
+storage/allocator failures and arbitrary `Record` implementations remain
+delegated. Inventory totals are unchanged; no compiler MC/DC or whole-module
+closure is claimed.
+
 ## Inventory and limits
 
 The AST scanner excludes cfg(test), includes possible platform/feature variants,
