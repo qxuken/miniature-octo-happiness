@@ -231,6 +231,7 @@ mod tests {
             let first = enqueue("set-seq 0 1 3 11", Instant::now() + wait);
             in_progress.recv_timeout(wait).unwrap();
             let expired = enqueue("set-seq 1 1 4 99", Instant::now());
+            drop(enqueue("set-seq 3 1 4 77", Instant::now() + wait));
             let fresh = enqueue("set-seq 2 1 4 42", Instant::now() + wait);
             release.send(()).unwrap();
             assert_eq!(
@@ -262,6 +263,10 @@ mod tests {
         );
         assert_eq!(
             protocol::sequenced::handle(&mut db, "receipt 1").unwrap(),
+            "receipt 0"
+        );
+        assert_eq!(
+            protocol::sequenced::handle(&mut db, "receipt 3").unwrap(),
             "receipt 0"
         );
     }

@@ -101,6 +101,22 @@ impl Drop for Process {
     }
 }
 
+fn wait_for_transition(mut observe: impl FnMut() -> String, previous: &str, expected: &str) {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        let observed = observe();
+        if observed == expected {
+            return;
+        }
+        assert_eq!(observed, previous);
+        assert!(
+            Instant::now() < deadline,
+            "request did not publish {expected}"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 #[test]
 fn two_processes_edit_one_record_and_the_stale_writer_conflicts() {
     let dir = Directory::new();
@@ -179,8 +195,14 @@ fn durable_request_receipts_survive_lost_reply_restart_and_competing_requests() 
     lost.shutdown(Shutdown::Write).unwrap();
     drop(lost);
     let mut observer = Process::start(&["client", port]);
-    observer.send("get");
-    assert_eq!(observer.receive(), "value 3 10");
+    wait_for_transition(
+        || {
+            observer.send("get");
+            observer.receive()
+        },
+        "value 2 0",
+        "value 3 10",
+    );
     server.stop();
     let mut server = Process::start(&["serve", path, "0"]);
     let ready = server.receive();
@@ -439,18 +461,11 @@ fn sequenced_clients_preserve_receipts_through_restart_and_restore() {
     let lost = client.send("set-seq 0 1 3 10");
     lost.shutdown(Shutdown::Write).unwrap();
     drop(lost);
-    let deadline = Instant::now() + Duration::from_secs(15);
-    loop {
-        let receipt = client.request("receipt 0");
-        if receipt != "receipt 0" {
-            assert_eq!(receipt, "receipt 1 3 10 4");
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "lost reply request didn't reach publication"
-        );
-    }
+    wait_for_transition(
+        || client.request("receipt 0"),
+        "receipt 0",
+        "receipt 1 3 10 4",
+    );
     server.stop();
     let (mut server, client) = configured_service("serve-sequenced", path, secret, &token);
     assert_eq!(client.request("set-seq 0 1 3 10"), "committed 4");
@@ -1071,9 +1086,10 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
             lost.shutdown(Shutdown::Write).unwrap();
             drop(lost);
             lost_replies += 1;
-            assert_eq!(
-                client.request("get"),
-                format!("value {} {}", index + 3, capacity_value(index))
+            wait_for_transition(
+                || client.request("get"),
+                &format!("value {} {}", index + 2, capacity_value(index - 1)),
+                &format!("value {} {}", index + 3, capacity_value(index)),
             );
             server.stop();
             (server, client) = configured_service("serve", path, secret, &token);
