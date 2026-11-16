@@ -176,10 +176,9 @@ harness-level scope reference.
    [Linux x86_64 Odin profile](delivered-c-faults.md#optimized-odin-consumer-on-linux-x86_64)
    passed with the exact x86_64 package under emulation and is now in the
    native Linux minimum-toolchain job.
-   The
-   [Windows Odin runner](delivered-c-faults.md#optimized-odin-consumer-on-windows)
-   adds exact-DLL injected and real NTFS exhaustion checks to the hosted
-   minimum-toolchain job. Native execution remains pending.
+   The hosted [Windows Odin profile](delivered-c-faults.md#optimized-odin-consumer-on-windows)
+   passed six exact-DLL outcomes, plus a native NTFS exhaustion, full-volume
+   reopen and retry with retained revision 2 intact.
    Other language/platform failure profiles,
    compound failures, actor-generation rollout and each further promised version
    retain their separate obligations. Do not credit one profile to all surfaces.

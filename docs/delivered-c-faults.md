@@ -550,6 +550,34 @@ open, a successful retry after freeing space, and verified VHD cleanup.
 Local checks built the optimized x64 Odin PE, linked it against the qualified
 Windows import library, and built both x64 shim DLLs. Cross-target Rust
 Clippy passed. The refactored Odin consumer also passed the existing macOS
-and Docker Linux fault profiles. The Windows minimum-toolchain workflow runs
-both native Odin campaigns against its verified package. Native results
-remain pending.
+and Docker Linux fault profiles.
+
+The native x64 NTFS minimum-toolchain job passed both campaigns with Rust
+1.99.0, MSVC 14.51.36231, Windows SDK 10.0.26100.0 and Odin
+`dev-2026-10-nightly:84bc3fc`. The tested clean merge was
+`a542d004c33fba2308655dd9cc9c1b06548c7e8b`, with PR head `b265740` as its
+branch parent. The six fresh-process revisions were **4, 3, 4, 4, 3, 3**.
+The disabled shim exited 65 at the commit-status comparison.
+
+Actual NTFS exhaustion returned native error 112 with zero synthetic hits.
+The failed commit cleared the output revision and left revision 3 visible.
+A second process reopened revision 3 while the volume still reported zero
+free bytes and the database hash stayed fixed. Releasing the ballast
+restored 53,506,048 available bytes. A third process found request 42 absent,
+retried once and reopened revision 4. Retained revision 2 survived every
+phase and the owned VHD cleanup passed.
+
+The archive rehash verified 1,729 listed files and 31 before/after DLL
+attestations. Both native campaigns used byte-identical copies of the same
+manifest and DLL. The source hashes for the Odin consumer, attestation
+and shim matched the branch parent.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43789019576/job/133042994358),
+[native evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43789019576/artifacts/14192330183).
+
+| Evidence | SHA-256 |
+|---|---|
+| Hosted ZIP | `fc34ff43f406941f0ef32084decb206010c273f87d52e6dbc5cfa3203bddeaba` |
+| Package manifest | `b7aa125b9918b4b058a321ee39d3c1d03e7fb354fa97de023864e7ba5427d649` |
+| Exact DLL | `844f8c075dd91f3b37fe4fd1bca485db9e44f7930a8d24c356dc2370b38e301c` |
+| Injected fault evidence | `949f26faf75d84d6a95fa0ff0577aaf21b3ebe207dc9fb92808be70786851dec` |
+| NTFS exhaustion evidence | `ccf7dd2b1a719b23581e9324dca1e5613e556958377bc38cd751dd069f247af2` |
