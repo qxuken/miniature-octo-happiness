@@ -372,7 +372,7 @@ jobs:
   windows-msrv:
     name: Windows MSVC minimum Rust
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Preserve committed file bytes
         run: |
@@ -400,8 +400,8 @@ jobs:
           & $compiler[0].FullName version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $compiler[0].DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      - name: Verify the minimum compiler, workspace and exact delivered artifacts
-        run: cargo xtask windows-msrv --odin --output target/windows-msrv
+      - name: Verify minimum Rust with combined and isolated packages
+        run: cargo xtask windows-msrv --odin --isolated --output target/windows-msrv
       - name: Verify Odin publication faults and real NTFS exhaustion against the exact DLL
         shell: pwsh
         run: |
@@ -435,7 +435,7 @@ jobs:
   linux-msrv:
     name: Linux x86_64 minimum Rust
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust 1.99.0 and cache the locked inputs
@@ -456,10 +456,10 @@ jobs:
           ODIN_ROOT="$compiler" "$compiler/odin" version
           printf '%s\n' "$compiler" >> "$GITHUB_PATH"
           printf 'ODIN_ROOT=%s\n' "$compiler" >> "$GITHUB_ENV"
-      - name: Verify the minimum compiler, workspace and exact delivered artifacts
+      - name: Verify minimum Rust with combined and isolated packages
         env:
           TMPDIR: ${{ runner.temp }}
-        run: cargo xtask linux-msrv --odin --output target/linux-msrv
+        run: cargo xtask linux-msrv --odin --isolated --output target/linux-msrv
       - name: Verify Odin publication faults and tmpfs exhaustion against the exact x86_64 library
         run: |
           set -euo pipefail

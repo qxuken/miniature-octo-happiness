@@ -1,7 +1,7 @@
 //! Verify the retained minimum-Rust delivery reports without running delivered binaries.
 use crate::{
     delivery::read_json_hashed,
-    msrv::{EVIDENCE_EXCLUSIONS, minimum},
+    msrv::{EVIDENCE_EXCLUSIONS, ISOLATED_PACKAGES, check_isolated_manifest, minimum},
     source_archive,
     support::{Platform, Run, Scratch, qualification_inventory, sha, text},
     trace_model::{EXPECTED_SHA256, TRACE_SHA256},
@@ -21,6 +21,9 @@ pub struct Options {
     /// Directory containing the four extracted minimum-Rust evidence trees.
     #[arg(long)]
     matrix: PathBuf,
+    /// Require the three isolated packages in every lane.
+    #[arg(long)]
+    require_isolated: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -269,11 +272,82 @@ fn verify_windows_trace(
     Ok(())
 }
 
+fn verify_isolated(
+    root: &Path,
+    controller: &Value,
+    combined: &Value,
+    files: &Hashes,
+    lane: Lane,
+    required: bool,
+) -> Result<Option<Value>> {
+    let recorded = &controller["isolated"];
+    let package_names = files
+        .keys()
+        .filter_map(|key| key.strip_prefix("isolated/"))
+        .map(|key| key.split('/').next().unwrap_or_default());
+    if recorded.is_null() {
+        ensure!(!required, "isolated feature package evidence required");
+        ensure!(
+            package_names.count() == 0,
+            "unrecorded isolated feature package"
+        );
+        return Ok(None);
+    }
+    ensure!(
+        recorded
+            .as_object()
+            .is_some_and(|rows| rows.len() == ISOLATED_PACKAGES.len())
+            && package_names
+                .clone()
+                .all(|name| ISOLATED_PACKAGES.iter().any(|(known, _)| *known == name)),
+        "unexpected isolated feature package"
+    );
+
+    let windows = lane.platform == Platform::Windows;
+    let command_key = if windows { "label" } else { "name" };
+    let commands = controller["commands"]
+        .as_array()
+        .context("missing commands")?;
+    let mut summaries = BTreeMap::new();
+    for (name, mask) in ISOLATED_PACKAGES {
+        let prefix = format!("isolated/{name}/");
+        let manifest_path = format!("{prefix}manifest.json");
+        let library_path = format!("{prefix}{}", lane.platform.library());
+        let (manifest, pin) = read_json_hashed(&root.join(&manifest_path))?;
+        check_isolated_manifest(&manifest, combined, name, mask, true)?;
+        compare_inventory(
+            files,
+            &prefix,
+            "manifest.json",
+            &manifest["sha256"],
+            windows,
+        )?;
+        let library = files
+            .get(&library_path)
+            .context("missing isolated shared library")?;
+        let summary = json!({"feature_mask":mask,"manifest_sha256":pin,"library_sha256":library});
+        let label = format!("package-{name}");
+        ensure!(
+            files.get(&manifest_path) == Some(&pin)
+                && recorded[name] == summary
+                && commands
+                    .iter()
+                    .filter(|row| row[command_key] == label)
+                    .count()
+                    == 1,
+            "isolated {name} package binding mismatch"
+        );
+        summaries.insert(name, summary);
+    }
+    Ok(Some(json!(summaries)))
+}
+
 fn verify_lane(
     root: &Path,
     source: &str,
     version: &str,
     lane: Lane,
+    require_isolated: bool,
 ) -> Result<(Value, Value, Value)> {
     let controller_path = root.join("evidence.json");
     let (controller, controller_pin) = read_json_hashed(&controller_path)?;
@@ -442,11 +516,16 @@ fn verify_lane(
     } else {
         verify_unix_trace(&trace, &files, pin, library, odin)?;
     }
-    let report = json!({
+    let mut report = json!({
         "host": lane.host, "minimum_rust": version, "volume": volume,
         "controller_sha256": controller_pin, "manifest_sha256": pin,
         "trace_sha256": trace_pin, "library_sha256": library, "payloads": files.len()
     });
+    if let Some(isolated) =
+        verify_isolated(root, &controller, &manifest, &files, lane, require_isolated)?
+    {
+        report["isolated"] = isolated;
+    }
     Ok((report, sources.clone(), locks.clone()))
 }
 
@@ -456,11 +535,18 @@ fn verify(
     version: &str,
     expected_sources: &Value,
     expected_locks: &Value,
+    require_isolated: bool,
 ) -> Result<Value> {
     let mut profiles = BTreeMap::new();
     for lane in LANES {
-        let (report, sources, locks) = verify_lane(&matrix.join(lane.name), source, version, lane)
-            .with_context(|| format!("{} delivery", lane.name))?;
+        let (report, sources, locks) = verify_lane(
+            &matrix.join(lane.name),
+            source,
+            version,
+            lane,
+            require_isolated,
+        )
+        .with_context(|| format!("{} delivery", lane.name))?;
         ensure!(
             sources == *expected_sources && locks == *expected_locks,
             "{} recorded source or locks differ from the Git archive",
@@ -468,9 +554,15 @@ fn verify(
         );
         profiles.insert(lane.name, report);
     }
-    Ok(
-        json!({"source":source,"verified":true,"scope":"minimum-Rust combined private delivery","profiles":profiles}),
-    )
+    let scope = if profiles
+        .values()
+        .all(|report| report["isolated"].is_object())
+    {
+        "minimum-Rust combined and isolated private delivery"
+    } else {
+        "minimum-Rust combined private delivery"
+    };
+    Ok(json!({"source":source,"verified":true,"scope":scope,"profiles":profiles}))
 }
 
 pub fn run(run: &mut Run, options: Options) -> Result<()> {
@@ -499,6 +591,7 @@ pub fn run(run: &mut Run, options: Options) -> Result<()> {
         &minimum(&tree)?,
         &json!(files),
         &json!(locks),
+        options.require_isolated,
     )?;
     report["source_archive_sha256"] = json!(archive);
     report["verifier_sha256"] = json!(sha(&std::env::current_exe()?)?);
@@ -510,6 +603,63 @@ pub fn run(run: &mut Run, options: Options) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn delivery_distinguishes_historical_and_required_isolated_profiles() {
+        let lane = LANES[0];
+        let root = Path::new("unused");
+        let controller = json!({});
+        let combined = json!({});
+        let mut files = Hashes::new();
+        assert!(
+            verify_isolated(root, &controller, &combined, &files, lane, false)
+                .unwrap()
+                .is_none()
+        );
+        assert!(verify_isolated(root, &controller, &combined, &files, lane, true).is_err());
+        files.insert("isolated/base/manifest.json".into(), "unrecorded".into());
+        assert!(verify_isolated(root, &controller, &combined, &files, lane, false).is_err());
+    }
+
+    #[test]
+    fn delivery_isolated_profiles_require_exact_masks_and_compiler() {
+        let combined = json!({
+            "source":"git","source_id":"git","toolchain":"rustc","cargo":"cargo",
+            "lockfile_sha256":"lock","source_files_sha256":{"Cargo.lock":"lock"},
+            "odin":{"compiler_sha256":"compiler"}
+        });
+        for (name, mask) in ISOLATED_PACKAGES {
+            let mut manifest = combined.clone();
+            let fields = manifest.as_object_mut().unwrap();
+            fields.extend(
+                json!({
+                    "dirty_status":"","verified":true,"candidate_eligible":true,
+                    "relocation_verified":true,"attribution_inputs_complete":true,
+                    "panic_strategy":"unwind","features":if mask == 0 { "" } else { name },
+                    "cargo_feature_mask":mask,"runtime_feature_mask":mask,
+                    "requested_profiles":{"odin":true},
+                    "odin":{"verified":true,"compiler_sha256":"compiler"}
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+            );
+            check_isolated_manifest(&manifest, &combined, name, mask, true).unwrap();
+            for (key, value) in [
+                ("runtime_feature_mask", json!(3)),
+                ("cargo_feature_mask", json!(3)),
+                ("source_id", json!("other")),
+                (
+                    "odin",
+                    json!({"verified":true,"compiler_sha256":"substituted"}),
+                ),
+            ] {
+                let mut invalid = manifest.clone();
+                invalid[key] = value;
+                assert!(check_isolated_manifest(&invalid, &combined, name, mask, true).is_err());
+            }
+        }
+    }
 
     #[test]
     fn delivery_inventories_match_bytes_and_normalize_only_windows_manifests() {

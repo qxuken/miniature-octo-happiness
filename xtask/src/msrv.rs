@@ -8,7 +8,7 @@ use crate::{
     support::{Platform, Run, Scratch, cargo_build_env, cmd, path, qualification_inventory, sha},
 };
 use anyhow::{Context, Result, ensure};
-use serde_json::json;
+use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
     ffi::OsString,
@@ -23,9 +23,14 @@ pub struct Options {
     /// Include the installed Odin compiler and optimized Odin trace cases.
     #[arg(long)]
     odin: bool,
+    /// Qualify base, replication-only and CRDT-only packages as well.
+    #[arg(long)]
+    isolated: bool,
 }
 
 pub(crate) const EVIDENCE_EXCLUSIONS: &[&str] = &["build", "trace/cargo-target", "evidence.json"];
+pub(crate) const ISOLATED_PACKAGES: [(&str, u32); 3] =
+    [("base", 0), ("replication", 1), ("crdt", 2)];
 
 pub(crate) fn minimum(root: &Path) -> Result<String> {
     let manifest: toml::Value = toml::from_str(&fs::read_to_string(root.join("Cargo.toml"))?)?;
@@ -306,6 +311,76 @@ fn run_trace(
     Ok(())
 }
 
+pub(crate) fn check_isolated_manifest(
+    manifest: &Value,
+    combined: &Value,
+    name: &str,
+    mask: u32,
+    odin: bool,
+) -> Result<()> {
+    ensure!(
+        [
+            "source",
+            "source_id",
+            "toolchain",
+            "cargo",
+            "lockfile_sha256",
+            "source_files_sha256"
+        ]
+        .iter()
+        .all(|key| manifest[key] == combined[key])
+            && manifest["dirty_status"] == ""
+            && manifest["verified"] == true
+            && manifest["candidate_eligible"] == true
+            && manifest["relocation_verified"] == true
+            && manifest["attribution_inputs_complete"] == true
+            && manifest["panic_strategy"] == "unwind"
+            && manifest["features"] == if mask == 0 { "" } else { name }
+            && manifest["cargo_feature_mask"] == mask
+            && manifest["runtime_feature_mask"] == mask
+            && manifest["requested_profiles"]["odin"] == odin
+            && (!odin
+                || (manifest["odin"]["verified"] == true
+                    && manifest["odin"]["compiler_sha256"] == combined["odin"]["compiler_sha256"])),
+        "isolated {name} package identity, consumer or feature mask mismatch"
+    );
+    Ok(())
+}
+
+fn run_isolated(c: &mut Campaign<'_>, xtask: &Path, odin: bool) -> Result<()> {
+    let combined = delivery::read_json(&c.output.join("package/manifest.json"))?;
+    let library = Platform::host()?.library();
+    let mut profiles = BTreeMap::new();
+    for (name, mask) in ISOLATED_PACKAGES {
+        let package = c.output.join("isolated").join(name);
+        let mut command = vec![
+            path(xtask),
+            "package".into(),
+            "--output".into(),
+            path(&package),
+        ];
+        if mask != 0 {
+            command.extend(["--features".into(), name.into()]);
+        }
+        if odin {
+            command.push("--odin".into());
+        }
+        c.command(command, &format!("package-{name}"), None, 300.)?;
+        let (manifest, pin) = delivery::read_json_hashed(&package.join("manifest.json"))?;
+        check_isolated_manifest(&manifest, &combined, name, mask, odin)?;
+        profiles.insert(
+            name,
+            json!({
+                "feature_mask":mask,
+                "manifest_sha256":pin,
+                "library_sha256":sha(&package.join(library))?,
+            }),
+        );
+    }
+    c.evidence["isolated"] = json!(profiles);
+    Ok(())
+}
+
 pub fn run(run: &Run, opts: Options) -> Result<()> {
     let scope = format!(
         "native {} declared minimum Rust compiler",
@@ -402,6 +477,9 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         c.save()?;
         let xtask = std::env::current_exe()?;
         run_delivery(&mut c, &xtask, &rustc, &locks["Cargo.lock"], opts.odin)?;
+        if opts.isolated {
+            run_isolated(&mut c, &xtask, opts.odin)?;
+        }
         c.save()?;
         run_checks(&mut c, &run.root, &target, &runtime_parent, &xtask)?;
         #[cfg(unix)]

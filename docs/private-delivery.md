@@ -65,6 +65,23 @@ the isolated feature masks on macOS. Isolated Linux and Windows feature
 profiles and the final candidate's sanitizer, fuzz, workload, recovery
 and owner approval gates retain their own evidence requirements.
 
+## Collecting isolated feature packages
+
+Pass `--isolated` to the native `macos-msrv`, `linux-msrv` or
+`windows-msrv` command with `--odin`. Each controller adds
+`isolated/base`, `isolated/replication` and `isolated/crdt` to its
+evidence tree. Each package runs the exact shared library with C11,
+C++17 and Odin before and after relocation, and records the source,
+compiler, artifact hashes and Cargo/runtime masks (0, 1 and 2).
+The combined package exercises the optimized trace and relocated Rust
+source consumer.
+
+Use `verify-delivery --require-isolated` when checking the four trees.
+This requires all three mask-specific manifests and libraries on each
+platform and checks their toolchain, lockfile, source and Odin compiler
+against the combined package for that platform. Omit the flag for
+historical archives with only the combined package.
+
 ## Earlier arm64 result at `384ca0a`
 
 The macOS arm64/APFS and Docker Linux arm64/ext4 lanes ran from clean
