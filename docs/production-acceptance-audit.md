@@ -174,8 +174,9 @@ harness-level scope reference.
    and [Linux arm64](delivered-c-faults.md#optimized-odin-consumer-on-linux-arm64)
    exercise uncertain-I/O reconciliation in a fresh process. The
    [Linux x86_64 Odin profile](delivered-c-faults.md#optimized-odin-consumer-on-linux-x86_64)
-   passed with the exact x86_64 package under emulation and is now in the
-   native Linux minimum-toolchain job.
+   passed under emulation and on native Linux with their exact packages.
+   The [three-process Linux arm64 check](delivered-c-faults.md#reopen-while-linux-tmpfs-is-still-full)
+   also reopens the exact state with zero space before freeing ballast and retrying.
    The hosted [Windows Odin profile](delivered-c-faults.md#optimized-odin-consumer-on-windows)
    passed six exact-DLL outcomes, plus a native NTFS exhaustion, full-volume
    reopen and retry with retained revision 2 intact.

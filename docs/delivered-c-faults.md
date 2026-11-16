@@ -315,7 +315,7 @@ explicit runner authorization, an actual tmpfs of at most 8 MiB and exclusive
 creation of the ballast file. The two consumers independently check their ABI
 outputs and data. In the exhaustion case the commit receives kernel errno 28,
 returns `IO` with zero output revision and leaves the live view at revision 3.
-A fresh process opens revision 3 after the exercise removes its ballast.
+A fresh process in this run opens revision 3 after the exercise removes its ballast.
 Request 42 is absent, so one retry commits revision 4 and preserves retained
 revision 2. The independent oracle also requires zero injection hits, root-slot
 writes, witness writes and sync calls for that case.
@@ -388,9 +388,8 @@ The disabled-shim control exited 65. All 817 artifact hashes rechecked
 and the owned container and volume were removed.
 
 Rust's compiler crashed under QEMU, so the local worker used the same
-`b265740` Rust source cross-built with Rust 1.99.1 and Zig. The hosted job
-builds its worker with Rust 1.99.0 on native x86_64. That native result
-remains pending. Local proof is under `target/odin-linux-x64-fault-validation/`.
+`b265740` Rust source cross-built with Rust 1.99.1 and Zig. Local proof is
+under `target/odin-linux-x64-fault-validation/`.
 
 | Local evidence | SHA-256 |
 |---|---|
@@ -399,6 +398,50 @@ remains pending. Local proof is under `target/odin-linux-x64-fault-validation/`.
 | Docker image ID | `bf00f5b6b8f43b9efb1b9e11cc887df286b36952f6c28f21fd2bf6004627b7e2` |
 | Cross-built worker | `c70aea057b721954364b22083b354cd56ef302f122c22d64b5fc03633e54f543` |
 | Result evidence | `ba1e0c98f578b139484817d80ec952e62870e8b4bb56b21811d573a01fa5aa72` |
+
+The native x86_64 job also passed all six cases with matching observations
+using its exact same-source package, Rust 1.99.0, Clang 16.0.6 and the pinned
+Odin compiler. The tested merge was `aa7b6c405823a1d2794d19e98cbbb2e2df4ed708`,
+with `8dce9bd` as its branch parent. The worker reported ext4 on the Linux
+7.0.0-1014-aws host. The native archive rehash verified 841 worker
+artifacts. The package manifest and shared-library copies were identical and
+the worker source matched the branch parent. The owned resources were absent.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43789791365/job/133045376286),
+[native evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43789791365/artifacts/14191579902).
+
+| Native evidence | SHA-256 |
+|---|---|
+| Hosted ZIP | `7db6c4ec92e1780f68f0367962072b22cbb99856163fb1ef3339799b277f8917` |
+| Worker image ID | `911ee0fbf30670fc57eea1271b156b975b1295c4fc8ec2481fc80ae18c35f141` |
+| Package manifest | `4ffd5af71437ccb6a70fd3b2670271fe6232e0a48c7aa71f5cc886589af5a699` |
+| Exact `.so` | `9b1a7ba02a0809dd605ddb3ac207320ef3c246b601278c6dc31b500a2b193747` |
+| Worker result | `8493bb52dfb28ab295b162433827b1125744dfe00097147e561d905b23e1a879` |
+
+### Reopen while Linux tmpfs is still full
+
+The runner at `6d9b089` keeps the ballast in place after the failed append.
+A second, uninstrumented process loads the exact same `.so` and opens
+revision 3. It checks every current and retained payload byte. The runner
+independently verifies zero available KiB and an unchanged database hash
+after that open. It then removes only the ballast. A third process verifies
+that request 42 is absent, commits it once and reopens revision 4 with
+retained revision 2. The full and retried database images are saved for review.
+
+Both optimized consumers passed the three distinct process phases on Docker
+Linux arm64/ext4 against the exact `b4a88a5` package. The available space
+was zero through the full-volume reopen and 8,108 KiB after ballast removal
+in both runs. All six outcome rows matched. The eight Rust fault controls
+passed in debug and release, strict Clippy passed, and macOS C/APFS
+exhaustion and the five Odin injection cases still passed. The hosted
+x86_64 result above used the earlier two-process tmpfs case.
+
+| Local evidence under `target/odin-tmpfs-full-reopen/` | SHA-256 |
+|---|---|
+| `source.tar` | `3a8da845151b999a12720d31ea450189c127715b3757f9caa9568cbdde839c72` |
+| `linux-odin/result/evidence.json` | `6aa8180b6533f13ce5bdc93e36d544f14306f4315fea0ff9fbfa8287924484ac` |
+| `linux-c/result/evidence.json` | `3943430514630fa3285d1a1363a5c1dcd046d10a5450195ee2df7a1d7e8cdf1a` |
+| `macos-c/evidence.json` | `011b80ce2f91ffab0ee18cbc5b75c39b00e5701b7f168bc723ae5b296237500e` |
+| `macos-odin/evidence.json` | `140dd0560e7e407587998e36c970b61184cf15d4fd6702d04ca35a43b2008352` |
 
 ## Native Windows delivered C gate
 
