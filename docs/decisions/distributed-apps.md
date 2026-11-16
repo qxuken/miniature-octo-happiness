@@ -51,6 +51,11 @@ private deadline, bounded by a seven-second test assertion. Production uses the
 fixed profile deadline (three seconds for study). rustls cryptography and certificate parsing remain
 dependency assurance, not independently verified by these examples.
 
+The shared application stream also checks expiration before reading buffered
+TLS plaintext or accepting writes or flushes. The study binary runs the same
+pinned loopback regression as snapshot replication.
+[Shared deadline results](../shared-app-tls.md#deadline-checks-on-buffered-tls-io)
+
 `two_writers_recover_a_lost_ack` exercises two actual processes, push on/off,
 backoff after a lost reply, concurrent local edits, restart, and stable subsequent
 sync. Peer B reopens at local revision5 with total40; A stays at revision3 until

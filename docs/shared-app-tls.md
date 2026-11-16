@@ -76,3 +76,43 @@ also retains its stated source and platform scope. Native Windows remains open:
 NTFS persistence/locking/reparse behavior, process interruption, socket/TLS
 execution, externally provisioned ACLs, C/C++ consumers and private DLL relocation
 need execution on Windows. Cross-linking does not qualify those behaviors.
+
+## Deadline checks on buffered TLS I/O
+
+The previous layer checked its absolute deadline only when rustls touched the
+socket. A pinned TLS loopback test left one decrypted byte buffered and
+expired the deadline. The old stream still returned the byte and accepted a
+new write. The shared stream now checks that same deadline after the
+handshake and before application read, write and flush. Socket calls still
+use the remaining budget. The regression verifies that the expired read
+leaves the buffered byte intact and that the write queues no new TLS output.
+Both the snapshot and study binaries run that regression.
+
+A separate snapshot test installs revision 4 and sends one 4 KiB region
+of revision 5 over authenticated TCP. It keeps the sender socket open
+while the follower's two-second test budget expires. The exchange returns
+`Io`, the manifest and selected image stay byte-identical and a new poll
+returns the exact revision 4 receipt with retained revision 2. Retry uses
+the same capture, installs and reopens the exact revision 5 image, and a
+duplicate leaves the manifest length unchanged. The production socket
+budgets remain 30 seconds for snapshot and three seconds for study.
+
+At `d1dec603f7d737d86c4cfefccffa01987c68dc8c`, macOS arm64 (Rust 1.99.1)
+and Docker Linux arm64 (Rust 1.99.0) passed all 45 ordinary tests per build
+profile in debug and release, plus all-target Clippy with warnings denied.
+The opt-in Linux full-storage fixture was skipped. Windows x64 MSVC
+cross-linked all seven test executables with cargo-xwin 0.23.1. Native
+Windows execution remains open for this change.
+
+```sh
+cargo test --offline --locked -p weekend-replicate -p study-peer
+cargo test --offline --locked --release -p weekend-replicate -p study-peer
+cargo clippy --offline --locked -p weekend-replicate -p study-peer --all-targets -- -D warnings
+```
+
+The local archive `target/archived-proof/shared-tls-deadline-d1dec60.tar.zst`
+contains both source checkpoints, the failing regression patch for the
+baseline, platform logs and Windows test executable hashes. The Docker
+image ID is `sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
+The archive SHA-256 is
+`40d4eb5463ac851d9446cf75814c8e800718a76ec4d55f351c5d6e9ef7981c3f`.

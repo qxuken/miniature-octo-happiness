@@ -197,6 +197,9 @@ qualification is a separate release-candidate requirement.
   An embedded primary can pin a verified capture and sample follower
   progress while keeping the writer open.
   [Live capture and polling](replication-operations.md#live-export-and-polling-from-an-embedded-primary)
+  [Buffered TLS deadlines and a stalled upload](shared-app-tls.md#deadline-checks-on-buffered-tls-io)
+  verify that partial application progress does not renew the socket budget
+  or change the follower's durable receipt.
   The accelerated Mac-to-Linux month checks live writes, durable receipt
   reconciliation and retained history with the regular TLS follower.
   [Workload and measured resource costs](live-replication-month.md)

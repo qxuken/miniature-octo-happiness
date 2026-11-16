@@ -300,12 +300,14 @@ beyond the captured revision while that image is in transit.
 Each client exchange starts one absolute 30-second socket-I/O budget before
 TCP connect; the same deadline covers TLS handshake and all protocol reads and
 writes. The server starts its budget when it accepts the socket. Successful
-partial progress does not renew the deadline. This requires roughly 2.2 MiB/s
-for a maximum 64 MiB image before overhead, and may reject a slower path.
+partial progress does not renew the deadline, and the application stream
+checks it even for plaintext already buffered by TLS. A maximum 64 MiB image
+requires roughly 2.2 MiB/s before overhead, so a slower path may time out.
 Local verification, filesystem reads and durable flushes are not interruptible
 by this socket deadline and may finish after it. A response can therefore time
 out after the image became durable. This is not a 30-second wall-clock bound on
 all local storage work.
+[Buffered I/O and stalled-upload results](shared-app-tls.md#deadline-checks-on-buffered-tls-io)
 
 `serve` admits one active connection at a time. Optional `--max-exchanges N`
 exits after exactly N accepted connections, including failed authentication;

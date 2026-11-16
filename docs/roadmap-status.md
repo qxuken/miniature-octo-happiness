@@ -2311,6 +2311,18 @@ Windows x64/NTFS run at `d2ed354` confirms the staged-budget and byte controls,
 both golden histories and the live-overlap test in debug and release.
 [Staging protocol, regression controls and results](fresh-image-staging.md)
 
+## Absolute deadlines on authenticated application streams
+
+At `d1dec60` the shared TLS stream checks the existing socket deadline
+after handshake and before buffered application I/O. The preceding build
+accepted an expired read, flush and write in the pinned loopback control.
+A real stalled revision 5 upload preserves the exact revision 4 receipt and
+retained revision 2 until the same capture is retried. Both apps pass 45
+tests in each of debug and release on macOS and Docker Linux, with strict
+Clippy on both. Windows MSVC cross-links all seven test programs. Native
+Windows execution and sustained adversarial admission remain open.
+[Deadline regression, transfer results and reproduction](shared-app-tls.md#deadline-checks-on-buffered-tls-io)
+
 ## Linux follower installation and large-snapshot interruption
 
 The authenticated month replay at `a6393e0` measures 68,120 KiB follower RSS

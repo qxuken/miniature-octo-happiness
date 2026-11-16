@@ -4815,8 +4815,10 @@ follower durable revision/digest. Up to three bounded attempts retain the same
 immutable Export. Restart reconciliation polls recovered follower progress and
 can compare the saved export hash; restarting a send captures a new export path.
 
-Socket I/O uses one absolute 30-second deadline including client connect; local
-verification/flush can outlast it. Serial admission and optional finite accepted
+Socket I/O uses one absolute 30-second deadline including client connect.
+TLS also checks expiration before buffered application reads, writes and
+flushes. Local filesystem verification and flush can outlast that budget.
+Serial admission and optional finite accepted
 connection count keep the service lifecycle explicit. A poisoned manifest stops
 service until reopen. Credentials are bounded regular files in trusted
 configuration directories; Unix private keys require owner-only modes and

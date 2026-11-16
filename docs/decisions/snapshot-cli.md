@@ -98,6 +98,14 @@ verification/flush may outlast the 30-second socket budget. Serial service and
 service, adversarial admission load, fatal accept errors and recovery supervision
 are not qualified by those tests.
 
+The shared application stream checks the same deadline after handshake and
+before allowing a read, write or flush. Its regression keeps decrypted data
+buffered and checks the expired path without consuming a byte or queuing
+output. A native authenticated upload sends one staging region and waits
+through an elapsed test deadline. Poll after reopen still returns the old
+receipt, and retry with the same capture installs the new receipt.
+[Shared deadline results](../shared-app-tls.md#deadline-checks-on-buffered-tls-io)
+
 ## S4: credential type, size and permissions
 
 Existing tests verify pre-open FIFO rejection, exact 64 KiB/public certificate
