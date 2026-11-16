@@ -26,6 +26,10 @@ use std::{
 const STREAM: &str = "11111111111111111111111111111111";
 const FIXTURE: &str = "tools/snapshot-cli-upgrade-fixture.rs";
 const HISTORICAL: &str = "315068fc38b99d8ec616fdb5a8ee81107b471534";
+#[cfg(unix)]
+#[path = "snapshot_upgrade_linux.rs"]
+mod linux;
+
 const CURRENT: &str = "365daf6c8a6b7c85fb049fb5a0370b401dde2424";
 
 fn check_poll(output: &str, local: u64, ack: &Receipt) -> Result<()> {
@@ -46,6 +50,9 @@ pub struct Options {
     current: String,
     #[arg(long)]
     output: PathBuf,
+    /// Run the follower on ext4 in this already-local Docker image (macOS client).
+    #[arg(long)]
+    docker_image: Option<String>,
 }
 
 struct Endpoint {
@@ -204,6 +211,8 @@ struct Scenario<'a> {
     client: PathBuf,
     server: PathBuf,
     wrong: PathBuf,
+    #[cfg(unix)]
+    linux: Option<&'a linux::Follower>,
 }
 impl Scenario<'_> {
     #[cfg(windows)]
@@ -259,6 +268,10 @@ impl Scenario<'_> {
         label: &str,
         call: impl FnOnce(&mut Campaign<'_>, SocketAddr) -> Result<T>,
     ) -> Result<T> {
+        #[cfg(unix)]
+        if let Some(linux) = self.linux {
+            return linux.serve(c, endpoint, label, &self.identity, call);
+        }
         c.loopback(
             vec![
                 path(&self.endpoints[endpoint].cli),
@@ -312,7 +325,21 @@ impl Scenario<'_> {
         revision: u64,
         wrong_pin: bool,
     ) -> Result<Option<(Receipt, PathBuf)>> {
-        let outfile = if wrong_pin {
+        self.ship_export(c, endpoint, address, revision, wrong_pin, false)
+    }
+
+    fn ship_export(
+        &self,
+        c: &mut Campaign<'_>,
+        endpoint: usize,
+        address: SocketAddr,
+        revision: u64,
+        wrong_pin: bool,
+        repeat: bool,
+    ) -> Result<Option<(Receipt, PathBuf)>> {
+        let outfile = if repeat {
+            format!("repeat-export-{revision}.wdb")
+        } else if wrong_pin {
             "unconfirmed-export".into()
         } else {
             format!("export-{revision}.wdb")
@@ -334,7 +361,13 @@ impl Scenario<'_> {
             ],
             &format!(
                 "ship-{revision}-{}",
-                if wrong_pin { "wrong-pin" } else { "trusted" }
+                if repeat {
+                    "repeat"
+                } else if wrong_pin {
+                    "wrong-pin"
+                } else {
+                    "trusted"
+                }
             ),
             wrong_pin.then_some("transfer not confirmed"),
             45.,
@@ -368,6 +401,11 @@ impl Scenario<'_> {
         export: &Path,
         label: &str,
     ) -> Result<()> {
+        #[cfg(unix)]
+        if let Some(linux) = self.linux {
+            linux.offline(c, endpoint, &self.identity, receipt_expected, export, label)?;
+            linux.copy_follower(c, &self.follower, label)?;
+        }
         let status = self.client_call(
             c,
             vec![
@@ -409,18 +447,32 @@ impl Scenario<'_> {
 
     fn execute(&self, c: &mut Campaign<'_>) -> Result<()> {
         let [old, new] = self.endpoints;
-        self.client_call(
-            c,
-            vec![
-                path(&old.cli),
-                "follower-init".into(),
-                path(&self.follower),
-                STREAM.into(),
-                self.identity.clone().into(),
-            ],
-            "follower-init",
-        )?;
+        #[cfg(unix)]
+        if let Some(linux) = self.linux {
+            linux.initialize(c, &self.identity)?;
+        }
+        #[cfg(unix)]
+        let local_follower = self.linux.is_none();
+        #[cfg(windows)]
+        let local_follower = true;
+        if local_follower {
+            self.client_call(
+                c,
+                vec![
+                    path(&old.cli),
+                    "follower-init".into(),
+                    path(&self.follower),
+                    STREAM.into(),
+                    self.identity.clone().into(),
+                ],
+                "follower-init",
+            )?;
+        }
         self.prepare_credentials(c)?;
+        #[cfg(unix)]
+        if let Some(linux) = self.linux {
+            linux.credentials(c, &self.server, &self.client)?;
+        }
         let (first, export3) = self.serve(c, 0, "old-server", |c, address| {
             let result = self
                 .ship(c, 0, address, 3, false)?
@@ -478,7 +530,19 @@ impl Scenario<'_> {
         let before_poll = inventory(&self.follower, &[])?;
         self.serve(c, 1, "both-new", |c, address| {
             self.poll(c, 1, address, 5, &third, "poll-5-first")?;
-            self.poll(c, 1, address, 5, &third, "poll-5-repeat")
+            self.poll(c, 1, address, 5, &third, "poll-5-repeat")?;
+            #[cfg(unix)]
+            if self.linux.is_some() {
+                let (repeated, repeated_export) = self
+                    .ship_export(c, 1, address, 5, false, true)?
+                    .context("repeated revision-5 receipt")?;
+                ensure!(
+                    repeated == third && fs::read(repeated_export)? == fs::read(&export5)?,
+                    "repeat shipment changed revision or snapshot"
+                );
+                c.evidence["repeat_ship"] = json!({"revision":5,"same_receipt_and_export":true});
+            }
+            Ok(())
         })?;
         self.offline(c, 1, &third, &export5, "new-reopens-5")?;
         ensure!(
@@ -505,6 +569,10 @@ impl Scenario<'_> {
 }
 
 pub fn run(run: &Run, opts: Options) -> Result<()> {
+    ensure!(
+        opts.docker_image.is_none() || cfg!(target_os = "macos"),
+        "Docker follower requires a native macOS client"
+    );
     let mut c = Campaign::new(
         run,
         &opts.output,
@@ -551,6 +619,50 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             None,
             45.,
         )?;
+        #[cfg(unix)]
+        let linux = opts
+            .docker_image
+            .as_ref()
+            .map(|image| linux::Follower::new(image))
+            .transpose()?;
+        #[cfg(unix)]
+        if let Some(linux) = &linux {
+            // Cleanup remains mandatory if any preparation or scenario step fails.
+            let qualification = (|| -> Result<()> {
+                linux.prepare(&mut c, [&old, &new], &fixture)?;
+                let scenario = Scenario {
+                    endpoints: [&old, &new],
+                    source: source.clone(),
+                    follower: follower.clone(),
+                    identity: description_identity(&description)?,
+                    client: client.clone(),
+                    server: server.clone(),
+                    wrong: wrong.clone(),
+                    linux: Some(linux),
+                };
+                scenario.execute(&mut c)?;
+                linux.verify(&mut c, [&old, &new])
+            })();
+            let cleanup = linux.cleanup(&mut c);
+            match (qualification, cleanup) {
+                (Ok(()), Ok(())) => (),
+                (Err(error), Ok(())) | (Ok(()), Err(error)) => return Err(error),
+                (Err(work), Err(cleanup)) => anyhow::bail!("{work:#}; {cleanup:#}"),
+            }
+        } else {
+            Scenario {
+                endpoints: [&old, &new],
+                source: source.clone(),
+                follower: follower.clone(),
+                identity: description_identity(&description)?,
+                client: client.clone(),
+                server: server.clone(),
+                wrong: wrong.clone(),
+                linux: None,
+            }
+            .execute(&mut c)?;
+        }
+        #[cfg(windows)]
         let scenario = Scenario {
             endpoints: [&old, &new],
             source,
@@ -560,6 +672,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             server: server.clone(),
             wrong: wrong.clone(),
         };
+        #[cfg(windows)]
         scenario.execute(&mut c)?;
         ensure!(
             old.unchanged()? && new.unchanged()? && sha(&fixture)? == hash,

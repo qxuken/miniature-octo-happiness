@@ -70,6 +70,90 @@ cargo xtask snapshot-cli-upgrade \
   --output target/my-fresh-snapshot-upgrade
 ```
 
+### Native macOS client with a Docker Linux follower
+
+The optional Docker mode runs the persisted upgrade sequence with both
+client versions on macOS and both follower versions on Linux ext4.
+
+```sh
+cargo xtask snapshot-cli-upgrade \
+  --docker-image sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c \
+  --output target/my-fresh-cross-os-upgrade
+```
+
+Supply an already-local immutable image ID containing Rust and the system build
+tools, and retain the offline Cargo registry cache. The controller copies the
+same exact historical/current source archives into an owned ext4 volume and
+builds both actual CLIs there with `--offline --locked --release`. The native
+client builds use the same archives. Each platform links both fixture versions
+against its corresponding archived engine rlib and checks the runtime source ID.
+
+The Docker server publishes one port on host loopback. Docker bridge networking
+provides the real macOS-to-Linux TCP/TLS path. Builds run offline.
+The image, registry and frozen archive/fixture seed are immutable or mounted
+read-only. Container limits are two CPUs, 2 GiB memory and 256 PIDs. No existing
+container, volume or follower enrollment is reused.
+
+After every server exits, both Linux fixtures check the actual selected ext4
+image, then both native fixtures check a fresh byte-for-byte follower copy.
+Selected images must equal the independently hashed native exports. The final
+new/new stage also repeats a successful revision-5 shipment with a fresh export.
+its receipt, export and entire follower directory must remain unchanged. This
+adds a duplicate successful transfer check to the existing wrong-pin/retry and
+repeated-poll checks. Every server is finite and must exit successfully after
+its exact exchange count, so terminating a host `docker exec` process is never
+used as evidence that its remote server retired.
+
+Reports bind the native runner and fixture hashes, full original source-file
+inventories, commit and archive IDs, original lock hashes, both platforms'
+compiler identities, four archived CLI/fixture binary pairs and Linux filesystem
+identity. Final Linux source copies must match the original archive inventories;
+Linux binary hashes and the frozen seed are rechecked before cleanup. Selected
+follower data, exports, both platforms' executables and source copies remain in
+the output. Private keys are scrubbed. Cleanup always attempts both owned Docker
+removals and independently verifies both authoritative resource inventories.
+
+The native sequence supports macOS, Linux and Windows. Docker mode
+requires a native macOS client and an image for the
+Docker daemon's architecture. It qualifies this archive pair over Docker's local
+routing. Physical cross-host routing and additional architectures remain separate
+gates.
+
+### Recorded mixed-OS result (2026-11-16)
+
+The optional mode passed locally from base `69afd3b` plus the explicitly hashed
+qualification-driver overlay. Native macOS arm64 Rust 1.99.1 clients communicated
+with actual Linux arm64 Rust 1.99.0 follower binaries over Docker TCP/TLS. Both
+original archive commits listed above remained unchanged. The Linux data volume
+was ext4 and the immutable image ID was the one in the Docker command above.
+
+`target/r05-cross-os-20261116/` contains the successful 143-command mixed-OS
+sequence. New-client/old-server retry installed revision 4. Old-client/new-server
+shipment installed revision 5. All five Linux servers exited 0 naturally.
+Independent offline checks preserved the selected image and retained revision 2.
+The repeated successful revision-5 shipment returned the same receipt and export
+bytes and left the entire follower directory unchanged. The wrong-pin attempt
+captured local revision 4 without advancing durable revision 3. Both owned Docker
+resources were independently confirmed absent after cleanup. All 1,607 recorded
+artifact hashes were independently rechecked and no private keys remain.
+
+`target/r05-native-regression-20261116/` passed the 62-command native
+sequence. All 205 artifact hashes were independently rechecked. Both reports bind
+the exact runner, fixture, archived sources, locks, CLI/fixture binaries and all
+controller source-file hashes, including the new Linux controller module.
+
+| Input/evidence | SHA-256 |
+|---|---|
+| Runner binary | `def5a884b8ffd271f5fd6fa691e84c645a00054e76b8eea1560a4ed320ec71d3` |
+| `snapshot_upgrade.rs` | `a99bcdc33fdc164923c3b20fa0c4e5fc0a7e967b8630689bd1efc9521f6606fa` |
+| `snapshot_upgrade_linux.rs` | `fae4a063edd468024ecbef2c97e433010d8a9c6f90f081aa5f730af4421c1d47` |
+| Mixed-OS `evidence.json` | `93b995625669ced6f39e8bfdb410f4d48c5021a033ba3e2540b9a81f6cbfd2e8` |
+| Native `evidence.json` | `6a4e2e640c5d9ecc32ba88f9e281d1527e2f244ff96db8e25c913a0bd1e3090a` |
+
+The restart coverage is endpoint process retirement/reopen on the same persisted
+volume. Container restart, machine crash and power-loss durability are separate
+qualifications.
+
 On native x64 Windows with MSVC and fixed NTFS, run from PowerShell.
 
 ```powershell
