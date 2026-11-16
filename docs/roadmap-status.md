@@ -2323,6 +2323,18 @@ Clippy on both. Windows MSVC cross-links all seven test programs. Native
 Windows execution and sustained adversarial admission remain open.
 [Deadline regression, transfer results and reproduction](shared-app-tls.md#deadline-checks-on-buffered-tls-io)
 
+## Bounded snapshot follower admission
+
+At `8127de3`, four TLS handshakes and four queued authenticated channels
+feed a single follower worker. The process test polls a durable receipt
+while an earlier raw connection stalls. Separate tests saturate each
+limit and verify cancellation after a worker error. The accelerated
+macOS-to-Linux month completes 31 installs and 32 polls with the stalled
+socket still open. Reopening verifies revision 93, all 31 retained views
+and the exact selected export. Sustained saturation, WAN behavior and
+native Windows execution of this change remain open.
+[Admission replay and platform results](live-replication-month.md#bounded-admission-with-a-stalled-tls-handshake)
+
 ## Linux follower installation and large-snapshot interruption
 
 The authenticated month replay at `a6393e0` measures 68,120 KiB follower RSS

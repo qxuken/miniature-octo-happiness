@@ -93,10 +93,10 @@ does not change the stored deadline, then directly expires it and checks read
 and write TimedOut. That clock manipulation proves local admission, not native
 elapsed timeout. Client deadline construction precedes TCP connect; connect
 failure and set-timeout syscall errors are delegated. Local filesystem
-verification/flush may outlast the 30-second socket budget. Serial service and
---max-exchanges1 are exercised by real child processes; infinite unattended
-service, adversarial admission load, fatal accept errors and recovery supervision
-are not qualified by those tests.
+verification/flush may outlast the 30-second socket budget. The CLI tests
+exercise serial follower processing and a finite accept count in real
+processes. Sustained adversarial admission, fatal accept errors and
+external service supervision have separate qualification.
 
 The shared application stream checks the same deadline after handshake and
 before allowing a read, write or flush. Its regression keeps decrypted data
@@ -378,3 +378,21 @@ bring shared TLS to 46 records, snapshot to 127 and distributed apps to 224.
 Mac and isolated Docker Linux debug/release each passed 35 focused tests, plus
 strict Clippy. No native Windows or whole-application MC/DC claim is added.
 Current source-set SHA-256: `4c204b338de0482b6264325666ac7d987b39cdf277ac0106e4b7cc9fcaae0e5a`.
+
+## S8: bounded TLS admission and follower handoff
+
+| Condition | Observable outcome | Control |
+|---|---|---|
+| One handshake stalls and a slot is available | An authenticated poll returns the exact pre-existing receipt while the stalled socket remains open | The native CLI regression first reproduced a blocked poll in the serial listener |
+| Every handshake slot is occupied | An excess TCP connection closes before authentication; the finite accept count includes it | Four stalled raw sockets remain open while the fifth closes |
+| The authenticated queue is full | The excess socket closes with no application reply | The queue test holds the consumer, gives all five TLS handshakes room and receives exactly four ready channels |
+| The follower worker returns a recovery error | The listener closes and pending handshakes are canceled before their socket deadlines | A worker error is injected after one authenticated handoff, for finite and unlimited acceptance |
+| The finite accept count is reached while the worker is healthy | Accepted work drains and the process exits | The child process remains alive while the stalled handshake is open and exits once it closes |
+
+A session receives its deadline at TCP acceptance and carries it into the ready
+queue and the existing serial protocol path. One worker owns the follower
+through verification and durable publication. The extracted listener readiness
+wrapper reuses the coordinator's Unix `poll` and Windows `WSAPoll` calls.
+Transient interruption and spurious readiness are retried. OS wait, accept and
+thread-creation errors, prolonged load and fairness remain separate coverage.
+[Bounded follower admission](../replication-operations.md#bounded-follower-admission)

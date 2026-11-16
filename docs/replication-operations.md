@@ -309,15 +309,28 @@ out after the image became durable. This is not a 30-second wall-clock bound on
 all local storage work.
 [Buffered I/O and stalled-upload results](shared-app-tls.md#deadline-checks-on-buffered-tls-io)
 
-`serve` admits one active connection at a time. Optional `--max-exchanges N`
-exits after exactly N accepted connections, including failed authentication;
-this provides a deterministic test/service lifetime without fault-injection
-options. TLS/configuration is validated before binding a listener or opening
-the follower. The OS listen backlog is not an application queue/admission SLA.
-A stream of stalled connections can still deny service; deployment firewall,
-supervision and rate controls remain necessary. If a manifest needs recovery
-after an installation error, the service exits rather than continuing to expose
-an old acknowledgment. Restart `serve` to recover and verify the selected image.
+### Bounded follower admission
+
+`serve` handles up to four concurrent TLS handshakes and queues up to four
+authenticated channels. One follower worker owns the manifest and handles
+applications in queue order. The handshake and time spent waiting in the
+queue share the accepted socket's original deadline. Excess connections at
+either limit close before a snapshot protocol reply. A failed connection
+provides no durable progress.
+
+`--max-exchanges N` stops accepting after N TCP connections, including failed
+authentication and excess connections. The server drains admitted work.
+When manifest publication requires recovery, the follower stops taking
+queued work, admission closes the listener and cancels stalled handshakes,
+and the process exits with the storage error. Restart `serve` to recover and
+verify the selected image. TLS configuration is still validated before
+binding a listener or opening the follower.
+
+The application caps are separate from the operating system listen backlog.
+A stalled authenticated upload occupies the follower worker until its deadline
+or in-progress local work completes. Sustained saturation, per-peer fairness
+and deployment capacity require separate qualification.
+[Month replay with a stalled handshake](live-replication-month.md#bounded-admission-with-a-stalled-tls-handshake)
 
 ### Unconfirmed transfer, restart and retry
 

@@ -137,3 +137,50 @@ The [segmented staging replay](fresh-image-staging.md#authenticated-month-replay
 repeats this schedule and measures about 106 MiB peak sender RSS. It retains
 the 31-root and exact selected-image oracle and recovers the same four lost
 replies by fresh polling.
+
+## Bounded admission with a stalled TLS handshake
+
+At `8127de34f3fe84a4cd2d1ce2f668e24ff6635076`, the release sender ran
+on macOS arm64/APFS with Rust 1.99.1, and the release follower ran on
+Docker Linux arm64/ext4 with Rust 1.99.0. The follower's manifest and
+images were on a Docker volume reported as ext4 in mountinfo. A raw
+TCP connection opened first and stayed open without sending a
+ClientHello while the logical month completed. The follower listened
+on a host loopback binding with a finite accept count of 64.
+
+All 63 authenticated exchanges completed before the raw connection was
+closed. The sender shipped 625,446,912 bytes across 31 installations.
+Four dropped terminal replies were recovered by fresh authenticated polls.
+The server exited after the stalled socket closed. Reopen verified
+revision 93, all 31 retained views and exact bytes of the selected
+36,851,712-byte export. The verified digest was
+`375dc420a33a0433f7c34dd81b54d1da4d9e82c15ed9bbf031e5149dafda1dc6`.
+The 31 recorded post-shipment polls had p50 11.459 ms, p95 20.036 ms and
+maximum 23.049 ms in this local Docker network run.
+
+The reproduction exposed the previous serial listener blocking a
+healthy CLI poll behind the stalled handshake. Admission now bounds
+concurrent handshakes and the ready queue separately. The Unix and
+Windows socket-readiness calls are shared with the coordinator. The
+queue test holds the follower and verifies that exactly four authenticated
+channels are queued. The excess connection may close before the client
+observes local TLS completion or during its first read. Another test
+injects a follower worker recovery error and checks that pending raw
+handshakes close during both finite and unlimited service.
+
+macOS and Docker Linux each passed 79 ordinary application tests per
+build profile for snapshot, study and coordinator in debug and release,
+plus strict all-target Clippy. The opt-in coordinator cases and Linux
+full-storage case were skipped by the ordinary suites. The opt-in
+native follower manifest rotation test also passed on Linux. All nine
+Windows MSVC x64 app test executables cross-linked, with native Windows
+execution still pending for this source.
+
+The local archive `target/archived-proof/follower-admission-8127de3.tar.zst`
+contains the source, launch and verification scripts, process and test
+logs, exact final export and audit. Extract it, unpack `source.tar` into
+`verified-source/` and run `bash verify.sh macos` or `bash verify.sh linux`
+for the corresponding checks. Run `bash run-month.sh` from macOS with the
+pinned Docker image and locked Cargo cache for the cross-platform replay.
+The archive SHA-256 is
+`3e8b9ac4f8d097af25090bcea4ddbfe3f91e786db92b5d9aa032e2f615ed127e`.

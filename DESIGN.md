@@ -4818,9 +4818,11 @@ can compare the saved export hash; restarting a send captures a new export path.
 Socket I/O uses one absolute 30-second deadline including client connect.
 TLS also checks expiration before buffered application reads, writes and
 flushes. Local filesystem verification and flush can outlast that budget.
-Serial admission and optional finite accepted
-connection count keep the service lifecycle explicit. A poisoned manifest stops
-service until reopen. Credentials are bounded regular files in trusted
+Four concurrent TLS handshakes feed a four-channel authenticated queue
+with one follower worker. Saturated connections close and the finite accept
+count includes failed authentication and overload. A poisoned manifest stops
+the worker before its next request and cancels outstanding handshakes.
+Credentials are bounded regular files in trusted
 configuration directories; Unix private keys require owner-only modes and
 keygen uses 0700/0600. Windows transport supports externally ACL-protected keys,
 while Windows keygen fails closed. The [operations runbook](docs/replication-operations.md#authenticated-native-cli)
