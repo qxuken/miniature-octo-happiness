@@ -869,8 +869,63 @@ The hosted ZIP SHA-256 is
 | Hosted controller | `57648c20d38e2a8caa7c8f29261951f64f422797fd8a1c8d2fe8d579205aa1fc` | `0e5efa3216e7731867ce2dd05bb95f309dc6e6b33139301f5b87a387d4fad6b7` |
 | Hosted audit | `f7dcdbe14db5a3c3cf6b982f9d4926e48ff0173e97c9167fa8322fa2a32ffc21` | `3e8b57a78c463a3a246cd7290fc6cdb0d9bf4e27b877e526b7710a7f7056833e` |
 
-The next profile exercises namespace publication after the replacement is
-durable and the ordinary user runs out of blocks and inodes.
+## Kernel EIO at post-exchange compaction file syncs
+
+Add `--copy-barrier replacement-file` or `--copy-barrier cleanup-file` to
+the [writeback reproduction](#kernel-writeback-eio-during-near-cap-maintenance).
+Run each barrier with a fresh output directory and a controller umask of
+`022` so the unprivileged fixture can traverse the private scratch parent.
+The gate observes the actual exchange and the preceding successful
+directory sync. For `cleanup-file`, it also observes the first successful
+replacement-file sync, unlink of the original inode, and the following
+successful directory sync.
+
+The controller checks the inode at the canonical name, maps the private ext4
+journal's transaction sectors to the kernel `error` target, and marks the
+already-clean inode dirty with a temporary mode change from `0640` to
+`0740`. The mode change gives the file sync a journal transaction to flush.
+At both barriers the production call reaches the real `fsync`, which
+returns `-1` and `EIO (5)`. Compaction reports `OutcomeUnknown / Sync /
+Other / EIO (5)`.
+
+| Failed file sync | Original scratch at the gate and after remount | Canonical after remount |
+|---|---|---|
+| `SyncReplacement` | Original inode and exact 66,154,496-byte image | Same replacement inode, exact 63,074,304-byte backup image |
+| `SyncCleanupFile` | Absent following the durable unlink | Same replacement inode, exact 63,074,304-byte backup image |
+
+After restoring linear I/O and remounting, the canonical mode is again
+`0640`. The canonical file, verified backup, and any surviving scratch
+reopen witnessed at revision 212. Fresh processes check current values
+and all 64 retained roots. A retry reproduces the verified backup bytes
+and leaves the surviving original scratch untouched. The subsequent
+commit and remount reopen the canonical file at 213 and the backup at 212,
+each with all 64 retained roots. Independent read-only `weekend-admin check`
+processes verified the same retained root lists and preserved every
+archived image hash.
+
+Docker Linux arm64 with kernel `7.0.14-linuxkit`, ext4 and Rust 1.99.0
+passed at `d33770200d8d7dff75a88a2eb7fc345166138c03`. The six previous
+maintenance writeback profiles passed in the same run. All 34 Linux quota
+tests passed. Strict Clippy passed for the controller and compound fixture
+on Linux, and for the compound fixture on macOS. The owned mapper, mount
+and loop were removed in every profile. Hosted x86_64 now runs both cases
+in the Linux quota job. Physical devices and other filesystems need their
+own fault evidence.
+
+The audit compared each frozen Git archive, rehashed its 718 source files
+and every recorded payload, and checked fresh-process reopen and command
+cleanup records.
+
+| Profile | Payloads | Bounded commands | Fixture phases | Controller evidence SHA-256 |
+|---|---:|---:|---:|---|
+| Replacement file | 300 | 98 | 15 | `e8e257bc338213511e73f74e354f8be41a1e227c5f509b397bdf8d3263cc0d89` |
+| Cleanup file | 296 | 97 | 14 | `bb7789be0f4917ea0e03cd782a73c010d181d37b9a54d6c3c5b86739cdcb67a1` |
+
+The local archive `target/archived-proof/near-cap-late-sync-d337702.tar.zst`
+contains the controller evidence and images, replay and audit scripts, and
+independently rebuilt controller and fixture binaries whose hashes match
+the run. Its SHA-256 is
+`f586a04f285eaff04dc475279a790482d8b00190d54c68bdcedc497ec290f2a7`.
 
 ## Ext4 compaction with no remaining user blocks or inodes
 

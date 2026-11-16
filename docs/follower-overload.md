@@ -61,8 +61,18 @@ and Docker Linux arm64 with Rust 1.99.0 passed 51, with debug and release
 execution and strict all-target Clippy on each. The ordinary Linux suite
 skipped the opt-in full-storage test. Both minimum Rust 1.99.0 and standard
 Rust 1.99.1 cross-linked seven Windows MSVC x64 test executables each.
-Native runtime confirmation of the cancellation change remains open on
-Windows. This isolated loopback profile also leaves WAN behavior, fairness
+Native Windows x64 with Rust 1.99.0 and 1.99.1 passed the timed-wait and
+follower cancellation tests in both debug and release at tested merge
+`c13428b78f9b17a71477d80f1481225f8332925d` (PR head `3b63260`).
+The uploaded source copies of the shared TLS helper, follower TLS adapter
+and admission worker matched the PR head byte for byte. The minimum Rust
+ZIP and both test transcripts matched their recorded SHA-256 values. The
+standard job log records the tested merge and both sets of test passes.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43802037286/job/133084312942),
+[minimum Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43802037286/job/133084312759),
+[minimum Rust test artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/43802037286/artifacts/14197491497)
+
+The isolated Linux loopback profile leaves WAN behavior, fairness
 under continuous saturation and deployment-specific resource budgets open.
 
 The local archive `target/archived-proof/follower-overload-7293df9.tar.zst`
