@@ -77,6 +77,11 @@ a lease competitor or I/O error can interrupt maintenance. After any error, keep
 serving stopped, reopen with `status`, verify the authoritative receipt and retry
 maintenance only after recovery succeeds. Never select another image as fallback.
 
+The [capped ext4 fault drill](follower-installation-profile.md#ext4-writeback-errors-during-follower-maintenance)
+verified that either recovered canonical manifest reports the exact
+selected receipt. It also reproduced an inactive file returning after
+a successful cleanup count when the directory transaction failed.
+
 On Windows `compact-manifest` returns an explicit unsupported diagnostic before
 opening or modifying any path. Follow [explicit reseeding](#explicit-reseeding)
 into a fresh directory, verify its receipt, and only then change the service's

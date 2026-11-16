@@ -2355,9 +2355,19 @@ enrollment produced no receipt. An old directory could start only if
 the enrollment row survived. Its authenticated poll then reported an
 empty follower after witness repair. Every fresh-directory enrollment
 accepted the same saved revision 5 export, preserved retained revision 2
-and returned the exact receipt after another remount. Follower maintenance
-faults, other platform pairs and physical device faults retain separate gates.
+and returned the exact receipt after another remount.
 [Enrollment fault matrix and reproduction](follower-installation-profile.md#interrupted-follower-enrollment-on-ext4)
+
+At `0be5d61` a follower with 81 authenticated installs reaches its
+manifest admission threshold at 1,044,480 bytes. Eight ext4 writeback errors during
+compaction preserve the exact revision 84 receipt and retained revision 2.
+The manifest remains at the old size before durable exchange and
+at 32,768 bytes after the later failures. Repeating compaction enables
+revision 85, whose exact receipt survives remount. Inactive cleanup survives
+a permission denial and can safely repeat after an ext4 journal fault
+restores the inactive filename. Other platform pairs and physical
+device faults retain separate gates.
+[Maintenance fault matrix and reproduction](follower-installation-profile.md#ext4-writeback-errors-during-follower-maintenance)
 
 ## CRC-64 word verification and authenticated recovery replay
 

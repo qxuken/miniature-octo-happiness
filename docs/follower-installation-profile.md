@@ -1,4 +1,4 @@
-# Follower installation timing and large-snapshot interruption
+# Follower installation, recovery and maintenance
 
 The [authenticated month workload](live-replication-month.md) was repeated with
 native macOS arm64/APFS sending to the Linux arm64/ext4 follower. The release
@@ -365,6 +365,79 @@ removed its owned mapper devices, loops, container, volume and credentials.
 | `run-linux.sh` | `55d337ef8217742d9bd5121e8d379ef49b552cdd87a30acdddc5b27ae18bae80` |
 | Release `weekend-replicate` | `b19cff9929990830d38aa184fbfcec7b03ea08923af9912bda0722667dd2529b` |
 | `audit.log` | `ab134e35a1f1760798c605fce6da64a4e50809dcc476ceed1a1447b53c8bbbd2` |
+
+## Ext4 writeback errors during follower maintenance
+
+The Linux arm64 release CLI from `0be5d61adc7d7619c8603dcf522cfd5ac49925e9`
+installed 81 snapshots over pinned mutual TLS. That reached the follower
+manifest admission threshold at 1,044,480 bytes, with selected primary
+revision 84, inactive revision 83 and retained revision 2. Fault-free
+compaction produced a 32,768-byte control manifest at the same manifest
+revision 83. Both image files and the durable receipt matched the capped
+fixture.
+
+Each case started with byte-identical copies of the capped files and an
+unrelated operator file. The harness synchronized and remounted a fresh
+256 MiB ext4 volume before arming any fault. It confirmed the two image
+files, the selected receipt and the canonical inode on the remounted
+fixture. The sector and journal gates used real kernel device-mapper
+errors. At the two file syncs after exchange, the controller added a
+pending inode-mode update at the gate to make the target call commit
+metadata. After those faults the recovered file had its original mode
+`0640` in both cases.
+
+| Compaction sync returning kernel `EIO` | CLI result | Canonical manifest after remount | Scratch after remount |
+|---|---|---|---|
+| Scratch data block at offset 0 | `Io` | Exact original | Incomplete header, `UnsupportedFormat` |
+| Scratch root at offset 8,192 | `Io` | Exact original | Incomplete root, `Corrupt` |
+| Scratch witness at offset 16,384 | `Io` | Exact original | Manifest revision 83, unwitnessed |
+| Scratch file metadata | `Io` | Exact original | Exact compacted bytes, mode `0600` |
+| Directory after exchange | `OutcomeUnknown` | Exact original | Exact compacted bytes |
+| File after exchange | `OutcomeUnknown` | Exact compacted bytes | Exact original |
+| Directory after removing old scratch | `OutcomeUnknown` | Exact compacted bytes | Exact original |
+| File after removing old scratch | `OutcomeUnknown` | Exact compacted bytes | Absent |
+
+The harness verified the canonical and scratch inodes and compared bytes
+against the capped fixture and fault-free control. The directory faults
+followed successful kernel exchange and unlink calls. Each failed command
+exited without printing a receipt. Fresh TLS poll and duplicate shipment
+returned the exact selected revision 84 receipt. The original canonical
+manifest still rejected revision 85 with `Limit` before changing either
+image slot. A successful compaction retry preserved the receipt and any
+leftover scratch, reproduced the exact compacted bytes and enabled
+installation of revision 85. Another remount verified the new receipt,
+selected bytes, current row and retained revision 2.
+
+Two other cases exercised `cleanup-inactive`. Kernel `EACCES` at unlink
+returned `Io` and preserved the file. With the journal fault armed, unlink
+returned zero and the CLI reported one removal alongside its existing
+revision 84 receipt. A separate directory `fsync` then returned `EIO`.
+After remount, the inactive revision 83 file returned with the same
+inode and exact bytes. In both cases authenticated poll still reported
+revision 84. Cleanup retry reported one removal, and another retry
+reported zero. With a successful directory sync, the next remount
+preserved the removal, the selected image, the manifest, the retained
+view and the unrelated operator file. The CLI's snapshot receipt and
+its cleanup count describe separate outcomes.
+
+The local archive `target/archived-proof/follower-ext4-maintenance-0be5d61.tar.zst`
+holds the source, seed and replay scripts, fixture, error gates, syscall
+logs, manifest and image files, and audit. Extract it and run
+`bash run-linux.sh` with the pinned Docker image and cached Cargo dependencies
+used by the staging drill. The same run passed 10 follower unit tests,
+eight native replication integration tests and 24 CLI/application tests in
+release mode. The two opt-in integration cases were skipped by the regression
+commands. The runner removed its mapper devices, loops, container, volume and
+generated credentials. Other platforms and physical power interruption remain
+separate qualification gates.
+
+| Evidence | SHA-256 |
+|---|---|
+| Local compressed archive | `5486238e580529e93a3a201e8ea259761ebcc8c029e8242242e19aa917c6f1ea` |
+| `source.tar` | `94b2721c5262cc5bd32d270731313d8db2fdcc49c84daa8ac7f39a2bc0753fef` |
+| `run-linux.sh` | `d8a508a2a616cbbc3e685f513fd1b654bacc81f020bb57e250c4318dc7155c7e` |
+| Release `weekend-replicate` | `b19cff9929990830d38aa184fbfcec7b03ea08923af9912bda0722667dd2529b` |
+| `audit.log` | `9f6afb452f021ba3028c4fd3dbd58d1ca80b757abccc7286ac69b7ae64015830` |
 
 ## Reproduction and evidence
 

@@ -4935,7 +4935,17 @@ protocol, publication barrier, automatic fallback or forced cleanup was added.
 
 The native CLI fixture stages an abandoned inactive file, checks exact wrong-
 enrollment rejection without mutation, preserves unrelated entries and selected
-bytes, and verifies cleanup idempotence. On macOS/Linux it inflates an abandoned
+bytes, and verifies cleanup idempotence.
+
+Linux ext4 faults during capped-manifest compaction preserve the exact
+selected receipt and retained view. The verified canonical manifest can be
+either the original or compacted bytes, depending on the exchange and flush
+outcome. A successful inactive unlink can be rolled back by a subsequent
+journal failure while the snapshot receipt remains authoritative. Cleanup
+retry verifies the selected image and removes the restored inactive name.
+[Compaction and inactive cleanup fault results](docs/follower-installation-profile.md#ext4-writeback-errors-during-follower-maintenance)
+
+The native CLI fixture on macOS/Linux inflates an abandoned
 manifest tail to the admission ceiling, compacts below it, and reopens exact
 revision 4/value 2 and retained root 1 at revision 2/value 1 with the same digest.
 All 14 app tests passed macOS debug/release and Linux debug; strict macOS Clippy

@@ -225,6 +225,10 @@ qualification is a separate release-candidate requirement.
   fails or interrupts initial manifest publication, checks for the
   enrollment row before accepting startup, and verifies the first durable
   shipment and retained view from a fresh directory.
+  The [capped ext4 maintenance drill](follower-installation-profile.md#ext4-writeback-errors-during-follower-maintenance)
+  verifies the canonical manifest and receipt across copy, exchange and
+  cleanup errors. It also exercises an inactive filename returning after
+  a failed directory transaction and checks safe cleanup retry.
   [CRC-64 verification throughput](crc64-performance.md) measures the shared
   disk checksum update and repeats the exact-image and authenticated recovery
   checks after the change.
