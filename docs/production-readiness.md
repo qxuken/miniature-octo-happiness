@@ -252,9 +252,11 @@ qualification is a separate release-candidate requirement.
   after repeat sync. The [staged roster cutover](crdt-operations.md#staged-roster-cutover)
   checks the reviewed source checkpoint before creating fresh actor files
   and verifies the staged identities and causal payload after authenticated
-  sync. Membership changes, discovery/gossip, larger
-  rosters, and cross-record constraints each need their own design and
-  assurance evidence if offered.
+  sync. [Bounded Study peer admission](crdt-operations.md#bounded-study-peer-admission)
+  separates connection limits, serialized merges, diagnostics and shutdown
+  from local edit and covering-reply observations. Membership changes,
+  discovery/gossip, larger rosters, and cross-record constraints each need
+  their own design and assurance evidence if offered.
 - **Write coordinator.** To ship it beyond the loopback demo, define
   authentication and authorization, request identity and durable
   receipts, admission control, timeouts and backpressure, record

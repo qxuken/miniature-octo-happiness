@@ -43,7 +43,7 @@ existing file. By default, outgoing sync starts on launch.
 
 `incoming` reports served exchanges, failures, busy refusals and the last
 incoming error since startup. These counts describe the receiver.
-`peer` still reports covering replies to this process's outgoing offers.
+Use `peer` for covering replies to this process's outgoing offers.
 
 ## TLS admission and coordinated upgrades
 

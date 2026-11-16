@@ -227,6 +227,71 @@ contains the frozen source, native logs, mutation outputs and upgrade
 evidence. Its SHA-256 is
 `abc0ddce7d1ab9de75c03adf0b02b3910053557eb2fcb97d0467c3f33dd854ce`.
 
+## Bounded Study peer admission
+
+At most four incoming connection workers handle TLS sessions, each with the
+three-second deadline set when accepted. Only one authenticated incoming
+exchange can hold the merge and reply path at a time. Admission closes an
+excess socket at either boundary. The sender retries with its existing
+backoff. `quit` closes the listener and cancels pending TLS handshakes
+between bounded waits. An admitted merge may finish its disk operation and
+reply during shutdown.
+
+Incoming errors update bounded in-memory status. On its local input,
+the operator can request `incoming` to see served exchanges, failures,
+busy refusals and the last incoming error. A served exchange can be a
+replay, so the count is separate from the number of commits. `local`
+reports acknowledged edits to the local store. `peer` reports covering
+replies to that process's outgoing offers.
+
+On the preceding build, one rejected handshake against a full diagnostics
+stream left the receiving worker blocked in its stderr write. The
+authenticated sender reported zero acknowledgments after six seconds.
+Disabling just the write recovered the exchange in the control run.
+The regression at `fdc04a5babae4bef070bfb0147c3e55e620eacd8` fills a
+Unix socket used as stderr and keeps it full through the authenticated
+exchange and clean shutdown. The receiver durably merges the edit. The
+sender observes the covering reply, both stopped files reopen with the
+same causal payload, and the diagnostics stream contains its original bytes.
+
+A separate test holds four raw connections, observes refusal of a fifth,
+and frees capacity for an authenticated exchange while raw connections
+remain stalled. A second authenticated connection reaches the busy gate
+without entering the merge. The first exchange replies, and stopping joins
+the stalled handshakes within two seconds. Three separate negative
+controls remove the session cap, remove merge serialization or disable
+handshake cancellation. Each triggers the corresponding test failure.
+
+All 22 app tests pass in debug and release on macOS arm64/APFS with Rust
+1.99.1 and Docker Linux arm64/ext4 with Rust 1.99.0, with strict Clippy and
+12 additional repetitions of both new tests per platform. The pre-ALPN
+upgrade replay passes on macOS. Windows MSVC x64 cross-links all three test
+executables. Native Windows execution is a separate result.
+
+The release macOS-to-Linux [peer soak](study-peer-soak.md) passed ten
+offline-edit and convergence rounds with forced restarts of both peers
+after rounds five and ten. Every round verified the two covering reply
+counts, displayed state and stable revisions during repeat sync. Both
+peers reopened at revision 22 with 165 minutes after the second restart.
+The audit verified all 149 controller payload hashes, 719 source hashes,
+the macOS binary, both final database hashes, and removal of the owned
+Docker container and volume. The soak evidence SHA-256 is
+`7743dcc421945f0dfedbd10233461ed368b0c82add9e51a51e8582d1d23a643f`.
+The finite run qualifies these limits and schedules. Service under
+continuous saturation and deployment latency budgets remain separate.
+
+```sh
+cargo test --locked --offline -p study-peer --all-targets
+cargo xtask study-peer-soak "$PWD/target/study-admission-soak" \
+  --source fdc04a5babae4bef070bfb0147c3e55e620eacd8 --rounds 10 --restart-every 5 \
+  --image sha256:d276cf4b0967c0337be30eb9c302bf3b77794a7ade6b667968ebe5cbc037317c
+```
+
+The local archive `target/archived-proof/study-admission-fdc04a5.tar.zst`
+contains frozen source, tests and negative controls, soak logs, public
+test certificates and both final databases. Its SHA-256 is
+`b03573991e5f14c51425599efd2e0556860b5c6161c9d20e4112473c45f3fa5a`.
+
 ## Evidence and fuzzing
 
 The existing CRDT tests exercise stale backup rejection, generation
