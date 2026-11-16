@@ -235,8 +235,11 @@ fn torn_staging_sync_keeps_the_exact_old_receipt() {
             manifest.crash(Crash::DropAll).unwrap();
             candidate.crash(Crash::DropAll).unwrap();
 
-            let mut expected = vec![0; offset + prefix];
-            expected[offset..].copy_from_slice(&complete[offset..offset + prefix]);
+            let mut expected = Vec::new();
+            if prefix != 0 {
+                expected.resize(offset + prefix, 0);
+                expected[offset..].copy_from_slice(&complete[offset..offset + prefix]);
+            }
             assert_eq!(candidate.durable_image().unwrap(), expected);
             assert_eq!(manifest.durable_image().unwrap(), fixture.manifest);
             assert_eq!(
