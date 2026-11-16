@@ -109,8 +109,17 @@ and retained history across reopening. Relevant named controls include
 `generated_field_constants_never_shadow_model_identity_in_expansions`,
 `defaults_belong_to_stored_schema_and_presence_range_and_envelope_survive`, and
 `missing_unique_defaults_remain_unindexed_through_crud_history_and_reopen`.
-Generated schema/decode/patch helper errors are E: these suites exercise real
+Generated schema/decode/patch helper errors remain scoped: these suites exercise real
 propagation, not every custom FieldValue failure at every generated field site.
+The [typed T7 follow-up](typed-runtime.md#t7-emitted-field-validation-and-migration-version-admission)
+now calls actual derived schemas and table registration with `Option<u64>` and
+`Option<Option<u64>>`. The accepted model registers; the nested-nullability
+model returns the exact validation error before changing durable state. Omitting
+the emitted validation call at `model.rs:185` compiles but fails the directed
+assertion in both debug and release, after positive baselines. Two distinct
+generated schema functions supply these controls; this is emitted-call
+propagation and omission sensitivity, not a same-function MC/DC pair. The
+original direct `Option::validate_type` flags controls retain their own scope.
 
 `generated_model_patch_rejects_wrong_type_before_touching_the_record` directly
 calls generated `Row::patch` against type 701 and type 702 records with identical
@@ -303,7 +312,7 @@ evidence applies to the described controls, not every possible application type.
 | `model.rs`:180 | `quote!` | E: generated Model helpers (M5) | `8e20484883bd` |
 | `model.rs`:183 | `quote!` | E: generated Model helpers (M5) | `8a40083feedc` |
 | `model.rs`:184 | `quote!` | E: generated Model helpers (M5) | `8e20484883bd` |
-| `model.rs`:185 | `quote!` | E: generated Model helpers (M5) | `d75c01262ef7` |
+| `model.rs`:185 | `quote!` | E: emitted validation propagation and omission sensitivity (M5/T7) | `d75c01262ef7` |
 | `model.rs`:186 | `quote!` | E: generated Model helpers (M5) | `f664439c4cfc` |
 | `model.rs`:187 | `quote!` | E: generated Model helpers (M5) | `69faec179bda` |
 | `model.rs`:188 | `quote!` | E: generated Model helpers (M5) | `4df9878d3f2e` |

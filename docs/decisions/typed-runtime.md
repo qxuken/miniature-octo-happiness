@@ -396,7 +396,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:723:80 [24779–24780] | try_propagation / `update` | D | T3/T4/T5 |
 | store.rs:728:56 [24965–24966] | try_propagation / `delete` | D | T3/T4/T5 |
 | store.rs:740:56 [25434–25435] | try_propagation / `migrate` | D | T3/T4/T5 |
-| store.rs:741:13 [25449–25451] | if / `migrate` | E | T3/T4/T5 |
+| store.rs:741:13 [25449–25451] | if / `migrate` | P | T7 |
 | store.rs:749:14 [25731–25732] | try_propagation / `migrate` | D | T3/T4/T5 |
 | store.rs:751:13 [25777–25780] | for_iteration / `migrate` | E | T3/T4/T5 |
 | store.rs:751:57 [25821–25822] | try_propagation / `migrate` | D | T3/T4/T5 |
@@ -408,7 +408,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:782:13 [27040–27042] | if / `migrate_ids` | P | T3/T4/T5 |
 | store.rs:782:16 [27043–27121] | short_circuit_or / `migrate_ids` | C | T3/T4/T5 |
 | store.rs:785:56 [27239–27240] | try_propagation / `migrate_ids` | D | T3/T4/T5 |
-| store.rs:786:13 [27254–27256] | if / `migrate_ids` | E | T3/T4/T5 |
+| store.rs:786:13 [27254–27256] | if / `migrate_ids` | P | T7 |
 | store.rs:794:14 [27536–27537] | try_propagation / `migrate_ids` | D | T3/T4/T5 |
 | store.rs:796:13 [27582–27585] | for_iteration / `migrate_ids` | E | T3/T4/T5 |
 | store.rs:798:56 [27682–27683] | try_propagation / `migrate_ids` | D | T3/T4/T5 |
@@ -416,7 +416,7 @@ controls above; E retains the narrower execution claim.
 | store.rs:799:71 [27756–27757] | try_propagation / `migrate_ids` | D | T3/T4/T5 |
 | store.rs:806:18 [28011–28012] | try_propagation / `migrate_ids` | D | T3/T4/T5 |
 | store.rs:819:71 [28388–28389] | try_propagation / `migrate_record` | D | T3/T4/T5 |
-| store.rs:820:9 [28399–28401] | if / `migrate_record` | E | T3/T4/T5 |
+| store.rs:820:9 [28399–28401] | if / `migrate_record` | P | T7 |
 | store.rs:823:9 [28500–28502] | if / `migrate_record` | E | T3/T4/T5 |
 | store.rs:826:42 [28614–28615] | try_propagation / `migrate_record` | D | T3/T4/T5 |
 | store.rs:829:57 [28736–28737] | try_propagation / `migrate_record` | D | T3/T4/T5 |
@@ -458,7 +458,7 @@ controls above; E retains the narrower execution claim.
 
 ## Results and source binding
 
-Disposition counts: C 21, D 195, E 53, I 2, P 44. All 315 source records are listed.
+Historical disposition counts: C 21, D 195, E 53, I 2, P 44. T7 changes three E guard records to P, giving C 21, D 195, E 50, I 2, P 47. All 315 source records are listed; the production source and denominator are unchanged.
 
 Debug and release each passed 26 existing model tests, two process-evolution
 tests, and six doctests (one documentation example ignored). All eleven new directed
@@ -539,3 +539,134 @@ The four runtime mutations are bound in
 `target/typed-guard-mutation-proof-final/evidence.json`; the two admission cases
 are in `target/typed-catalog-mutation-proof/evidence.json`. Standard allocator,
 I/O propagation and remaining E/generated-code obligations remain unchanged.
+
+
+## T7: emitted field validation and migration version admission
+
+On 2026-11-16, three new tests in `tests/runtime_decisions.rs` qualify these
+specific generated-code and version checks. The isolated controls use commit
+`bbcf68dcfbb1246e24ed2a2cb80b1d12da12c21c` plus only that test-file overlay.
+Production typed runtime and Model expansion code are unchanged. The complete
+runtime-decision target now passes **19 tests** in both debug and release on
+macOS arm64 with Rust 1.99.1 (`58cf8f9c3`, LLVM 23.1.1); targeted all-feature
+Clippy with warnings denied also passes.
+
+### Generated nested-nullability validation
+
+`assurance_generated_schema_rejects_nested_nullable_before_registration` calls
+actual derived `Model::schema` methods and `Store::table`, rather than invoking
+`FieldValue::validate_type` directly. An `Option<u64>` field produces an optional,
+nullable unsigned descriptor and a usable table. An `Option<Option<u64>>` field
+returns exactly `InvalidField { id: 0, reason: "nested nullable fields are ambiguous" }`
+from both entry points. Registration rejection leaves the complete durable
+image unchanged, including the accepted table's current and retained null row.
+
+The critical emitted call is `model.rs:185`, executed by the generated schema
+body at lines 198–200. The earlier flags test still supplies independent
+optional/nullable predicate controls inside `Option::validate_type`; it cannot
+detect omission of the derive's call. The new controls use two different fixed
+model types and generated schema functions. They establish propagation and
+omission sensitivity, **not** a same-generated-function MC/DC pair. No dynamic
+validator state or altered public type invariant is introduced.
+
+### Old-model catalog admission
+
+`assurance_old_model_migrations_reject_newer_catalog_before_callbacks` checks
+both `Write::migrate` (`store.rs:741`) and `Write::migrate_ids` (`store.rs:786`).
+The same v1 model handle is accepted while the catalog is v1 and refused with
+exact `UnsupportedVersion` after v2 registration, with its rows still v1. Each
+API's accepted and rejected runs reuse the same lexical callsite and callback
+type; evidence is scoped separately to the two API instantiations. Both controls
+invoke zero conversion callbacks because accepted v1 rows already match v1.
+The accepted control commits a preceding edit. Catching the rejected call still
+leaves the Write terminal: its enclosing closure returns `Closed`, the earlier
+edit is absent, and every catalog/schema/index/primary row, durable byte and
+retained view remains identical.
+
+Keeping rows at v1 matters: omitting either catalog guard then returns `Ok(0)`.
+A later newer-row rejection cannot mask that omission. Existing
+`tools/compatibility-typed-v1.rs::legacy_edit` already tests old-model insert
+rejection; the new pairs address the separate migration entry points.
+
+### Forward-row defense after raw writes
+
+`assurance_migration_rejects_forward_rows_before_conversion` keeps the table
+catalog and target model at v2, then supplies row versions 1, 2 and 3. It exercises
+both migration APIs at unchanged callsites/callback types within each API.
+A v1 row reaches the callback once and returns its deliberate `InvalidId`
+sentinel; v2 is accepted as `Ok(0)` without conversion; v3 returns exact
+`UnsupportedVersion` at `store.rs:820` before the callback. The sentinel makes
+omission observable even if subsequent conversion or schema work could reject.
+
+The v3 descriptor is published without advancing the catalog, and a public raw
+write installs the newer envelope. This deliberately bypasses typed ownership;
+normal typed-owned rows remain at or below their catalog version. The control
+qualifies a defensive corruption/version check, not a supported downgrade or
+an arbitrary application converter. Both error outcomes discard a preceding
+edit in a separate table, preserve the complete current durable image and all
+current/retained catalog, schema, index and primary rows, and leave lookups and
+index reports consistent. The current-version accepted control commits that
+separate edit while preserving the retained checkpoint.
+
+### Isolated mutation evidence and limits
+
+Four separate omissions each compile and fail the intended runtime assertion
+in **both debug and release**, following passing baselines in each profile:
+
+| Mutation | Observed assertion mismatch |
+|---|---|
+| Omit Model's emitted `validate_type` call | Generated schema returns no error instead of exact nested-nullability `InvalidField` |
+| Disable only `migrate`'s catalog-version guard | `Ok(0)` instead of `UnsupportedVersion` |
+| Disable only `migrate_ids`' catalog-version guard | `Ok(0)` instead of `UnsupportedVersion` |
+| Disable only `migrate_record`'s forward-row guard | Callback sentinel `InvalidId` instead of `UnsupportedVersion` |
+
+Guard mutations retain predicate evaluation and rejection bodies, adding
+`&& false` only to the selected guard. The emitted-call mutation replaces that
+one quote fragment with an empty fragment. Every mutation exits 101 from the
+named test assertion; compile failures do not count as detected mutations.
+No omission was masked by a later error in these fixtures.
+
+All production mutations occur in separate source copies reconstructed from
+the archived base plus the exact test overlay. Each case has its own Cargo
+target directory, and mutation builds disable incremental compilation. The
+omissions were never applied to shared production source. An initial attempt sharing one
+target across different source roots reused a previous mutant in a later
+positive baseline; that attempt is retained as **rejected** and contributes no
+result. All four cases were repeated with distinct targets and passing positive
+baselines before their mutations.
+
+Local evidence is `/private/tmp/weekend-typed-assurance-mrzb2hdc/`: the base
+archive, exact test source/patch, compiler identity, primary debug/release/Clippy
+logs, per-case production patches and command logs, and `mutation-results.json`.
+`evidence.json` SHA-256 is
+`07a7713a2de0ae361509194324895f9c7777f2a5d29219420307ad3f4d3d9e6f`.
+The verified host archive `/private/tmp/weekend-typed-assurance-mrzb2hdc.tar.gz`
+retains that report and all 50 indexed payloads, including the rejected first
+attempt. Its SHA-256 is
+`6b7ba779a823e902b369770f564ef5a3706c03d54da5da7eb56e426ac5f2755e`.
+The same archive is retained as
+`target/archived-proof/typed-generated-migration-bbcf68d.tar.gz`.
+Root review restored it and independently rehashed all 50 payloads and checked
+all 16 positive-baseline/mutation outcomes against the retained runtime logs.
+Source copies and build outputs remain separately available in the proof directory;
+reconstruction uses the retained base tar, exact test overlay and per-case patch.
+These are finite functional/predicate controls and mutation sensitivity results.
+No compiler MC/DC measurement, whole-module completion, universal generated-code
+coverage, native Linux/Windows execution or new runtime functionality is claimed.
+
+| Input | SHA-256 |
+|---|---|
+| Final `tests/runtime_decisions.rs` | `f71b8e022802cc96ec819f7848e684ee3b616ba7ed12912ec26a1d4a7bd047f5` |
+| Unchanged `src/store.rs` | `2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa` |
+| Unchanged macro `src/model.rs` | `fa796e2ebcfbf9acfea6354b9b0ea7533b948c4a2252b5163e8d09b9a6e5c5f9` |
+
+Reproduce the compatible baseline with the existing shared target directory:
+
+```sh
+cargo +1.99.1 test --offline --locked --target-dir target/xtask \
+  -p weekend-db-typed --all-features --test runtime_decisions
+cargo +1.99.1 test --offline --locked --target-dir target/xtask \
+  -p weekend-db-typed --all-features --test runtime_decisions --release
+cargo +1.99.1 clippy --offline --locked --target-dir target/xtask \
+  -p weekend-db-typed --all-features --test runtime_decisions -- -D warnings
+```

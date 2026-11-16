@@ -817,3 +817,289 @@ fn generated_model_patch_rejects_wrong_type_before_touching_the_record() -> Resu
     assert!(own.field(1)?.is_none());
     Ok(())
 }
+
+#[derive(Model)]
+#[weekend(type_id = 703, version = 1)]
+struct NullableRow {
+    #[weekend(id = 1)]
+    value: Option<u64>,
+}
+#[derive(Model)]
+#[weekend(type_id = 704, version = 1)]
+struct NestedNullableRow {
+    #[weekend(id = 1)]
+    #[allow(clippy::option_option)]
+    value: Option<Option<u64>>,
+}
+
+fn same_snapshot_rows(
+    db: &Database,
+    actual: &weekend_db_typed::engine::Snapshot<'_>,
+    expected: &weekend_db_typed::engine::Snapshot<'_>,
+    collections: &[u64],
+) -> Result<()> {
+    assert_eq!(actual.revision(), expected.revision());
+    assert_eq!(actual.data_revision(), expected.data_revision());
+    for &id in collections {
+        assert_eq!(
+            actual.scan(db.collection_id(id))?,
+            expected.scan(db.collection_id(id))?,
+            "collection {id}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn assurance_generated_schema_rejects_nested_nullable_before_registration() -> Result<()> {
+    use weekend_db_typed::engine::storage::SimulatedDisk;
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [81; 16], Limits::default())?;
+    let schema = NullableRow::schema(store.database())?;
+    let field = schema.field(1)?.unwrap();
+    assert_eq!(field.kind, Kind::Unsigned);
+    assert!(!field.required && field.nullable);
+    let table = store.table::<NullableRow>("valid")?;
+    store.write(|w| w.insert(&table, 1, &NullableRow { value: None }))?;
+    let retained = store.checkpoint()?;
+    let image = disk.durable_image()?;
+    let expected = Error::InvalidField {
+        id: 0,
+        reason: "nested nullable fields are ambiguous",
+    };
+    assert_eq!(
+        NestedNullableRow::schema(store.database()).err(),
+        Some(expected.clone())
+    );
+    assert_eq!(
+        store.table::<NestedNullableRow>("invalid").err(),
+        Some(expected)
+    );
+    assert_eq!(disk.durable_image()?, image);
+    for checkpoint in [None, Some(retained)] {
+        let value = if let Some(id) = checkpoint {
+            store.read_retained(id, |r| Ok(r.get(&table, 1)?.unwrap().value))?
+        } else {
+            store.read(|r| Ok(r.get(&table, 1)?.unwrap().value))?
+        };
+        assert_eq!(value, None);
+    }
+    Ok(())
+}
+
+#[test]
+fn assurance_old_model_migrations_reject_newer_catalog_before_callbacks() -> Result<()> {
+    use std::cell::Cell;
+    use weekend_db_typed::engine::storage::SimulatedDisk;
+    for selected_ids in [false, true] {
+        for upgraded in [false, true] {
+            let disk = SimulatedDisk::new()?;
+            let mut store = Store::create_on(disk.clone(), [82; 16], Limits::default())?;
+            let table = store.table::<Row>("rows")?;
+            store.write(|w| {
+                w.insert(&table, 1, &Row { slug: "a".into() })?;
+                w.insert(&table, 2, &Row { slug: "b".into() })
+            })?;
+            let retained = store.checkpoint()?;
+            if upgraded {
+                store.table::<RowV2>("rows")?;
+            }
+            let db = store.database();
+            let current = db.snapshot();
+            let historical = db.retained_snapshot(retained)?;
+            let image = disk.durable_image()?;
+            let calls = Cell::new(0);
+            let outcome = store.write(|w| {
+                w.update(&table, 2, |row| {
+                    row.slug = "staged".into();
+                    Ok(())
+                })?;
+                let result = if selected_ids {
+                    w.migrate_ids(&table, &[1], |_, _, _| {
+                        calls.set(calls.get() + 1);
+                        Ok(())
+                    })
+                } else {
+                    w.migrate(&table, |_, _| {
+                        calls.set(calls.get() + 1);
+                        Ok(())
+                    })
+                };
+                assert_eq!(
+                    result,
+                    if upgraded {
+                        Err(Error::UnsupportedVersion)
+                    } else {
+                        Ok(0)
+                    }
+                );
+                // Catching the rejection must not commit the earlier update.
+                Ok(())
+            });
+            assert_eq!(calls.get(), 0);
+            assert_eq!(
+                outcome,
+                if upgraded {
+                    Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+                } else {
+                    Ok(())
+                }
+            );
+            if upgraded {
+                assert_eq!(disk.durable_image()?, image);
+                same_snapshot_rows(
+                    db,
+                    &db.snapshot(),
+                    &current,
+                    &[1, 2, 3, table.collection().as_u64()],
+                )?;
+            } else {
+                assert_eq!(db.snapshot().revision(), current.revision() + 1);
+            }
+            same_snapshot_rows(
+                db,
+                &db.retained_snapshot(retained)?,
+                &historical,
+                &[1, 2, 3, table.collection().as_u64()],
+            )?;
+            store.read(|r| {
+                assert_eq!(r.get(&table, 1)?.unwrap().slug, "a");
+                assert_eq!(
+                    r.get(&table, 2)?.unwrap().slug,
+                    if upgraded { "b" } else { "staged" }
+                );
+                assert!(r.check_indexes(&table)?.is_consistent());
+                Ok(())
+            })?;
+        }
+    }
+    Ok(())
+}
+
+#[derive(Model)]
+#[weekend(type_id = 701, version = 3)]
+struct RowV3 {
+    #[weekend(id = 1, unique)]
+    slug: String,
+    #[weekend(id = 2)]
+    extra: Option<String>,
+}
+
+#[test]
+fn assurance_migration_rejects_forward_rows_before_conversion() -> Result<()> {
+    use std::cell::Cell;
+    use weekend_db_typed::engine::storage::SimulatedDisk;
+    for selected_ids in [false, true] {
+        for version in [1, 2, 3] {
+            let disk = SimulatedDisk::new()?;
+            let mut store = Store::create_on(disk.clone(), [83; 16], Limits::default())?;
+            let legacy = store.table::<Row>("rows")?;
+            let side = store.table::<Row>("side")?;
+            store.write(|w| {
+                w.insert(&legacy, 1, &Row { slug: "a".into() })?;
+                w.insert(
+                    &side,
+                    1,
+                    &Row {
+                        slug: "side".into(),
+                    },
+                )
+            })?;
+            let table = store.table::<RowV2>("rows")?;
+            let retained = store.checkpoint()?;
+            let db = store.database();
+            // Publish only the descriptor, keeping the table catalog at v2.
+            // Raw writes deliberately bypass the typed-owned row-version invariant.
+            let future = RowV3::schema(db)?;
+            let mut tx = db.begin();
+            future.publish(&mut tx, db.collection_id(2))?;
+            if version != 1 {
+                let raw =
+                    Record::from_value(tx.get(table.collection(), &1u64.to_le_bytes())?.unwrap())?;
+                let schema = if version == 3 {
+                    future
+                } else {
+                    RowV2::schema(db)?
+                };
+                tx.put(
+                    table.collection(),
+                    &1u64.to_le_bytes(),
+                    raw.with_schema(db, &schema)?.as_value(),
+                )?;
+            }
+            tx.commit()?;
+            drop(tx);
+            let current = db.snapshot();
+            let historical = db.retained_snapshot(retained)?;
+            let image = disk.durable_image()?;
+            let calls = Cell::new(0);
+            let outcome = store.write(|w| {
+                w.update(&side, 1, |row| {
+                    row.slug = "staged".into();
+                    Ok(())
+                })?;
+                let result = if selected_ids {
+                    w.migrate_ids(&table, &[1], |_, _, _| {
+                        calls.set(calls.get() + 1);
+                        Err(Error::InvalidId)
+                    })
+                } else {
+                    w.migrate(&table, |_, _| {
+                        calls.set(calls.get() + 1);
+                        Err(Error::InvalidId)
+                    })
+                };
+                assert_eq!(
+                    result,
+                    match version {
+                        1 => Err(Error::InvalidId),
+                        2 => Ok(0),
+                        _ => Err(Error::UnsupportedVersion),
+                    }
+                );
+                Ok(())
+            });
+            assert_eq!(calls.get(), usize::from(version == 1));
+            assert_eq!(
+                outcome,
+                if version == 2 {
+                    Ok(())
+                } else {
+                    Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+                }
+            );
+            let collections = [
+                1,
+                2,
+                3,
+                table.collection().as_u64(),
+                side.collection().as_u64(),
+            ];
+            if version != 2 {
+                assert_eq!(disk.durable_image()?, image);
+                same_snapshot_rows(db, &db.snapshot(), &current, &collections)?;
+            } else {
+                assert_eq!(db.snapshot().revision(), current.revision() + 1);
+            }
+            same_snapshot_rows(
+                db,
+                &db.retained_snapshot(retained)?,
+                &historical,
+                &collections,
+            )?;
+            store.read(|r| {
+                let row = r.get(&table, 1)?.unwrap();
+                assert_eq!((row.version(), row.slug.as_str()), (version, "a"));
+                assert!(row.extra.is_none());
+                assert_eq!(
+                    r.get(&side, 1)?.unwrap().slug,
+                    if version == 2 { "staged" } else { "side" }
+                );
+                assert!(r.check_indexes(&table)?.is_consistent());
+                assert!(r.check_indexes(&side)?.is_consistent());
+                Ok(())
+            })?;
+        }
+    }
+    Ok(())
+}
