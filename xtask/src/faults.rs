@@ -45,6 +45,9 @@ pub struct Delivered {
     /// Include real append ENOSPC on an owned APFS disk image.
     #[arg(long, requires = "macos")]
     apfs_full: bool,
+    /// Use the packaged Odin bindings and this compiler for the five macOS cases.
+    #[arg(long, requires = "macos", conflicts_with = "apfs_full")]
+    odin: Option<PathBuf>,
     #[arg(long, hide = true)]
     worker: bool,
 }
@@ -480,6 +483,7 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
         "--macos requires a native macOS host"
     );
     let package = dunce::canonicalize(opts.package.context("--package required")?)?;
+    let odin = opts.odin.map(dunce::canonicalize).transpose()?;
     let candidate = env::current_dir()?.join(&opts.output);
     let candidate = dunce::canonicalize(candidate.parent().context("output parent")?)?
         .join(candidate.file_name().context("output name")?);
@@ -496,6 +500,7 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
             &run.root.join("tools/delivered-faults"),
             true,
             opts.apfs_full,
+            odin.as_deref(),
         );
     }
     let mut c = Campaign::new(&run.root, output.clone())?;
@@ -643,6 +648,7 @@ fn worker(run: &Run, output: &Path) -> Result<()> {
         Path::new("/seed/inputs"),
         false,
         false,
+        None,
     )
 }
 
@@ -699,6 +705,7 @@ fn exercise_package(
     input_seed: &Path,
     macos: bool,
     apfs_full: bool,
+    odin: Option<&Path>,
 ) -> Result<()> {
     let (library, suffix, injector, loader_flag, loader_value, modes) = if macos {
         (
@@ -744,7 +751,12 @@ fn exercise_package(
         crate::delivered_faults::package(&package, library)?;
         let inputs = output.join("inputs");
         fs::create_dir(&inputs)?;
-        for name in ["consumer.c", "faults.c"] {
+        let consumer_source = if odin.is_some() {
+            "consumer.odin"
+        } else {
+            "consumer.c"
+        };
+        for name in [consumer_source, "faults.c"] {
             let input = input_seed.join(name);
             ensure!(
                 fs::symlink_metadata(&input)?.is_file(),
@@ -779,6 +791,7 @@ fn exercise_package(
         c.evidence["package_manifest_sha256"] = json!(manifest);
         c.evidence["library_sha256"] = json!(sha(&package.join(library))?);
         c.evidence["runner_sha256"] = json!(sha(&env::current_exe()?)?);
+        c.evidence["consumer_language"] = json!(if odin.is_some() { "Odin" } else { "C" });
         for (label, args) in [
             ("kernel", v(&["uname", "-a"])),
             ("cc", v(&["cc", "--version"])),
@@ -830,30 +843,60 @@ fn exercise_package(
             ]));
             c.ok(args, "build-shim", 30.)?;
         }
-        let mut consumer = v(&[
-            "cc",
-            "-std=c11",
-            "-O2",
-            "-UNDEBUG",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-I",
-            &s(&package),
-            &s(inputs.join("consumer.c")),
-            &s(package.join(library)),
-            if macos {
-                "-Wl,-rpath,@loader_path/relocated-package"
-            } else {
-                "-Wl,-rpath,$ORIGIN/relocated-package"
-            },
-            "-o",
-            &s(output.join("consumer")),
-        ]);
-        if !macos {
-            consumer.push("-ldl".into());
+        let binary = output.join("consumer");
+        if let Some(odin) = odin {
+            let compiler_hash = sha(odin)?;
+            c.evidence["odin"] = json!({
+                "version": c.ok(v(&[&s(odin), "version"]), "odin-version", 30.)?.trim(),
+                "compiler_sha256": compiler_hash,
+            });
+            c.call(
+                v(&[
+                    &s(odin),
+                    "build",
+                    &s(inputs.join(consumer_source)),
+                    "-file",
+                    "-o:speed",
+                    &format!("-out:{}", binary.display()),
+                    &format!("-collection:weekend={}", package.join("bindings").display()),
+                    "-define:WEEKEND_DB_LIBRARY=../../libweekend_db.dylib",
+                    "-extra-linker-flags:-Wl,-rpath,@loader_path/relocated-package",
+                ]),
+                "build-consumer",
+                90.,
+                Some(env.clone()),
+                &[0],
+            )?;
+            ensure!(
+                sha(odin)? == compiler_hash,
+                "Odin compiler changed during build"
+            );
+        } else {
+            let mut consumer = v(&[
+                "cc",
+                "-std=c11",
+                "-O2",
+                "-UNDEBUG",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-I",
+                &s(&package),
+                &s(inputs.join(consumer_source)),
+                &s(package.join(library)),
+                if macos {
+                    "-Wl,-rpath,@loader_path/relocated-package"
+                } else {
+                    "-Wl,-rpath,$ORIGIN/relocated-package"
+                },
+                "-o",
+                &s(&binary),
+            ]);
+            if !macos {
+                consumer.push("-ldl".into());
+            }
+            c.ok(consumer, "build-consumer", 30.)?;
         }
-        c.ok(consumer, "build-consumer", 30.)?;
         let mut binaries = BTreeMap::new();
         let shim = format!("faults.{suffix}");
         let disabled_shim = format!("faults-disabled.{suffix}");
@@ -951,18 +994,24 @@ fn exercise_package(
         fs::create_dir(&data)?;
         let mut disabled = env.clone();
         disabled.insert(injector.into(), s(output.join(&disabled_shim)));
+        let (failure_code, status_diagnostic) = if odin.is_some() {
+            (65, "unexpected ABI commit status")
+        } else {
+            (-6, "status==expected")
+        };
         let text = c.call(
             v(&[&s(output.join("consumer")), "1", &s(data), source]),
             "disabled-injector",
             30.,
             Some(disabled),
-            &[-6],
+            &[failure_code],
         )?;
         ensure!(
-            text.contains("status==expected"),
+            text.contains(status_diagnostic),
             "disabled injector did not fail at ABI status assertion"
         );
-        c.evidence["disabled_injector"] = json!({"returncode":-6,"expected_failure":true});
+        c.evidence["disabled_injector"] =
+            json!({"returncode":failure_code,"expected_failure":true});
         ensure!(
             inventory(&inputs)? == frozen
                 && sha(&package.join("manifest.json"))? == manifest
