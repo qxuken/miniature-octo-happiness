@@ -100,7 +100,23 @@ fn artifacts(messages: &str, source: &Path, target: &Path) -> Result<BTreeMap<St
     Ok(found)
 }
 
-fn validate(output: &str) -> Result<()> {
+fn inventory(output: &str, stderr: &[u8]) -> Result<()> {
+    ensure!(
+        stderr.is_empty() && output.trim() == format!("{TEST}: test"),
+        "wrong inventory or unexpected discovery stderr"
+    );
+    Ok(())
+}
+
+fn stderr(c: &Campaign<'_>, label: &str) -> Result<Vec<u8>> {
+    Ok(fs::read(c.output.join(format!(
+        "{label}.stderr{}",
+        if cfg!(windows) { "" } else { ".log" }
+    )))?)
+}
+
+fn validate(output: &str, stderr: &[u8]) -> Result<()> {
+    ensure!(stderr.is_empty(), "unexpected recovery stderr");
     let progress = format!("test {TEST} has been running for over 60 seconds");
     let mut lines = Vec::new();
     let mut running_notice = false;
@@ -180,20 +196,13 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         !output.starts_with(&package) && !package.starts_with(&output),
         "package and output must be separate trees"
     );
-    let mut c = Campaign::new(
+    let mut c = Campaign::new_private(
         run,
         &output,
         "delivered Rust-source coordinator recovery; debug/release, four schedules each",
     )?;
     let result = (|| -> Result<()> {
         c.limits(1024 * 1024, None)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&c.output, fs::Permissions::from_mode(0o700))?;
-        }
-        #[cfg(windows)]
-        c.restrict_directories(&[("coordinator-recovery-output", &c.output.clone())])?;
         c.env = cargo_build_env(&c.env);
         c.env.retain(|key, _| {
             !key.to_string_lossy()
@@ -281,10 +290,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                 15.,
                 &runtime,
             )?;
-            ensure!(
-                list.trim() == format!("{TEST}: test"),
-                "wrong or missing recovery test inventory"
-            );
+            inventory(&list, &stderr(&c, &format!("{profile}-list"))?)?;
             let output = c.command_at(
                 vec![
                     path(&driver),
@@ -297,7 +303,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                 180.,
                 &runtime,
             )?;
-            validate(&output)?;
+            validate(&output, &stderr(&c, &format!("{profile}-recover"))?)?;
             ensure!(
                 fs::read_dir(&runtime)?.next().is_none(),
                 "recovery fixture left runtime files"
@@ -406,12 +412,25 @@ mod tests {
     #[test]
     fn recovery_requires_all_exact_schedules_and_actual_nonignored_completion() {
         let valid = transcript();
-        validate(&valid).unwrap();
+        validate(&valid, b"").unwrap();
+        assert!(validate(&valid, b"unexpected diagnostic\n").is_err());
+        inventory(&format!("{TEST}: test\n"), b"").unwrap();
+        assert!(inventory(&format!("{TEST}: test\n"), b"unexpected diagnostic\n").is_err());
         let notice = format!("test {TEST} has been running for over 60 seconds\n");
         let completed = format!("test {TEST} ... ok");
-        validate(&valid.replace(&completed, &(notice.clone() + &completed))).unwrap();
-        assert!(validate(&(valid.clone() + &notice)).is_err());
-        assert!(validate(&valid.replace(&completed, &(notice.repeat(2) + &completed))).is_err());
+        validate(
+            &valid.replace(&completed, &(notice.clone() + &completed)),
+            b"",
+        )
+        .unwrap();
+        assert!(validate(&(valid.clone() + &notice), b"").is_err());
+        assert!(
+            validate(
+                &valid.replace(&completed, &(notice.repeat(2) + &completed)),
+                b""
+            )
+            .is_err()
+        );
         for bad in [
             valid.replace("running 1 test", "running 0 tests"),
             valid.replace("revision=6 value=99", "revision=5 value=99"),
@@ -427,7 +446,7 @@ mod tests {
             valid.replace(&format!("test {TEST} ... ok"), "test another ... ok"),
             "test result: ok. 0 passed; 0 failed; 0 ignored;".into(),
         ] {
-            assert!(validate(&bad).is_err(), "{bad}");
+            assert!(validate(&bad, b"").is_err(), "{bad}");
         }
         assert!(
             validate(
@@ -435,7 +454,8 @@ mod tests {
                     .lines()
                     .filter(|l| !l.contains("prefix=0 forwarded=1"))
                     .collect::<Vec<_>>()
-                    .join("\n")
+                    .join("\n"),
+                b""
             )
             .is_err()
         );

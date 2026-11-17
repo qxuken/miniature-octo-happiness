@@ -393,6 +393,102 @@ pub fn capture_private(
     let mut data = bytes.lock().unwrap();
     Ok(std::mem::take(&mut *data))
 }
+
+/// Resolve the invoking account without writing its discovery output to disk.
+pub fn current_user_sid(
+    cwd: &Path,
+    env: &std::collections::BTreeMap<std::ffi::OsString, std::ffi::OsString>,
+) -> Result<String> {
+    let bytes = capture_private(
+        &crate::support::cmd(["whoami.exe", "/user", "/fo", "csv", "/nh"]),
+        cwd,
+        env,
+        30.,
+    )?;
+    let comma = bytes
+        .iter()
+        .rposition(|b| *b == b',')
+        .context("Windows user SID missing")?;
+    let sid = std::str::from_utf8(bytes[comma + 1..].trim_ascii())?.trim_matches('"');
+    let numbers = sid
+        .strip_prefix("S-1-")
+        .context("invalid Windows user SID")?;
+    ensure!(
+        numbers
+            .split('-')
+            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())),
+        "invalid Windows user SID"
+    );
+    Ok(sid.to_owned())
+}
+
+/// Create the leaf with its protected ACL; an existing path always rejects.
+pub fn create_private_directory(directory: &Path, sid: &str) -> Result<()> {
+    use windows_sys::Win32::{
+        Foundation::LocalFree,
+        Security::{
+            Authorization::{
+                ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+            },
+            SECURITY_ATTRIBUTES,
+        },
+        Storage::FileSystem::CreateDirectoryW,
+    };
+    volume(directory.parent().context("private directory parent")?)?;
+    let numbers = sid
+        .strip_prefix("S-1-")
+        .context("invalid private directory SID")?;
+    ensure!(
+        numbers
+            .split('-')
+            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())),
+        "invalid private directory SID"
+    );
+    let mut name: Vec<u16> = directory.as_os_str().encode_wide().collect();
+    ensure!(!name.contains(&0), "NUL in private directory path");
+    name.push(0);
+    // O: fixes the owner even when an administrator token's default owner is a
+    // group. P suppresses inherited ACEs; OI/CI carry this user's grant to children.
+    let sddl: Vec<u16> = format!("O:{sid}D:P(A;OICI;FA;;;{sid})")
+        .encode_utf16()
+        .chain([0])
+        .collect();
+    let mut descriptor = ptr::null_mut();
+    // SAFETY: terminated UTF-16, initialized output, supported revision. On
+    // success this function uniquely owns the LocalAlloc descriptor below.
+    ensure!(
+        unsafe {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                sddl.as_ptr(),
+                SDDL_REVISION_1,
+                &mut descriptor,
+                ptr::null_mut(),
+            )
+        } != 0,
+        "private directory descriptor: {}",
+        std::io::Error::last_os_error()
+    );
+    let attributes = SECURITY_ATTRIBUTES {
+        nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor,
+        bInheritHandle: 0,
+    };
+    // SAFETY: descriptor and attributes live through the call, and name is
+    // terminated. CreateDirectoryW applies the ACL during creation, atomically
+    // rejecting a pre-existing directory rather than changing its permissions.
+    let created = unsafe { CreateDirectoryW(name.as_ptr(), &attributes) };
+    let result = if created != 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error()).context("create private directory")
+    };
+    // SAFETY: descriptor is the unique successful conversion result, and the
+    // directory creation call no longer borrows it. Preserve its original error.
+    unsafe {
+        LocalFree(descriptor);
+    }
+    result
+}
 pub fn volume(directory: &Path) -> Result<Value> {
     let name: Vec<u16> = directory.as_os_str().encode_wide().chain([0]).collect();
     let mut root = [0u16; 32768];

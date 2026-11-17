@@ -72,6 +72,17 @@ impl<'a> Campaign<'a> {
     pub fn new(run: &'a Run, output: &Path, scope: &str) -> Result<Self> {
         Self::create(run, output, scope, true)
     }
+    /// Restrict the output at creation, before any source snapshots or logs.
+    pub fn new_private(run: &'a Run, output: &Path, scope: &str) -> Result<Self> {
+        use std::os::unix::fs::DirBuilderExt;
+        let output = absolute(&run.root, output);
+        fs::create_dir_all(output.parent().context("output parent")?)?;
+        fs::DirBuilder::new().mode(0o700).create(&output)?;
+        let mut campaign = Self::from_directory(run, dunce::canonicalize(output)?, scope, true)?;
+        campaign.evidence["output_creation"] = json!("Unix mode 0700 at creation");
+        campaign.save()?;
+        Ok(campaign)
+    }
     /// A frozen worker snapshot has no Git directory. Its exact input hashes
     /// and runner binary are attested, without inventing a clean checkout ID.
     pub fn detached(run: &'a Run, output: &Path, scope: &str) -> Result<Self> {
@@ -79,6 +90,9 @@ impl<'a> Campaign<'a> {
     }
     fn create(run: &'a Run, output: &Path, scope: &str, git: bool) -> Result<Self> {
         let output = fresh(&run.root, output)?;
+        Self::from_directory(run, output, scope, git)
+    }
+    fn from_directory(run: &'a Run, output: PathBuf, scope: &str, git: bool) -> Result<Self> {
         let before = snapshot(&run.root)?;
         let mut campaign = Self {
             run,
@@ -470,6 +484,33 @@ pub fn archive_revision(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_campaign_restricts_output_even_when_initialization_fails() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut scratch =
+            crate::support::Scratch::new(&std::env::temp_dir(), "private-campaign").unwrap();
+        let root = scratch.path().join("not-a-git-checkout");
+        fs::create_dir(&root).unwrap();
+        let mut run = Run::new(root);
+        run.env.insert(
+            "GIT_DIR".into(),
+            crate::support::path(scratch.path().join("missing-git-directory")),
+        );
+        let output = scratch.path().join("evidence");
+        assert!(Campaign::new_private(&run, &output, "private initialization failure").is_err());
+        assert_eq!(
+            fs::metadata(&output).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert!(output.join("evidence.json").is_file());
+        assert!(Campaign::new_private(&run, &output, "existing evidence").is_err());
+        assert_eq!(
+            fs::metadata(&output).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        scratch.close().unwrap();
+    }
     use crate::support::path;
     #[test]
     fn exact_expected_exit_rejects_success_and_another_failure() {

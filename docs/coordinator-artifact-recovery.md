@@ -37,11 +37,20 @@ skips, missing/duplicate results, incorrect rows and extra output reject.
 One correctly placed libtest running notice is allowed during a slow run; it
 is never a completion result. Fresh reader processes still verify exact raw
 rows through the public core interface and reject the stale-image control.
+Both discovery and recovery require empty stderr. A passing stdout transcript
+cannot hide unexpected diagnostics on the other stream.
 
 The existing Unix process-group and Windows Job supervisors provide verified
 descendant retirement, a one-MiB stream cap, 300-second build deadlines and
 180-second recovery deadlines. Each runtime directory must be empty after
-the fixture exits. Output is private to the invoking account. The selected
+the fixture exits. Output is private to the invoking account before its first
+evidence write, including initialization failures. Unix creates the leaf with
+mode 0700. Windows uses the invoking user's SID and a protected inheritable
+grant passed to [CreateDirectoryW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw)
+at creation; it rejects an existing leaf and requires local fixed NTFS. The
+[descriptor conversion](https://learn.microsoft.com/en-us/windows/win32/api/sddl/nf-sddl-convertstringsecuritydescriptortosecuritydescriptorw)
+buffer stays alive through creation and is then released. Privileged system
+access remains outside ordinary-account isolation. The selected
 executables and full input package are checked again after execution.
 
 `evidence.json` identifies controller inputs, package source and manifest hash,
@@ -91,3 +100,15 @@ execution. CI adds one source-package job on each native platform; this expands
 the usual check set from 19 to 22. The complete R2 and R7 release gates remain
 open, and no new tooling record is claimed as an independently covered MC/DC
 decision.
+
+The first frozen macOS run at `82cc727` passes all eight schedule/profile
+combinations, with zero recovery/discovery stderr bytes. Independent review
+then found that nonempty stderr was not rejected explicitly and the evidence
+directory was restricted only after constructor logging. Follow-up controls
+reject valid stdout plus unexpected stderr and check initialization-failure
+privacy. Unix runs that control under umask 000; Windows checks the actual
+owner/protected ACL and inherited child-file access in native CI. The initial
+run retains its limited scope; the fixed candidate must be qualified again.
+The fixed macOS xtask/coordinator suites pass 269 tests with four explicit
+ignores in each of debug and release. Strict Clippy and the Windows test
+cross-check pass; the new native ACL test still requires Windows execution.

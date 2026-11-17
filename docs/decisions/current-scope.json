@@ -68,14 +68,14 @@
     "xtask/src/abi.rs": "f7f089dfd602962861fe05505d6e0938c64cbc85098ef1677f555fb118a7df7a",
     "xtask/src/apfs_exhaustion.rs": "9f27265733bb1d83bbc4319ea5f349a59241af6e4d0a9af02067f84872f2c19e",
     "xtask/src/artifact_trace.rs": "899305af29cb96b63e6bc848afb8dccbe742c6ba6a18be8d11ae67d904f48006",
-    "xtask/src/assurance.rs": "8c5441c8fbcb865abc7bea81ffe50bc6d9b975862983e79f584b366c8461eb59",
+    "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
     "xtask/src/atomic_model.rs": "128f0d5e7519565ad6490dab4e9f830b4bab0800c2e351efcd1e4c624ba0e996",
     "xtask/src/benchmark.rs": "c3dfaf2482c1ba1395768580a580ab8604c36845777e493b58d8939e65726a04",
     "xtask/src/c_sanitizers.rs": "3382c0606e6bf6190b6f2899a9daee640f05ee981f08806644c6207f313bdb21",
     "xtask/src/check.rs": "3bb7eb71500eb443f0b2289608e3ae82eae5f196e97c7259629355c4d7cc445a",
     "xtask/src/clean.rs": "6f6ee36687033547a9c1e1e47b1ba89091a51a76a0691a2a2b185866980bd241",
     "xtask/src/compatibility.rs": "036b3da70dc40dcbce45d4d0fe61894591c0674c180824fef40c7e89abfc37f4",
-    "xtask/src/coordinator_recovery.rs": "8601523b5b52e60b91b8fcc2790ebf7f5dea5476fe5949eca5a8d7ffb164fb91",
+    "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
     "xtask/src/coverage.rs": "701672c26b2ff14a6397bac61add44a6c6ddb18570948548e97fd561162af930",
     "xtask/src/coverage_executables.rs": "2de11e2b513e474850d7ee28593f312fc3035d6b8c725df5b9acc5d19a999bc4",
     "xtask/src/delivered_faults.rs": "adb0c3f9e44844324ba67e6550123424b4b6fd2231605c3c39dd23d01c795861",
@@ -130,9 +130,9 @@
     "xtask/src/toolchain.rs": "2dd83b9547622cc3bf1b6096f00c32bb31c327f8d95fd980320e7ec9ea1524c9",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
     "xtask/src/trace_process.rs": "4aec4b243ed658df90b82504583cb1827c2eafac553dfdfe4594eb809f9e300e",
-    "xtask/src/windows_compatibility.rs": "956b223b607065eab654a47744785f191d77ac92fc0813ec393c8059dad959db",
+    "xtask/src/windows_compatibility.rs": "20bcbf945743fdea9979b0c46f750abcd2a5a99af09944dff042dbf7b9f3b5d4",
     "xtask/src/windows_faults.rs": "442b5030ecd61fe492f2d52fddb10c5f30bc93a0003d90fec4cf044cbec5a9c4",
-    "xtask/src/windows_process.rs": "5c3c3b6a998f082ee536a33bfb811216dd8e81762f762c2b468eb11f4b19d1bc",
+    "xtask/src/windows_process.rs": "89549e971c4e51a4f9ef2a8c177107cb7da04144dac73f0e9d5c0d3ee439698d",
     "xtask/src/windows_quota.rs": "a94ff2b36494652e075060f4c815dd941c6e45d65ef50d1fd3b8888ed080572e",
     "xtask/src/windows_trace.rs": "4f34977a84b584686fd4182f4bac0e59a1aadcd9fba7419d991cf9214e7770d2",
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
@@ -147,12 +147,12 @@
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
-    "docs/coordinator-artifact-recovery.md": "ec3282f2437603046381c0fe8175919e59dc72756f0487873b842a71ef8c8384",
+    "docs/coordinator-artifact-recovery.md": "56acc02ee03f18ffe0d1f27882e3ffdc9b0393d49b2ecb8d8a0ec4de8cf19705",
     "docs/coordinator-pending-restore.md": "d05d279ac7d4586c8e5caff39d6075edeac3ce57a439d419b1c21dc6ce1a2c18",
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "bdd62dd10b439db588cbd38a7cb21bd304b7fe69c1e9e236a0200fac274dfd7a",
+    "docs/decisions/current.md": "00c394363bb2a46f24ebebf8a1dc5296ae3cecff4fc5dfeb8ff6873a521604d7",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -199,7 +199,9 @@
     "tests/transactions.rs": "f4d6aec6b5f63cea148c64b9a31b89f755848b196fb0e38b542e5d4802cdf112",
     "tests/value_decisions.rs": "eda8394a8b1305e110ec99bb7d50ba78436c1a0843a0f472cdd6213fc6284574",
     "tests/values.rs": "adcb83f2d92ccae41fb25505d7e4e22334a77d03eec945ea711ff1616c3c1067",
-    "xtask/src/coordinator_recovery.rs": "8601523b5b52e60b91b8fcc2790ebf7f5dea5476fe5949eca5a8d7ffb164fb91",
+    "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
+    "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
+    "xtask/src/windows_compatibility.rs": "20bcbf945743fdea9979b0c46f750abcd2a5a99af09944dff042dbf7b9f3b5d4",
     "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
     "xtask/tests/mutations.json": "2bcc0bf09ba4e9b5ea5e4781a7de104828ecf75bf97846409e3d55411eaa87fb",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43"
@@ -216,7 +218,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5102
+    "xtask::xtask": 5125
   },
   "groups": [
     {
@@ -584,7 +586,9 @@
         "xtask/tests/supervise.rs",
         "xtask/tests/commands.rs",
         "docs/coordinator-artifact-recovery.md",
-        "xtask/src/coordinator_recovery.rs"
+        "xtask/src/coordinator_recovery.rs",
+        "xtask/src/assurance.rs",
+        "xtask/src/windows_compatibility.rs"
       ],
       "residual": "Unit/helper and native negative controls are scoped evidence, not individual independence pairs for all tooling records."
     }
