@@ -82,6 +82,11 @@ fn windows_cases() -> Result<Inventory> {
     }
     Ok(data)
 }
+fn test_command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
+    let mut argv = command(case, toolchain, release);
+    argv.extend(["--message-format=json", "--", "--exact", "--test-threads=1"].map(str::to_owned));
+    argv
+}
 pub(super) fn apply_native(case: &Case, original: &str) -> Result<String> {
     if original.contains("\r\n") {
         ensure!(
@@ -345,14 +350,7 @@ pub(super) fn run(run: &Run, options: Options) -> Result<()> {
                         let mut env = instrumentation::environment(&run.env, &target, &[]);
                         env.insert(path("CARGO_TERM_COLOR"), path("never"));
                         env.remove(&path("CARGO_BUILD_TARGET"));
-                        let mut argv = command(case, options.toolchain.as_deref());
-                        if release {
-                            argv.push("--release".into());
-                        }
-                        argv.extend(
-                            ["--message-format=json", "--", "--exact", "--test-threads=1"]
-                                .map(str::to_owned),
-                        );
+                        let argv = test_command(case, options.toolchain.as_deref(), release);
                         let (report, log) =
                             invoke(&mut proof, &output, &label, cmd(&argv), &checkout, &env)?;
                         let executable = artifact(&log, &target)?;
@@ -424,6 +422,40 @@ pub(super) fn run(run: &Run, options: Options) -> Result<()> {
 mod tests {
     use super::*;
     use crate::support::Scratch;
+    #[test]
+    fn windows_commands_select_each_profile_once_before_exact_test_flags() {
+        for case in windows_cases().unwrap().cases {
+            for toolchain in [None, Some("1.99.1")] {
+                for release in [false, true] {
+                    let mut expected = vec!["cargo".to_owned()];
+                    if let Some(toolchain) = toolchain {
+                        expected.push(format!("+{toolchain}"));
+                    }
+                    expected.extend(
+                        [
+                            "test",
+                            "--offline",
+                            "--locked",
+                            "-p",
+                            "weekend-db",
+                            "--all-features",
+                            "--lib",
+                            TEST,
+                        ]
+                        .map(str::to_owned),
+                    );
+                    if release {
+                        expected.push("--release".into());
+                    }
+                    expected.extend(
+                        ["--message-format=json", "--", "--exact", "--test-threads=1"]
+                            .map(str::to_owned),
+                    );
+                    assert_eq!(test_command(&case, toolchain, release), expected);
+                }
+            }
+        }
+    }
     #[test]
     fn windows_inventory_is_exact_and_matches_current_production() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();

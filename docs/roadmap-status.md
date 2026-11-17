@@ -20,6 +20,10 @@ outcomes. R1 remains open for the explicit per-record G queue. Generated/compile
 MC/DC, further individual pairs and native Windows
 execution of this new branch retain their stated gates; this does not replace
 the prior candidate artifact qualification.
+The first hosted R1 run exposed a Windows-only mutation-command compile error.
+The caller correction and host regression pass local Windows cross-checks on
+Rust 1.99.0/1.99.1; native Windows credit awaits the corrected hosted run, as
+recorded in the R1 qualification report.
 
 | Gate | Progress and remaining evidence |
 |---|---|

@@ -94,7 +94,7 @@
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
     "xtask/src/mutations.rs": "51f80a8becc36b8c6d72b8b29f57d11b83d6f9052753df96f045723d81a6170c",
-    "xtask/src/mutations_windows.rs": "4727c4c74b82b228a5cc9e1c6c15d56de70b12b0c6f1080afdcab9946012893f",
+    "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
     "xtask/src/package.rs": "d9e495f91599d787084e316289bf5a0c64b9be575ea72d7782e343d3dbf34f49",
@@ -210,7 +210,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 4993
+    "xtask::xtask": 4992
   },
   "groups": [
     {

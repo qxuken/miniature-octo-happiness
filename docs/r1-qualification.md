@@ -5,21 +5,25 @@ Initial qualification used that commit plus the source/test overlay. Final
 macOS campaigns use checkpoint `37ced27` plus the review corrections; Linux
 uses the merged-main checkout plus the corresponding overlay. Reports preserve
 each actual Git source and honestly record `dirty: true`. Exact source/reference
-pins are in [current-scope.json](decisions/current-scope.json), with definitions,
+pins, refreshed for the Windows caller correction below, are in
+[current-scope.json](decisions/current-scope.json), with definitions,
 decision tables and residuals in the [current ledger](decisions/current.md).
 Crates remain unpublished.
 
 ## Inventory and evidence reuse
 
-The default feature/platform source union now contains **8,172 records across
+The default feature/platform source union now contains **8,171 records across
 132 files and 12 Cargo targets**, with no parse/path failures. Source-set SHA-256:
-`e417cdcf3b40519c3a5db0173887172476d721166de3b940e053a73a619c3f55`.
+`13dca6b881ed7caa22011bfbb1936805d27033d9d0df48d85cde5a6525f2a399`.
+The initial `7437883` checkpoint has 8,172 records and source-set SHA-256
+`e417cdcf3b40519c3a5db0173887172476d721166de3b940e053a73a619c3f55`;
+removing the duplicate Windows profile decision accounts for the difference.
 
 | Scope | Records |
 |---|---:|
 | Runtime libraries and applications | 3,023 |
 | Administrative, measurement and fault drivers | 156 |
-| Qualification tooling | 4,993 |
+| Qualification tooling | 4,992 |
 
 These are overlapping AST records, not independent Boolean conditions or
 machine branches. The prior 2,604-record denominator is historical. New targets
@@ -37,18 +41,18 @@ Eleven named controls cover six source-predicate tables and five caller
 propagations, with thirteen maintained guard omissions/boundary mutations. Tests
 and mutations must exist in their pinned files; every predicate table supplies
 an independence pair for each listed operand. Propagation is reported separately
-from Boolean independence. Both macOS and Linux generate byte-identical
+from Boolean independence. The initial macOS and Linux runs generate byte-identical
 `inventory.json` and `review.json`; consecutive local runs are identical too.
 
 The inventory retains **3,442** macro/derive/conditional blind spots and **148**
 cfg/test exclusions. Generated FFI/Model/Record/Resolution behavior, implicit
 compiler branches, dependencies, coupled native predicates and unexecuted native
 outcomes retain their explicit boundaries. The separate tooling scope has
-unit/helper/negative-control evidence; its 4,993 records do not become a runtime
+unit/helper/negative-control evidence; its 4,992 records do not become a runtime
 MC/DC percentage. No compiler MC/DC measurement or whole-workspace condition
 closure is claimed.
 
-## Executed checks
+## Initial local qualification at 7437883
 
 | Check | macOS arm64/APFS, Rust 1.99.1 | Docker Linux arm64/ext4, Rust 1.99.1 |
 |---|---|---|
@@ -128,13 +132,41 @@ named tests, 28 successful nonempty baselines, cleanup/timeout records and every
 restored copied-source hash. Runtime/test/fixture inputs match the checked
 manifest across both OSes. Off-machine custody remains a release gate.
 
+## Windows caller correction after hosted CI
+
+The first [PR #2 Engine run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44059515752)
+passed the R1 gate, macOS/Linux native jobs, sanitizers and helper checks; its
+three Windows jobs failed to compile xtask. The shared mutation command builder
+had gained a required profile argument, but the Windows-only caller retained
+the old two-argument call. This is a tooling regression, not a failed database
+durability outcome. The failed jobs receive no Windows qualification credit.
+
+`cargo +1.99.1 check --offline --locked -p xtask --all-targets --target
+x86_64-pc-windows-msvc` reproduces the exact E0061 diagnostic locally. The
+Windows caller now forwards its current profile to the shared builder once.
+Its pure command construction is also compiled by host unit tests, covering
+both RNG cases, both profiles and present/absent toolchain selection. The
+regression first reproduces the missing argument, then passes with exact
+argument assertions; the profile option precedes the libtest separator and
+each release command has exactly one `--release`.
+
+The same Windows cross-check passes on Rust 1.99.1 and minimum Rust 1.99.0.
+Strict xtask Clippy passes for the host and Windows target. The complete host
+xtask suite passes 228 tests with one ignored in each of debug and release.
+A deliberate profile omission fails the new exact-argument assertion; restored
+source passes again. This is a regression control, not another native RNG run.
+The source manifest is rebound to the changed tooling file; runtime, referenced
+engine/application tests and mutation-fixture inputs are unchanged. The initial archive and its reports
+retain their original identities. Native Windows execution and the corrected
+branch's hosted checks remain pending until the rerun finishes.
+
 ## Remaining work
 
 The source inventory and finite guard-control batch are refreshed. **R1 remains
 open** for the individual reconciliation/expanded-code obligations in the ledger;
 source reference reconciliation is not proof that every scoped E/D/tooling
-record has an independence pair. The report has 7,439 explicit per-record G
-reasons: 2,420 runtime, 26 driver and 4,993 tooling records. G denotes an
+record has an independence pair. The report has 7,438 explicit per-record G
+reasons: 2,420 runtime, 26 driver and 4,992 tooling records. G denotes an
 unresolved current mapping, not proof that no prior test exists. Two overlapping
 logical records reference the exact source ranges of named parent pairs as C.
 Named controls and historical rows can overlap, so these counts are not an
