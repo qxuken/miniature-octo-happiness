@@ -16,8 +16,11 @@ The [R2 operational refresh](r2-qualification.md) uses engine `6b657e5` for fres
 Mac/Linux operator, offline StudyProgress and live snapshot-month rehearsals.
 All scoped local workloads pass, including preserved retained roots, exact
 receipts, six paired restarts, stable repeat sync and four reconciled snapshot
-replies. The new Windows operator adapter and three-platform CI gate retain
-their execution requirements. R2 remains open for pending-intent/coordinator
+replies. The corrected three-platform operator gate passes, including 41
+native Windows outcomes and the source-protection/exclusive-lease controls.
+The macOS harness additionally verifies bounded normal retirement of a busy
+owned APFS image and the original namespace ENOSPC/reopen/retry scenario.
+R2 remains open for pending-intent/coordinator
 lost-reply restoration and deployment/handoff profiles; this is not a final
 release or a replacement for the immutable artifact qualification.
 

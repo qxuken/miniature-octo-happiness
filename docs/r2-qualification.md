@@ -96,10 +96,12 @@ custody is still R7 work.
 
 ## Tests, review and failed preparation
 
-macOS passes 757 all-feature workspace tests with six ignored in each of debug
-and release, plus strict workspace Clippy. Windows MSVC cross-checks pass for
-Rust 1.99.0/1.99.1 and strict Clippy. The new Windows-only output-limit and source
-write-protection controls await native CI; cross-compilation is not execution.
+The initial macOS checkpoint passes 757 all-feature workspace tests with six
+ignored in each of debug and release, plus strict workspace Clippy. Windows
+MSVC cross-checks pass for Rust 1.99.0/1.99.1 and strict Clippy. Hosted Windows
+subsequently passes the output-limit, source write-protection and exclusive-lease
+observation controls in both debug and release; those native results are
+separate from cross-compilation.
 The snapshot CSV controls reject stale revisions, fabricated missing-reply
 acknowledgments, wrong gaps, incomplete/extra rows, malformed lengths/digests and
 unexpected final writes. Existing incident rejection controls remain intact.
@@ -120,21 +122,73 @@ uses `share_mode(0)`, excluding that raw read. The correction retires the
 read-only service, compares both images and only then starts the continued-write
 service. It preserves all assertions and the exclusive lease policy. A native
 Windows regression verifies the raw observation fails while the lease exists
-and succeeds after release. The failed hosted report remains unqualified;
-the corrected Mac/Linux runs have 39 outcomes, and Windows should have 41 with
-its two ACL setup commands. The preceding 38-outcome Unix runs remain retained
-with their original controller identities.
+and succeeds after release. The failed hosted report remains unqualified.
+Engine run `44111198909`, tested merge `994e1637c47a038452a5c8bceeeae0d5ee5116bf`,
+passes all three corrected operator jobs: Mac/Linux each have 39 outcomes and
+Windows has 41 with its two ACL setup commands. Independent replay checks all
+370 indexed payloads, actual executable hashes, stream hashes/lengths, expected
+exits and cleanup. Windows verifies read-only write denial, restored receipt
+`1 3 42 4`, aligned revision 4/value 42, continued revision 5/value 99 and stale
+history rejection at revision 3/value 0. Its evidence SHA-256 is
+`95dabab52229991a2c4faa02fd7d6f68a0a3aca65501a73cd82665b197d97c29`.
+The preceding 38-outcome Unix runs remain retained with their original
+controller identities.
 
-The refreshed checked decision manifest has 8,235 records across 133 files and
-12 targets: 3,023 runtime, 156 driver and 5,056 tooling. Source-set SHA-256 is
-`11567ccc4a096e26804333fda8fe5d1f150647e4e3feb794e611a6cd2cae3967`.
+### macOS owned-volume retirement
+
+The same hosted run fails the native maintenance lane when normal `hdiutil
+detach` reports Resource busy (exit 16) before the reopen. This is an image
+retirement failure, not a database publication assertion. Checkpoint `7bb940c`
+allows at most five normal detach attempts, with 250 ms between clean Busy
+results. Each attempt rechecks the exact owned image and whole GPT device.
+Other exit codes, supervision failures, timeout, missing exit and exhausted
+Busy results remain failures; no forced detach or database operation retry is
+added. Existing absence, remount, byte, inode and retained-root checks remain.
+
+The native regression holds an owned APFS directory open, observes exit 16,
+releases the handle and requires clean detach plus verified retirement. It
+fails against the single-attempt implementation and passes the correction.
+Directed controls reject persistent Busy and failed supervision. The original
+near-cap namespace scenario also passes at `7bb940c`: actual exchange ENOSPC
+(raw 28), retained/current reads after remount, preserved scratch inode/bytes,
+and successful retry after releasing only owned ballast. All 45 indexed
+payloads and 17 command cleanup records verify. Its local report
+`target/r2/apfs-namespace-bound/evidence.json` has SHA-256
+`8776adad91cfe666cfd4ce67ca73d9f73f761b58e22415206cccb0e3106a01af`.
+An earlier preparation without the compiled source identity was rejected by
+the unchanged identity oracle before image setup; that failed report remains
+unqualified.
+
+### Instrumented helper completion
+
+Engine run `44111198909` also fails the recursive detached-worker test in TSan:
+the three-second command deadline terminates its early-exit worker before the
+expected exit 2. The report verifies descendant cleanup and contains no race
+diagnostic. A deterministic delayed-exit case reproduces the same deadline,
+exit -15 and preserved cleanup before the fix. Completion cases now have a
+30-second bound for instrumented startup/exit; the actual timeout case keeps
+its three-second bound. Exact early exit 2, no completion timeout, orphan
+retirement and malformed-journal failure remain required. Supervisor runtime
+code, default deadlines and production behavior are unchanged.
+
+The corrected five-case test passes native debug and rebuilt-std TSan with
+nightly `2026-11-12` and the retained patched Darwin runtime SHA-256
+`d2aad029c8e571d9f3861798eb382f4367ef3e6fa78eae41b2bd071c9f619734`.
+That targeted local diagnostic is separate from hosted full-workspace TSan and
+its freshly calibrated runtime. Full xtask debug/release and strict Clippy
+also pass after integration. Failed hosted and deterministic local reports
+remain retained without qualification credit.
+
+The refreshed checked decision manifest has 8,239 records across 133 files and
+12 targets: 3,023 runtime, 156 driver and 5,060 tooling. Source-set SHA-256 is
+`d7e2bef6f0604002a7238ee13ebcba6e323bb85228478fc57aa920abe909cf1c`.
 Runtime sources, 721 historical row references and eleven named R1 controls
-are unchanged. The 7,502 individual G mappings remain unresolved; new tooling
+are unchanged. The 7,506 individual G mappings remain unresolved; new tooling
 execution does not establish predicate independence or compiler MC/DC.
 
-Hosted three-platform operator execution remains pending for the new PR. These
-are execution gates, not conclusions inferred from source inspection or
-cross-compilation. The ordinary-account deployment profile remains separate.
+The hosted operator results qualify their named execution profile. The
+ordinary-account deployment profile remains separate. Each subsequent CI
+revision retains its own full-workspace and sanitizer gates.
 
 ## Boundaries
 
