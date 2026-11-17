@@ -18,6 +18,29 @@ const HDIUTIL: &str = "/usr/bin/hdiutil";
 const PLUTIL: &str = "/usr/bin/plutil";
 const SIZE: u64 = 256 * 1024 * 1024;
 const BLOCK: u64 = 4096;
+const DETACH_ATTEMPTS: usize = 5;
+
+fn retry_detach(
+    mut attempt: impl FnMut(usize) -> Result<crate::trace_process::Report>,
+    mut on_busy: impl FnMut(),
+) -> Result<()> {
+    for number in 0..DETACH_ATTEMPTS {
+        let report = attempt(number)?;
+        ensure!(
+            report.qualifies(true),
+            "detach supervision failed: {report:?}"
+        );
+        match report.exit {
+            Some(0) => return Ok(()),
+            Some(16) if number + 1 < DETACH_ATTEMPTS => on_busy(),
+            _ => anyhow::bail!(
+                "owned APFS detach failed on attempt {}: {report:?}",
+                number + 1
+            ),
+        }
+    }
+    unreachable!("last detach attempt returns an outcome")
+}
 
 pub struct Volume {
     device: String,
@@ -187,6 +210,42 @@ fn attach(
     Ok(evidence)
 }
 
+fn detach_owned(
+    proof: &mut Value,
+    output: &Path,
+    env: &BTreeMap<OsString, OsString>,
+    label: &str,
+    mut on_busy: impl FnMut(),
+) -> Result<()> {
+    let scratch = output.join("volume");
+    let image = scratch.join("owned.dmg");
+    let attached = query(&image, &scratch, env)?.context("owned image missing before detach")?;
+    let expected = disk(&attached)?.to_owned();
+    retry_detach(
+        |number| {
+            let current =
+                query(&image, &scratch, env)?.context("owned image disappeared during detach")?;
+            ensure!(
+                disk(&current)? == expected,
+                "owned image device changed during detach"
+            );
+            call(
+                proof,
+                output,
+                cmd([HDIUTIL, "detach", &expected]),
+                &scratch,
+                &format!("{label}-attempt-{}", number + 1),
+                env,
+                true,
+            )
+        },
+        || {
+            on_busy();
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        },
+    )
+}
+
 pub fn remount(
     proof: &mut Value,
     output: &Path,
@@ -194,16 +253,7 @@ pub fn remount(
 ) -> Result<Value> {
     let scratch = output.join("volume");
     let image = scratch.join("owned.dmg");
-    let attached = query(&image, &scratch, env)?.context("missing owned image before remount")?;
-    call(
-        proof,
-        output,
-        cmd([HDIUTIL, "detach", disk(&attached)?]),
-        &scratch,
-        "detach-for-reopen",
-        env,
-        false,
-    )?;
+    detach_owned(proof, output, env, "detach-for-reopen", || {})?;
     ensure!(
         query(&image, &scratch, env)?.is_none()
             && stat(&scratch.join("mount"))?.device == stat(&scratch)?.device,
@@ -259,16 +309,8 @@ pub fn with_volume(
             attempted_creation,
             "image setup did not establish ownership"
         );
-        if let Some(attached) = query(&image, &scratch, env)? {
-            call(
-                proof,
-                output,
-                cmd([HDIUTIL, "detach", disk(&attached)?]),
-                &scratch,
-                "detach",
-                env,
-                false,
-            )?;
+        if query(&image, &scratch, env)?.is_some() {
+            detach_owned(proof, output, env, "detach", || {})?;
         }
         ensure!(
             query(&image, &scratch, env)?.is_none() && stat(&mount)?.device == host.device,
@@ -291,6 +333,88 @@ pub fn with_volume(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detach_retries_only_clean_busy_and_requires_a_clean_success() {
+        for (exits, success, waits) in [
+            (vec![0], true, 0),
+            (vec![16, 0], true, 1),
+            (vec![16; DETACH_ATTEMPTS], false, DETACH_ATTEMPTS - 1),
+            (vec![1], false, 0),
+        ] {
+            let mut calls = 0;
+            let mut pauses = 0;
+            let result = retry_detach(
+                |number| {
+                    calls += 1;
+                    Ok(crate::trace_process::Report {
+                        exit: Some(exits[number]),
+                        cleanup_verified: true,
+                        ..Default::default()
+                    })
+                },
+                || pauses += 1,
+            );
+            assert_eq!(result.is_ok(), success);
+            assert_eq!(calls, exits.len());
+            assert_eq!(pauses, waits);
+        }
+        for (cleanup, failure, exit) in [
+            (false, None, Some(0)),
+            (true, Some("timeout"), Some(16)),
+            (true, None, None),
+        ] {
+            let mut calls = 0;
+            let result = retry_detach(
+                |_| {
+                    calls += 1;
+                    Ok(crate::trace_process::Report {
+                        exit,
+                        cleanup_verified: cleanup,
+                        failure: failure.map(str::to_owned),
+                        ..Default::default()
+                    })
+                },
+                || panic!("failed supervision cannot retry"),
+            );
+            assert!(result.is_err());
+            assert_eq!(calls, 1);
+        }
+    }
+
+    #[test]
+    #[ignore = "creates a private native APFS image and holds its directory open"]
+    fn native_busy_detach_releases_only_the_owned_image() {
+        let mut root =
+            crate::support::Scratch::new(&std::env::temp_dir(), "apfs-detach-control").unwrap();
+        let output = root.path().join("proof");
+        fs::create_dir(&output).unwrap();
+        let run = crate::support::Run::new(root.path().to_owned());
+        let mut proof = json!({"commands":[]});
+        let result = with_volume(&mut proof, &output, &run.env, |proof, data| {
+            let mut held = Some(fs::File::open(data)?);
+            let result = detach_owned(proof, &output, &run.env, "controlled-detach", || {
+                drop(held.take());
+            });
+            drop(held.take());
+            result?;
+            let exits = proof["commands"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|row| row["command"][1] == "detach")
+                .map(|row| row["report"]["exit"].as_i64().unwrap())
+                .collect::<Vec<_>>();
+            ensure!(
+                exits.first() == Some(&16) && exits.last() == Some(&0),
+                "control must observe Busy before successful detach"
+            );
+            Ok(())
+        });
+        assert_eq!(proof["volume_cleanup"]["verified"], true);
+        result.unwrap();
+        root.close().unwrap();
+    }
 
     #[test]
     fn cleanup_admits_only_exact_image_and_whole_gpt_device() {
