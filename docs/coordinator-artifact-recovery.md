@@ -151,3 +151,28 @@ source bundle. These ignored files are not durable proof custody. Native
 Windows execution and its ACL control, other promised delivery profiles,
 operator handoff and final release consolidation remain open. Subsequent
 documentation commits do not become a new runtime qualification.
+
+## Export and extraction gate
+
+The first hosted source-package jobs at PR head `03dfa75` all pass execution.
+The macOS download nevertheless omits ten declared hidden paths, including
+`rust-source/.cargo/config.toml`. Its original archive SHA-256 is
+`f57e68bb3eba12326e8d5eafeefb14be472a22095a2695ff486721d117ae8819`.
+Running the normal qualification command on that extracted package rejects
+with `package inventory or payload mismatch` before creating any evidence.
+Thus the successful producer jobs do not qualify that exported package.
+
+The source-package upload now explicitly includes hidden files within its
+validated package/proof directories. GitHub documents the
+[hidden-file exclusion and archive permission behavior](https://github.com/actions/upload-artifact#uploading-hidden-files).
+The job downloads its own exact run/OS/architecture/attempt artifact using
+`gh run download`, then runs the same inventory check and both recovery
+profiles against the extracted source package. Its token has only contents
+and Actions read permissions. Attempt-specific names preserve prior evidence
+when a job is retried. Post-download evidence is uploaded separately.
+
+This remains a source-delivery profile: executables are rebuilt and relocated
+from the extracted source. The ZIP is not a permission-preserving installer
+for arbitrary prebuilt executables or an archive of private runtime ACLs.
+Original native execution, exported payload integrity and post-download
+execution remain separate observations in the report.

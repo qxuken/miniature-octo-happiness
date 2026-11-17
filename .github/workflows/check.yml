@@ -46,6 +46,9 @@ jobs:
             !target/operator-recovery/synthetic.secret
   coordinator-package-recovery:
     name: Packaged coordinator recovery (${{ matrix.os }})
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -69,12 +72,29 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: coordinator-package-recovery-${{ runner.os }}-${{ runner.arch }}
+          name: coordinator-package-recovery-${{ runner.os }}-${{ runner.arch }}-attempt-${{ github.run_attempt }}
+          include-hidden-files: true
           if-no-files-found: warn
           path: |
             target/coordinator-private-package/**
             target/coordinator-package-recovery/**
             !target/coordinator-package-recovery/cargo-target/**
+      - name: Download the exact uploaded source package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name coordinator-package-recovery-${{ runner.os }}-${{ runner.arch }}-attempt-${{ github.run_attempt }} --dir target/coordinator-delivered
+      - name: Verify and exercise the delivered package after extraction
+        run: cargo xtask coordinator-recovery --package target/coordinator-delivered/coordinator-private-package --expected-source ${{ github.sha }} --output target/coordinator-package-roundtrip
+      - name: Retain the post-download recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coordinator-package-roundtrip-${{ runner.os }}-${{ runner.arch }}-attempt-${{ github.run_attempt }}
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            target/coordinator-package-roundtrip/**
+            !target/coordinator-package-roundtrip/cargo-target/**
   decision-inventory:
     name: Source decision reconciliation and R1 controls
     runs-on: ubuntu-latest
