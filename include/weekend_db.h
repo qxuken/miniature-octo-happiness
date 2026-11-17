@@ -38,10 +38,22 @@ enum {
 enum { WDB_NONE=0, WDB_BOOLEAN=1, WDB_INTEGER=2, WDB_UNSIGNED=3,
        WDB_FLOAT=4, WDB_BYTES=5, WDB_MAP=6, WDB_LIST=7 };
 enum { WDB_RECORDS=0, WDB_WHOLE_DATABASE=1 };
+#define WDB_ABI_VERSION 1u
+#define WDB_FORMAT_VERSION 2u
+/* These queries require no database. Strings are UTF-8 bytes without a NUL.
+ * The ordinary required-size and BUFFER rules apply. Source ID is "unknown"
+ * unless the build sets WEEKEND_DB_SOURCE_ID. Feature bits are replication=1,
+ * CRDT=2, fault injection=4. */
+uint32_t wdb_abi_version(void);
+uint32_t wdb_format_version(void);
+uint32_t wdb_features(void);
+wdb_status wdb_package_version(uint8_t *buffer, size_t capacity, size_t *required);
+wdb_status wdb_source_id(uint8_t *buffer, size_t capacity, size_t *required);
 wdb_status wdb_open(wdb_database **out);
-/* macOS and Linux x86_64/aarch64: explicit-length native path bytes, with no embedded NUL. Creation is
- * exclusive and never overwrites. Other platforms return UNSUPPORTED_PLATFORM.
- * Open is read/write and takes a nonblocking exclusive inode lock. */
+/* Explicit-length native path bytes on macOS and Linux x86_64/aarch64, UTF-8
+ * on Windows (local fixed NTFS). Embedded NULs are invalid. Creation is
+ * exclusive and never overwrites. Open is read/write with an exclusive lease.
+ * Other platforms return UNSUPPORTED_PLATFORM. */
 wdb_status wdb_file_create(const uint8_t *path, size_t len, wdb_database **out);
 wdb_status wdb_file_open(const uint8_t *path, size_t len, wdb_database **out);
 /* Offline macOS/Linux compaction: close ALL database handles for this path first.

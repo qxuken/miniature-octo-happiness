@@ -1,0 +1,1 @@
+#[record(fields(a,a))] struct A {a:u64}

@@ -1,18 +1,18 @@
 #[path = "support/users.rs"]
 mod users;
 use users::{Age, Nickname, NicknameUpdate, Users};
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 use weekend_db::Limits;
 use weekend_db::{Database, schema};
 
 fn main() -> schema::Result<()> {
     let path = std::env::args_os().nth(1);
     let db = if let Some(path) = &path {
-        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        #[cfg(any(target_os = "macos", target_os = "linux", windows))]
         {
             Database::create_file(path, Limits::default())?
         }
-        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
         {
             let _ = path;
             return Err(schema::Error::Engine(
@@ -69,34 +69,32 @@ fn main() -> schema::Result<()> {
     drop(original);
     drop(now);
     drop(db);
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     if let Some(path) = path {
-        #[cfg(any(target_os = "macos", target_os = "linux"))]
-        {
-            Database::compact_file(&path, Limits::default())?;
-            let db = Database::open_file(path, Limits::default())?;
-            let users = Users::from_ids(&db, ids);
-            let mut old = db.retained_snapshot(original_id)?;
-            assert_eq!(
-                users
-                    .find_by_email(&mut old, "alice@example.test")?
-                    .unwrap()
-                    .version(),
-                1
-            );
-            let mut additive = db.retained_snapshot(additive_id)?;
-            let user = users.load(&mut additive, 42)?.unwrap();
-            assert_eq!(user.version(), 2);
-            assert_eq!(user.nickname(), Nickname::Text("Al"));
-            let mut current = db.snapshot();
-            assert_eq!(
-                users
-                    .find_by_email(&mut current, "alicia@example.test")?
-                    .unwrap()
-                    .age(),
-                Age::Months(300)
-            );
-        }
+        #[cfg(not(windows))]
+        Database::compact_file(&path, Limits::default())?;
+        let db = Database::open_file(path, Limits::default())?;
+        let users = Users::from_ids(&db, ids);
+        let mut old = db.retained_snapshot(original_id)?;
+        assert_eq!(
+            users
+                .find_by_email(&mut old, "alice@example.test")?
+                .unwrap()
+                .version(),
+            1
+        );
+        let mut additive = db.retained_snapshot(additive_id)?;
+        let user = users.load(&mut additive, 42)?.unwrap();
+        assert_eq!(user.version(), 2);
+        assert_eq!(user.nickname(), Nickname::Text("Al"));
+        let mut current = db.snapshot();
+        assert_eq!(
+            users
+                .find_by_email(&mut current, "alicia@example.test")?
+                .unwrap()
+                .age(),
+            Age::Months(300)
+        );
     }
     let _ = (ids, original_id, additive_id);
     println!(

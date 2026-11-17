@@ -6,36 +6,43 @@ byte values, clone a root, edit one clone, and keep the original readable.
 They intentionally use copied entry arrays and shared child nodes, not the
 planned hash/radix trees. There are no records, transactions, or files yet.
 
-Run from a fresh checkout on macOS with Python 3.10+, Xcode command-line tools,
-Rust/Cargo (edition 2024 support), and Odin:
+Run from a fresh checkout on macOS with Xcode command-line tools,
+Rust/Cargo 1.99+ and Odin. The private Rust runner replaces the retired Python
+entry point:
 
 ```sh
-python3 probe/run.py
+cargo fetch --locked
+cargo xtask probe
 ```
 
 The wgpu cases use Odin's installed `vendor:wgpu` bindings and their prebuilt
 **static** wgpu-native archive. Install that archive as described by Odin's
 vendor package if it is missing. No GPU, window, registry dependencies, or
 changes to another project are needed. Without Odin, explicitly run
-`python3 probe/run.py --skip-odin`; without its wgpu archive, use `--skip-wgpu`.
+`cargo xtask probe --skip-odin`; without its wgpu archive, use `--skip-wgpu`.
 Skipped cases are recorded and do not establish that integration contract.
 
-The script builds debug/release static and shared libraries for each candidate,
+The runner builds debug/release static and shared libraries for each candidate,
 runs C and Rust consumers against all eight artifacts, and builds Odin consumers
 both alone and with wgpu-native. It also tests C's generated single header from
 two consumer translation units, allocation failures, and ASan/UBSan. Intentional
 lifetime mistakes must produce an ASan use-after-free diagnostic for C and a
 borrow-checker error for the Rust wrapper. No unexpected failure is accepted.
 The known Rust-static/wgpu duplicate-symbol failure is a recorded experiment
-result; all other linker failures stop the script.
+result; all other linker failures stop the runner.
 
-Outputs live in ignored `probe/build/` and `probe/rust/target/`. The generated
-`build/amalgamated/weekend_probe.h` is derived from the split C sources; define
+Outputs live in a fresh `target/packaging-probe/`, or an explicit `--output`
+directory. The generated `amalgamated/weekend_probe.h` is derived from the split C sources; define
 `WEEKEND_PROBE_IMPLEMENTATION` in exactly one translation unit. `results.json`
 records the tested toolchains, platform, archive fingerprint, and outcomes;
-linker and intentional-failure diagnostics are retained beside it. Dynamic
+linker and intentional-failure diagnostics are retained beside it. The separate
+`evidence.json` binds source hashes, exact library/archive identities, bounded
+subprocess reports and verified retirement. Rust builds are offline/locked with
+an owned target directory; inherited instrumentation overrides are replaced.
+Dynamic
 libraries currently use local build paths; relocatable application packaging
-has not been tested. Remove both output directories to clean the experiment.
+has not been tested by this probe. Remove its owned output directory to clean
+the experiment. Historical reports retain the original script and paths.
 
 ## Shared ABI and ownership contract
 

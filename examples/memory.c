@@ -1,6 +1,7 @@
 #include "weekend_db.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static wdb_value *integer(wdb_database *db, uint64_t n) {
@@ -103,7 +104,12 @@ int main(void) {
     assert(wdb_map_scan(clone,&scan) == WDB_OK);
     assert(wdb_scan_len(scan,&count) == WDB_OK && count == 1);
     assert(wdb_scan_release(scan) == WDB_OK);
-    assert(wdb_value_make(db,WDB_BYTES,0,binary,1024u*1024u+1,&value) == WDB_LIMIT && value == NULL);
+    /* Rejected slices still obey the caller's live-buffer contract. */
+    const size_t oversized_len = 1024u * 1024u + 1;
+    uint8_t *oversized = (uint8_t *)calloc(oversized_len, 1);
+    assert(oversized != NULL);
+    assert(wdb_value_make(db,WDB_BYTES,0,oversized,oversized_len,&value) == WDB_LIMIT && value == NULL);
+    free(oversized);
     wdb_database *other; wdb_value *foreign;
     assert(wdb_open(&other) == WDB_OK); foreign=integer(other,7);
     assert(wdb_list_push(list,foreign,&value) == WDB_FOREIGN_STORE && value == NULL);

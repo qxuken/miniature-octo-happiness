@@ -1,0 +1,346 @@
+# Production acceptance audit
+
+This is a requirement-by-requirement acceptance review of
+[production-readiness.md](production-readiness.md), not a new qualification run.
+The latest [e2d2268 PR checkpoint](candidate-qualification-e2d2268.md) refreshes
+the sixteen-package matrix, CI/sanitizer, benchmark and 22-target fuzz evidence.
+The [remaining-work handoff](remaining-roadmap.md) records what is still open.
+Operational workloads and the detailed historical rows below keep their named
+source/profile; they are not all refreshed by the new checkpoint.
+The later [immutable `7ec2cb5` checkpoint](candidate-qualification-7ec2cb5.md)
+consolidates the named four-platform package, sanitizer, benchmark/fuzz and
+fresh recovery evidence. This closes that candidate-consolidation action for
+those profiles; the individual decision, device, deployment and owner gates
+below retain their stated scope.
+Initial audit source HEAD: `032dadf591b0a0ded4894898e8208283c50425fb`; the
+subsequent requirement review includes qualification work through
+`e20ceceebd6f8ba1ec0da89a7514f93d6ffd706b`, with each report retaining its named
+source/profile. These qualification tranches change tests/tools, not engine
+or application runtime. The later [VALUE identity index](serialization-identity-index.md)
+and [DATA revision index](serialization-data-index.md) change encoder lookup
+and have their own source-bound qualification. An old passing
+run supports its recorded source/profile only. Neither a source disposition nor
+an error-path test elsewhere closes an untested `E`, platform `cfg`, dependency,
+macro expansion or operating-system behavior by association.
+
+The [private `025b87f` checkpoint](roadmap-status.md#private-qualification-checkpoint-025b87f)
+binds the macOS and Linux packages, optimized consumer traces, delivered fault
+checks, accelerated month and authenticated peer runs to one source revision.
+The release gates below retain their platform, workload and owner scope.
+
+The later [four-platform `7e0e44f` checkpoint](private-delivery.md#four-platform-checkpoint-at-7e0e44f)
+passes all 16 combined and isolated packages at Rust 1.99.0. The `6eb5f1a`
+verifier also binds three retained macOS microbenchmark samples and a complete
+22-target ASan smoke campaign to that same archived source. The smoke records
+275 actual executions. The later [extended campaign](fuzz-qualification-7e0e44f.md)
+passes 1,442,896 actual executions across all 22 targets and binds to the same
+source, packages and benchmark samples; separate deterministic replay passes
+29 tests. This checkpoint does not close deployment budgets,
+device assumptions, support decisions or final-candidate qualification.
+
+The [completed quota integration checkpoint](roadmap-status.md#completed-quota-integration-checkpoint)
+verifies all ten engine jobs and bounded fuzzing green at PR head `e20cece`.
+That job/step-status review complements the detailed artifact and data oracles
+recorded in this audit; it does not re-audit their payloads or close the remaining
+release gates.
+
+**Disposition vocabulary:** **Implemented/scoped evidence** means the capability
+and named tests exist, not that every release gate passed. **Local** means useful
+implementation or qualification can be performed on the available Mac/Linux
+setup. **Platform/device** requires the named actual environment. **Owner** means
+a support promise, workload or policy must be selected. **Outside profile** means
+an unoffered expansion, not a defect to fix speculatively.
+
+## Release profiles and promises
+
+| Surface | Actual current boundary | Acceptance still needed |
+|---|---|---|
+| Embedded engine | One file-owning process, native exclusive lease, concurrent in-process readers/drafts; [contract](../DESIGN.md), [operations](operations.md) | Owner selects exact OS/architecture/filesystem/features and support period; execute candidate matrix. Multiple independent file writers are outside this profile. |
+| Typed Rust | Matching core/macros/runtime; raw writes can violate index/catalog ownership | Keep raw-write ownership explicit; qualify supported schema transitions, not arbitrary mixed versions. |
+| C/Odin | ABI 1, valid pointers/live handles/close quiescence, unwind-enabled package; [release contract](release-contract.md) | Exact artifact consumers on each advertised target; no promise that arbitrary downstream abort builds contain panics. |
+| Passive follower | Verified snapshots, configured leaf pins, separate local revision and durable receipt; offline CLI maintenance and capture require quiescence; embedded capture can pin an acknowledged revision while writers proceed | Owner accepts stop/capture/restart workflow and transfer size/rate envelope; no automatic promotion/fencing. |
+| CRDT peers | Exactly two enrolled actors, fixed policy/field bounds, lawful app-supplied `Record`, application-owned reserved rows | Owner accepts fixed roster and operator-controlled migration; authenticate transport and prevent raw writes in the embedding app. |
+| Coordinator | One file owner and one unsigned record on loopback. Legacy has 1,024 permanent receipts. The [authenticated sequenced profile](../apps/write-coordinator/README.md#sequenced-requests-for-long-running-writers) keeps the latest receipt in each of 1,024 explicitly assigned slots. A [durable client journal](../apps/write-coordinator/README.md#durable-client-journal) stages requests and recovers exact replies across process restarts. | Owner selects deployment, accepts the client journaling and retirement contract, and defines service budgets. Remote authorization and HA are distinct profiles. |
+| Expansion | SQL, gossip/discovery, dynamic rosters, encryption, online maintenance and larger images are not offered | Outside profile until a named workload requires them. They are not prerequisites for the bounded local profile. |
+
+## Functional and operational acceptance
+
+| ID / roadmap requirement | Concrete implementation/evidence | Remaining acceptance or useful local work |
+|---|---|---|
+| F01 Isolation, observations and conflict rules | `src/engine.rs`; `tests/transactions.rs`, `tests/schedules.rs`; [engine ledger](decisions/engine.md) | Implemented/scoped evidence. Keep absence/scan/catalog/ABA pairs separately mapped; run exact consumer traces below. |
+| F02 Terminal transactions, snapshot lifetime, threading and lease contention | Engine/FFI ledgers, concurrent tests, native file tests; [hosted native matrix](hosted-qualification-cd7cdfe.md) including Windows | Per-handle unsafe contracts still apply. The named native CI profile now executes Windows; additional architecture/schedule/decision obligations are not closed by that passing matrix. |
+| F03 `Io`/uncertain/recovery contracts and application retry IDs | Publication/recovery ledgers; [operations](operations.md); coordinator receipts; [delivered C fault recovery](delivered-c-faults.md) | Linux, macOS and Windows exact-package C checks cover IO/uncertainty, cleared outputs, terminal/recovery-required transactions and fresh-process request-ID reconciliation. Linux observes kernel ENOSPC on tmpfs. Both [macOS APFS](delivered-c-faults.md#actual-apfs-append-exhaustion-against-the-dylib) and [Windows NTFS](delivered-c-faults.md#actual-ntfs-disk-exhaustion) preserve current and retained roots across a fresh reopen while the filesystem rejects writes and advance only after retry. The [Linux writeback profile](native-writeback.md#root-slot-and-witness-results) verifies kernel `EIO` at append, root-slot and witness flushes, poisoned-handle behavior, and the exact root and witness after remount. Append and slot failures reopen revision 3. A witness failure reopens revision 4, and writable reopening makes its witness durable with no new commit. Retained revision 2 survives every case. The named C/Odin results below extend delivered failure evidence; each further promised API/platform failure profile and physical failures retain separate gates. |
+| F04 Read-only full verifier and selected-root authority | `storage::inspect_file`, admin `check`; `tests/inspection.rs`; [diagnostics](verification-diagnostics.md) | Implemented. Generic file checking does not automatically prove typed index correctness; use typed `check_indexes` explicitly. |
+| F05 Cheap health/headroom and actionable errors | `storage_space`, native diagnostic scope; errno categories; [native drills](native-fault-drills.md); [Linux quota](native-quota.md); [Windows quota](native-quota.md#native-windows-ntfs-owner-quota) | Ext4 returns actual 122/Quota/Write under a UID quota. NTFS returns actual 112/DiskFull/Write under an owner quota with physical space available, and raising only that quota permits retry. Both reopen current/retained 3/2 at the limit and retry to 4/2. [Near-cap maintenance](maintenance-space-exhaustion.md) separately covers the named copy paths and states across Linux, Windows and macOS. Other quota, filesystem and storage-device profiles retain separate gates. |
+| F06 Build/format identity and secret-safe output | `version`, ABI identity, release manifests; diagnostics omit record/path contents; [service output canary drill](service-diagnostics.md) | Named initial structured API boundaries pass on native Mac/Linux/Windows at hosted `703948c`. The later snapshot terminal-worker handoff separately passes Mac debug/release and Linux minimum debug/release with actual tmpfs ENOSPC, preserving local context and separate receipts. Live snapshot peer-error retrieval is explicitly deferred; it is not offered by poll/status. The [exact7ec candidate](candidate-qualification-7ec2cb5.md) passes native Windows debug/release carrier, stale-context and precedence controls and the named immutable package matrix. Actual Linux ENOSPC retains its separate scope; Windows disk-full/writeback and deployed sinks remain distinct. Arbitrary application logging has no safety promise. |
+| F07 Verified backup/restore and new destination | `backup_file`/`restore_file`; independent CLI tests; typed `process_evolution`; [operations](operations.md) | The [near-cap copy lifetime check](compound-resource-envelope.md#offline-copy-graph-lifetime) verifies both leases, exact bytes from a shared source, and 24 repeated restorations on macOS and Linux. The [native failed witness case](maintenance-space-exhaustion.md#kernel-eio-at-maintenance-root-slot-and-witness-flushes) verifies that explicit backup and restore from an inspected unwitnessed source can produce byte-identical witnessed copies. Owner recovery-time objective and final candidate evidence remain. |
+| F08 Recovery point and identity after fork/restore | Selected leased revision is recovery point; identity preserved; [follower backup](follower-backup-restore.md), [CRDT recovery](crdt-operations.md) | Implemented explicit recipes. No zero-data-loss promise beyond preserved acknowledged state/available backup. Actor reset and writable copies require reviewed enrollment/routing changes. |
+| F09 Salvage and logical format transitions | `storage/{salvage,logical}.rs`, admin export/import, [salvage](salvage.md), [logical format](logical-format.md) | Complete-root salvage is explicit; partial arbitrary-row salvage not offered. Qualify each actual future format converter before declaring a supported upgrade. |
+| F10 Headroom, history reclamation and interrupted maintenance | `storage_space`, release/compact, replacement simulator, follower cleanup/manifest compaction | [Near-cap interruption](near-cap-interruption-recovery.md) passes 52 native kills per Mac/Linux OS. [Linux copy-phase ENOSPC/EDQUOT](maintenance-space-exhaustion.md), [Windows NTFS](maintenance-space-exhaustion.md#native-windows-near-cap-copy-profile) and [macOS APFS](maintenance-space-exhaustion.md#native-macos-near-cap-copy-profile) preserve all roots while full and after retry. [Injected namespace errors](maintenance-space-exhaustion.md#injected-namespace-and-sync-errors) verify diagnostic and canonical/scratch behavior for seven faults on macOS and Linux. [Kernel permission denial](maintenance-space-exhaustion.md#kernel-permission-denial-at-exchange-and-cleanup) verifies exchange and unlink on APFS and ext4, with all roots checked before restoring directory write access. Actual [Linux inode quota](maintenance-space-exhaustion.md#recorded-native-inode-quota-result) and [global ext4 inode exhaustion](maintenance-space-exhaustion.md#recorded-native-global-inode-exhaustion-result) reject creation for all three operations, preserve both images and all roots, and permit exact retry after releasing one inode. Actual [Windows owner quota](maintenance-space-exhaustion.md#recorded-native-ntfs-owner-quota-result) verifies partial backup, restore and compact-copy under enforced quota with physical headroom and byte-identical retries after raising the limit. [Ext4 maintenance writeback](maintenance-space-exhaustion.md#kernel-writeback-eio-during-near-cap-maintenance) verifies native `EIO` at the data, root-slot and witness flushes of a copy, exact retained state after remount, and byte-identical retries. [Ext4 file metadata sync](maintenance-space-exhaustion.md#kernel-eio-at-compaction-file-metadata-sync) passes before exchange. [Both ext4 directory syncs](maintenance-space-exhaustion.md#kernel-eio-at-compaction-directory-syncs) verify the canonical and scratch inode mapping after journal rollback, all retained roots and byte-identical retry. [Both post-exchange file syncs](maintenance-space-exhaustion.md#kernel-eio-at-post-exchange-compaction-file-syncs) pass on Linux arm64 and hosted x86_64, preserve the replacement through remount after kernel EIO, and distinguish the retained original scratch from durable unlink. [Ext4 publication with exhausted user blocks and inodes](maintenance-space-exhaustion.md#ext4-compaction-with-no-remaining-user-blocks-or-inodes) passes after the compacted copy is durable. [APFS exchange ENOSPC](maintenance-space-exhaustion.md#apfs-enospc-at-compaction-exchange) verifies both original and completed scratch at capacity, byte-identical retry, and reattach. [APFS cleanup at capacity](maintenance-space-exhaustion.md#apfs-compaction-cleanup-after-allocation-reaches-enospc) succeeds after durable exchange and remounts with the exact canonical bytes and no old scratch. Standard Windows account use, physical device and other filesystem faults, and owner thresholds remain. |
+| F11 Near-cap append/recovery/copy space and latency | [resource envelope](resource-envelope.md), `examples/recovery_scale.rs`, cap tests | The [compound near-cap profile](compound-resource-envelope.md) combines 64 depth-64 retained roots, large shared payload, eight live drafts, 96 MiB core saturation, concurrent readers/commits and 98.58% physical image occupancy on Mac/Linux. Copy rejects at a 96 MiB domain budget and succeeds at 256 MiB. The [buffer-growth comparison](serialization-buffer-growth.md) also verifies 160 MiB candidate copy success against baseline rejection. The [in-place compaction lifetime check](compound-resource-envelope.md#in-place-compaction-graph-lifetime) releases temporary graphs before target verification and checks both leases. Exact-input outputs match. The [short-lived maintenance comparison](compound-resource-envelope.md#short-lived-maintenance-processes) keeps the copy budgets and all 64 roots while reducing macOS main-worker sampled RSS in the paired run. [Paired process-group RSS](compound-resource-envelope.md#paired-process-group-rss-during-maintenance) observations show lower aggregate peak on macOS and higher aggregate peak on Docker Linux with helpers. The [default-width workload](compound-resource-envelope.md#default-width-depth-and-write-count-near-the-image-cap) verifies an unchanged 94.73%-full image after rejection of a 1,024-write batch, exact maintenance copies, and simulated recovery of the same batch after compaction. Physical footprint, deployment budgets, remaining workload combinations and candidate/platform reruns remain open. |
+| F12 Safe orphan deletion and authoritative image | Verified canonical replacement and selected follower manifest; namespace fuzz and maintenance tests | Implemented scoped checks. Hostile namespace mutation is outside trusted-directory contract; real device namespace durability remains separate. |
+| F13 API/ABI/disk/wire version policy | [release contract](release-contract.md), header, runtime identity, fixtures | Owner: stabilize chosen Rust/API/error/feature limits and support window. Pre-1 historical fixtures are not a blanket compatibility promise. |
+| F14 Upgrade/downgrade and original preservation | [storage compatibility](storage-compatibility-21e5d26.md), core wire fixtures, typed retained migrations, actual [snapshot](snapshot-cli-upgrade.md) and [study](study-cli-upgrade.md) CLI upgrades | The pinned storage pair passed on macOS/APFS, Linux/overlayfs and [Windows/NTFS](storage-compatibility-21e5d26.md#windows-ntfs-result). Supported reads and unsupported-version rejection preserved all bytes. Both pinned CLI upgrade profiles pass on Mac, Linux and Windows. Additional version pairs, schema transitions and the support window remain open. |
+| F15 Packaged optimized Rust/C/C++/Odin consumers and relocation | [exact-21 packages](local-qualification-21e5d26.md), source isolation and symbol checks; [hosted combined-feature packages](hosted-qualification-cd7cdfe.md) on Mac/Linux/Windows; [native Windows trace results](windows-artifact-trace.md#native-results-2026-11-13) passed | The [134-cell v2 trace](artifact-trace-validation-modes.md) exercises both validation modes, empty and retained-metadata publications through optimized Mac Rust/C/Odin and Linux ext4 Rust/C. Original v1 bytes/oracle remain preserved. Clean harness 80eb0c2 now passes all twenty native optimized C11/C++17 cases on Windows 11 x64/fixed NTFS against pinned DLL source 7a490e5ce24910d5d8ec96abe0fb9d218ea9e870: exact transcripts, process-local before/after identity, ten no-database rejections and complete owned-job cleanup. MSVC 14.51.36231/SDK 10.0.26100.0/Python 3.14.8 and historical evidence hashes are recorded in the result report. The owner subsequently cleaned the Windows worktree; raw proofs are unavailable for review/retention here, so repeat this gate for the final candidate. Preparation checks remain distinct. The [native 1.99.0 Windows package](windows-private-package.md#recorded-rust-1990-qualification) adds copied-source Rust execution and verified retention for all 20 exact-DLL cases. The [Linux x86_64 and arm64 Odin packages and 134-cell traces](linux-minimum-package.md#recorded-native-x86_64-and-arm64-results) pass with each exact relocated `.so`. The [native Windows Odin qualification](windows-private-package.md#recorded-native-windows-odin-result) passes relocation and extends the exact-DLL campaign to 30 cases across C11, C++17 and Odin. The later [four-platform `7e0e44f` matrix](private-delivery.md#four-platform-checkpoint-at-7e0e44f) retains all 16 feature-profile packages and the combined 134-cell traces at one source. Further promised error/platform profiles and final-candidate retention remain open. |
+| F16 MSRV, loader, toolchain and support promises | Rust 1.99.1 qualification, pinned manifests/toolchain identities, private package instructions | The declared minimum passes at 1.99.0 on [native Windows x64 and macOS arm64](windows-private-package.md#recorded-rust-1990-qualification) at `ec08f39`, with debug/release and combined-feature private delivery checks. The [updated Windows minimum profile](windows-private-package.md#recorded-native-windows-odin-result) passes 30 exact-DLL cases at `bf7cc30` and repeats both workspace profiles. The [Linux arm64 ext4 1.99.0 qualification](linux-minimum-package.md) passes the debug/release workspace, private Rust/C/C++/Odin package and optimized exact-library trace at `44bd5a6`. The [native Linux x86_64 and arm64 minimum profiles](linux-minimum-package.md#recorded-native-x86_64-and-arm64-results) also pass at `5a6ffd2`, including both workspace profiles and exact relocated Rust/C/Odin traces. The later [four-platform `7e0e44f` checkpoint](private-delivery.md#four-platform-checkpoint-at-7e0e44f) repeats all debug/release workspace and combined/isolated package checks at Rust and Cargo 1.99.0. Final candidate consolidation and the owner support window remain open. |
+| F17 Worst-case heap/stack/disk/work/latency | Per-value/transaction/image/history caps, opt-in requested-core budget, [resource envelope](resource-envelope.md) | The [compound profile](compound-resource-envelope.md) measures near-cap core/physical storage, 32 contended commits, 256 reader/oracle iterations, separate native/simulator RSS and copy-budget failure/retry. The [default-width workload](compound-resource-envelope.md#default-width-depth-and-write-count-near-the-image-cap) adds timing and memory observations for one shared depth-64 DAG, 4,096 records per root, 64 retained roots and full commit batches. A fixed [concurrent schedule](compound-resource-envelope.md#full-width-drafts-during-a-native-commit) verifies three 1,024-write drafts and all 65 pre-acquired views during a native append sync, exact rollback, and successful full-width retry. The [fresh snapshot follow-up](compound-resource-envelope.md#fresh-snapshots-during-durable-publication) acquires all 65 views during the paused writer and verifies 17 exact serialized image pairs. The [paired sustained workload](compound-resource-envelope.md#sustained-fresh-snapshot-acquisition) measures snapshot and commit p99 under 384 full-width commits per run on macOS and Docker Linux. A [fixed-arrival follow-up](compound-resource-envelope.md#fixed-arrival-snapshot-queueing) holds the offered read count constant and measures the queue and full-response tails. The [follower phase profile](follower-installation-profile.md#installation-timing-and-memory) and [CRC-64 replay](crc64-performance.md) also measure actual installation phases. Global worst-case bounds, other offered rates, cache-copy work and owner service budgets remain open. |
+| F18 Decoder/DATA/encoder cache searches | Decoder indexing, recovery scale, [breadth](serialization-scale.md) and [64-root history](serialization-history-scale.md) experiments with full current/retained/maintenance oracles | The [VALUE index](serialization-identity-index.md) replaces identity scans; the subsequent [DATA revision index](serialization-data-index.md) replaces revision scans with binary lookup over separately sorted cache positions. Seventeen exact baseline images pass on Mac/Linux. DATA comparisons at 64 retained roots fall from 108,036 to 39,837 including sorting/searches; small histories use more comparisons. [Bounded charged buffer growth](serialization-buffer-growth.md) now preserves all 17 images, reruns the compound Mac/Linux profile and reduces measured copy-domain peak from 166.76 to 143.22 MiB, while increasing live cache slack and showing mixed timing/RSS outcomes. [Immutable cache sharing](serialization-cache-sharing.md) now avoids unchanged-cache clones and per-encode index rebuild/sort; affected-cache forks, retained index memory, cold-open construction and out-of-order insertion remain measured costs. Local: additional compound near-cap/concurrent profiles and final candidate/platform reruns. Owner sets acceptable latency/RSS budgets; no universal speedup is inferred. |
+| F19 Fallible allocation, overflow, panic, unsafe and consumer builds | Memory/FFI ledgers, fault sweeps, Miri/Loom, abort subprocesses; [unsafe review](unsafe-review-2490631.md) | Scope remains source/ABI/config-specific. Candidate sanitizer work is separate; review downstream build flags and uninstrumented/native dependencies explicitly. |
+| F20 Filesystem/device/path/ACL threat model | Native adapters and operational docs; trusted config directories; Unix private keys; Windows external ACL provisioning | Platform/device: actual target filesystem/cache/ACL behavior. No race-proof hostile namespace or dishonest-flush guarantee. |
+| F21 License/security/dependencies/provenance | MIT OR Apache-2.0, notice inventory/std notices, [SECURITY](../SECURITY.md), package manifests | Owner accepts distribution terms, support response and exceptions. The [fourteen-lock dependency review](locked-dependency-review-3db5bcd.md) passes immutable RustSec `02e2517f` with source/tool/database identity retained; it supplies database matching, not source-security or license approval. Final immutable candidate bundle/attribution and owner approval remain; packaging eligibility is not production approval. |
+| T01 Typed field IDs, missing/null/default/unknown semantics | Schema tests, typed models, `schema_index_migration` fuzz; [typed ledger](decisions/typed-runtime.md) | Implemented scoped evidence; generated code and changed model versions retain separate obligations. |
+| T02 Atomic indexes, consistency and rebuild | `Read::check_indexes`, `Write::rebuild_indexes`, duplicate/missing/orphan tests | Implemented. Raw mutations require application ownership and explicit repair; do not silently repair on normal open. |
+| T03 Bounded migration, resumable progress and retained restore | Explicit-ID batches with same-transaction progress receipt, process-evolution tests | The [two-binary rollout and rollback](typed-schema-rollout.md) passes on macOS/APFS, Docker Linux/ext4 and native Windows x64/NTFS. It exercises an additive default, fixed unique layout, precommit interruption and restore to fresh storage. Other schema transitions and the final release candidate remain open. |
+| R01 Enrollment/restart/reseed/authentication | `weekend-replicate`, shared TLS admission, [runbook](replication-operations.md), [native credential cutover](snapshot-credential-cutover.md) | Stopped-endpoint leaf/pin changes pass on macOS, Linux and native Windows, including stale-pin/client rejection, interrupted startup, exact reopened receipts, retained bytes and valid retry. Hosted Windows also passed authenticated backup, restore and reseeding. The [Linux ext4 enrollment drill](follower-installation-profile.md#interrupted-follower-enrollment-on-ext4) checks 11 sync faults and three process exits. A surviving enrollment row opens empty. Fresh enrollment, authenticated shipment and resumed polling preserved the exact first receipt in all 14 cases. Live reload, torn configuration writes and general credential revocation remain separate. |
+| R02 Bounded transfer/retry and lost reply | Absolute 30-second socket budget, retained same export within retry, reopen/poll reconciliation and [restartable captures](replication-operations.md#restartable-captures) | [Embedded capture](replication-operations.md#live-export-and-polling-from-an-embedded-primary) pins an acknowledged revision and its retained roots while writers proceed. The [authenticated month](live-replication-month.md) recovers four dropped replies and verifies all 31 retained roots. The [large-image interruption drill](follower-installation-profile.md#process-interruption-at-the-two-durability-boundaries) uses the same saved image and descriptor, reopens revision 93 after the image-sync interruption and 94 after the manifest interruption, and recovers the exact receipt by poll and retry. The [ext4 follower writeback matrix](follower-installation-profile.md#kernel-writeback-eio-during-follower-installation-and-recovery) checks eight kernel sync failures across both manifest parities. Two additional startup faults prevent the follower from listening until its selected root can be witnessed. Fresh authenticated polls, retries and retained views match the recovered selection. The [follower ext4 journal drill](follower-installation-profile.md#ext4-journal-errors-during-follower-staging) also checks both staged-file syncs and parent sync with absent and reused inactive files. The old receipt survives all eight faults and retry commits the new selection. The [shared deadline check](shared-app-tls.md#deadline-checks-on-buffered-tls-io) rejects expired buffered I/O. A stalled authenticated upload reopens at the old receipt and retry installs the same saved export. [Bounded follower admission](replication-operations.md#bounded-follower-admission) separates four TLS handshakes and four queued authenticated channels from the single follower worker. Tests cover saturation and cancellation on worker failure, and a full Mac-to-Linux month completes while a handshake stalls. The [Linux saturation run](follower-overload.md) closes 19,320 excess connections with a full stderr pipe, returns to the baseline descriptor and thread counts, polls the previous receipt before retry and verifies the new receipt after reopen. The two native Windows Rust toolchains pass both cancellation cases in debug and release. File verification and flush can exceed the socket deadline. Owner sets transfer and retention envelopes and qualifies deployment. |
+| R03 Cleanup, manifest growth and rotation | Offline cleanup, POSIX compaction, and fresh-directory reseeding | The [native rotation profile](replication-operations.md#recorded-native-rotation-result) reached the manifest admission threshold after 81 installs on Windows/NTFS, macOS/APFS and Linux/ext4. A newer export returns `Limit` with unchanged capped files. Cleanup preserves the selected receipt, and the replacement reopens at the next revision. Windows uses verified reseeding for manifest growth. The [capped ext4 maintenance drill](follower-installation-profile.md#ext4-writeback-errors-during-follower-maintenance) verifies eight actual compaction sync failures, both canonical outcomes and byte-identical retry. Inactive cleanup survives kernel permission denial and accurately reports its existing receipt when the journal later restores an unlinked file. Deployment cutover timing and physical power loss remain open. |
+| R04 Progress and lag diagnostics | `status`/`poll` report receipt/revision/digest. The live server owns the manifest lease. | The [private progress helper](replica-progress.md#recorded-native-windows-result) passes lost-response, reopen and refusal cases on Mac, Linux and native Windows x64/NTFS. [Sampled polling](replica-progress.md#sampled-polling) adds bounded JSONL monitoring, durable observation age, revision gap and observed catch-up time across failed polls on all three platforms. [Embedded polling](replication-operations.md#live-export-and-polling-from-an-embedded-primary) samples an open primary while it keeps the writer lease and preserves the last accepted follower receipt. The paused-copy test passes on Mac, Linux and native Windows x64/NTFS at the recorded checkpoints. Final-candidate reruns and deployment lag targets remain open. |
+| R05 Mixed-version and backup recovery | Core wire compatibility, verified follower restore/reseed, credential cutover and [actual CLI upgrades](snapshot-cli-upgrade.md) | The [pinned core wire-v1 pair](snapshot-compatibility.md#windows-ntfs-result) passes both directions on private Windows and macOS loopback. Old 315068f/current 365daf6 release CLIs pass both authenticated sender directions, persisted follower reopen, and failed transfer/retry on Mac, Linux and [Windows](snapshot-cli-upgrade.md#native-windows-ntfs-result). These runs use the same ALPN. The [mixed-OS qualification](snapshot-cli-upgrade.md#recorded-mixed-os-result-2026-11-16) also passes this pair with native macOS clients and Linux ext4 followers, including process reopen and repeat-shipment stability. Further promised version, architecture and deployment transitions remain open. |
+| C01 Lawful CRDT records and reserved row protection | `Record` laws documented, encode/decode preservation, actor checks; raw API bypass explicitly documented | A [reusable law-test helper](crdt-operations.md#check-an-applications-record-laws) checks every pair and triple of supplied compatible states, codec validity and a rejecting negative control. Applications still enforce exclusive reserved-row writes and supply representative histories and their own admission tests. |
+| C02 Causality/replay/resolution/bounds | Register event oracle, two-peer schedules, bounded frame/set/counter containers, repeated-sync no commits | Implemented finite models. [Bounded Study peer admission](crdt-operations.md#bounded-study-peer-admission) verifies a full diagnostics stream, overload at both gates, handshake cancellation, and continued Mac-to-Linux convergence and restart. Native Windows x64 and Linux x86-64 pass the minimum-Rust admission tests. Continuous saturation, larger causal histories and other policies retain their own tests. |
+| C03 Evolution, actor replacement and stale backup | [policy migration](crdt-policy-migration.md), [credential cutover](study-credential-cutover.md), [pre-ALPN CLI upgrade](study-cli-upgrade.md) and [staged roster cutover](crdt-operations.md#staged-roster-cutover) | macOS, Linux and native Windows qualify both the pinned coordinated CLI upgrade and an explicit fresh two-actor history. The CLI upgrade preserves offline edits through a reachable ALPN rejection with zero acknowledgments, then converges after both binaries are upgraded. The roster cutover verifies old-roster rejection and continued sync. The [guarded profile](crdt-operations.md#guarded-cutover-results) rejects agreeing stale copies, mismatched state at equal revisions, and the wrong staged pair on macOS, Linux and native Windows. Selection of the complete acknowledged old history, remote quiescence, additional version pairs and the final candidate retain separate gates. |
+| C04 Membership/gossip/cross-record constraints | No offered dynamic membership/discovery/atomic distributed constraints | Outside profile. Do not introduce coordinator/CRDT abstractions solely to tick a roadmap row. |
+| W01 Coordinator auth, authorization, admission/backpressure | Loopback and optional shared secret, bounded line/frame, [bounded admission and dispatch](coordinator-admission.md), one native database lease | Eight admitted connections and eight queued commands have explicit Busy and timeout outcomes. Native regression covers a slow connection alongside a durable write. Remote TLS and per-principal authorization remain separate gates if the owner promotes a remote coordinator. |
+| W02 Preconditions, durable receipts, restart/lost reply | Atomic record+receipt. The legacy [capacity case](../apps/write-coordinator/README.md#finite-native-receipt-capacity-qualification) passed both profiles on macOS, Linux and Windows. Sequenced requests retire predecessors atomically and reject stale sequences. The journal recovers lost replies and guards fresh writes by lineage and prior receipt. | The [operator-stop qualification](coordinator-shutdown.md) verifies macOS/Linux graceful restart, native Windows Ctrl+Break, and ext4 shutdown during the real append sync boundary. The dispatched command commits once, and the queued write is absent after reopen. Final candidate journal qualification, service budgets and owner acceptance of slot assignment and stale-restore policy remain. |
+| W03 HA leadership/fencing | Not implemented or promised | Outside selected single-owner profile. Do not infer safe failover from snapshot durability or the file lease on another host. |
+
+## Decision inventory acceptance
+
+The historical inventory classifies 2,561 explicit source records in 51 files,
+with 316 macro blind spots. The index follow-up regenerates 2,571 records with
+317 blind spots; the DATA follow-up now has 2,577 records with 318 blind spots
+and no parse failures. Changed lookup controls are recorded in the
+[codec follow-ups](decisions/codec.md#data-revision-index-follow-up). These
+are source-record counts, not numbers of proved MC/DC decisions. See [inventory](decision-inventory.md),
+[ledger index](decisions/README.md), [coverage correction](historical-coverage-audit.md)
+and [per-executable coverage](coverage-executables.md). The compiler configurations
+actually probed, including [dated 2026-11-12](local-toolchains-a56083c.md), reject
+MC/DC instrumentation. Condition outcomes, manual pairs,
+mutations and compiler line/branch data remain distinct evidence.
+
+| Roadmap module requirement | Existing source/test ledger | Acceptance still open |
+|---|---|---|
+| Engine observations, lifecycle, retained bounds, failure atomicity | `engine.rs`, transaction/schedule/concurrency suites, engine ledger | Trace every remaining feasible condition and generic instantiation; current core-library report is not coverage of every API/profile. |
+| Tree/value collisions, shape/size/scan limits and sharing | Tree/value ledgers; independent models and directed collision fixtures | Actual hash collisions are directed controls, not credited to random 64-bit collision fuzzing. Broad adversarial shape combinations remain local work. |
+| Allocator counters, ownership, atomics and abort policy | Memory ledger; allocation sweeps, Miri, bounded Loom and negative controls | Models cover chosen ownership schedules, not every native execution/ABI. Candidate/architecture reruns and remaining dispositions stay visible. |
+| Storage core lease, I/O progress, poison, sync and copy | Storage/publication ledgers and ByteStore fault tests | Custom adapters must meet contract. Native quota/device behavior is not implied by synthetic result mapping. |
+| Codec slots/witness/selected graphs/cache and work bounds | Recovery metadata/graph ledgers, corruption fixtures, structured fuzz | Retain infeasibility proofs tied to order/bounds; no implicit older-root fallback. Compound parser work/caches still need resource experiments. |
+| Native file adapters | Native ledger, Mac/Linux tests and [actual hosted Windows execution](hosted-qualification-cd7cdfe.md) | The scoped native CI Windows profile now passes; remaining condition pairs, other architectures/filesystems and actual device assumptions still require their own evidence. cfg-dispatch classification alone is insufficient. |
+| Replacement/simulator | Replacement/namespace and crash oracles | Modeled flush/reorder/lease model must remain separate from kernel/device failure claims. |
+| FFI/header/public exports | FFI ledger, ABI manifest checks, valid-handle fuzz, native consumers | Caller UB stays outside acceptance; exact packaged differential traces and unsupported-target paths need their own evidence. |
+| Schema/typed runtime | Schema/typed ledgers; six additional public guards and mutations | Same-instantiation poisoned-write pair is qualified; do not generalize its counts to other monomorphizations or schemas. |
+| Derives | Pure expansion seam, negative compilation, renamed consumers, token fuzz; [four direct expansion pairs](macro-expansion-guards-032dadf.md) now have same-process outcomes and mutation sensitivity | Earlier four zero unit-view outcomes already had downstream diagnostic tests. Direct attribution is now qualified; generated code, `?`, compiler-host execution and other explicit blind spots keep their own scope. |
+| Snapshot replication | Wire/follower and CLI ledgers; native TLS and stopped-endpoint cutover cases | Wire checks, local durability barriers and remote acknowledgement are distinct. CLI binary upgrade and deployment admission are not closed by decoder or credential tests. |
+| CRDT core/containers | CRDT ledger and register causality/event oracle | Arbitrary application merge laws and roster changes are not proved by shipped-container convergence. |
+| Apps/examples/tools | Distributed/snapshot ledgers, package consumers, independent tool controls | Tool decisions are not all part of the core source denominator. Parent-only coverage deliberately excludes spawned-app coverage; keep it separate. |
+
+## Fuzz and dynamic-analysis acceptance
+
+Two test-only follow-ups on `1685fea` strengthen specific delegated caller
+boundaries: [K6](decisions/storage-core.md#k6-cold-open-cache-preparation-before-stabilization)
+forces core index/header allocation failures after a complete decode and before
+open stabilization; [C4](decisions/crdt.md#c4-automatic-resolution-failure-publishes-nothing)
+forces a real second-field resolution error after the first field changes its
+private draft. Both preserve their stated state/acknowledgment contracts, and
+isolated ordering/category/propagation mutations fail the intended assertions
+in debug and release. These close those named controls; they do not relabel
+other delegated errors, native faults or compiler MC/DC as qualified.
+
+The subsequent [native identity tranche](native-identity-assurance.md) adds
+private deterministic controls for existing CSPRNG admission and creation-body
+ordering. Mac/Linux controls and thirty isolated debug/release mutation outcomes
+are qualified; the combined core suites pass 330 tests per profile with two
+existing ignores. Final Windows controls compile for their real target, while
+native execution and runtime detection of both Windows guard mutations remain
+separate gates. This does not qualify kernel/CSP fault occurrence, entropy
+quality, unsupported ABIs or every generic instantiation.
+Native Windows subsequently executes the three controls and creation-body test
+at `721cbdb` in both profiles. The [maintained Windows mutation path](windows-identity-mutations.md)
+has passing portable checks and cross-Clippy. The exact-`4dc6fd8` native Windows
+artifact subsequently verifies both mutations in debug/release, eight PE test
+binaries and seventeen clean Job reports. This closes the two named mutation
+gates, without inferring success of other still-running workflow checks.
+
+The sender's [post-upload flush propagation](decisions/replication.md#r4-upload-flush-failure-precedes-receipt-observation)
+also has direct accepted/error controls and debug/release omission sensitivity.
+Failure leaves the terminal receipt unread and prior sender progress intact;
+reconciliation permits an already durable follower. This test-only addition
+does not infer remote nonpublication or close other delegated transport errors.
+
+The [exact-7e0e44f campaign](fuzz-qualification-7e0e44f.md) completed 22 targets
+and 1,442,896 actual runs, with 244 unchanged seeds and separate 29-test replay.
+The earlier [exact-21 campaign](fuzz-qualification-21e5d26.md) retains its own
+source and 25-test replay scope.
+This is finite source-bound evidence, not a declaration that every row below
+has its full requested oracle. The [fuzz inventory](../fuzz/README.md) is the
+harness-level scope reference.
+
+| Roadmap target family | Implemented coverage | Local or external residual |
+|---|---|---|
+| Raw/structured image open | Both targets, repaired checksums, fixture-driven allowed results | Keep parser acceptance/work/allocation separate; arbitrary bytes alone rarely reach deep valid graphs. |
+| Image plus operations | `image_and_ops` with logical state checks | Broaden graph/operation combinations and retain minimized regressions; no native interruption inference. |
+| Values/adversarial trees | Independent BTreeMap/Vec models and long/binary/prefix/list cases | Directed collision and adversarial complexity tests remain necessary in addition to fuzzing. |
+| Transaction programs/schedules | `txn_schedule`; planned `txn_program` is documented overlap, not a missing second executable | Exact compatible-success as well as conflict oracle matters. Additional programs only if they add behavior not already generated. |
+| Commit/history/compact crash | Commit and retention/compaction targets with simulated persistence oracles. [Repeated recovery fuzzing](fuzz-repeated-recovery.md) checks exact metadata and up to three failed opens after a publication fault. | The generated cuts, histories and persistence policies are bounded. Other compound failures and native physical loss remain separate. |
+| Replacement/backup | Namespace model and backup/restore oracles | Real namespaces/devices/ACL behavior require separate native checks. |
+| ByteStore contract | Progress/lease/fault scripts and independent byte model | Custom backend implementations still need their own conformance run. |
+| FFI operations | Valid live handles/buffers/foreign stores through actual exported functions | Rust-linked FFI harness is not a substitute for exact packaged C/Odin consumer execution or caller UB testing. |
+| Schema/index/migration | Primary-derived index oracle, missing/default/unknown and migration cases | Selected schemas do not cover all app conversion functions; retain process/rollback tests. |
+| Derive tokens | Exact expansion functions, compile-fail tests and stable generated examples | Token expansion success is not compilation of every generated output; bounded representative compile oracle remains explicit. |
+| Snapshot frames/install | Structured frames and manifest/image faults | Authentication/TLS/native transfer timing belongs to separate suites. |
+| CRDT frames/schedules/registers | Fixed two-actor model plus independent register dots/events and policy commits | Excluded forged histories/exhaustion shapes require directed tests; larger rosters not offered. |
+| Coordinator/peer transport | Exact production parsers, bounded deterministic transport seams | Not a general TLS/network-fault fuzzer; authenticated native tests and operational credential changes remain separate. |
+| Sanitizer/Miri/Loom/corpus infrastructure | Calibration, saved seeds, deterministic replay, bounded atomic models, native thread tests; [complete POSIX helper runner](helper-controls.md) with frozen and [hosted Mac/Linux controls](hosted-qualification-cd7cdfe.md) | The maintained Rust helper runner audits exact debug/release test IDs, explicit skips and bounded watchdog controls on macOS and Linux. All 179 historical Python controls map to Rust. Hosted Rust ASan/TSan workspace results are distinct from the calibrated Linux C/Rust ASan controls; timeout/capacity cancellation is not passing evidence. Windows helper portability, final candidate/platform runs and lasting retention remain separate. ASan without rebuilt std does not instrument all code; Miri/models do not prove native syscalls. |
+
+## Crash, platform and delivery gates
+
+| Gate from roadmap | Concrete evidence | Acceptance action |
+|---|---|---|
+| Fault-model publication | Storage/simulator contract, selected-root/witness semantics, [operations](operations.md) | Owner/platform: validate actual filesystem/device flush assumptions before power-loss promises. |
+| Allocation and I/O failure matrix | Simulator, corruption/fault sweeps, current/retained state oracles, [native drills](native-fault-drills.md), [actual Linux append EDQUOT](native-quota.md) | The named native quota append/recovery profile passes. Eight [compound-pressure cases](compound-resource-envelope.md) now verify exact old/new roots and a later acknowledged commit with all 64 retained roots; the persistence faults are simulated. The [composed near-cap drill](near-cap-interruption-recovery.md) adds 108 recovery cases per Mac/Linux OS and two failed opens before a healthy handle, full current/retained data and later acknowledged 213/214 reopening. Longer sequences, all-offset/torn-prefix breadth and other failure phases/platforms retain separate obligations. No blanket closure follows from one recovery test. |
+| Native platform/filesystem matrix | Exact-21 Mac/Docker aarch64 Linux ext4 checks plus [cd7cdfe hosted Mac arm64, Linux x86_64 and Windows MSVC x86_64](hosted-qualification-cd7cdfe.md) | Actual Windows and x86 Linux execution now exists for the named profiles. Other advertised ABI/filesystem/feature combinations and final candidate consolidation remain; neither hosted nor container success proves a deployed physical device's flush behavior. |
+| Compatibility manifest and upgrade/rollback | [storage cases](storage-compatibility-21e5d26.md), logical/v2 fixtures, typed retained migration | Local: promised CLI/config directions; owner chooses supported versions. Historical pre-1 reader compatibility is not every future version. |
+| Binary delivery | [Four-platform feature matrix at `7e0e44f`](private-delivery.md#four-platform-checkpoint-at-7e0e44f), relocation, symbols and notices | All 16 packages pass C11/C++17/Odin consumers and relocation at Rust 1.99.0. Combined packages bind fresh Rust source consumers and exact 134-cell traces. Optional benchmark and complete fuzz evidence are bound to that same archived source. Owner: final clean candidate, support matrix, retained evidence bundle and attribution review. |
+| Long-lived soak and reproducibility | Finite soak, accelerated month and cross-OS peer rounds; corrected launcher rejects incomplete round sequences and persists failures | The [Mac/Linux 1,800-second runs](soak.md#extended-macos-and-linux-controls-at-7a9e661) now retain exact-state/resource checks and bounded cleanup; wall-clock longevity cannot be inferred from simulated calendar days. |
+| Performance/scale | [SQLite comparison](sqlite-baseline.md), resource latencies, monthly workload metrics | The [paired sustained workload](compound-resource-envelope.md#sustained-fresh-snapshot-acquisition) reports reader and writer tails, memory and maintenance time. The [fixed-arrival follow-up](compound-resource-envelope.md#fixed-arrival-snapshot-queueing) adds queue and response tails at one rate. The [sampled replica diagnostics](replica-progress.md#sampled-polling) measure revision gap, receipt age and catch-up. [Segmented staging](fresh-image-staging.md) lowers peak macOS sender RSS from about 663 to 106 MiB in the month replay. The [Linux follower profile](follower-installation-profile.md#installation-timing-and-memory) records 68,120 KiB process high-water RSS and measures each installation phase. The [CRC-64 replay](crc64-performance.md) verifies identical bytes, improves fixed-file inspection times on both platforms and measures 31.854 ms graph verification p95 on the Linux follower. Other traffic patterns, platforms and owner service budgets remain open. |
+| Support and release | Security owner/contact, private patch policy, unsafe review, [candidate release notes](release-notes-candidate.md) and [fresh-consumer incident drill](incident-recovery-drill.md) | The macOS and Docker Linux rehearsals preserve originals, restore current/retained data, reject an older coordinated head and check the chosen journal receipt before continuing. Other platforms, uncertain publication, pending requests and operator handoff keep their separate evidence. Owner: supported versions, response goals and exceptions. No production release is currently qualified merely because package tooling says candidate-eligible. |
+
+## Highest-impact remaining local work
+
+1. **Expand compound resource and failure qualification.**
+   Both encoder indexes, [charged growth](serialization-buffer-growth.md) and
+   [immutable cache/index reuse](serialization-cache-sharing.md) have finite
+   Mac/Linux compound evidence with exact bytes and allocation/budget rollback.
+   The named growth equality/Limit manual pair is closed. [Near-cap interruption
+   and repeated recovery](near-cap-interruption-recovery.md) now have 52 native
+   kills plus 108 composed recovery cases per Mac/Linux platform, with full
+   current/all-retained data and successful retry. The [24-cycle native workload](compound-resource-envelope.md#repeated-near-cap-maintenance) adds 768 contended commits and repeated backup/restore/compaction per platform. The in-place lifetime follow-up removes graph overlap. The short-lived maintenance follow-up measures paired process-group RSS on macOS and Docker Linux. The [default-width workload](compound-resource-envelope.md#default-width-depth-and-write-count-near-the-image-cap) combines maximum default width, depth and write count with a shared DAG and distinct retained roots. The [concurrent follow-up](compound-resource-envelope.md#full-width-drafts-during-a-native-commit) adds three simultaneous drafts, full pinned reads during a native commit and simulated tears at the append, slot and witness syncs. Investigate longer schedules, other feasible DAG/payload combinations and broader torn-write sequences. [Maintenance space exhaustion](maintenance-space-exhaustion.md)
+   now verifies actual copy-phase ENOSPC/EDQUOT for backup/restore/compact and
+   successful retry, plus native permission failures at exchange and unlink and kernel `EIO` at the copy's data, slot and witness syncs and the in-place compaction file metadata, both directory syncs, and [both post-exchange file syncs](maintenance-space-exhaustion.md#kernel-eio-at-post-exchange-compaction-file-syncs). Ext4 publication also passes at zero user blocks and free inodes. APFS exchange ENOSPC preserves both exact images and retries after releasing space. APFS cleanup after durable exchange recovers enough space to commit with the ballast still present. Physical device faults and other filesystem profiles retain separate gates.
+   The [segmented append retry drill](compound-resource-envelope.md#retry-after-a-segmented-append-tears-near-the-image-cap)
+   combines an abandoned full-width append with a second publication fault
+   at the image cap. It verifies every retained root, the interrupted retry's
+   witness repair, and compact-copy recovery when one extra byte blocks retry.
+   The [sparse append oracle](near-cap-interruption-recovery.md#sparse-append-recovery)
+   additionally checks all 256 survived-write subsets and five torn prefixes
+   per write. An empty prefix leaves durable EOF unchanged.
+   Affected-cache forks, persistent index memory and cold-open construction remain measured
+   costs; pursue further optimization against owner memory/latency budgets.
+   Final candidate/platform reruns remain separate from historical passes;
+   finite samples do not establish service limits.
+2. **Keep delivered failure and transition evidence scoped.** Named
+   binary/credential upgrades and both transaction validation modes now have
+   native evidence. Exact-package C and Odin on [macOS](delivered-c-faults.md#optimized-odin-consumer-on-apfs)
+   and [Linux arm64](delivered-c-faults.md#optimized-odin-consumer-on-linux-arm64)
+   exercise uncertain-I/O reconciliation in a fresh process. The
+   [Linux x86_64 Odin profile](delivered-c-faults.md#optimized-odin-consumer-on-linux-x86_64)
+   passed under emulation and on native Linux with their exact packages.
+   The [three-process Linux check](delivered-c-faults.md#reopen-while-linux-tmpfs-is-still-full)
+   also reopens the exact state with zero space before freeing ballast and
+   retrying. It passed with C and Odin on arm64 and Odin on native x86_64.
+   The hosted [Windows Odin profile](delivered-c-faults.md#optimized-odin-consumer-on-windows)
+   passed six exact-DLL outcomes, plus a native NTFS exhaustion, full-volume
+   reopen and retry with retained revision 2 intact.
+   The [authenticated Linux follower full-space drill](follower-installation-profile.md#authenticated-follower-recovery-on-a-full-linux-tmpfs)
+   verifies the exact previous durable receipt while tmpfs is full at both
+   staged image writing and manifest selection, then checks exact retry and replay.
+   The [follower prefix-tear sweep](follower-installation-profile.md#torn-staging-and-manifest-prefixes)
+   verifies 335 simulated cases, including both manifest root and witness
+   parities, and an additional crash after successful receipt recovery.
+   The named C/Odin and follower profiles already have scoped qualification.
+   Each further promised API/platform failure profile,
+   compound failures, deployment of the guarded actor-generation workflow and
+   each further promised version retain separate obligations. Do not credit
+   one profile to all surfaces.
+3. **Consolidate one final candidate bundle.** Existing results retain their
+   source, feature, compiler, artifact and filesystem scope. Final package,
+   source-consumer, sanitizer, mutation/corpus and workload evidence must be
+   reconciled against the chosen immutable candidate. The
+   [optional benchmark binding](private-delivery.md#retained-benchmark-evidence)
+   verifies retained release microbenchmark measurements against that
+   same source revision and recomputes the summary from raw samples. The
+   [optional fuzz binding](private-delivery.md#retained-fuzz-evidence) requires
+   every archived target once, matching source/lock/seed inventories, successful
+   ASan commands and cleanup, empty artifact directories and completed counts
+   recomputed from matching retained logs. Omitting the options preserves the
+   existing report structure. Neither optional binding sets deployment performance
+   budgets or a minimum fuzz duration.
+   The
+   [private `f70e405` checkpoint](roadmap-status.md#private-artifact-checkpoint-f70e405)
+   binds same-source native packages, a relocatable Rust source package, five
+   exact consumer transcripts and eleven delivered C publication and recovery
+   cases. At [`384ca0a`](private-delivery.md), the shared minimum-Rust runner
+   binds macOS and Linux arm64 workspace tests, private packages and exact
+   Rust/C/Odin traces. macOS also verifies the three isolated feature masks
+   and fault recovery against the combined dylib. At
+   [`c5970bd`](private-delivery.md#four-platform-result-at-c5970bd), the
+   verifier binds the combined macOS arm64, Linux arm64, Linux x64 and
+   Windows x64 suites, packages and consumer traces to one tested merge.
+   At [`651654c`](private-delivery.md#combined-and-isolated-matrix-at-651654c)
+   it also requires all three isolated profiles on every platform.
+   The same source has exact combined-artifact failure runs, native
+   macOS workspace ASan, hosted Linux x64 C/Rust ASan and bounded
+   fuzz/replay evidence. The [local macOS TSan run](private-delivery.md#macos-threadsanitizer-runtime)
+   also passed the full pinned workspace with rebuilt std and a
+   calibrated runtime that resets reused pthread `errno` shadow memory.
+   The maintained workflow passed the same 692 tests on a hosted
+   macOS arm64 runner at the later tested merge `2ee9552`.
+   The later [`7e0e44f` checkpoint](private-delivery.md#four-platform-checkpoint-at-7e0e44f)
+   repeats all four feature masks on macOS arm64/APFS, Docker Linux arm64/ext4,
+   hosted Linux x64/ext4 and hosted Windows x64/NTFS with Rust 1.99.0.
+   Each lane passes debug/release workspace tests, all package consumers and
+   relocation; combined packages pass the fresh Rust source consumer and
+   exact 134-cell trace. Three macOS compaction microbenchmark samples and
+   the all-22-target, 1,442,896-execution ASan campaign also bind to this exact
+   source. All 13 Engine jobs pass, including rebuilt-std workspace ASan/TSan,
+   calibrated Linux x64 C/Rust ASan and the scoped library coverage job.
+   Longer fuzz campaigns, workload limits, device assumptions, support
+   decisions and final-candidate reconciliation retain separate acceptance actions.
+4. **Apply coordinator lifecycle evidence to deployment budgets.** The sequenced profile gives
+   each writer one retryable receipt and an explicit way to retire it when the
+   next write commits. A native process test interrupts a journal client after
+   the server commit and resumes it across a server restart. The
+   [journal lifecycle workload](roadmap-status.md#coordinator-and-journal-lifecycle)
+   drives 1,152 writes with real local client journals and verifies each
+   restored coordinator and journal pair at nine cutovers on macOS and Linux.
+   The [bounded admission replay](coordinator-admission.md) verifies both
+   lifecycle profiles with the connection and command limits, including
+   overload rejection and exact recovery of a staged journal intent.
+   The [journal check drill](coordinator-journal-check.md) compares the
+   head and exact assigned-slot receipt from one snapshot. Its restore cases
+   cover a lost reply, an older head and a different receipt at the same
+   revision on macOS, Linux and native Windows. It also checks both journals
+   after each of nine cutovers on macOS and Docker Linux.
+   The [client journal exhaustion drill](coordinator-journal-check.md#client-journal-exhaustion-on-linux)
+   verifies both local failure boundaries at zero space on Linux tmpfs.
+   A staging failure leaves the server untouched. After the server
+   commits, the journal can reopen and resume the exact receipt without
+   a second coordinator commit.
+   Compare measured write, space and cutover costs with the deployment's
+   budgets. The owner accepts the slot and history policy before promoting
+   this profile.
+
+The named hosted [Windows](native-quota.md#native-windows-ntfs-owner-quota)
+and [Linux](native-quota.md) append-quota profiles now have actual execution
+evidence. Additional native profiles, actual device power interruption,
+production workload budgets, support promises and distribution approval remain
+distinct platform/owner gates. They cannot be replaced by local models or more
+simulated calendar days. Remaining feasible decision pairs and broader
+workload/error traces stay visible in the module and fuzz rows above.
+
+## Subsequent local evidence
+
+The shared optimized artifact trace and versioned progress helper now add
+cross-language state verification and separate capture/receipt observations
+in their documented finite scopes. The progress helper reports
+observation timestamps rather than inventing commit-time lag. The Mac/Linux
+1,800-second lifecycle runs extend wall-clock evidence for the four-record
+workload; they do not establish larger-cardinality or month-long uptime.
+Minimum-compiler and dependency snapshots are qualified separately. Stopped
+credential cutovers and named binary upgrades now pass their Mac/Linux and
+Windows profiles. The pinned snapshot pair also passes native macOS clients
+against Linux ext4 followers. The `7e0e44f` delivery checkpoint and its bound
+benchmark/extended fuzz campaign retain their exact source and finite scope;
+further promised transitions, candidate/platform/device qualification, feasible decision
+pairs and declared service/support budgets remain open. This audit is updated
+with evidence; it is not a replacement for those acceptance gates.

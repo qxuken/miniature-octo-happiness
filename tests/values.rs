@@ -249,3 +249,79 @@ fn oversized_nested_map_scan_is_rejected_before_allocating_output() {
         weekend_db::Kind::None
     );
 }
+
+#[test]
+fn value_edit_weight_and_child_depth_have_independent_boundaries() {
+    for operation in ["map-set", "list-set", "list-push", "list-insert"] {
+        // Scalar/bytes overhead is 16, each list adds 16, and the map key
+        // adds one. Every accepted result below weighs exactly 80 bytes.
+        let overhead = match operation {
+            "map-set" => 17,
+            "list-set" => 16,
+            _ => 32,
+        };
+        for (extra_weight, child_depth, succeeds) in [(0, 2, true), (1, 2, false), (0, 3, false)] {
+            let db = Database::with_limits(Limits {
+                max_value_bytes: 80,
+                max_depth: 3,
+                ..Limits::default()
+            })
+            .unwrap();
+            let scalar = db.integer(7).unwrap();
+            let base = if operation == "map-set" {
+                db.map().unwrap().map_set(b"k", &scalar).unwrap()
+            } else {
+                db.list().unwrap().list_push(&scalar).unwrap()
+            };
+            let old = base.clone();
+            let payload = 80 - overhead + extra_weight - 16 * child_depth;
+            let mut child = db.bytes(&vec![0; payload]).unwrap();
+            for _ in 1..child_depth {
+                child = db.list().unwrap().list_push(&child).unwrap();
+            }
+            // Zero budget distinguishes these early guards from the later
+            // constructor check that would reject after path allocation.
+            #[cfg(feature = "fault-injection")]
+            if !succeeds {
+                db.fail_allocations_after(Some(0));
+            }
+            let result = match operation {
+                "map-set" => base.map_set(b"k", &child),
+                "list-set" => base.list_set(0, &child),
+                "list-push" => base.list_push(&child),
+                _ => base.list_insert(0, &child),
+            };
+            #[cfg(feature = "fault-injection")]
+            db.fail_allocations_after(None);
+            if succeeds {
+                let edited = result.unwrap();
+                let selected = match operation {
+                    "map-set" => edited.map_get(b"k").unwrap().unwrap(),
+                    "list-push" => edited.list_get(1).unwrap(),
+                    _ => edited.list_get(0).unwrap(),
+                };
+                assert_eq!(selected, child);
+                assert_eq!(
+                    edited.len().unwrap(),
+                    if operation == "list-push" || operation == "list-insert" {
+                        2
+                    } else {
+                        1
+                    }
+                );
+            } else {
+                assert_eq!(
+                    result,
+                    Err(Error::Limit),
+                    "{operation}, weight {extra_weight}, child depth {child_depth}"
+                );
+            }
+            assert_eq!(base, old);
+            if operation == "map-set" {
+                assert_eq!(base.map_get(b"k").unwrap(), Some(scalar));
+            } else {
+                assert_eq!(base.list_get(0).unwrap(), scalar);
+            }
+        }
+    }
+}

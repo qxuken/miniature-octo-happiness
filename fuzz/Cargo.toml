@@ -1,0 +1,175 @@
+[package]
+name = "weekend-db-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+weekend-db = { path = "..", features = ["crdt", "replication"] }
+
+weekend-db-typed = { path = "../crates/weekend-db-typed" }
+proc-macro2 = "=1.0.107"
+quote = "=1.0.47"
+syn = { version = "=2.0.119", features = ["full"] }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "open_image_bytes"
+path = "fuzz_targets/open_image_bytes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "open_structured_image"
+path = "fuzz_targets/open_structured_image.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "commit_crash"
+path = "fuzz_targets/commit_crash.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "txn_schedule"
+path = "fuzz_targets/txn_schedule.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "value_ops"
+path = "fuzz_targets/value_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "image_and_ops"
+path = "fuzz_targets/image_and_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "retention_compact_crash"
+path = "fuzz_targets/retention_compact_crash.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ffi_ops"
+path = "fuzz_targets/ffi_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "crdt_frames"
+path = "fuzz_targets/crdt_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "crdt_schedule"
+path = "fuzz_targets/crdt_schedule.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "snapshot_frames"
+path = "fuzz_targets/snapshot_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "snapshot_install_schedule"
+path = "fuzz_targets/snapshot_install_schedule.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "schema_index_migration"
+path = "fuzz_targets/schema_index_migration.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "derive_tokens"
+path = "fuzz_targets/derive_tokens.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "logical_import_export"
+path = "fuzz_targets/logical_import_export.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "backup_restore"
+path = "fuzz_targets/backup_restore.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bytestore_contract"
+path = "fuzz_targets/bytestore_contract.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "coordinator_protocol"
+path = "fuzz_targets/coordinator_protocol.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "peer_transport"
+path = "fuzz_targets/peer_transport.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "replacement_namespace"
+path = "fuzz_targets/replacement_namespace.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tree_adversarial_keys"
+path = "fuzz_targets/tree_adversarial_keys.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "register_causality"
+path = "fuzz_targets/register_causality.rs"
+test = false
+doc = false
+bench = false

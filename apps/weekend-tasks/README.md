@@ -18,9 +18,10 @@ cargo run -p weekend-tasks -- --db /tmp/my-tasks.wdb compact
 ```
 
 Choose a new path for `init`; creation never overwrites. The default path is
-`tasks.wdb` in the working directory. `help` lists all commands. Persistence and
-compaction use the macOS or Linux (x86_64/aarch64) file adapter; the in-memory
-demo runs on other platforms too. Build once with `cargo build --release -p weekend-tasks` and use
+`tasks.wdb` in the working directory. `help` lists all commands. Persistence
+uses the macOS, Linux (x86_64/aarch64), or Windows NTFS adapter. The `compact`
+command supports macOS and Linux. The in-memory demo runs on other platforms
+too. Build once with `cargo build --release -p weekend-tasks` and use
 `target/release/weekend-tasks` directly for everyday commands.
 
 Checkpoints retain all database roots. `undo` restores task rows and their

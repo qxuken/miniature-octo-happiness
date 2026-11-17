@@ -1,5 +1,6 @@
 #![cfg(any(
     target_os = "macos",
+    windows,
     all(
         target_os = "linux",
         any(target_arch = "x86_64", target_arch = "aarch64")
@@ -88,6 +89,7 @@ fn file_reopen_retention_abort_and_live_reader_lifetimes() {
 }
 #[test]
 fn creation_is_exclusive_and_aliases_cannot_bypass_locking() {
+    #[cfg(unix)]
     use std::os::unix::fs::{PermissionsExt, symlink};
     let dir = Directory::new();
     let path = dir.file("store.db");
@@ -105,28 +107,32 @@ fn creation_is_exclusive_and_aliases_cannot_bypass_locking() {
             Err(Error::Invalid)
         ));
     }
+    #[cfg(unix)]
     assert_eq!(
         fs::metadata(&path).unwrap().permissions().mode() & 0o777,
         0o600
     );
+    let hard = dir.file("hard.db");
+    fs::hard_link(&path, &hard).unwrap();
     let db = Database::open_file(&path, Limits::default()).unwrap();
     assert!(matches!(
         Database::open_file(&path, Limits::default()),
         Err(Error::Busy)
     ));
-    let hard = dir.file("hard.db");
-    fs::hard_link(&path, &hard).unwrap();
     assert!(matches!(
         Database::open_file(&hard, Limits::default()),
         Err(Error::Busy)
     ));
-    let link = dir.file("symbolic.db");
-    symlink(&path, &link).unwrap();
-    assert!(matches!(
-        Database::open_file(&link, Limits::default()),
-        Err(Error::Invalid)
-    ));
     drop(db);
+    #[cfg(unix)]
+    {
+        let link = dir.file("symbolic.db");
+        symlink(&path, &link).unwrap();
+        assert!(matches!(
+            Database::open_file(&link, Limits::default()),
+            Err(Error::Invalid)
+        ));
+    }
     drop(Database::open_file(&hard, Limits::default()).unwrap());
     assert!(matches!(
         Database::open_file(dir.file("missing"), Limits::default()),
@@ -256,7 +262,7 @@ mod interruption {
         }
     }
     #[test]
-    fn operating_system_locks_exclude_another_process_and_release_on_sigkill() {
+    fn operating_system_locks_exclude_another_process_and_release_on_kill() {
         let dir = Directory::new();
         let path = dir.file("store.db");
         seed(&path);
@@ -273,12 +279,20 @@ mod interruption {
         check(&path, "recover", true);
     }
     #[test]
-    fn sigkill_at_file_io_boundaries_preserves_acknowledged_data_and_catalogs() {
+    fn process_kill_at_file_io_boundaries_preserves_acknowledged_data_and_catalogs() {
         let dir = Directory::new();
         let base = dir.file("base.db");
         seed(&base);
         let mut cases = 0;
-        for op in ["data", "retain", "release", "recover", "create", "compact"] {
+        for op in [
+            "data",
+            "retain",
+            "release",
+            "recover",
+            "create",
+            #[cfg(unix)]
+            "compact",
+        ] {
             let trace_path = dir.file(&format!("trace-{op}.db"));
             if op != "create" {
                 fs::copy(&base, &trace_path).unwrap();
@@ -319,11 +333,12 @@ mod interruption {
             check(&path, op, true);
             cases += 1;
         }
-        eprintln!("real-file SIGKILL boundary/acknowledgment cases: {cases}");
+        eprintln!("real-file process-kill boundary/acknowledgment cases: {cases}");
     }
 }
 
 #[test]
+#[cfg(unix)]
 fn unlocked_adapter_cannot_reacquire_a_replaced_inode() {
     use weekend_db::storage::{ByteStore, FileStore};
     let dir = Directory::new();
@@ -339,6 +354,7 @@ fn unlocked_adapter_cannot_reacquire_a_replaced_inode() {
     assert_eq!(number(&db.snapshot(), &db, b"a"), 2);
 }
 #[test]
+#[cfg(unix)]
 fn native_byte_names_and_a_renamed_parent_preserve_the_held_file() {
     #[cfg(target_os = "linux")]
     use std::os::unix::ffi::OsStringExt;
@@ -364,6 +380,7 @@ fn native_byte_names_and_a_renamed_parent_preserve_the_held_file() {
 }
 
 #[test]
+#[cfg(unix)]
 fn nonregular_leaves_and_parents_are_rejected_without_blocking() {
     use std::{
         ffi::{CString, c_char, c_int},
@@ -397,4 +414,51 @@ fn nonregular_leaves_and_parents_are_rejected_without_blocking() {
             "{path:?}"
         );
     }
+}
+
+#[cfg(windows)]
+#[test]
+fn ntfs_compact_copy_retains_roots_and_source_remains_open() {
+    use weekend_db::storage::FileStore;
+    let dir = Directory::new();
+    let source = dir.file("source.db");
+    let target = dir.file("copy λ.db");
+    seed(&source);
+    let mut db = Database::open_file(&source, Limits::default()).unwrap();
+    let revision = db.snapshot().revision();
+    let stats = db.compact_to(FileStore::create(&target).unwrap()).unwrap();
+    assert!(stats.after_bytes <= stats.before_bytes);
+    assert_eq!(number(&db.snapshot(), &db, b"a"), 2);
+    assert!(matches!(
+        Database::open_file(&source, Limits::default()),
+        Err(Error::Busy)
+    ));
+    let copy = Database::open_file(&target, Limits::default()).unwrap();
+    assert_eq!(copy.snapshot().revision(), revision);
+    assert_eq!(number(&copy.snapshot(), &copy, b"a"), 2);
+    assert_eq!(number(&copy.retained_snapshot(1).unwrap(), &copy, b"a"), 1);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_rejects_streams_and_devices_and_unlock_closes_handle() {
+    use weekend_db::storage::{ByteStore, FileStore};
+    let dir = Directory::new();
+    let path = dir.file("store.db");
+    seed(&path);
+    assert!(matches!(
+        Database::create_file(dir.file("store.db:stream"), Limits::default()),
+        Err(Error::Invalid)
+    ));
+    assert!(matches!(
+        Database::open_file(r"\\.\NUL", Limits::default()),
+        Err(Error::UnsupportedPlatform)
+    ));
+    let mut file = FileStore::open(&path).unwrap();
+    file.lock().unwrap();
+    assert_eq!(file.lock(), Err(Error::Busy));
+    file.unlock();
+    assert_eq!(file.lock(), Err(Error::Closed));
+    assert_eq!(file.length(), Err(Error::Io));
+    drop(Database::open_file(&path, Limits::default()).unwrap());
 }

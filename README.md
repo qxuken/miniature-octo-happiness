@@ -1,5 +1,8 @@
 # weekend-db
 
+Licensed under MIT OR Apache-2.0. Cargo packages remain private.
+[Operations guide](docs/operations.md) · [Private release contract](docs/release-contract.md) · [Roadmap status](docs/roadmap-status.md) · [Authenticated snapshot CLI](docs/replication-operations.md#authenticated-native-cli)
+
 A weekend learning project: an embedded store for persistent nested values,
 explicitly retained snapshots, and conservative record-scoped transactions.
 Implemented in Rust, with a native Rust API and a C shared library for Odin.
@@ -15,22 +18,42 @@ in [Raw and typed Rust](#raw-and-typed-rust).
 
 ```sh
 cargo run -p weekend-tasks -- demo
-# macOS/Linux: choose a new database path
+# Choose a new path. On Windows, use a path on local fixed NTFS.
 cargo run -p weekend-tasks -- --db /tmp/my-tasks.wdb init
 cargo run -p weekend-tasks -- --db /tmp/my-tasks.wdb add learn "Build a Rust app"
 cargo run -p weekend-tasks -- --db /tmp/my-tasks.wdb list
 ```
 
 The core, convenience runtime, derive implementation, and application are separate
-Cargo workspace packages. The engine still has no external crate dependencies;
-the derive builds with `syn`, `quote`, `proc-macro2`, and `unicode-ident`.
-Run `cargo fetch --locked` once before the offline check scripts on a fresh
-checkout. `python3 tools/check.py` checks the whole workspace in debug/release,
+Cargo workspace packages. The default engine build has no external crate
+dependencies. The derive builds with `syn`, `quote`, `proc-macro2`, and
+`unicode-ident`.
+Run `cargo fetch --locked` once before the offline checks on a fresh
+checkout. `cargo xtask check` checks the whole workspace in debug/release,
 including the CLI lifecycle and a renamed-dependency consumer.
+The private [Rust xtask](docs/xtask.md) provides check, build, package, cleanup
+and [bounded POSIX fault runners](docs/xtask-supervision.md), with clap-generated
+help. The maintained qualification controllers, independent oracles and their
+tests run through Rust. On macOS and Linux, `cargo xtask helper-controls` audits
+the debug and release helper suites.
 
 [DESIGN.md](DESIGN.md) contains the complete target design, implementation
 sketches, decisions, competitor comparison, reading references, milestones,
-and definitions of done. It is the single planning document.
+and definitions of done. The [production readiness roadmap](docs/production-readiness.md)
+tracks release requirements, coverage, fuzzing, and operational gaps.
+Recent finite [resource qualification](docs/resource-envelope.md) exercises the
+existing depth/history/heap/image caps on macOS and Linux; its measured scope and
+remaining platform/device gates are explicit.
+The latest [local qualification](docs/local-qualification-21e5d26.md) records
+private macOS/Linux package checks; [extended ASan fuzzing](docs/fuzz-qualification-21e5d26.md)
+completed 1,431,321 runs across 22 targets. [Sanitizer checks](docs/sanitizer-qualification-21e5d26.md)
+cover Mac Rust ASan/TSan and calibrated C/Rust ASan on Mac/Linux. A [coverage audit](docs/historical-coverage-audit.md)
+withdraws incompatible historical workspace aggregates. Coverage now has explicit
+library and independent executable scopes; native Windows qualification remains open.
+The [acceptance audit](docs/production-acceptance-audit.md) maps remaining gates.
+New [optimized artifact traces](docs/artifact-trace.md) compare Rust/C/Odin to an
+independent model, and the [replica progress helper](docs/replica-progress.md)
+keeps inspected exports and follower durable receipts separate.
 
 The in-memory engine through milestone 5 implements immutable nested maps/lists,
 scalars/bytes, historical live snapshots, final put/delete overlays, and
@@ -40,9 +63,10 @@ observe the collection, so unrelated new inserts can conflict. Databases and
 immutable handles can be shared across threads; transaction drafts have one
 owner and can transfer between threads. Publication is serialized by a mutex. The byte codec/durability simulator (milestone 6) and macOS
 file storage with durable snapshot retain/release (milestone 7) are implemented.
-Linux file persistence is also implemented. Both adapters use exclusive inode
-locking; macOS uses `F_FULLFSYNC` and Linux uses `fsync`. Their hardware
-assumptions and tested scope are documented in DESIGN.md.
+Linux and Windows file persistence use the same v2 format. macOS uses
+`F_FULLFSYNC`, Linux uses `fsync`, and Windows uses exclusive handles,
+write-through I/O, and `FlushFileBuffers` on local fixed NTFS. See the
+[file adapter contracts](DESIGN.md#windows-file-storage).
 Milestone 8 adds optional schema descriptors and a typed Rust example with stable
 field IDs, unknown-field preservation, explicit migrations, and an email lookup.
 
@@ -51,25 +75,48 @@ cargo run --example memory
 cargo run --example simulated
 cargo run --example typed
 cargo run --example file -- /tmp/weekend-demo.db
-python3 tools/check.py
+cargo xtask check
 ```
 
-Rust/Cargo 1.99+ is required; the engine has no external crate dependencies.
+Rust/Cargo 1.99+ is required.
 The file example creates a new path, retains an old snapshot, reopens both
 versions, releases retention, and leaves the database in place. Creation never
-overwrites an existing file. The check script uses temporary paths and runs
-debug/release tests plus memory/file Rust/C/Odin examples on macOS and Linux;
-Odin uses its installed `vendor:wgpu` prebuilt static archive. `--skip-odin`
-explicitly omits that integration. See [DESIGN.md](DESIGN.md#implemented-in-memory-contract)
-for the API, resource limits, allocation behavior, and tested scope.
+overwrites an existing file. `cargo xtask check` uses temporary paths and runs
+debug and release tests plus Rust and C memory/file examples on macOS and Linux.
+On macOS it also runs the Odin examples with the installed `vendor:wgpu` archive.
+Use `--skip-odin` to omit those examples. Linux arm64 has a separate
+[Odin package and exact-library check](docs/linux-minimum-package.md).
+See [DESIGN.md](DESIGN.md#implemented-in-memory-contract) for the API,
+resource limits, allocation behavior, and tested scope.
 
 Rust callers can use `Database::create_on` / `open_on` with `MemoryStore` or
 `SimulatedDisk` to exercise the real codec and recovery protocol. The simulator
 models separate volatile/durable bytes, torn and short writes, failed syncs,
 and reordered/dropped unsynced writes. Native `create_file` / `open_file` and C
-`wdb_file_create` / `wdb_file_open` use the macOS or Linux adapter. See the
+`wdb_file_create` / `wdb_file_open` use the native adapter. See the
 [v2 format and file contract](DESIGN.md#milestone-7-files-and-byte-format-v2).
 The experimental v2 reader rejects v1 images; there is no automatic conversion.
+
+The opt-in Rust `replication` feature ships verified snapshots to one passive
+follower over an application-authenticated connection. It uses `sha2` to
+verify transferred images and reports follower durability separately from
+local commits. See [the replication API and failure cases](DESIGN.md#snapshot-replication).
+
+The [StudyProgress peer demo](apps/study-peer/README.md) runs two writable
+files in separate processes. Each accepts local edits while disconnected
+and exchanges mergeable state in the background with one configured peer.
+The demo reports local commit revisions separately from peer acknowledgments.
+The [explicit policy/schema migration example](docs/crdt-policy-migration.md)
+reconciles and retires an old pair, converts reviewed values, and enrolls fresh
+identities. It also demonstrates recovery from a stale backup without resuming
+the retired actor's history.
+An [authenticated macOS/Linux qualification](docs/study-peer-soak.md) exercises
+offline edits, automatic resolution, repeat sync and post-acknowledgment restarts
+through the actual CLI binaries.
+
+The [write coordinator demo](apps/write-coordinator/README.md) lets two
+client processes edit one record in a single file. It uses ordinary
+transactions and returns a conflict when a client submits a stale revision.
 
 `retain_snapshot`, `retained_snapshot`, `retained_ids`, and `release_retained`
 manage up to 64 persisted snapshot IDs per store. Releasing retention preserves
@@ -93,18 +140,22 @@ This creates a new file and leaves it in place. Schema/index guarantees belong
 to validated access: raw core writes can bypass them. Example write methods
 abort the entire draft on error so partial primary/index changes cannot commit.
 
-`cargo build --release` produces `target/release/libweekend_db.dylib` on macOS.
+`cargo xtask build --release` produces `target/release/libweekend_db.dylib` on macOS.
 Foreign consumers use [include/weekend_db.h](include/weekend_db.h); the examples
-arrange the loader search path with rpath. Shipping a relocatable bundle remains
-future work. Linux runtime checks also run in a local Linux container; Windows
-runtime results remain pending CI, with local cross-compilation checks.
-`tools/check.py` also loads each shared library through its C ABI. File factories
-support macOS and Linux (x86_64/aarch64). Native Rust consumers use this crate
-directly. Run `cargo clean` to remove engine artifacts.
+arrange the loader search path with rpath. Private relocation-tested bundles are
+described in the [release contract](docs/release-contract.md); nothing is published
+to Cargo. The CI matrix defines native checks on macOS, Linux, and Windows;
+executed results and current local-only checks are in the roadmap status.
+`cargo xtask check` loads each shared library through its C ABI. File factories
+support macOS, Linux (x86_64/aarch64), and Windows on local fixed NTFS.
+Native Rust consumers use this crate directly. `cargo xtask clean --dry-run`
+lists normal and nested build caches; `cargo xtask clean` removes them while
+keeping the running tool and saved root-target qualification outputs. Add
+`--proofs` to remove those saved outputs as well. Other workspaces are untouched.
 
 The [milestone-1 C-versus-Rust experiment](probe/README.md) now exercises a shared
 C ABI, immutable nested values, and C/Rust/Odin consumers, including the local
-prebuilt wgpu-native integration. Run `python3 probe/run.py` on macOS. Its
+prebuilt wgpu-native integration. Run `cargo xtask probe` on macOS. Its
 results led to the accepted Rust/shared-library distribution. The probe remains
 separate experiment evidence; its ABI is not the engine ABI.
 
@@ -116,14 +167,16 @@ first, then use `Database::compact_file(path, limits)` or C/Odin
 exchange. Hard-link sources are rejected. Interrupted operations may leave
 `.wdb-compact-*.tmp` recovery copies; reopen the canonical path before removing
 any leftovers. See the [compaction contract](DESIGN.md#milestone-10-compaction-and-measurements).
+On Windows, use `compact_to` with `storage::FileStore::create(new_path)` to
+write a verified compact copy to a new NTFS file.
 
 To record release microbenchmarks and before/after compaction results:
 
 ```sh
-python3 tools/benchmark.py --output target/my-benchmark-run --compact
+cargo xtask benchmark --output target/my-benchmark-run --compact
 ```
 
-The output directory must be new. The script records raw CSV and median/range
+The output directory must be new. The runner records raw CSV and median/range
 summaries; keep other test and I/O workloads idle during measurements.
 
 ## Raw and typed Rust

@@ -1,4 +1,4 @@
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
 fn main() -> weekend_db::Result<()> {
     use weekend_db::{Database, Limits};
     let path = std::env::args_os()
@@ -52,7 +52,7 @@ fn main() -> weekend_db::Result<()> {
     println!("Reopened current Alicia and retained Alice; release preserved live reader.");
     Ok(())
 }
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 fn main() {
-    eprintln!("The file adapter currently supports macOS or Linux.");
+    eprintln!("The file adapter currently supports macOS, Linux, or Windows NTFS.");
 }

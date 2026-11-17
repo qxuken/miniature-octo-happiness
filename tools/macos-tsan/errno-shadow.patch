@@ -1,0 +1,15 @@
+--- a/compiler-rt/lib/tsan/rtl/tsan_platform_mac.cpp
++++ b/compiler-rt/lib/tsan/rtl/tsan_platform_mac.cpp
+@@ -297,5 +297,12 @@
+   // Unlike Linux, we only store a pointer to the ThreadState object in TLS;
+   // just mark the entire range as written to.
+   MemoryRangeImitateWrite(thr, pc, tls_addr, tls_size);
++#if SANITIZER_OSX && defined(__aarch64__)
++  // Darwin stores errno in the pthread object outside its TSD array.
++  // A new pthread may reuse the previous thread's errno storage.
++  const uptr errno_addr = reinterpret_cast<uptr>(&errno);
++  if (errno_addr < tls_addr || errno_addr >= tls_addr + tls_size)
++    MemoryResetRange(thr, pc, errno_addr, sizeof(errno));
++#endif
+ }
+ #endif

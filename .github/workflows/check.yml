@@ -1,5 +1,9 @@
 name: Engine checks
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -9,15 +13,327 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust
         run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
+      - name: Detect the two native Windows RNG guard mutants in both profiles
+        if: runner.os == 'Windows'
+        id: windows_rng_mutations
+        continue-on-error: true
+        run: cargo xtask mutations --case windows-rng- --toolchain 1.99.1 --output target/windows-rng-mutations
+      - name: Save native Windows RNG mutation evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-rng-mutations-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-rng-mutations/**
+            !target/windows-rng-mutations/build-*/**
+            !target/windows-rng-mutations/source/**
+      - name: Verify frozen typed schema rollout and rollback on NTFS
+        if: runner.os == 'Windows'
+        id: windows_typed_schema
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $historical = '1ca5e5ab63a2772f679c7186e2d84fba3ac0a534'
+          $current = '6cc8ef3e60dcf406a272e3f176e83d3c5c83190a'
+          git fetch --no-tags --depth=1 origin $historical $current
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask compatibility --profile typed --historical $historical --current $current --output target/windows-typed-schema
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows typed schema rollout evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-typed-schema-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-typed-schema/**
+            !target/windows-typed-schema/source/**
+            !target/windows-typed-schema/build/**
+      - name: Verify frozen bidirectional storage and snapshot compatibility on NTFS
+        if: runner.os == 'Windows'
+        id: windows_storage_wire
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $storageOld = 'a7dc34309a8841ab3ee72fd88b9cae9281507b7c'
+          $storageNew = '21e5d2638c24c6254ced35d0077c55bb30a287b2'
+          $snapshotOld = 'dcd2402adeb034f15a5293c52238524ace9c4070'
+          $snapshotNew = '315068fc38b99d8ec616fdb5a8ee81107b471534'
+          git fetch --no-tags --depth=1 origin $storageOld $storageNew $snapshotOld $snapshotNew
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask compatibility --profile storage --historical $storageOld --current $storageNew --output target/windows-storage-wire/storage
+          $storageExit = $LASTEXITCODE
+          cargo xtask compatibility --profile snapshot --historical $snapshotOld --current $snapshotNew --output target/windows-storage-wire/snapshot
+          if ($storageExit -ne 0 -or $LASTEXITCODE -ne 0) { exit 1 }
+      - name: Save Windows storage and wire compatibility evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-storage-wire-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-storage-wire/**
+            !target/windows-storage-wire/*/source/**
+            !target/windows-storage-wire/*/build/**
+      - name: Verify the frozen authenticated snapshot CLI upgrade on NTFS
+        if: runner.os == 'Windows'
+        id: windows_snapshot_upgrade
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $historical = '315068fc38b99d8ec616fdb5a8ee81107b471534'
+          $current = '365daf6c8a6b7c85fb049fb5a0370b401dde2424'
+          git fetch --no-tags --depth=1 origin $historical $current
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask snapshot-cli-upgrade --historical $historical --current $current --output target/windows-snapshot-upgrade
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows snapshot CLI upgrade evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-snapshot-upgrade-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-snapshot-upgrade/**
+            !target/windows-snapshot-upgrade/source/**
+            !target/windows-snapshot-upgrade/build/**
+            !target/windows-snapshot-upgrade/**/key.der
+      - name: Verify the frozen StudyProgress CLI upgrade on NTFS
+        if: runner.os == 'Windows'
+        id: windows_study_upgrade
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $historical = 'fb80989d98bd977743168ee10418a434a67a0261'
+          $current = '365daf6c8a6b7c85fb049fb5a0370b401dde2424'
+          git fetch --no-tags --depth=1 origin $historical $current
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask study-cli-upgrade --new $current --output target/windows-study-upgrade
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows StudyProgress CLI upgrade evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-study-upgrade-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-study-upgrade/evidence.json
+            target/windows-study-upgrade/*.stdout
+            target/windows-study-upgrade/*.stderr
+            target/windows-study-upgrade/*.tar
+            target/windows-study-upgrade/work/result/**
+            !target/windows-study-upgrade/**/key.der
+      - name: Verify Windows replica progress after a lost TLS response and restart
+        if: runner.os == 'Windows'
+        id: windows_replica_progress
+        continue-on-error: true
+        shell: pwsh
+        env:
+          WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+        run: |
+          cargo build --offline --locked --release -p weekend-replicate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --offline --locked -p xtask
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --offline --locked --release --manifest-path tools/replica-progress-fixture/Cargo.toml --target-dir target/replica-progress-fixture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --offline --locked -p xtask --bin xtask replica_progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:REPLICA_PROGRESS_BIN = (Resolve-Path target/release/weekend-replicate.exe).Path
+          $env:REPLICA_PROGRESS_XTASK = (Resolve-Path target/debug/xtask.exe).Path
+          $env:REPLICA_PROGRESS_FIXTURE = (Resolve-Path target/replica-progress-fixture/release/replica-progress-fixture.exe).Path
+          $env:REPLICA_PROGRESS_EVIDENCE = 'target/windows-replica-progress'
+          cargo test --offline --locked -p xtask --bin xtask authenticated_observations_restarts_dropped_reply_and_stale_capture -- --ignored --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows replica progress evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-replica-progress-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/windows-replica-progress/**
+            !target/windows-replica-progress/**/key.der
+      - name: Verify Windows follower manifest exhaustion, cleanup and reseeding
+        if: runner.os == 'Windows'
+        id: windows_follower_manifest
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $proof = New-Item -ItemType Directory target/windows-follower-manifest
+          git rev-parse HEAD | Set-Content (Join-Path $proof.FullName source.txt)
+          rustc -Vv | Set-Content (Join-Path $proof.FullName rustc.txt)
+          $env:WEEKEND_MANIFEST_ROTATION_EVIDENCE = Join-Path $proof.FullName images
+          cargo test --offline --locked --release -p weekend-db --features replication --test replication native_manifest_growth_and_reseed_preserve_receipts -- --exact --ignored --nocapture 2>&1 | Tee-Object -FilePath (Join-Path $proof.FullName rotation.log)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path (Join-Path $env:WEEKEND_MANIFEST_ROTATION_EVIDENCE 'replacement/replica-manifest.wdb'))) { exit 1 }
+          cargo test --offline --locked --release -p weekend-replicate --test cli native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime -- --exact --nocapture 2>&1 | Tee-Object -FilePath (Join-Path $proof.FullName cli.log)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows follower manifest evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-follower-manifest-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/windows-follower-manifest/
+      - name: Qualify the private Windows package and relocation
+        if: runner.os == 'Windows'
+        run: cargo xtask package --output target/private-package --features crdt,replication
+      - name: Verify Windows exact-DLL publication failures and reopening
+        if: runner.os == 'Windows'
+        id: delivered_windows_faults
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          cargo xtask windows-faults --package target/private-package --manifest-sha256 $pin --output target/private-windows-faults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows exact-DLL fault evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-faults-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-windows-faults/
+      - name: Verify real NTFS disk exhaustion and recovery against the exact DLL
+        if: runner.os == 'Windows'
+        id: delivered_windows_disk_full
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          cargo xtask windows-disk-full --package target/private-package --manifest-sha256 $pin --output target/private-windows-disk-full
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows NTFS exhaustion evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-disk-full-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-windows-disk-full/
+      - name: Verify actual NTFS owner quota, fresh reopen and retry
+        if: runner.os == 'Windows'
+        id: windows_quota
+        continue-on-error: true
+        shell: pwsh
+        env:
+          WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+        run: |
+          cargo build --offline --locked --release -p weekend-db --example native_quota --target-dir target/windows-quota-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask windows-quota --fixture target/windows-quota-build/release/examples/native_quota.exe --source $env:WEEKEND_DB_SOURCE_ID --output target/windows-quota
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save NTFS owner quota evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-quota-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/windows-quota/
+      - name: Verify near-cap Windows backup, restore and compact-copy exhaustion
+        if: runner.os == 'Windows'
+        id: windows_maintenance_space
+        continue-on-error: true
+        shell: pwsh
+        env:
+          WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+        run: |
+          cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-win-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask windows-maintenance-space --fixture target/maintenance-win-build/release/weekend-compound-resource.exe --source $env:WEEKEND_DB_SOURCE_ID --output target/windows-maintenance-space
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows maintenance exhaustion evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-maintenance-space-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/windows-maintenance-space/
+      - name: Verify near-cap macOS copy, exchange and cleanup at exhaustion
+        if: runner.os == 'macOS'
+        id: macos_maintenance_space
+        continue-on-error: true
+        env:
+          WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+        run: |
+          cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-mac-build
+          cargo xtask macos-maintenance-space --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-maintenance-space
+          bash tools/resource-envelope/qualify-macos-exchange.sh target/maintenance-mac-build/release/weekend-compound-resource "$WEEKEND_DB_SOURCE_ID" target/macos-namespace-enospc
+          cargo xtask macos-maintenance-space --cleanup-enospc --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-cleanup-enospc
+      - name: Save macOS maintenance exhaustion evidence
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-macos-maintenance-space-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/macos-maintenance-space/
+      - name: Save macOS compaction exchange exhaustion evidence
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-macos-namespace-enospc-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/macos-namespace-enospc/
+      - name: Save macOS compaction cleanup exhaustion evidence
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-macos-cleanup-enospc-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/macos-cleanup-enospc/
+      - name: Release configuration validation
+        run: |
+          cargo test --offline --locked -p xtask --bin xtask
       - name: Rust debug/release and interruption checks; C consumers on macOS/Linux
-        run: python tools/check.py --skip-odin
+        run: cargo xtask check --skip-odin
+      - name: Compile Windows C and C++ consumers against both DLL builds
+        if: runner.os == 'Windows'
+        run: |
+          cargo xtask windows-consumers --library target/debug/weekend_db.dll
+          cargo xtask windows-consumers --library target/release/weekend_db.dll
+      - name: Qualify private native package and relocation (no publication)
+        if: runner.os != 'Windows'
+        run: cargo xtask package --output target/private-package --features crdt,replication
+      - name: Verify native macOS publication faults and actual APFS exhaustion against the exact dylib
+        if: runner.os == 'macOS'
+        run: cargo xtask faults delivered --macos --apfs-full --package target/private-package --output target/private-macos-faults
+      - name: Save macOS exact-dylib fault evidence
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-macos-faults-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-macos-faults/
+      - name: Verify all 20 Windows C/C++ cases against the exact delivered DLL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pin = (Get-FileHash target/private-package/manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Output "Delivered manifest SHA-256: $pin"
+          cargo xtask windows-trace --package target/private-package --manifest-sha256 $pin --output target/private-windows-trace
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows exact-DLL trace evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-trace-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-windows-trace/
+      - name: Save native private package evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-private-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/private-package/
       - name: Save release shared library and C header
         uses: actions/upload-artifact@v7
         with:
@@ -27,19 +343,415 @@ jobs:
             target/release/*.dylib
             target/release/*.so
             target/release/*.dll
+            target/release/*.dll.lib
             include/weekend_db.h
+      - name: Enforce native Windows RNG mutation results
+        if: always() && runner.os == 'Windows' && steps.windows_rng_mutations.outcome == 'failure'
+        run: exit 1
+      - name: Enforce the Windows fault and compatibility results
+        if: always() && runner.os == 'Windows' && (steps.windows_typed_schema.outcome == 'failure' || steps.windows_storage_wire.outcome == 'failure' || steps.windows_snapshot_upgrade.outcome == 'failure' || steps.windows_study_upgrade.outcome == 'failure' || steps.windows_replica_progress.outcome == 'failure' || steps.windows_follower_manifest.outcome == 'failure' || steps.delivered_windows_faults.outcome == 'failure' || steps.delivered_windows_disk_full.outcome == 'failure' || steps.windows_quota.outcome == 'failure' || steps.windows_maintenance_space.outcome == 'failure')
+        shell: pwsh
+        run: exit 1
+      - name: Enforce the macOS maintenance fault result
+        if: always() && runner.os == 'macOS' && steps.macos_maintenance_space.outcome == 'failure'
+        run: exit 1
+  windows-maintenance-quota:
+    name: Native Windows maintenance owner quota
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+    steps:
+      - name: Preserve committed file bytes
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - uses: actions/checkout@v7
+      - name: Build the private controller and near-cap fixture
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+          cargo fetch --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo fetch --locked --manifest-path tools/resource-envelope/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-win-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify actual owner quota, fresh opens and retry
+        run: cargo xtask windows-maintenance-space --owner-quota --fixture target/maintenance-win-build/release/weekend-compound-resource.exe --source $env:WEEKEND_DB_SOURCE_ID --output target/windows-maintenance-quota
+      - name: Save Windows maintenance owner-quota evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-maintenance-quota-${{ runner.arch }}
+          if-no-files-found: warn
+          path: target/windows-maintenance-quota/
+  windows-msrv:
+    name: Windows MSVC minimum Rust
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Preserve committed file bytes
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - uses: actions/checkout@v7
+      - name: Install Rust 1.99.0 and cache the locked inputs
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.99.0
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
+          cargo fetch --locked --manifest-path examples/rust_package/Cargo.toml
+      - name: Install the pinned Odin compiler
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'odin-windows-amd64-dev-2026-10.zip'
+          $dir = Join-Path $env:RUNNER_TEMP 'odin-dev-2026-10'
+          Invoke-WebRequest -TimeoutSec 180 -Uri 'https://github.com/odin-lang/Odin/releases/download/dev-2026-10/odin-windows-amd64-dev-2026-10.zip' -OutFile $zip
+          $digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+          if ($digest -ne 'b6b2e426a8b6f147b74ec7e18bef8df27cf40fe16193159df7ca09a0cc0c2011') { throw 'Odin archive SHA-256 mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath $dir
+          $compiler = @(Get-ChildItem -LiteralPath $dir -Recurse -File -Filter odin.exe)
+          if ($compiler.Count -ne 1) { throw 'Expected one Odin compiler in the pinned archive' }
+          & $compiler[0].FullName version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $compiler[0].DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Verify minimum Rust with combined and isolated packages
+        run: cargo xtask windows-msrv --odin --isolated --output target/windows-msrv
+      - name: Verify Odin publication faults and real NTFS exhaustion against the exact DLL
+        shell: pwsh
+        run: |
+          $package = 'target/windows-msrv/package'
+          $pin = (Get-FileHash "$package/manifest.json" -Algorithm SHA256).Hash.ToLowerInvariant()
+          cargo xtask windows-faults --odin --package $package --manifest-sha256 $pin --output target/windows-msrv-odin-faults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo xtask windows-disk-full --odin --package $package --manifest-sha256 $pin --output target/windows-msrv-odin-full
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows Odin fault evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-odin-faults-${{ runner.arch }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            target/windows-msrv-odin-faults/
+            target/windows-msrv-odin-full/
+      - name: Save Windows minimum-compiler evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-windows-msrv-${{ runner.arch }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            target/windows-msrv/**
+            !target/windows-msrv/build/**
+            !target/windows-msrv/.weekend-msrv-native-*/**
+  linux-msrv:
+    name: Linux x86_64 minimum Rust
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust 1.99.0 and cache the locked inputs
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.99.0
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
+          cargo fetch --locked --manifest-path examples/rust_package/Cargo.toml
+      - name: Install the pinned Odin compiler
+        run: |
+          archive="$RUNNER_TEMP/odin-linux-amd64-dev-2026-10.tar.gz"
+          compiler="$RUNNER_TEMP/odin-dev-2026-10"
+          curl --fail --location --retry 2 --max-time 180 --output "$archive" https://github.com/odin-lang/Odin/releases/download/dev-2026-10/odin-linux-amd64-dev-2026-10.tar.gz
+          printf '%s  %s\n' c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab "$archive" | sha256sum -c -
+          mkdir "$compiler"
+          tar -xzf "$archive" --strip-components=1 -C "$compiler"
+          ODIN_ROOT="$compiler" "$compiler/odin" version
+          printf '%s\n' "$compiler" >> "$GITHUB_PATH"
+          printf 'ODIN_ROOT=%s\n' "$compiler" >> "$GITHUB_ENV"
+      - name: Verify minimum Rust with combined and isolated packages
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: cargo xtask linux-msrv --odin --isolated --output target/linux-msrv
+      - name: Verify Odin publication faults and tmpfs exhaustion against the exact x86_64 library
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          package=target/linux-msrv/package
+          jq -e --arg source "$GITHUB_SHA" '.source == $source and .odin.verified == true' "$package/manifest.json"
+          printf '%s  %s\n' "$(jq -er '.odin.compiler_sha256' "$package/manifest.json")" "$ODIN_ROOT/odin" | sha256sum -c -
+          docker build --platform linux/amd64 --progress=plain \
+            --file tools/delivered-faults/linux-x64.Dockerfile \
+            --iidfile target/linux-odin-fault-image.txt tools/delivered-faults 2>&1 \
+            | tee target/linux-odin-fault-image.log
+          image=$(cat target/linux-odin-fault-image.txt)
+          test "$(docker image inspect --format '{{.Architecture}}' "$image")" = amd64
+          docker run --rm --pull=never --network=none "$image" rustc -vV
+          cargo xtask faults delivered --image "$image" --odin "$ODIN_ROOT/odin" \
+            --package "$package" --output target/linux-msrv-odin-faults
+      - name: Save Linux x86_64 Odin fault evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-linux-odin-faults-${{ runner.arch }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            target/linux-odin-fault-image.txt
+            target/linux-odin-fault-image.log
+            target/linux-msrv-odin-faults/
+      - name: Save Linux minimum-compiler evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weekend-db-linux-msrv-${{ runner.arch }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            target/linux-msrv/**
+            !target/linux-msrv/build/**
+            !target/linux-msrv/trace/cargo-target/**
+            !target/linux-msrv/.weekend-msrv-*/**
+  helper-controls:
+    name: POSIX qualification helper controls
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust and cache the locked dependencies
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path tools/sqlite-baseline/Cargo.toml
+      - name: Ensure system SQLite is available
+        run: |
+          if [ "$RUNNER_OS" = Linux ] && ! pkg-config --exists sqlite3; then
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends libsqlite3-dev pkg-config
+          fi
+      - name: Run and verify all registered debug and release helper controls
+        run: cargo xtask helper-controls --output target/helper-controls
+      - name: Save private helper-control evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: helper-controls-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/helper-controls/
+            !target/helper-controls/cargo-target/**
+  linux-quota:
+    name: Native Linux quota exhaustion and recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install filesystem quota tools and record their versions
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends quota e2fsprogs util-linux dmsetup
+          mkdir -p target/quota-host
+          uname -a > target/quota-host/kernel.txt
+          dpkg-query -W quota e2fsprogs util-linux dmsetup > target/quota-host/packages.txt
+          cat /etc/os-release > target/quota-host/os-release.txt
+      - name: Build the private Rust quota controller without privileges
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+          cargo fetch --locked
+          cargo build --offline --locked -p xtask --release --target-dir target/xtask
+          sha256sum target/xtask/release/xtask > target/quota-host/xtask.sha256
+      - name: Check controller rejection and cleanup controls without privileges
+        run: |
+          cargo test --offline --locked -p xtask --bin xtask quota
+          cargo test --offline --locked -p xtask --bin xtask resource_oracle
+      - name: Build the native core-only quota fixture
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo +1.99.1 fetch --locked
+          cargo +1.99.1 build --offline --locked --release --example native_quota --target-dir target/quota-build
+          rustc +1.99.1 -Vv > target/quota-host/rustc.txt
+          sha256sum target/quota-build/release/examples/native_quota > target/quota-host/fixture.sha256
+      - name: Calibrate actual EDQUOT and verify commit failure, reopening and retry
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-quota"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, calibrated_errno: .calibration_full.errno, revisions: [.results[] | .current_revision], cleanup: .cleanup.verified}' target/native-quota/evidence.json
+          sudo sha256sum target/native-quota/evidence.json
+      - name: Fail real ext4 commit barriers at writeback and reopen after remount
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --writeback --fixture "$PWD/target/quota-build/release/examples/native_quota" --source "${{ github.sha }}" --output "$PWD/target/native-writeback"
+          sudo jq -ce 'def phases: map({stage, current_revision, retained_revision, commit_error, native_operation, native_raw_code}); select(.verified) | {source: .source_binding.source, append: {fault: .writeback_extent, results: (.results | phases)}, publication: [.publication_writeback[] | {boundary, fault: .extent, media, results: (.results | phases)}], cleanup: .cleanup.verified, mapper_absent}' target/native-writeback/evidence.json
+          sudo sha256sum target/native-writeback/evidence.json
+      - name: Build the near-cap maintenance fixture
+        run: |
+          cargo +1.99.1 build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-quota-build
+          sha256sum target/maintenance-quota-build/release/weekend-compound-resource > target/quota-host/maintenance-fixture.sha256
+      - name: Verify maintenance EDQUOT, full-space reopen and retry
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-quota"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, bytes: .failure.partial_bytes}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified}' target/maintenance-quota/evidence.json
+          sudo sha256sum target/maintenance-quota/evidence.json
+      - name: Verify maintenance creation failures at the inode quota and retry
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --inode-quota --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-inode-quota"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, phase: .failure.native_operation, free_inodes: .full.global_free_inodes}], cleanup: .cleanup.verified}' target/maintenance-inode-quota/evidence.json
+          sudo sha256sum target/maintenance-inode-quota/evidence.json
+      - name: Exhaust all private ext4 inodes and retry after releasing one
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --inode-enospc --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-inode-enospc"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, errno: .failure.raw, phase: .failure.native_operation, free_inodes: .full.global_free_inodes, available_bytes: .full.available_bytes, released_free_inodes: .ballast_removed.global_free_inodes}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified}' target/maintenance-inode-enospc/evidence.json
+          sudo sha256sum target/maintenance-inode-enospc/evidence.json
+      - name: Fail near-cap ext4 maintenance at writeback and verify all roots
+        run: |
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --writeback --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$PWD/target/maintenance-writeback"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, failure, writeback}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified, mapper_absent}' target/maintenance-writeback/evidence.json
+          sudo sha256sum target/maintenance-writeback/evidence.json
+      - name: Fail near-cap ext4 publication and cleanup flushes
+        run: |
+          for barrier in slot witness file-metadata exchange-directory replacement-file cleanup-directory cleanup-file; do
+            proof="$PWD/target/maintenance-writeback-$barrier"
+            sudo "$PWD/target/xtask/release/xtask" quota --maintenance --writeback --copy-barrier "$barrier" --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$proof"
+            sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: [.maintenance_cases[] | {operation, failure, writeback}], reopened: [.maintenance_records[] | select(.label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified, mapper_absent}' "$proof/evidence.json"
+            sudo sha256sum "$proof/evidence.json"
+          done
+      - name: Publish a durable compacted image at ext4 block and inode exhaustion
+        run: |
+          proof="$PWD/target/maintenance-namespace-enospc"
+          sudo "$PWD/target/xtask/release/xtask" quota --maintenance --namespace-enospc --fixture "$PWD/target/maintenance-quota-build/release/weekend-compound-resource" --source "${{ github.sha }}" --output "$proof"
+          sudo jq -ce 'select(.verified) | {source: .source_binding.source, cases: .maintenance_cases, reopened: [.maintenance_records[] | select(.label == "published-source" or .label == "advanced-source" or .label == "final-backup") | .rows[0].revision], cleanup: .cleanup.verified}' "$proof/evidence.json"
+          sudo sha256sum "$proof/evidence.json"
+      - name: Transfer private evidence ownership for upload
+        if: always()
+        run: |
+          if test -d target/native-quota; then
+            sudo chown -R --reference=. target/native-quota
+          fi
+          if test -d target/native-writeback; then
+            sudo chown -R --reference=. target/native-writeback
+          fi
+          if test -d target/maintenance-quota; then
+            sudo chown -R --reference=. target/maintenance-quota
+          fi
+          if test -d target/maintenance-inode-quota; then
+            sudo chown -R --reference=. target/maintenance-inode-quota
+          fi
+          if test -d target/maintenance-inode-enospc; then
+            sudo chown -R --reference=. target/maintenance-inode-enospc
+          fi
+          if test -d target/maintenance-writeback; then
+            sudo chown -R --reference=. target/maintenance-writeback
+          fi
+          if test -d target/maintenance-namespace-enospc; then
+            sudo chown -R --reference=. target/maintenance-namespace-enospc
+          fi
+          for barrier in slot witness file-metadata exchange-directory replacement-file cleanup-directory cleanup-file; do
+            if test -d "target/maintenance-writeback-$barrier"; then
+              sudo chown -R --reference=. "target/maintenance-writeback-$barrier"
+            fi
+          done
+      - name: Save quota test evidence (no crate or container publication)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-quota-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/native-quota/
+            target/native-writeback/
+            target/quota-host/
+            target/maintenance-quota/
+            target/maintenance-inode-quota/
+            target/maintenance-inode-enospc/
+            target/maintenance-namespace-enospc/
+            target/maintenance-writeback/
+            target/maintenance-writeback-slot/
+            target/maintenance-writeback-witness/
+            target/maintenance-writeback-file-metadata/
+            target/maintenance-writeback-exchange-directory/
+            target/maintenance-writeback-replacement-file/
+            target/maintenance-writeback-cleanup-directory/
+            target/maintenance-writeback-cleanup-file/
+            target/maintenance-quota-build/release/weekend-compound-resource
+            target/quota-build/release/examples/native_quota
   sanitizers:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.kind == 'thread' && 40 || 20 }}
     strategy:
       fail-fast: false
       matrix:
         kind: [address, thread]
     steps:
       - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.99.1 --profile minimal
+      - if: matrix.kind == 'address'
+        run: rustup toolchain install nightly --profile minimal --component rust-src
+      - if: matrix.kind == 'thread'
+        run: rustup toolchain install nightly-2026-11-12 --profile minimal --component rust-src
+      - run: cargo +1.99.1 fetch --locked
+      - if: matrix.kind == 'address'
+        run: cargo +1.99.1 xtask sanitizers address
+      - name: Build the pinned Darwin ThreadSanitizer runtime
+        if: matrix.kind == 'thread'
+        run: |
+          mkdir -p target
+          bash tools/macos-tsan/build-runtime.sh target/macos-tsan-runtime
+      - name: Calibrate the patched runtime and run the complete workspace
+        if: matrix.kind == 'thread'
+        run: |
+          runtime=target/macos-tsan-runtime
+          pin=$(awk 'NR == 1 { print $1 }' "$runtime/runtime.sha256")
+          cargo +1.99.1 xtask sanitizers thread --toolchain nightly-2026-11-12 \
+            --runtime "$runtime/libclang_rt.tsan_osx_dynamic.dylib" --runtime-sha256 "$pin"
+      - name: Save bounded sanitizer diagnostics
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: workspace-sanitizer-${{ matrix.kind }}
+          path: |
+            target/sanitizer-${{ matrix.kind }}-evidence/*.json
+            target/sanitizer-${{ matrix.kind }}-evidence/*.log
+            target/macos-tsan-runtime/*.log
+            target/macos-tsan-runtime/*.txt
+            target/macos-tsan-runtime/*.sha256
+          if-no-files-found: warn
+  c-address:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.99.1 --profile minimal
       - run: rustup toolchain install nightly --profile minimal --component rust-src
-      - run: python3 tools/sanitizers.py ${{ matrix.kind }}
+      - run: cargo +1.99.1 fetch --locked
+      - run: cargo +1.99.1 xtask c-sanitizers
+      - name: Bounded atomic models and fail-required controls
+        env:
+          MODEL_TOOLCHAIN: nightly
+        run: cargo +1.99.1 xtask atomic-model
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: c-rust-address-sanitizer
+          if-no-files-found: warn
+          path: |
+            target/c-sanitizer-evidence/*.json
+            target/c-sanitizer-evidence/*.log
+            target/c-sanitizer-evidence/calibration.*
+            target/atomic-model-evidence/*.json
+            target/atomic-model-evidence/*.log
   coverage:
+    name: Engine library coverage
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -47,11 +759,15 @@ jobs:
       - run: rustup toolchain install 1.99.1 --profile minimal --component llvm-tools-preview
       - run: rustup override set 1.99.1
       - run: cargo fetch --locked
-      - run: python3 tools/coverage.py
+      - run: cargo +1.99.1 xtask coverage --scope library --toolchain 1.99.1 --output target/coverage-library
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
-          name: rust-test-coverage
+          name: rust-core-library-coverage
           if-no-files-found: error
           path: |
-            target/coverage/report.txt
-            target/coverage/html/
+            target/coverage-library/evidence.json
+            target/coverage-library/*.log
+            target/coverage-library/*.process.json
+            target/coverage-library/report.txt
+            target/coverage-library/html/

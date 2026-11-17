@@ -4,7 +4,7 @@ mod users;
 use support::Model;
 use weekend_db::{
     Database, Error, Limits,
-    storage::{Crash, Fault, IoKind, MemoryStore, SimulatedDisk},
+    storage::{ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk},
 };
 const ID: [u8; 16] = *b"compaction-test1";
 fn fixture() -> Vec<u8> {
@@ -163,6 +163,55 @@ fn compact_images_start_at_any_revision_parity_including_empty_and_metadata_only
         assert_eq!(copy.create_collection().unwrap().as_u64(), 1);
         assert_eq!(copy.snapshot().revision(), commits + 1);
     }
+}
+
+#[test]
+fn compact_copy_requires_the_selected_roots_witness() {
+    // Model a device silently losing the witness while reporting successful
+    // writes and syncs. The full graph and root slot remain readable.
+    struct LoseWitness(SimulatedDisk);
+    impl ByteStore for LoseWitness {
+        fn lock(&mut self) -> weekend_db::Result<()> {
+            self.0.lock()
+        }
+        fn unlock(&mut self) {
+            self.0.unlock();
+        }
+        fn length(&mut self) -> weekend_db::Result<u64> {
+            self.0.length()
+        }
+        fn read(&mut self, offset: u64, bytes: &mut [u8]) -> weekend_db::Result<usize> {
+            self.0.read(offset, bytes)
+        }
+        fn write(&mut self, offset: u64, bytes: &[u8]) -> weekend_db::Result<usize> {
+            if bytes.starts_with(b"WDBACK01") {
+                self.0.write(offset, &[0; REGION][..bytes.len()])
+            } else {
+                self.0.write(offset, bytes)
+            }
+        }
+        fn sync(&mut self) -> weekend_db::Result<()> {
+            self.0.sync()
+        }
+    }
+    let disk = SimulatedDisk::new().unwrap();
+    let mut db = Database::create_on(disk.clone(), ID, Limits::default()).unwrap();
+    db.create_collection().unwrap();
+    let revision = db.snapshot().revision();
+    let before = disk.durable_image().unwrap();
+    let target = SimulatedDisk::new().unwrap();
+    assert_eq!(
+        db.compact_to(LoseWitness(target.clone())),
+        Err(Error::Corrupt)
+    );
+    assert_eq!(disk.durable_image().unwrap(), before);
+    let reopened = Database::open_on(target.clone(), Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), revision);
+    let witness = (3 + (revision % 2) as usize) * REGION;
+    assert_eq!(
+        &target.durable_image().unwrap()[witness..witness + 8],
+        b"WDBACK01"
+    );
 }
 
 #[test]
@@ -392,6 +441,51 @@ mod files {
     }
     fn seed(path: &Path) {
         fs::write(path, fixture()).unwrap();
+    }
+    #[test]
+    fn admin_compaction_respects_the_lease_and_publishes_the_same_bytes_as_the_api() {
+        let dir = Directory::new();
+        let path = dir.path("admin space λ.db");
+        let reference = dir.path("reference.db");
+        seed(&path);
+        fs::copy(&path, &reference).unwrap();
+        let before = fs::read(&path).unwrap();
+        let compact = || {
+            std::process::Command::new(env!("CARGO_BIN_EXE_weekend-admin"))
+                .arg("compact")
+                .arg(&path)
+                .output()
+                .unwrap()
+        };
+        let db = Database::open_file(&path, Limits::default()).unwrap();
+        let busy = compact();
+        assert!(!busy.status.success());
+        assert!(busy.stdout.is_empty());
+        assert!(busy.stderr.starts_with(b"Busy"));
+        assert_eq!(fs::read(&path).unwrap(), before);
+        drop(db);
+
+        let stats = Database::compact_file(&reference, Limits::default()).unwrap();
+        let output = compact();
+        assert!(output.status.success(), "{:?}", output.stderr);
+        assert!(output.stderr.is_empty());
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            format!(
+                "compacted {} bytes to {} bytes\n",
+                stats.before_bytes, stats.after_bytes
+            ),
+        );
+        assert!(stats.after_bytes < stats.before_bytes);
+        assert_eq!(fs::read(&path).unwrap(), fs::read(reference).unwrap());
+        let original = Database::open_on(
+            SimulatedDisk::from_image(&before).unwrap(),
+            Limits::default(),
+        )
+        .unwrap();
+        let reopened = Database::open_file(&path, Limits::default()).unwrap();
+        check(&reopened, &original);
+        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 2);
     }
     #[test]
     fn offline_file_compaction_preserves_metadata_and_enforces_quiescence() {

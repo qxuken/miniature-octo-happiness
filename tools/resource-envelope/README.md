@@ -1,0 +1,135 @@
+# Finite private resource envelope
+
+Requires a new output directory whose parent already exists. The private Rust
+xtask uses bounded subprocess supervision and an independent byte oracle.
+The fixture exercises public engine APIs within the configured limits.
+
+```sh
+cargo xtask resource envelope --revision 96e105f80c189a2f9de12530518c4d834f2796ea \
+  --output target/resource-envelope-new
+cargo xtask resource envelope --revision 96e105f80c189a2f9de12530518c4d834f2796ea \
+  --output target/resource-envelope-linux-new \
+  --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
+cargo test --offline --locked -p xtask --bin xtask resource
+```
+
+Fixed workload: 64 depth-64 roots, real draft/owned-value pressure against a
+64 MiB requested-core budget, a separately labeled dense-zero-tail exact image
+boundary, and distinct 896 KiB reachable payloads until natural image admission
+fails under a separate 256 MiB core budget. A dedicated subprocess uses a worker
+thread with requested 1 MiB stack for depth-64 value and logical-parser work.
+The engine's 64 MiB physical image cap is unchanged throughout.
+
+Each driver has a 180-second deadline; Docker has a 300-second outer deadline,
+2 GiB memory and 256-process limits, no network, immutable image ID, native
+writable-layer data files, bounded cleanup and explicit removal verification.
+Native timeout cleanup kills the child process group, including the stack worker.
+macOS RSS probes have a five-second timeout; setup probes/builds default to 120
+seconds. A stuck probe fails qualification and records terminal cleanup metadata.
+Actual sources, toolchains, phase timings/core/RSS/file bytes, raw RSS sample count
+and independent byte-oracle checks are recorded. Core requested layouts,
+sampled RSS, file lengths and requested worker stack are separate quantities.
+See [the qualification report](../../docs/resource-envelope.md) for actual results
+and exclusions. No publication or remote service is used.
+
+## Compound workload (macOS/Linux)
+
+```sh
+cargo xtask resource compound --revision c583ca7 --output target/compound-new
+cargo xtask resource compound --revision c583ca7 --output target/compound-linux-new \
+  --docker-image sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08
+```
+
+The source archive plus explicit harness overlays builds the optional private
+`weekend-compound-resource` binary with `compound` / engine fault injection.
+The fixed profile combines 48 large values, 64 depth-64 retained roots, eight
+held drafts plus live-budget saturation, eight writers/four rounds and two
+readers. Natural image-limit rejection, copy budget failure/retry, a separate
+fresh inspector and eight directed crash/recovery cases verify complete state.
+Native and simulator RSS use separate worker processes; each observer has a
+180-second deadline, bounded output admission and owned-group retirement. Docker
+uses a private ext4 volume, no network, two CPUs, 2 GiB and 256 PIDs, with a
+600-second outer deadline, partial evidence copy and checked cleanup. It requires
+the named preinstalled image. Each output must be fresh, with an existing parent.
+
+The [compound report](../../docs/compound-resource-envelope.md) records exact
+memory/latency observations, budget domains, provenance and remaining scope.
+These finite samples do not establish deployment SLOs or physical power-loss
+durability. Crates remain unpublished.
+
+## Charged buffer-growth comparison
+
+The [growth report](../../docs/serialization-buffer-growth.md) binds before/after
+compound runs, exact-byte fixtures, clean latency/RSS and a separate disposable
+allocation probe. `cargo xtask resource-probe growth --source SOURCE --reference RUN/evidence.json
+--revision FULL_SHA --output FRESH` copies a frozen source, instruments successful
+ChargedVec growth and domain destruction, then verifies phase/state/live-byte/
+file-size records against the clean reference. Its timings/RSS must not be used
+as production measurements. The resource probe tests cover unique patch sites
+and strict parser and reference failures. The probe requires every clean
+profile and validates the source hashes before comparison.
+
+`growth_copy.rs` is an independent 160 MiB-budget public-API consumer. Compile
+against each compound run's exact rlib with its pinned rustc, edition 2024,
+opt-level 3 and overflow checks, then pass source path, fresh destination,
+`limit` or `ok`, and the full runtime source ID. Inspect a successful target
+using that run's exact compound binary in a new process; do not infer retained
+content from successful return or file size alone. No package is published.
+
+## Shared-cache and index work
+
+The [cache-sharing report](../../docs/serialization-cache-sharing.md) compares
+36592ee and 910e490 on the same compound workload. `cargo xtask resource-probe cache` accepts the
+same source/reference/revision/fresh-output arguments as the growth probe,
+validates complete clean profiles and source hashes, and compiles a disposable
+instrumented copy. It counts cloned entries, copied index positions, rebuilt/
+sorted entries, DATA comparisons/shifts and charged allocation/domain work.
+It must reproduce clean logical/live-byte/file-size records. Its latency/RSS
+must be excluded from production comparisons. The Rust tests cover both patch
+surfaces and malformed or regressing reports. The qualification runs compile
+the archived old and new Rust sources separately.
+
+## Interrupted maintenance and repeated recovery
+
+`cargo xtask resource resilience --revision COMMIT --output FRESH` archives and builds the compound
+binary, runs the existing profiles, then adds 52 native maintenance SIGKILLs and
+108 repeated-recovery scenarios. Add the immutable `--docker-image` above for
+Linux/ext4.
+See the [matrix and results](../../docs/near-cap-interruption-recovery.md).
+
+The native cut set covers all source/target syncs and metadata/namespace action
+edges; large reads/writes use first/middle/last samples. Each kill is followed by
+a fresh checker and a successful retry/fresh checker. Recovery covers six initial
+states, nine failed opens and two crash policies, then another failed open with
+no intervening handle on the real medium. Current/all-retained byte oracles and
+source identity are checked. Private case files are retired only after checks;
+this is not a production cleanup API or device power-loss qualification.
+
+The Rust tests exercise complete synthetic matrices and reject missing or
+mutated phases, source IDs/types, bytes/revisions, kill/exchange/calibration and
+cleanup records. Each worker retains the same process and output bounds as the
+compound run. Docker has a 1,200-second overall deadline.
+
+## Maintenance space exhaustion
+
+`cargo xtask quota-enospc --revision COMMIT --output FRESH` archives this private
+compound driver and runs backup/restore/compact against an isolated 256 MiB
+Docker tmpfs. `xtask quota --maintenance` uses a quota-capable Linux host
+and an exact-source binary for the separate 256 MiB UID quota/ext4 profile.
+Both require partial-copy kernel errors, full current/all-64-retained oracles
+while full, retry after freeing owned ballast, and fresh-process reopening of a
+later commit. Exact commands, privilege/cleanup bounds, source/artifact hashes
+and qualification limits are in [the report](../../docs/maintenance-space-exhaustion.md).
+The original append quota mode remains unchanged; no crates are published.
+
+## Native namespace errors
+
+`cargo xtask resource namespace-failures --revision COMMIT --output FRESH`
+uses the near-cap workload with a private syscall interposer. It verifies
+native diagnostics for six late compaction phases and for EIO delivered after
+a successful exchange. It also removes directory write permission at the
+exchange and unlink calls to exercise actual kernel denial. Fresh processes
+verify current and retained data before and after retry. The controller checks
+phase order, output bounds and cleanup. Run as a standard user or add the
+immutable `--docker-image` above for Linux/ext4.
+[Case matrix and evidence](../../docs/maintenance-space-exhaustion.md#injected-namespace-and-sync-errors)

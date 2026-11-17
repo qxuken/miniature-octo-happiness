@@ -19,23 +19,44 @@ fn read(db: &Database, c: CollectionId, key: &[u8]) -> Option<i64> {
 }
 
 #[test]
-fn independent_existing_records_merge_in_both_orders() {
-    for reverse in [false, true] {
+fn existing_record_edits_follow_validation_mode() {
+    // The draft for "a" is identical in each case. Only its validation mode
+    // and whether "b" commits first vary.
+    for (mode, intervening_commit, outcome, head_advance, values) in [
+        (
+            Validation::WholeDatabase,
+            true,
+            Err(Error::Conflict),
+            1,
+            [0, 2],
+        ),
+        (Validation::Records, true, Ok(2), 2, [1, 2]),
+        (Validation::WholeDatabase, false, Ok(1), 1, [1, 0]),
+        (Validation::Records, false, Ok(1), 1, [1, 0]),
+    ] {
         let (db, c) = seeded();
         let old = db.snapshot();
-        let mut a = db.begin();
+        let base = old.revision();
+        let mut a = db.begin_with_validation(mode);
         let mut b = db.begin();
         a.put(c, b"a", &db.integer(1).unwrap()).unwrap();
         b.put(c, b"b", &db.integer(2).unwrap()).unwrap();
-        if reverse {
-            b.commit().unwrap();
-            a.commit().unwrap();
-        } else {
-            a.commit().unwrap();
-            b.commit().unwrap();
+        if intervening_commit {
+            assert_eq!(b.commit(), Ok(base + 1));
         }
-        assert_eq!(read(&db, c, b"a"), Some(1));
-        assert_eq!(read(&db, c, b"b"), Some(2));
+        assert_eq!(
+            a.commit(),
+            outcome.map(|advance| base + advance),
+            "{mode:?}, intervening commit: {intervening_commit}",
+        );
+        assert_eq!(db.snapshot().revision(), base + head_advance);
+        assert_eq!(read(&db, c, b"a"), Some(values[0]));
+        assert_eq!(read(&db, c, b"b"), Some(values[1]));
+        if !intervening_commit {
+            assert_eq!(b.commit(), Ok(base + 2));
+            assert_eq!(read(&db, c, b"a"), Some(1));
+            assert_eq!(read(&db, c, b"b"), Some(2));
+        }
         assert_eq!(old.get(c, b"a").unwrap().unwrap().as_i64(), Ok(0));
     }
 }
@@ -264,6 +285,67 @@ fn collection_identity_and_unrelated_catalog_changes() {
         db.begin().put(replacement, b"a", &foreign.none().unwrap()),
         Err(Error::ForeignStore)
     );
+}
+
+#[test]
+fn record_and_collection_validation_distinguish_changes_and_removal() {
+    for (observation, change, conflict) in [
+        ("point", "other-record", false),
+        ("point", "same-record", true),
+        ("point", "delete-record", true),
+        ("point", "drop-collection", true),
+        ("scan", "other-collection", false),
+        ("scan", "other-record", true),
+        ("scan", "drop-collection", true),
+        ("absence", "other-collection", false),
+        ("absence", "other-record", true),
+        ("absence", "drop-collection", true),
+    ] {
+        let (db, c) = seeded();
+        let other = db.create_collection().unwrap();
+        let old = db.snapshot();
+        let mut draft = db.begin();
+        match observation {
+            "point" => assert_eq!(draft.get(c, b"a").unwrap().unwrap().as_i64(), Ok(0)),
+            "scan" => assert_eq!(draft.count(c), Ok(2)),
+            "absence" => assert_eq!(draft.get(c, b"missing"), Ok(None)),
+            _ => unreachable!(),
+        }
+        if change == "drop-collection" {
+            db.drop_collection(c).unwrap();
+        } else {
+            let mut edit = db.begin();
+            match change {
+                "other-collection" => edit.put(other, b"b", &db.integer(1).unwrap()).unwrap(),
+                "other-record" => edit.put(c, b"b", &db.integer(1).unwrap()).unwrap(),
+                "same-record" => edit.put(c, b"a", &db.integer(1).unwrap()).unwrap(),
+                "delete-record" => edit.delete(c, b"a").unwrap(),
+                _ => unreachable!(),
+            }
+            edit.commit().unwrap();
+        }
+        let before = db.snapshot();
+        let intervening = before.revision();
+        let rows = before.scan(c);
+        let expected = if conflict {
+            Err(Error::Conflict)
+        } else {
+            Ok(intervening + 1)
+        };
+        assert_eq!(draft.commit(), expected, "{observation}, {change}");
+        assert_eq!(
+            draft.state(),
+            if conflict {
+                TransactionState::Aborted
+            } else {
+                TransactionState::Committed
+            }
+        );
+        assert_eq!(draft.commit(), Err(Error::Closed));
+        assert_eq!(db.snapshot().revision(), intervening + u64::from(!conflict));
+        assert_eq!(db.snapshot().scan(c), rows);
+        assert_eq!(old.get(c, b"a").unwrap().unwrap().as_i64(), Ok(0));
+    }
 }
 
 #[test]

@@ -1,3 +1,4 @@
+use crate::memory::ChargedVec;
 use crate::{
     Error, Result,
     memory::{Memory, Shared},
@@ -22,7 +23,7 @@ enum Data {
     Integer(i64),
     Unsigned(u64),
     Float(u64),
-    Bytes(Vec<u8>),
+    Bytes(ChargedVec<u8>),
     Map(Map<Value>),
     List(List<Value>),
 }
@@ -40,8 +41,17 @@ pub struct Value {
     node: Shared<Node>,
 }
 impl Value {
+    /// The originating database's shared budget, valid after the database drops.
+    /// See [`crate::MemoryUsage`] for the accounted boundary.
+    pub fn memory_usage(&self) -> crate::MemoryUsage {
+        self.mem.public_usage()
+    }
+
     pub(crate) fn same_node(&self, other: &Self) -> bool {
         self.node.ptr_eq(&other.node)
+    }
+    pub(crate) fn node_identity(&self) -> usize {
+        self.node.identity()
     }
     pub(crate) fn from_map(mem: &Memory, map: Map<Value>) -> Result<Self> {
         let mut depth = 1;
@@ -346,7 +356,7 @@ impl PartialEq for Value {
             (Data::Integer(a), Data::Integer(b)) => a == b,
             (Data::Unsigned(a), Data::Unsigned(b)) => a == b,
             (Data::Float(a), Data::Float(b)) => a == b,
-            (Data::Bytes(a), Data::Bytes(b)) => a == b,
+            (Data::Bytes(a), Data::Bytes(b)) => a.as_slice() == b.as_slice(),
             (Data::List(a), Data::List(b)) => {
                 a.len() == b.len() && (0..a.len()).all(|i| a.get(i) == b.get(i))
             }
@@ -373,5 +383,108 @@ impl std::fmt::Debug for Value {
             .field("depth", &self.node.depth)
             .field("weight", &self.weight())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+    #[test]
+    fn constructor_depth_weight_or_and_scalar_bits_have_controls() {
+        let mem = Memory::new(crate::Limits {
+            max_depth: 2,
+            max_value_bytes: 32,
+            ..Default::default()
+        })
+        .unwrap();
+        for (depth, weight, valid) in [(2, 32, true), (1, 32, false), (2, 31, false)] {
+            let mem = Memory::new(crate::Limits {
+                max_depth: depth,
+                max_value_bytes: weight,
+                ..Default::default()
+            })
+            .unwrap();
+            let leaf = Value::scalar(&mem, Kind::None, 0).unwrap();
+            let list = List::new().push(&mem, leaf).unwrap();
+            let result = Value::from_list(&mem, list);
+            assert_eq!(result.is_ok(), valid);
+            if !valid {
+                assert_eq!(result, Err(Error::Limit));
+            }
+        }
+        for kind in [Kind::None, Kind::Map, Kind::List] {
+            assert!(Value::scalar(&mem, kind, 0).is_ok());
+            assert_eq!(Value::scalar(&mem, kind, 1), Err(Error::Invalid));
+        }
+        for bits in [0, 1] {
+            assert!(Value::scalar(&mem, Kind::Boolean, bits).is_ok());
+        }
+        assert_eq!(Value::scalar(&mem, Kind::Boolean, 2), Err(Error::Invalid));
+        assert_eq!(Value::scalar(&mem, Kind::Bytes, 0), Err(Error::Invalid));
+        for kind in [Kind::Integer, Kind::Unsigned, Kind::Float] {
+            assert!(Value::scalar(&mem, kind, u64::MAX).is_ok());
+        }
+    }
+}
+
+#[cfg(test)]
+mod arithmetic_decision_tests {
+    use super::*;
+    #[test]
+    fn shared_children_make_aggregate_overflow_feasible_without_large_allocations() {
+        let mem = Memory::new(crate::Limits {
+            max_value_bytes: isize::MAX as usize,
+            max_depth: 64,
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(
+            Value::from_map(&mem, Map::<Value>::new())
+                .unwrap()
+                .is_empty()
+                .unwrap()
+        );
+        assert!(
+            Value::from_list(&mem, List::<Value>::new())
+                .unwrap()
+                .is_empty()
+                .unwrap()
+        );
+        let mut child = Value::scalar(&mem, Kind::None, 0).unwrap();
+        let mut previous = child.clone();
+        for _ in 0..usize::BITS - 6 {
+            previous = child.clone();
+            let pair = List::new()
+                .push(&mem, child.clone())
+                .unwrap()
+                .push(&mem, child)
+                .unwrap();
+            child = Value::from_list(&mem, pair).unwrap();
+        }
+        assert_eq!(child.weight(), isize::MAX as usize - 15);
+        let map = Map::new()
+            .set(&mem, b"", previous.clone())
+            .unwrap()
+            .set(&mem, b"x", previous)
+            .unwrap();
+        let heavy = Value::from_map(&mem, map).unwrap();
+        assert_eq!(heavy.weight(), isize::MAX as usize - 14);
+        assert_eq!(heavy.map_set(&[7; 32], &child), Err(Error::Limit));
+        let map = Map::new()
+            .set(&mem, b"a", child.clone())
+            .unwrap()
+            .set(&mem, b"b", child.clone())
+            .unwrap()
+            .set(&mem, b"c", child.clone())
+            .unwrap();
+        assert_eq!(Value::from_map(&mem, map), Err(Error::Limit));
+        let list = List::new()
+            .push(&mem, child.clone())
+            .unwrap()
+            .push(&mem, child.clone())
+            .unwrap()
+            .push(&mem, child)
+            .unwrap();
+        assert_eq!(Value::from_list(&mem, list), Err(Error::Limit));
     }
 }

@@ -1,0 +1,33 @@
+[package]
+name = "weekend-sqlite-baseline"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[workspace]
+
+[features]
+default = ["weekend-engine"]
+weekend-engine = ["dep:weekend-db"]
+sqlite-comparator = ["dep:anyhow", "dep:libc", "dep:rusqlite", "dep:serde_json"]
+
+[dependencies]
+weekend-db = { path = "../..", optional = true }
+anyhow = { version = "1.0.104", optional = true }
+libc = { version = "0.2.191", optional = true }
+rusqlite = { version = "0.41.1", default-features = false, features = ["backup", "fallible_uint"], optional = true }
+serde_json = { version = "1.0.154", optional = true }
+
+[[bin]]
+name = "weekend-sqlite-baseline"
+path = "src/main.rs"
+required-features = ["weekend-engine"]
+
+[[bin]]
+name = "sqlite-comparator"
+path = "src/sqlite.rs"
+required-features = ["sqlite-comparator"]
+
+[profile.release]
+overflow-checks = true

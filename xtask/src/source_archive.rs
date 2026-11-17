@@ -1,0 +1,125 @@
+//! Bounded Git archive preparation shared by compatibility runners.
+use crate::support::{cmd, path, sha};
+use anyhow::{Result, ensure};
+use std::{
+    ffi::OsString,
+    fs,
+    path::{Path, PathBuf},
+};
+
+pub fn lock_object(
+    commit: &str,
+    lock: &Path,
+    label: &str,
+    mut command: impl FnMut(Vec<OsString>, &str, f64) -> Result<String>,
+) -> Result<String> {
+    let original = command(
+        cmd([
+            "git",
+            "rev-parse",
+            "--verify",
+            &format!("{commit}:Cargo.lock"),
+        ]),
+        &format!("{label}-lock-object"),
+        30.,
+    )?;
+    let extracted = command(
+        vec![
+            "git".into(),
+            "hash-object".into(),
+            "--no-filters".into(),
+            path(lock),
+        ],
+        &format!("{label}-lock-bytes"),
+        30.,
+    )?;
+    ensure!(
+        extracted == original,
+        "archived lock differs from committed bytes"
+    );
+    Ok(original)
+}
+
+pub fn revision(
+    output: &Path,
+    reference: &str,
+    label: Option<&str>,
+    mut command: impl FnMut(Vec<OsString>, &str, f64) -> Result<String>,
+) -> Result<(String, PathBuf, String)> {
+    let prefix = label.unwrap_or("engine");
+    ensure!(
+        !prefix.is_empty()
+            && prefix
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-'),
+        "invalid archive label"
+    );
+    let revision = command(
+        vec![
+            "git".into(),
+            "rev-parse".into(),
+            "--verify".into(),
+            "--end-of-options".into(),
+            format!("{reference}^{{commit}}").into(),
+        ],
+        &format!("{prefix}-revision"),
+        30.,
+    )?;
+    ensure!(
+        revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()),
+        "invalid engine revision"
+    );
+    let files = command(
+        cmd(["git", "ls-tree", "-r", &revision]),
+        &format!("{prefix}-files"),
+        30.,
+    )?;
+    ensure!(
+        !files.is_empty()
+            && files
+                .lines()
+                .all(|l| l.starts_with("100644 blob ") || l.starts_with("100755 blob ")),
+        "nonregular engine archive input"
+    );
+    let (tar, source) = if let Some(label) = label {
+        let parent = output.join("source");
+        fs::create_dir_all(&parent)?;
+        (output.join(format!("{label}.tar")), parent.join(label))
+    } else {
+        (output.join("source.tar"), output.join("source"))
+    };
+    fs::create_dir(&source)?;
+    // Git applies checkout line-ending settings when it writes an archive.
+    command(
+        vec![
+            "git".into(),
+            "-c".into(),
+            "core.autocrlf=false".into(),
+            "-c".into(),
+            "core.eol=lf".into(),
+            "archive".into(),
+            "--format=tar".into(),
+            "--output".into(),
+            path(&tar),
+            revision.clone().into(),
+        ],
+        &format!("{prefix}-archive"),
+        30.,
+    )?;
+    command(
+        vec![
+            "tar".into(),
+            "-xf".into(),
+            path(&tar),
+            "-C".into(),
+            path(&source),
+        ],
+        &if label.is_none() {
+            "extract-source".to_owned()
+        } else {
+            format!("{prefix}-extract")
+        },
+        30.,
+    )?;
+    Ok((revision, source, sha(&tar)?))
+}
