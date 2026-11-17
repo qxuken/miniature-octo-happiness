@@ -456,7 +456,28 @@ mod tests {
         let mut env = run.env.clone();
         env.insert("WEEKEND_PRIVATE_OUTPUT_TEST".into(), path(&output));
         env.insert("WEEKEND_PRIVATE_OWNER_TEST".into(), path(&sid));
-        let script = "$ErrorActionPreference='Stop'; $sid=$env:WEEKEND_PRIVATE_OWNER_TEST; $p=$env:WEEKEND_PRIVATE_OUTPUT_TEST; $a=Get-Acl -LiteralPath $p; if(-not $a.AreAccessRulesProtected -or $a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid){throw 'directory protection or owner'}; foreach($q in @($p, (Join-Path $p 'child'))){$acl=Get-Acl -LiteralPath $q; $r=@($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); $full=[System.Security.AccessControl.FileSystemRights]::FullControl; if($r.Count -ne 1 -or $r[0].IdentityReference.Value -ne $sid -or $r[0].AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or ($r[0].FileSystemRights -band $full) -ne $full){throw 'unexpected access rule'}}; Write-Output 'verified private ACL'";
+        let script = r#"
+$ErrorActionPreference='Stop'
+try {
+    $sid=$env:WEEKEND_PRIVATE_OWNER_TEST
+    $p=$env:WEEKEND_PRIVATE_OUTPUT_TEST
+    $a=Get-Acl -LiteralPath $p
+    [Console]::Out.WriteLine('[DEBUG-acl-probe] protected='+$a.AreAccessRulesProtected+' owner='+$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value+' expected='+$sid)
+    if(-not $a.AreAccessRulesProtected -or $a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid){throw 'directory protection or owner'}
+    foreach($q in @($p, (Join-Path $p 'child'))){
+        $acl=Get-Acl -LiteralPath $q
+        $r=@($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]))
+        [Console]::Out.WriteLine('[DEBUG-acl-probe] path='+$q+' rules='+$r.Count)
+        foreach($rule in $r){[Console]::Out.WriteLine('[DEBUG-acl-probe] sid='+$rule.IdentityReference.Value+' type='+$rule.AccessControlType+' rights='+$rule.FileSystemRights+' inherited='+$rule.IsInherited)}
+        $full=[System.Security.AccessControl.FileSystemRights]::FullControl
+        if($r.Count -ne 1 -or $r[0].IdentityReference.Value -ne $sid -or $r[0].AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or ($r[0].FileSystemRights -band $full) -ne $full){throw 'unexpected access rule'}
+    }
+    [Console]::Out.WriteLine('verified private ACL')
+} catch {
+    [Console]::Out.WriteLine('[DEBUG-acl-probe] error='+$_.Exception.GetType().FullName+': '+$_.Exception.Message)
+}
+exit 0
+"#;
         let bytes = windows_process::capture_private(
             &cmd([
                 "powershell.exe",
@@ -470,9 +491,11 @@ mod tests {
             30.,
         )
         .unwrap();
+        let observation = String::from_utf8(bytes).unwrap();
         assert_eq!(
-            String::from_utf8(bytes).unwrap().trim(),
-            "verified private ACL"
+            observation.lines().last(),
+            Some("verified private ACL"),
+            "{observation}"
         );
         assert!(windows_process::create_private_directory(&output, &sid).is_err());
         assert_eq!(fs::read(output.join("child")).unwrap(), b"owned data");

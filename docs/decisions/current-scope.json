@@ -130,7 +130,7 @@
     "xtask/src/toolchain.rs": "2dd83b9547622cc3bf1b6096f00c32bb31c327f8d95fd980320e7ec9ea1524c9",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
     "xtask/src/trace_process.rs": "4aec4b243ed658df90b82504583cb1827c2eafac553dfdfe4594eb809f9e300e",
-    "xtask/src/windows_compatibility.rs": "20bcbf945743fdea9979b0c46f750abcd2a5a99af09944dff042dbf7b9f3b5d4",
+    "xtask/src/windows_compatibility.rs": "8100c2faa7d8242c2f35be8e60831a39489a9e395700aa2827e9bec2fa8ed7f9",
     "xtask/src/windows_faults.rs": "442b5030ecd61fe492f2d52fddb10c5f30bc93a0003d90fec4cf044cbec5a9c4",
     "xtask/src/windows_process.rs": "89549e971c4e51a4f9ef2a8c177107cb7da04144dac73f0e9d5c0d3ee439698d",
     "xtask/src/windows_quota.rs": "a94ff2b36494652e075060f4c815dd941c6e45d65ef50d1fd3b8888ed080572e",
@@ -201,7 +201,7 @@
     "tests/values.rs": "adcb83f2d92ccae41fb25505d7e4e22334a77d03eec945ea711ff1616c3c1067",
     "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
     "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
-    "xtask/src/windows_compatibility.rs": "20bcbf945743fdea9979b0c46f750abcd2a5a99af09944dff042dbf7b9f3b5d4",
+    "xtask/src/windows_compatibility.rs": "8100c2faa7d8242c2f35be8e60831a39489a9e395700aa2827e9bec2fa8ed7f9",
     "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
     "xtask/tests/mutations.json": "2bcc0bf09ba4e9b5ea5e4781a7de104828ecf75bf97846409e3d55411eaa87fb",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43"

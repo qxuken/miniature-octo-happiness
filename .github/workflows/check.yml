@@ -64,6 +64,9 @@ jobs:
           rustup toolchain install 1.99.1 --profile minimal
           rustup override set 1.99.1
           cargo fetch --locked
+      - name: Check native Windows evidence directory protection
+        if: runner.os == 'Windows'
+        run: cargo test --offline --locked -p xtask --bin xtask --target-dir target/xtask windows_compatibility::tests::private_campaign_protects_initialization_failure_and_inherited_files -- --exact --nocapture
       - name: Build and verify the private Rust-source package
         run: cargo xtask package --rust-source --features crdt,replication --output target/coordinator-private-package
       - name: Rehearse recovery against relocated delivered executables
