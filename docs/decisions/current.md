@@ -7,6 +7,12 @@ binds each source record to a scope, module references and explicit residual
 obligations. Raw AST records still say `unreviewed`: a reference is not an
 automatic upgrade to predicate independence or a claim of test execution.
 
+R1 remains open for individual reconciliation outside the reviewed bindings.
+Every unmatched record now has its own `G` disposition and reason naming its
+current target, owner, kind, conditions and alternatives. Group references are
+candidates for that work, not a substitute for a mapped pair. This makes the
+remaining queue explicit instead of treating a file-level reference as closure.
+
 ## Interpreting the refreshed denominator
 
 The prior 2,604-record checkpoint predates both later runtime changes and the
@@ -28,12 +34,29 @@ report preserves the original status and ledger row separately. A `?` keyword
 hash alone, an ambiguous row or an unmatched file/target never earns that
 binding. Historical statuses are references, not newly measured coverage.
 
+Position-only tables for schema and tree use an explicit reviewed single-source
+ledger declaration. No source basename is guessed. Overlapping short-circuit
+syntax can reference a named parent pair only when its complete source range
+matches that parent's atom range; unrelated equal text cannot earn C.
+
 The manifest's named controls select one exact target/file/owner/kind/condition
 set, require existing parsed `#[test]` functions and maintained mutation names,
 and validate each Boolean decision table's independence pairs. Propagation
 controls are labelled separately. The source, referenced test and fixture hashes
 must match; missing/ambiguous sources, tests, controls, ranges, target counts and
 file dispositions reject. This is source traceability, not compiler MC/DC.
+
+## TX-V1: current validation-mode guard
+
+The current `Transaction::validate` guard is rebound to
+`tests/transactions.rs::existing_record_edits_follow_validation_mode` and engine
+T1. A=`validation == WholeDatabase`, B=`base revision != current revision`:
+(T,T) conflicts; (F,T), (T,F), (F,F) commit. The first/second rows isolate A and
+first/third isolate B. The identical draft edits one record while an optional
+intervening commit edits another, avoiding a point-dependency conflict that
+could mask the mode predicate. Current revisions, values and the retained old
+snapshot are asserted. Two maintained mutants force A or B true; each must fail
+the same current test suite. Runtime validation code is unchanged.
 
 ## ADMIN-W1: export progress and ordering
 
@@ -79,8 +102,8 @@ finite callback script immediately; an infinite test timeout cannot qualify.
   on failure. Their caller omissions are now maintained in xtask. A local commit
   still does not acknowledge follower durability.
 
-The 56 historical Unix mutation cases keep their original provenance. Eleven
-R1 additions bring the finite registry to 67. `--release` additionally runs the
+The 56 historical Unix mutation cases keep their original provenance. Thirteen
+R1 additions bring the finite registry to 69. `--release` additionally runs the
 Unix controller with optimized test builds; existing default commands remain
 unchanged. Windows keeps its separately pinned two-case, two-profile registry.
 

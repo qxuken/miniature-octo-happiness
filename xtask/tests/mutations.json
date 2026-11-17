@@ -738,6 +738,28 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-engine-validation-mode",
+      "file": "src/engine.rs",
+      "old": "self.validation == Validation::WholeDatabase",
+      "new": "true",
+      "test": "transactions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-engine-validation-revision",
+      "file": "src/engine.rs",
+      "old": "self.base.revision != current.revision",
+      "new": "true",
+      "test": "transactions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }

@@ -13,9 +13,9 @@ cargo xtask mutations --output target/all-mutations-new
 On Unix, the 56 historical guard mutations retain their original expressions,
 occurrence counts, package/test selection and replacement text in
 `xtask/tests/mutations.json`. Its provenance binds the retired Python controller.
-Eleven [R1 controls](decisions/current.md) extend that registry to 67 cases,
+Thirteen [R1 controls](decisions/current.md) extend that registry to 69 cases,
 reusing typed T11, CRDT C4 and snapshot R4/R5/R6 tests and adding direct admin
-export controls. The historical fixture provenance applies to the original
+export controls and the existing TX-V1 validation-mode table. The historical fixture provenance applies to the original
 56; the current reconciliation additionally pins the complete updated fixture.
 All source expressions are checked before an output or source copy is acquired.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is

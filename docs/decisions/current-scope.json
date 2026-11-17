@@ -93,7 +93,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "9c5fc107d02b97a30b548b49f745eab1d6b0ad1a1725334d8c7bcbda07cf2018",
+    "xtask/src/mutations.rs": "51f80a8becc36b8c6d72b8b29f57d11b83d6f9052753df96f045723d81a6170c",
     "xtask/src/mutations_windows.rs": "4727c4c74b82b228a5cc9e1c6c15d56de70b12b0c6f1080afdcab9946012893f",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
@@ -147,7 +147,7 @@
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "0f9206e457882d5ff8cea90ccd2059b57832bf065c2bfe1e3eee29d6633c46ba",
+    "docs/decisions/current.md": "7f9013f6c79ac5f41da3cfe5481dcc23e515fb6de83f81a8232614ee88c8fcca",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -167,7 +167,7 @@
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "c874ff2ea4e2411b0d76136c671da55b8d58fb3de86f19ea5dd00cd97cb79906",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "d3ca26ca091aa0c7d84aa0a4c58815602e5d8493e629b0e719b511da6922fde8",
+    "docs/mutations.md": "3d5b47bae8331053282f88af0686e995e9ad29ee4dd9ee3d8d2c202d0bd69dca",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -195,7 +195,7 @@
     "tests/value_decisions.rs": "eda8394a8b1305e110ec99bb7d50ba78436c1a0843a0f472cdd6213fc6284574",
     "tests/values.rs": "adcb83f2d92ccae41fb25505d7e4e22334a77d03eec945ea711ff1616c3c1067",
     "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
-    "xtask/tests/mutations.json": "743b02a995e1ae9e67f317e407137eb2ee9a64e9a9b25cfeb4301d72daf2c105",
+    "xtask/tests/mutations.json": "2bcc0bf09ba4e9b5ea5e4781a7de104828ecf75bf97846409e3d55411eaa87fb",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43"
   },
   "target_records": {
@@ -241,7 +241,10 @@
         "tests/schema_decisions.rs",
         "tests/schema.rs"
       ],
-      "residual": "Fallible primitive calls remain delegated; source pairs are not compiler-expanded coverage."
+      "residual": "Fallible primitive calls remain delegated; source pairs are not compiler-expanded coverage.",
+      "single_source_ledgers": [
+        "docs/decisions/schema.md"
+      ]
     },
     {
       "name": "memory",
@@ -284,7 +287,10 @@
         "tests/value_decisions.rs",
         "tests/values.rs"
       ],
-      "residual": "Invariant and delegated dispositions retain the exact valid-structure domain."
+      "residual": "Invariant and delegated dispositions retain the exact valid-structure domain.",
+      "single_source_ledgers": [
+        "docs/decisions/tree.md"
+      ]
     },
     {
       "name": "ffi",
@@ -885,6 +891,60 @@
       ],
       "mutations": [
         "r1-snapshot-poll-request"
+      ]
+    },
+    {
+      "name": "TX-V1",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "validate",
+        "kind": "if",
+        "conditions": [
+          "self.validation == Validation::WholeDatabase",
+          "self.base.revision != current.revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/transactions.rs",
+          "name": "existing_record_edits_follow_validation_mode"
+        }
+      ],
+      "mutations": [
+        "r1-engine-validation-mode",
+        "r1-engine-validation-revision"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        }
       ]
     }
   ]

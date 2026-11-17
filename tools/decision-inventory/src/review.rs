@@ -123,8 +123,12 @@ impl<'a> Visit<'a> for Tests {
 // A keyword hash alone cannot identify a decision: almost every residual has
 // the same `?` hash. Reuse explicit rows only under an unchanged full-file pin,
 // exact source position/range, kind and owner. Ambiguity remains manual work.
+#[cfg(test)]
 fn historical_rows(text: &str, file: &str, d: &Value) -> Vec<Value> {
-    let mut section = None;
+    historical_rows_in_scope(text, file, d, false)
+}
+fn historical_rows_in_scope(text: &str, file: &str, d: &Value, single_source: bool) -> Vec<Value> {
+    let mut section = single_source.then_some(file);
     let mut target_column = None;
     let basename = Path::new(file).file_name().unwrap().to_str().unwrap();
     let mut out = Vec::new();
@@ -271,6 +275,20 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
             "explicit residual scope required",
         )?;
         let refs = strings(&g["references"])?;
+        let paths = strings(&g["paths"])?;
+        ensure(!paths.is_empty(), "empty source paths")?;
+        if let Some(single) = g.get("single_source_ledgers") {
+            ensure(
+                paths.len() == 1 && !paths[0].ends_with('/'),
+                "single-source ledger requires one explicit source",
+            )?;
+            for reference in strings(single)? {
+                ensure(
+                    refs.contains(&reference),
+                    "single-source ledger must be a pinned group reference",
+                )?;
+            }
+        }
         ensure(!refs.is_empty(), "empty group references")?;
         for name in refs {
             ensure(
@@ -305,7 +323,7 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
                 }
             }
         }
-        bindings.insert(file.clone(), json!({"source_sha256":sha,"group":g["name"],"scope":g["scope"],"references":g["references"],"residual":g["residual"],"matching_historical_full_file_pins":legacy_matches}));
+        bindings.insert(file.clone(), json!({"source_sha256":sha,"group":g["name"],"scope":g["scope"],"references":g["references"],"residual":g["residual"],"single_source_ledgers":g.get("single_source_ledgers").cloned().unwrap_or(json!([])),"matching_historical_full_file_pins":legacy_matches}));
     }
     // No basename matching: target, owner, kind and complete condition text all
     // have to match exactly once. A changed source pin rejects before this point.
@@ -423,23 +441,39 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
     }
     let mut counts = BTreeMap::<String, usize>::new();
     let mut reused = BTreeMap::<String, usize>::new();
+    let mut gaps = BTreeMap::<String, usize>::new();
     let records = decisions.iter().map(|d| {
         let b = &bindings[d["location"]["file"].as_str().unwrap()];
         *counts.entry(b["scope"].as_str().unwrap().into()).or_default() += 1;
         let direct = controls.iter().filter(|c| c["decision_id"] == d["id"]).map(|c| c["name"].clone()).collect::<Vec<_>>();
+        let condition_sources = json!(d["conditions"].as_array().unwrap().iter().map(|c| c["source"].clone()).collect::<Vec<_>>());
         let mut historical = Vec::new();
         for reference in b["matching_historical_full_file_pins"].as_array().unwrap() {
             let reference = reference.as_str().unwrap();
-            for mut row in historical_rows(&markdown_sources[reference],d["location"]["file"].as_str().unwrap(),d) {
+            let single = b["single_source_ledgers"].as_array().unwrap().iter().any(|v| v == reference);
+            for mut row in historical_rows_in_scope(&markdown_sources[reference],d["location"]["file"].as_str().unwrap(),d,single) {
                 row["reference"] = json!(reference);
                 *reused.entry(row["status"].as_str().unwrap().into()).or_default() += 1;
                 historical.push(row);
             }
         }
-        json!({"id":d["id"],"group":b["group"],"scope":b["scope"],"disposition":if historical.is_empty() {"scoped_reference_only"} else {"historical_scoped_disposition"},"historical_rows":historical,"controls":direct})
+        let related = if matches!(d["kind"].as_str(),Some("short_circuit_and"|"short_circuit_or")) {
+            controls.iter().filter(|c| {
+                if !(c["disposition"] == "directed_source_pair" && c["selector"]["file"] == d["location"]["file"] && c["selector"]["target"] == d["target"] && c["selector"]["owner"] == d["owner"] && c["selector"]["conditions"] == condition_sources) { return false; }
+                let parent = decisions.iter().find(|p| p["id"] == c["decision_id"]).unwrap();
+                let atoms = parent["conditions"].as_array().unwrap();
+                atoms.first().is_some_and(|a| a["start_byte"] == d["location"]["start_byte"]) && atoms.last().is_some_and(|a| a["end_byte"] == d["location"]["end_byte"])
+            }).map(|c| c["name"].clone()).collect::<Vec<_>>()
+        } else { Vec::new() };
+        let disposition = if !direct.is_empty() { "named_source_control" } else if related.len() == 1 { "C" } else if !historical.is_empty() { "historical_scoped_disposition" } else { "G" };
+        let reason = if disposition == "G" {
+            *gaps.entry(b["scope"].as_str().unwrap().into()).or_default() += 1;
+            Some(format!("Current {} in {}::{} has no exact per-decision mapping; review conditions {} and alternatives {} using the pinned group references. This is an individual reconciliation gap, not predicate or propagation coverage.",d["kind"].as_str().unwrap(),d["target"].as_str().unwrap(),d["owner"].as_str().unwrap(),condition_sources,d["alternatives"]))
+        } else { None };
+        json!({"id":d["id"],"group":b["group"],"scope":b["scope"],"disposition":disposition,"gap_reason":reason,"historical_rows":historical,"controls":direct,"overlap_controls":if related.len()==1 {related} else {Vec::new()}})
     }).collect::<Vec<_>>();
     Ok(
-        json!({"schema_version":1,"baseline":manifest["baseline"],"source_set_sha256":report["source_set_sha256"],"scope":"Current source bindings and explicit source pairs; no inferred execution, complete independence claim or compiler MC/DC percentage","source_files":bindings,"reference_files":references,"record_counts":counts,"historical_status_counts":reused,"records":records,"controls":controls,"blind_spots":report["blind_spots"],"exclusions":report["exclusions"],"compiler_mcdc_measured":false}),
+        json!({"schema_version":1,"baseline":manifest["baseline"],"source_set_sha256":report["source_set_sha256"],"scope":"Current source bindings and explicit source pairs; no inferred execution, complete independence claim or compiler MC/DC percentage","source_files":bindings,"reference_files":references,"record_counts":counts,"historical_status_counts":reused,"individual_gap_counts":gaps,"records":records,"controls":controls,"blind_spots":report["blind_spots"],"exclusions":report["exclusions"],"compiler_mcdc_measured":false}),
     )
 }
 pub(super) fn markdown(review: &Value) -> String {
@@ -572,6 +606,14 @@ mod tests {
         assert_eq!(a, f.review().unwrap());
         assert_eq!(a["compiler_mcdc_measured"], false);
         assert_eq!(a["records"].as_array().unwrap().len(), 2);
+        let overlap = a["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"].as_str().unwrap().ends_with(":short_circuit_or"))
+            .unwrap();
+        assert_eq!(overlap["disposition"], "C");
+        assert_eq!(overlap["overlap_controls"], json!(["or-pair"]));
         assert_eq!(
             a["source_files"]["lib.rs"]["matching_historical_full_file_pins"],
             json!(["ledger.md"])
@@ -579,6 +621,51 @@ mod tests {
         assert_eq!(
             a["controls"][0]["execution"],
             "not inferred from source references; see recorded campaigns"
+        );
+    }
+    #[test]
+    fn unmatched_records_receive_individual_condition_gap_reasons() {
+        let mut f = Fixture::new();
+        f.manifest["controls"] = json!([]);
+        let a = f.review().unwrap();
+        assert_eq!(a["individual_gap_counts"]["runtime"], 2);
+        for r in a["records"].as_array().unwrap() {
+            assert_eq!(r["disposition"], "G");
+            let reason = r["gap_reason"].as_str().unwrap();
+            assert!(reason.contains("sample::lib::check"));
+            assert!(reason.contains("[\"a\",\"b\"]"));
+        }
+    }
+    #[test]
+    fn position_only_rows_need_an_explicit_single_source_ledger() {
+        let mut f = Fixture::new();
+        f.manifest["controls"] = json!([]);
+        let d = f.report["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["kind"] == "if")
+            .unwrap();
+        let text = format!(
+            "| `lib.rs` | `{}` |\n| Record | Owner | Status | Evidence |\n| {}:{}–99 if | `check` | P | pair |\n",
+            f.manifest["source_files"]["lib.rs"].as_str().unwrap(),
+            d["location"]["line"],
+            d["location"]["column"]
+        );
+        fs::write(f.root.join("ledger.md"), text).unwrap();
+        f.manifest["reference_files"]["ledger.md"] =
+            json!(hash(&read(&f.root, "ledger.md").unwrap()));
+        assert_eq!(f.review().unwrap()["individual_gap_counts"]["runtime"], 2);
+        f.manifest["groups"][0]["single_source_ledgers"] = json!(["ledger.md"]);
+        let a = f.review().unwrap();
+        assert_eq!(a["historical_status_counts"]["P"], 1);
+        assert_eq!(a["individual_gap_counts"]["runtime"], 1);
+        f.manifest["groups"][0]["paths"] = json!(["lib.rs", "other.rs"]);
+        assert!(
+            f.review()
+                .unwrap_err()
+                .to_string()
+                .contains("single-source ledger")
         );
     }
     #[test]

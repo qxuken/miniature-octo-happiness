@@ -15,8 +15,9 @@ decision tests and first four fuzz targets.
 The [R1 refresh after merged main](r1-qualification.md) adds current source and
 reference pins, explicit runtime/driver/tooling scopes, conservative historical
 row reuse, admin export pairs and repeatable typed/CRDT/snapshot caller controls.
-Mac and Docker Linux pass the recorded debug/release suites and all 44 mutant
-outcomes. Generated/compiler MC/DC, further individual pairs and native Windows
+Mac and Docker Linux pass the recorded debug/release suites and the named mutant
+outcomes. R1 remains open for the explicit per-record G queue. Generated/compiler
+MC/DC, further individual pairs and native Windows
 execution of this new branch retain their stated gates; this does not replace
 the prior candidate artifact qualification.
 

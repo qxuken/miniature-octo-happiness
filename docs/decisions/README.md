@@ -4,7 +4,8 @@ The [merged-main R1 refresh](../r1-qualification.md) is the current source
 checkpoint: 8,172 records/132 files/12 targets, split into 3,023 runtime, 156
 driver and 4,993 qualification-tooling records. The [checked manifest](current-scope.json)
 and [current ledger](current.md) bind every source/reference and conservatively
-reuse 478 exact historical rows plus ten named controls. Tables below retain
+reuse 721 exact historical row references plus eleven named controls. Unmatched records carry
+individual G reasons; R1 remains open for that reconciliation. Tables below retain
 their original source/denominator; they are not silently transplanted to new
 positions or promoted to compiler-measured MC/DC.
 
