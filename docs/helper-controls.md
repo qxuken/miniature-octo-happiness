@@ -15,9 +15,14 @@ bounded Cargo output. It binds their source paths and executable hashes, runs
 the debug and release profiles, and matches libtest's complete reported results
 against the discovered test identities. Missing or duplicate targets, omitted
 tests, unregistered skips, empty execution, nonzero status and incomplete
-cleanup all reject. The one registered ignored TLS test requires separately
-frozen inputs and has its own native result. The five external fixture hashes
-and source inventory must remain stable.
+cleanup all reject. The registered ignored TLS test requires separately frozen
+inputs and has its own native result. macOS additionally registers the native
+APFS busy-detach control, which creates an owned disk image and runs explicitly
+in the native maintenance job. Linux does not register that absent test. The
+ordinary helper run provides no execution credit for either skip. A real
+libtest regression checks the APFS registration and still rejects unregistered
+or missing skips. The five external fixture hashes and source inventory must
+remain stable.
 
 Each suite gets 90 seconds within a 600-second launch budget. Each worker has
 independent 8 MiB stdout/stderr caps and an inherited regular-file limit. The

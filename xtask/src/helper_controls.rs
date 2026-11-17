@@ -29,6 +29,8 @@ const INPUTS: [&str; 5] = [
 const OPTIONAL: [&str; 2] = ["REPLICA_PROGRESS_BIN", "REPLICA_PROGRESS_FIXTURE"];
 const NATIVE_TLS: &str =
     "replica_progress::tests::authenticated_observations_restarts_dropped_reply_and_stale_capture";
+#[cfg(target_os = "macos")]
+const NATIVE_APFS: &str = "macos_volume::tests::native_busy_detach_releases_only_the_owned_image";
 
 #[derive(Args)]
 pub struct Options {
@@ -46,7 +48,11 @@ const XTASK: [Suite; 3] = [
     Suite {
         name: "xtask",
         source: "xtask/src/main.rs",
-        ignores: &[NATIVE_TLS],
+        ignores: &[
+            NATIVE_TLS,
+            #[cfg(target_os = "macos")]
+            NATIVE_APFS,
+        ],
     },
     Suite {
         name: "commands",
@@ -555,6 +561,42 @@ mod tests {
         assert!(
             validate_with_filtered(&skipped, &expected, &[NATIVE_TLS], expected_filtered).is_err()
         );
+        #[cfg(target_os = "macos")]
+        {
+            let expected = test_list(&invoke(&[
+                "--list",
+                "--format=terse",
+                "--exact",
+                control,
+                NATIVE_APFS,
+            ]))
+            .unwrap();
+            assert_eq!(expected.len(), 2);
+            let output = invoke(&["--exact", control, NATIVE_APFS]);
+            let registered = XTASK[0]
+                .ignores
+                .iter()
+                .copied()
+                .filter(|name| expected.contains(*name))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                validate_with_filtered(&output, &expected, &registered, expected_filtered - 1)
+                    .unwrap()["passed"],
+                1
+            );
+            assert!(
+                validate_with_filtered(&output, &expected, &[], expected_filtered - 1).is_err()
+            );
+            assert!(
+                validate_with_filtered(
+                    &output,
+                    &expected,
+                    &[NATIVE_APFS, NATIVE_TLS],
+                    expected_filtered - 1,
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]

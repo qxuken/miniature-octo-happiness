@@ -179,9 +179,40 @@ its freshly calibrated runtime. Full xtask debug/release and strict Clippy
 also pass after integration. Failed hosted and deterministic local reports
 remain retained without qualification credit.
 
+Clean checkpoint `a93c3e1` subsequently passes the entire local rebuilt-std
+workspace TSan campaign: 758 passed and seven ignored, with the same pinned
+runtime and all three calibration outcomes checked first. Its report SHA-256
+is `1538ec38f71a1fbf2bc68d28381d4d88a44e4c32e67a2c7347f163a98889dc45`.
+Hosted workspace ASan also passes that checkpoint's merge tree, with the same
+758/seven counts. Three initially unstarted macOS jobs report runner-capacity
+failure with runner ID 0 and no executed steps; those are not test results.
+ASan passes its targeted retry. The next helper execution exposes the registry
+omission below, independently of sanitizer or database behavior.
+
+### Native skip registration
+
+The new ignored APFS control also needs explicit registration in the helper
+runner. The first executed macOS helper campaign correctly rejects its absent
+registration after all 224 default unit tests pass. The correction adds only
+the exact APFS test on macOS; Linux keeps its one TLS skip. The native
+maintenance job separately executes the APFS control and passes in 15.47
+seconds. Ordinary helper skips provide no native execution credit.
+
+The existing real-libtest regression now discovers and runs one passing test
+alongside the ignored APFS test, then validates the actual registry. It fails
+with the original registration and passes the correction; unregistered and
+missing skips still reject. The corrected local macOS helper campaign passes
+all eight suite/profile combinations: 235 passing tests and two registered
+skips per profile. It records the exact `helper_controls.rs` and documentation
+overlay over `a93c3e1`, without claiming a clean Git checkpoint. Report SHA-256
+is `90646120359b40483097f48c33eb63f458e8ab8737d72b78af30fdb07ec4858c`.
+The extended real-libtest case also passes targeted TSan; strict Clippy and
+decision-manifest reconciliation pass. This correction follows the clean full
+workspace TSan result above; subsequent CI retains its own source identity.
+
 The refreshed checked decision manifest has 8,239 records across 133 files and
 12 targets: 3,023 runtime, 156 driver and 5,060 tooling. Source-set SHA-256 is
-`d7e2bef6f0604002a7238ee13ebcba6e323bb85228478fc57aa920abe909cf1c`.
+`97d7e49a5cc67053df3392c10de8a2b4674d7b314697a751e6643063c654b768`.
 Runtime sources, 721 historical row references and eleven named R1 controls
 are unchanged. The 7,506 individual G mappings remain unresolved; new tooling
 execution does not establish predicate independence or compiler MC/DC.
