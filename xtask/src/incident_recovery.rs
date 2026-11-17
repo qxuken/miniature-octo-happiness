@@ -1,8 +1,9 @@
 //! Finite operator rehearsal. Every writable path is under a newly owned directory.
-use crate::{
-    assurance::Campaign,
-    support::{Run, cmd, path, qualification_inventory, sha},
-};
+#[cfg(unix)]
+use crate::assurance::Campaign;
+use crate::support::{Run, cmd, path, qualification_inventory, sha};
+#[cfg(windows)]
+use crate::windows_compatibility::Campaign;
 use anyhow::{Result, ensure};
 use clap::Args;
 use serde_json::json;
@@ -13,6 +14,9 @@ use std::{
 };
 
 const FIXTURE: &[u8] = include_bytes!("../../tests/fixtures/logical-v1.bin");
+fn stderr_name(label: &str) -> String {
+    format!("{label}.stderr{}", if cfg!(windows) { "" } else { ".log" })
+}
 #[derive(Args)]
 pub struct Options {
     #[arg(long)]
@@ -70,7 +74,7 @@ impl<'r> Drill<'_, 'r> {
             "rejected operation printed success output"
         );
         ensure!(
-            fs::read_to_string(self.path(&format!("{name}.stderr.log")))?.starts_with(error),
+            fs::read_to_string(self.path(&stderr_name(name)))?.starts_with(error),
             "unexpected rejection category for {name}"
         );
         Ok(())
@@ -302,7 +306,7 @@ impl<'r> Drill<'_, 'r> {
                 "stale check printed success output"
             );
             ensure!(
-                fs::read_to_string(d.path("stale-journal-check.stderr.log"))?
+                fs::read_to_string(d.path(&stderr_name("stale-journal-check")))?
                     .contains("behind 3 0"),
                 "stale restore was not identified as behind"
             );
@@ -419,8 +423,13 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
     )?;
     let result = (|| -> Result<()> {
         c.limits(1024 * 1024, None)?;
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&c.output, fs::Permissions::from_mode(0o700))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&c.output, fs::Permissions::from_mode(0o700))?;
+        }
+        #[cfg(windows)]
+        c.restrict_directories(&[("incident-output", &c.output.clone())])?;
         let fixture = run.root.join("tests/fixtures/logical-v1.bin");
         ensure!(
             fs::read(&fixture)? == FIXTURE,
@@ -456,19 +465,46 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
             None,
             180.,
         )?;
-        let consumer = build.join("debug/incident-recovery-consumer");
+        let consumer = build.join(format!(
+            "debug/incident-recovery-consumer{}",
+            std::env::consts::EXE_SUFFIX
+        ));
         c.evidence["consumer"] = json!({"path":consumer,"sha256":sha(&consumer)?});
         let binaries = Binaries {
             admin,
             coordinator,
             consumer,
         };
+        let retained = c.output.join("binaries");
+        fs::create_dir(&retained)?;
+        let mut binary_hashes = Vec::new();
+        for (label, binary) in [
+            ("admin", &binaries.admin),
+            ("coordinator", &binaries.coordinator),
+            ("consumer", &binaries.consumer),
+        ] {
+            let copy = retained.join(format!("{label}{}", std::env::consts::EXE_SUFFIX));
+            let digest = sha(binary)?;
+            fs::copy(binary, &copy)?;
+            ensure!(
+                sha(&copy)? == digest,
+                "retained incident executable mismatch"
+            );
+            binary_hashes.push((binary.clone(), copy, digest));
+        }
         let mut drill = Drill {
             c: &mut c,
             binaries: &binaries,
         };
         drill.physical()?;
         drill.journals()?;
+        for (original, retained, digest) in binary_hashes {
+            ensure!(
+                sha(&original)? == digest && sha(&retained)? == digest,
+                "incident executable changed during qualification"
+            );
+        }
+        c.evidence["selected_binaries_unchanged"] = json!(true);
         ensure!(
             fs::read(fixture)? == FIXTURE,
             "logical fixture changed during drill"
@@ -488,7 +524,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
     c.finish(result)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;

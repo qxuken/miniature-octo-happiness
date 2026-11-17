@@ -1,5 +1,9 @@
 # R1 source inventory and guard qualification
 
+This report retains the R1 checkpoint and its original counts. The checked
+manifest subsequently advances with R2 tooling; its current report must not be
+substituted for the source identities recorded here.
+
 Baseline is merged main `4cbcd82a8a7b043c6cc8bac7f1b7cd29d6fe3623`.
 Initial qualification used that commit plus the source/test overlay. Final
 macOS campaigns use checkpoint `37ced27` plus the review corrections; Linux
@@ -190,6 +194,17 @@ hosted run. On macOS, the complete default-parallel suite passes 11 tests with
 two ignored in each profile using Rust 1.99.0; strict Clippy and the Windows
 test-target cross-check pass. macOS also passed before isolation, so that local
 result alone does not reproduce or close the Windows failure.
+
+The final PR #2 head `152b4bd5e87e8a61aabe2ef32e7121e0550285cb` passes all
+16 hosted checks, including the corrected Windows minimum-Rust and native jobs,
+all 20 C/C++ delivered-DLL cases and TSan. Engine run `44093609929` tests merge
+`64036cead729060a26144510ab775b8cfb9c6285`; both bounded-fuzz runs pass too.
+Both formerly failing coordinator workflows and the full capacity test pass
+Windows debug/release. The R1 inventory/review reports reproduce byte for byte
+on hosted Linux. An earlier macOS owned-image ejection returned Resource busy
+after its database assertions passed; that failed cleanup remains retained,
+and the final complete native job passes the original strict checks. PR #2
+merged as `6b657e516c13f678cd54c816db8a53ec5a11e395`; R1's broader G queue stays open.
 
 ## Remaining work
 

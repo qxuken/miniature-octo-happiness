@@ -25,6 +25,7 @@ const INPUTS: &[&str] = &[
     "xtask/src/check.rs",
     "xtask/src/compatibility.rs",
     "xtask/src/msrv.rs",
+    "xtask/src/incident_recovery.rs",
     "xtask/src/qualification_net.rs",
     "xtask/src/replica_progress.rs",
     "xtask/src/snapshot_proof.rs",
@@ -45,6 +46,11 @@ const INPUTS: &[&str] = &[
     "tools/snapshot-cli-upgrade-fixture.rs",
     "tools/snapshot-test-keygen.rs",
     "tools/study-cli-upgrade-fixture.rs",
+    "tools/admin.rs",
+    "tools/incident-recovery/Cargo.toml",
+    "tools/incident-recovery/Cargo.lock",
+    "tools/incident-recovery/src/main.rs",
+    "tests/fixtures/logical-v1.bin",
 ];
 
 struct Capture {
@@ -66,6 +72,7 @@ struct Invocation<'a> {
     stdout: PathBuf,
     stderr: PathBuf,
     timeout: f64,
+    maximum: u64,
 }
 
 struct StopOnUnwind<'a>(&'a AtomicBool);
@@ -89,6 +96,7 @@ pub(super) struct Campaign<'a> {
     pub output: PathBuf,
     pub env: BTreeMap<OsString, OsString>,
     pub evidence: Value,
+    maximum: u64,
 }
 
 impl<'a> Campaign<'a> {
@@ -107,6 +115,7 @@ impl<'a> Campaign<'a> {
             }),
             env: run.env.clone(),
             output,
+            maximum: 8 * 1024 * 1024,
         };
         campaign.save()?;
         let source = campaign.command(cmd(["git", "rev-parse", "HEAD"]), "source", None, 30.)?;
@@ -119,6 +128,15 @@ impl<'a> Campaign<'a> {
 
     pub fn save(&self) -> Result<()> {
         trace_process::write_proof(&self.output, &self.evidence)
+    }
+
+    pub fn limits(&mut self, maximum: u64, file_limit: Option<u64>) -> Result<()> {
+        ensure!(
+            maximum > 0 && maximum <= 64 * 1024 * 1024 && file_limit.is_none(),
+            "invalid Windows campaign output limits"
+        );
+        self.maximum = maximum;
+        Ok(())
     }
 
     pub fn restrict_directories(&mut self, directories: &[(&str, &Path)]) -> Result<()> {
@@ -299,6 +317,7 @@ impl<'a> Campaign<'a> {
             args,
             name,
             timeout,
+            maximum: self.maximum,
             cwd: cwd.to_owned(),
             stdout: self.output.join(format!("{name}.stdout")),
             stderr: self.output.join(format!("{name}.stderr")),
@@ -351,7 +370,7 @@ impl Invocation<'_> {
             stdout: &self.stdout,
             stderr: &self.stderr,
             timeout: self.timeout,
-            maximum: 8 * 1024 * 1024,
+            maximum: self.maximum,
         };
         let result = match stop {
             Some(flag) => trace_process::run_stoppable(&request, flag),
@@ -412,7 +431,39 @@ mod tests {
             output: run.root.clone(),
             env: run.env.clone(),
             evidence: json!({"commands":[]}),
+            maximum: 8 * 1024 * 1024,
         }
+    }
+
+    #[test]
+    fn configured_output_limit_keeps_overflow_and_cleanup_as_failure() {
+        let scratch = Scratch::new(&std::env::temp_dir(), "windows-campaign-limit").unwrap();
+        let run = Run::new(scratch.path().to_owned());
+        let mut campaign = detached(&run);
+        assert!(campaign.limits(0, None).is_err());
+        assert!(campaign.limits(64 * 1024 * 1024 + 1, None).is_err());
+        assert!(campaign.limits(128, Some(1)).is_err());
+        campaign.limits(128, None).unwrap();
+        assert!(
+            campaign
+                .command(
+                    cmd([
+                        "cmd.exe",
+                        "/D",
+                        "/Q",
+                        "/C",
+                        "for /L %i in (1,1,4096) do @echo payload"
+                    ]),
+                    "overflow",
+                    None,
+                    15.
+                )
+                .is_err()
+        );
+        let row = &campaign.evidence["commands"][0];
+        assert_eq!(row["passed"], false);
+        assert_eq!(row["report"]["output_exceeded"], true);
+        assert_eq!(row["cleanup_verified"], true);
     }
 
     #[test]

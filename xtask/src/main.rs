@@ -30,7 +30,7 @@ mod follower_backup;
 mod fuzz;
 #[cfg(unix)]
 mod helper_controls;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod incident_recovery;
 #[cfg(any(unix, windows, test))]
 mod instrumentation;
@@ -77,6 +77,8 @@ mod rust_source;
 mod sanitizers;
 #[cfg(unix)]
 mod serialization_scale;
+#[cfg(unix)]
+mod snapshot_month;
 #[cfg(any(unix, windows))]
 mod snapshot_proof;
 #[cfg(any(unix, windows))]
@@ -133,6 +135,9 @@ enum Task {
     /// Run authenticated offline/sync rounds on macOS and Docker Linux.
     #[cfg(unix)]
     StudyPeerSoak(study_soak::Options),
+    /// Rehearse a captured snapshot month with a macOS primary and Linux follower.
+    #[cfg(unix)]
+    SnapshotMonth(snapshot_month::Options),
     /// Run and audit the private debug and release helper test suites.
     #[cfg(unix)]
     HelperControls(helper_controls::Options),
@@ -239,7 +244,7 @@ enum Task {
     #[cfg(unix)]
     Fuzz(fuzz::Options),
     /// Rehearse offline administrative restore and isolated journal reconciliation.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     IncidentRecovery(incident_recovery::Options),
     /// Dynamically load the exact shared library and verify its C ABI.
     AbiSmoke(abi::Options),
@@ -345,6 +350,8 @@ fn execute(cli: Cli) -> Result<()> {
         #[cfg(unix)]
         Task::StudyPeerSoak(options) => study_soak::run(&run, options),
         #[cfg(unix)]
+        Task::SnapshotMonth(options) => snapshot_month::run(&run, options),
+        #[cfg(unix)]
         Task::HelperControls(options) => helper_controls::run(&run, options),
         #[cfg(any(unix, windows))]
         Task::StudyCliUpgrade(options) => study_upgrade::run(&run, options),
@@ -392,7 +399,7 @@ fn execute(cli: Cli) -> Result<()> {
         Task::AtomicModel(options) => atomic_model::run(&run, options),
         #[cfg(unix)]
         Task::Fuzz(options) => fuzz::run(&run, options),
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         Task::IncidentRecovery(options) => incident_recovery::run(&run, options),
         Task::AbiSmoke(options) => abi::run(options),
         Task::OdinBindings { check } => odin::run(&root, check),
