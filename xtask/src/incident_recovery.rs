@@ -17,6 +17,32 @@ const FIXTURE: &[u8] = include_bytes!("../../tests/fixtures/logical-v1.bin");
 fn stderr_name(label: &str) -> String {
     format!("{label}.stderr{}", if cfg!(windows) { "" } else { ".log" })
 }
+fn protect_source(file: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(file, fs::Permissions::from_mode(0o400))?;
+    }
+    #[cfg(windows)]
+    {
+        let mut permissions = fs::metadata(file)?.permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(file, permissions)?;
+        ensure!(
+            fs::OpenOptions::new()
+                .write(true)
+                .open(file)
+                .err()
+                .is_some_and(|error| error.kind() == std::io::ErrorKind::PermissionDenied),
+            "Windows source still admits a writable open"
+        );
+    }
+    ensure!(
+        fs::metadata(file)?.permissions().readonly(),
+        "source write protection missing"
+    );
+    Ok(())
+}
 #[derive(Args)]
 pub struct Options {
     #[arg(long)]
@@ -111,11 +137,12 @@ impl<'r> Drill<'_, 'r> {
         let restored = self.path("restored.wdb");
         self.admin("fixture-import", &["import", &logical, &original], true)?;
         let bytes = fs::read(&original)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&original, fs::Permissions::from_mode(0o400))?;
-        }
+        protect_source(Path::new(&original))?;
+        self.c.evidence["source_write_protection"] = json!(if cfg!(windows) {
+            "read-only attribute and rejected writable open"
+        } else {
+            "Unix mode 0400 (root may bypass permission denial)"
+        });
         let inspection = self.admin("original-check", &["check", &original], true)?;
         ensure!(
             inspection.contains("format 2 revision 4 data 4 witnessed true")
@@ -407,6 +434,25 @@ impl<'r> Drill<'_, 'r> {
             "original_pair_preserved":true,"old_endpoint_stopped":true});
         fs::remove_file(secret)?;
         Ok(())
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+    #[test]
+    fn source_protection_rejects_writable_open_without_changing_bytes() {
+        let mut dir =
+            crate::support::Scratch::new(&std::env::temp_dir(), "incident-readonly").unwrap();
+        let file = dir.path().join("source.wdb");
+        fs::write(&file, b"protected fixture").unwrap();
+        let original = fs::metadata(&file).unwrap().permissions();
+        let result = protect_source(&file);
+        let unchanged = fs::read(&file).unwrap() == b"protected fixture";
+        fs::set_permissions(&file, original).unwrap();
+        result.unwrap();
+        assert!(unchanged);
+        dir.close().unwrap();
     }
 }
 

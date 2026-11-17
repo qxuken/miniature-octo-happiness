@@ -307,7 +307,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
             );
             c.evidence["linux_filesystem"] = json!(filesystem);
             c.command(
-                exec(&name, cmd(["mkdir", "-p", "/data/tmp"])),
+                exec(&name, cmd(["mkdir", "-p", "/data/tmp", "/data/follower"])),
                 "linux-tmp",
                 None,
                 30.,
