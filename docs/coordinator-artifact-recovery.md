@@ -165,10 +165,12 @@ Thus the successful producer jobs do not qualify that exported package.
 The source-package upload now explicitly includes hidden files within its
 validated package/proof directories. GitHub documents the
 [hidden-file exclusion and archive permission behavior](https://github.com/actions/upload-artifact#uploading-hidden-files).
-The job downloads its own exact run/OS/architecture/attempt artifact using
-`gh run download`, then runs the same inventory check and both recovery
-profiles against the extracted source package. Its token has only contents
-and Actions read permissions. Attempt-specific names preserve prior evidence
+The job downloads the immutable ID returned by its own upload with
+[download-artifact](https://github.com/actions/download-artifact#download-artifacts-by-id),
+rejecting digest mismatches, then runs the same inventory check and both
+recovery profiles against the extracted source package. Download access is
+scoped to the current run; no extra repository Actions permission or token is
+needed. Attempt-specific names preserve prior evidence
 when a job is retried. Post-download evidence is uploaded separately.
 
 This remains a source-delivery profile: executables are rebuilt and relocated
@@ -176,3 +178,12 @@ from the extracted source. The ZIP is not a permission-preserving installer
 for arbitrary prebuilt executables or an archive of private runtime ACLs.
 Original native execution, exported payload integrity and post-download
 execution remain separate observations in the report.
+
+The early native Windows control exposed a test-host issue: Windows PowerShell
+could not load `Get-Acl` from the inherited pwsh module configuration. Its child
+environment now lets Windows PowerShell initialize its own module path. All
+protected-owner and access-rule checks remain. The probe reports only its
+nonsecret ACL fields on failure. The first `gh run download` attempt also
+reported no valid artifact immediately after upload; using the returned ID
+avoids run-level name discovery. Native verification of these fixes remains
+required before marking the new gate passed.

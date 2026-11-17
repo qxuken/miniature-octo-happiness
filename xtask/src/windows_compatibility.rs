@@ -454,6 +454,9 @@ mod tests {
         let sid = windows_process::current_user_sid(&run.root, &run.env).unwrap();
         fs::write(output.join("child"), b"owned data").unwrap();
         let mut env = run.env.clone();
+        // The CI parent is pwsh. Let Windows PowerShell initialize its own
+        // module paths rather than trying to load pwsh's incompatible modules.
+        env.retain(|name, _| !name.to_string_lossy().eq_ignore_ascii_case("PSModulePath"));
         env.insert("WEEKEND_PRIVATE_OUTPUT_TEST".into(), path(&output));
         env.insert("WEEKEND_PRIVATE_OWNER_TEST".into(), path(&sid));
         let script = r#"
@@ -462,19 +465,19 @@ try {
     $sid=$env:WEEKEND_PRIVATE_OWNER_TEST
     $p=$env:WEEKEND_PRIVATE_OUTPUT_TEST
     $a=Get-Acl -LiteralPath $p
-    [Console]::Out.WriteLine('[DEBUG-acl-probe] protected='+$a.AreAccessRulesProtected+' owner='+$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value+' expected='+$sid)
+    [Console]::Out.WriteLine('ACL protected='+$a.AreAccessRulesProtected+' owner='+$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value+' expected='+$sid)
     if(-not $a.AreAccessRulesProtected -or $a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid){throw 'directory protection or owner'}
     foreach($q in @($p, (Join-Path $p 'child'))){
         $acl=Get-Acl -LiteralPath $q
         $r=@($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]))
-        [Console]::Out.WriteLine('[DEBUG-acl-probe] path='+$q+' rules='+$r.Count)
-        foreach($rule in $r){[Console]::Out.WriteLine('[DEBUG-acl-probe] sid='+$rule.IdentityReference.Value+' type='+$rule.AccessControlType+' rights='+$rule.FileSystemRights+' inherited='+$rule.IsInherited)}
+        [Console]::Out.WriteLine('ACL path='+$q+' rules='+$r.Count)
+        foreach($rule in $r){[Console]::Out.WriteLine('ACL sid='+$rule.IdentityReference.Value+' type='+$rule.AccessControlType+' rights='+$rule.FileSystemRights+' inherited='+$rule.IsInherited)}
         $full=[System.Security.AccessControl.FileSystemRights]::FullControl
         if($r.Count -ne 1 -or $r[0].IdentityReference.Value -ne $sid -or $r[0].AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or ($r[0].FileSystemRights -band $full) -ne $full){throw 'unexpected access rule'}
     }
     [Console]::Out.WriteLine('verified private ACL')
 } catch {
-    [Console]::Out.WriteLine('[DEBUG-acl-probe] error='+$_.Exception.GetType().FullName+': '+$_.Exception.Message)
+    [Console]::Out.WriteLine('ACL probe error='+$_.Exception.GetType().FullName+': '+$_.Exception.Message)
 }
 exit 0
 "#;
