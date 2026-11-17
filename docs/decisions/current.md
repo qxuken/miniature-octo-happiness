@@ -19,6 +19,15 @@ process fixture and recovery notes are referenced explicitly. Production
 runtime/tooling sources and the 8,239-record denominator are unchanged; the
 four recovery schedules do not close individual condition-pair obligations.
 
+The delivered-source follow-up uses PR #4 head `7df2dc2` as its fixed baseline.
+The coordinator recovery controller and Windows package verification are new
+tooling inputs. Their tests and negative controls retain their explicit scope;
+they do not promote the new source records or macro blind spots to MC/DC pairs.
+Runtime sources and the existing R1 named controls are unchanged.
+The refreshed source inventory has 8,281 records in 134 files across 12 targets:
+3,023 runtime, 156 driver and 5,102 tooling records, with 3,554 macro/attribute
+blind spots. New tooling records keep individual G obligations.
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

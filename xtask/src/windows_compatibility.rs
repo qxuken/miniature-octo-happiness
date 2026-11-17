@@ -24,6 +24,7 @@ const INPUTS: &[&str] = &[
     "xtask/Cargo.toml",
     "xtask/src/check.rs",
     "xtask/src/compatibility.rs",
+    "xtask/src/coordinator_recovery.rs",
     "xtask/src/msrv.rs",
     "xtask/src/incident_recovery.rs",
     "xtask/src/qualification_net.rs",

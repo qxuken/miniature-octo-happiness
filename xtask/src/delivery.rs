@@ -158,7 +158,7 @@ pub fn inventory(root: &Path) -> Result<BTreeMap<String, String>> {
     visit(root, root, &mut out, &mut 0, &mut 0, 0)?;
     Ok(out)
 }
-#[cfg(any(unix, test))]
+#[cfg(any(unix, windows, test))]
 pub fn verified(root: &Path) -> Result<Value> {
     use std::path::Component;
     let info = read_json(&root.join("manifest.json"))?;

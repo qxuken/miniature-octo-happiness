@@ -310,6 +310,10 @@ fn configured_service(
     token: &str,
 ) -> (Process, AuthenticatedClient) {
     let server = Process::start(&[command, path, "0", "--secret-file", secret]);
+    authenticated_server(server, token)
+}
+
+fn authenticated_server(server: Process, token: &str) -> (Process, AuthenticatedClient) {
     let ready = server.receive();
     let address = ready.strip_prefix("ready ").unwrap().parse().unwrap();
     (

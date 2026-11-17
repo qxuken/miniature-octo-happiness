@@ -44,6 +44,35 @@ jobs:
           path: |
             target/operator-recovery/**
             !target/operator-recovery/synthetic.secret
+  coordinator-package-recovery:
+    name: Packaged coordinator recovery (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned compiler and cache locked inputs
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+          cargo fetch --locked
+      - name: Build and verify the private Rust-source package
+        run: cargo xtask package --rust-source --features crdt,replication --output target/coordinator-private-package
+      - name: Rehearse recovery against relocated delivered executables
+        run: cargo xtask coordinator-recovery --package target/coordinator-private-package --expected-source ${{ github.sha }} --output target/coordinator-package-recovery
+      - name: Retain the exact package and recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coordinator-package-recovery-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/coordinator-private-package/**
+            target/coordinator-package-recovery/**
+            !target/coordinator-package-recovery/cargo-target/**
   decision-inventory:
     name: Source decision reconciliation and R1 controls
     runs-on: ubuntu-latest

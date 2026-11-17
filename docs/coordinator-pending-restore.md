@@ -135,3 +135,23 @@ provide durable proof custody. R2 still requires native Windows execution,
 delivered-artifact qualification and operator/deployment handoff; R7 retains
 the custody requirement. Subsequent documentation-only changes do not imply
 that runtime qualification was rerun on a different source.
+
+## Hosted source follow-up
+
+PR #4 head `7df2dc27a88dd962d7c2a6ba54c9fb965c346319` passes all 19 checks.
+The tested merge `30045dd32ccd35071156a737f319f1b52e3bdadc` has the identical
+Git tree. The named matrix passes in debug and release on native macOS, Linux
+and Windows, closing the native Windows source-execution gap of the local
+checkpoint above. ASan and TSan each pass 759 tests with seven explicitly
+ignored workloads; all 335 recorded source hashes match that tested merge.
+ASan's first job never acquired a runner, and its retry passed.
+
+The [workflow](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44175740216)
+retains the original sanitizer artifacts. Verified archive SHA-256 values are
+`a916a08a06c4e18c6d176510a7cd2b97a6ad22e330ad9a7407912b4cde14b6ef`
+(ASan) and
+`b1c04a538ff088e4c8a732daf48dca2eb7a791ec15478c5107da4c99bdeb8d42`
+(TSan). Hosted retention is not durable off-machine proof custody. The next
+[private source-package qualification](coordinator-artifact-recovery.md)
+reuses this matrix; delivered artifacts and operator/deployment handoff retain
+their separate R2 gates.

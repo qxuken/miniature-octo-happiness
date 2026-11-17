@@ -6,6 +6,33 @@ use weekend_db::{Database, Limits, Snapshot, storage};
 const TEST: &str =
     "pending_restore::restored_pending_pairs_replay_once_and_preserve_retained_roots";
 const OBSERVE: &str = "WEEKEND_PENDING_RESTORE_OBSERVE";
+const BINARY: &str = "WEEKEND_PENDING_RESTORE_BINARY";
+
+fn command() -> Command {
+    // A supplied artifact is mandatory. Never silently recover to Cargo's
+    // build-path executable when the selected artifact is missing or invalid.
+    let binary = std::env::var_os(BINARY).unwrap_or_else(|| BIN.into());
+    assert!(
+        Path::new(&binary).is_absolute(),
+        "absolute coordinator artifact required"
+    );
+    Command::new(binary)
+}
+
+fn start(args: &[&str]) -> Process {
+    let mut command = command();
+    command.args(args);
+    Process::start_command(command)
+}
+
+fn configured_service(
+    command: &str,
+    path: &str,
+    secret: &str,
+    token: &str,
+) -> (Process, AuthenticatedClient) {
+    authenticated_server(start(&[command, path, "0", "--secret-file", secret]), token)
+}
 
 #[derive(Clone, Copy)]
 struct Case {
@@ -37,7 +64,10 @@ impl Case {
 }
 
 fn cli(args: &[&str]) -> String {
-    let output = Command::new(BIN).args(args).output().unwrap();
+    let output = command()
+        .args(args)
+        .output()
+        .expect("selected coordinator invocation");
     assert!(output.status.success(), "coordinator CLI: {output:?}");
     String::from_utf8(output.stdout).unwrap()
 }
@@ -265,7 +295,7 @@ fn rejects_stale_observation(server: &Path, journal: &Path, case: Case) {
 
 fn rejected_check(journal: &Path, port: &str, key: &str) {
     let before = fs::read(journal).unwrap();
-    let output = Command::new(BIN)
+    let output = command()
         .args([
             "journal",
             "check",
@@ -305,6 +335,34 @@ fn restored_pending_pairs_replay_once_and_preserve_retained_roots() {
             exercise(Case { prefix, forwarded });
         }
     }
+}
+
+#[test]
+fn selected_artifact_does_not_fall_back_to_cargo_binary() {
+    let dir = Directory::new();
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", TEST])
+        .env(BINARY, dir.0.join("missing-coordinator"))
+        .env_remove(OBSERVE)
+        .env("TMPDIR", &dir.0)
+        .env("TMP", &dir.0)
+        .env("TEMP", &dir.0)
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "selected artifact was ignored");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stdout.contains("selected coordinator invocation")
+            || stderr.contains("selected coordinator invocation"),
+        "unexpected selected-artifact rejection: {stdout} {stderr}"
+    );
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line == format!("test {TEST} ... FAILED"))
+    );
+    assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 0);
 }
 
 fn exercise(case: Case) {
@@ -355,7 +413,7 @@ fn exercise(case: Case) {
     let proxy = listener.local_addr().unwrap().port().to_string();
     let expected = case.expected().to_string();
     let value = case.value().to_string();
-    let mut writer = Process::start(&[
+    let mut writer = start(&[
         "journal",
         "set",
         journal.to_str().unwrap(),
@@ -433,7 +491,7 @@ fn exercise(case: Case) {
         configured_service("serve-sequenced", restored.to_str().unwrap(), key, &token);
     // Lose the first recovery reply too. The exact captured request is forwarded
     // after the resumed client stops; an existing receipt must be reused.
-    let mut writer = Process::start(&[
+    let mut writer = start(&[
         "journal",
         "resume",
         restored_journal.to_str().unwrap(),
