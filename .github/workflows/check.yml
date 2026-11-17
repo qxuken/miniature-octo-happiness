@@ -53,6 +53,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
+      - name: Preserve committed file bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - name: Install the pinned compiler and cache locked inputs
         run: |
