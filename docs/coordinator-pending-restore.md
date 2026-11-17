@@ -100,6 +100,38 @@ The macOS arm64/APFS run uses Rust 1.99.1, merged runtime `b5493a3` and the
 new process-test overlay. All four schedules and their stale-reader rejection
 controls pass. The complete coordinator package passes 32 tests with two
 explicitly ignored extended workloads in each of debug and release; strict
-all-target Clippy passes. The frozen follow-up qualification records its exact
-source and binaries separately. Linux and native Windows results remain
-required before claiming the new matrix's platform scope.
+all-target Clippy passes. The frozen follow-up qualification below records its
+exact source and binaries.
+
+## Frozen source qualification
+
+Source `4cc267821c5d8a6384acdaa8bbe48bbbac70edd0` passes the four schedules
+in debug and release on macOS arm64/APFS and Docker Linux arm64/ext4 with
+Rust 1.99.1. Each focused invocation executes one passing, nonignored test,
+including the fresh-reader negative control. Both source checkouts remain
+clean. Strict all-target coordinator Clippy passes on both platforms. The
+Windows MSVC test cross-check compiles; native Windows execution remains open.
+
+Linux uses immutable image
+`sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
+Source, registry copy, builds, temporary databases and evidence are on an owned
+ext4 volume. Networking is disabled except for the owned loopback processes.
+The source bundle is verified before checkout; its SHA-256 is
+`619c116e2dcf147eb7108cbaa4c717eab62619e4954b66f9249d0474f211f868`.
+Cargo build metadata identifies the test and CLI executables. Their retained
+copies match these SHA-256 values:
+
+| Platform/profile | Coordinator CLI | Writers test executable |
+|---|---|---|
+| macOS/debug | `de3431b91d71151bde2b0de04f19d12de7d4ce3b8b9ff7888e67827b2e986227` | `a9afe637646675a9e9b4e01d9d3d50ac34b85e5984ad18498ceafda3e225b349` |
+| macOS/release | `349a6da94480997c447d7033ee9c05443cc361e3d8ee4ad6d858f043836e1b5c` | `4d5c72c6117c55fc76619ba2d7e7014b71a83af3c9c94b2b49be424f1dd76a2c` |
+| Linux/debug | `e7b343ad81c270c148207823a233b496ae37a009bdf84641b9580b390cb79873` | `5f62cfb471026d792d31dede8bf0e2624b708010a6c67e8af11befb40f9c053b` |
+| Linux/release | `62244f9a31199cd6ceaed598c5fc3ce8a48912f904ccba77be5d15f9607ff18d` | `1dd9af9a566f8b334ba4136cae386319b4c79487bb737a472669e71ffbabbd75` |
+
+Local logs, build metadata, retained executables and audits are under
+`target/r2/pending-mac-4cc2678`, `target/r2/pending-linux-4cc2678` and
+`target/r2/pending-{mac,linux}-audit.json`. These ignored local files do not
+provide durable proof custody. R2 still requires native Windows execution,
+delivered-artifact qualification and operator/deployment handoff; R7 retains
+the custody requirement. Subsequent documentation-only changes do not imply
+that runtime qualification was rerun on a different source.

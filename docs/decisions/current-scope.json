@@ -146,7 +146,7 @@
     "apps/write-coordinator/tests/writers/pending_restore.rs": "25cfb5c39b1c5d3a3f7ad334c119e64b8c64560df7f32d8e3de620e499bfcd52",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
-    "docs/coordinator-pending-restore.md": "5ec3a411a2b37cddc47dda5d9451b1944e8d13012e246d47cb6a51b18469e5ae",
+    "docs/coordinator-pending-restore.md": "4e39885dbf22e44f788542fc742a68f7dc33d858b4eb4237439be9d7e0860ea5",
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",

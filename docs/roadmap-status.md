@@ -20,11 +20,13 @@ replies. The corrected three-platform operator gate passes, including 41
 native Windows outcomes and the source-protection/exclusive-lease controls.
 The macOS harness additionally verifies bounded normal retirement of a busy
 owned APFS image and the original namespace ENOSPC/reopen/retry scenario.
-R2 remains open for pending-intent/coordinator
-lost-reply restoration and deployment/handoff profiles. The follow-up
+R2 remains open for native Windows and delivered-artifact qualification of
+pending-intent/coordinator restoration, plus deployment/handoff profiles. The follow-up
 [pending-pair matrix](coordinator-pending-restore.md) now covers four unresolved
-intent captures, a second lost reply and fresh current/retained readers; its
-remaining qualification is tracked explicitly. PR #3 passes all 19 checks at
+intent captures, a second lost reply and fresh current/retained readers.
+Frozen `4cc2678` passes debug/release on macOS/APFS and Docker Linux/ext4,
+with a passing Windows test cross-check; native execution is still required.
+PR #3 passes all 19 checks at
 `952b5c3`, with successful native macOS and TSan retries after runner-capacity
 cancellations. This is not a final
 release or a replacement for the immutable artifact qualification.
