@@ -1,9 +1,10 @@
 # R1 source inventory and guard qualification
 
 Baseline is merged main `4cbcd82a8a7b043c6cc8bac7f1b7cd29d6fe3623`.
-Initial qualification used that commit plus the source/test overlay. The final
-review corrections use checkpoint `37ced27` plus their exact overlay; campaign
-reports preserve the actual Git source and honestly record `dirty: true`. Exact source/reference
+Initial qualification used that commit plus the source/test overlay. Final
+macOS campaigns use checkpoint `37ced27` plus the review corrections; Linux
+uses the merged-main checkout plus the corresponding overlay. Reports preserve
+each actual Git source and honestly record `dirty: true`. Exact source/reference
 pins are in [current-scope.json](decisions/current-scope.json), with definitions,
 decision tables and residuals in the [current ledger](decisions/current.md).
 Crates remain unpublished.
@@ -100,6 +101,32 @@ acknowledgment was weakened.
 The Docker source extraction emitted Apple provenance-xattr warnings. File byte
 pins and final cross-host reports match; no warning is counted as an engine
 failure or hidden by a product-test retry.
+
+## Retention and restoration
+
+The private archive `target/archived-proof/r1-inventory-7437883.tar.zst` has
+SHA-256 `3343d50674b21f612ebe3d2964a5b78bfccd7464e380923601bbfafedb518801`.
+Fresh restoration verifies all **6,004 indexed files**, totaling 205,939,557
+bytes. The relative index SHA-256 is
+`36a11ad169220433436a50f91a7030022aa5612ddd5971ac5432e38cbfdcd3d0`.
+The retained original inventory binary reproduces both reports byte for byte
+against the restored source. Source commit `7437883`, its Git bundle/archive,
+actual controller binaries, all four final campaign source copies/logs, rejected
+preparation, and independent review notes are retained. Later documentation-only
+updates do not change that code or its source/reference pins.
+
+The Linux copies include literal AppleDouble `._` metadata entries from the
+initial source transfer. All recorded copied-input hashes, including those
+entries, are preserved and checked; none is skipped. macOS bsdtar normalization
+consumed those entries during two rejected restoration attempts. GNU tar on the
+owned ext4 volume followed by Docker's byte-preserving copy restores all files
+and passes the complete index. Use a metadata-preserving extractor for this
+proof. The metadata entries are not additional Rust targets or MC/DC records.
+
+Independent replay checks 52 genuine mutant failures against their intended
+named tests, 28 successful nonempty baselines, cleanup/timeout records and every
+restored copied-source hash. Runtime/test/fixture inputs match the checked
+manifest across both OSes. Off-machine custody remains a release gate.
 
 ## Remaining work
 
