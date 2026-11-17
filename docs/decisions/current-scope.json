@@ -141,7 +141,7 @@
     "apps/weekend-replicate/src/native/tests.rs": "8ff9f70dcc1d0eac115a62ee6a39459c6ed402bd0cb5e12665d84575ba515cee",
     "apps/weekend-replicate/tests/cli.rs": "5bc1f316b556d389e376d3918b1e7544e32871f61f63d974802e3765917c0528",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
-    "apps/write-coordinator/tests/writers.rs": "10bbd71988e34444ed45e230437dc62e0631914bc008ab11b5035046ce31faf0",
+    "apps/write-coordinator/tests/writers.rs": "30add854517a594469f8a465000111ff4f3d820a0e41d06c94dc494e98024696",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",

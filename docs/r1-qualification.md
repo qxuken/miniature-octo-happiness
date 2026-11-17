@@ -5,7 +5,7 @@ Initial qualification used that commit plus the source/test overlay. Final
 macOS campaigns use checkpoint `37ced27` plus the review corrections; Linux
 uses the merged-main checkout plus the corresponding overlay. Reports preserve
 each actual Git source and honestly record `dirty: true`. Exact source/reference
-pins, refreshed for the Windows caller correction below, are in
+pins, refreshed for the Windows caller and coordinator fixture corrections below, are in
 [current-scope.json](decisions/current-scope.json), with definitions,
 decision tables and residuals in the [current ledger](decisions/current.md).
 Crates remain unpublished.
@@ -155,10 +155,41 @@ Strict xtask Clippy passes for the host and Windows target. The complete host
 xtask suite passes 228 tests with one ignored in each of debug and release.
 A deliberate profile omission fails the new exact-argument assertion; restored
 source passes again. This is a regression control, not another native RNG run.
-The source manifest is rebound to the changed tooling file; runtime, referenced
-engine/application tests and mutation-fixture inputs are unchanged. The initial archive and its reports
-retain their original identities. Native Windows execution and the corrected
-branch's hosted checks remain pending until the rerun finishes.
+At `8a80bde`, the source manifest is rebound to the changed tooling file;
+runtime, referenced engine/application tests and mutation-fixture inputs are
+unchanged. The [corrected hosted run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44091211750)
+passes both R1 mutation profiles and reproduces the current inventory/review
+reports byte for byte. Its native Windows RNG campaign passes four baselines
+and four intended mutant failures, with exact retained executable hashes,
+verified cleanup and restored source. The Windows owner-quota job also passes.
+These results retain merge source `e9e7afadb4d56de24cc25ffe0efcff0f1fb2b8ca`.
+The initial archive and its reports retain their original identities.
+
+## Coordinator fixture isolation exposed by the Windows minimum job
+
+The `8a80bde` Windows minimum-Rust rerun gets past compilation but fails the
+default-parallel `writers` integration suite: the legacy lost-reply test loses
+its child CLI reply, and the sequenced restart/restore test sees EOF querying
+`receipt 0`. The retained transcript contains socket deadline errors while the
+independent 1,024-commit capacity workload runs. The capacity workload completes
+its durability, backup and replay assertions; the enclosing test command exits
+101, not a supervisor timeout. This failed execution receives no minimum-Rust
+qualification credit.
+
+The existing fixture mutex excludes the capacity and journal tests from one
+another, but left the other real-socket workflows outside that isolation.
+All storage-bearing fixtures now acquire the same workload guard. Competing
+processes and pending connections inside each test still overlap, and all
+original receipt, revision, restart and restoration assertions remain. No
+product socket deadline, request admission rule or durability barrier changes;
+the capacity workload stays enabled in the default suite. These existing
+failing tests are the regression cases; no retry converts their failure to a
+pass. The referenced integration-fixture hash is explicitly rebound in the
+current manifest. Native Windows validation of that isolation awaits the next
+hosted run. On macOS, the complete default-parallel suite passes 11 tests with
+two ignored in each profile using Rust 1.99.0; strict Clippy and the Windows
+test-target cross-check pass. macOS also passed before isolation, so that local
+result alone does not reproduce or close the Windows failure.
 
 ## Remaining work
 

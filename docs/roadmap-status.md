@@ -22,8 +22,10 @@ execution of this new branch retain their stated gates; this does not replace
 the prior candidate artifact qualification.
 The first hosted R1 run exposed a Windows-only mutation-command compile error.
 The caller correction and host regression pass local Windows cross-checks on
-Rust 1.99.0/1.99.1; native Windows credit awaits the corrected hosted run, as
-recorded in the R1 qualification report.
+Rust 1.99.0/1.99.1 and the hosted Windows RNG/owner-quota checks. The minimum-Rust
+rerun then exposed overlapping coordinator storage fixtures and real socket
+deadlines; fixture isolation is recorded in the R1 report and awaits native
+Windows validation. Each hosted result retains its exact source.
 
 | Gate | Progress and remaining evidence |
 |---|---|
