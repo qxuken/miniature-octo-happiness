@@ -7,6 +7,43 @@ on:
 permissions:
   contents: read
 jobs:
+  operator-recovery:
+    name: Operator recovery (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      R2_ENGINE_SOURCE: 6b657e516c13f678cd54c816db8a53ec5a11e395
+    steps:
+      - name: Preserve committed file bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - name: Install the pinned Rust compiler and cache locked inputs
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path tools/incident-recovery/Cargo.toml
+      - name: Select the exact merged-main engine source
+        run: |
+          git fetch --no-tags --depth=1 origin ${{ env.R2_ENGINE_SOURCE }}
+          git worktree add --detach target/r2-engine ${{ env.R2_ENGINE_SOURCE }}
+      - name: Build the selected administrative and coordinator CLIs
+        run: cargo build --offline --locked --manifest-path target/r2-engine/Cargo.toml --target-dir target/r2-artifacts -p weekend-db -p write-coordinator --all-features --bin weekend-admin --bin write-coordinator
+      - name: Rehearse fresh restore and coordinated journal recovery
+        run: cargo xtask incident-recovery --admin target/r2-artifacts/debug/weekend-admin${{ runner.os == 'Windows' && '.exe' || '' }} --coordinator target/r2-artifacts/debug/write-coordinator${{ runner.os == 'Windows' && '.exe' || '' }} --artifact-source ${{ env.R2_ENGINE_SOURCE }} --output target/operator-recovery
+      - name: Retain operator recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: operator-recovery-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/operator-recovery/**
+            !target/operator-recovery/synthetic.secret
   decision-inventory:
     name: Source decision reconciliation and R1 controls
     runs-on: ubuntu-latest
@@ -298,6 +335,7 @@ jobs:
           WEEKEND_DB_SOURCE_ID: ${{ github.sha }}
         run: |
           cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-mac-build
+          cargo test --offline --locked -p xtask --bin xtask macos_volume::tests::native_busy_detach_releases_only_the_owned_image -- --ignored --exact --nocapture
           cargo xtask macos-maintenance-space --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-maintenance-space
           bash tools/resource-envelope/qualify-macos-exchange.sh target/maintenance-mac-build/release/weekend-compound-resource "$WEEKEND_DB_SOURCE_ID" target/macos-namespace-enospc
           cargo xtask macos-maintenance-space --cleanup-enospc --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-cleanup-enospc

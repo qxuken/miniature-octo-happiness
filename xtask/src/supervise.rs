@@ -1613,7 +1613,7 @@ mod tests {
             detached_session_worker(&mode);
             return;
         }
-        for mode in ["timeout", "early", "orphan", "malformed"] {
+        for mode in ["timeout", "early", "delayed-early", "orphan", "malformed"] {
             let (owned, mut request) = fixture("");
             let journal = owned.path().join("journal");
             request.argv = vec![
@@ -1626,7 +1626,9 @@ mod tests {
             env.insert(MODE.into(), mode.into());
             request.env = Some(env);
             request.journal = Some(journal);
-            request.timeout_seconds = 3.;
+            // The recursive worker is sanitizer-instrumented too. Completion
+            // cases need startup/exit headroom; the timeout control stays short.
+            request.timeout_seconds = if mode == "timeout" { 3. } else { 30. };
             let report = run(&request).unwrap();
             let pid: i32 = fs::read_to_string(owned.path().join("detached.pid"))
                 .unwrap_or_else(|err| panic!("{mode}: {err}; {report:?}"))
@@ -1644,7 +1646,10 @@ mod tests {
             assert_eq!(report.cleanup_verified, mode != "malformed", "{report:?}");
             match mode {
                 "timeout" => assert!(report.timed_out, "{report:?}"),
-                "early" => assert_eq!(report.returncode, Some(2), "{report:?}"),
+                "early" | "delayed-early" => {
+                    assert_eq!(report.returncode, Some(2), "{report:?}");
+                    assert!(!report.timed_out, "{report:?}");
+                }
                 "orphan" => assert!(report.success(), "{report:?}"),
                 "malformed" => {
                     assert!(report.cleanup_failure.unwrap().contains("journal"));
@@ -1697,7 +1702,14 @@ mod tests {
         }
         fs::write("journal", &line).unwrap();
         match mode {
-            "early" => std::process::exit(2),
+            "early" | "delayed-early" => {
+                if mode == "delayed-early" {
+                    // Exercise completion beyond the old three-second bound,
+                    // as instrumented worker startup/exit can take in CI.
+                    thread::sleep(Duration::from_secs(4));
+                }
+                std::process::exit(2);
+            }
             "orphan" => {
                 writeln!(child.stdin.take().unwrap(), "release").unwrap();
                 assert!(child.wait().unwrap().success());

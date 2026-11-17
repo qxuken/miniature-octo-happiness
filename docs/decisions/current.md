@@ -1,11 +1,18 @@
 # Current source reconciliation after merged main
 
-Baseline: `4cbcd82a8a7b043c6cc8bac7f1b7cd29d6fe3623` (PR #1 merged).
+R1 baseline: `4cbcd82a8a7b043c6cc8bac7f1b7cd29d6fe3623` (PR #1 merged).
 The reviewed manifest is [current-scope.json](current-scope.json). It pins every
 inventoried source and referenced test/ledger file. Its generated `review.json`
 binds each source record to a scope, module references and explicit residual
 obligations. Raw AST records still say `unreviewed`: a reference is not an
 automatic upgrade to predicate independence or a claim of test execution.
+
+The R2 tooling refresh advances the checked manifest from merged PR #2
+`6b657e516c13f678cd54c816db8a53ec5a11e395`. It adds the snapshot-month controller
+and Windows incident-runner adaptation. Runtime sources, historical row
+bindings and named R1 controls are unchanged. New tooling decisions retain
+individual G obligations; operational test execution does not promote them to
+MC/DC pairs. The R1 report retains its original checkpoint counts and source.
 
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its

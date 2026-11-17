@@ -1,5 +1,15 @@
 # Administrative incident and recovery drill
 
+The current [R2 refresh](r2-qualification.md) adds native Windows support and
+uses four owned service lifetimes: the read-only local-acknowledgment phase
+retires before raw byte comparison, then a fresh service performs the continued
+write. Windows' exclusive writer lease deliberately excludes raw live reads.
+The updated drill passes 39 outcomes on each Mac/Linux CI lane and 41 on native
+Windows, including its two ACL setup commands. Native Windows also passes the
+source-protection and exclusive-lease controls in both build profiles. The
+original 38-outcome, three-service results below retain their original source
+and scope.
+
 The executed temporary paths below are historical. After restoration checks,
 their indexed payloads were retained in the
 [operational qualification archive](roadmap-status.md#administrative-recovery-and-service-output-rehearsal)

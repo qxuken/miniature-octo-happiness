@@ -12,20 +12,32 @@ for e2d2268. Older entries below retain their historical source and scope.
 The project name is provisional. Baseline `1e883c8` checkpoints the prior
 decision tests and first four fuzz targets.
 
+The [R2 operational refresh](r2-qualification.md) uses engine `6b657e5` for fresh
+Mac/Linux operator, offline StudyProgress and live snapshot-month rehearsals.
+All scoped local workloads pass, including preserved retained roots, exact
+receipts, six paired restarts, stable repeat sync and four reconciled snapshot
+replies. The corrected three-platform operator gate passes, including 41
+native Windows outcomes and the source-protection/exclusive-lease controls.
+The macOS harness additionally verifies bounded normal retirement of a busy
+owned APFS image and the original namespace ENOSPC/reopen/retry scenario.
+R2 remains open for pending-intent/coordinator
+lost-reply restoration and deployment/handoff profiles; this is not a final
+release or a replacement for the immutable artifact qualification.
+
 The [R1 refresh after merged main](r1-qualification.md) adds current source and
 reference pins, explicit runtime/driver/tooling scopes, conservative historical
 row reuse, admin export pairs and repeatable typed/CRDT/snapshot caller controls.
 Mac and Docker Linux pass the recorded debug/release suites and the named mutant
-outcomes. R1 remains open for the explicit per-record G queue. Generated/compiler
-MC/DC, further individual pairs and native Windows
-execution of this new branch retain their stated gates; this does not replace
-the prior candidate artifact qualification.
+outcomes. PR #2's final head passes all 16 checks, including native Windows and
+TSan. R1 remains open for the explicit per-record G queue, generated/compiler
+MC/DC and further individual pairs; this does not replace the prior candidate
+artifact qualification.
 The first hosted R1 run exposed a Windows-only mutation-command compile error.
 The caller correction and host regression pass local Windows cross-checks on
 Rust 1.99.0/1.99.1 and the hosted Windows RNG/owner-quota checks. The minimum-Rust
 rerun then exposed overlapping coordinator storage fixtures and real socket
-deadlines; fixture isolation is recorded in the R1 report and awaits native
-Windows validation. Each hosted result retains its exact source.
+deadlines; the corrected fixture passes native Windows in both profiles, as
+recorded in the R1 report. Each hosted result retains its exact source.
 
 | Gate | Progress and remaining evidence |
 |---|---|

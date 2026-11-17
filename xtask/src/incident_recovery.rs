@@ -1,8 +1,9 @@
 //! Finite operator rehearsal. Every writable path is under a newly owned directory.
-use crate::{
-    assurance::Campaign,
-    support::{Run, cmd, path, qualification_inventory, sha},
-};
+#[cfg(unix)]
+use crate::assurance::Campaign;
+use crate::support::{Run, cmd, path, qualification_inventory, sha};
+#[cfg(windows)]
+use crate::windows_compatibility::Campaign;
 use anyhow::{Result, ensure};
 use clap::Args;
 use serde_json::json;
@@ -13,6 +14,35 @@ use std::{
 };
 
 const FIXTURE: &[u8] = include_bytes!("../../tests/fixtures/logical-v1.bin");
+fn stderr_name(label: &str) -> String {
+    format!("{label}.stderr{}", if cfg!(windows) { "" } else { ".log" })
+}
+fn protect_source(file: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(file, fs::Permissions::from_mode(0o400))?;
+    }
+    #[cfg(windows)]
+    {
+        let mut permissions = fs::metadata(file)?.permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(file, permissions)?;
+        ensure!(
+            fs::OpenOptions::new()
+                .write(true)
+                .open(file)
+                .err()
+                .is_some_and(|error| error.kind() == std::io::ErrorKind::PermissionDenied),
+            "Windows source still admits a writable open"
+        );
+    }
+    ensure!(
+        fs::metadata(file)?.permissions().readonly(),
+        "source write protection missing"
+    );
+    Ok(())
+}
 #[derive(Args)]
 pub struct Options {
     #[arg(long)]
@@ -70,7 +100,7 @@ impl<'r> Drill<'_, 'r> {
             "rejected operation printed success output"
         );
         ensure!(
-            fs::read_to_string(self.path(&format!("{name}.stderr.log")))?.starts_with(error),
+            fs::read_to_string(self.path(&stderr_name(name)))?.starts_with(error),
             "unexpected rejection category for {name}"
         );
         Ok(())
@@ -107,11 +137,12 @@ impl<'r> Drill<'_, 'r> {
         let restored = self.path("restored.wdb");
         self.admin("fixture-import", &["import", &logical, &original], true)?;
         let bytes = fs::read(&original)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&original, fs::Permissions::from_mode(0o400))?;
-        }
+        protect_source(Path::new(&original))?;
+        self.c.evidence["source_write_protection"] = json!(if cfg!(windows) {
+            "read-only attribute and rejected writable open"
+        } else {
+            "Unix mode 0400 (root may bypass permission denial)"
+        });
         let inspection = self.admin("original-check", &["check", &original], true)?;
         ensure!(
             inspection.contains("format 2 revision 4 data 4 witnessed true")
@@ -302,13 +333,18 @@ impl<'r> Drill<'_, 'r> {
                 "stale check printed success output"
             );
             ensure!(
-                fs::read_to_string(d.path("stale-journal-check.stderr.log"))?
+                fs::read_to_string(d.path(&stderr_name("stale-journal-check")))?
                     .contains("behind 3 0"),
                 "stale restore was not identified as behind"
             );
             unchanged(&journal, &journal_bytes)
         })?;
         unchanged(&stale, &stale_bytes)?;
+        // Windows' exclusive database lease also excludes raw file reads.
+        // Compare the read-only phase only after its service has retired, then
+        // open a separate service for the deliberately mutating next phase.
+        let before = fs::read(&restored)?;
+        let before_journal = fs::read(&restored_journal)?;
         self.service(
             "isolated-restored-service",
             &restored,
@@ -337,8 +373,6 @@ impl<'r> Drill<'_, 'r> {
                     )? == "aligned 4 42",
                     "restored checkpoint not aligned"
                 );
-                let before = fs::read(&restored)?;
-                let before_journal = fs::read(&restored_journal)?;
                 ensure!(
                     d.coordinator(
                         "restored-local-acknowledgment",
@@ -354,8 +388,16 @@ impl<'r> Drill<'_, 'r> {
                     )? == "committed 4",
                     "local acknowledgment mismatch"
                 );
-                unchanged(&restored, &before)?;
-                unchanged(&restored_journal, &before_journal)?;
+                Ok(())
+            },
+        )?;
+        unchanged(&restored, &before)?;
+        unchanged(&restored_journal, &before_journal)?;
+        self.service(
+            "continued-restored-service",
+            &restored,
+            &secret,
+            |d, port| {
                 ensure!(
                     d.coordinator(
                         "continued-write",
@@ -406,6 +448,51 @@ impl<'r> Drill<'_, 'r> {
     }
 }
 
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+    #[test]
+    fn byte_observation_requires_retiring_the_exclusive_writer_lease() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let mut dir =
+            crate::support::Scratch::new(&std::env::temp_dir(), "incident-lease").unwrap();
+        let file = dir.path().join("source.wdb");
+        let bytes = b"preserved fixture";
+        fs::write(&file, bytes).unwrap();
+        let lease = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(&file)
+            .unwrap();
+        let error = unchanged(file.to_str().unwrap(), bytes).unwrap_err();
+        assert_eq!(
+            error
+                .downcast_ref::<std::io::Error>()
+                .unwrap()
+                .raw_os_error(),
+            Some(32)
+        );
+        drop(lease);
+        unchanged(file.to_str().unwrap(), bytes).unwrap();
+        dir.close().unwrap();
+    }
+    #[test]
+    fn source_protection_rejects_writable_open_without_changing_bytes() {
+        let mut dir =
+            crate::support::Scratch::new(&std::env::temp_dir(), "incident-readonly").unwrap();
+        let file = dir.path().join("source.wdb");
+        fs::write(&file, b"protected fixture").unwrap();
+        let original = fs::metadata(&file).unwrap().permissions();
+        let result = protect_source(&file);
+        let unchanged = fs::read(&file).unwrap() == b"protected fixture";
+        fs::set_permissions(&file, original).unwrap();
+        result.unwrap();
+        assert!(unchanged);
+        dir.close().unwrap();
+    }
+}
+
 pub fn run(run: &Run, options: Options) -> Result<()> {
     let source = &options.artifact_source;
     ensure!(
@@ -419,8 +506,13 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
     )?;
     let result = (|| -> Result<()> {
         c.limits(1024 * 1024, None)?;
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&c.output, fs::Permissions::from_mode(0o700))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&c.output, fs::Permissions::from_mode(0o700))?;
+        }
+        #[cfg(windows)]
+        c.restrict_directories(&[("incident-output", &c.output.clone())])?;
         let fixture = run.root.join("tests/fixtures/logical-v1.bin");
         ensure!(
             fs::read(&fixture)? == FIXTURE,
@@ -456,19 +548,46 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
             None,
             180.,
         )?;
-        let consumer = build.join("debug/incident-recovery-consumer");
+        let consumer = build.join(format!(
+            "debug/incident-recovery-consumer{}",
+            std::env::consts::EXE_SUFFIX
+        ));
         c.evidence["consumer"] = json!({"path":consumer,"sha256":sha(&consumer)?});
         let binaries = Binaries {
             admin,
             coordinator,
             consumer,
         };
+        let retained = c.output.join("binaries");
+        fs::create_dir(&retained)?;
+        let mut binary_hashes = Vec::new();
+        for (label, binary) in [
+            ("admin", &binaries.admin),
+            ("coordinator", &binaries.coordinator),
+            ("consumer", &binaries.consumer),
+        ] {
+            let copy = retained.join(format!("{label}{}", std::env::consts::EXE_SUFFIX));
+            let digest = sha(binary)?;
+            fs::copy(binary, &copy)?;
+            ensure!(
+                sha(&copy)? == digest,
+                "retained incident executable mismatch"
+            );
+            binary_hashes.push((binary.clone(), copy, digest));
+        }
         let mut drill = Drill {
             c: &mut c,
             binaries: &binaries,
         };
         drill.physical()?;
         drill.journals()?;
+        for (original, retained, digest) in binary_hashes {
+            ensure!(
+                sha(&original)? == digest && sha(&retained)? == digest,
+                "incident executable changed during qualification"
+            );
+        }
+        c.evidence["selected_binaries_unchanged"] = json!(true);
         ensure!(
             fs::read(fixture)? == FIXTURE,
             "logical fixture changed during drill"
@@ -488,7 +607,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
     c.finish(result)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;

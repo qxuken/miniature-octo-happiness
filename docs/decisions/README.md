@@ -1,9 +1,11 @@
 # Source audit index
 
-The [merged-main R1 refresh](../r1-qualification.md) is the current source
+The [merged-main R1 refresh](../r1-qualification.md) is the R1 source
 checkpoint: 8,171 records/132 files/12 targets, split into 3,023 runtime, 156
 driver and 4,992 qualification-tooling records. The Windows command-builder
 correction removes one duplicate profile decision from the initial R1 inventory.
+The checked manifest subsequently advances with the R2 operational tooling;
+the generated report supplies its current denominator and individual gaps.
 The [checked manifest](current-scope.json)
 and [current ledger](current.md) bind every source/reference and conservatively
 reuse 721 exact historical row references plus eleven named controls. Unmatched records carry
