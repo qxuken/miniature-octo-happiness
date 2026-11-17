@@ -29,6 +29,11 @@ with a passing Windows test cross-check. PR #4 head `7df2dc2` then passes all
 19 hosted checks, including the matrix in both profiles on native Windows.
 The [source-package controller](coordinator-artifact-recovery.md) next reuses
 those exact recovery observations against relocated private artifacts.
+Frozen `f2e4d35` passes all eight schedule/profile combinations on macOS/APFS
+and Docker Linux/ext4; complete package/source inventories and retained
+executables are audited. Review fixes reject unexpected stderr and restrict
+evidence before its first write. Native Windows source-package/ACL execution
+and operator/deployment handoff remain required.
 PR #3 passes all 19 checks at
 `952b5c3`, with successful native macOS and TSan retries after runner-capacity
 cancellations. This is not a final

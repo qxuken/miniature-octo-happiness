@@ -112,3 +112,42 @@ run retains its limited scope; the fixed candidate must be qualified again.
 The fixed macOS xtask/coordinator suites pass 269 tests with four explicit
 ignores in each of debug and release. Strict Clippy and the Windows test
 cross-check pass; the new native ACL test still requires Windows execution.
+
+## Frozen package execution
+
+Fixed source `f2e4d35ce6dc374d6333c4370de4e12a35247a70` passes all four
+schedules in both profiles on macOS arm64/APFS and Docker Linux arm64/ext4
+with Rust 1.99.1. Both checkouts are clean. On each platform the audit verifies
+all 850 package payloads, all 771 declared source files against that Git
+revision, and all 336 controller input hashes. The controller input maps are
+identical across hosts. Discovery/recovery stderr is empty, both original
+build-path executables are absent, runtime directories are empty, and the
+retained executables match their before/after hashes.
+
+| Platform/profile | Coordinator SHA-256 | Test executable SHA-256 |
+|---|---|---|
+| macOS/debug | `8ed21633c5d5fc1de3bcc3446ebcf0dac3fa43ba9621bb4a0e7e85b3c693180d` | `28c3a6fc01956d24babfa5228c771a5ce4b268eab0a89cb2a049e67cb01a3262` |
+| macOS/release | `349a6da94480997c447d7033ee9c05443cc361e3d8ee4ad6d858f043836e1b5c` | `c5e759f765c263a26de7109b0c2337da3947e690ab5fb56e711a5b4e77ee6099` |
+| Linux/debug | `cc1a8422ae644fc23ae39d7013e51e45db1dadb72ecb08f2d49a1a4ac1300eb3` | `a5677987eac19c315005d34c2d57ae78ccbdafbc3bea8b364e91edfd6517833e` |
+| Linux/release | `62244f9a31199cd6ceaed598c5fc3ce8a48912f904ccba77be5d15f9607ff18d` | `1c3536734d68fa220f7276c162eccdc1568ae5fd88934270d91e627d354cc9ef` |
+
+| Platform | Package manifest SHA-256 | Recovery evidence SHA-256 |
+|---|---|---|
+| macOS | `f4f92d1a6047ab7d1a07b7f55f05851da059b38f71bacf445f1bc7a5b342450b` | `edb2a6b9ca5df87010e895e8fbe1f4ef2684fd625cbdadcf69dad82339d364db` |
+| Linux | `eba05f5cb17fd667145e11b07ab61c22f3767740b43f605f8b110f94212d52a3` | `5d91435f8544c1c5bad4e0f00038b300e631640c61a133c21f9ff09e2ab080a9` |
+
+Linux uses immutable image
+`sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`,
+with source, registry copy, builds, package and runtime files on the owned
+ext4 volume and no external networking. The verified source bundle SHA-256 is
+`4c0c538bdd6d706e6df62d1371ee26ed65d38977a74204a8416b186ebe17d8e8`.
+The worker runs as UID 0: mode 0700 does not prove access denial against root.
+Its container exits 0; the owned container and volume are retired after the
+audited proof is copied out.
+
+Local proof and the independent audit are under
+`target/r2/coordinator-artifact/`, including `frozen-audit.json` and the retained
+source bundle. These ignored files are not durable proof custody. Native
+Windows execution and its ACL control, other promised delivery profiles,
+operator handoff and final release consolidation remain open. Subsequent
+documentation commits do not become a new runtime qualification.

@@ -147,7 +147,7 @@
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
-    "docs/coordinator-artifact-recovery.md": "56acc02ee03f18ffe0d1f27882e3ffdc9b0393d49b2ecb8d8a0ec4de8cf19705",
+    "docs/coordinator-artifact-recovery.md": "d738085e18c7389ecb7d062e8c378c9cbb31ef4d01ad4aab6b1711a59fcbdee4",
     "docs/coordinator-pending-restore.md": "d05d279ac7d4586c8e5caff39d6075edeac3ce57a439d419b1c21dc6ce1a2c18",
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
