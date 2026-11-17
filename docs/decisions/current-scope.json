@@ -1,0 +1,951 @@
+{
+  "schema_version": 1,
+  "baseline": "4cbcd82a8a7b043c6cc8bac7f1b7cd29d6fe3623",
+  "source_files": {
+    "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
+    "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
+    "apps/study-peer/src/native/admission.rs": "0d01bb5355a7b420f9cad80a7fa5fea02d09adaf7a92cce91cf6029750469dab",
+    "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
+    "apps/study-peer/src/native/roster.rs": "29b73975c59b0d9afcda7608cc8ae22f1b8005c20a2ad5da15d7d69ab418b420",
+    "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
+    "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
+    "apps/support/pinned_tls.rs": "3772645837b8f2f4e8ba8b1c743902538a2541f781999724a59de98395706b53",
+    "apps/support/service_diagnostics.rs": "02a7c1dcba60626104be3f58da640459b5f185546b64a532c189d3f62ef07208",
+    "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
+    "apps/weekend-replicate/src/native.rs": "bf4b7a29d62011a342a9badb6dc8d74fcaab5ea51c901ff25cc19605d874679c",
+    "apps/weekend-replicate/src/native/admission.rs": "7144c0e040b9955bf64fe857361653378d3e01fb784639da5c8eae125ad312c3",
+    "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
+    "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
+    "apps/weekend-tasks/src/lib.rs": "887d9ce8c80ae6b4d92166e5c6947dce64dbf0611fd393559b8510d23d1980c6",
+    "apps/weekend-tasks/src/main.rs": "c30b765061790065812d268281f5d6f7c54113d91977f48692635f8045003f46",
+    "apps/write-coordinator/src/main.rs": "0baa2da45ecc666867adbf652fc95958edefe1ac0523c76d96934b69e7b5517b",
+    "apps/write-coordinator/src/native.rs": "314c33dde1358ed55acae915f9dd9504e291dc40e1c3ca8ad8a188a0a4d8b3b2",
+    "apps/write-coordinator/src/native/journal.rs": "eb78f88e31636eb09cf4ebccb322fe3474169bde6ab8a6884623fe08f5e7701b",
+    "apps/write-coordinator/src/native/protocol.rs": "3a5caa03af98054871ce6a4e535b18350af19a6a587464b6ac523a0bb44b1da7",
+    "apps/write-coordinator/src/native/sequenced.rs": "080861cc87f34785d727bec6497f37b51a46229247bb59b539c56655cd5d6c70",
+    "apps/write-coordinator/src/native/service.rs": "b1bd1006b17a6262d1272b8c742365e0c213f7802057716e6d33fbdac1960f84",
+    "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
+    "crates/weekend-db-macros/src/lib.rs": "5d0708c15d60b2cdd679fbc0a08a6504caf6f136b90bb32be1c271a63753b9f4",
+    "crates/weekend-db-macros/src/model.rs": "fa796e2ebcfbf9acfea6354b9b0ea7533b948c4a2252b5163e8d09b9a6e5c5f9",
+    "crates/weekend-db-macros/src/record.rs": "328a45d7cfe315b3f1ff23e0627a8216ade91dcd265f62fae95a0c1b918e5ee8",
+    "crates/weekend-db-macros/src/resolution.rs": "a5c39e16b0c6d0dcfe382c673240baf76323fec22e3296be98ea8ee7855fa178",
+    "crates/weekend-db-typed/src/codec.rs": "7725f08e3d1df5180cf839899c929e9d6219c92e7352d17e2758ef3f1fe127aa",
+    "crates/weekend-db-typed/src/lib.rs": "e6a706a0b017b605cdde1d660f5e2c36504a61239500acb8b18f3d1fca98345d",
+    "crates/weekend-db-typed/src/store.rs": "2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa",
+    "examples/support/study.rs": "d2a119e71a0863fa16ab2da04a8254e8fee9c6584448f2810edf80996522226d",
+    "src/crdt.rs": "314b94c63278801a91ee1cfd8f2f387a6c1452cc46c3ce5bbf380a3a6735bf45",
+    "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
+    "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
+    "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
+    "src/engine.rs": "942f02751ee1c0f8c40b492f4a112aa8f6210cc39c046e99b18e1b1d073ade1b",
+    "src/ffi.rs": "36680a4ebabcab192b5695d1e9a82a8f5e100d843467c8c910aa78ce24ff8c5d",
+    "src/lib.rs": "f43a892f3773ef824fa62d22a08380066899ed4badfc82d3365b65170c1b3332",
+    "src/memory.rs": "d357b4b549b6573eb18479be8f245f1a774d76af50c42414e3517515fdeb47a8",
+    "src/replication/follower.rs": "7b1566228ed57f5b41d15be8a583416a14f8dcefae1521a5ba1764413e37e035",
+    "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
+    "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
+    "src/schema.rs": "defe72214ddbf59e05bf291dcd93f97bd92a56cfb143f075858dfcab7001181a",
+    "src/storage/codec.rs": "dc442d771e2fbcb2ac883bca7849a801874b389ae2b89df35296b87f99e35883",
+    "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
+    "src/storage/file.rs": "6665a77198f510e6f5c946c03093113e51011c3248c2f3b68efd61bccb0c472b",
+    "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
+    "src/storage/linux.rs": "dfbf4db6f6d4cb58926d0ef1fbc3bce13e5484bc73c37159ff6bdc026259499f",
+    "src/storage/logical.rs": "b77ac1d8bf55ab8b7cd1aa31067b1e1568d872c09892df8d49b05fb43147ee66",
+    "src/storage/macos.rs": "077333d98d747e31e1091475cc4962f7b13362fb1463f0790aba9b890f5d74a6",
+    "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
+    "src/storage/replacement.rs": "76e5098896ecc0ede681526cbb8ba75fbe40b833e528eef95d748715de84cd07",
+    "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
+    "src/storage/simulator.rs": "e6b1b3a724c6618173704717380d50e948ef8d4dced051bc675a160e0e582003",
+    "src/storage/windows.rs": "42933c3f2718fa163da59e667c88634afe5d6c5ce5b2b47a073faa984438749e",
+    "src/tree.rs": "bcec08cd41a96fa1e5f82fbeb2b469f4f459110995ee75abd5f6487e05c24cd0",
+    "src/value.rs": "254aaa0b5e56fa7cdee7e164b93d655311e0585aee86f40494301688662b663d",
+    "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
+    "tools/admin.rs": "5bf45aecb59283e8d3f5c3192fcc01fdf0abe983219402f2b7daba31a40611fb",
+    "tools/benchmark.rs": "a522795d6ad4346dad50b9e9d8b1e790838895649bda034e2d25cdcc44d107ac",
+    "tools/file_worker.rs": "991190d7e55147765a10d89ec30ca2fd71ad373532cf50d3febceab1006cbf5b",
+    "tools/quota/windows_identity.rs": "922a2a19d3c1733d4a60367ea4b8b3854d6769720d11aca82ce22843245d0030",
+    "tools/sqlite-baseline/src/workload.rs": "b501e8c6cd62d9de0ca0056c8d67ca745bd021b9c5e3da6f56b76af427d7014d",
+    "xtask/src/abi.rs": "f7f089dfd602962861fe05505d6e0938c64cbc85098ef1677f555fb118a7df7a",
+    "xtask/src/apfs_exhaustion.rs": "9f27265733bb1d83bbc4319ea5f349a59241af6e4d0a9af02067f84872f2c19e",
+    "xtask/src/artifact_trace.rs": "899305af29cb96b63e6bc848afb8dccbe742c6ba6a18be8d11ae67d904f48006",
+    "xtask/src/assurance.rs": "8c5441c8fbcb865abc7bea81ffe50bc6d9b975862983e79f584b366c8461eb59",
+    "xtask/src/atomic_model.rs": "128f0d5e7519565ad6490dab4e9f830b4bab0800c2e351efcd1e4c624ba0e996",
+    "xtask/src/benchmark.rs": "c3dfaf2482c1ba1395768580a580ab8604c36845777e493b58d8939e65726a04",
+    "xtask/src/c_sanitizers.rs": "3382c0606e6bf6190b6f2899a9daee640f05ee981f08806644c6207f313bdb21",
+    "xtask/src/check.rs": "3bb7eb71500eb443f0b2289608e3ae82eae5f196e97c7259629355c4d7cc445a",
+    "xtask/src/clean.rs": "6f6ee36687033547a9c1e1e47b1ba89091a51a76a0691a2a2b185866980bd241",
+    "xtask/src/compatibility.rs": "036b3da70dc40dcbce45d4d0fe61894591c0674c180824fef40c7e89abfc37f4",
+    "xtask/src/coverage.rs": "701672c26b2ff14a6397bac61add44a6c6ddb18570948548e97fd561162af930",
+    "xtask/src/coverage_executables.rs": "2de11e2b513e474850d7ee28593f312fc3035d6b8c725df5b9acc5d19a999bc4",
+    "xtask/src/delivered_faults.rs": "adb0c3f9e44844324ba67e6550123424b4b6fd2231605c3c39dd23d01c795861",
+    "xtask/src/delivery.rs": "105ad985e856cf8a36478d3b2fd6d390acceb472f4f2378f1dd3ee51ccb6fd4b",
+    "xtask/src/delivery_matrix.rs": "0dc8cdb7bc1391df4da16436626f2912c5695ae701ea254debde705c6274ca6a",
+    "xtask/src/faults.rs": "917a52091957921af9204c042206938c8dbcc3176717bcb3a0e9810784186d67",
+    "xtask/src/follower_backup.rs": "27635ce94ecaebc27c6ba86dc3ec6d7ef63761bcaa260300522b734c4dfbc713",
+    "xtask/src/fuzz.rs": "4ead6868462757555c71f051383530c9b73bc5d3c60d6894ea654e8d41fb4d76",
+    "xtask/src/helper_controls.rs": "fcb9fe4d2d19d1770b8f8e66956834e5f89c22fa241812aafd182483f52d7e66",
+    "xtask/src/incident_recovery.rs": "c4efee6832f46fc42c4d66e7bd2ae5d19b6fc1a3a7b04863e7e93feb69cce0eb",
+    "xtask/src/instrumentation.rs": "3854dbf5a03081fa56d57c1ca385054b5d6c2a4468e7cb26b87bd0d885d1632d",
+    "xtask/src/interactive.rs": "a7f1b446652b9ee1f5acdaae4c6d3bc5294fbf03c26cfbc65ebf0c66d569975f",
+    "xtask/src/macos_volume.rs": "1dde36d9c3409b4c02294c27f1327c9e5c590c01118fd056db400fb4ac17cb32",
+    "xtask/src/main.rs": "0bbb953fd12cb39bd588a58b4e2e5eb5f29e5837a132748f640bff8d6f6a5636",
+    "xtask/src/maintenance_space.rs": "147d07c23508fb9e05f9096abde79d7987c034ed540f57ade65d4456af7b7da3",
+    "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
+    "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
+    "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
+    "xtask/src/mutations.rs": "51f80a8becc36b8c6d72b8b29f57d11b83d6f9052753df96f045723d81a6170c",
+    "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
+    "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
+    "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
+    "xtask/src/package.rs": "d9e495f91599d787084e316289bf5a0c64b9be575ea72d7782e343d3dbf34f49",
+    "xtask/src/probe.rs": "5793e44937c675d43785de54db30ae555a4148038e8affc47377e2866e0c542b",
+    "xtask/src/qualification_net.rs": "0c847dc8f58cfeb6ece7dd70af60dc6a442ffdcba959a1c93bd1efe525174fab",
+    "xtask/src/quota_append.rs": "d5990604414837b4892388b794167d8dc3d34e07073782d88d6ed022643b8c55",
+    "xtask/src/quota_enospc.rs": "43bd939ce215ae97035dfed92fb610e0e2dd7c88ef18caa7255bdcc9bd4ccd34",
+    "xtask/src/quota_guest.rs": "a15e694e3f81434700930dc4d5c893725515fd8c855d1ee7f097a8f1f37600db",
+    "xtask/src/quota_host.rs": "b16a0959de3c526c80cb671d9d851da35f7414a23371da9fa229dbd23fb377fa",
+    "xtask/src/quota_oracle.rs": "b7140f47ab10e3c96237a22f76cd995103a884e0375fc4843e3d27e56cc36756",
+    "xtask/src/quota_writeback.rs": "946fba589218567fc275f45e648b8fed8cb87a91ef1dcc3a3bbf071b0fe2d4b4",
+    "xtask/src/replica_progress.rs": "212a59707841e163ffab534b29e8dffbc524484f058606ef9e3dcfe79abe0ddf",
+    "xtask/src/replica_progress/monitor.rs": "53081b155fe4a54391d4cee507f711013dcbac79cfb2c181963f05b26066061c",
+    "xtask/src/resource_campaign.rs": "bd20c40431296ad51081ee12a2157dd096c1f60210ccb0a66047805889e1ebf7",
+    "xtask/src/resource_oracle.rs": "6426ff26830ab4625908c04f791fdff7da181696f84469038d9a513728c16a3c",
+    "xtask/src/resource_probe.rs": "d42c571001e07400a4de9ac6f2eecd4a32a9b3c35e62bbc0c52a662f0e525162",
+    "xtask/src/rust_source.rs": "5b2e70c6ca96494204ea94d1adf8be2205135815724c321aa9739a2100434e17",
+    "xtask/src/sanitizers.rs": "bc3f2dd6816c776d4345d0873c7a0b2dc8430e1852a67dd514992a271c85c2aa",
+    "xtask/src/serialization_scale.rs": "396f0888a76395d2878c189d3a5a922206b0d055fa3b673cdaa84b88e36a78be",
+    "xtask/src/snapshot_proof.rs": "3a6f37f065f74bab278f2f6136cad970b979512f8daac485dabf77bc09811d0c",
+    "xtask/src/snapshot_upgrade.rs": "a99bcdc33fdc164923c3b20fa0c4e5fc0a7e967b8630689bd1efc9521f6606fa",
+    "xtask/src/snapshot_upgrade_linux.rs": "fae4a063edd468024ecbef2c97e433010d8a9c6f90f081aa5f730af4421c1d47",
+    "xtask/src/soak.rs": "371af9e99747f7fa33d0f4f89a5ff7e9ac728ad9c3e6c7b9e7f6fa854eb4cf6c",
+    "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
+    "xtask/src/source_inventory.rs": "76d51506ef1a96357bdd0cc3639b5cc8e5703eaf1d5d96f10fbee79a0c38c4d7",
+    "xtask/src/sqlite_baseline.rs": "1e50f199f66323eb9f6886395d3ca4f99f93931c778da71cf32a570874fb596d",
+    "xtask/src/study_soak.rs": "83609399872e25efcbda17416f35e0b2428faac44e7b485adb6c332c6dfce229",
+    "xtask/src/study_upgrade.rs": "632fcd52e908404ec09158a3ccc1e36fae9c06a87585bdd558ab173d66710f48",
+    "xtask/src/supervise.rs": "6d6d33782914b2478e06cd2623659bf1eeaad5dc615d4b7faf7b0136b9a72107",
+    "xtask/src/support.rs": "7b51f32c5cb794b3f0b6679fb4efbcd44ce50825a0c73ebac92e7bf9057e00a9",
+    "xtask/src/toolchain.rs": "2dd83b9547622cc3bf1b6096f00c32bb31c327f8d95fd980320e7ec9ea1524c9",
+    "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
+    "xtask/src/trace_process.rs": "4aec4b243ed658df90b82504583cb1827c2eafac553dfdfe4594eb809f9e300e",
+    "xtask/src/windows_compatibility.rs": "fa755d98acc122fd0b2629b142a363cb8fb2e98746315b0983c0676a91d080e5",
+    "xtask/src/windows_faults.rs": "442b5030ecd61fe492f2d52fddb10c5f30bc93a0003d90fec4cf044cbec5a9c4",
+    "xtask/src/windows_process.rs": "5c3c3b6a998f082ee536a33bfb811216dd8e81762f762c2b468eb11f4b19d1bc",
+    "xtask/src/windows_quota.rs": "a94ff2b36494652e075060f4c815dd941c6e45d65ef50d1fd3b8888ed080572e",
+    "xtask/src/windows_trace.rs": "4f34977a84b584686fd4182f4bac0e59a1aadcd9fba7419d991cf9214e7770d2",
+    "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
+  },
+  "reference_files": {
+    "apps/study-peer/src/native/tests.rs": "eab0715df7bfb966af651040b584a5b56845a6ea4d1a9d1504f8e8f1d1d34ff2",
+    "apps/study-peer/tests/cli.rs": "6e3ad714e6102cb4545fcaa16e30e57734a2eb1bcc0e38c6c1388a3dca6d9f8d",
+    "apps/weekend-replicate/src/native/tests.rs": "8ff9f70dcc1d0eac115a62ee6a39459c6ed402bd0cb5e12665d84575ba515cee",
+    "apps/weekend-replicate/tests/cli.rs": "5bc1f316b556d389e376d3918b1e7544e32871f61f63d974802e3765917c0528",
+    "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
+    "apps/write-coordinator/tests/writers.rs": "30add854517a594469f8a465000111ff4f3d820a0e41d06c94dc494e98024696",
+    "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
+    "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
+    "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
+    "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
+    "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
+    "docs/decisions/current.md": "7f9013f6c79ac5f41da3cfe5481dcc23e515fb6de83f81a8232614ee88c8fcca",
+    "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
+    "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
+    "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
+    "docs/decisions/ffi.md": "5de80429b18fb25cc5ff237cd58d96064b99e4e8335df23242b6334e1b9d36ef",
+    "docs/decisions/macros.md": "abf03b25df4e801504b94bcfd6fb2eb038f8c9bf34cfce2356272ad6645f0f35",
+    "docs/decisions/memory.md": "aade82ce0ec324ea843205d6c812bd3747d9758b8e11fbcc06a79879b87a51e9",
+    "docs/decisions/native-storage.md": "512f6daa72a04578e4b2569509d873ad7e8ddb97cdf2ee4a030a9307c243891f",
+    "docs/decisions/operations.md": "a4fddf27ab8fec2bc7f834536244ede88cca96fdb54fd3dc67eefb4e13111e3a",
+    "docs/decisions/replacement.md": "51ca29d454cde7576cccb39e147449bd5dd5c1b47a53d308c2f52287a3754317",
+    "docs/decisions/replication.md": "c878715b597564370205df1887d5b398fe278fb70948762023bea76f40b1eed8",
+    "docs/decisions/schema.md": "7ab28cc3450ecdf3d60b7b21da33878b4e70064171d7f254b1ab7e18b41553b7",
+    "docs/decisions/simulator.md": "0c26c5ad4f8ab2ffbb1b094e64dc6a28ba576bcfd0571eea4668031f868dde00",
+    "docs/decisions/snapshot-cli.md": "6f3016cf826a3c06985ffb1be8d25ca032bb7c886e6027741aa91d6076be9634",
+    "docs/decisions/storage-core.md": "f4903525352908d017e9ff6858fdc70a45e38dcaca11e98a8ae726f96a2f2ef2",
+    "docs/decisions/tree.md": "dab795f63e6a510209051f2021b809474909da24e6350272acdce3545a6b57fb",
+    "docs/decisions/typed-runtime.md": "fd53f0fdd169a7dcabab4362c88fcdffb96c338f5ddc6f25e8fe733d8f16a4a9",
+    "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
+    "docs/helper-controls.md": "c874ff2ea4e2411b0d76136c671da55b8d58fb3de86f19ea5dd00cd97cb79906",
+    "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
+    "docs/mutations.md": "3d5b47bae8331053282f88af0686e995e9ad29ee4dd9ee3d8d2c202d0bd69dca",
+    "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
+    "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
+    "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
+    "docs/tls-handshake-decisions.md": "8642a290a1922b2056270d750e6cbb32a54f966e54807f865f71b48757825a78",
+    "include/weekend_db.h": "303319e5322c5c1687baae6dcbc59c56ad271d082ff299410cbfbd367ac194b1",
+    "src/replication/follower/tests.rs": "b19a7271558fb0a46db3928b55c274d8d15665cd7f595caa0671be09506cd85a",
+    "src/replication/tests.rs": "bf132cfa40f16f42665412d74603fb3e02be54596dd67ea5b3db6329c89f01b5",
+    "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
+    "tests/allocation.rs": "1fe93186d258e8f5a98d2b87f3a7eb34c9a6ca7e0b067833b940dabbfa939a86",
+    "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
+    "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
+    "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
+    "tests/durability.rs": "3f5e433c68d5d762da45f4a39db95e741a8136982ee16acdab27a572fb8890b6",
+    "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
+    "tests/files.rs": "11fb925f39e7ff6555ed776e28079e78f4e47359146b2685a70113a77a113260",
+    "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
+    "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
+    "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
+    "tests/retention.rs": "f55a8c487b6576d61773f47fc91b3839ee0b81d11c6fc7e5cfe0adf9de2945cd",
+    "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
+    "tests/schema.rs": "11f76f4abac949e644104b9be6a3805f059d607d9e33593cba69ddeb869a5314",
+    "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
+    "tests/storage_decisions.rs": "d694115d3f6079eab548f383be032efc900a9ed57b93ab5af131bafa3f3440ab",
+    "tests/transactions.rs": "f4d6aec6b5f63cea148c64b9a31b89f755848b196fb0e38b542e5d4802cdf112",
+    "tests/value_decisions.rs": "eda8394a8b1305e110ec99bb7d50ba78436c1a0843a0f472cdd6213fc6284574",
+    "tests/values.rs": "adcb83f2d92ccae41fb25505d7e4e22334a77d03eec945ea711ff1616c3c1067",
+    "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
+    "xtask/tests/mutations.json": "2bcc0bf09ba4e9b5ea5e4781a7de104828ecf75bf97846409e3d55411eaa87fb",
+    "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43"
+  },
+  "target_records": {
+    "study-peer::study-peer": 295,
+    "weekend-db-macros::weekend_db_macros": 108,
+    "weekend-db-typed::weekend_db_typed": 315,
+    "weekend-db::benchmark": 93,
+    "weekend-db::file-worker": 33,
+    "weekend-db::weekend-admin": 30,
+    "weekend-db::weekend_db": 1623,
+    "weekend-replicate::weekend-replicate": 246,
+    "weekend-tasks::weekend-tasks": 55,
+    "weekend-tasks::weekend_tasks": 38,
+    "write-coordinator::write-coordinator": 343,
+    "xtask::xtask": 4992
+  },
+  "groups": [
+    {
+      "name": "engine",
+      "scope": "runtime",
+      "paths": [
+        "src/engine.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/engine.md",
+        "tests/engine_decisions.rs",
+        "tests/transactions.rs",
+        "tests/retention.rs",
+        "tests/concurrency.rs"
+      ],
+      "residual": "Native/callback error combinations and implicit/library branches retain their scoped dispositions."
+    },
+    {
+      "name": "schema",
+      "scope": "runtime",
+      "paths": [
+        "src/schema.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/schema.md",
+        "tests/schema_decisions.rs",
+        "tests/schema.rs"
+      ],
+      "residual": "Fallible primitive calls remain delegated; source pairs are not compiler-expanded coverage.",
+      "single_source_ledgers": [
+        "docs/decisions/schema.md"
+      ]
+    },
+    {
+      "name": "memory",
+      "scope": "runtime",
+      "paths": [
+        "src/memory.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/memory.md",
+        "docs/memory-budget-decisions.md",
+        "tests/allocation.rs",
+        "tests/live_budget_decisions.rs"
+      ],
+      "residual": "Allocator implementation and unsupported platform/resource combinations remain separate."
+    },
+    {
+      "name": "value",
+      "scope": "runtime",
+      "paths": [
+        "src/value.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/value.md",
+        "tests/value_decisions.rs",
+        "tests/values.rs"
+      ],
+      "residual": "Delegated allocations and internal trait/compiler behavior are not inferred as independent pairs."
+    },
+    {
+      "name": "tree",
+      "scope": "runtime",
+      "paths": [
+        "src/tree.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/tree.md",
+        "tests/value_decisions.rs",
+        "tests/values.rs"
+      ],
+      "residual": "Invariant and delegated dispositions retain the exact valid-structure domain.",
+      "single_source_ledgers": [
+        "docs/decisions/tree.md"
+      ]
+    },
+    {
+      "name": "ffi",
+      "scope": "runtime",
+      "paths": [
+        "src/ffi.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/ffi.md",
+        "include/weekend_db.h"
+      ],
+      "residual": "Generated export templates, pointer/lifetime contracts and per-ABI outcomes retain supplemental scope."
+    },
+    {
+      "name": "storage",
+      "scope": "runtime",
+      "paths": [
+        "src/storage/mod.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/storage-core.md",
+        "tests/storage_decisions.rs",
+        "tests/durability.rs"
+      ],
+      "residual": "Native persistence assumptions and delegated calls remain separate from simulated pairs."
+    },
+    {
+      "name": "codec",
+      "scope": "runtime",
+      "paths": [
+        "src/storage/codec.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/codec.md",
+        "tests/durability.rs",
+        "tests/retention.rs"
+      ],
+      "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate."
+    },
+    {
+      "name": "native",
+      "scope": "runtime",
+      "paths": [
+        "src/storage/file.rs",
+        "src/storage/macos.rs",
+        "src/storage/linux.rs",
+        "src/storage/windows.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/native-storage.md",
+        "docs/native-identity-assurance.md",
+        "tests/files.rs",
+        "tests/compaction.rs"
+      ],
+      "residual": "Kernel outcomes, coupled pathname predicates, unsupported ABIs and physical power loss remain separate from callback controls."
+    },
+    {
+      "name": "simulator",
+      "scope": "runtime",
+      "paths": [
+        "src/storage/simulator.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/simulator.md",
+        "tests/durability.rs"
+      ],
+      "residual": "Finite modeled schedules and allocation errors do not establish native device behavior."
+    },
+    {
+      "name": "replacement",
+      "scope": "runtime",
+      "paths": [
+        "src/storage/replacement.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/replacement.md",
+        "tests/compaction.rs"
+      ],
+      "residual": "Namespace model evidence and real filesystem/device durability remain distinct."
+    },
+    {
+      "name": "operations",
+      "scope": "runtime",
+      "paths": [
+        "src/storage/inspection.rs",
+        "src/storage/logical.rs",
+        "src/storage/salvage.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/operations.md",
+        "tests/inspection.rs",
+        "tests/logical.rs",
+        "tests/salvage.rs"
+      ],
+      "residual": "Complete-root salvage and known format/version profiles do not imply arbitrary partial salvage/conversion."
+    },
+    {
+      "name": "diagnostics",
+      "scope": "runtime",
+      "paths": [
+        "src/storage/diagnostics.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/diagnostics.md",
+        "tests/storage_decisions.rs"
+      ],
+      "residual": "Platform/native diagnostic production and arbitrary application sinks retain separate scope."
+    },
+    {
+      "name": "core-support",
+      "scope": "runtime",
+      "paths": [
+        "src/lib.rs",
+        "src/version.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/release-contract.md",
+        "docs/decisions/ffi.md"
+      ],
+      "residual": "Build identity, derived traits and conditional exports require their exact delivered configurations."
+    },
+    {
+      "name": "typed",
+      "scope": "runtime",
+      "paths": [
+        "crates/weekend-db-typed/"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/typed-runtime.md",
+        "crates/weekend-db-typed/tests/runtime_decisions.rs",
+        "crates/weekend-db-typed/tests/models.rs"
+      ],
+      "residual": "Generic instantiations and primitive errors retain scoped E/D evidence; named admission pairs do not close all residuals."
+    },
+    {
+      "name": "macros",
+      "scope": "runtime",
+      "paths": [
+        "crates/weekend-db-macros/"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/macros.md",
+        "crates/weekend-db-typed/tests/models.rs"
+      ],
+      "residual": "Quote bodies and every possible generated compilation/instantiation are outside the pre-expansion denominator."
+    },
+    {
+      "name": "crdt",
+      "scope": "runtime",
+      "paths": [
+        "src/crdt.rs",
+        "src/crdt/"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/crdt.md",
+        "tests/crdt.rs"
+      ],
+      "residual": "Lawful compatible histories and concrete Record instantiations do not prove arbitrary app algebra or all callback failures."
+    },
+    {
+      "name": "replication",
+      "scope": "runtime",
+      "paths": [
+        "src/replication/"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/replication.md",
+        "src/replication/tests.rs",
+        "src/replication/follower/tests.rs"
+      ],
+      "residual": "Exact local/follower acknowledgment contracts remain separate; broader transport/OS errors remain delegated."
+    },
+    {
+      "name": "tasks",
+      "scope": "runtime",
+      "paths": [
+        "apps/weekend-tasks/"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/command-line.md",
+        "apps/weekend-tasks/tests/decisions.rs"
+      ],
+      "residual": "Underlying typed/core errors and command platform variants retain their named scope."
+    },
+    {
+      "name": "study",
+      "scope": "runtime",
+      "paths": [
+        "apps/study-peer/",
+        "examples/support/study.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/distributed-apps.md",
+        "apps/study-peer/src/native/tests.rs",
+        "apps/study-peer/tests/cli.rs"
+      ],
+      "residual": "Fixed-roster deployment, raw reserved rows and native stream errors remain explicit application obligations."
+    },
+    {
+      "name": "snapshot-cli",
+      "scope": "runtime",
+      "paths": [
+        "apps/weekend-replicate/"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/snapshot-cli.md",
+        "apps/weekend-replicate/src/native/tests.rs",
+        "apps/weekend-replicate/tests/cli.rs"
+      ],
+      "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
+    },
+    {
+      "name": "coordinator",
+      "scope": "runtime",
+      "paths": [
+        "apps/write-coordinator/"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/distributed-apps.md",
+        "apps/write-coordinator/tests/writers.rs"
+      ],
+      "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
+    },
+    {
+      "name": "shared-app-support",
+      "scope": "runtime",
+      "paths": [
+        "apps/support/"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/snapshot-cli.md",
+        "docs/decisions/distributed-apps.md",
+        "docs/service-diagnostics.md",
+        "docs/tls-handshake-decisions.md"
+      ],
+      "residual": "TLS dependency/native outcomes and generated logging/error branches are not inferred covered for every binary."
+    },
+    {
+      "name": "drivers",
+      "scope": "driver",
+      "paths": [
+        "tools/admin.rs",
+        "tools/benchmark.rs",
+        "tools/file_worker.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decisions/command-line.md",
+        "tests/admin_decisions.rs"
+      ],
+      "residual": "Admin callback progress pairs are named separately; measurement/fault drivers keep delegated and private-invocation limits."
+    },
+    {
+      "name": "qualification-tooling",
+      "scope": "tooling",
+      "paths": [
+        "xtask/",
+        "tools/quota/windows_identity.rs",
+        "tools/sqlite-baseline/src/workload.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/helper-controls.md",
+        "docs/mutations.md",
+        "xtask/tests/supervise.rs",
+        "xtask/tests/commands.rs"
+      ],
+      "residual": "Unit/helper and native negative controls are scoped evidence, not individual independence pairs for all tooling records."
+    }
+  ],
+  "controls": [
+    {
+      "name": "ADMIN-W1",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "tools/admin.rs",
+        "target": "weekend-db::weekend-admin",
+        "owner": "export_bytes",
+        "kind": "if",
+        "conditions": [
+          "written == 0",
+          "written > bytes.len() - offset"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tools/admin.rs",
+          "name": "zero_and_excess_progress_stop_before_another_write_or_sync"
+        },
+        {
+          "file": "tools/admin.rs",
+          "name": "short_writes_use_exact_suffixes_before_sync_and_unlock"
+        }
+      ],
+      "mutations": [
+        "r1-admin-zero",
+        "r1-admin-oversize"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "ADMIN-W2",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "tools/admin.rs",
+        "target": "weekend-db::weekend-admin",
+        "owner": "export_bytes",
+        "kind": "while",
+        "conditions": [
+          "offset < bytes.len()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tools/admin.rs",
+          "name": "empty_export_syncs_without_writing"
+        },
+        {
+          "file": "tools/admin.rs",
+          "name": "short_writes_use_exact_suffixes_before_sync_and_unlock"
+        }
+      ],
+      "mutations": [
+        "r1-admin-loop-boundary"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "ADMIN-W3",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "tools/admin.rs",
+        "target": "weekend-db::weekend-admin",
+        "owner": "export_bytes",
+        "kind": "try_propagation",
+        "conditions": [
+          "file.sync()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tools/admin.rs",
+          "name": "errors_stop_at_the_first_failed_stage"
+        },
+        {
+          "file": "tools/admin.rs",
+          "name": "short_writes_use_exact_suffixes_before_sync_and_unlock"
+        }
+      ],
+      "mutations": [
+        "r1-admin-sync-error"
+      ]
+    },
+    {
+      "name": "TYPED-T11-decode",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "decode",
+        "kind": "if",
+        "conditions": [
+          "raw.type_id() != T::TYPE_ID"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "assurance_stored_record_types_reject_before_decoder_and_schema_fallbacks"
+        }
+      ],
+      "mutations": [
+        "r1-typed-decode-type"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-T11-record_keys",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "record_keys",
+        "kind": "if",
+        "conditions": [
+          "raw.type_id() != T::TYPE_ID"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "assurance_stored_record_types_reject_before_decoder_and_schema_fallbacks"
+        }
+      ],
+      "mutations": [
+        "r1-typed-index-type"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-T11-insert",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "insert",
+        "kind": "if",
+        "conditions": [
+          "entry.version != T::VERSION"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "assurance_old_model_insert_rejects_newer_catalog_without_partial_writes"
+        }
+      ],
+      "mutations": [
+        "r1-typed-insert-version"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-C4",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "serve_authenticated",
+        "kind": "try_propagation",
+        "conditions": [
+          "local.payload.resolve_conflicts(self.actor)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/crdt.rs",
+          "name": "exhausted_sync_resolution_preserves_the_entire_published_record"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-resolver-error"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-R4",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "ship",
+        "kind": "try_propagation",
+        "conditions": [
+          "channel.flush().map_err(|_| Error::Io)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "upload_flush_failure_preserves_progress_and_leaves_the_terminal_reply_unread"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-upload-flush"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-R5",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "ship",
+        "kind": "try_propagation",
+        "conditions": [
+          "wire::request(&mut channel, self.enrollment, Some(offer))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "transport_header_flush_error_stops_before_receipt_read"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ship-request"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-R6",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "poll",
+        "kind": "try_propagation",
+        "conditions": [
+          "wire::request(&mut channel, self.enrollment, None)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "poll_header_flush_error_stops_before_receipt_read"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-poll-request"
+      ]
+    },
+    {
+      "name": "TX-V1",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "validate",
+        "kind": "if",
+        "conditions": [
+          "self.validation == Validation::WholeDatabase",
+          "self.base.revision != current.revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/transactions.rs",
+          "name": "existing_record_edits_follow_validation_mode"
+        }
+      ],
+      "mutations": [
+        "r1-engine-validation-mode",
+        "r1-engine-validation-revision"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    }
+  ]
+}

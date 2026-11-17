@@ -7,6 +7,39 @@ on:
 permissions:
   contents: read
 jobs:
+  decision-inventory:
+    name: Source decision reconciliation and R1 controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned compiler and cache locked inputs
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component clippy
+          cargo +1.99.1 fetch --locked
+          cargo +1.99.1 fetch --locked --manifest-path tools/decision-inventory/Cargo.toml
+      - name: Test the inventory and reconciliation contracts in both profiles
+        run: |
+          cargo +1.99.1 test --offline --locked --manifest-path tools/decision-inventory/Cargo.toml
+          cargo +1.99.1 test --offline --locked --release --manifest-path tools/decision-inventory/Cargo.toml
+          cargo +1.99.1 clippy --offline --locked --manifest-path tools/decision-inventory/Cargo.toml --all-targets -- -D warnings
+      - name: Reject stale source, reference, decision and control bindings
+        run: cargo +1.99.1 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/review --review docs/decisions/current-scope.json
+      - name: Detect the R1 controls in debug and release
+        run: |
+          cargo +1.99.1 xtask mutations --case r1- --toolchain 1.99.1 --output target/r1/mutations-debug
+          cargo +1.99.1 xtask mutations --case r1- --release --toolchain 1.99.1 --output target/r1/mutations-release
+      - name: Retain the source-bound reconciliation and mutation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: source-decisions-r1-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: warn
+          path: |
+            target/r1/review/**
+            target/r1/mutations-*/**
+            !target/r1/mutations-*/build/**
+            !target/r1/mutations-*/source/**
   native:
     strategy:
       fail-fast: false

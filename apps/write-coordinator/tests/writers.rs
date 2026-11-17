@@ -29,8 +29,16 @@ mod test_tmpfs;
 
 const BIN: &str = env!("CARGO_BIN_EXE_write-coordinator");
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
-// Keep the capacity workload out of the journal CLI's socket deadline.
+// Independent fixtures share the host's flush capacity. Keep the 1,024-commit
+// workload out of every other fixture's real socket deadlines; competing
+// clients within one fixture still run concurrently.
 static STORAGE_WORKLOAD: Mutex<()> = Mutex::new(());
+
+fn storage_workload() -> std::sync::MutexGuard<'static, ()> {
+    STORAGE_WORKLOAD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 struct Directory(PathBuf);
 impl Directory {
@@ -143,6 +151,7 @@ fn wait_for_transition(mut observe: impl FnMut() -> String, previous: &str, expe
 
 #[test]
 fn two_processes_edit_one_record_and_the_stale_writer_conflicts() {
+    let _exclusive = storage_workload();
     let dir = Directory::new();
     let path = dir.0.join("counter.db");
     let path = path.to_str().unwrap();
@@ -199,6 +208,7 @@ fn two_processes_edit_one_record_and_the_stale_writer_conflicts() {
 #[test]
 fn durable_request_receipts_survive_lost_reply_restart_and_competing_requests() {
     use std::net::{Shutdown, TcpStream};
+    let _exclusive = storage_workload();
     let dir = Directory::new();
     let file = dir.0.join("receipts.db");
     let path = file.to_str().unwrap();
@@ -355,6 +365,7 @@ fn write_secret(file: &std::path::Path, token: &str) {
 
 #[test]
 fn incomplete_request_leaves_room_for_another_writer() {
+    let _exclusive = storage_workload();
     let dir = Directory::new();
     let path = dir.0.join("coordinator.wdb");
     let path = path.to_str().unwrap();
@@ -387,6 +398,7 @@ fn incomplete_request_leaves_room_for_another_writer() {
 
 #[test]
 fn excess_connections_receive_busy_without_publishing_requests() {
+    let _exclusive = storage_workload();
     let dir = Directory::new();
     let path = dir.0.join("coordinator.wdb");
     let path = path.to_str().unwrap();
@@ -429,6 +441,7 @@ fn excess_connections_receive_busy_without_publishing_requests() {
 
 #[test]
 fn operator_shutdown_releases_the_lease_and_preserves_receipts() {
+    let _exclusive = storage_workload();
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -541,6 +554,7 @@ fn sequenced_clients_preserve_receipts_through_restart_and_restore() {
     use std::net::Shutdown;
     use weekend_db::{Limits, storage};
 
+    let _exclusive = storage_workload();
     let dir = Directory::new();
     let path = dir.0.join("sequenced.db");
     let secret = dir.0.join("secret");
@@ -715,9 +729,7 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
     use std::net::TcpListener;
     use weekend_db::{Limits, storage};
 
-    let _exclusive = STORAGE_WORKLOAD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _exclusive = storage_workload();
 
     let dir = Directory::new();
     let file = dir.0.join("primary.db");
@@ -888,6 +900,7 @@ fn journal_restarts_after_lost_reply_and_rejects_incompatible_history() {
 fn native_sequenced_workload_reuses_receipts_across_maintenance() {
     use weekend_db::{Database, Limits, storage};
 
+    let _exclusive = storage_workload();
     let directory = Directory::new();
     let mut path = directory.0.join("sequenced.db");
     let key = directory.0.join("secret");
@@ -988,6 +1001,7 @@ fn native_journal_workload_resumes_after_verified_restore() {
     use std::path::Path;
     use weekend_db::{Database, Limits, storage};
 
+    let _exclusive = storage_workload();
     fn journal(action: &str, path: &Path, args: &[&str]) -> String {
         let result = Command::new(BIN)
             .args(["journal", action])
@@ -1229,9 +1243,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
     use std::net::Shutdown;
     use weekend_db::{Limits, storage};
 
-    let _exclusive = STORAGE_WORKLOAD
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _exclusive = storage_workload();
 
     let dir = Directory::new();
     let file = dir.0.join("capacity.db");
@@ -1342,6 +1354,7 @@ fn native_receipt_capacity_survives_restarts_backup_restore_and_compaction() {
 #[test]
 fn configured_secret_authenticates_before_writes_and_receipt_lookup() {
     use std::{io::Read, net::TcpStream};
+    let _exclusive = storage_workload();
     let dir = Directory::new();
     let file = dir.0.join("authenticated.db");
     let secret = dir.0.join("secret");
@@ -1451,6 +1464,7 @@ fn command_line_dispatch_and_clean_client_exit() {
 #[cfg(unix)]
 #[test]
 fn secret_fifo_is_rejected_before_opening_database_or_waiting_for_input() {
+    let _exclusive = storage_workload();
     let dir = Directory::new();
     let secret = dir.0.join("secret-fifo");
     assert!(

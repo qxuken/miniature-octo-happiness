@@ -12,6 +12,7 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "include/weekend_db.h",
         ".cargo/config.toml",
         "tools/coverage-fixture.rs",
+        "tools/admin.rs",
         "tools/benchmark.rs",
         "tools/compatibility-driver.rs",
         "tools/compatibility-snapshot.rs",
@@ -98,4 +99,23 @@ pub fn seeds(root: &Path) -> Result<BTreeMap<String, String>> {
     let mut out = BTreeMap::new();
     walk(root, &root.join("fuzz/seeds"), &mut out, true)?;
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admin_source_changes_are_part_of_campaign_input_identity() {
+        let root = crate::support::Scratch::new(&std::env::temp_dir(), "source-inventory").unwrap();
+        fs::create_dir(root.path().join("tools")).unwrap();
+        let admin = root.path().join("tools/admin.rs");
+        fs::write(&admin, "first").unwrap();
+        let before = snapshot(root.path()).unwrap();
+        assert_eq!(before["tools/admin.rs"], sha(&admin).unwrap());
+        fs::write(&admin, "second").unwrap();
+        let after = snapshot(root.path()).unwrap();
+        assert_ne!(before, after);
+        assert_eq!(after["tools/admin.rs"], sha(&admin).unwrap());
+    }
 }

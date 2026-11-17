@@ -6,6 +6,22 @@ review denominator and audit aid, **not an MC/DC measurement or proof**. Every
 record initially says `unreviewed`, including records in modules with existing
 [manual decision pairs](../DESIGN.md#mcdc-decision-ledger).
 
+The [current source reconciliation](decisions/current.md) refreshes the merged
+main baseline and adds a separate, checked scope/reference manifest. Run:
+
+```sh
+cargo run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/decision-review --review docs/decisions/current-scope.json
+```
+
+`review.json` and `review.md` separate runtime, driver and qualification-tool
+records, bind references and tests to exact files, validate named source-pair
+tables and retain all blind spots and residual obligations. A stale or ambiguous
+source/reference/selector/test/mutation binding rejects. This does not relabel
+all raw records as covered or establish compiler MC/DC. `--review` requires the
+production union and cannot be combined with `--include-tests`. Changes to the
+pinned files require review and an explicit manifest update. Results are recorded
+separately from source references.
+
 From the repository root:
 
 ```sh
@@ -70,6 +86,9 @@ The JSON schema version is `1`. The top-level report contains:
 
 - `tool_version`, `tool_source_sha256`: tool package version and exact main source
   identity; reproduce with its checked-in Cargo.lock as well.
+- `tool_inputs_sha256`: hashes of both tool source modules and its manifest/lock,
+  including the optional reconciliation implementation. The original main-source
+  field retains its meaning.
 - `files`: repository-relative source paths mapped to full-file SHA-256 hashes.
   `source_set_sha256` hashes the compact JSON serialization of that sorted map.
 - `targets`: package/target names, Cargo target kinds, required features and

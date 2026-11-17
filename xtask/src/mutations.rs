@@ -54,6 +54,9 @@ pub struct Options {
     pub output: Option<PathBuf>,
     #[arg(long)]
     pub toolchain: Option<String>,
+    /// Use optimized tests on Unix (Windows already qualifies both profiles).
+    #[arg(long)]
+    pub release: bool,
 }
 fn parse_inventory(fixture: &str) -> Result<Inventory> {
     let data: Inventory = serde_json::from_str(fixture)?;
@@ -84,7 +87,7 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 && c.old != c.new
                 && c.occurrence > 0
                 && c.matches.is_none_or(|n| n > 0)
-                && matches!(c.target.as_str(), "--lib" | "--test" | "--bins")
+                && matches!(c.target.as_str(), "--lib" | "--test" | "--bin" | "--bins")
                 && matches!(
                     c.package.as_str(),
                     "weekend-db" | "weekend-db-typed" | "study-peer"
@@ -101,9 +104,17 @@ fn inventory() -> Result<Inventory> {
 }
 fn apply(case: &Case, original: &str) -> Result<String> {
     let marker = "#[cfg(test)]\nmod ";
-    let (production, tests) = original
-        .split_once(marker)
-        .map_or((original, None), |(p, t)| (p, Some(t)));
+    // An external `mod tests;` does not end production source. Only an inline
+    // test module owns the remaining body in the supported source layout.
+    let boundary = original.match_indices(marker).find_map(|(at, _)| {
+        let tail = &original[at + marker.len()..];
+        tail.find(['{', ';'])
+            .filter(|end| tail.as_bytes()[*end] == b'{')
+            .map(|_| at)
+    });
+    let (production, tests) = boundary.map_or((original, None), |at| {
+        (&original[..at], Some(&original[at + marker.len()..]))
+    });
     let parts: Vec<_> = production.split(&case.old).collect();
     let expected = case
         .matches
@@ -128,7 +139,7 @@ fn apply(case: &Case, original: &str) -> Result<String> {
     }
     Ok(out)
 }
-fn command(case: &Case, toolchain: Option<&str>) -> Vec<String> {
+fn command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
     let mut args = vec!["cargo".into()];
     if let Some(t) = toolchain {
         args.push(format!("+{t}"));
@@ -147,6 +158,9 @@ fn command(case: &Case, toolchain: Option<&str>) -> Vec<String> {
         .into_iter()
         .map(str::to_owned),
     );
+    if release {
+        args.push("--release".into());
+    }
     args
 }
 #[cfg(unix)]
@@ -258,6 +272,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         let version = c.command(compiler, "rustc-version", None, 30.)?;
         c.evidence["rustc"] = json!(version);
         c.evidence["fixture_provenance"] = json!({"source_commit":inventory.source_commit,"source_sha256":inventory.source_sha256});
+        c.evidence["profile"] = json!(if options.release { "release" } else { "debug" });
         let names = c.command(
             cmd([
                 "git",
@@ -279,7 +294,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         let mut baselines = BTreeSet::new();
         let mut failed = false;
         for case in selected {
-            let args = command(&case, options.toolchain.as_deref());
+            let args = command(&case, options.toolchain.as_deref(), options.release);
             if baselines.insert(args.clone()) {
                 let name = format!("{}-baseline", case.name);
                 c.command_at(cmd(&args), &name, None, 120., &checkout)?;
@@ -423,12 +438,12 @@ mod tests {
     }
     #[cfg(unix)]
     #[test]
-    fn fixture_has_all_56_unique_safe_cases_and_preserves_test_commands() {
+    fn fixture_preserves_test_commands_and_selects_release_explicitly() {
         let data = inventory().unwrap();
-        assert_eq!(data.cases.len(), 56);
+        assert_eq!(data.cases.len(), 69);
         let c = &data.cases[0];
         assert_eq!(
-            command(c, None),
+            command(c, None, false),
             [
                 "cargo",
                 "test",
@@ -441,7 +456,10 @@ mod tests {
                 "allocation"
             ]
         );
-        assert_eq!(command(c, Some("1.99.1"))[1], "+1.99.1");
+        assert_eq!(command(c, Some("1.99.1"), false)[1], "+1.99.1");
+        let mut optimized = command(c, None, false);
+        optimized.push("--release".into());
+        assert_eq!(command(c, None, true), optimized);
     }
     #[test]
     fn only_requested_production_occurrence_changes_and_source_drift_rejects() {
@@ -458,6 +476,19 @@ mod tests {
         assert!(apply(&c, "guard").is_err());
         c.occurrence = 3;
         assert!(apply(&c, source).is_err());
+    }
+    #[test]
+    fn external_test_module_does_not_hide_later_production_guards() {
+        let mut c = inventory().unwrap().cases[0].clone();
+        c.old = "guard".into();
+        c.new = "false".into();
+        c.matches = Some(1);
+        c.occurrence = 1;
+        let source = "#[cfg(test)]\nmod tests;\nfn production() { guard }\n#[cfg(test)]\nmod local { guard }";
+        assert_eq!(
+            apply(&c, source).unwrap(),
+            "#[cfg(test)]\nmod tests;\nfn production() { false }\n#[cfg(test)]\nmod local { guard }"
+        );
     }
     #[test]
     fn every_frozen_expression_still_matches_current_production_source() {
