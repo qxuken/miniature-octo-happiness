@@ -340,6 +340,11 @@ impl<'r> Drill<'_, 'r> {
             unchanged(&journal, &journal_bytes)
         })?;
         unchanged(&stale, &stale_bytes)?;
+        // Windows' exclusive database lease also excludes raw file reads.
+        // Compare the read-only phase only after its service has retired, then
+        // open a separate service for the deliberately mutating next phase.
+        let before = fs::read(&restored)?;
+        let before_journal = fs::read(&restored_journal)?;
         self.service(
             "isolated-restored-service",
             &restored,
@@ -368,8 +373,6 @@ impl<'r> Drill<'_, 'r> {
                     )? == "aligned 4 42",
                     "restored checkpoint not aligned"
                 );
-                let before = fs::read(&restored)?;
-                let before_journal = fs::read(&restored_journal)?;
                 ensure!(
                     d.coordinator(
                         "restored-local-acknowledgment",
@@ -385,8 +388,16 @@ impl<'r> Drill<'_, 'r> {
                     )? == "committed 4",
                     "local acknowledgment mismatch"
                 );
-                unchanged(&restored, &before)?;
-                unchanged(&restored_journal, &before_journal)?;
+                Ok(())
+            },
+        )?;
+        unchanged(&restored, &before)?;
+        unchanged(&restored_journal, &before_journal)?;
+        self.service(
+            "continued-restored-service",
+            &restored,
+            &secret,
+            |d, port| {
                 ensure!(
                     d.coordinator(
                         "continued-write",
@@ -440,6 +451,32 @@ impl<'r> Drill<'_, 'r> {
 #[cfg(all(test, windows))]
 mod windows_tests {
     use super::*;
+    #[test]
+    fn byte_observation_requires_retiring_the_exclusive_writer_lease() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let mut dir =
+            crate::support::Scratch::new(&std::env::temp_dir(), "incident-lease").unwrap();
+        let file = dir.path().join("source.wdb");
+        let bytes = b"preserved fixture";
+        fs::write(&file, bytes).unwrap();
+        let lease = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(&file)
+            .unwrap();
+        let error = unchanged(file.to_str().unwrap(), bytes).unwrap_err();
+        assert_eq!(
+            error
+                .downcast_ref::<std::io::Error>()
+                .unwrap()
+                .raw_os_error(),
+            Some(32)
+        );
+        drop(lease);
+        unchanged(file.to_str().unwrap(), bytes).unwrap();
+        dir.close().unwrap();
+    }
     #[test]
     fn source_protection_rejects_writable_open_without_changing_bytes() {
         let mut dir =
