@@ -5,12 +5,18 @@ Run the private Rust controller from the repository root:
 ```sh
 cargo xtask mutations --list
 cargo xtask mutations --case tls- --output target/tls-mutations-new
+cargo xtask mutations --case r1- --output target/r1-mutations-new
+cargo xtask mutations --case r1- --release --output target/r1-mutations-release-new
 cargo xtask mutations --output target/all-mutations-new
 ```
 
-On Unix, the 56 reviewed guard mutations retain their original expressions,
+On Unix, the 56 historical guard mutations retain their original expressions,
 occurrence counts, package/test selection and replacement text in
 `xtask/tests/mutations.json`. Its provenance binds the retired Python controller.
+Eleven [R1 controls](decisions/current.md) extend that registry to 67 cases,
+reusing typed T11, CRDT C4 and snapshot R4/R5/R6 tests and adding direct admin
+export controls. The historical fixture provenance applies to the original
+56; the current reconciliation additionally pins the complete updated fixture.
 All source expressions are checked before an output or source copy is acquired.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
@@ -18,7 +24,9 @@ new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
 The controller copies Git-listed inputs into an owned checkout, rejects symlink
 escapes and skips its own output. The real checkout is never modified. Builds
 use an owned Cargo target, offline/locked dependencies, all selected package
-features and controlled instrumentation settings. Every distinct test command
+features and controlled instrumentation settings. `--release` selects optimized
+tests on Unix and is recorded in the evidence. A single `--bin` target can be
+selected without running unrelated zero-test binaries. Every distinct test command
 first needs a successful, nonempty baseline. Each subprocess has a 120-second
 deadline, bounded output, a process report and verified retirement.
 
@@ -37,6 +45,12 @@ invalidate object ownership. The source expressions and tests require review
 when implementations change; a source mismatch rejects rather than selecting a
 different expression silently.
 
+An external `#[cfg(test)] mod tests;` declaration does not truncate production
+source. Inline `#[cfg(test)] mod ... { ... }` bodies at the end of the supported
+source layout remain protected; a regression distinguishes both forms. This
+small transformation is not a general Rust rewriting API. The input snapshot
+also binds `tools/admin.rs`, with a regression for changes to that source.
+
 ## Native Windows identity controls
 
 Windows selects the separate two-case `xtask/tests/mutations-windows.json`
@@ -45,6 +59,8 @@ inventory. It requires a native MSVC host compiler:
 ```sh
 cargo xtask mutations --case windows-rng- --toolchain 1.99.1 --output target/windows-rng-mutations-new
 ```
+
+Omit `--release` on Windows: that controller already requires both profiles.
 
 The guards reject a positive nonzero RNG status and preserve native diagnostics.
 Both select the exact status-zero/positive/negative test introduced in

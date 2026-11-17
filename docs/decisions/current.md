@@ -1,0 +1,113 @@
+# Current source reconciliation after merged main
+
+Baseline: `4cbcd82a8a7b043c6cc8bac7f1b7cd29d6fe3623` (PR #1 merged).
+The reviewed manifest is [current-scope.json](current-scope.json). It pins every
+inventoried source and referenced test/ledger file. Its generated `review.json`
+binds each source record to a scope, module references and explicit residual
+obligations. Raw AST records still say `unreviewed`: a reference is not an
+automatic upgrade to predicate independence or a claim of test execution.
+
+## Interpreting the refreshed denominator
+
+The prior 2,604-record checkpoint predates both later runtime changes and the
+Rust xtask conversion. The refreshed union includes runtime libraries/apps,
+shipped administrative commands, measurement/fault drivers and qualification
+tooling. The report separates runtime, driver and tooling counts. Shared source
+keeps each Cargo target identity; matching paths do not collapse binary profiles.
+
+The existing ledgers preserve P/E/C/I/D/B/G dispositions at their original source
+locations. The reconciliation reports which historical full-file pins still
+match. A changed file receives current scoped references and explicit remaining
+obligations, not a guessed transplant of old line numbers. Even an unchanged
+file pin does not prove that every old condition was independent or that all
+of its dependencies/platforms were exercised in a new run.
+
+Unchanged-file rows are additionally rebound only when their exact source
+range/position, kind, owner and any explicit Cargo-target column match. The
+report preserves the original status and ledger row separately. A `?` keyword
+hash alone, an ambiguous row or an unmatched file/target never earns that
+binding. Historical statuses are references, not newly measured coverage.
+
+The manifest's named controls select one exact target/file/owner/kind/condition
+set, require existing parsed `#[test]` functions and maintained mutation names,
+and validate each Boolean decision table's independence pairs. Propagation
+controls are labelled separately. The source, referenced test and fixture hashes
+must match; missing/ambiguous sources, tests, controls, ranges, target counts and
+file dispositions reject. This is source traceability, not compiler MC/DC.
+
+## ADMIN-W1: export progress and ordering
+
+The admin export loop now lives in private `export_bytes`, called by the real
+`export` command using the same `FileStore`. Its lock, write, sync and unlock
+order and error propagation are preserved. No public storage interface changes.
+Tests use the existing `ByteStore` contract rather than fabricated descriptors
+or kernel return values. Successful native CLI export/import/reopen tests remain
+the separate actual-file evidence.
+
+For A=`written == 0`, B=`written > remaining`, the same six-byte buffer supplies:
+
+| Returned progress | A | B | Result |
+|---:|---|---|---|
+| 1, then 2, then 3 | F | F | Exact suffixes at offsets 0, 1, 3; sync and unlock |
+| 0 | T | F | Exact Io; no further write, sync or unlock |
+| 7 | F | T | Exact Io; no further write, sync or unlock |
+
+The rejecting rows paired with the valid row independently control A and B.
+B has a defined conceptual false value when A masks its evaluation. The loop's
+empty-input control calls no write but still syncs/unlocks. Exact-length progress
+stops at EOF. Lock Busy, write Limit and sync Io preserve the first failure and
+stop before subsequent stages. These callback/error-propagation controls do not
+claim actual kernel short-write or error injection.
+
+Four tests in `tools/admin.rs::export_decisions` cover those outcomes. Four
+maintained mutants remove each invalid-progress guard, change `<` to `<=`, or
+swallow the final sync error. A second write after zero progress fails the
+finite callback script immediately; an infinite test timeout cannot qualify.
+
+## Reused controls made repeatable
+
+- Typed T11: the existing permissive manual decoder and exact error assertions
+  independently detect the stored-record type guard in `decode`, the separate
+  guard in `record_keys`, and old-model insert rejection after catalog upgrade.
+  Their current/retained-row and write-poisoning assertions are reused.
+- CRDT C4: the existing exhausted automatic-resolution test preserves the whole
+  current/retained record and image, sends no success reply, and verifies a
+  successful boundary control plus read-only replay. Its caller propagation
+  omission is now maintained in xtask.
+- Snapshot R4/R5/R6: existing upload-flush, ship-request and poll-request tests
+  use exact transcripts, preserve prior progress and leave the next reply unread
+  on failure. Their caller omissions are now maintained in xtask. A local commit
+  still does not acknowledge follower durability.
+
+The 56 historical Unix mutation cases keep their original provenance. Eleven
+R1 additions bring the finite registry to 67. `--release` additionally runs the
+Unix controller with optimized test builds; existing default commands remain
+unchanged. Windows keeps its separately pinned two-case, two-profile registry.
+
+R1 exposed a qualification-controller defect: an external `#[cfg(test)] mod
+tests;` was mistaken for the beginning of an inline test body, hiding later
+production guards from mutation admission. The new regression distinguishes
+both forms while preserving inline test bytes. The controller also accepts a
+single `--bin` target: filtering all binaries would include unrelated zero-test
+targets, which remain an invalid baseline. `tools/admin.rs` is now included in
+the campaign input snapshot, with a source-change regression.
+
+## Explicit residuals
+
+- Existing E and D evidence remains scoped to its tested calling paths and
+  platform/dependency outcomes. Every possible residual at every `?` is not
+  inferred from one callee test. Native identity callback controls and kernel
+  fault occurrence remain distinct.
+- Macro/derive/conditional-attribute blind spots remain enumerated separately.
+  FFI templates and Model/Record/Resolution generators have their existing
+  supplemental tests; no complete compiler-expanded denominator is claimed.
+- Qualification tooling has scoped unit, helper, negative-control and platform
+  evidence. Its thousands of source records are not added to a runtime MC/DC
+  percentage or automatically marked covered by a green workflow.
+- Supported platform/feature unions, arbitrary application `Record` algebra,
+  native calls, standard-library/dependency internals and compiler implicit
+  branches retain their explicit acceptance boundaries.
+
+Results and retained proof identities belong in the R1 qualification report;
+they are not inferred by this manifest or substituted for measured compiler
+MC/DC. All crates remain unpublished.

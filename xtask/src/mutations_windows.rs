@@ -191,6 +191,10 @@ fn invoke(
 }
 #[cfg(windows)]
 pub(super) fn run(run: &Run, options: Options) -> Result<()> {
+    ensure!(
+        !options.release,
+        "Windows already checks debug and release; omit --release"
+    );
     use crate::{
         instrumentation,
         support::{cmd, path},

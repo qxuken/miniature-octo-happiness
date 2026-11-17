@@ -14,6 +14,7 @@ use syn::{
     spanned::Spanned,
     visit::{self, Visit},
 };
+mod review;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 fn hash(bytes: &[u8]) -> String {
@@ -572,17 +573,23 @@ fn main() -> Result<()> {
     let mut args = env::args().skip(1);
     let root = PathBuf::from(
         args.next()
-            .ok_or("usage: decision-inventory ROOT OUTPUT [--include-tests]")?,
+            .ok_or("usage: decision-inventory ROOT OUTPUT [--include-tests | --review MANIFEST]")?,
     )
     .canonicalize()?;
     let output = PathBuf::from(args.next().ok_or("output directory required")?);
-    let include_tests = match args.next().as_deref() {
-        None => false,
-        Some("--include-tests") => true,
-        _ => return Err("unknown option".into()),
-    };
-    if args.next().is_some() {
-        return Err("unexpected arguments".into());
+    let mut include_tests = false;
+    let mut review_manifest = None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--include-tests" if !include_tests => include_tests = true,
+            "--review" if review_manifest.is_none() => {
+                review_manifest = Some(args.next().ok_or("review manifest required")?);
+            }
+            _ => return Err("unknown or repeated option".into()),
+        }
+    }
+    if include_tests && review_manifest.is_some() {
+        return Err("review requires the production inventory, without --include-tests".into());
     }
     let metadata = Command::new("cargo")
         .args([
@@ -646,7 +653,27 @@ fn main() -> Result<()> {
     audit
         .decisions
         .sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
-    let report = json!({"schema_version":1,"tool_version":env!("CARGO_PKG_VERSION"),"tool_source_sha256":hash(include_bytes!("main.rs")),"source_set_sha256":hash(&serde_json::to_vec(&audit.files)?),"scope":"source AST across feature/platform variants","include_tests":include_tests,"files":audit.files,"targets":targets,"decisions":audit.decisions,"exclusions":audit.exclusions,"blind_spots":audit.blind_spots,"failures":audit.failures});
+    let mut report = json!({"schema_version":1,"tool_version":env!("CARGO_PKG_VERSION"),"tool_source_sha256":hash(include_bytes!("main.rs")),"source_set_sha256":hash(&serde_json::to_vec(&audit.files)?),"scope":"source AST across feature/platform variants","include_tests":include_tests,"files":audit.files,"targets":targets,"decisions":audit.decisions,"exclusions":audit.exclusions,"blind_spots":audit.blind_spots,"failures":audit.failures});
+    report["tool_inputs_sha256"] = json!({
+        "src/main.rs":hash(include_bytes!("main.rs")),
+        "src/review.rs":hash(include_bytes!("review.rs")),
+        "Cargo.toml":hash(include_bytes!("../Cargo.toml")),
+        "Cargo.lock":hash(include_bytes!("../Cargo.lock")),
+    });
+    if let Some(manifest) = review_manifest {
+        let bytes = fs::read(root.join(manifest))?;
+        let mut reconciliation =
+            review::reconcile(&root, &report, &serde_json::from_slice(&bytes)?)?;
+        reconciliation["manifest_sha256"] = json!(hash(&bytes));
+        reconciliation["review_tool_sha256"] = json!(hash(include_bytes!("review.rs")));
+        fs::create_dir_all(&output)?;
+        fs::write(
+            output.join("review.json"),
+            serde_json::to_vec_pretty(&reconciliation)?,
+        )?;
+        fs::write(output.join("review.md"), review::markdown(&reconciliation))?;
+        report["reconciliation_sha256"] = json!(hash(&serde_json::to_vec(&reconciliation)?));
+    }
     fs::create_dir_all(&output)?;
     fs::write(
         output.join("inventory.json"),

@@ -617,6 +617,127 @@
       "occurrence": 1,
       "matches": null,
       "package": "weekend-db-typed"
+    },
+    {
+      "name": "r1-admin-zero",
+      "file": "tools/admin.rs",
+      "old": "written == 0",
+      "new": "false",
+      "test": "weekend-admin",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-admin-oversize",
+      "file": "tools/admin.rs",
+      "old": "written > bytes.len() - offset",
+      "new": "false",
+      "test": "weekend-admin",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-admin-loop-boundary",
+      "file": "tools/admin.rs",
+      "old": "offset < bytes.len()",
+      "new": "offset <= bytes.len()",
+      "test": "weekend-admin",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-admin-sync-error",
+      "file": "tools/admin.rs",
+      "old": "file.sync()?;",
+      "new": "let _ = file.sync();",
+      "test": "weekend-admin",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-typed-decode-type",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if raw.type_id() != T::TYPE_ID {",
+      "new": "if raw.type_id() != T::TYPE_ID && false {",
+      "test": "runtime_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 2,
+      "package": "weekend-db-typed"
+    },
+    {
+      "name": "r1-typed-index-type",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if raw.type_id() != T::TYPE_ID {",
+      "new": "if raw.type_id() != T::TYPE_ID && false {",
+      "test": "runtime_decisions",
+      "target": "--test",
+      "occurrence": 2,
+      "matches": 2,
+      "package": "weekend-db-typed"
+    },
+    {
+      "name": "r1-typed-insert-version",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if entry.version != T::VERSION {",
+      "new": "if entry.version != T::VERSION && false {",
+      "test": "runtime_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 3,
+      "package": "weekend-db-typed"
+    },
+    {
+      "name": "r1-crdt-resolver-error",
+      "file": "src/crdt.rs",
+      "old": "local.payload.resolve_conflicts(self.actor)?;",
+      "new": "let _ = local.payload.resolve_conflicts(self.actor);",
+      "test": "crdt",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-upload-flush",
+      "file": "src/replication/mod.rs",
+      "old": "channel.flush().map_err(|_| Error::Io)?;",
+      "new": "let _ = channel.flush();",
+      "test": "replication::tests::upload_flush_failure_preserves_progress_and_leaves_the_terminal_reply_unread",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ship-request",
+      "file": "src/replication/mod.rs",
+      "old": "wire::request(&mut channel, self.enrollment, Some(offer))?;",
+      "new": "let _ = wire::request(&mut channel, self.enrollment, Some(offer));",
+      "test": "replication::tests::transport_header_flush_error_stops_before_receipt_read",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-poll-request",
+      "file": "src/replication/mod.rs",
+      "old": "wire::request(&mut channel, self.enrollment, None)?;",
+      "new": "let _ = wire::request(&mut channel, self.enrollment, None);",
+      "test": "replication::tests::poll_header_flush_error_stops_before_receipt_read",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }

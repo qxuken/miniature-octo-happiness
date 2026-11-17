@@ -12,6 +12,14 @@ for e2d2268. Older entries below retain their historical source and scope.
 The project name is provisional. Baseline `1e883c8` checkpoints the prior
 decision tests and first four fuzz targets.
 
+The [R1 refresh after merged main](r1-qualification.md) adds current source and
+reference pins, explicit runtime/driver/tooling scopes, conservative historical
+row reuse, admin export pairs and repeatable typed/CRDT/snapshot caller controls.
+Mac and Docker Linux pass the recorded debug/release suites and all 44 mutant
+outcomes. Generated/compiler MC/DC, further individual pairs and native Windows
+execution of this new branch retain their stated gates; this does not replace
+the prior candidate artifact qualification.
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |
