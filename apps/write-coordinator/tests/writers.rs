@@ -34,6 +34,9 @@ static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 // clients within one fixture still run concurrently.
 static STORAGE_WORKLOAD: Mutex<()> = Mutex::new(());
 
+#[path = "writers/pending_restore.rs"]
+mod pending_restore;
+
 fn storage_workload() -> std::sync::MutexGuard<'static, ()> {
     STORAGE_WORKLOAD
         .lock()

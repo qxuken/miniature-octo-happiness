@@ -14,6 +14,11 @@ bindings and named R1 controls are unchanged. New tooling decisions retain
 individual G obligations; operational test execution does not promote them to
 MC/DC pairs. The R1 report retains its original checkpoint counts and source.
 
+The pending-journal follow-up uses merged PR #3 baseline `b5493a3`. Its new
+process fixture and recovery notes are referenced explicitly. Production
+runtime/tooling sources and the 8,239-record denominator are unchanged; the
+four recovery schedules do not close individual condition-pair obligations.
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "baseline": "6b657e516c13f678cd54c816db8a53ec5a11e395",
+  "baseline": "b5493a3ae47df6cad39a894ccd1ebea11a6dc99b",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -142,13 +142,15 @@
     "apps/weekend-replicate/src/native/tests.rs": "8ff9f70dcc1d0eac115a62ee6a39459c6ed402bd0cb5e12665d84575ba515cee",
     "apps/weekend-replicate/tests/cli.rs": "5bc1f316b556d389e376d3918b1e7544e32871f61f63d974802e3765917c0528",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
-    "apps/write-coordinator/tests/writers.rs": "30add854517a594469f8a465000111ff4f3d820a0e41d06c94dc494e98024696",
+    "apps/write-coordinator/tests/writers.rs": "7fdbd26ddbbc56be67f218336f558a253c95eb1887caa1a2e91176f73e3a78de",
+    "apps/write-coordinator/tests/writers/pending_restore.rs": "25cfb5c39b1c5d3a3f7ad334c119e64b8c64560df7f32d8e3de620e499bfcd52",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
+    "docs/coordinator-pending-restore.md": "5ec3a411a2b37cddc47dda5d9451b1944e8d13012e246d47cb6a51b18469e5ae",
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "384ff8cede0922df116552301bbce130fc961ccde29ab34b0e25b48de6d7ab66",
+    "docs/decisions/current.md": "852aa19d5742eaf14250b84c31027aad98731fc0300498d6ee66c8294e6a342c",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -189,8 +191,8 @@
     "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
     "tests/retention.rs": "f55a8c487b6576d61773f47fc91b3839ee0b81d11c6fc7e5cfe0adf9de2945cd",
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
-    "tests/schema.rs": "11f76f4abac949e644104b9be6a3805f059d607d9e33593cba69ddeb869a5314",
     "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
+    "tests/schema.rs": "11f76f4abac949e644104b9be6a3805f059d607d9e33593cba69ddeb869a5314",
     "tests/storage_decisions.rs": "d694115d3f6079eab548f383be032efc900a9ed57b93ab5af131bafa3f3440ab",
     "tests/transactions.rs": "f4d6aec6b5f63cea148c64b9a31b89f755848b196fb0e38b542e5d4802cdf112",
     "tests/value_decisions.rs": "eda8394a8b1305e110ec99bb7d50ba78436c1a0843a0f472cdd6213fc6284574",
@@ -528,7 +530,9 @@
       "references": [
         "docs/decisions/current.md",
         "docs/decisions/distributed-apps.md",
-        "apps/write-coordinator/tests/writers.rs"
+        "apps/write-coordinator/tests/writers.rs",
+        "apps/write-coordinator/tests/writers/pending_restore.rs",
+        "docs/coordinator-pending-restore.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },

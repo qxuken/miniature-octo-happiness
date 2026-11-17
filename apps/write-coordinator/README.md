@@ -337,6 +337,14 @@ repeats this cutover nine times while alternating 1,152 acknowledged writes
 between two journal files. Its results include physical growth and measured
 commit and downtime intervals for macOS and Docker Linux.
 
+For an incident with an unresolved journal, establish the authoritative server
+checkpoint before replaying. `pending-eligible` alone cannot distinguish a
+fresh server from an older same-identity backup. The
+[pending-pair restore matrix](../../docs/coordinator-pending-restore.md) captures
+both sides of a server commit, loses another reply during recovery, and checks
+exact receipts and retained roots. It keeps the old endpoint isolated and
+preserves every original and backup image.
+
 ## Finite native receipt-capacity qualification
 
 `native_receipt_capacity_survives_restarts_backup_restore_and_compaction` in
