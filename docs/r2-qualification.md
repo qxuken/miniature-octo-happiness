@@ -43,9 +43,10 @@ A successful local heartbeat must not be reported as a follower acknowledgment.
 
 The selected engine archive SHA-256 is
 `9a7390ca9872ded519100f36dc16e12c48e3cec4ca55e31775b026a4ce80f4dc`.
-Study uses the frozen-main controller. Corrected operator/snapshot runs use
-controller checkpoint `5b03528ce5479d9e7aa477ea620a91ea31bb5ff1` and separately
-record their 334 scoped input hashes and actual executable hashes. Native builds
+Study uses the frozen-main controller. Snapshot uses controller checkpoint
+`5b03528ce5479d9e7aa477ea620a91ea31bb5ff1`; the incident drill's Windows lease
+correction uses `3f2dedfe7057b0a963d18d716c2c566ae609b184`. Each separately
+records its 334 scoped input hashes and actual executable hashes. Native builds
 use Rust 1.99.1; Linux Study/snapshot builds use 1.99.0, and the separate Linux
 operator build uses 1.99.1. The installed Docker image is
 `sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
@@ -59,12 +60,13 @@ specific graceful/native-kill/container-kill contracts. Different local image
 hashes are allowed for converged causal histories; displayed values and local
 revision stability are checked explicitly.
 
-The operator rehearsal passes all 38 expected outcomes on macOS/APFS and Docker
+The corrected operator rehearsal passes all 39 expected outcomes on macOS/APFS and Docker
 Linux arm64/ext4, including preserved originals, rejected damaged input, exact
 logical export, fresh current/retained reads, stale-history rejection and
 continued writes from the coordinated restore. Both runs retain all three
 executables, preserve them byte for byte and remove the synthetic credential.
-Every command verifies cleanup without timeout, cancellation or output overflow.
+Four separate service lifetimes keep byte comparisons outside an active writer
+lease. Every command verifies cleanup without timeout, cancellation or output overflow.
 The incident source-input maps match exactly across hosts. Linux checkout,
 build, TMPDIR and data all use the separately owned ext4 volume, with networking
 disabled; its container exits 0 and both container/volume are verified absent.
@@ -81,8 +83,8 @@ owned Docker resources are absent.
 
 | Original evidence | SHA-256 | Indexed payloads |
 |---|---|---:|
-| `target/r2/incident-macos-corrected/evidence.json` | `05d16639d97385869b958959bf5b81f8eaa1b7d53c7051eb3717c7f12acb52bb` | 132 |
-| `target/r2/incident-linux/incident/evidence.json` | `6245161a24c4224aee0f655319c5489d395c025a62477fbf0c4c1d694cf1c3fd` | 132 |
+| `target/r2/incident-macos-lease/evidence.json` | `332ceb7a271d6fc210b8c640ae453a1c3c0f11705eb6681dd96ba3a84e6d203a` | 135 |
+| `target/r2/incident-linux-lease/incident/evidence.json` | `eb350dc4f783529d3cabf95052e8c5f0f7fcfc87cae731fe9888cc97e6a1a164` | 135 |
 | `target/r2/study-6b657e5/evidence.json` | `002fa8b7791ce3e2a7e4f6a6b40a349ccfc8de14c019069b7cf85fcedb28a469` | 233 |
 | `target/r2/snapshot-month-corrected/evidence.json` | `b6dc705016f63e40e6fa005adfcaced2187da7f1d49b97c004c0a2d07eeb6668` | 124 |
 
@@ -111,11 +113,23 @@ the Windows protection omission; its correction verifies the attribute and
 write denial before reporting read-only inspection. Both review axes have no
 remaining actionable findings in the corrected code.
 
-The refreshed checked decision manifest has 8,234 records across 133 files and
-12 targets: 3,023 runtime, 156 driver and 5,055 tooling. Source-set SHA-256 is
-`4cd7e92e5e462847e121a03f64fce4fde6196a5913b941cffa1a94e3f944f920`.
+The first hosted Windows operator run passes source protection and the physical
+recovery cases, then fails with OS error 32 while the controller reads the raw
+restored database during its live service. Windows' writer lease intentionally
+uses `share_mode(0)`, excluding that raw read. The correction retires the
+read-only service, compares both images and only then starts the continued-write
+service. It preserves all assertions and the exclusive lease policy. A native
+Windows regression verifies the raw observation fails while the lease exists
+and succeeds after release. The failed hosted report remains unqualified;
+the corrected Mac/Linux runs have 39 outcomes, and Windows should have 41 with
+its two ACL setup commands. The preceding 38-outcome Unix runs remain retained
+with their original controller identities.
+
+The refreshed checked decision manifest has 8,235 records across 133 files and
+12 targets: 3,023 runtime, 156 driver and 5,056 tooling. Source-set SHA-256 is
+`11567ccc4a096e26804333fda8fe5d1f150647e4e3feb794e611a6cd2cae3967`.
 Runtime sources, 721 historical row references and eleven named R1 controls
-are unchanged. The 7,501 individual G mappings remain unresolved; new tooling
+are unchanged. The 7,502 individual G mappings remain unresolved; new tooling
 execution does not establish predicate independence or compiler MC/DC.
 
 Hosted three-platform operator execution remains pending for the new PR. These
