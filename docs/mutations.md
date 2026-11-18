@@ -46,6 +46,10 @@ one passing shard cannot qualify the complete registry. Invalid or empty shards
 reject before output acquisition. The [CI shard contract](r1-ci-shards.md)
 records the observed deadline failure and preserves all command and cleanup
 requirements. The native Windows RNG controller remains unsharded.
+The [object reader and recovery I/O batch](decisions/codec-graph-current.md)
+adds 33 `r1-graph-` cases for a total of 151 cases, 95 with the `r1-` prefix.
+The new extent regression requires rejection before the read, and the overlap
+controls exercise both ordinary occupied regions and cached value starts.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
 

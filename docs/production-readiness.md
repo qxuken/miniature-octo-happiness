@@ -343,8 +343,11 @@ codec and expanded repository queue open.
 The subsequent [metadata/root-selection ledger](decisions/codec-metadata-current.md)
 reuses the header, metadata and six real-root schedules, with per-atom guard
 mutations. It preserves the dominated cap/alignment limitations and delegated
-iterator scope instead of promoting them to complete pairs. Remaining I/O,
-graph/cache and compiler obligations still require their own evidence.
+iterator scope instead of promoting them to complete pairs. The
+[object reader and recovery I/O ledger](decisions/codec-graph-current.md)
+adds read boundaries, scoped I/O and allocation propagation and explicit
+partial overlap dispositions. Remaining graph/cache, payload and compiler
+obligations still require their own evidence.
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision

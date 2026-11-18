@@ -528,6 +528,125 @@ fn recovery_errors_and_short_io_do_not_damage_a_clean_image() {
 }
 
 #[test]
+fn object_extents_and_directory_references_reject_before_outside_reads() {
+    const HEADER_BYTES: usize = 64;
+    const CHECKSUM: std::ops::Range<usize> = 48..56;
+
+    fn integer(bytes: &[u8], at: usize) -> u64 {
+        u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap())
+    }
+    fn crc64(bytes: &[u8]) -> u64 {
+        let mut crc = 0_u64;
+        for &byte in bytes {
+            crc ^= u64::from(byte) << 56;
+            for _ in 0..8 {
+                crc = if crc & (1 << 63) == 0 {
+                    crc << 1
+                } else {
+                    (crc << 1) ^ 0x42f0e1eba9ea3693
+                };
+            }
+        }
+        crc
+    }
+    assert_eq!(crc64(b"123456789"), 0x6c40df5f0b497347);
+    let (disk, db) = base_store();
+    assert_eq!(db.retain_snapshot(&db.snapshot()), Ok(1));
+    let revision = db.snapshot().revision();
+    assert_eq!(revision, 3);
+    let expected = state(&db);
+    let retained = retained_rows(&db);
+    assert_eq!(retained, vec![(1, 2, expected.clone())]);
+    let original = disk.durable_image().unwrap();
+    drop(db);
+    let index = (revision & 1) as usize;
+    let root = integer(&original, (1 + index) * REGION + 40) as usize;
+    assert_eq!(root + REGION, original.len());
+    let mut checked = original[root..root + REGION].to_vec();
+    let stored_crc = integer(&checked, 48);
+    checked[CHECKSUM].fill(0);
+    assert_eq!(crc64(&checked), stored_crc);
+    let healthy = open(&SimulatedDisk::from_image(&original).unwrap());
+    assert_eq!(healthy.snapshot().revision(), revision);
+    assert_eq!(state(&healthy), expected);
+    assert_eq!(retained_rows(&healthy), retained);
+    drop(healthy);
+    let reject = |mut image: Vec<u8>, reference: u64, reads: usize, last_len: usize| {
+        let candidate = SimulatedDisk::from_image(&image).unwrap();
+        assert!(matches!(
+            Database::open_on(candidate.clone(), Limits::default()),
+            Err(Error::Corrupt)
+        ));
+        let trace = candidate.trace().unwrap();
+        assert_eq!(
+            trace
+                .iter()
+                .filter(|e| e.kind == IoKind::Read && e.offset == reference)
+                .count(),
+            reads,
+            "unexpected object read at {reference}"
+        );
+        let last = trace.last().unwrap();
+        assert_eq!(
+            (last.kind, last.offset, last.len),
+            (IoKind::Read, root as u64, last_len)
+        );
+        assert!(
+            trace
+                .iter()
+                .all(|e| !matches!(e.kind, IoKind::Write | IoKind::Sync))
+        );
+        assert_eq!(candidate.durable_image().unwrap(), image);
+        image[(1 + index) * REGION..(2 + index) * REGION].fill(0);
+        let older = open(&SimulatedDisk::from_image(&image).unwrap());
+        assert_eq!(older.snapshot().revision(), revision - 1);
+        assert_eq!(state(&older), expected);
+        assert!(retained_rows(&older).is_empty());
+    };
+    for reference in [
+        root as u64,
+        original.len() as u64,
+        u64::MAX & !(REGION as u64 - 1),
+    ] {
+        let mut image = original.clone();
+        // Isolate graph admission from an independently surviving newest witness.
+        image[(3 + index) * REGION..(4 + index) * REGION].fill(0);
+        let descriptor = &mut image[root..root + REGION];
+        let data_reference = HEADER_BYTES + 8;
+        descriptor[data_reference..data_reference + 8].copy_from_slice(&reference.to_le_bytes());
+        descriptor[CHECKSUM].fill(0);
+        let checksum = crc64(descriptor);
+        descriptor[CHECKSUM].copy_from_slice(&checksum.to_le_bytes());
+        reject(
+            image,
+            reference,
+            if reference == root as u64 { 2 } else { 0 },
+            REGION,
+        );
+    }
+    // An unselected tail is legal. A descriptor may not extend into it even
+    // when a full read, header stability, checksum and padding would all pass.
+    let mut extended = original.clone();
+    extended.resize(original.len() + REGION, 0);
+    let with_tail = open(&SimulatedDisk::from_image(&extended).unwrap());
+    assert_eq!(with_tail.snapshot().revision(), revision);
+    assert_eq!(state(&with_tail), expected);
+    assert_eq!(retained_rows(&with_tail), retained);
+    drop(with_tail);
+    extended[(3 + index) * REGION..(4 + index) * REGION].fill(0);
+    let descriptor = &mut extended[root..root + 2 * REGION];
+    descriptor[16..24].copy_from_slice(&(REGION as u64).to_le_bytes());
+    descriptor[CHECKSUM].fill(0);
+    let checksum = crc64(descriptor);
+    descriptor[CHECKSUM].copy_from_slice(&checksum.to_le_bytes());
+    reject(extended, root as u64, 1, HEADER_BYTES);
+    let restored = open(&SimulatedDisk::from_image(&original).unwrap());
+    assert_eq!(restored.snapshot().revision(), revision);
+    assert_eq!(state(&restored), expected);
+    assert_eq!(retained_rows(&restored), retained);
+}
+
+#[test]
 fn recovery_selects_the_newest_available_root_only_if_the_slots_agree() {
     let (disk, db) = base_store();
     let original = disk.durable_image().unwrap();

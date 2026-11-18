@@ -96,8 +96,15 @@ keeps all 62 controls in both profiles, divides each Unix selection into three
 disjoint jobs, and preserves the original command/job bounds. Its one new
 tooling propagation record remains G: the current queue is 9,704 (2,374 runtime /
 26 driver / 7,304 tooling), with 10,483 records and 4,950 blind spots. Complete
-same-head shard results are required; partial or earlier-source passes do not
-close the hosted gate.
+same-head shard results pass at `e5ca577` with all 27 checks green. The
+[hosted audit](r1-ci-shards.md#hosted-results-at-e5ca577) confirms the full
+62-control union in each profile on Linux and macOS.
+The [object and recovery I/O follow-up](decisions/codec-graph-current.md) adds
+35 exact dispositions and 33 mutation controls. It verifies that recovery
+rejects a damaged newest root before an out-of-bounds object read, even when
+the older root opens by itself. The manifest leaves 9,669 G records
+(2,339 runtime / 26 driver / 7,304 tooling). VALUE/DATA decoding, descriptor
+payloads, the retained catalog and cache decisions remain in the R1 queue.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "baseline": "5c4aa6f58a59408e129b99d6cf83d52d1699e367",
+  "baseline": "e5ca577d2c4273d4df14732f798866c86e020e09",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -175,7 +175,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "3102d96fa6ef3fbff2e4b16c7f33cde4c727faa8f14fff7854bdfd5c04a04b5a",
+    "xtask/src/mutations.rs": "cbb01c63c080e6ab8d59fb7c6c209cdd8e1fb2ede61fd7fa06a7ff89d124308d",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
@@ -234,7 +234,7 @@
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "bcea808ed851263c5ebaa829244cd71b2b8fb639d48aaefb637d723973a15996",
+    "docs/decisions/current.md": "b0c553002464164b0d3e9df7c82f651b70221f3077f6d7de36804f69e6965230",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -267,7 +267,7 @@
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
-    "tests/durability.rs": "3f5e433c68d5d762da45f4a39db95e741a8136982ee16acdab27a572fb8890b6",
+    "tests/durability.rs": "3ee3499a271151e2865c000d28c0eb82cb6f76afa75f77a289ae02ea2309ca38",
     "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
     "tests/files.rs": "11fb925f39e7ff6555ed776e28079e78f4e47359146b2685a70113a77a113260",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
@@ -287,13 +287,14 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "4fc3456ebf8bb5041aee05b65da10200904ebba1c819b56bb18bd867992845c9",
+    "xtask/tests/mutations.json": "b2be617f0ae3f116926213033b9d3b65e217b9560646a28cb919af33133aaa47",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "21cb7a6f3b4b0d9177940be1260b7ecb2a6a3667224d7328063f808c520959b0",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
     "docs/decisions/codec-metadata-current.md": "d51b3df64193e3a3a0d8e1752bf2061c9a47144b21148a069518ef5b69107b4f",
-    "docs/r1-ci-shards.md": "85005d9dad78fe6e4564e0d8a4db1808acbba36732160b5a2edc47709925c07f"
+    "docs/r1-ci-shards.md": "b5d5f745f15714ccc37cdc7451537056c55a1798c9a62257f84dc619314ea854",
+    "docs/decisions/codec-graph-current.md": "b0dbce9e1abd5d371691fe967131cdbc20d93a64c9f2f21eadd050d78f4f0ab4"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -482,7 +483,8 @@
         "tests/durability.rs",
         "tests/retention.rs",
         "docs/decisions/codec-arithmetic-current.md",
-        "docs/decisions/codec-metadata-current.md"
+        "docs/decisions/codec-metadata-current.md",
+        "docs/decisions/codec-graph-current.md"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
@@ -2048,6 +2050,633 @@
       ],
       "mutations": [
         "r1-metadata-no-root-error"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-START",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "offset < APPEND_START as u64",
+          "!offset.is_multiple_of(REGION as u64)",
+          "offset\n                .checked_add(OBJECT_HEADER as u64)\n                .is_none_or(|end| end > bound)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        },
+        {
+          "file": "tests/durability.rs",
+          "name": "object_extents_and_directory_references_reject_before_outside_reads"
+        }
+      ],
+      "mutations": [
+        "r1-graph-offset-min",
+        "r1-graph-offset-align",
+        "r1-graph-header-bound"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-HEADER-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(self.backend, offset, &mut header)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-object-header-read"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "&header[..8] != b\"WDBOBJ01\"",
+          "u32_at(&header, 8) != kind",
+          "u32_at(&header, 12) != VERSION",
+          "header[32..48] != self.identity",
+          "header[56..].iter().any(|b| *b != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-graph-header-magic",
+        "r1-graph-header-kind",
+        "r1-graph-header-version",
+        "r1-graph-header-identity",
+        "r1-graph-header-padding"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-PAYLOAD-SUM",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "(OBJECT_HEADER as u64)\n            .checked_add(payload_len as u64)\n            .ok_or(Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-graph-payload-sum"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-ALIGNMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "align(length).map_err(|_| Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-graph-alignment"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-END",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "offset\n            .checked_add(size)\n            .filter(|end| *end <= bound)\n            .ok_or(Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        },
+        {
+          "file": "tests/durability.rs",
+          "name": "object_extents_and_directory_references_reject_before_outside_reads"
+        }
+      ],
+      "mutations": [
+        "r1-graph-end-propagation",
+        "r1-graph-parent-end"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-BIRTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "born > self.revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-graph-born"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.reserve(&mut bytes, size as usize)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-graph-object-bytes-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-FULL-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(self.backend, offset, &mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-object-full-read"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-VERIFY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "bytes[..OBJECT_HEADER] != header",
+          "checksum(&bytes, 48) != u64_at(&bytes, 48)",
+          "bytes[OBJECT_HEADER + payload_len..].iter().any(|b| *b != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_rejects_a_changed_header_on_full_object_read"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-graph-full-header",
+        "r1-graph-checksum",
+        "r1-graph-padding"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-LAZY-INDEX",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "self.regions.is_empty()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-graph-lazy-index"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-REGIONS-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.reserve(&mut self.regions, self.region_count)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-graph-region-index-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-READ-IMAGE-LENGTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "backend.length()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-recovery-length"
+      ]
+    },
+    {
+      "name": "CODEC-VERIFY-IMAGE-LENGTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "diagnostics::verify(Stage::ImageLength, None, || {\n        let length = backend.length()?;\n        if length < APPEND_START as u64 || length > MAX_IMAGE_BYTES as u64 {\n            return Err(Error::Corrupt);\n        }\n        Ok(length)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-length-diagnostic"
+      ]
+    },
+    {
+      "name": "CODEC-READ-IMAGE-HEADER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(backend, 0, &mut header)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-recovery-header"
+      ]
+    },
+    {
+      "name": "CODEC-VERIFY-IMAGE-HEADER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "diagnostics::verify(Stage::Header, Some(0), || {\n        let mut header = [0; REGION];\n        read_all(backend, 0, &mut header)?;\n        if &header[..8] != b\"WEEKDB01\" || u32_at(&header, 8) != VERSION {\n            return Err(Error::UnsupportedFormat);\n        }\n        if checksum(&header, 64) != u64_at(&header, 64)\n            || u32_at(&header, 12) != 0\n            || u64_at(&header, 16) != REGION as u64\n            || u64_at(&header, 24) != APPEND_START as u64\n            || u64_at(&header, 48) != MAX_IMAGE_BYTES as u64\n            || u64_at(&header, 56) != MAX_OBJECTS as u64\n            || header[72..].iter().any(|b| *b != 0)\n        {\n            return Err(Error::Corrupt);\n        }\n        let identity: [u8; 16] = header[32..48].try_into().unwrap();\n        if identity == [0; 16] {\n            return Err(Error::Corrupt);\n        }\n        Ok(identity)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-header-diagnostic"
+      ]
+    },
+    {
+      "name": "CODEC-READ-ROOT-SLOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(backend, ((1 + i) * REGION) as u64, &mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-recovery-slot"
+      ]
+    },
+    {
+      "name": "CODEC-VERIFY-ROOT-SLOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "diagnostics::verify(Stage::RootSlot, Some(((1 + i) * REGION) as u64), || {\n            let mut bytes = [0; REGION];\n            read_all(backend, ((1 + i) * REGION) as u64, &mut bytes)?;\n            parse_metadata(&bytes, identity, i, false, length)\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-slot-diagnostic"
+      ]
+    },
+    {
+      "name": "CODEC-READ-WITNESS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(backend, ((3 + i) * REGION) as u64, &mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-recovery-witness"
+      ]
+    },
+    {
+      "name": "CODEC-VERIFY-WITNESS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "diagnostics::verify(Stage::Witness, Some(((3 + i) * REGION) as u64), || {\n                let mut bytes = [0; REGION];\n                read_all(backend, ((3 + i) * REGION) as u64, &mut bytes)?;\n                parse_metadata(&bytes, identity, i, true, length)\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-witness-diagnostic"
       ]
     }
   ],

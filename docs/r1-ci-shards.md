@@ -78,4 +78,22 @@ Independent audits compare all **780 copied/restored files** and **347 declared
 inputs per campaign** to frozen Git, plus exact selection metadata and streams.
 The local reports and recipe remain under `target/ci-r1-shards/`; no complete
 62-control or Linux/Windows execution is inferred from this three-case sample.
-The full same-head CI shards must still finish before closing the hosted gate.
+The hosted results below verify the full selection at the subsequent PR head.
+
+## Hosted results at e5ca577
+
+PR #10 at `e5ca577d2c4273d4df14732f798866c86e020e09` passed
+[all 26 engine checks](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44263429647)
+and [bounded fuzzing](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44263429618).
+The tested merge `9a838c67f202fb53f62a484d5b3080e6b04e184c` and the PR
+head have tree `2ac24d9a23370fb1828b45787bc652287bd32560`.
+
+The seven uploaded source artifacts verified against the published ZIP digests.
+The Linux and macOS selections form disjoint 21 / 21 / 20 case unions in both
+profiles. Across twelve campaigns, 940 command retirements verified and all
+62 controls per platform and profile compiled and failed real tests.
+Each campaign's recorded 780 copied-source hashes and 347 declared input
+hashes match the tested tree. The hosted archives exclude the copied source
+directories. All seven reconciliation reports match byte-for-byte, including
+the Windows reconciliation job. Local audit files are in
+`target/r1/hosted-e5ca577/`, with GitHub artifact IDs and digests.

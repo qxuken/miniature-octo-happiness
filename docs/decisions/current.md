@@ -102,6 +102,21 @@ references and 28 named controls are unchanged. The queue now has **9,704 G
 records** (2,374 runtime / 26 driver / 7,304 tooling). Functional shard tests do
 not promote that new tooling record or its macro blind spots to MC/DC evidence.
 
+At `e5ca577`, all 27 [hosted checks](../r1-ci-shards.md#hosted-results-at-e5ca577)
+passed. The three shards cover all 62 controls in both profiles on each Unix
+host. Windows runs the reconciliation checks and its separate native RNG
+campaign.
+
+The [object reader and recovery I/O batch](codec-graph-current.md) adds 35
+exact dispositions. There are five P pairs, eight coupled C records, three
+partial B records, one delegated D record, three invariant I records and
+15 scoped E records. A new public open test distinguishes early object
+rejection from later rejection after reading outside the selected extent.
+The manifest now has 48 named controls and 803 exact ledger references.
+**9,669 G records remain** (2,339 runtime / 26 driver / 7,304 tooling). The
+inventory denominator remains 10,483 records / 215 files / 66 targets /
+4,950 blind spots.
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are
