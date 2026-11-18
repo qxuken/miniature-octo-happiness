@@ -171,7 +171,7 @@
     "xtask/src/interactive.rs": "a7f1b446652b9ee1f5acdaae4c6d3bc5294fbf03c26cfbc65ebf0c66d569975f",
     "xtask/src/macos_volume.rs": "9b9dab701a7336aa5e645cd09bfa71f5c66958f5ca46e648bb71a0c4d80bdf97",
     "xtask/src/main.rs": "63441c23ddfad00c196a1a90137d1de9ff648f7214d5c4b6a8457283bf58cd78",
-    "xtask/src/maintenance_space.rs": "147d07c23508fb9e05f9096abde79d7987c034ed540f57ade65d4456af7b7da3",
+    "xtask/src/maintenance_space.rs": "402ec5e967227f12fc6e901e393fdedb253bef1bb235b510a94f8948753b43a0",
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
@@ -365,7 +365,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5186
+    "xtask::xtask": 5189
   },
   "groups": [
     {

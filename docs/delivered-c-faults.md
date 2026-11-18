@@ -642,3 +642,26 @@ and shim matched the branch parent.
 | Exact DLL | `844f8c075dd91f3b37fe4fd1bca485db9e44f7930a8d24c356dc2370b38e301c` |
 | Injected fault evidence | `949f26faf75d84d6a95fa0ff0577aaf21b3ebe207dc9fb92808be70786851dec` |
 | NTFS exhaustion evidence | `ccf7dd2b1a719b23581e9324dca1e5613e556958377bc38cd751dd069f247af2` |
+
+### Ballast sync refusal on macOS
+
+PR #14's native macOS 26 job returned `ENOSPC` after the bounded APFS
+image attached and the exact dylib seeded revision 3 with retained revision
+2. The host had over 100 GB free and the private image retired successfully.
+The original diagnostic identified the preparation phase. Eight unmodified
+replays with the same dylib passed on macOS 27.0.1.
+[Failed job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44285632054/job/134737451915) ·
+[Failed-run artifact](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44285632054/artifacts/14420771463).
+
+An injected `ENOSPC` at the ballast sync reproduces the failure on a real
+256 MiB APFS image. The corrected fixture closes the ballast and requires
+a fresh 4 KiB append to return `ENOSPC` with the same ballast length before
+and after the probe. Normal byte accounting still applies. An injected
+`EIO` remains fatal. The native job runs this regression explicitly.
+
+All six local delivered cases pass with the corrected runner and original
+dylib SHA-256
+`afd35c5f0b7585468624eac2cfe848f85c49c9d6f55872ee390691840d032992`.
+The actual append case still requires the dylib's kernel `ENOSPC`, opens
+revision 3 while exhausted, and retries to revision 4 after ballast removal.
+Retained revision 2, the exact loader checks and owned-image cleanup pass.

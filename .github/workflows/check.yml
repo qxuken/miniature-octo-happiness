@@ -416,6 +416,7 @@ jobs:
         run: |
           cargo build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-mac-build
           cargo test --offline --locked -p xtask --bin xtask macos_volume::tests::native_busy_detach_releases_only_the_owned_image -- --ignored --exact --nocapture
+          cargo test --offline --locked -p xtask --bin xtask maintenance_space::native::native_ballast_sync_enospc_requires_a_fresh_refusal -- --ignored --exact --nocapture
           cargo xtask macos-maintenance-space --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-maintenance-space
           bash tools/resource-envelope/qualify-macos-exchange.sh target/maintenance-mac-build/release/weekend-compound-resource "$WEEKEND_DB_SOURCE_ID" target/macos-namespace-enospc
           cargo xtask macos-maintenance-space --cleanup-enospc --fixture target/maintenance-mac-build/release/weekend-compound-resource --source "$WEEKEND_DB_SOURCE_ID" --output target/macos-cleanup-enospc

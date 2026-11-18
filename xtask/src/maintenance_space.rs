@@ -484,12 +484,22 @@ mod native {
     }
 
     pub fn bounded_fill(dir: &Path, ballast: &Path, new: bool) -> Result<(u64, u64)> {
-        let free = free_space(dir)?;
+        bounded_fill_with_sync(dir, ballast, new, fs::File::sync_all)
+    }
+
+    fn bounded_fill_with_sync(
+        dir: &Path,
+        ballast: &Path,
+        new: bool,
+        sync: impl FnOnce(&fs::File) -> std::io::Result<()>,
+    ) -> Result<(u64, u64)> {
+        let free = free_space(dir).context("measure space before ballast fill")?;
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(new)
-            .open(ballast)?;
-        let previous = file.seek(SeekFrom::End(0))?;
+            .open(ballast)
+            .context("open owned ballast")?;
+        let previous = file.seek(SeekFrom::End(0)).context("seek to ballast end")?;
         let mut filled = previous;
         // Bound both the expected capacity and the individual requests, including
         // the last rejected request. Only extend the controller's own ballast.
@@ -511,9 +521,31 @@ mod native {
                 other => anyhow::bail!("unexpected ballast write: {other:?}"),
             }
         }
-        file.sync_all()?;
+        let sync_result = sync(&file);
         drop(file);
-        let available = free_space(dir)?;
+        match sync_result {
+            // The ballast is temporary and the exercise needs live allocation
+            // refusal. APFS can run out of space while syncing its metadata.
+            #[cfg(target_os = "macos")]
+            Err(error) if error.raw_os_error() == Some(libc::ENOSPC) => {
+                let mut probe = OpenOptions::new()
+                    .append(true)
+                    .open(ballast)
+                    .context("reopen ballast after sync ENOSPC")?;
+                ensure!(probe.metadata()?.len() == filled, "ballast length changed");
+                let refusal = probe.write(&block[..CLUSTER as usize]);
+                ensure!(
+                    matches!(&refusal, Err(error) if error.raw_os_error() == Some(libc::ENOSPC)),
+                    "fresh 4 KiB ballast write after sync ENOSPC did not confirm exhaustion: {refusal:?}"
+                );
+                ensure!(probe.metadata()?.len() == filled, "ballast length changed");
+                eprintln!(
+                    "APFS ballast sync returned ENOSPC and a fresh 4 KiB write confirmed exhaustion"
+                );
+            }
+            result => result.context("sync exhausted ballast")?,
+        }
+        let available = free_space(dir).context("measure space after ballast fill")?;
         // APFS can report available blocks after the kernel refuses a 4 KiB write.
         ensure!(
             (cfg!(target_os = "macos") || available == 0)
@@ -522,6 +554,38 @@ mod native {
             filled - previous
         );
         Ok((filled, available))
+    }
+
+    #[cfg(all(test, target_os = "macos"))]
+    #[test]
+    #[ignore = "requires a native APFS disk image"]
+    fn native_ballast_sync_enospc_requires_a_fresh_refusal() {
+        let mut scratch =
+            crate::support::Scratch::new(&std::env::temp_dir(), "ballast-sync").unwrap();
+        let env = BTreeMap::from([("PATH".into(), "/usr/bin:/bin:/usr/sbin:/sbin".into())]);
+        let mut proof = json!({"commands": []});
+        let outcome = macos_volume::with_volume(&mut proof, scratch.path(), &env, |_, data| {
+            let ballast = data.join("ballast");
+            let (filled, _) = bounded_fill_with_sync(data, &ballast, true, |_| {
+                Err(std::io::Error::from_raw_os_error(libc::ENOSPC))
+            })?;
+            ensure!(filled > 0 && bounded_fill(data, &ballast, false)?.0 == filled);
+            let error = bounded_fill_with_sync(data, &ballast, false, |_| {
+                Err(std::io::Error::from_raw_os_error(libc::EIO))
+            })
+            .err()
+            .context("unexpected sync success after EIO")?;
+            ensure!(
+                error
+                    .downcast_ref::<std::io::Error>()
+                    .and_then(std::io::Error::raw_os_error)
+                    == Some(libc::EIO)
+            );
+            Ok(())
+        });
+        assert_eq!(proof["volume_cleanup"]["verified"], true);
+        outcome.unwrap();
+        scratch.close().unwrap();
     }
 
     fn headroom(data: &Path, ballast: &Path) -> Result<(u64, u64, u64)> {

@@ -133,6 +133,12 @@ Frozen `0c1969a` passes debug and release on macOS and Docker Linux, including
 151/151 controls per profile. Its archive independently verifies and replays
 15,817 payloads after fresh extraction. The hosted Unix matrix uses five
 shards and preserves the deadlines.
+PR #14's initial hosted run passed 29 of 30 engine jobs. The exact-dylib
+APFS fixture failed during private-volume preparation. Its [sync refusal
+regression](delivered-c-faults.md#ballast-sync-refusal-on-macos) confirms native
+allocation refusal from a fresh descriptor after a ballast sync reports
+`ENOSPC`. Three added tooling records keep G. The current queue has 9,611 G
+records (2,278 runtime / 26 driver / 7,307 tooling).
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
