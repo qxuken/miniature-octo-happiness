@@ -202,7 +202,7 @@
     "xtask/src/snapshot_upgrade_linux.rs": "fae4a063edd468024ecbef2c97e433010d8a9c6f90f081aa5f730af4421c1d47",
     "xtask/src/soak.rs": "371af9e99747f7fa33d0f4f89a5ff7e9ac728ad9c3e6c7b9e7f6fa854eb4cf6c",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
-    "xtask/src/source_inventory.rs": "76d51506ef1a96357bdd0cc3639b5cc8e5703eaf1d5d96f10fbee79a0c38c4d7",
+    "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
     "xtask/src/sqlite_baseline.rs": "1e50f199f66323eb9f6886395d3ca4f99f93931c778da71cf32a570874fb596d",
     "xtask/src/study_soak.rs": "83609399872e25efcbda17416f35e0b2428faac44e7b485adb6c332c6dfce229",
     "xtask/src/study_upgrade.rs": "632fcd52e908404ec09158a3ccc1e36fae9c06a87585bdd558ab173d66710f48",
@@ -289,7 +289,7 @@
     "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
     "xtask/tests/mutations.json": "8fb50ef7be706d290bbd85ea9381ef3dc02b9014036d272193e29caf4e3ea613",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
-    "docs/decision-inventory-catalog.md": "6121fc4a1e4d1574269e3456d7e7bd9d81c42042b64d56d0e253868c6c3b02cd",
+    "docs/decision-inventory-catalog.md": "f979bda7dfde407cd545242fe2d087bab755bf3156351abb2c41eec5ee6feccc",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24"
   },
   "target_records": {

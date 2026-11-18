@@ -59,6 +59,13 @@ its first provenance. A regression reproduces the previous overwrite. Git root
 paths preserve spaces, including Unix trailing spaces. Those input properties
 are separate from compiler expansion, native/dependency behavior and MC/DC.
 
+Campaign input snapshots also bind both catalog JSON files and the inventory
+and replica-progress-fixture workspaces, including their manifests, locks,
+sources and tests. The copied-source map already bound these files; the added
+regression checks that edits also change the original-input snapshot used at
+campaign completion. This prevents the standalone runner extension from relying
+on a smaller input-stability map.
+
 ## Reproduction
 
 ```sh
@@ -99,13 +106,22 @@ unqualified until their individual records are reconciled.
 
 Before/after logs for discovery, standalone mutation selection, shared-source
 drift and trailing-space roots are under `target/r1/standalone-logs/`.
-The first debug campaign detects all four new mutations and verifies restoration.
-At the reviewed pre-commit patch, macOS arm64/APFS passes 31 inventory tests and
+At frozen candidate `6024a8c`, macOS arm64/APFS passes 31 inventory tests and
 238 xtask tests/two existing registered ignores in each of debug and release.
 Both crates pass Clippy; inventory and review JSON are byte-identical between
-the two tool profiles. The immutable-source, full seventeen-case R1 mutation
-campaigns, Linux and hosted native follow-ups are recorded after their actual
-completion. CI runs discovery/reconciliation contracts in both
+the two tool profiles. All seventeen R1 mutants are caught in each profile.
+Independent comparison verifies all 777 copied payloads and 336 then-declared
+inputs against the immutable Git blobs. That candidate precedes the additional
+snapshot bindings above; the superseding frozen-source qualification records
+its own enlarged input map and test counts.
+
+The initial Linux attempt stopped before tests because its older vendor archive
+lacked the standalone crate's pinned `serde_json` 1.0.149. Regenerating the locked,
+offline vendor set for the root and inventory workspaces fixes the input seed
+without changing any lockfile or bypassing offline checks. Its archive SHA-256 is
+`7775e0b19c5b40db61946a31589855313dc6c91c12a46c96a1076a0cc80bddf6`.
+Linux and hosted native follow-ups are recorded after their actual completion.
+CI runs discovery/reconciliation contracts in both
 profiles on macOS, Linux and Windows, preserving committed bytes and using
 fail-fast Bash steps. R1 mutation campaigns run on the two Unix lanes; Windows
 retains its separate native RNG inventory.
