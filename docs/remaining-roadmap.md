@@ -152,6 +152,9 @@ has 9,581 G records (2,248 runtime / 26 driver / 7,307 tooling).
 Frozen `1450e64` passes on macOS and Docker Linux with all 186 controls per
 profile. The restored proof checks 17,137 payloads, both platform audits
 and the same source bundle. Hosted qualification uses six Unix shards.
+PR #15 at `d21e1e5` passed all 32 engine jobs and bounded fuzzing. The
+hosted audit verified all 13 reconciliation archives and the full 186-case
+Unix selection in each profile. [Hosted engine checks](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44297082826).
 The [named integration controls](mutations.md) enforce exact test selection
 and failure attribution for 61 existing cases. Five new tooling records
 keep G, leaving 9,586 G records (2,248 runtime / 26 driver / 7,312 tooling).
@@ -163,6 +166,9 @@ runtime decisions and adds 19 controls. It covers exact-cap admission,
 key-prefix and body allocation, equivalent staging layouts and writes that
 stop on the first error. The queue has 9,565 G records
 (2,227 runtime / 26 driver / 7,312 tooling).
+Frozen `906b8ed` passes all 19 new controls and the full core, xtask and
+inventory suites in both profiles on macOS and Docker Linux. The restored
+proof replays both audits and checks 10,476 payloads.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

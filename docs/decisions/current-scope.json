@@ -299,7 +299,7 @@
     "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
     "docs/decisions/codec-data-current.md": "275bbdcae40e26e0d4c5af964a3176b552bd50c5c1c5dfb10585fd87a858c704",
     "docs/decisions/codec-value-current.md": "c49288b9965017fa4ef9b31006f5a34ce117cc1466a2297e5ac23ff4945760e8",
-    "docs/decisions/codec-append-current.md": "e80a33dfb8185404634c5a227ba8ed9bb11de7fc4d2743166ca6e0ce6448062a"
+    "docs/decisions/codec-append-current.md": "e5319277f2f7a3a055fe41fb4d1e99aee61d772e7e793b5102999489291a9028"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
