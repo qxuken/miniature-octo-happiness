@@ -34,6 +34,13 @@ The refreshed source inventory has 8,360 records in 134 files across 12 targets:
 3,023 runtime, 156 driver and 5,181 tooling records, with 3,596 macro/attribute
 blind spots. New tooling records keep individual G obligations.
 
+The [Linux executable-fixture follow-up](../helper-controls.md#linux-executable-fixture-regression)
+adds a test-only request clone and an isolated inherited-writer regression.
+Production decision counts remain 8,360 across the same 134 files and twelve
+targets. The conditional test-only derive adds one explicit attribute blind
+spot, bringing the current total to 3,597. Source and reference pins are
+refreshed; helper execution does not promote any individual G obligation.
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

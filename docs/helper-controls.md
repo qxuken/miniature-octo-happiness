@@ -139,3 +139,52 @@ reject the old observer in both Python modes. The final complete Mac/Linux
 registries each pass 354 controls and four registered skips across 52 workers;
 300 additional output-limit iterations pass. Source/evidence bindings and the
 limits of the historical intermittent reproduction are recorded in the report.
+
+## Linux executable-fixture regression
+
+PR #7's [native Linux job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44214295491/job/134500137879)
+failed at source `9a25f7e` with `spawn child: Text file busy (os error 26)` in
+`observer_preserves_arguments_and_retires_descendants_after_leader_exit`.
+Its other twenty checks passed. The failing fixture writes a temporary shell
+script in the parallel Rust test process, then executes that file directly.
+A sibling fork can inherit its writable descriptor before `fs::write` closes
+it. Closing the parent's copy does not close the child's copy; `CLOEXEC` takes
+effect only when that child executes its program.
+
+The new Linux test
+`resource_campaign::tests::observer_runs_script_while_another_process_inherits_its_writer`
+holds precisely that inherited descriptor after closing the parent's copy.
+Direct execution must report `ETXTBSY`. Before the fix, the real observer also
+fails with the exact CI error. The fixture adapter now prefixes `/bin/sh` to
+the unchanged script/data/argument vector, so the interpreter reads the script
+as data. Production executable requests receive no adapter, retry or new delay.
+
+The regression runs in a bounded, single-test subprocess before creating the
+writer and forking. This prevents the regression itself from retaining other
+parallel tests' writers. Its child is killed and reaped even on assertion
+unwinding. The outer bound is fifteen seconds; the observed command retains
+its eight-second bound. Existing JSON, sentinel argument, RSS, output-limit,
+deadline and descendant-retirement checks remain. The missing-executable case
+still calls production `observe` directly and requires a terminal spawn error.
+Removing only the interpreter-prefix line from the final source makes the
+regression fail with `ETXTBSY`; restoring the exact source hash makes it pass.
+
+Local qualification uses Rust 1.99.1 and the exact `9a25f7e` source plus the
+reviewed patch. Linux source, vendor inputs, builds, temporary files and runtime
+are on an owned ext4 Docker volume, with no network:
+
+| Platform | Debug | Release | Other checks |
+|---|---|---|---|
+| macOS arm64/APFS | 237 passed, 2 explicit ignores | 237 passed, 2 explicit ignores | xtask Clippy and formatting |
+| Docker Linux arm64/ext4 | 266 passed, 1 explicit ignore | 266 passed, 1 explicit ignore | inherited-writer regression, 20 repeat runs, xtask Clippy |
+
+Counts include the two command tests and five supervision integration tests.
+The registered ignores retain their existing separate qualification duties.
+Run both profiles with `cargo +1.99.1 test --offline --locked -p xtask`
+and `cargo +1.99.1 test --offline --locked --release -p xtask`.
+Other checks are
+`cargo +1.99.1 clippy --offline --locked -p xtask --all-targets -- -D warnings`
+and `cargo +1.99.1 fmt --all --check`. Run the named regression with
+`--bin xtask resource_campaign::tests::observer_runs_script_while_another_process_inherits_its_writer -- --exact --nocapture`.
+Local logs and before/after patches are in `target/ci-pr7-fix/evidence/`;
+this is a scoped helper regression, not new engine or MC/DC qualification.

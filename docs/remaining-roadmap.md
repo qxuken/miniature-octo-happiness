@@ -44,6 +44,13 @@ transport fault profiles and custom backend conformance. Longer campaigns
 should follow those gaps and promote every discovered defect to a deterministic
 regression. No finite campaign establishes SQLite-equivalent assurance.
 
+The [PR #7 Linux helper correction](helper-controls.md#linux-executable-fixture-regression)
+adds an isolated inherited-writer regression and preserves production launch
+errors, supervision limits and cleanup checks. Both local xtask profiles pass
+on macOS and Docker Linux. R1's next implementation step remains the standalone
+workspace/example/build-script inventory and its explicit uncovered decisions;
+the existing workspace ledger and all R2–R7 release gates remain open.
+
 ## Deployment and owner gates
 
 - [ ] Select exact supported OS/architecture/filesystem/device/feature profiles,

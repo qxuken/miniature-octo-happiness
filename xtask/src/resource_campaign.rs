@@ -952,6 +952,22 @@ mod tests {
     use super::*;
     use crate::support::Scratch;
     use std::os::unix::fs::{PermissionsExt, symlink};
+
+    fn script_request(request: &Request) -> Request {
+        // A parallel test can fork while fs::write holds the script open. Its
+        // inherited writable descriptor can cause ETXTBSY after our close.
+        // Execute the stable interpreter and read the fixture as data, keeping
+        // the script's arguments and every supervision limit unchanged.
+        let mut request = request.clone();
+        request.argv.insert(0, "/bin/sh".to_owned());
+        request
+    }
+    fn observe_script(
+        request: Observation<'_>,
+        check: impl FnOnce(&[Value]) -> Result<()>,
+    ) -> Result<Value> {
+        observe_with(request, |r| supervise::run(&script_request(r)), check)
+    }
     struct Fixture {
         dir: Scratch,
         run: Run,
@@ -989,13 +1005,85 @@ mod tests {
             delivery::read_json(&self.report).unwrap()
         }
     }
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn observer_runs_script_while_another_process_inherits_its_writer() {
+        use std::os::fd::AsRawFd;
+        const WORKER: &str = "WEEKEND_TEST_RESOURCE_INHERITED_WRITER";
+        if std::env::var_os(WORKER).is_none() {
+            // Exec into one selected test before retaining descriptors: a raw
+            // fork in the parallel suite could retain unrelated fixture writers.
+            let scratch = Scratch::new(&std::env::temp_dir(), "inherited-writer-test").unwrap();
+            let mut run = Run::new(scratch.path().to_owned());
+            run.env.insert(WORKER.into(), "1".into());
+            let output = run
+                .bounded_capture(
+                    &cmd([
+                        std::env::current_exe().unwrap().into_os_string(),
+                        "--exact".into(),
+                        "resource_campaign::tests::observer_runs_script_while_another_process_inherits_its_writer".into(),
+                        "--nocapture".into(),
+                    ]),
+                    15.,
+                )
+                .unwrap();
+            assert!(output.contains("test result: ok. 1 passed; 0 failed;"));
+            return;
+        }
+        struct InheritedWriter(libc::pid_t);
+        impl Drop for InheritedWriter {
+            fn drop(&mut self) {
+                // SAFETY: the child remains blocked on our pipe until killed;
+                // reap it even if an assertion or the observer fails.
+                unsafe {
+                    libc::kill(self.0, libc::SIGKILL);
+                    while libc::waitpid(self.0, std::ptr::null_mut(), 0) < 0
+                        && std::io::Error::last_os_error().raw_os_error() == Some(libc::EINTR)
+                    {
+                    }
+                }
+            }
+        }
+        let fixture = Fixture::new("printf '{\"argument\":\"%s\"}\\n' \"$2\"; sleep 0.2");
+        let writer = OpenOptions::new().write(true).open(&fixture.path).unwrap();
+        let (gate, _release) = std::io::pipe().unwrap();
+        // Reproduce a sibling fork between fs::write's open and close. CLOEXEC
+        // does not close its inherited writable descriptor until exec occurs.
+        // SAFETY: the child only calls async-signal-safe read and _exit; no Rust
+        // allocation, locks or destructors run in the forked test process.
+        let pid = unsafe { libc::fork() };
+        assert!(pid >= 0, "fork: {}", std::io::Error::last_os_error());
+        if pid == 0 {
+            unsafe {
+                let mut byte = 0_u8;
+                libc::read(gate.as_raw_fd(), (&mut byte as *mut u8).cast(), 1);
+                libc::_exit(0);
+            }
+        }
+        let _inherited = InheritedWriter(pid);
+        drop(writer);
+        let error = std::process::Command::new(&fixture.path)
+            .output()
+            .unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(libc::ETXTBSY));
+        let evidence = observe_script(fixture.request(8., &cmd(["sentinel"])), |rows| {
+            assert_eq!(rows, &[json!({"argument":"sentinel"})]);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(evidence["owned_live_processes_absent"], true);
+    }
     #[test]
     fn group_rss_accounts_for_a_live_child_and_rejects_impossible_samples() {
         let fixture = Fixture::new("sleep 0.8 & wait; printf '{}\\n'");
-        let evidence = observe_with(fixture.request(4., &[]), supervise::run_group_rss, |rows| {
-            ensure!(rows == [json!({})], "missing worker completion");
-            Ok(())
-        })
+        let evidence = observe_with(
+            fixture.request(4., &[]),
+            |r| supervise::run_group_rss(&script_request(r)),
+            |rows| {
+                ensure!(rows == [json!({})], "missing worker completion");
+                Ok(())
+            },
+        )
         .unwrap();
         assert_eq!(evidence["owned_live_processes_absent"], true);
         assert!(evidence["group_rss"]["overlap_samples"].as_u64().unwrap() > 0);
@@ -1017,24 +1105,26 @@ mod tests {
     fn existing_and_dangling_outputs_reject_before_creating_logs() {
         let fixture = Fixture::new("exit 42");
         fs::create_dir(&fixture.data).unwrap();
-        assert!(observe(fixture.request(3., &[]), |_| panic!("unexpected oracle")).is_err());
+        assert!(observe_script(fixture.request(3., &[]), |_| panic!("unexpected oracle")).is_err());
         assert!(!fixture.report.exists());
         fs::remove_dir(&fixture.data).unwrap();
         fs::write(&fixture.report, b"preserve").unwrap();
-        assert!(observe(fixture.request(3., &[]), |_| panic!("unexpected oracle")).is_err());
+        assert!(observe_script(fixture.request(3., &[]), |_| panic!("unexpected oracle")).is_err());
         assert_eq!(fs::read(&fixture.report).unwrap(), b"preserve");
         fs::remove_file(&fixture.report).unwrap();
         let target = fixture.dir.path().join("absent");
         symlink(&target, &fixture.report).unwrap();
         assert!(assurance::fresh_output(&fixture.run.root, &fixture.report).is_err());
-        assert!(observe(fixture.request(3., &[]), |_| panic!("unexpected oracle")).is_err());
+        assert!(observe_script(fixture.request(3., &[]), |_| panic!("unexpected oracle")).is_err());
         assert!(!target.exists());
         assert!(!fixture.report.with_extension("jsonl").exists());
     }
     #[test]
     fn malformed_json_and_spawn_errors_save_terminal_evidence() {
         let malformed = Fixture::new("printf 'broken\\n'");
-        assert!(observe(malformed.request(4., &[]), |_| panic!("unexpected oracle")).is_err());
+        assert!(
+            observe_script(malformed.request(4., &[]), |_| panic!("unexpected oracle")).is_err()
+        );
         let evidence = malformed.evidence();
         assert_eq!(evidence["passed"], false);
         assert_eq!(evidence["returncode"], 0);
@@ -1122,7 +1212,7 @@ mod tests {
             let body = format!("exec /bin/dd if=/dev/zero bs=1048576 count={size}");
             let fixture = Fixture::new(&body);
             assert!(
-                observe(fixture.request(10., &[]), |_| panic!(
+                observe_script(fixture.request(10., &[]), |_| panic!(
                     "overflow reached parser"
                 ))
                 .is_err()
@@ -1139,7 +1229,7 @@ mod tests {
         let fixture = Fixture::new("sleep 30 &\nprintf '%s\\n' \"$!\" > \"$2\"\nwait");
         let pid_file = fixture.dir.path().join("spawned");
         assert!(
-            observe(
+            observe_script(
                 fixture.request(0.6, &cmd([pid_file.as_os_str()])),
                 |_| panic!("timeout reached parser")
             )
@@ -1164,7 +1254,7 @@ mod tests {
     #[test]
     fn observer_preserves_arguments_and_retires_descendants_after_leader_exit() {
         let fixture = Fixture::new("sleep 30 &\nsleep 1\nprintf '{\"argument\":\"%s\"}\\n' \"$2\"");
-        let evidence = observe(fixture.request(8., &cmd(["sentinel"])), |rows| {
+        let evidence = observe_script(fixture.request(8., &cmd(["sentinel"])), |rows| {
             assert_eq!(rows, &[json!({"argument":"sentinel"})]);
             Ok(())
         })
