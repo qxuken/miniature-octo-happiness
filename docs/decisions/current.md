@@ -14,6 +14,131 @@ bindings and named R1 controls are unchanged. New tooling decisions retain
 individual G obligations; operational test execution does not promote them to
 MC/DC pairs. The R1 report retains its original checkpoint counts and source.
 
+The pending-journal follow-up uses merged PR #3 baseline `b5493a3`. Its new
+process fixture and recovery notes are referenced explicitly. Production
+runtime/tooling sources and the 8,239-record denominator are unchanged; the
+four recovery schedules do not close individual condition-pair obligations.
+
+The delivered-source follow-up uses PR #4 head `7df2dc2` as its fixed baseline.
+The coordinator recovery controller and Windows package verification are new
+tooling inputs. Their tests and negative controls retain their explicit scope;
+they do not promote the new source records or macro blind spots to MC/DC pairs.
+Runtime sources and the existing R1 named controls are unchanged.
+The operator-handoff follow-up uses PR #5 head `2bc8e79` as its fixed baseline.
+It adds two assigned journals, credential and mixed-set checks, and a separate
+raw consumer. The consumer's standalone workspace is source-pinned as a
+reference; its decisions are outside this workspace AST denominator and remain
+an explicit tooling coverage obligation. No new condition independence or
+compiler coverage is inferred from the rehearsal.
+The refreshed source inventory has 8,360 records in 134 files across 12 targets:
+3,023 runtime, 156 driver and 5,181 tooling records, with 3,596 macro/attribute
+blind spots. New tooling records keep individual G obligations.
+
+The [Linux executable-fixture follow-up](../helper-controls.md#linux-executable-fixture-regression)
+adds a test-only request clone and an isolated inherited-writer regression.
+Production decision counts remain 8,360 across the same 134 files and twelve
+targets. The conditional test-only derive adds one explicit attribute blind
+spot, bringing the current total to 3,597. Source and reference pins are
+refreshed; helper execution does not promote any individual G obligation.
+
+The [repository Cargo catalog](../decision-inventory-catalog.md) advances the
+review baseline to PR #7 head `b32a868`. It includes all 21 manifests/fourteen
+workspaces and 66 non-test targets, with 46 integration targets explicitly
+excluded from the production view. Review schema 2 pins every Cargo input and
+target, including twenty-two zero-record fuzz wrappers. Existing target IDs,
+named source controls and historical eligibility are preserved. New target
+contexts receive tooling scopes and individual G obligations, even when they
+share runtime source files. The current denominator is 10,482 records across
+215 files, with 4,946 explicit macro/attribute blind spots. Runtime and driver
+counts stay 3,023 and 156; the tooling denominator is 7,303. This expands the
+unqualified queue and does not infer compiler MC/DC or new execution credit.
+The [frozen follow-up](../decision-inventory-catalog.md#frozen-follow-up-at-bea0e71)
+verifies both Mac/Linux tool profiles and all seventeen R1 mutants per profile.
+All 777 copied inputs and 347 declared campaign inputs match `bea0e71`; all
+restored copies and process-retirement reports pass. Production and test-mode
+inventories are byte-identical across platforms. The individual G queue remains
+9,749 records: 2,420 runtime, 26 driver and 7,303 tooling. Native Windows and
+final-head CI results retain their own source scopes.
+
+The [codec arithmetic follow-up](codec-arithmetic-current.md) starts at PR #8
+head `edec275` and adds three named single-condition pairs, five scoped
+propagation rows and one delegated 64-bit conversion row. Production codec
+behavior is unchanged. The current denominator remains 10,482 records across
+215 files and 66 targets, with 4,946 blind spots. Fourteen named controls and
+731 exact ledger rows leave **9,740 individual G records**: 2,411 runtime,
+26 driver and 7,303 tooling. The checksum-table G row remains a gap despite its
+exact pin. Reconciliation now requires non-gap historical evidence before
+assigning a historical disposition; an independent named control can still
+qualify that same record. The inventory regression and its guard mutation
+exercise both the preserved gap and the separate named-control qualification.
+The prior checkpoint had no historical G rows, so this correction does not
+change its published 9,749-gap result. Platform execution is recorded separately
+in the follow-up; neither a source reference nor a delegated row measures MC/DC.
+
+The [current metadata/root-selection batch](codec-metadata-current.md) advances
+from PR #9 head `2d1f81e`. Its codec file and tests are unchanged, so the nine
+arithmetic bindings remain intact. Fourteen additional named controls bind
+existing real-image/header tests, with 35 additional guard mutants. The 37 new
+ledger rows are 13 P, 14 coupled C, six partial B, three scoped E and one fixed-loop
+I. The cap/alignment limitations are preserved rather than assigned complete
+independence. The checked manifest now has 28 named controls and 768 exact ledger
+references, leaving **9,703 individual G records** (2,374 runtime / 26 driver /
+7,303 tooling). The denominator remains 10,482 records / 215 files / 66 targets /
+4,946 blind spots. Backend I/O propagation, the remaining graph/cache records
+and compiler/delegated/native/tooling gates retain their own obligations.
+The frozen follow-up verifies Mac/Linux debug/release and all 62 R1 mutants per
+profile, including intended-test attribution for every new control. Both reports
+match across all four configurations. Actual proof identities and the remaining
+native/final-head gates are recorded in the metadata ledger. PR #9's earlier
+`2d1f81e` source separately passes all 23 hosted checks; it is not substituted for
+this batch's source or eventual release qualification.
+
+The [CI shard follow-up](../r1-ci-shards.md) addresses the hosted macOS job's
+20-minute cancellation. All 62 R1 controls remain scheduled in both profiles,
+split into three disjoint Unix selections. The new selection propagation site
+adds one tooling record: the current denominator is 10,483 records / 215 files /
+66 targets / 4,950 blind spots. Runtime/driver records and all 768 historical
+references and 28 named controls are unchanged. The queue now has **9,704 G
+records** (2,374 runtime / 26 driver / 7,304 tooling). Functional shard tests do
+not promote that new tooling record or its macro blind spots to MC/DC evidence.
+
+At `e5ca577`, all 27 [hosted checks](../r1-ci-shards.md#hosted-results-at-e5ca577)
+passed. The three shards cover all 62 controls in both profiles on each Unix
+host. Windows runs the reconciliation checks and its separate native RNG
+campaign.
+
+The [object reader and recovery I/O batch](codec-graph-current.md) adds 35
+exact dispositions. There are five P pairs, eight coupled C records, three
+partial B records, one delegated D record, three invariant I records and
+15 scoped E records. A new public open test distinguishes early object
+rejection from later rejection after reading outside the selected extent.
+The manifest now has 48 named controls and 803 exact ledger references.
+**9,669 G records remain** (2,339 runtime / 26 driver / 7,304 tooling). The
+inventory denominator remains 10,483 records / 215 files / 66 targets /
+4,950 blind spots.
+
+The [COMMIT payload and retained catalog batch](codec-catalog-current.md)
+adds 29 exact dispositions. Four P rows and five coupled C rows cover
+descriptor and retained-entry checks. Two B rows keep the dominated descriptor
+end comparison partial. Eighteen E rows cover scoped propagation and
+iteration, including eight identical field reads bound by their byte spans.
+The manifest has 61 named controls and 832 exact ledger references.
+**9,640 G records remain** (2,310 runtime / 26 driver / 7,304 tooling).
+
+The [DATA directory batch](codec-data-current.md) adds 32 exact dispositions.
+Six P rows and seven coupled C rows cover directory lookup, revision and
+record checks. Two B rows preserve the limit on independent evidence for
+the cached end comparison. Seventeen E rows cover propagation and iteration.
+The manifest has 74 named controls and 864 exact ledger references.
+**9,608 G records remain** (2,278 runtime / 26 driver / 7,304 tooling).
+
+The [VALUE reader batch](codec-value-current.md) binds 30 more decisions.
+Three P rows, one C row and 23 E rows cover cache reuse, scalar errors, tag
+dispatch, ordering and propagation. Two B rows preserve the scope of the
+reference guard, and one I row records the cached end invariant. The
+manifest has 86 named controls and 894 exact ledger references.
+**9,581 G records remain** (2,248 runtime / 26 driver / 7,307 tooling).
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

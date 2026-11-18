@@ -1,6 +1,7 @@
 #![cfg(unix)]
 
 use std::{
+    collections::BTreeSet,
     fs,
     os::unix::fs::PermissionsExt,
     path::PathBuf,
@@ -8,6 +9,76 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+#[test]
+fn real_mutation_cli_shards_cover_the_prefix_without_outputs_or_case_loss() {
+    let list = |extra: &[String]| {
+        let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .args(["mutations", "--list", "--case", "r1-"])
+            .args(extra)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(out.stderr.is_empty());
+        String::from_utf8(out.stdout)
+            .unwrap()
+            .lines()
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    let expected = list(&[]);
+    let fixture: serde_json::Value = serde_json::from_str(include_str!("mutations.json")).unwrap();
+    let registered = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|case| case["name"].as_str().filter(|name| name.starts_with("r1-")))
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    assert_eq!(expected, registered);
+    assert!(!expected.is_empty());
+    let mut seen = BTreeSet::new();
+    for index in 0..3 {
+        let args = [
+            "--shard-index".into(),
+            index.to_string(),
+            "--shard-count".into(),
+            "3".into(),
+        ];
+        let selected = list(&args);
+        assert!(!selected.is_empty());
+        assert_eq!(selected, list(&args));
+        for name in selected {
+            assert!(seen.insert(name));
+        }
+    }
+    assert_eq!(seen, expected.into_iter().collect());
+    for (index, count) in [(0, 0), (3, 3), (0, usize::MAX)] {
+        let dir = std::env::temp_dir().join(format!(
+            "weekend-invalid-shard-{}-{index}-{count}",
+            std::process::id()
+        ));
+        assert!(!dir.exists());
+        let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .args([
+                "mutations",
+                "--shard-index",
+                &index.to_string(),
+                "--shard-count",
+                &count.to_string(),
+                "--output",
+            ])
+            .arg(&dir)
+            .output()
+            .unwrap();
+        assert!(!out.status.success());
+        assert!(!dir.exists());
+    }
+}
 
 struct Fixture(PathBuf);
 static NEXT: AtomicU64 = AtomicU64::new(0);

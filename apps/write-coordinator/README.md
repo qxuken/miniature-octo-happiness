@@ -315,6 +315,11 @@ any histories that share the observed slot receipt.
 
 ### Back up and restore a coordinator with active journals
 
+The [operator handoff runbook](../../docs/coordinator-operator-handoff.md)
+specifies the complete slot list, common checkpoint, backup hashes, endpoint
+retirement and credential cutover. Its two-writer rehearsal also rejects a
+mixed journal set and checks continued writes in a fresh core process.
+
 1. Pause submissions and run `journal check` for every assigned slot. Resolve
    pending writes against the current authority before taking a coordinated
    backup. Record the common `aligned` revision and counter, and the identity
@@ -336,6 +341,14 @@ The [journal lifecycle qualification](../../docs/roadmap-status.md#coordinator-a
 repeats this cutover nine times while alternating 1,152 acknowledged writes
 between two journal files. Its results include physical growth and measured
 commit and downtime intervals for macOS and Docker Linux.
+
+For an incident with an unresolved journal, establish the authoritative server
+checkpoint before replaying. `pending-eligible` alone cannot distinguish a
+fresh server from an older same-identity backup. The
+[pending-pair restore matrix](../../docs/coordinator-pending-restore.md) captures
+both sides of a server commit, loses another reply during recovery, and checks
+exact receipts and retained roots. It keeps the old endpoint isolated and
+preserves every original and backup image.
 
 ## Finite native receipt-capacity qualification
 

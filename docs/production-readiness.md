@@ -331,10 +331,34 @@ length. Revisit the proof if bounds or check order change.
 | [CRDT core and containers](../src/crdt.rs), [container modules](../src/crdt) | Actor and policy validation, field codecs, actor-owned progress, bounded counters and clocks, add/remove and register causality, convergence/idempotence, conflict policy and durable local publication, stale actors and no-op replay |
 | [Apps](../apps), [examples](../examples), [probe](../probe), [tools](../tools) | Treat task CLI, peer and coordinator as their own lifecycle and protocol profiles if shipped. Run Rust/C/Odin examples as actual artifact consumers. Validate test-only tools and simulator oracles independently so mistakes in the harness can be detected |
 
-The existing ledger provides the starting pairs. For the next tranche,
-finish metadata parsing, graph traversal/cache checks, and record and
-collection validation. Then audit the allocator and FFI unsafe boundaries,
-file adapters, and replacement logic. Require every applicable decision
+The existing ledgers provide the starting pairs. The
+[Cargo catalog follow-up](decision-inventory-catalog.md) makes independent
+workspaces and consumer targets explicit, with separate context scopes and
+unqualified records. That source inventory expansion does not close MC/DC.
+The [current codec arithmetic batch](decisions/codec-arithmetic-current.md)
+reuses alignment/cursor tests, adds short-tag and zero-limit propagation cases,
+and binds three named pairs plus scoped execution/delegation rows. Historical
+G references remain individual gaps. The partial batch leaves the rest of the
+codec and expanded repository queue open.
+The subsequent [metadata/root-selection ledger](decisions/codec-metadata-current.md)
+reuses the header, metadata and six real-root schedules, with per-atom guard
+mutations. It preserves the dominated cap/alignment limitations and delegated
+iterator scope instead of promoting them to complete pairs. The
+[object reader and recovery I/O ledger](decisions/codec-graph-current.md)
+adds read boundaries, scoped I/O and allocation propagation and explicit
+partial overlap dispositions. The [COMMIT and retained catalog ledger](decisions/codec-catalog-current.md)
+adds descriptor fields, retained-entry checks, exact payload consumption and
+allocation propagation. The [DATA directory ledger](decisions/codec-data-current.md)
+adds cache admission, object revision and collection checks, record order and
+payload consumption. The [VALUE reader ledger](decisions/codec-value-current.md)
+adds exact lengths, tag alternatives, shared cache behavior and propagation.
+The [encoder append ledger](decisions/codec-append-current.md) adds writer
+bounds, allocation propagation, segment rollover and write failures at two
+append offsets. Remaining encoder, cache, compiler and delegated obligations
+still require their own evidence.
+Use the individual reconciliation queue to identify remaining metadata,
+graph/cache, record and collection, allocator, FFI, file-adapter and replacement
+decisions, retaining existing exact evidence where it applies. Require every applicable decision
 in a shipped safety-critical scope to have evidence or a reviewed
 disposition. An unexplained gap blocks that scope. Mutation checks should
 be reproducible per decision and demonstrate that a relevant test fails

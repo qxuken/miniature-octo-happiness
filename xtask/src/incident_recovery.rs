@@ -85,11 +85,18 @@ impl<'r> Drill<'_, 'r> {
     ) -> Result<String> {
         let mut argv = vec![path(program)];
         argv.extend(cmd(args.iter().copied()));
-        if success {
+        let output = if success {
             self.c.command(argv, name, None, 15.)
         } else {
             self.c.command_exit(argv, name, 1, 15.)
+        }?;
+        if success {
+            ensure!(
+                fs::read(self.path(&stderr_name(name)))?.is_empty(),
+                "unexpected successful CLI stderr for {name}"
+            );
         }
+        Ok(output)
     }
     fn admin(&mut self, name: &str, args: &[&str], success: bool) -> Result<String> {
         self.command(name, &self.binaries.admin.clone(), args, success)
@@ -446,6 +453,400 @@ impl<'r> Drill<'_, 'r> {
         fs::remove_file(secret)?;
         Ok(())
     }
+
+    fn journal(
+        &mut self,
+        label: &str,
+        action: &str,
+        journal: &str,
+        port: &str,
+        secret: &str,
+        fields: &[&str],
+    ) -> Result<String> {
+        let mut args = vec!["journal", action, journal, port];
+        args.extend_from_slice(fields);
+        args.extend_from_slice(&["--secret-file", secret]);
+        self.coordinator(label, &args, true)
+    }
+
+    fn reject_journal(
+        &mut self,
+        label: &str,
+        journal: &str,
+        port: &str,
+        secret: &str,
+        marker: &str,
+    ) -> Result<()> {
+        let before = fs::read(journal)?;
+        ensure!(
+            self.coordinator(
+                label,
+                &["journal", "check", journal, port, "--secret-file", secret],
+                false
+            )?
+            .is_empty(),
+            "rejected journal check printed success output"
+        );
+        ensure!(
+            fs::read_to_string(self.path(&stderr_name(label)))?.contains(marker),
+            "wrong journal rejection for {label}"
+        );
+        unchanged(journal, &before)
+    }
+
+    fn observe_handoff(
+        &mut self,
+        label: &str,
+        phase: &str,
+        server: &str,
+        journals: &[String; 2],
+    ) -> Result<()> {
+        let consumer = self.binaries.consumer.clone();
+        let output = self.command(
+            label,
+            &consumer,
+            &["journals", phase, server, &journals[0], &journals[1]],
+            true,
+        )?;
+        ensure!(
+            output
+                == if phase == "checkpoint" {
+                    "coordinator 5 77 journals 2 slots 0 1023"
+                } else {
+                    "coordinator 7 111 journals 2 slots 0 1023"
+                },
+            "fresh handoff observer mismatch"
+        );
+        Ok(())
+    }
+
+    fn handoff(&mut self) -> Result<()> {
+        let old_secret = self.path("handoff-old.secret");
+        let new_secret = self.path("handoff-new.secret");
+        for (file, token) in [(&old_secret, "6"), (&new_secret, "7")] {
+            // Synthetic credentials exist only within the private output tree.
+            fs::write(file, token.repeat(64))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(file, fs::Permissions::from_mode(0o600))?;
+            }
+        }
+        let original = self.path("handoff-original.wdb");
+        let journals = [
+            self.path("handoff-journal-0.wdb"),
+            self.path("handoff-journal-1023.wdb"),
+        ];
+        let stale_backup = self.path("handoff-stale-backup.wdb");
+        let stale_journal_backup = self.path("handoff-stale-journal-backup.wdb");
+        self.coordinator("handoff-init", &["init-sequenced", &original], true)?;
+        self.admin(
+            "handoff-stale-backup",
+            &["backup", &original, &stale_backup],
+            true,
+        )?;
+        let mut statuses = [String::new(), String::new()];
+        self.service(
+            "handoff-original-service",
+            &original,
+            &old_secret,
+            |d, port| {
+                for (index, slot) in ["0", "1023"].into_iter().enumerate() {
+                    d.journal(
+                        &format!("handoff-init-{slot}"),
+                        "init",
+                        &journals[index],
+                        port,
+                        &old_secret,
+                        &[slot],
+                    )?;
+                }
+                d.admin(
+                    "handoff-old-journal-backup",
+                    &["backup", &journals[1], &stale_journal_backup],
+                    true,
+                )?;
+                for (index, expected, value, revision) in [(0, "3", "42", "4"), (1, "4", "77", "5")]
+                {
+                    ensure!(
+                        d.journal(
+                            &format!("handoff-write-{index}"),
+                            "set",
+                            &journals[index],
+                            port,
+                            &old_secret,
+                            &[expected, value]
+                        )? == format!("committed {revision}"),
+                        "handoff acknowledgment mismatch"
+                    );
+                    statuses[index] = d.coordinator(
+                        &format!("handoff-status-{index}"),
+                        &["journal", "status", &journals[index]],
+                        true,
+                    )?;
+                }
+                for (index, journal) in journals.iter().enumerate() {
+                    ensure!(
+                        d.journal(
+                            &format!("handoff-checkpoint-{index}"),
+                            "check",
+                            journal,
+                            port,
+                            &old_secret,
+                            &[]
+                        )? == "aligned 5 77",
+                        "handoff journals did not share a checkpoint"
+                    );
+                }
+                Ok(())
+            },
+        )?;
+        // The owned original service has retired before any coordinator backup.
+        let mut preserved = vec![(original.clone(), fs::read(&original)?)];
+        preserved.extend(
+            journals
+                .iter()
+                .map(|p| Ok((p.clone(), fs::read(p)?)))
+                .collect::<Result<Vec<_>>>()?,
+        );
+        let restored = self.path("handoff-restored.wdb");
+        let restored_journals = [
+            self.path("handoff-restored-0.wdb"),
+            self.path("handoff-restored-1023.wdb"),
+        ];
+        let mut backups = Vec::new();
+        for (label, source, destination) in [
+            ("server", &original, &restored),
+            ("0", &journals[0], &restored_journals[0]),
+            ("1023", &journals[1], &restored_journals[1]),
+        ] {
+            let backup = self.path(&format!("handoff-backup-{label}.wdb"));
+            self.admin(
+                &format!("handoff-backup-{label}"),
+                &["backup", source, &backup],
+                true,
+            )?;
+            let bytes = fs::read(&backup)?;
+            self.admin(
+                &format!("handoff-restore-{label}"),
+                &["restore", &backup, destination],
+                true,
+            )?;
+            ensure!(
+                fs::read(destination)? == bytes,
+                "restored handoff bytes differ"
+            );
+            self.admin(
+                &format!("handoff-inspect-{label}"),
+                &["check", destination],
+                true,
+            )?;
+            backups.push(json!({"member":label,"sha256":sha(Path::new(&backup))?}));
+            preserved.push((backup, bytes));
+        }
+        for file in [&stale_backup, &stale_journal_backup] {
+            preserved.push((file.clone(), fs::read(file)?));
+        }
+        let stale = self.path("handoff-stale-restored.wdb");
+        self.admin(
+            "handoff-restore-stale",
+            &["restore", &stale_backup, &stale],
+            true,
+        )?;
+        let stale_bytes = fs::read(&stale)?;
+        self.service("handoff-stale-service", &stale, &new_secret, |d, port| {
+            for (index, journal) in restored_journals.iter().enumerate() {
+                d.reject_journal(
+                    &format!("handoff-stale-check-{index}"),
+                    journal,
+                    port,
+                    &new_secret,
+                    "behind 3 0",
+                )?;
+            }
+            Ok(())
+        })?;
+        unchanged(&stale, &stale_bytes)?;
+        self.observe_handoff(
+            "handoff-checkpoint-observer",
+            "checkpoint",
+            &restored,
+            &restored_journals,
+        )?;
+        let mut rejected = vec![path(&self.binaries.consumer)];
+        rejected.extend(cmd([
+            "journals",
+            "checkpoint",
+            &restored,
+            &restored_journals[0],
+            &stale_journal_backup,
+        ]));
+        ensure!(
+            self.c
+                .command_exit(rejected, "handoff-observer-mixed-set", 101, 15.)?
+                .is_empty(),
+            "rejected raw observer printed success output"
+        );
+        ensure!(
+            fs::read_to_string(self.path(&stderr_name("handoff-observer-mixed-set")))?
+                .contains("journal revision mismatch"),
+            "raw observer did not detect the mixed set"
+        );
+        let before = fs::read(&restored)?;
+        let before_journals = [
+            fs::read(&restored_journals[0])?,
+            fs::read(&restored_journals[1])?,
+        ];
+        self.service(
+            "handoff-isolated-service",
+            &restored,
+            &new_secret,
+            |d, port| {
+                d.reject_journal(
+                    "handoff-mixed-set",
+                    &stale_journal_backup,
+                    port,
+                    &new_secret,
+                    "receipt-mismatch 5 77",
+                )?;
+                for (index, journal) in restored_journals.iter().enumerate() {
+                    d.reject_journal(
+                        &format!("handoff-old-credential-{index}"),
+                        journal,
+                        port,
+                        &old_secret,
+                        "Unauthorized",
+                    )?;
+                    ensure!(
+                        d.coordinator(
+                            &format!("handoff-restored-status-{index}"),
+                            &["journal", "status", journal],
+                            true
+                        )? == statuses[index],
+                        "restored journal differs from checkpoint"
+                    );
+                    ensure!(
+                        d.journal(
+                            &format!("handoff-restored-check-{index}"),
+                            "check",
+                            journal,
+                            port,
+                            &new_secret,
+                            &[]
+                        )? == "aligned 5 77",
+                        "restored journal not aligned"
+                    );
+                    ensure!(
+                        d.journal(
+                            &format!("handoff-local-ack-{index}"),
+                            "resume",
+                            journal,
+                            port,
+                            &new_secret,
+                            &[]
+                        )? == format!("committed {}", index + 4),
+                        "local acknowledgment mismatch"
+                    );
+                }
+                Ok(())
+            },
+        )?;
+        unchanged(&restored, &before)?;
+        for (journal, bytes) in restored_journals.iter().zip(&before_journals) {
+            unchanged(journal, bytes)?;
+        }
+        self.service(
+            "handoff-continued-service",
+            &restored,
+            &new_secret,
+            |d, port| {
+                ensure!(
+                    d.journal(
+                        "handoff-continue-0",
+                        "set",
+                        &restored_journals[0],
+                        port,
+                        &new_secret,
+                        &["5", "99"]
+                    )? == "committed 6",
+                    "first continued write mismatch"
+                );
+                let conflict_journal = fs::read(&restored_journals[1])?;
+                ensure!(
+                    d.journal(
+                        "handoff-stale-precondition",
+                        "set",
+                        &restored_journals[1],
+                        port,
+                        &new_secret,
+                        &["5", "100"]
+                    )? == "conflict 6 99",
+                    "stale second writer did not conflict"
+                );
+                // This stale expectation is rejected by the journal preflight,
+                // before it stages an intent or submits a server mutation.
+                unchanged(&restored_journals[1], &conflict_journal)?;
+                ensure!(
+                    d.journal(
+                        "handoff-continue-1023",
+                        "set",
+                        &restored_journals[1],
+                        port,
+                        &new_secret,
+                        &["6", "111"]
+                    )? == "committed 7",
+                    "second continued write mismatch"
+                );
+                for (index, journal) in restored_journals.iter().enumerate() {
+                    ensure!(
+                        d.journal(
+                            &format!("handoff-final-check-{index}"),
+                            "check",
+                            journal,
+                            port,
+                            &new_secret,
+                            &[]
+                        )? == "aligned 7 111",
+                        "final journal not aligned"
+                    );
+                }
+                Ok(())
+            },
+        )?;
+        self.observe_handoff(
+            "handoff-final-observer",
+            "continued",
+            &restored,
+            &restored_journals,
+        )?;
+        let final_bytes = fs::read(&restored)?;
+        for (index, journal) in restored_journals.iter().enumerate() {
+            let bytes = fs::read(journal)?;
+            ensure!(
+                self.journal(
+                    &format!("handoff-offline-ack-{index}"),
+                    "resume",
+                    journal,
+                    "0",
+                    &new_secret,
+                    &[]
+                )? == format!("committed {}", index + 6),
+                "offline local acknowledgment mismatch"
+            );
+            unchanged(journal, &bytes)?;
+        }
+        unchanged(&restored, &final_bytes)?;
+        for (file, bytes) in preserved {
+            unchanged(&file, &bytes)?;
+        }
+        let checkpoint = json!({"revision":5,"value":77,"slots":[0,1023],"journal_statuses":statuses,"backups":backups});
+        fs::write(
+            self.path("handoff-checkpoint.json"),
+            serde_json::to_vec_pretty(&checkpoint)?,
+        )?;
+        self.c.evidence["coordinator_handoff"] = json!({"checkpoint":checkpoint,"old_owned_endpoint_retired":true,"stale_server_rejected":true,"mixed_journal_set_rejected":true,"old_credential_rejected":true,"read_only_checks_preserve_images":true,"continued":{"revision":7,"value":111,"receipts":[[2,5,99,6],[2,6,111,7]]},"offline_local_acknowledgments":[6,7],"originals_and_backups_preserved":true,"authority_selection":"synthetic fixture selected before replay; external fencing and owner approval remain required"});
+        Ok(())
+    }
 }
 
 #[cfg(all(test, windows))]
@@ -499,20 +900,13 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         source.len() == 40 && source.bytes().all(|b| b.is_ascii_hexdigit()),
         "full declared source required"
     );
-    let mut c = Campaign::new(
+    let mut c = Campaign::new_private(
         run,
         &options.output,
         "finite fresh-process administrative and coordinated-journal recovery rehearsal",
     )?;
     let result = (|| -> Result<()> {
         c.limits(1024 * 1024, None)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&c.output, fs::Permissions::from_mode(0o700))?;
-        }
-        #[cfg(windows)]
-        c.restrict_directories(&[("incident-output", &c.output.clone())])?;
         let fixture = run.root.join("tests/fixtures/logical-v1.bin");
         ensure!(
             fs::read(&fixture)? == FIXTURE,
@@ -581,6 +975,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         };
         drill.physical()?;
         drill.journals()?;
+        drill.handoff()?;
         for (original, retained, digest) in binary_hashes {
             ensure!(
                 sha(&original)? == digest && sha(&retained)? == digest,
@@ -595,9 +990,15 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         Ok(())
     })();
     // Campaign retires each command/service before returning, including failures.
-    let secret = c.output.join("synthetic.secret");
-    if secret.exists() {
-        fs::remove_file(secret)?;
+    for name in [
+        "synthetic.secret",
+        "handoff-old.secret",
+        "handoff-new.secret",
+    ] {
+        let secret = c.output.join(name);
+        if secret.exists() {
+            fs::remove_file(secret)?;
+        }
     }
     let result = result.and_then(|()| {
         c.evidence["artifact_sha256"] =
@@ -611,6 +1012,51 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn successful_cli_requires_empty_stderr() {
+        let mut scratch =
+            crate::support::Scratch::new(&std::env::temp_dir(), "incident-success").unwrap();
+        let run = Run::new(scratch.path().to_owned());
+        for (name, script, accepted) in [
+            ("expected", "printf 'aligned 5 77\\n'", true),
+            (
+                "unexpected-stderr",
+                "printf 'aligned 5 77\\n'; printf 'unexpected\\n' >&2",
+                false,
+            ),
+            ("failed-command", "printf 'aligned 5 77\\n'; exit 1", false),
+        ] {
+            let program = scratch.path().join(format!("{name}.sh"));
+            fs::write(&program, format!("#!/bin/sh\n{script}\n")).unwrap();
+            fs::set_permissions(&program, fs::Permissions::from_mode(0o700)).unwrap();
+            let binaries = Binaries {
+                admin: program.clone(),
+                coordinator: program.clone(),
+                consumer: program,
+            };
+            let output = scratch.path().join(name);
+            let mut c =
+                Campaign::detached(&run, &output, "incident successful CLI control").unwrap();
+            let result = Drill {
+                c: &mut c,
+                binaries: &binaries,
+            }
+            .coordinator("check", &[], true);
+            assert_eq!(result.is_ok(), accepted, "{name}");
+            if accepted {
+                assert_eq!(result.as_ref().unwrap(), "aligned 5 77");
+            }
+            assert_eq!(c.finish(result.map(|_| ())).is_ok(), accepted, "{name}");
+            let report = crate::delivery::read_json(&output.join("evidence.json")).unwrap();
+            assert_eq!(report["passed"], accepted);
+            assert_eq!(
+                report["commands"][0]["supervision"]["cleanup_verified"],
+                true
+            );
+        }
+        scratch.close().unwrap();
+    }
 
     #[test]
     fn rejection_adapter_requires_exact_exit_marker_empty_stdout_and_bounded_output() {

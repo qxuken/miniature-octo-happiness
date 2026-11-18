@@ -11,6 +11,7 @@ use std::{
 };
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(Clone))]
 #[serde(deny_unknown_fields)]
 pub struct Request {
     pub argv: Vec<String>,

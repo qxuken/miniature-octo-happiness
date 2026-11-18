@@ -229,7 +229,17 @@ fn historical_rows_in_scope(text: &str, file: &str, d: &Value, single_source: bo
     if out.len() == 1 { out } else { Vec::new() }
 }
 pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result<Value> {
-    ensure(manifest["schema_version"] == 1, "unknown review schema")?;
+    let catalog_review = match manifest["schema_version"].as_u64() {
+        Some(1) => {
+            ensure(
+                !report["cargo_scope"].is_object(),
+                "Cargo inventory requires review schema 2",
+            )?;
+            false
+        }
+        Some(2) => true,
+        _ => return Err("unknown review schema".into()),
+    };
     ensure(
         report["failures"].as_array().is_some_and(Vec::is_empty),
         "incomplete inventory cannot be reconciled",
@@ -244,6 +254,73 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
         "source-set digest mismatch",
     )?;
     let references = pins(root, &manifest["reference_files"])?;
+    let mut target_scopes = BTreeMap::new();
+    let mut target_counts = BTreeMap::<String, usize>::new();
+    let mut historical_targets = BTreeSet::new();
+    if catalog_review {
+        ensure(
+            report["cargo_scope"].is_object() && manifest["cargo_scope"] == report["cargo_scope"],
+            "Cargo input scope differs from reviewed catalog",
+        )?;
+        for field in ["manifests_sha256", "lockfiles_sha256"] {
+            pins(root, &report["cargo_scope"][field])?;
+        }
+        let catalog = &report["cargo_scope"]["catalog"];
+        if !catalog.is_null() {
+            let bytes = read(
+                root,
+                catalog["file"].as_str().ok_or("catalog file required")?,
+            )?;
+            ensure(
+                catalog["sha256"].as_str() == Some(&hash(&bytes)),
+                "workspace catalog changed during review",
+            )?;
+        }
+        let targets = report["targets"]
+            .as_array()
+            .ok_or("target catalog required")?;
+        ensure(
+            !targets.is_empty() && manifest["targets"] == report["targets"],
+            "Cargo target catalog differs from reviewed catalog",
+        )?;
+        let scopes = manifest["target_scopes"]
+            .as_object()
+            .ok_or("per-target review scopes required")?;
+        ensure(
+            scopes.len() == targets.len(),
+            "target scope denominator differs",
+        )?;
+        for target in targets {
+            let id = target["target"]
+                .as_str()
+                .ok_or("target identity required")?;
+            ensure(
+                target_counts.insert(id.to_owned(), 0).is_none(),
+                "duplicate Cargo target identity",
+            )?;
+            ensure(
+                target["entry"]
+                    .as_str()
+                    .is_some_and(|s| sources.contains_key(s)),
+                "target entry outside source pins",
+            )?;
+            let scope = scopes
+                .get(id)
+                .and_then(Value::as_str)
+                .ok_or("target scope required")?;
+            ensure(
+                matches!(scope, "runtime" | "driver" | "tooling"),
+                "unknown target review scope",
+            )?;
+            target_scopes.insert(id.to_owned(), scope);
+        }
+        for target in strings(&manifest["historical_targets"])? {
+            ensure(
+                target_scopes.contains_key(target) && historical_targets.insert(target),
+                "duplicate or unknown historical target",
+            )?;
+        }
+    }
     let markdown_sources = references
         .keys()
         .filter(|name| name.ends_with(".md"))
@@ -341,8 +418,15 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
     for (name, bytes) in &source_bytes {
         ensure(hash(bytes) == sources[name], "source changed during review")?;
     }
-    let mut target_counts = BTreeMap::<String, usize>::new();
     for d in decisions {
+        if catalog_review {
+            ensure(
+                d["target"]
+                    .as_str()
+                    .is_some_and(|t| target_counts.contains_key(t)),
+                "decision outside target catalog",
+            )?;
+        }
         *target_counts
             .entry(d["target"].as_str().ok_or("target required")?.into())
             .or_default() += 1;
@@ -364,6 +448,14 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
             .as_array()
             .ok_or("source boundaries required")?
         {
+            if catalog_review {
+                ensure(
+                    record["target"]
+                        .as_str()
+                        .is_some_and(|t| target_counts.contains_key(t)),
+                    "source boundary outside target catalog",
+                )?;
+            }
             location(&record["location"], &source_bytes)?;
         }
     }
@@ -444,11 +536,13 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
     let mut gaps = BTreeMap::<String, usize>::new();
     let records = decisions.iter().map(|d| {
         let b = &bindings[d["location"]["file"].as_str().unwrap()];
-        *counts.entry(b["scope"].as_str().unwrap().into()).or_default() += 1;
+        let scope = target_scopes.get(d["target"].as_str().unwrap()).copied().unwrap_or(b["scope"].as_str().unwrap());
+        *counts.entry(scope.into()).or_default() += 1;
         let direct = controls.iter().filter(|c| c["decision_id"] == d["id"]).map(|c| c["name"].clone()).collect::<Vec<_>>();
         let condition_sources = json!(d["conditions"].as_array().unwrap().iter().map(|c| c["source"].clone()).collect::<Vec<_>>());
         let mut historical = Vec::new();
         for reference in b["matching_historical_full_file_pins"].as_array().unwrap() {
+            if catalog_review && !historical_targets.contains(d["target"].as_str().unwrap()) { continue; }
             let reference = reference.as_str().unwrap();
             let single = b["single_source_ledgers"].as_array().unwrap().iter().any(|v| v == reference);
             for mut row in historical_rows_in_scope(&markdown_sources[reference],d["location"]["file"].as_str().unwrap(),d,single) {
@@ -465,16 +559,22 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
                 atoms.first().is_some_and(|a| a["start_byte"] == d["location"]["start_byte"]) && atoms.last().is_some_and(|a| a["end_byte"] == d["location"]["end_byte"])
             }).map(|c| c["name"].clone()).collect::<Vec<_>>()
         } else { Vec::new() };
-        let disposition = if !direct.is_empty() { "named_source_control" } else if related.len() == 1 { "C" } else if !historical.is_empty() { "historical_scoped_disposition" } else { "G" };
+        let disposition = if !direct.is_empty() { "named_source_control" } else if related.len() == 1 { "C" } else if historical.iter().any(|row| row["status"] != "G") { "historical_scoped_disposition" } else { "G" };
         let reason = if disposition == "G" {
-            *gaps.entry(b["scope"].as_str().unwrap().into()).or_default() += 1;
-            Some(format!("Current {} in {}::{} has no exact per-decision mapping; review conditions {} and alternatives {} using the pinned group references. This is an individual reconciliation gap, not predicate or propagation coverage.",d["kind"].as_str().unwrap(),d["target"].as_str().unwrap(),d["owner"].as_str().unwrap(),condition_sources,d["alternatives"]))
+            *gaps.entry(scope.into()).or_default() += 1;
+            Some(format!("Current {} in {}::{} has no qualifying per-decision evidence or reviewed non-gap disposition; review conditions {} and alternatives {} using the pinned group references. This is an individual reconciliation gap, not predicate or propagation coverage.",d["kind"].as_str().unwrap(),d["target"].as_str().unwrap(),d["owner"].as_str().unwrap(),condition_sources,d["alternatives"]))
         } else { None };
-        json!({"id":d["id"],"group":b["group"],"scope":b["scope"],"disposition":disposition,"gap_reason":reason,"historical_rows":historical,"controls":direct,"overlap_controls":if related.len()==1 {related} else {Vec::new()}})
+        json!({"id":d["id"],"target":d["target"],"group":b["group"],"scope":scope,"source_scope":b["scope"],"disposition":disposition,"gap_reason":reason,"historical_rows":historical,"controls":direct,"overlap_controls":if related.len()==1 {related} else {Vec::new()}})
     }).collect::<Vec<_>>();
-    Ok(
-        json!({"schema_version":1,"baseline":manifest["baseline"],"source_set_sha256":report["source_set_sha256"],"scope":"Current source bindings and explicit source pairs; no inferred execution, complete independence claim or compiler MC/DC percentage","source_files":bindings,"reference_files":references,"record_counts":counts,"historical_status_counts":reused,"individual_gap_counts":gaps,"records":records,"controls":controls,"blind_spots":report["blind_spots"],"exclusions":report["exclusions"],"compiler_mcdc_measured":false}),
-    )
+    let mut result = json!({"schema_version":manifest["schema_version"],"baseline":manifest["baseline"],"source_set_sha256":report["source_set_sha256"],"scope":"Current source bindings and explicit source pairs; no inferred execution, complete independence claim or compiler MC/DC percentage","source_files":bindings,"reference_files":references,"record_counts":counts,"historical_status_counts":reused,"individual_gap_counts":gaps,"records":records,"controls":controls,"blind_spots":report["blind_spots"],"exclusions":report["exclusions"],"compiler_mcdc_measured":false});
+    if catalog_review {
+        result["cargo_scope"] = report["cargo_scope"].clone();
+        result["targets"] = report["targets"].clone();
+        result["target_scopes"] = manifest["target_scopes"].clone();
+        result["target_record_counts"] = json!(target_counts);
+        result["historical_targets"] = manifest["historical_targets"].clone();
+    }
+    Ok(result)
 }
 pub(super) fn markdown(review: &Value) -> String {
     let mut out = format!(
@@ -483,6 +583,18 @@ pub(super) fn markdown(review: &Value) -> String {
     );
     for (name, count) in review["record_counts"].as_object().unwrap() {
         out.push_str(&format!("| {name} | {count} |\n"));
+    }
+    if let Some(targets) = review["targets"].as_array() {
+        out.push_str("\n| Cargo target | Scope | Entry | Records |\n|---|---|---|---:|\n");
+        for target in targets {
+            let id = target["target"].as_str().unwrap();
+            out.push_str(&format!(
+                "| {id} | {} | {} | {} |\n",
+                review["target_scopes"][id].as_str().unwrap(),
+                target["entry"].as_str().unwrap(),
+                review["target_record_counts"][id]
+            ));
+        }
     }
     out.push_str("\n| Source | Group | Matching historical file pin | Residual obligation |\n|---|---|---|---|\n");
     for (name, b) in review["source_files"].as_object().unwrap() {
@@ -559,6 +671,45 @@ mod tests {
         fn review(&self) -> Result<Value> {
             reconcile(&self.root, &self.report, &self.manifest)
         }
+        fn catalog(&mut self) {
+            fs::write(
+                self.root.join("Cargo.toml"),
+                "[package]\nname='sample'\nversion='0.0.0'\n",
+            )
+            .unwrap();
+            fs::write(self.root.join("Cargo.lock"), "version=4\n").unwrap();
+            fs::write(
+                self.root.join("catalog.json"),
+                "{\"schema_version\":1,\"manifests\":[\"Cargo.toml\"]}",
+            )
+            .unwrap();
+            self.report["cargo_scope"] = json!({"mode":"repository_catalog","manifests_sha256":{"Cargo.toml":hash(&read(&self.root,"Cargo.toml").unwrap())},"lockfiles_sha256":{"Cargo.lock":hash(&read(&self.root,"Cargo.lock").unwrap())},"catalog":{"file":"catalog.json","sha256":hash(&read(&self.root,"catalog.json").unwrap())}});
+            self.report["targets"] =
+                json!([{"target":"sample::lib","entry":"lib.rs","kinds":["lib"]}]);
+            self.manifest["schema_version"] = json!(2);
+            self.manifest["cargo_scope"] = self.report["cargo_scope"].clone();
+            self.manifest["targets"] = self.report["targets"].clone();
+            self.manifest["target_scopes"] = json!({"sample::lib":"runtime"});
+            self.manifest["historical_targets"] = json!(["sample::lib"]);
+        }
+        fn zero_target(&mut self) {
+            fs::write(self.root.join("zero.rs"), "fn main(){}\n").unwrap();
+            self.report["files"]["zero.rs"] = json!(hash(&read(&self.root, "zero.rs").unwrap()));
+            self.report["source_set_sha256"] =
+                json!(hash(&serde_json::to_vec(&self.report["files"]).unwrap()));
+            self.report["targets"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({"target":"sample::zero","entry":"zero.rs","kinds":["bin"]}));
+            self.manifest["source_files"] = self.report["files"].clone();
+            self.manifest["groups"][0]["paths"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!("zero.rs"));
+            self.manifest["targets"] = self.report["targets"].clone();
+            self.manifest["target_scopes"]["sample::zero"] = json!("tooling");
+            self.manifest["target_records"]["sample::zero"] = json!(0);
+        }
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
@@ -624,6 +775,132 @@ mod tests {
         );
     }
     #[test]
+    fn catalog_review_keeps_zero_record_targets_and_pins_every_cargo_input() {
+        let mut f = Fixture::new();
+        f.catalog();
+        f.zero_target();
+        let a = f.review().unwrap();
+        assert_eq!(a["schema_version"], 2);
+        assert_eq!(a["target_record_counts"]["sample::zero"], 0);
+        assert_eq!(a["targets"].as_array().unwrap().len(), 2);
+        assert!(markdown(&a).contains("| sample::zero | tooling | zero.rs | 0 |"));
+        for name in ["Cargo.toml", "Cargo.lock", "catalog.json"] {
+            let original = fs::read(f.root.join(name)).unwrap();
+            fs::write(f.root.join(name), b"changed").unwrap();
+            assert!(f.review().is_err(), "changed {name} accepted");
+            fs::write(f.root.join(name), original).unwrap();
+        }
+        f.manifest["schema_version"] = json!(1);
+        assert!(
+            f.review()
+                .unwrap_err()
+                .to_string()
+                .contains("requires review schema 2")
+        );
+    }
+    #[test]
+    fn live_root_workspace_reports_also_require_target_bound_review_schema() {
+        let mut f = Fixture::new();
+        f.catalog();
+        f.report["cargo_scope"]["mode"] = json!("root_workspace");
+        f.report["cargo_scope"]["catalog"] = Value::Null;
+        f.manifest["schema_version"] = json!(1);
+        assert!(
+            f.review()
+                .unwrap_err()
+                .to_string()
+                .contains("requires review schema 2")
+        );
+    }
+    #[test]
+    fn catalog_review_rejects_target_omissions_unknown_scopes_and_zero_count_changes() {
+        for mutation in 0..7 {
+            let mut f = Fixture::new();
+            f.catalog();
+            f.zero_target();
+            match mutation {
+                0 => {
+                    f.report["targets"].as_array_mut().unwrap().pop();
+                }
+                1 => {
+                    f.manifest["target_scopes"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("sample::zero");
+                }
+                2 => f.manifest["target_scopes"]["sample::zero"] = json!("covered"),
+                3 => {
+                    f.manifest["target_records"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("sample::zero");
+                }
+                4 => f.manifest["historical_targets"] = json!(["not-a-target"]),
+                5 => f.report["decisions"][0]["target"] = json!("not-a-target"),
+                6 => {
+                    f.report["targets"][1]["target"] = json!("sample::lib");
+                    f.manifest["targets"] = f.report["targets"].clone();
+                }
+                _ => unreachable!(),
+            }
+            assert!(f.review().is_err(), "catalog mutation {mutation} accepted");
+        }
+    }
+    #[test]
+    fn shared_files_do_not_transfer_historical_rows_or_runtime_scope_to_new_targets() {
+        let mut f = Fixture::new();
+        f.catalog();
+        f.manifest["controls"] = json!([]);
+        let d = f.report["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["kind"] == "if")
+            .unwrap();
+        fs::write(
+            f.root.join("ledger.md"),
+            format!(
+                "| `lib.rs` | `{}` |\n| P | lib.rs:{}:{}–1:99 | {}..{} | if | check | pair |\n",
+                f.manifest["source_files"]["lib.rs"].as_str().unwrap(),
+                d["location"]["line"],
+                d["location"]["column"],
+                d["location"]["start_byte"],
+                d["location"]["end_byte"]
+            ),
+        )
+        .unwrap();
+        f.manifest["reference_files"]["ledger.md"] =
+            json!(hash(&read(&f.root, "ledger.md").unwrap()));
+        let mut added = f.report["decisions"].as_array().unwrap().clone();
+        for d in &mut added {
+            d["target"] = json!("fuzz::lib");
+            d["id"] = json!(format!("fuzz-{}", d["id"].as_str().unwrap()));
+        }
+        f.manifest["target_records"]["fuzz::lib"] = json!(added.len());
+        f.report["decisions"].as_array_mut().unwrap().extend(added);
+        f.report["targets"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"target":"fuzz::lib","entry":"lib.rs","kinds":["lib"]}));
+        f.manifest["targets"] = f.report["targets"].clone();
+        f.manifest["target_scopes"]["fuzz::lib"] = json!("tooling");
+        let a = f.review().unwrap();
+        assert_eq!(a["historical_status_counts"]["P"], 1);
+        assert_eq!(a["record_counts"]["runtime"], 2);
+        assert_eq!(a["individual_gap_counts"]["tooling"], 2);
+        for row in a["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["target"] == "fuzz::lib")
+        {
+            assert_eq!(row["scope"], "tooling");
+            assert_eq!(row["source_scope"], "runtime");
+            assert_eq!(row["disposition"], "G");
+            assert!(row["historical_rows"].as_array().unwrap().is_empty());
+        }
+    }
+    #[test]
     fn unmatched_records_receive_individual_condition_gap_reasons() {
         let mut f = Fixture::new();
         f.manifest["controls"] = json!([]);
@@ -635,6 +912,46 @@ mod tests {
             assert!(reason.contains("sample::lib::check"));
             assert!(reason.contains("[\"a\",\"b\"]"));
         }
+    }
+    #[test]
+    fn a_historical_gap_row_remains_an_individual_gap() {
+        let mut f = Fixture::new();
+        let d = f.report["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["kind"] == "if")
+            .unwrap();
+        fs::write(f.root.join("ledger.md"),format!("| `lib.rs` | `{}` |\n| G | lib.rs:{}:{}–1:99 | {}..{} | if | check | unresolved predicate |\n",f.manifest["source_files"]["lib.rs"].as_str().unwrap(),d["location"]["line"],d["location"]["column"],d["location"]["start_byte"],d["location"]["end_byte"])).unwrap();
+        f.manifest["reference_files"]["ledger.md"] =
+            json!(hash(&read(&f.root, "ledger.md").unwrap()));
+        let with_control = f.review().unwrap();
+        let qualified = with_control["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == d["id"])
+            .unwrap();
+        assert_eq!(qualified["historical_rows"][0]["status"], "G");
+        assert_eq!(qualified["disposition"], "named_source_control");
+        assert!(
+            with_control["individual_gap_counts"]
+                .as_object()
+                .unwrap()
+                .is_empty()
+        );
+        f.manifest["controls"] = json!([]);
+        let review = f.review().unwrap();
+        let row = review["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == d["id"])
+            .unwrap();
+        assert_eq!(row["historical_rows"][0]["status"], "G");
+        assert_eq!(row["disposition"], "G");
+        assert_eq!(review["individual_gap_counts"]["runtime"], 2);
+        assert!(row["gap_reason"].as_str().is_some_and(|r| !r.is_empty()));
     }
     #[test]
     fn position_only_rows_need_an_explicit_single_source_ledger() {
@@ -768,7 +1085,7 @@ mod tests {
                 .contains("missing decision")
         );
         let mut f = Fixture::new();
-        f.manifest["schema_version"] = json!(2);
+        f.manifest["schema_version"] = json!(3);
         assert!(
             f.review()
                 .unwrap_err()

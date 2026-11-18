@@ -32,10 +32,13 @@ struct Case {
     old: String,
     new: String,
     test: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exact_test: Option<String>,
     target: String,
     occurrence: usize,
     matches: Option<usize>,
     package: String,
+    manifest: Option<PathBuf>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -57,6 +60,12 @@ pub struct Options {
     /// Use optimized tests on Unix (Windows already qualifies both profiles).
     #[arg(long)]
     pub release: bool,
+    /// Zero-based Unix shard within the prefix-filtered registry.
+    #[arg(long, default_value_t = 0)]
+    pub shard_index: usize,
+    /// Number of disjoint Unix shards; defaults to the complete selection.
+    #[arg(long, default_value_t = 1)]
+    pub shard_count: usize,
 }
 fn parse_inventory(fixture: &str) -> Result<Inventory> {
     let data: Inventory = serde_json::from_str(fixture)?;
@@ -88,12 +97,25 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 && c.occurrence > 0
                 && c.matches.is_none_or(|n| n > 0)
                 && matches!(c.target.as_str(), "--lib" | "--test" | "--bin" | "--bins")
-                && matches!(
-                    c.package.as_str(),
-                    "weekend-db" | "weekend-db-typed" | "study-peer"
-                )
+                && match (&c.manifest, c.package.as_str()) {
+                    (None, "weekend-db" | "weekend-db-typed" | "study-peer") => true,
+                    (Some(manifest), "weekend-decision-inventory") =>
+                        manifest == Path::new("tools/decision-inventory/Cargo.toml"),
+                    _ => false,
+                }
                 && !c.test.is_empty(),
             "invalid mutation contract"
+        );
+        ensure!(
+            c.exact_test.as_deref().is_none_or(|name| {
+                c.target == "--test"
+                    && name.split("::").all(|part| {
+                        !part.is_empty()
+                            && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                    })
+            }),
+            "invalid exact integration test for {}",
+            c.name
         );
     }
     ensure!(!data.cases.is_empty(), "empty mutation inventory");
@@ -161,7 +183,25 @@ fn command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
     if release {
         args.push("--release".into());
     }
+    if let Some(manifest) = &case.manifest {
+        args.extend([
+            "--manifest-path".into(),
+            manifest.to_string_lossy().into_owned(),
+        ]);
+    }
+    if let Some(test) = &case.exact_test {
+        args.extend([test.clone(), "--".into(), "--exact".into()]);
+    }
     args
+}
+#[cfg(unix)]
+fn expected_test_outcome(case: &Case, stdout: &[u8], outcome: &str) -> bool {
+    case.exact_test.as_ref().is_none_or(|test| {
+        let expected = format!("test {test} ... {outcome}");
+        String::from_utf8_lossy(stdout)
+            .lines()
+            .any(|line| line == expected)
+    })
 }
 #[cfg(unix)]
 fn baseline(report: &crate::supervise::Report, log: &str) -> bool {
@@ -223,12 +263,27 @@ fn copy_source(root: &Path, output: &Path, names: &str) -> Result<Value> {
 }
 #[cfg(windows)]
 pub fn run(run: &Run, options: Options) -> Result<()> {
+    ensure!(
+        options.shard_index == 0 && options.shard_count == 1,
+        "native Windows RNG controls are not sharded"
+    );
     windows::run(run, options)
+}
+#[cfg(unix)]
+fn shard(cases: &[Case], index: usize, count: usize) -> Result<Vec<Case>> {
+    ensure!(count > 0 && index < count, "invalid mutation shard");
+    ensure!(count <= cases.len(), "more shards than selected cases");
+    Ok(cases
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| i % count == index)
+        .map(|(_, case)| case.clone())
+        .collect())
 }
 #[cfg(unix)]
 pub fn run(run: &Run, options: Options) -> Result<()> {
     let inventory = inventory()?;
-    let selected = inventory
+    let matching = inventory
         .cases
         .iter()
         .filter(|c| {
@@ -236,7 +291,8 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         })
         .cloned()
         .collect::<Vec<_>>();
-    ensure!(!selected.is_empty(), "no mutation cases selected");
+    ensure!(!matching.is_empty(), "no mutation cases selected");
+    let selected = shard(&matching, options.shard_index, options.shard_count)?;
     if options.list {
         for c in selected {
             println!("{}", c.name);
@@ -263,6 +319,13 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         &output,
         "Safe guard mutants in an isolated source copy; successful nonempty baselines and genuine test failures required",
     )?;
+    c.evidence["selection"] = json!({
+        "prefixes":options.prefixes,
+        "shard_index":options.shard_index,
+        "shard_count":options.shard_count,
+        "matching_cases":matching.iter().map(|case| &case.name).collect::<Vec<_>>(),
+        "selected_cases":selected.iter().map(|case| &case.name).collect::<Vec<_>>()
+    });
     let result = (|| {
         let mut compiler = cmd(["rustc"]);
         if let Some(t) = &options.toolchain {
@@ -303,10 +366,11 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                         .clone(),
                 )?;
                 let mut log = fs::read(c.output.join(format!("{name}.stdout.log")))?;
+                let selected_passed = expected_test_outcome(&case, &log, "ok");
                 log.extend(fs::read(c.output.join(format!("{name}.stderr.log")))?);
                 ensure!(
-                    baseline(&report, &String::from_utf8_lossy(&log)),
-                    "baseline failed or matched no tests for {}",
+                    selected_passed && baseline(&report, &String::from_utf8_lossy(&log)),
+                    "baseline failed or matched no intended test for {}",
                     case.name
                 );
             }
@@ -321,6 +385,9 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                 clean.push(path(format!("+{t}")));
             }
             clean.extend(cmd(["clean", "--offline", "--locked", "-p", &case.package]));
+            if let Some(manifest) = &case.manifest {
+                clean.extend(cmd([path("--manifest-path"), path(manifest)]));
+            }
             let outcome: Result<bool> = (|| {
                 c.command_at(
                     clean.clone(),
@@ -335,10 +402,11 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                     serde_json::from_value(row["supervision"].clone())
                         .context("mutant process report")?;
                 let mut log = fs::read(c.output.join(format!("{}.stdout.log", case.name)))?;
+                let selected_failed = expected_test_outcome(&case, &log, "FAILED");
                 log.extend(fs::read(
                     c.output.join(format!("{}.stderr.log", case.name)),
                 )?);
-                let detected = caught(&report, &String::from_utf8_lossy(&log));
+                let detected = selected_failed && caught(&report, &String::from_utf8_lossy(&log));
                 let row = c.evidence["commands"]
                     .as_array_mut()
                     .unwrap()
@@ -346,8 +414,13 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                     .unwrap();
                 row["passed"] = json!(detected);
                 row["expected_exit"] = json!(101);
-                row["expected_assertion"] = json!("test result: FAILED");
-                row["expected_assertion_stream"] = json!("combined");
+                if let Some(test) = &case.exact_test {
+                    row["expected_assertion"] = json!(format!("test {test} ... FAILED"));
+                    row["expected_assertion_stream"] = json!("stdout");
+                } else {
+                    row["expected_assertion"] = json!("test result: FAILED");
+                    row["expected_assertion_stream"] = json!("combined");
+                }
                 Ok(detected)
             })();
             fs::write(&file, &original)
@@ -397,6 +470,60 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
+    #[cfg(unix)]
+    fn shards_cover_the_selection_once_without_reordering_or_case_changes() {
+        let cases = inventory().unwrap().cases;
+        let matching = cases
+            .into_iter()
+            .filter(|case| case.name.starts_with("r1-"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            serde_json::to_value(shard(&matching, 0, 1).unwrap()).unwrap(),
+            serde_json::to_value(&matching).unwrap()
+        );
+        for count in [2, 3, 7] {
+            let mut seen = BTreeSet::new();
+            let mut lengths = Vec::new();
+            for index in 0..count {
+                let selected = shard(&matching, index, count).unwrap();
+                assert!(!selected.is_empty());
+                lengths.push(selected.len());
+                assert_eq!(
+                    serde_json::to_value(&selected).unwrap(),
+                    serde_json::to_value(shard(&matching, index, count).unwrap()).unwrap()
+                );
+                let mut previous = None;
+                for case in selected {
+                    let position = matching.iter().position(|c| c.name == case.name).unwrap();
+                    assert!(previous.is_none_or(|p| p < position));
+                    assert!(seen.insert(case.name.clone()));
+                    assert_eq!(
+                        serde_json::to_value(case).unwrap(),
+                        serde_json::to_value(&matching[position]).unwrap()
+                    );
+                    previous = Some(position);
+                }
+            }
+            assert_eq!(seen, matching.iter().map(|c| c.name.clone()).collect());
+            assert!(lengths.iter().max().unwrap() - lengths.iter().min().unwrap() <= 1);
+        }
+    }
+    #[test]
+    #[cfg(unix)]
+    fn invalid_and_empty_shards_reject_before_iteration() {
+        let cases = inventory().unwrap().cases;
+        for (index, count) in [
+            (0, 0),
+            (1, 1),
+            (3, 3),
+            (usize::MAX, 3),
+            (0, cases.len() + 1),
+        ] {
+            assert!(shard(&cases, index, count).is_err());
+        }
+        assert!(shard(&[], 0, 1).is_err());
+    }
+    #[test]
     fn source_copy_skips_its_own_output_and_rejects_symlink_escape() {
         let root = crate::support::Scratch::new(&std::env::temp_dir(), "mutation-copy").unwrap();
         let outside =
@@ -440,7 +567,7 @@ mod tests {
     #[test]
     fn fixture_preserves_test_commands_and_selects_release_explicitly() {
         let data = inventory().unwrap();
-        assert_eq!(data.cases.len(), 69);
+        assert_eq!(data.cases.len(), 261);
         let c = &data.cases[0];
         assert_eq!(
             command(c, None, false),
@@ -460,6 +587,79 @@ mod tests {
         let mut optimized = command(c, None, false);
         optimized.push("--release".into());
         assert_eq!(command(c, None, true), optimized);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn standalone_mutations_select_the_pinned_manifest_in_both_profiles() {
+        let fixture = inventory().unwrap();
+        let case = fixture
+            .cases
+            .iter()
+            .find(|c| c.name == "r1-inventory-example-kind")
+            .unwrap();
+        for release in [false, true] {
+            let args = command(case, Some("1.99.1"), release);
+            assert_eq!(
+                &args[args.len() - 2..],
+                ["--manifest-path", "tools/decision-inventory/Cargo.toml"]
+            );
+            assert!(args.windows(2).any(|a| a == ["--test", "catalog"]));
+            assert_eq!(
+                args.iter().filter(|a| *a == "--release").count(),
+                usize::from(release)
+            );
+        }
+        let mut data: Value = serde_json::from_str(FIXTURE).unwrap();
+        let standalone = data["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|c| c["name"] == "r1-inventory-example-kind")
+            .unwrap();
+        for manifest in [Value::Null, json!("../Cargo.toml"), json!("Cargo.toml")] {
+            data["cases"][standalone]["manifest"] = manifest;
+            assert!(parse_inventory(&data.to_string()).is_err());
+        }
+    }
+    #[cfg(unix)]
+    #[test]
+    fn exact_integration_selection_requires_the_named_test_outcome() {
+        let inventory = inventory().unwrap();
+        let mut case = inventory.cases[0].clone();
+        case.exact_test = Some("module::expected".into());
+        let args = command(&case, Some("1.99.1"), true);
+        assert_eq!(
+            &args[args.len() - 4..],
+            ["--release", "module::expected", "--", "--exact"]
+        );
+        assert!(expected_test_outcome(
+            &case,
+            b"running 1 test\r\ntest module::expected ... ok\r\n",
+            "ok"
+        ));
+        assert!(expected_test_outcome(
+            &case,
+            b"test module::expected ... FAILED\n",
+            "FAILED"
+        ));
+        for log in [
+            b"test module::expected_suffix ... FAILED\n".as_slice(),
+            b"test module::other ... FAILED\n",
+            b"panic: test module::expected ... FAILED\n",
+            b"test module::expected ... ok\n",
+        ] {
+            assert!(!expected_test_outcome(&case, log, "FAILED"));
+        }
+
+        let mut data: Value = serde_json::from_str(FIXTURE).unwrap();
+        for name in ["", "--exact", "a:b", "a::", "a\nb"] {
+            data["cases"][0]["exact_test"] = json!(name);
+            assert!(parse_inventory(&data.to_string()).is_err(), "{name:?}");
+        }
+        data["cases"][0]["exact_test"] = json!("module::expected");
+        assert!(parse_inventory(&data.to_string()).is_ok());
+        data["cases"][0]["target"] = json!("--lib");
+        assert!(parse_inventory(&data.to_string()).is_err());
     }
     #[test]
     fn only_requested_production_occurrence_changes_and_source_drift_rejects() {

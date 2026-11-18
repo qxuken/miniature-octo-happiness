@@ -527,6 +527,417 @@ fn recovery_errors_and_short_io_do_not_damage_a_clean_image() {
     }
 }
 
+const OBJECT_HEADER_BYTES: usize = 64;
+const OBJECT_CHECKSUM: std::ops::Range<usize> = 48..56;
+
+fn image_u64(bytes: &[u8], at: usize) -> u64 {
+    u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap())
+}
+
+fn image_crc64(bytes: &[u8]) -> u64 {
+    let mut crc = 0_u64;
+    for &byte in bytes {
+        crc ^= u64::from(byte) << 56;
+        for _ in 0..8 {
+            crc = if crc & (1 << 63) == 0 {
+                crc << 1
+            } else {
+                (crc << 1) ^ 0x42f0e1eba9ea3693
+            };
+        }
+    }
+    crc
+}
+
+fn resign_object(bytes: &mut [u8]) {
+    bytes[OBJECT_CHECKSUM].fill(0);
+    let checksum = image_crc64(bytes);
+    bytes[OBJECT_CHECKSUM].copy_from_slice(&checksum.to_le_bytes());
+}
+
+#[test]
+fn object_extents_and_directory_references_reject_before_outside_reads() {
+    assert_eq!(image_crc64(b"123456789"), 0x6c40df5f0b497347);
+    let (disk, db) = base_store();
+    let old = db.snapshot();
+    let old_rows = state(&db);
+    assert_eq!(old.revision(), 2);
+    assert_eq!(staged(&db).commit(), Ok(3));
+    assert_eq!(db.retain_snapshot(&old), Ok(1));
+    drop(old);
+    let revision = db.snapshot().revision();
+    assert_eq!(revision, 4);
+    let expected = state(&db);
+    assert_ne!(expected, old_rows);
+    let retained = vec![(1, 2, old_rows)];
+    let original = disk.durable_image().unwrap();
+    drop(db);
+    let index = (revision & 1) as usize;
+    let root = image_u64(&original, (1 + index) * REGION + 40) as usize;
+    assert_eq!(root + REGION, original.len());
+    let mut checked = original[root..root + REGION].to_vec();
+    let stored_crc = image_u64(&checked, 48);
+    checked[OBJECT_CHECKSUM].fill(0);
+    assert_eq!(image_crc64(&checked), stored_crc);
+    let healthy_disk = SimulatedDisk::from_image(&original).unwrap();
+    let healthy = open(&healthy_disk);
+    assert_eq!(healthy.snapshot().revision(), revision);
+    assert_eq!(state(&healthy), expected);
+    assert_eq!(retained_rows(&healthy), retained);
+    drop(healthy);
+    let clean_trace = healthy_disk.trace().unwrap();
+    let header_at = clean_trace
+        .iter()
+        .position(|e| (e.kind, e.offset, e.len) == (IoKind::Read, root as u64, OBJECT_HEADER_BYTES))
+        .unwrap();
+    let full_at = header_at + 1;
+    let full_read = clean_trace[full_at];
+    assert_eq!(
+        (full_read.kind, full_read.offset, full_read.len),
+        (IoKind::Read, root as u64, REGION)
+    );
+    let reject = |case: &str, mut image: Vec<u8>, through: usize| {
+        // Isolate graph admission from an independently surviving newest witness.
+        image[(3 + index) * REGION..(4 + index) * REGION].fill(0);
+        let candidate = SimulatedDisk::from_image(&image).unwrap();
+        assert!(
+            matches!(
+                Database::open_on(candidate.clone(), Limits::default()),
+                Err(Error::Corrupt)
+            ),
+            "{case}"
+        );
+        // Only the clean prefix may be read. This also excludes writes and syncs.
+        assert_eq!(
+            candidate.trace().unwrap(),
+            clean_trace[..=through],
+            "{case}"
+        );
+        assert_eq!(candidate.durable_image().unwrap(), image, "{case}");
+        image[(1 + index) * REGION..(2 + index) * REGION].fill(0);
+        let older = open(&SimulatedDisk::from_image(&image).unwrap());
+        assert_eq!(older.snapshot().revision(), 3, "{case}");
+        assert_eq!(state(&older), expected, "{case}");
+        assert!(retained_rows(&older).is_empty(), "{case}");
+    };
+    assert!(
+        clean_trace[..=full_at]
+            .iter()
+            .all(|e| !matches!(e.kind, IoKind::Write | IoKind::Sync))
+    );
+    for (case, reference) in [
+        ("parent itself", root as u64),
+        ("physical image end", original.len() as u64),
+        (
+            "largest aligned offset",
+            u64::MAX - u64::MAX % REGION as u64,
+        ),
+    ] {
+        let mut image = original.clone();
+        let descriptor = &mut image[root..root + REGION];
+        let data_reference = OBJECT_HEADER_BYTES + 8;
+        descriptor[data_reference..data_reference + 8].copy_from_slice(&reference.to_le_bytes());
+        resign_object(descriptor);
+        reject(case, image, full_at);
+    }
+    // An unselected tail is legal. A descriptor may not extend into it even
+    // when a full read, header stability, checksum and padding would all pass.
+    let mut extended = original.clone();
+    extended.resize(original.len() + REGION, 0);
+    let with_tail = open(&SimulatedDisk::from_image(&extended).unwrap());
+    assert_eq!(with_tail.snapshot().revision(), revision);
+    assert_eq!(state(&with_tail), expected);
+    assert_eq!(retained_rows(&with_tail), retained);
+    drop(with_tail);
+    let descriptor = &mut extended[root..root + 2 * REGION];
+    descriptor[16..24].copy_from_slice(&(REGION as u64).to_le_bytes());
+    resign_object(descriptor);
+    reject(
+        "descriptor extends outside selected end",
+        extended,
+        header_at,
+    );
+    let restored = open(&SimulatedDisk::from_image(&original).unwrap());
+    assert_eq!(restored.snapshot().revision(), revision);
+    assert_eq!(state(&restored), expected);
+    assert_eq!(retained_rows(&restored), retained);
+}
+
+#[test]
+fn empty_retained_catalog_still_requires_nonzero_next_id() {
+    let mut image = base_image();
+    let healthy = open(&SimulatedDisk::from_image(&image).unwrap());
+    assert_eq!(healthy.snapshot().revision(), 2);
+    assert!(retained_rows(&healthy).is_empty());
+    drop(healthy);
+    let root = image_u64(&image, REGION + 40) as usize;
+    let descriptor = &mut image[root..root + REGION];
+    let next_id = OBJECT_HEADER_BYTES + 24;
+    assert_eq!(image_u64(descriptor, next_id), 1);
+    assert_eq!(image_u64(descriptor, next_id + 8), 0);
+    descriptor[next_id..next_id + 8].fill(0);
+    resign_object(descriptor);
+    image[3 * REGION..4 * REGION].fill(0);
+
+    let disk = SimulatedDisk::from_image(&image).unwrap();
+    assert!(matches!(
+        Database::open_on(disk.clone(), Limits::default()),
+        Err(Error::Corrupt)
+    ));
+    assert!(
+        disk.trace()
+            .unwrap()
+            .iter()
+            .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync))
+    );
+    assert_eq!(disk.durable_image().unwrap(), image);
+    image[REGION..2 * REGION].fill(0);
+    let older = open(&SimulatedDisk::from_image(&image).unwrap());
+    assert_eq!(older.snapshot().revision(), 1);
+    assert!(state(&older).is_empty());
+    assert!(retained_rows(&older).is_empty());
+}
+
+#[test]
+fn commit_descriptor_requires_every_catalog_field_and_exact_payload_end() {
+    // Use consecutive real slots with different retained catalogs.
+    let (disk, db) = base_store();
+    let first = db.snapshot();
+    let first_rows = state(&db);
+    assert_eq!(first.revision(), 2);
+    assert_eq!(db.retain_snapshot(&first), Ok(1));
+    assert_eq!(staged(&db).commit(), Ok(4));
+    let second = db.snapshot();
+    let current_rows = state(&db);
+    assert_ne!(first_rows, current_rows);
+    assert_eq!(db.retain_snapshot(&second), Ok(2));
+    assert_eq!(db.snapshot().revision(), 5);
+    let original = disk.durable_image().unwrap();
+    drop(first);
+    drop(second);
+    drop(db);
+
+    let root = image_u64(&original, 2 * REGION + 40) as usize;
+    assert_eq!(root + REGION, original.len());
+    let payload_len = image_u64(&original, root + 16) as usize;
+    // Five descriptor words and four words per retained entry.
+    assert_eq!(payload_len, (5 + 2 * 4) * 8);
+    let older_catalog = vec![(1, 2, first_rows)];
+    let mut current_catalog = older_catalog.clone();
+    current_catalog.push((2, 4, current_rows.clone()));
+    let healthy = open(&SimulatedDisk::from_image(&original).unwrap());
+    assert_eq!(healthy.snapshot().revision(), 5);
+    assert_eq!(state(&healthy), current_rows);
+    assert_eq!(retained_rows(&healthy), current_catalog);
+    drop(healthy);
+
+    for len in (0..payload_len).step_by(8).chain([payload_len + 1]) {
+        let mut image = original.clone();
+        image[4 * REGION..5 * REGION].fill(0);
+        let descriptor = &mut image[root..root + REGION];
+        descriptor[16..24].copy_from_slice(&(len as u64).to_le_bytes());
+        descriptor[OBJECT_HEADER_BYTES + len..].fill(0);
+        resign_object(descriptor);
+        let candidate = SimulatedDisk::from_image(&image).unwrap();
+        assert!(
+            matches!(
+                Database::open_on(candidate.clone(), Limits::default()),
+                Err(Error::Corrupt)
+            ),
+            "descriptor payload length {len}"
+        );
+        assert!(
+            candidate
+                .trace()
+                .unwrap()
+                .iter()
+                .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync)),
+            "descriptor payload length {len} wrote or synced"
+        );
+        assert_eq!(
+            candidate.durable_image().unwrap(),
+            image,
+            "descriptor payload length {len}"
+        );
+        image[2 * REGION..3 * REGION].fill(0);
+        let older = open(&SimulatedDisk::from_image(&image).unwrap());
+        assert_eq!(older.snapshot().revision(), 4, "payload length {len}");
+        assert_eq!(state(&older), current_rows, "payload length {len}");
+        assert_eq!(retained_rows(&older), older_catalog, "payload length {len}");
+    }
+}
+
+struct RetainedHistory {
+    image: Vec<u8>,
+    current: Rows,
+    prior: Rows,
+    retained: Vec<(u64, u64, Rows)>,
+}
+
+impl RetainedHistory {
+    fn fixture() -> Self {
+        let (disk, db) = base_store();
+        let old = db.snapshot();
+        let prior = state(&db);
+        assert_eq!(old.revision(), 2);
+        assert_eq!(db.retain_snapshot(&old), Ok(1));
+        assert_eq!(staged(&db).commit(), Ok(4));
+        let current = state(&db);
+        assert_ne!(prior, current);
+        let retained = vec![(1, 2, prior.clone())];
+        let image = disk.durable_image().unwrap();
+        Self {
+            image,
+            current,
+            prior,
+            retained,
+        }
+    }
+
+    fn current_data_offset(&self) -> usize {
+        let root = image_u64(&self.image, REGION + 40) as usize;
+        image_u64(&self.image, root + OBJECT_HEADER_BYTES + 8) as usize
+    }
+
+    fn assert_current_reopens(&self) {
+        let mut unwitnessed = self.image.clone();
+        unwitnessed[3 * REGION..4 * REGION].fill(0);
+        for (case, image) in [
+            ("witness present", &self.image),
+            ("witness cleared", &unwitnessed),
+        ] {
+            let healthy = open(&SimulatedDisk::from_image(image).unwrap());
+            assert_eq!(healthy.snapshot().revision(), 4, "{case}");
+            assert_eq!(state(&healthy), self.current, "{case}");
+            assert_eq!(retained_rows(&healthy), self.retained, "{case}");
+        }
+    }
+
+    fn assert_newest_rejects(&self, case: &str, mut image: Vec<u8>, error: Error) {
+        // Revision 4 is in the even slot. Clear its witness to expose any
+        // fallback to revision 3 while the damaged newest slot is present.
+        image[3 * REGION..4 * REGION].fill(0);
+        let candidate = SimulatedDisk::from_image(&image).unwrap();
+        assert_eq!(
+            Database::open_on(candidate.clone(), Limits::default()).err(),
+            Some(error),
+            "{case}"
+        );
+        assert!(
+            candidate
+                .trace()
+                .unwrap()
+                .iter()
+                .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync)),
+            "{case} wrote or synced"
+        );
+        assert_eq!(candidate.durable_image().unwrap(), image, "{case}");
+        image[REGION..2 * REGION].fill(0);
+        let older = open(&SimulatedDisk::from_image(&image).unwrap());
+        assert_eq!(older.snapshot().revision(), 3, "{case}");
+        assert_eq!(state(&older), self.prior, "{case}");
+        assert_eq!(retained_rows(&older), self.retained, "{case}");
+    }
+}
+
+#[test]
+fn data_directory_requires_complete_sorted_records() {
+    let fixture = RetainedHistory::fixture();
+    let original = &fixture.image;
+    let data = fixture.current_data_offset();
+    let payload_len = image_u64(original, data + 16) as usize;
+    assert_eq!(payload_len, 128);
+    fixture.assert_current_reopens();
+
+    let reject = |case: &str, mut image: Vec<u8>, error: Error| {
+        resign_object(&mut image[data..data + REGION]);
+        fixture.assert_newest_rejects(case, image, error);
+    };
+
+    for len in (0..payload_len).chain([payload_len + 1]) {
+        let mut image = original.clone();
+        let object = &mut image[data..data + REGION];
+        object[16..24].copy_from_slice(&(len as u64).to_le_bytes());
+        object[OBJECT_HEADER_BYTES + len..].fill(0);
+        reject(&format!("DATA payload length {len}"), image, Error::Corrupt);
+    }
+
+    // DATA and collection headers each have three words. A record has a
+    // length word, key bytes, write revision and value offset.
+    let payload = data + OBJECT_HEADER_BYTES;
+    let first_key_len = payload + 6 * 8;
+    let second_key = first_key_len + 4 * 8 + 1;
+    assert_eq!(image_u64(original, first_key_len), 1);
+    assert_eq!(original[first_key_len + 8], b'a');
+    assert_eq!(original[second_key], b'b');
+    for (case, key) in [("duplicate key", b'a'), ("descending key", b'A')] {
+        let mut image = original.clone();
+        image[second_key] = key;
+        reject(case, image, Error::Corrupt);
+    }
+    let limits = Limits::default();
+    for (case, pos, maximum) in [
+        ("collection count", payload + 16, limits.max_entries),
+        ("record count", payload + 40, limits.max_entries),
+        ("key length", first_key_len, limits.max_bytes),
+    ] {
+        let mut image = original.clone();
+        image[pos..pos + 8].copy_from_slice(&(maximum as u64 + 1).to_le_bytes());
+        reject(case, image, Error::Limit);
+    }
+}
+
+#[test]
+fn value_objects_require_complete_payloads() {
+    let fixture = RetainedHistory::fixture();
+    let original = &fixture.image;
+    let data = fixture.current_data_offset();
+    let data_payload = data + OBJECT_HEADER_BYTES;
+    // The first two directory records have single-byte keys a and b.
+    assert_eq!(original[data_payload + 56], b'a');
+    assert_eq!(original[data_payload + 81], b'b');
+    let map = image_u64(original, data_payload + 65) as usize;
+    let scalar = image_u64(original, data_payload + 90) as usize;
+    let map_payload = map + OBJECT_HEADER_BYTES;
+    assert_eq!(&original[map_payload + 24..map_payload + 28], b"list");
+    let list = image_u64(original, map_payload + 28) as usize;
+    let bytes = image_u64(original, list + OBJECT_HEADER_BYTES + 24) as usize;
+    fixture.assert_current_reopens();
+
+    let reject = |case: &str, len: u64, offset: usize, mut image: Vec<u8>| {
+        let object = &mut image[offset..offset + REGION];
+        object[16..24].copy_from_slice(&len.to_le_bytes());
+        object[OBJECT_HEADER_BYTES + len as usize..].fill(0);
+        resign_object(object);
+        fixture.assert_newest_rejects(
+            &format!("{case} payload length {len}"),
+            image,
+            Error::Corrupt,
+        );
+    };
+    for (case, offset, tag, expected_len) in [
+        ("integer", scalar, 2, 16),
+        ("bytes", bytes, 5, 19),
+        ("map", map, 6, 36),
+        ("list", list, 7, 32),
+    ] {
+        assert_eq!(image_u64(original, offset + OBJECT_HEADER_BYTES), tag);
+        assert_eq!(image_u64(original, offset + 16), expected_len);
+        for len in (0..expected_len).chain([expected_len + 1]) {
+            reject(case, len, offset, original.clone());
+        }
+    }
+    let mut unknown = original.clone();
+    let tag_at = scalar + OBJECT_HEADER_BYTES;
+    unknown[tag_at..tag_at + 8].copy_from_slice(&8_u64.to_le_bytes());
+    reject(
+        "unknown value tag without trailing data",
+        8,
+        scalar,
+        unknown,
+    );
+}
+
 #[test]
 fn recovery_selects_the_newest_available_root_only_if_the_slots_agree() {
     let (disk, db) = base_store();

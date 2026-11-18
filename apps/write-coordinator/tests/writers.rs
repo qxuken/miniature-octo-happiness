@@ -34,6 +34,9 @@ static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 // clients within one fixture still run concurrently.
 static STORAGE_WORKLOAD: Mutex<()> = Mutex::new(());
 
+#[path = "writers/pending_restore.rs"]
+mod pending_restore;
+
 fn storage_workload() -> std::sync::MutexGuard<'static, ()> {
     STORAGE_WORKLOAD
         .lock()
@@ -307,6 +310,10 @@ fn configured_service(
     token: &str,
 ) -> (Process, AuthenticatedClient) {
     let server = Process::start(&[command, path, "0", "--secret-file", secret]);
+    authenticated_server(server, token)
+}
+
+fn authenticated_server(server: Process, token: &str) -> (Process, AuthenticatedClient) {
     let ready = server.receive();
     let address = ready.strip_prefix("ready ").unwrap().parse().unwrap();
     (

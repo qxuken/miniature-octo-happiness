@@ -24,6 +24,7 @@ const INPUTS: &[&str] = &[
     "xtask/Cargo.toml",
     "xtask/src/check.rs",
     "xtask/src/compatibility.rs",
+    "xtask/src/coordinator_recovery.rs",
     "xtask/src/msrv.rs",
     "xtask/src/incident_recovery.rs",
     "xtask/src/qualification_net.rs",
@@ -104,6 +105,21 @@ impl<'a> Campaign<'a> {
         let output = trace_process::admission(&run.root, output)?;
         fs::create_dir_all(output.parent().context("output parent")?)?;
         fs::create_dir(&output).context("new evidence directory")?;
+        Self::from_directory(run, output, scope)
+    }
+
+    pub fn new_private(run: &'a Run, output: &Path, scope: &str) -> Result<Self> {
+        let output = trace_process::admission(&run.root, output)?;
+        fs::create_dir_all(output.parent().context("output parent")?)?;
+        let sid = windows_process::current_user_sid(&run.root, &run.env)?;
+        windows_process::create_private_directory(&output, &sid)?;
+        let mut campaign = Self::from_directory(run, output, scope)?;
+        campaign.evidence["output_creation"] = json!({"owner_sid":sid,"acl":"protected, inheritable current-user full control at creation"});
+        campaign.save()?;
+        Ok(campaign)
+    }
+
+    fn from_directory(run: &'a Run, output: PathBuf, scope: &str) -> Result<Self> {
         let mut campaign = Self {
             run,
             evidence: json!({
@@ -423,6 +439,74 @@ impl Invocation<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_campaign_protects_initialization_failure_and_inherited_files() {
+        let mut scratch =
+            crate::support::Scratch::new(&std::env::temp_dir(), "private-windows-campaign")
+                .unwrap();
+        let root = scratch.path().join("missing-inputs");
+        fs::create_dir(&root).unwrap();
+        let run = Run::new(root);
+        let output = scratch.path().join("evidence");
+        assert!(Campaign::new_private(&run, &output, "private initialization failure").is_err());
+        assert!(!output.join("evidence.json").exists());
+        let sid = windows_process::current_user_sid(&run.root, &run.env).unwrap();
+        fs::write(output.join("child"), b"owned data").unwrap();
+        let mut env = run.env.clone();
+        // The CI parent is pwsh. Let Windows PowerShell initialize its own
+        // module paths rather than trying to load pwsh's incompatible modules.
+        env.retain(|name, _| !name.to_string_lossy().eq_ignore_ascii_case("PSModulePath"));
+        env.insert("WEEKEND_PRIVATE_OUTPUT_TEST".into(), path(&output));
+        env.insert("WEEKEND_PRIVATE_OWNER_TEST".into(), path(&sid));
+        let script = r#"
+$ErrorActionPreference='Stop'
+try {
+    $sid=$env:WEEKEND_PRIVATE_OWNER_TEST
+    $p=$env:WEEKEND_PRIVATE_OUTPUT_TEST
+    $a=Get-Acl -LiteralPath $p
+    [Console]::Out.WriteLine('ACL protected='+$a.AreAccessRulesProtected+' owner='+$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value+' expected='+$sid)
+    if(-not $a.AreAccessRulesProtected -or $a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid){throw 'directory protection or owner'}
+    foreach($q in @($p, (Join-Path $p 'child'))){
+        $acl=Get-Acl -LiteralPath $q
+        $r=@($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]))
+        [Console]::Out.WriteLine('ACL path='+$q+' rules='+$r.Count)
+        foreach($rule in $r){[Console]::Out.WriteLine('ACL sid='+$rule.IdentityReference.Value+' type='+$rule.AccessControlType+' rights='+$rule.FileSystemRights+' inherited='+$rule.IsInherited)}
+        $full=[System.Security.AccessControl.FileSystemRights]::FullControl
+        if($r.Count -ne 1 -or $r[0].IdentityReference.Value -ne $sid -or $r[0].AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or ($r[0].FileSystemRights -band $full) -ne $full){throw 'unexpected access rule'}
+    }
+    [Console]::Out.WriteLine('verified private ACL')
+} catch {
+    [Console]::Out.WriteLine('ACL probe error='+$_.Exception.GetType().FullName+': '+$_.Exception.Message)
+}
+exit 0
+"#;
+        let bytes = windows_process::capture_private(
+            &cmd([
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                script,
+            ]),
+            &run.root,
+            &env,
+            30.,
+        )
+        .unwrap();
+        let observation = String::from_utf8(bytes).unwrap();
+        assert_eq!(
+            observation.lines().last(),
+            Some("verified private ACL"),
+            "{observation}"
+        );
+        assert!(windows_process::create_private_directory(&output, &sid).is_err());
+        assert_eq!(fs::read(output.join("child")).unwrap(), b"owned data");
+        let invalid = scratch.path().join("invalid-owner");
+        assert!(windows_process::create_private_directory(&invalid, "S-1-5-21;D:").is_err());
+        assert!(!invalid.exists());
+        scratch.close().unwrap();
+    }
     use crate::support::Scratch;
 
     fn detached(run: &Run) -> Campaign<'_> {

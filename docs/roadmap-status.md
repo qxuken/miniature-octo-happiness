@@ -12,6 +12,14 @@ for e2d2268. Older entries below retain their historical source and scope.
 The project name is provisional. Baseline `1e883c8` checkpoints the prior
 decision tests and first four fuzz targets.
 
+The [2026-11-18 dependency snapshot](locked-dependency-review-3de695f.md)
+scans all fourteen lockfiles at `3de695f` against frozen RustSec `233155b`
+(1,527 parsed advisories): zero reported vulnerabilities and warnings.
+Independent extraction checks all 1,595 proof payloads and reproduces every
+raw scan result with the retained tool/database. R6's final distribution,
+attribution, registry metadata and owner actions remain open; local proof
+retention does not close R7 custody.
+
 The [R2 operational refresh](r2-qualification.md) uses engine `6b657e5` for fresh
 Mac/Linux operator, offline StudyProgress and live snapshot-month rehearsals.
 All scoped local workloads pass, including preserved retained roots, exact
@@ -20,8 +28,41 @@ replies. The corrected three-platform operator gate passes, including 41
 native Windows outcomes and the source-protection/exclusive-lease controls.
 The macOS harness additionally verifies bounded normal retirement of a busy
 owned APFS image and the original namespace ENOSPC/reopen/retry scenario.
-R2 remains open for pending-intent/coordinator
-lost-reply restoration and deployment/handoff profiles; this is not a final
+R2 remains open for delivered-artifact qualification of pending-intent/coordinator
+restoration, plus deployment/handoff profiles. The follow-up
+[pending-pair matrix](coordinator-pending-restore.md) now covers four unresolved
+intent captures, a second lost reply and fresh current/retained readers.
+Frozen `4cc2678` passes debug/release on macOS/APFS and Docker Linux/ext4,
+with a passing Windows test cross-check. PR #4 head `7df2dc2` then passes all
+19 hosted checks, including the matrix in both profiles on native Windows.
+The [source-package controller](coordinator-artifact-recovery.md) next reuses
+those exact recovery observations against relocated private artifacts.
+Frozen `f2e4d35` passes all eight schedule/profile combinations on macOS/APFS
+and Docker Linux/ext4; complete package/source inventories and retained
+executables are audited. Review fixes reject unexpected stderr and restrict
+evidence before its first write. Native Windows source-package/ACL execution
+and operator/deployment handoff remain required at that local checkpoint.
+PR #5 head `2bc8e79` subsequently passes all 22 checks: native Windows private
+creation and source-package recovery, all three post-download package runs,
+workspace ASan/TSan (765 passing tests/seven ignores each) and bounded fuzzing.
+The [hosted artifact audit](coordinator-artifact-recovery.md#hosted-verification-at-pr-5)
+records complete inventories, original archive digests and the separate
+Windows controller scope. The [two-writer handoff](coordinator-operator-handoff.md)
+now adds a complete assigned-slot checkpoint, stale/mixed-set and old-credential
+rejections, continued writes and a fresh raw-row observer. Frozen controller
+`f5287e6` passes all 85 outcomes in both selected-CLI profiles on macOS/APFS
+and Docker Linux/ext4. The audit checks all 286 payloads and 336 source inputs
+per run; all owned Docker resources are retired. The complete macOS xtask suite
+passes 237 tests/two explicit ignores per profile, with strict Clippy on both
+hosts and passing Windows cross-checks. PR #6 head `3de695f` subsequently
+passes all 22 checks, including six native handoff rehearsals (debug/release
+selected CLIs on macOS, Linux and Windows), plus workspace ASan/TSan with
+766 tests/seven ignores each. The [hosted audit](coordinator-operator-handoff.md#hosted-native-follow-up-at-pr-6)
+checks all six inventories and keeps Windows's 33-input scope separate from
+Unix's 336. Actual deployment/account/owner handoff remains open.
+PR #3 passes all 19 checks at
+`952b5c3`, with successful native macOS and TSan retries after runner-capacity
+cancellations. This is not a final
 release or a replacement for the immutable artifact qualification.
 
 The [R1 refresh after merged main](r1-qualification.md) adds current source and

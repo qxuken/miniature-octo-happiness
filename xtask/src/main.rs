@@ -13,6 +13,8 @@ mod check;
 mod clean;
 #[cfg(any(unix, windows))]
 mod compatibility;
+#[cfg(any(unix, windows))]
+mod coordinator_recovery;
 #[cfg(unix)]
 mod coverage;
 #[cfg(unix)]
@@ -246,6 +248,9 @@ enum Task {
     /// Rehearse offline administrative restore and isolated journal reconciliation.
     #[cfg(any(unix, windows))]
     IncidentRecovery(incident_recovery::Options),
+    /// Run pending-journal recovery against a verified private Rust-source package.
+    #[cfg(any(unix, windows))]
+    CoordinatorRecovery(coordinator_recovery::Options),
     /// Dynamically load the exact shared library and verify its C ABI.
     AbiSmoke(abi::Options),
     /// Generate raw Odin bindings, or verify them against the C header.
@@ -401,6 +406,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::Fuzz(options) => fuzz::run(&run, options),
         #[cfg(any(unix, windows))]
         Task::IncidentRecovery(options) => incident_recovery::run(&run, options),
+        #[cfg(any(unix, windows))]
+        Task::CoordinatorRecovery(options) => coordinator_recovery::run(&run, options),
         Task::AbiSmoke(options) => abi::run(options),
         Task::OdinBindings { check } => odin::run(&root, check),
         Task::WindowsConsumers(options) => toolchain::windows_consumers(&mut run, options),

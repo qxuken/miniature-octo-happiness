@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "baseline": "6b657e516c13f678cd54c816db8a53ec5a11e395",
+  "schema_version": 2,
+  "baseline": "0556c7bafcd9e334d0d9efb3d42c21a9c88da16b",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -11,6 +11,8 @@
     "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
     "apps/support/pinned_tls.rs": "3772645837b8f2f4e8ba8b1c743902538a2541f781999724a59de98395706b53",
     "apps/support/service_diagnostics.rs": "02a7c1dcba60626104be3f58da640459b5f185546b64a532c189d3f62ef07208",
+    "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
+    "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
     "apps/weekend-replicate/src/native.rs": "bf4b7a29d62011a342a9badb6dc8d74fcaab5ea51c901ff25cc19605d874679c",
     "apps/weekend-replicate/src/native/admission.rs": "7144c0e040b9955bf64fe857361653378d3e01fb784639da5c8eae125ad312c3",
@@ -32,7 +34,64 @@
     "crates/weekend-db-typed/src/codec.rs": "7725f08e3d1df5180cf839899c929e9d6219c92e7352d17e2758ef3f1fe127aa",
     "crates/weekend-db-typed/src/lib.rs": "e6a706a0b017b605cdde1d660f5e2c36504a61239500acb8b18f3d1fca98345d",
     "crates/weekend-db-typed/src/store.rs": "2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa",
+    "crates/weekend-db-typed/tests/renamed/src/main.rs": "55a6efdd13151b31a7910f0e165bc1cac9f0d5a3bb58f87bd2788b706795da6b",
+    "examples/crdt_policy_migration.rs": "22b9e35114d1f922a01bb04bb252f255c74f63239e16354bc3f8e71172f48d2a",
+    "examples/file.rs": "4cec06b13cc0fc8ac10a94bd357118681de8b658f6fe50098df783a604db2fc8",
+    "examples/memory.rs": "698133206c0f46b8f1e456b21f10ea0bd40c0cc0146ace1a27cc64ac4a9eccc0",
+    "examples/native_faults.rs": "7fa772dea3e74977e719f42d1b68701313a45aefb9c7c0af7a5c8d61273be302",
+    "examples/raw_tasks.rs": "d106d09d1f1b9416bb3ad6d2202974021fa64993bfa983d0d2ccb5343e844ff6",
+    "examples/recovery_scale.rs": "25038aaad6a0a22ba975cb42512ba99dd5ed44ed0e9addd617b7f004a46a295f",
+    "examples/rust_package/src/main.rs": "d3cf18dc8a86672f871f72e3102b0791ecfb82e7624cdc5f5b81765edd27e045",
+    "examples/simulated.rs": "2ab450d00ecc9e54b05358ad26de6803ef0e6f06084d8c3d1a26d1aefae157ea",
+    "examples/storage_lifecycle.rs": "538b183086a2f9f2d6227f3e767796f000175dd6404fbc2e8704312aa6249b99",
+    "examples/study_progress.rs": "955a8a62fe2985ff37788d30e93b679137985e9e93ec228a894c8c10c024b8a0",
     "examples/support/study.rs": "d2a119e71a0863fa16ab2da04a8254e8fee9c6584448f2810edf80996522226d",
+    "examples/support/users.rs": "9bc8d09ec23c475bc641abc059a54b6c8a211b9fd1b05fbbe3d8ef0c1b87871d",
+    "examples/typed.rs": "2cf1f8d30a277ecad9cca3fbee5e20170d94c7fcd9a85264d2f787c8deb9ab37",
+    "fuzz/examples/crdt_seeds.rs": "45533b55f81d0c9f7b355c19946ba33b11df54576c1cd2b5de625d94444ff807",
+    "fuzz/examples/operations_seeds.rs": "7990c5f26f154faab8996b7ca0623d83172a862ff03eeb1aa1749918ceeb0932",
+    "fuzz/examples/seed_corpus.rs": "0686b80393c1ab3cf6fe37de3627719663f3dc52fc9d08d915db09141dc4fb42",
+    "fuzz/examples/snapshot_seeds.rs": "4c08993ec89843cc8234d8d042f2fcdfa7108e4bb9ebf4b4ddd63b57e7456e68",
+    "fuzz/fuzz_targets/backup_restore.rs": "9fe3e5c75410743a4b5762391ded754b86529fde41fad174b10fc95304161a98",
+    "fuzz/fuzz_targets/bytestore_contract.rs": "2655cb3d7de6090e9f486685e2beaa47d226aaf9bd3cbdce1154ca1831b1d6c5",
+    "fuzz/fuzz_targets/commit_crash.rs": "9cc4f62e6f9a51f81e5cfba788d6d3811f4f5924122f31548e34665420a119a1",
+    "fuzz/fuzz_targets/coordinator_protocol.rs": "bccbae3f8a6f4e5c84dc701e08c0c53fca9dad156d0fe940fd677a2b34554227",
+    "fuzz/fuzz_targets/crdt_frames.rs": "6571a8d5439965bd56785270dfd088a165e95ce7ce8b25e8a1e71ff91812dddf",
+    "fuzz/fuzz_targets/crdt_schedule.rs": "9b4ec9586da281337e4b5c33cc85dbc42adeeb2dff7504ae1174ef5faac691ff",
+    "fuzz/fuzz_targets/derive_tokens.rs": "9d0692fc07a2ff5b97429b700ca365112fd2a497ab32985f036ad42343c0bfd7",
+    "fuzz/fuzz_targets/ffi_ops.rs": "73195e8a36458bcfface74fbf0166b5ea11f267308582a8383306cbfdcc1f2a5",
+    "fuzz/fuzz_targets/image_and_ops.rs": "ec4701f23cc98fd4e6cd700ae1fd2f7f3966aabe70a9c968d86cd24b421b54b4",
+    "fuzz/fuzz_targets/logical_import_export.rs": "410b99fe32ea58080f3abed9664e55d15e0afa42f90a7578bf5a6bd3adc4a2e7",
+    "fuzz/fuzz_targets/open_image_bytes.rs": "252a2ddc6fc01d648cb0e960d6ebd1c0ce8f6124e9f912a97b6b98e6d879e103",
+    "fuzz/fuzz_targets/open_structured_image.rs": "e3a31459d472916ebe2dbc9798dfd8c8a1f845a005c929f47f33ebf51ea284b5",
+    "fuzz/fuzz_targets/peer_transport.rs": "ed36f73e51adad0e87d8ce03a92e17a3f5e226774afd5945e542b6155ca51253",
+    "fuzz/fuzz_targets/register_causality.rs": "8af427fd1f9dc6c5ebcb45d850318800af0d0593705761575ba4ce03fe618827",
+    "fuzz/fuzz_targets/replacement_namespace.rs": "88331434bd72541f09cb50818523887bc217a5271738238824ae3d890e3f029a",
+    "fuzz/fuzz_targets/retention_compact_crash.rs": "77fbabe28694211aee701eaf67cf57a418a30840bd7566d255ee98727d7be11b",
+    "fuzz/fuzz_targets/schema_index_migration.rs": "09b64e60a7e5149a68aedf529bb08ec52dad2c3e1bcc9801005d1be03c8e710a",
+    "fuzz/fuzz_targets/snapshot_frames.rs": "6c41235fa50f157874c8d6280bcc0e91264a6afcf3ef1229a8f0068980ae263e",
+    "fuzz/fuzz_targets/snapshot_install_schedule.rs": "433d526b6a564eaaba330f6c405782075680af5db29f278bc37840b9abc1b019",
+    "fuzz/fuzz_targets/tree_adversarial_keys.rs": "6aff434582fc2df5d0ee9bd98c329cd0029b8109ab57e8fd4eddce96210b6d24",
+    "fuzz/fuzz_targets/txn_schedule.rs": "d90560585d3cb58e2179b6f50a2bbe45f5e1c560cabf436258f597651cb8f141",
+    "fuzz/fuzz_targets/value_ops.rs": "c8a26c2e2045f6978126ba196d41278c11da49fc3141decd65edfd5a2bd70d8e",
+    "fuzz/src/adversarial.rs": "6f5ba52ac952a27254b11d549e285881bfc77790a00f064cb70d7633193187ab",
+    "fuzz/src/coordinator.rs": "1427f64e32c15a5f255c50b4cb429320757d36e0fd9aa3d14be4b74fd1ff2e10",
+    "fuzz/src/crash.rs": "68efc68cae3e05925d90e4aaca2009f43cdb221772cbab2b81679a616975f146",
+    "fuzz/src/crdt.rs": "d1e4d28b8725696dea685c90c8bc19961e07b8cc23b03c62acdb1b2902b57ad0",
+    "fuzz/src/derive.rs": "09da8b335c76ab3ef393ce8f64a31480e0ad0f4dbe6f492b685593731532e448",
+    "fuzz/src/foreign.rs": "f905795854b2abf39ed250b5931a879bd4b6afbdada9498188a4cd96fad648f9",
+    "fuzz/src/history.rs": "e0dd4f80613e9d92a5245d0349055ac64f76aae50af0e8f846ae530365459732",
+    "fuzz/src/image.rs": "9770c956ae674397fd73e9441be5909d5d9b51f4d9b58e92241ebf4b4ce8c7dc",
+    "fuzz/src/lib.rs": "4529449d79a00dd7e64923d621c3c87c54c062a677102db52fa5774e5c9a46a0",
+    "fuzz/src/namespace.rs": "4b6255be88ad490dcdbf0d37bcac5f7220d7027348419b863add6675b9ca1568",
+    "fuzz/src/operations.rs": "699520bfb6c1d8e9d34548176618b8aeefef3d5957e7eac187a793876265cc71",
+    "fuzz/src/peer.rs": "8313a8b86ae207c8aa404266bef1ec115c06655b9f620a701788a9d6b2c13259",
+    "fuzz/src/registers.rs": "88f2ce21409b69c670287872731b89a52cbc6eb1141eeae0498f14c839571fc7",
+    "fuzz/src/schedule.rs": "6a1bed4fe291ce9ad20bcaf61352a5897d657e0cbae7b85dd6a47e63960f62d2",
+    "fuzz/src/snapshot.rs": "5494ffef0ccb1a202a2b7f0874d38844742d06e2f38a6a95d6819892498b6969",
+    "fuzz/src/typed.rs": "24b7fe87c47222a7a7db431cda2bcf7d9df6c8884c8e22b78385caa1cc1dbbb0",
+    "fuzz/src/values.rs": "b3330f3d996c0f2bd5932c11e169195a5e19258915bfda8f08b97352b4ce896c",
+    "probe/rust/src/lib.rs": "222e5f2f579448b9776748c7cee9d2efdacc63ae6b1b03208f68aa50dcb984c6",
     "src/crdt.rs": "314b94c63278801a91ee1cfd8f2f387a6c1452cc46c3ce5bbf380a3a6735bf45",
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
@@ -45,7 +104,7 @@
     "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
     "src/schema.rs": "defe72214ddbf59e05bf291dcd93f97bd92a56cfb143f075858dfcab7001181a",
-    "src/storage/codec.rs": "dc442d771e2fbcb2ac883bca7849a801874b389ae2b89df35296b87f99e35883",
+    "src/storage/codec.rs": "15be88e7381e9ea806ee9c9219505526b1cc2d30c79b3bce877ea65ec28f71ea",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
     "src/storage/file.rs": "6665a77198f510e6f5c946c03093113e51011c3248c2f3b68efd61bccb0c472b",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
@@ -60,40 +119,63 @@
     "src/tree.rs": "bcec08cd41a96fa1e5f82fbeb2b469f4f459110995ee75abd5f6487e05c24cd0",
     "src/value.rs": "254aaa0b5e56fa7cdee7e164b93d655311e0585aee86f40494301688662b663d",
     "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
+    "tests/support/mod.rs": "007e7da58df3c8818418cb4460436e7b15e18026a32b5b0b742ebc78c89a7ab4",
     "tools/admin.rs": "5bf45aecb59283e8d3f5c3192fcc01fdf0abe983219402f2b7daba31a40611fb",
+    "tools/atomic-model/src/budget.rs": "ff9048fb065807c67190b52729e26c79980425c7eadd67b4354fa8befe58b6dc",
+    "tools/atomic-model/src/main.rs": "0e931398fbb8211d4c567fd87cd73b44c38e0e362c30a81bc5711ba40a238b18",
     "tools/benchmark.rs": "a522795d6ad4346dad50b9e9d8b1e790838895649bda034e2d25cdcc44d107ac",
+    "tools/decision-inventory/src/discovery.rs": "a429a53f3a115e3e9727a90d9f14016efe220502268f2a3d6a9c3a03f34a6ffb",
+    "tools/decision-inventory/src/main.rs": "e256b9c16f3646d3ec1cff91ce13ffa4e4d61afe2145478971b1eb37df1a1058",
+    "tools/decision-inventory/src/review.rs": "f4b89c03f145797cd316372fd2e76007c5359b636b0c8704e3a7c8baa0d576d4",
     "tools/file_worker.rs": "991190d7e55147765a10d89ec30ca2fd71ad373532cf50d3febceab1006cbf5b",
+    "tools/incident-recovery/src/main.rs": "81995d6a7ade96e89cc1068e41b724fbab2508798a67a5b6cd96792bd0fa5431",
+    "tools/monthly_workload.rs": "693a87afddca4922dea6504ce7df666691c991011db24a6d282c1e0470e36ebf",
+    "tools/quota/fixture.rs": "04758e5f7ba804c3348f9f6602d51679dd348d52e2c1edc9a66bf42f5de958aa",
     "tools/quota/windows_identity.rs": "922a2a19d3c1733d4a60367ea4b8b3854d6769720d11aca82ce22843245d0030",
+    "tools/replica-progress-fixture/src/main.rs": "35cabc9d12739c2ba6b4bb6fdd193b7eef867c7d5bf3540388d4080d967830f3",
+    "tools/resource-envelope/src/breadth.rs": "c8f75762ab0be822b23f2d5ad1de2eda11f8f0aede3e4dc34da9e84ea47c92d0",
+    "tools/resource-envelope/src/breadth_sustained.rs": "dcd460e4e890c23f3aeb378d9913db4337ce928f2053fa0793070e40cb191fcf",
+    "tools/resource-envelope/src/compound.rs": "51435c5b6ffe140485462d04b8d07040750daeb7f04e3ad9727941056181faa6",
+    "tools/resource-envelope/src/main.rs": "075cfb94d5e37877aa9c460a5970d83da8df2818b1b981d64230efbbe7450ffb",
+    "tools/resource-envelope/src/quota_token.rs": "011249b28caeecd91e3fa785960539f2859dc98c0b68a70cc8fe323779bc2ffe",
+    "tools/resource-envelope/src/resilience.rs": "9968790397356be1f0c0f79136abf65de9bbd89983eb57165605372cbfc28b50",
+    "tools/resource-envelope/src/space.rs": "f30a72044aa4a9aa98ca0c17e49b416bfdfc011e6b34f5f9c414bd11749b9da5",
+    "tools/serialization-scale/src/main.rs": "0909b8979b84c66038abec340e86539bf10ada0df1f3d72e65672fc7708c01e8",
+    "tools/snapshot-test-keygen.rs": "65ba364c6b8eecdb7a2449531002d2c7d61638ce34efc5807b9f68bcdd6d9456",
+    "tools/soak/src/main.rs": "566cd6367494efaec1c81955f5c0d1ca8ecc7f5dd0088895f32a493cdf7efb12",
+    "tools/sqlite-baseline/src/main.rs": "2297471dc12831bde01c8ca25b9c1dc91f7151e078547339f4e5ed075f1d23ce",
+    "tools/sqlite-baseline/src/sqlite.rs": "cc5f57d4a114f45695d39760b9b1c6201948616d8ed54216f77b7199d4970e1d",
     "tools/sqlite-baseline/src/workload.rs": "b501e8c6cd62d9de0ca0056c8d67ca745bd021b9c5e3da6f56b76af427d7014d",
     "xtask/src/abi.rs": "f7f089dfd602962861fe05505d6e0938c64cbc85098ef1677f555fb118a7df7a",
     "xtask/src/apfs_exhaustion.rs": "9f27265733bb1d83bbc4319ea5f349a59241af6e4d0a9af02067f84872f2c19e",
     "xtask/src/artifact_trace.rs": "899305af29cb96b63e6bc848afb8dccbe742c6ba6a18be8d11ae67d904f48006",
-    "xtask/src/assurance.rs": "8c5441c8fbcb865abc7bea81ffe50bc6d9b975862983e79f584b366c8461eb59",
+    "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
     "xtask/src/atomic_model.rs": "128f0d5e7519565ad6490dab4e9f830b4bab0800c2e351efcd1e4c624ba0e996",
     "xtask/src/benchmark.rs": "c3dfaf2482c1ba1395768580a580ab8604c36845777e493b58d8939e65726a04",
     "xtask/src/c_sanitizers.rs": "3382c0606e6bf6190b6f2899a9daee640f05ee981f08806644c6207f313bdb21",
     "xtask/src/check.rs": "3bb7eb71500eb443f0b2289608e3ae82eae5f196e97c7259629355c4d7cc445a",
     "xtask/src/clean.rs": "6f6ee36687033547a9c1e1e47b1ba89091a51a76a0691a2a2b185866980bd241",
     "xtask/src/compatibility.rs": "036b3da70dc40dcbce45d4d0fe61894591c0674c180824fef40c7e89abfc37f4",
+    "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
     "xtask/src/coverage.rs": "701672c26b2ff14a6397bac61add44a6c6ddb18570948548e97fd561162af930",
     "xtask/src/coverage_executables.rs": "2de11e2b513e474850d7ee28593f312fc3035d6b8c725df5b9acc5d19a999bc4",
     "xtask/src/delivered_faults.rs": "adb0c3f9e44844324ba67e6550123424b4b6fd2231605c3c39dd23d01c795861",
-    "xtask/src/delivery.rs": "105ad985e856cf8a36478d3b2fd6d390acceb472f4f2378f1dd3ee51ccb6fd4b",
+    "xtask/src/delivery.rs": "6fd257af131db1925e24b1ed44752d824be5e615f5f59e8361b184fb372f0d63",
     "xtask/src/delivery_matrix.rs": "0dc8cdb7bc1391df4da16436626f2912c5695ae701ea254debde705c6274ca6a",
     "xtask/src/faults.rs": "917a52091957921af9204c042206938c8dbcc3176717bcb3a0e9810784186d67",
     "xtask/src/follower_backup.rs": "27635ce94ecaebc27c6ba86dc3ec6d7ef63761bcaa260300522b734c4dfbc713",
     "xtask/src/fuzz.rs": "4ead6868462757555c71f051383530c9b73bc5d3c60d6894ea654e8d41fb4d76",
-    "xtask/src/helper_controls.rs": "0cc5ad98bec8bf5c3cf122ebb386cb2f8868d938f19bdff48013195e4cd2cbdc",
-    "xtask/src/incident_recovery.rs": "d878a8b5f9662a5023cb427bb1fdce6730082b8616fec64c4cf750d891ac7209",
+    "xtask/src/helper_controls.rs": "69397de68528b9eb0051b2cc901d54ee9d7f0ac621f8e0e2821a6ce5949ee5ed",
+    "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/instrumentation.rs": "3854dbf5a03081fa56d57c1ca385054b5d6c2a4468e7cb26b87bd0d885d1632d",
     "xtask/src/interactive.rs": "a7f1b446652b9ee1f5acdaae4c6d3bc5294fbf03c26cfbc65ebf0c66d569975f",
     "xtask/src/macos_volume.rs": "9b9dab701a7336aa5e645cd09bfa71f5c66958f5ca46e648bb71a0c4d80bdf97",
-    "xtask/src/main.rs": "47505907d9b819bd124e3c1caf4ce0e7c89648cb8e1d75a8cb273f2c2891181c",
-    "xtask/src/maintenance_space.rs": "147d07c23508fb9e05f9096abde79d7987c034ed540f57ade65d4456af7b7da3",
+    "xtask/src/main.rs": "63441c23ddfad00c196a1a90137d1de9ff648f7214d5c4b6a8457283bf58cd78",
+    "xtask/src/maintenance_space.rs": "402ec5e967227f12fc6e901e393fdedb253bef1bb235b510a94f8948753b43a0",
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "51f80a8becc36b8c6d72b8b29f57d11b83d6f9052753df96f045723d81a6170c",
+    "xtask/src/mutations.rs": "ea4b4c4ad90698a62d76d284d6b196fe9a24887bf7fe15ccf85d702944d1082e",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
@@ -108,7 +190,7 @@
     "xtask/src/quota_writeback.rs": "946fba589218567fc275f45e648b8fed8cb87a91ef1dcc3a3bbf071b0fe2d4b4",
     "xtask/src/replica_progress.rs": "212a59707841e163ffab534b29e8dffbc524484f058606ef9e3dcfe79abe0ddf",
     "xtask/src/replica_progress/monitor.rs": "53081b155fe4a54391d4cee507f711013dcbac79cfb2c181963f05b26066061c",
-    "xtask/src/resource_campaign.rs": "bd20c40431296ad51081ee12a2157dd096c1f60210ccb0a66047805889e1ebf7",
+    "xtask/src/resource_campaign.rs": "152668480aea00c741f15d25e9f625690be5b9a679764f130cc00d82965f1ba5",
     "xtask/src/resource_oracle.rs": "6426ff26830ab4625908c04f791fdff7da181696f84469038d9a513728c16a3c",
     "xtask/src/resource_probe.rs": "d42c571001e07400a4de9ac6f2eecd4a32a9b3c35e62bbc0c52a662f0e525162",
     "xtask/src/rust_source.rs": "5b2e70c6ca96494204ea94d1adf8be2205135815724c321aa9739a2100434e17",
@@ -120,18 +202,18 @@
     "xtask/src/snapshot_upgrade_linux.rs": "fae4a063edd468024ecbef2c97e433010d8a9c6f90f081aa5f730af4421c1d47",
     "xtask/src/soak.rs": "371af9e99747f7fa33d0f4f89a5ff7e9ac728ad9c3e6c7b9e7f6fa854eb4cf6c",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
-    "xtask/src/source_inventory.rs": "76d51506ef1a96357bdd0cc3639b5cc8e5703eaf1d5d96f10fbee79a0c38c4d7",
+    "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
     "xtask/src/sqlite_baseline.rs": "1e50f199f66323eb9f6886395d3ca4f99f93931c778da71cf32a570874fb596d",
     "xtask/src/study_soak.rs": "83609399872e25efcbda17416f35e0b2428faac44e7b485adb6c332c6dfce229",
     "xtask/src/study_upgrade.rs": "632fcd52e908404ec09158a3ccc1e36fae9c06a87585bdd558ab173d66710f48",
-    "xtask/src/supervise.rs": "6a8be9096f6e51af616f6e406cd9ee3c14273011c68ef7e46a9ea03817116623",
+    "xtask/src/supervise.rs": "d066164f1cf2d9e9efc473c539199af501acd37c7e455b9410708c70bd33e6be",
     "xtask/src/support.rs": "7b51f32c5cb794b3f0b6679fb4efbcd44ce50825a0c73ebac92e7bf9057e00a9",
     "xtask/src/toolchain.rs": "2dd83b9547622cc3bf1b6096f00c32bb31c327f8d95fd980320e7ec9ea1524c9",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
     "xtask/src/trace_process.rs": "4aec4b243ed658df90b82504583cb1827c2eafac553dfdfe4594eb809f9e300e",
-    "xtask/src/windows_compatibility.rs": "024e1aff99f89ee4252a1211907b3eb2d5f3346e6db0a3901a81bb154fd94331",
+    "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/src/windows_faults.rs": "442b5030ecd61fe492f2d52fddb10c5f30bc93a0003d90fec4cf044cbec5a9c4",
-    "xtask/src/windows_process.rs": "5c3c3b6a998f082ee536a33bfb811216dd8e81762f762c2b468eb11f4b19d1bc",
+    "xtask/src/windows_process.rs": "89549e971c4e51a4f9ef2a8c177107cb7da04144dac73f0e9d5c0d3ee439698d",
     "xtask/src/windows_quota.rs": "a94ff2b36494652e075060f4c815dd941c6e45d65ef50d1fd3b8888ed080572e",
     "xtask/src/windows_trace.rs": "4f34977a84b584686fd4182f4bac0e59a1aadcd9fba7419d991cf9214e7770d2",
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
@@ -142,13 +224,17 @@
     "apps/weekend-replicate/src/native/tests.rs": "8ff9f70dcc1d0eac115a62ee6a39459c6ed402bd0cb5e12665d84575ba515cee",
     "apps/weekend-replicate/tests/cli.rs": "5bc1f316b556d389e376d3918b1e7544e32871f61f63d974802e3765917c0528",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
-    "apps/write-coordinator/tests/writers.rs": "30add854517a594469f8a465000111ff4f3d820a0e41d06c94dc494e98024696",
+    "apps/write-coordinator/tests/writers.rs": "ac142ebc689c4cb6257b9e483f21e10eb72a279a60f321f35911a5800fe2bb46",
+    "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
+    "docs/coordinator-artifact-recovery.md": "dc3f8e77d77ee0255c93ffbe80aac9c6baed5e32322489e88b7f0a7afa7fcf08",
+    "docs/coordinator-operator-handoff.md": "b87f399fc29eb77a18fb1ea99fb62bfae6ae0f025ca50e06a6cc29dc85dc088a",
+    "docs/coordinator-pending-restore.md": "d05d279ac7d4586c8e5caff39d6075edeac3ce57a439d419b1c21dc6ce1a2c18",
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "384ff8cede0922df116552301bbce130fc961ccde29ab34b0e25b48de6d7ab66",
+    "docs/decisions/current.md": "fc26e89154fd2077e63ac2815bde91d8be7ac8275e627f686d03d9e2329e6c1f",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -166,9 +252,9 @@
     "docs/decisions/tree.md": "dab795f63e6a510209051f2021b809474909da24e6350272acdce3545a6b57fb",
     "docs/decisions/typed-runtime.md": "fd53f0fdd169a7dcabab4362c88fcdffb96c338f5ddc6f25e8fe733d8f16a4a9",
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
-    "docs/helper-controls.md": "38026f851a742afe224548cd5ea1b6c623c5c88a8cf3faeb2d4c19a9af18f7f7",
+    "docs/helper-controls.md": "e0198f592d4ed2e0c4b35e286dd771b8f04666192862354877c8aaa79307b9f8",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "3d5b47bae8331053282f88af0686e995e9ad29ee4dd9ee3d8d2c202d0bd69dca",
+    "docs/mutations.md": "fc1cd92a3c0ba846687bd27e20d92cc8b8f1fb0d1c411d01b0ed32b6b3528aaf",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -181,7 +267,7 @@
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
-    "tests/durability.rs": "3f5e433c68d5d762da45f4a39db95e741a8136982ee16acdab27a572fb8890b6",
+    "tests/durability.rs": "20c0effb828840c9ba26fd17807c1676e56f689622c9d5c63f6a326da4e1ddf9",
     "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
     "tests/files.rs": "11fb925f39e7ff6555ed776e28079e78f4e47359146b2685a70113a77a113260",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
@@ -189,29 +275,99 @@
     "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
     "tests/retention.rs": "f55a8c487b6576d61773f47fc91b3839ee0b81d11c6fc7e5cfe0adf9de2945cd",
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
-    "tests/schema.rs": "11f76f4abac949e644104b9be6a3805f059d607d9e33593cba69ddeb869a5314",
     "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
+    "tests/schema.rs": "11f76f4abac949e644104b9be6a3805f059d607d9e33593cba69ddeb869a5314",
     "tests/storage_decisions.rs": "d694115d3f6079eab548f383be032efc900a9ed57b93ab5af131bafa3f3440ab",
     "tests/transactions.rs": "f4d6aec6b5f63cea148c64b9a31b89f755848b196fb0e38b542e5d4802cdf112",
     "tests/value_decisions.rs": "eda8394a8b1305e110ec99bb7d50ba78436c1a0843a0f472cdd6213fc6284574",
     "tests/values.rs": "adcb83f2d92ccae41fb25505d7e4e22334a77d03eec945ea711ff1616c3c1067",
-    "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
-    "xtask/tests/mutations.json": "2bcc0bf09ba4e9b5ea5e4781a7de104828ecf75bf97846409e3d55411eaa87fb",
-    "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43"
+    "tools/incident-recovery/src/main.rs": "81995d6a7ade96e89cc1068e41b724fbab2508798a67a5b6cd96792bd0fa5431",
+    "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
+    "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
+    "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
+    "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
+    "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
+    "xtask/tests/mutations.json": "0ecb20e74533c50a6ce3b15662827c33fbf6465fdbca829e041333198dfdafc3",
+    "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
+    "docs/decision-inventory-catalog.md": "21cb7a6f3b4b0d9177940be1260b7ecb2a6a3667224d7328063f808c520959b0",
+    "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
+    "docs/decisions/codec-arithmetic-current.md": "9c0b74b350b212d5d6d164abc82149f48ee1c886982d0e0beb8e85f0ce62d217",
+    "docs/decisions/codec-metadata-current.md": "6a396912ba98c74d7d69b25d63c8778be59a749e73ccfb7e075a9c78787fddf7",
+    "docs/r1-ci-shards.md": "1f98035f5c03c34fc48c3645f62ef066035328061439abeb9ec4fb0007f44496",
+    "docs/decisions/codec-graph-current.md": "32aa9ea923f4e697df938ff27b2bd264eb6b1d84638d9d4c1fd352b01d202d69",
+    "docs/decisions/codec-catalog-current.md": "94dc058616a7e154e1d8ba684708b2d584ee5431bc428b06ea1f4aae07c5de25",
+    "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
+    "docs/decisions/codec-data-current.md": "275bbdcae40e26e0d4c5af964a3176b552bd50c5c1c5dfb10585fd87a858c704",
+    "docs/decisions/codec-value-current.md": "c49288b9965017fa4ef9b31006f5a34ce117cc1466a2297e5ac23ff4945760e8",
+    "docs/decisions/codec-append-current.md": "e5319277f2f7a3a055fe41fb4d1e99aee61d772e7e793b5102999489291a9028"
   },
   "target_records": {
+    "incident-recovery-consumer::incident-recovery-consumer": 7,
+    "monthly-workload::monthly-workload": 25,
+    "private-rust-consumer::private-rust-consumer": 34,
+    "replica-progress-fixture::replica-progress-fixture": 2,
     "study-peer::study-peer": 295,
+    "typed-renamed-consumer::typed-renamed-consumer": 3,
+    "weekend-atomic-model::budget": 6,
+    "weekend-atomic-model::weekend-atomic-model": 2,
+    "weekend-db-fuzz::backup_restore": 0,
+    "weekend-db-fuzz::bytestore_contract": 0,
+    "weekend-db-fuzz::commit_crash": 0,
+    "weekend-db-fuzz::coordinator_protocol": 0,
+    "weekend-db-fuzz::crdt_frames": 0,
+    "weekend-db-fuzz::crdt_schedule": 0,
+    "weekend-db-fuzz::crdt_seeds": 4,
+    "weekend-db-fuzz::derive_tokens": 0,
+    "weekend-db-fuzz::ffi_ops": 0,
+    "weekend-db-fuzz::image_and_ops": 0,
+    "weekend-db-fuzz::logical_import_export": 0,
+    "weekend-db-fuzz::open_image_bytes": 0,
+    "weekend-db-fuzz::open_structured_image": 0,
+    "weekend-db-fuzz::operations_seeds": 10,
+    "weekend-db-fuzz::peer_transport": 0,
+    "weekend-db-fuzz::register_causality": 0,
+    "weekend-db-fuzz::replacement_namespace": 0,
+    "weekend-db-fuzz::retention_compact_crash": 0,
+    "weekend-db-fuzz::schema_index_migration": 0,
+    "weekend-db-fuzz::seed_corpus": 22,
+    "weekend-db-fuzz::snapshot_frames": 0,
+    "weekend-db-fuzz::snapshot_install_schedule": 0,
+    "weekend-db-fuzz::snapshot_seeds": 12,
+    "weekend-db-fuzz::tree_adversarial_keys": 0,
+    "weekend-db-fuzz::txn_schedule": 0,
+    "weekend-db-fuzz::value_ops": 0,
+    "weekend-db-fuzz::weekend_db_fuzz": 573,
     "weekend-db-macros::weekend_db_macros": 108,
     "weekend-db-typed::weekend_db_typed": 315,
     "weekend-db::benchmark": 93,
+    "weekend-db::crdt_policy_migration": 64,
+    "weekend-db::file": 16,
     "weekend-db::file-worker": 33,
+    "weekend-db::memory": 29,
+    "weekend-db::native_faults": 9,
+    "weekend-db::native_quota": 16,
+    "weekend-db::raw_tasks": 37,
+    "weekend-db::recovery_scale": 15,
+    "weekend-db::simulated": 19,
+    "weekend-db::storage_lifecycle": 37,
+    "weekend-db::study_progress": 31,
+    "weekend-db::typed": 186,
     "weekend-db::weekend-admin": 30,
     "weekend-db::weekend_db": 1623,
+    "weekend-decision-inventory::weekend-decision-inventory": 397,
+    "weekend-native-soak::weekend-native-soak": 17,
+    "weekend-probe::weekend_probe": 46,
+    "weekend-replicate::live_month": 128,
     "weekend-replicate::weekend-replicate": 246,
+    "weekend-resource-envelope::weekend-compound-resource": 207,
+    "weekend-resource-envelope::weekend-resource-envelope": 30,
+    "weekend-serialization-scale::weekend-serialization-scale": 9,
+    "weekend-sqlite-baseline::sqlite-comparator": 114,
+    "weekend-sqlite-baseline::weekend-sqlite-baseline": 11,
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5060
+    "xtask::xtask": 5194
   },
   "groups": [
     {
@@ -330,9 +486,16 @@
         "docs/decisions/current.md",
         "docs/decisions/codec.md",
         "tests/durability.rs",
-        "tests/retention.rs"
+        "tests/retention.rs",
+        "docs/decisions/codec-arithmetic-current.md",
+        "docs/decisions/codec-metadata-current.md",
+        "docs/decisions/codec-graph-current.md",
+        "docs/decisions/codec-catalog-current.md",
+        "docs/decisions/codec-data-current.md",
+        "docs/decisions/codec-value-current.md",
+        "docs/decisions/codec-append-current.md"
       ],
-      "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate."
+      "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
     {
       "name": "native",
@@ -528,7 +691,9 @@
       "references": [
         "docs/decisions/current.md",
         "docs/decisions/distributed-apps.md",
-        "apps/write-coordinator/tests/writers.rs"
+        "apps/write-coordinator/tests/writers.rs",
+        "apps/write-coordinator/tests/writers/pending_restore.rs",
+        "docs/coordinator-pending-restore.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -575,9 +740,110 @@
         "docs/helper-controls.md",
         "docs/mutations.md",
         "xtask/tests/supervise.rs",
-        "xtask/tests/commands.rs"
+        "xtask/tests/commands.rs",
+        "docs/coordinator-artifact-recovery.md",
+        "xtask/src/coordinator_recovery.rs",
+        "xtask/src/assurance.rs",
+        "xtask/src/windows_compatibility.rs",
+        "docs/coordinator-operator-handoff.md",
+        "xtask/src/incident_recovery.rs",
+        "tools/incident-recovery/src/main.rs",
+        "docs/decision-inventory-catalog.md",
+        "tools/decision-inventory/tests/catalog.rs",
+        "docs/r1-ci-shards.md"
       ],
-      "residual": "Unit/helper and native negative controls are scoped evidence, not individual independence pairs for all tooling records."
+      "residual": "Helper and native negative controls remain scoped evidence, not individual independence pairs for all tooling records. Standalone workspaces and consumers are now inventoried in their own target contexts; their records and macro/compiled boundaries remain explicit obligations."
+    },
+    {
+      "name": "standalone-and-example-tooling",
+      "scope": "tooling",
+      "paths": [
+        "examples/crdt_policy_migration.rs",
+        "examples/file.rs",
+        "examples/memory.rs",
+        "examples/native_faults.rs",
+        "examples/raw_tasks.rs",
+        "examples/recovery_scale.rs",
+        "examples/rust_package/src/main.rs",
+        "examples/simulated.rs",
+        "examples/storage_lifecycle.rs",
+        "examples/study_progress.rs",
+        "examples/support/users.rs",
+        "examples/typed.rs",
+        "fuzz/examples/crdt_seeds.rs",
+        "fuzz/examples/operations_seeds.rs",
+        "fuzz/examples/seed_corpus.rs",
+        "fuzz/examples/snapshot_seeds.rs",
+        "fuzz/fuzz_targets/backup_restore.rs",
+        "fuzz/fuzz_targets/bytestore_contract.rs",
+        "fuzz/fuzz_targets/commit_crash.rs",
+        "fuzz/fuzz_targets/coordinator_protocol.rs",
+        "fuzz/fuzz_targets/crdt_frames.rs",
+        "fuzz/fuzz_targets/crdt_schedule.rs",
+        "fuzz/fuzz_targets/derive_tokens.rs",
+        "fuzz/fuzz_targets/ffi_ops.rs",
+        "fuzz/fuzz_targets/image_and_ops.rs",
+        "fuzz/fuzz_targets/logical_import_export.rs",
+        "fuzz/fuzz_targets/open_image_bytes.rs",
+        "fuzz/fuzz_targets/open_structured_image.rs",
+        "fuzz/fuzz_targets/peer_transport.rs",
+        "fuzz/fuzz_targets/register_causality.rs",
+        "fuzz/fuzz_targets/replacement_namespace.rs",
+        "fuzz/fuzz_targets/retention_compact_crash.rs",
+        "fuzz/fuzz_targets/schema_index_migration.rs",
+        "fuzz/fuzz_targets/snapshot_frames.rs",
+        "fuzz/fuzz_targets/snapshot_install_schedule.rs",
+        "fuzz/fuzz_targets/tree_adversarial_keys.rs",
+        "fuzz/fuzz_targets/txn_schedule.rs",
+        "fuzz/fuzz_targets/value_ops.rs",
+        "fuzz/src/adversarial.rs",
+        "fuzz/src/coordinator.rs",
+        "fuzz/src/crash.rs",
+        "fuzz/src/crdt.rs",
+        "fuzz/src/derive.rs",
+        "fuzz/src/foreign.rs",
+        "fuzz/src/history.rs",
+        "fuzz/src/image.rs",
+        "fuzz/src/lib.rs",
+        "fuzz/src/namespace.rs",
+        "fuzz/src/operations.rs",
+        "fuzz/src/peer.rs",
+        "fuzz/src/registers.rs",
+        "fuzz/src/schedule.rs",
+        "fuzz/src/snapshot.rs",
+        "fuzz/src/typed.rs",
+        "fuzz/src/values.rs",
+        "probe/rust/src/lib.rs",
+        "tests/support/mod.rs",
+        "tools/atomic-model/src/budget.rs",
+        "tools/atomic-model/src/main.rs",
+        "tools/decision-inventory/src/discovery.rs",
+        "tools/decision-inventory/src/main.rs",
+        "tools/decision-inventory/src/review.rs",
+        "tools/incident-recovery/src/main.rs",
+        "tools/monthly_workload.rs",
+        "tools/quota/fixture.rs",
+        "tools/replica-progress-fixture/src/main.rs",
+        "tools/resource-envelope/src/breadth.rs",
+        "tools/resource-envelope/src/breadth_sustained.rs",
+        "tools/resource-envelope/src/compound.rs",
+        "tools/resource-envelope/src/main.rs",
+        "tools/resource-envelope/src/quota_token.rs",
+        "tools/resource-envelope/src/resilience.rs",
+        "tools/resource-envelope/src/space.rs",
+        "tools/serialization-scale/src/main.rs",
+        "tools/snapshot-test-keygen.rs",
+        "tools/soak/src/main.rs",
+        "tools/sqlite-baseline/src/main.rs",
+        "tools/sqlite-baseline/src/sqlite.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decision-inventory-catalog.md",
+        "docs/mutations.md",
+        "tools/decision-inventory/tests/catalog.rs"
+      ],
+      "residual": "Additional Cargo target contexts and oracle/consumer code retain individual G obligations. Macro expansion, compiled configurations and delegated/native behavior need separate qualification."
     }
   ],
   "controls": [
@@ -947,6 +1213,4684 @@
           "outcome": false
         }
       ]
+    },
+    {
+      "name": "CODEC-ALIGN-CAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "align",
+        "kind": "if",
+        "conditions": [
+          "value > MAX_IMAGE_BYTES as u64"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "alignment_and_cursor_boundaries_preserve_failed_take_position"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cursor_zero_limits_and_short_tags_preserve_the_expected_position"
+        }
+      ],
+      "mutations": [
+        "r1-codec-align-cap"
+      ]
+    },
+    {
+      "name": "CODEC-COUNT-MAX",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "count",
+        "kind": "if",
+        "conditions": [
+          "n > maximum"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "alignment_and_cursor_boundaries_preserve_failed_take_position"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cursor_zero_limits_and_short_tags_preserve_the_expected_position"
+        }
+      ],
+      "mutations": [
+        "r1-codec-count-max"
+      ]
+    },
+    {
+      "name": "CODEC-CURSOR-DONE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "done",
+        "kind": "if",
+        "conditions": [
+          "self.pos == self.bytes.len()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "alignment_and_cursor_boundaries_preserve_failed_take_position"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cursor_zero_limits_and_short_tags_preserve_the_expected_position"
+        }
+      ],
+      "mutations": [
+        "r1-codec-done"
+      ]
+    },
+    {
+      "name": "CODEC-REC-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "length < APPEND_START as u64",
+          "length > MAX_IMAGE_BYTES as u64"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_checks_image_length_before_reading_metadata"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-length-min",
+        "r1-metadata-length-max"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-FORMAT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "&header[..8] != b\"WEEKDB01\"",
+          "u32_at(&header, 8) != VERSION"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_rejects_each_invalid_header_field_before_reading_slots"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-header-magic",
+        "r1-metadata-header-version"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-HEADER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "checksum(&header, 64) != u64_at(&header, 64)",
+          "u32_at(&header, 12) != 0",
+          "u64_at(&header, 16) != REGION as u64",
+          "u64_at(&header, 24) != APPEND_START as u64",
+          "u64_at(&header, 48) != MAX_IMAGE_BYTES as u64",
+          "u64_at(&header, 56) != MAX_OBJECTS as u64",
+          "header[72..].iter().any(|b| *b != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_rejects_each_invalid_header_field_before_reading_slots"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-header-checksum",
+        "r1-metadata-header-reserved",
+        "r1-metadata-header-region",
+        "r1-metadata-header-append",
+        "r1-metadata-header-cap",
+        "r1-metadata-header-objects",
+        "r1-metadata-header-padding"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-IDENTITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "identity == [0; 16]"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_rejects_each_invalid_header_field_before_reading_slots"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-header-identity"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-ENCODE-KIND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "metadata",
+        "kind": "if",
+        "conditions": [
+          "witness"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-encode-kind"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-EMPTY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "if",
+        "conditions": [
+          "bytes.iter().all(|b| *b == 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "absent_or_torn_metadata_obeys_the_surviving_witness"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-absent"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-CHECKSUM",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "if",
+        "conditions": [
+          "checksum(bytes, 64) != u64_at(bytes, 64)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "absent_or_torn_metadata_obeys_the_surviving_witness"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-checksum"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-PARSE-KIND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "if",
+        "conditions": [
+          "witness"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-parse-kind"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "if",
+        "conditions": [
+          "&bytes[..8] != magic",
+          "u32_at(bytes, 8) != VERSION",
+          "u32_at(bytes, 12) != index as u32",
+          "bytes[16..32] != identity",
+          "bytes[72..].iter().any(|b| *b != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-magic",
+        "r1-metadata-version",
+        "r1-metadata-index",
+        "r1-metadata-identity",
+        "r1-metadata-padding"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-LAYOUT-AB",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "short_circuit_or",
+        "conditions": [
+          "slot.index != (slot.revision & 1) as usize",
+          "u64_at(bytes, 56) != slot.revision.saturating_sub(1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-parity",
+        "r1-metadata-predecessor"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-LAYOUT-ABC",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "short_circuit_or",
+        "conditions": [
+          "slot.index != (slot.revision & 1) as usize",
+          "u64_at(bytes, 56) != slot.revision.saturating_sub(1)",
+          "slot.end > length"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-parity",
+        "r1-metadata-predecessor",
+        "r1-metadata-physical-end"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-WITNESS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "witness.revision > slot.revision",
+          "witness.revision == slot.revision",
+          "witness != slot"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_requires_witnesses_to_agree_with_the_selected_root"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-newer-witness",
+        "r1-metadata-matching-witness",
+        "r1-metadata-different-witness"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-ADJACENCY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "slots[0].is_some_and(|a| slots[1].is_some_and(|b| a.revision.abs_diff(b.revision) != 1))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_selects_the_newest_available_root_only_if_the_slots_agree"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-slot-gap",
+        "r1-metadata-require-even",
+        "r1-metadata-require-odd",
+        "r1-metadata-prefer-even",
+        "r1-metadata-prefer-odd"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-ROOT-EXISTS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "slots\n            .into_iter()\n            .flatten()\n            .max_by_key(|s| s.revision)\n            .ok_or(Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_selects_the_newest_available_root_only_if_the_slots_agree"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-no-root-error"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-START",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "offset < APPEND_START as u64",
+          "!offset.is_multiple_of(REGION as u64)",
+          "offset\n                .checked_add(OBJECT_HEADER as u64)\n                .is_none_or(|end| end > bound)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        },
+        {
+          "file": "tests/durability.rs",
+          "name": "object_extents_and_directory_references_reject_before_outside_reads"
+        }
+      ],
+      "mutations": [
+        "r1-graph-offset-min",
+        "r1-graph-offset-align",
+        "r1-graph-header-bound"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-HEADER-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(self.backend, offset, &mut header)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-object-header-read"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "&header[..8] != b\"WDBOBJ01\"",
+          "u32_at(&header, 8) != kind",
+          "u32_at(&header, 12) != VERSION",
+          "header[32..48] != self.identity",
+          "header[56..].iter().any(|b| *b != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-graph-header-magic",
+        "r1-graph-header-kind",
+        "r1-graph-header-version",
+        "r1-graph-header-identity",
+        "r1-graph-header-padding"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-PAYLOAD-SUM",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "(OBJECT_HEADER as u64)\n            .checked_add(payload_len as u64)\n            .ok_or(Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-graph-payload-sum"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-ALIGNMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "align(length).map_err(|_| Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-graph-alignment"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-END",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "offset\n            .checked_add(size)\n            .filter(|end| *end <= bound)\n            .ok_or(Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        },
+        {
+          "file": "tests/durability.rs",
+          "name": "object_extents_and_directory_references_reject_before_outside_reads"
+        }
+      ],
+      "mutations": [
+        "r1-graph-end-propagation",
+        "r1-graph-parent-end"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-BIRTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "born > self.revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-graph-born"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.reserve(&mut bytes, size as usize)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-graph-object-bytes-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-FULL-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(self.backend, offset, &mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-object-full-read"
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-VERIFY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "bytes[..OBJECT_HEADER] != header",
+          "checksum(&bytes, 48) != u64_at(&bytes, 48)",
+          "bytes[OBJECT_HEADER + payload_len..].iter().any(|b| *b != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_rejects_a_changed_header_on_full_object_read"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-graph-full-header",
+        "r1-graph-checksum",
+        "r1-graph-padding"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-LAZY-INDEX",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "self.regions.is_empty()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-graph-lazy-index"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-OBJECT-REGIONS-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.reserve(&mut self.regions, self.region_count)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-graph-region-index-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-READ-IMAGE-LENGTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "backend.length()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-recovery-length"
+      ]
+    },
+    {
+      "name": "CODEC-VERIFY-IMAGE-LENGTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "diagnostics::verify(Stage::ImageLength, None, || {\n        let length = backend.length()?;\n        if length < APPEND_START as u64 || length > MAX_IMAGE_BYTES as u64 {\n            return Err(Error::Corrupt);\n        }\n        Ok(length)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-length-diagnostic"
+      ]
+    },
+    {
+      "name": "CODEC-READ-IMAGE-HEADER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(backend, 0, &mut header)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-recovery-header"
+      ]
+    },
+    {
+      "name": "CODEC-VERIFY-IMAGE-HEADER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "diagnostics::verify(Stage::Header, Some(0), || {\n        let mut header = [0; REGION];\n        read_all(backend, 0, &mut header)?;\n        if &header[..8] != b\"WEEKDB01\" || u32_at(&header, 8) != VERSION {\n            return Err(Error::UnsupportedFormat);\n        }\n        if checksum(&header, 64) != u64_at(&header, 64)\n            || u32_at(&header, 12) != 0\n            || u64_at(&header, 16) != REGION as u64\n            || u64_at(&header, 24) != APPEND_START as u64\n            || u64_at(&header, 48) != MAX_IMAGE_BYTES as u64\n            || u64_at(&header, 56) != MAX_OBJECTS as u64\n            || header[72..].iter().any(|b| *b != 0)\n        {\n            return Err(Error::Corrupt);\n        }\n        let identity: [u8; 16] = header[32..48].try_into().unwrap();\n        if identity == [0; 16] {\n            return Err(Error::Corrupt);\n        }\n        Ok(identity)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-header-diagnostic"
+      ]
+    },
+    {
+      "name": "CODEC-READ-ROOT-SLOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(backend, ((1 + i) * REGION) as u64, &mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-recovery-slot"
+      ]
+    },
+    {
+      "name": "CODEC-VERIFY-ROOT-SLOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "diagnostics::verify(Stage::RootSlot, Some(((1 + i) * REGION) as u64), || {\n            let mut bytes = [0; REGION];\n            read_all(backend, ((1 + i) * REGION) as u64, &mut bytes)?;\n            parse_metadata(&bytes, identity, i, false, length)\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-slot-diagnostic"
+      ]
+    },
+    {
+      "name": "CODEC-READ-WITNESS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "read_all(backend, ((3 + i) * REGION) as u64, &mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-recovery-witness"
+      ]
+    },
+    {
+      "name": "CODEC-VERIFY-WITNESS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "diagnostics::verify(Stage::Witness, Some(((3 + i) * REGION) as u64), || {\n                let mut bytes = [0; REGION];\n                read_all(backend, ((3 + i) * REGION) as u64, &mut bytes)?;\n                parse_metadata(&bytes, identity, i, true, length)\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_errors_and_short_io_do_not_damage_a_clean_image"
+        }
+      ],
+      "mutations": [
+        "r1-graph-witness-diagnostic"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-DESCRIPTOR-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "reader.object(slot.descriptor, COMMIT, slot.end)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "object_extents_and_directory_references_reject_before_outside_reads"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-descriptor-read"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-DESCRIPTOR-REVISION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "revision != slot.revision",
+          "data_revision > revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-revision-agrees",
+        "r1-catalog-data-not-future"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-NEXT-ID",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "next_id == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "empty_retained_catalog_still_requires_nonzero_next_id"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-next-id-nonzero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-COUNT-PROPAGATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "cursor.count(MAX_RETAINED_SNAPSHOTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "commit_descriptor_requires_every_catalog_field_and_exact_payload_end"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "retained_catalog_bounds_ids_revisions_and_references_are_checked"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-count-propagation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-CURRENT-DATA-CHECK",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "reader.data(data_ref, slot.descriptor, data_revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-current-data-check"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-CURRENT-HEAD-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(Head {\n            revision,\n            data_revision,\n            collections,\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-current-head-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-CATALOG-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut entries, count)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-catalog-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-ENTRY-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "id <= previous_id",
+          "id >= next_id",
+          "snapshot_revision >= revision",
+          "snapshot_data_revision > snapshot_revision",
+          "snapshot_data_revision > data_revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "retained_catalog_bounds_ids_revisions_and_references_are_checked"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-ordered-id",
+        "r1-catalog-id-before-next",
+        "r1-catalog-capture-before-current",
+        "r1-catalog-data-at-capture",
+        "r1-catalog-data-at-current"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-RETAINED-DATA-CHECK",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "reader.data(offset, slot.descriptor, snapshot_data_revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "retained_catalog_bounds_ids_revisions_and_references_are_checked"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-retained-data-check"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-NEXT-COLLECTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "next_collection > head_next_collection"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_cache_accepts_sharing_and_rejects_inconsistent_aliases"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-next-collection-bound"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-RETAINED-HEAD-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(Head {\n                revision: snapshot_revision,\n                data_revision: snapshot_data_revision,\n                collections,\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-retained-head-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-PAYLOAD-END-PROPAGATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "cursor.done()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "commit_descriptor_requires_every_catalog_field_and_exact_payload_end"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-payload-end-propagation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-DATA-CACHE-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut data_cache, reader.data_cache.len())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-data-cache-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-DATA-CACHE-LOOKUP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "pattern_test",
+        "conditions": [
+          "self.data_cache.iter().find(|r| r.entry.offset == offset)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_cache_accepts_sharing_and_rejects_inconsistent_aliases"
+        }
+      ],
+      "mutations": [
+        "r1-data-cache-hit",
+        "r1-data-cache-miss"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-DATA-UNIQUE-REVISION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "if",
+        "conditions": [
+          "self\n            .data_cache\n            .iter()\n            .any(|r| r.entry.revision == expected_revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_cache_accepts_sharing_and_rejects_inconsistent_aliases"
+        }
+      ],
+      "mutations": [
+        "r1-data-unique-revision"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-DATA-OBJECT-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.object(offset, DATA, parent)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "object_extents_and_directory_references_reject_before_outside_reads"
+        }
+      ],
+      "mutations": [
+        "r1-data-object-read"
+      ]
+    },
+    {
+      "name": "CODEC-DATA-HEADER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "if",
+        "conditions": [
+          "revision != expected_revision",
+          "object.born != revision",
+          "next_collection == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "empty_data_graph_still_requires_a_next_collection_id"
+        }
+      ],
+      "mutations": [
+        "r1-data-requested-revision",
+        "r1-data-birth-revision",
+        "r1-data-next-collection-positive"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-DATA-COLLECTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "if",
+        "conditions": [
+          "id <= previous_id",
+          "id >= next_collection",
+          "content_revision == 0",
+          "content_revision > revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "collection_directory_rejects_each_invalid_id_or_revision"
+        }
+      ],
+      "mutations": [
+        "r1-data-ordered-collection",
+        "r1-data-id-below-next",
+        "r1-data-positive-collection-revision",
+        "r1-data-nonfuture-collection-revision"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-DATA-RECORD-KEY-FIELD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "cursor.key(self.mem.limits().max_bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "data_directory_requires_complete_sorted_records"
+        }
+      ],
+      "mutations": [
+        "r1-data-record-key-field"
+      ]
+    },
+    {
+      "name": "CODEC-DATA-KEY-ORDER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "if",
+        "conditions": [
+          "previous.is_some_and(|old| old >= key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "data_directory_requires_complete_sorted_records"
+        }
+      ],
+      "mutations": [
+        "r1-data-ordered-record-key"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-DATA-RECORD-REVISION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "if",
+        "conditions": [
+          "write_revision == 0",
+          "write_revision > content_revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-data-positive-record-revision",
+        "r1-data-nonfuture-record-revision"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-DATA-VALUE-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.value(cursor.int()?, offset, 1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-data-value-read"
+      ]
+    },
+    {
+      "name": "CODEC-DATA-RECORD-INSERTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "records.set(\n                    self.mem,\n                    key,\n                    Record {\n                        revision: write_revision,\n                        value,\n                    },\n                )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-data-record-insertion"
+      ]
+    },
+    {
+      "name": "CODEC-DATA-COLLECTION-INSERTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "collections.set(\n                self.mem,\n                &id.to_le_bytes(),\n                Collection {\n                    revision: content_revision,\n                    records,\n                },\n            )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-data-collection-insertion"
+      ]
+    },
+    {
+      "name": "CODEC-DATA-PAYLOAD-END",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "cursor.done()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "data_directory_requires_complete_sorted_records"
+        }
+      ],
+      "mutations": [
+        "r1-data-payload-end"
+      ]
+    },
+    {
+      "name": "CODEC-DATA-CACHE-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem\n            .reserve_geometric(&mut self.data_cache, 1, MAX_OBJECTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-data-cache-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-CACHE-LOOKUP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "pattern_test",
+        "conditions": [
+          "cached.map(|index| &self.cache[index])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-cache-reuse"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-OBJECT-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.object(offset, VALUE, parent)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-value-object-read"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-SCALAR-ERROR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "if",
+        "conditions": [
+          "e == Error::Invalid"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_but_malformed_payloads_are_checked_before_use"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-normalize-invalid",
+        "r1-value-preserve-allocation-error"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-SCALAR-CONSTRUCTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "Value::scalar(self.mem, kind, bits).map_err(|e| {\n                    if e == Error::Invalid {\n                        Error::Corrupt\n                    } else {\n                        e\n                    }\n                })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-scalar-construction"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-BYTES-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "Value::bytes_new(self.mem, cursor.key(self.mem.limits().max_bytes)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-bytes-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-MAP-KEY-ORDER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "if",
+        "conditions": [
+          "previous.is_some_and(|old| old >= key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-value-map-key-order"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-MAP-INSERTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "map.set(self.mem, key, child)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-map-insertion"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-MAP-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "Value::from_map(self.mem, map)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-map-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-LIST-INSERTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "list.push(self.mem, child)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-list-insertion"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-LIST-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "Value::from_list(self.mem, list)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-list-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-PAYLOAD-END",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "cursor.done()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "value_objects_require_complete_payloads"
+        }
+      ],
+      "mutations": [
+        "r1-value-payload-end"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-CACHE-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem\n            .reserve_geometric(&mut self.cache, 1, MAX_OBJECTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-cache-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-APPEND-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "write_append",
+        "kind": "try_propagation",
+        "conditions": [
+          "write_all(backend, offset, segment)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "segmented_append_preserves_the_bytes_and_adapter_write_boundaries"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-append-io"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-CONTIGUOUS-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve_geometric(bytes, size, maximum)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-contiguous-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-SEGMENT-SELECT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "if",
+        "conditions": [
+          "segments\n                            .last()\n                            .is_none_or(|segment| segment.len() == APPEND_SEGMENT_BYTES)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "segmented_append_preserves_the_bytes_and_adapter_write_boundaries"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-segment-first",
+        "r1-encoder-segment-reuse",
+        "r1-encoder-segment-rollover"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-SEGMENT-ARRAY-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve_geometric(\n                                segments,\n                                1,\n                                MAX_IMAGE_BYTES.div_ceil(APPEND_SEGMENT_BYTES),\n                            )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "segmented_append_preserves_the_bytes_and_adapter_write_boundaries"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-segment-array-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-SEGMENT-BYTE-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve_geometric(segment, available, APPEND_SEGMENT_BYTES)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "segmented_append_preserves_the_bytes_and_adapter_write_boundaries"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-segment-byte-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-WRITER-CAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "add",
+        "kind": "if",
+        "conditions": [
+          "self\n            .bytes\n            .len()\n            .checked_add(bytes.len())\n            .is_none_or(|n| n > MAX_IMAGE_BYTES)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-writer-cap-equality",
+        "r1-encoder-writer-cap-reject"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-WRITER-BULK",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "add",
+        "kind": "if",
+        "conditions": [
+          "bytes.len() > self.bytes.len()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_bulk_appends_reserve_known_size_and_small_fields_reuse_capacity"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_equal_append_and_key_failures_preserve_the_written_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-writer-bulk-equality"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-WRITER-BULK-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "add",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.reserve(&mut self.bytes, bytes.len())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-writer-bulk-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-WRITER-SMALL-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "add",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem\n                .reserve_geometric(&mut self.bytes, bytes.len(), MAX_IMAGE_BYTES)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_equal_append_and_key_failures_preserve_the_written_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-writer-small-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-KEY-PREFIX",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "key",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.int(bytes.len() as u64)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_equal_append_and_key_failures_preserve_the_written_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-key-prefix"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-OBJECT-ALIGN",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object_born",
+        "kind": "try_propagation",
+        "conditions": [
+          "align(length as u64)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-object-align"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-OBJECT-END",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object_born",
+        "kind": "try_propagation",
+        "conditions": [
+          "offset\n            .checked_add(size as u64)\n            .filter(|n| *n <= MAX_IMAGE_BYTES as u64)\n            .ok_or(Error::Limit)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-object-end-equality"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-OBJECT-APPEND",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "object_born",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.bytes.object(\n            self.mem,\n            [&header, payload, padding],\n            size,\n            MAX_IMAGE_BYTES - self.start as usize,\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-object-append"
+      ]
+    },
+    {
+      "name": "CODEC-APPEND-PREP-ENCODER-START",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "encode_with_append",
+        "kind": "if",
+        "conditions": [
+          "start < APPEND_START as u64",
+          "!start.is_multiple_of(REGION as u64)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "encoder_start_and_cached_collection_counter_have_independent_controls"
+        }
+      ],
+      "mutations": [
+        "r1-encoder-start-minimum",
+        "r1-encoder-start-alignment"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
     }
-  ]
+  ],
+  "cargo_scope": {
+    "catalog": {
+      "file": "docs/decisions/workspaces.json",
+      "sha256": "55033f5aa3f6889085e4808a51fffbeb039f8a33cf63546d82ec11e78daa7f3c"
+    },
+    "excluded_targets": [
+      {
+        "entry": "apps/study-peer/tests/cli.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "cli",
+        "package": "study-peer",
+        "package_manifest": "apps/study-peer/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "study-peer::cli",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/study-peer/tests/credential_rotation.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "credential_rotation",
+        "package": "study-peer",
+        "package_manifest": "apps/study-peer/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "study-peer::credential_rotation",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/study-peer/tests/service_diagnostics.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "service_diagnostics",
+        "package": "study-peer",
+        "package_manifest": "apps/study-peer/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "study-peer::service_diagnostics",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-macros/tests/compile_fail.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "compile_fail",
+        "package": "weekend-db-macros",
+        "package_manifest": "crates/weekend-db-macros/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-macros::compile_fail",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-macros/tests/expansion_guards.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "expansion_guards",
+        "package": "weekend-db-macros",
+        "package_manifest": "crates/weekend-db-macros/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-macros::expansion_guards",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-macros/tests/generated.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "generated",
+        "package": "weekend-db-macros",
+        "package_manifest": "crates/weekend-db-macros/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-macros::generated",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/catalog_admission.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "catalog_admission",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::catalog_admission",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/models.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "models",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::models",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/process_evolution.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "process_evolution",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::process_evolution",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "runtime_decisions",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::runtime_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/admin_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "admin_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::admin_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/allocation.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "allocation",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::allocation",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/bytestore.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "bytestore",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::bytestore",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/compaction.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "compaction",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::compaction",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/compatibility.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "compatibility",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::compatibility",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/concurrency.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "concurrency",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::concurrency",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/crdt.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "crdt",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::crdt",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/crdt_migration.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "crdt_migration",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::crdt_migration",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/durability.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "durability",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::durability",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/engine_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "engine_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::engine_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/files.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "files",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::files",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/headroom.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "headroom",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::headroom",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/inspection.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "inspection",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::inspection",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/live_budget.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "live_budget",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::live_budget",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/live_budget_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "live_budget_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::live_budget_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/logical.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "logical",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::logical",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/replication.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "replication",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::replication",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/retention.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "retention",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::retention",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/salvage.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "salvage",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::salvage",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/schedules.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "schedules",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::schedules",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/schema.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "schema",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::schema",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/schema_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "schema_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::schema_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/storage_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "storage_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::storage_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/transactions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "transactions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::transactions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/value_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "value_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::value_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/values.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "values",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::values",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tools/decision-inventory/tests/catalog.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "catalog",
+        "package": "weekend-decision-inventory",
+        "package_manifest": "tools/decision-inventory/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-decision-inventory::catalog",
+        "workspace_manifest": "tools/decision-inventory/Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-replicate/tests/audit_cli.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "audit_cli",
+        "package": "weekend-replicate",
+        "package_manifest": "apps/weekend-replicate/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-replicate::audit_cli",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-replicate/tests/cli.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "cli",
+        "package": "weekend-replicate",
+        "package_manifest": "apps/weekend-replicate/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-replicate::cli",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-replicate/tests/credential_rotation.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "credential_rotation",
+        "package": "weekend-replicate",
+        "package_manifest": "apps/weekend-replicate/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-replicate::credential_rotation",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-replicate/tests/service_diagnostics.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "service_diagnostics",
+        "package": "weekend-replicate",
+        "package_manifest": "apps/weekend-replicate/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-replicate::service_diagnostics",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-tasks/tests/decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "decisions",
+        "package": "weekend-tasks",
+        "package_manifest": "apps/weekend-tasks/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-tasks::decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-tasks/tests/lifecycle.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "lifecycle",
+        "package": "weekend-tasks",
+        "package_manifest": "apps/weekend-tasks/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-tasks::lifecycle",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/write-coordinator/tests/writers.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "writers",
+        "package": "write-coordinator",
+        "package_manifest": "apps/write-coordinator/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "write-coordinator::writers",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "xtask/tests/commands.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "commands",
+        "package": "xtask",
+        "package_manifest": "xtask/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "xtask::commands",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "xtask/tests/supervise.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "supervise",
+        "package": "xtask",
+        "package_manifest": "xtask/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "xtask::supervise",
+        "workspace_manifest": "Cargo.toml"
+      }
+    ],
+    "lockfiles_sha256": {
+      "Cargo.lock": "69a917a2f7fcbe4e81b3320a6c3729c184f7100255a5c822ce038bb051c00ca3",
+      "crates/weekend-db-typed/tests/renamed/Cargo.lock": "17dbfc0ba429ed634dfda7a6d650c91c253b280377dff4f8fe3ed59d660133cf",
+      "examples/rust_package/Cargo.lock": "82fca96f4d84a9c1b05b9bdd0c40a53497b795a03ed673cf0477307d7d883166",
+      "fuzz/Cargo.lock": "0a1c5b1b5e2c3dd2ffc169f065cfea52ba40662de837b7f0cdf6078ae21c18d8",
+      "probe/rust/Cargo.lock": "f0fde39b7cd666144d2dde4138ae3c3928de0462fb4fec595fff3883a150644e",
+      "tools/atomic-model/Cargo.lock": "aeb8f333884f9bdc64fb0026db8250cd8c030c598526f23be67ce806020505c2",
+      "tools/decision-inventory/Cargo.lock": "2fdc5b993b91ddd53561d0f8cc47451ff6cfeac2e04017ba2ae59cc993a4af6c",
+      "tools/incident-recovery/Cargo.lock": "d6b4d16afc7892ef9d1a68471e448d8927e392e39924c18f3da3fe53bcf7a3ba",
+      "tools/monthly-workload/Cargo.lock": "92c1540920bf59cf2138f2e596a37abdf99ea9659d5ff596b70f769ba83470cc",
+      "tools/replica-progress-fixture/Cargo.lock": "b45dd2714eb94c9c7a6f4ac44eed06a52aea72bba3e542fe083a39ea49e2a668",
+      "tools/resource-envelope/Cargo.lock": "09f3b918dea780d5fcdbc957007038a024c0dee07733cf5fd854246c4d2d590d",
+      "tools/serialization-scale/Cargo.lock": "44e06272c299abfac920d7bd6c21a401fdf66fbb852e5849d6cb0e26d770b270",
+      "tools/soak/Cargo.lock": "f051e9b956ffaf34fd62d219a976afde1e413b6a2e441efcf02cf5dbad62dd76",
+      "tools/sqlite-baseline/Cargo.lock": "e5a138acd0b70a0bbb47e7008e8a7abd7a49bb4c6791076249078f710a088f18"
+    },
+    "manifest_basis": "git-tracked",
+    "manifests_sha256": {
+      "Cargo.toml": "560e3b83a93489fd4c55d4834f6ee22120b080aa32965501bdad8afd5fba8640",
+      "apps/study-peer/Cargo.toml": "57b4402706bbab4f3e297c1bf472cb56031255e03e0d4bab952624360269b2f7",
+      "apps/weekend-replicate/Cargo.toml": "c73679e00c9c5186b92030c3b60437722aad05a02a906a67f037ab5f18a519a7",
+      "apps/weekend-tasks/Cargo.toml": "abb19f8bf5b903a93348e8fc7ef26aee7d817fc881f8087ffb67c06e2236fe0e",
+      "apps/write-coordinator/Cargo.toml": "47863b9007afb66e334facb42d4b272aca403ad305a26713ca6408f1f3c54765",
+      "crates/weekend-db-macros/Cargo.toml": "ab5f7f3bbe40ec935487f61eb98011196799d7fa77f291a440ebe3df836f9440",
+      "crates/weekend-db-typed/Cargo.toml": "dc68484fb08b00e3304c71e934169fb598976273eeea9c6ab88a96ea2065faa5",
+      "crates/weekend-db-typed/tests/renamed/Cargo.toml": "73e2b6ed65c2592e262b3b45716da76c92327e1e52efa85c12a020d7e6d9c58b",
+      "examples/rust_package/Cargo.toml": "304a79b1a06cd5ddcbb81b57b22c44fc532c04bb200e249e18084f3933049653",
+      "fuzz/Cargo.toml": "2061648c7b6955f6425d9d2c927b9f2420513c910d64c271078471c725ecb8fb",
+      "probe/rust/Cargo.toml": "4473ffc8adb51ae25b99766bb6140b9cdd2bf12ce2c931ee44e769694dfa7b5d",
+      "tools/atomic-model/Cargo.toml": "b81ed03bd3c8e33addd5d80e24163ff5583140cd1a5e1f54104408c112709917",
+      "tools/decision-inventory/Cargo.toml": "fa63c2aa8b4224523bd3d389776cafa1e2668348a0dc7f39683fc294c71d9946",
+      "tools/incident-recovery/Cargo.toml": "bf82fd87cb302a99a084561ac967a1467cb5d518c37ab9138378208a5e46a3dd",
+      "tools/monthly-workload/Cargo.toml": "602fab0903cb092cff06829d2e813d4b4e7a892de55ff1f50a44dbef07504e2a",
+      "tools/replica-progress-fixture/Cargo.toml": "fdbc20f4a93cd59d6e7e01c2b6d12f0a6c476da6887a2f5136cbece795b8145e",
+      "tools/resource-envelope/Cargo.toml": "eb4254b1827272d826a5982b27346ed981693587bf558062062d0bd82cbc49f7",
+      "tools/serialization-scale/Cargo.toml": "c9d08b2ba4c2c85eac5d1d403cebba05fb9d53b61cc77c8244a8a254d3711262",
+      "tools/soak/Cargo.toml": "d1571aeb1f17d1e5504e320dacbd7e0eafdd70b9e2f3495f5edf31ba0d2d87a5",
+      "tools/sqlite-baseline/Cargo.toml": "d77531c788e9c98745c9a9631f69440255bcc4c76787749e3428352c173d2a3a",
+      "xtask/Cargo.toml": "c518eb873a37b129923d44c57822e77d1033e7cbdb4774a7c52d468cdc4a85c3"
+    },
+    "mode": "repository_catalog",
+    "workspaces": [
+      {
+        "lockfile": "Cargo.lock",
+        "manifest": "Cargo.toml",
+        "members": [
+          "Cargo.toml",
+          "apps/study-peer/Cargo.toml",
+          "apps/weekend-replicate/Cargo.toml",
+          "apps/weekend-tasks/Cargo.toml",
+          "apps/write-coordinator/Cargo.toml",
+          "crates/weekend-db-macros/Cargo.toml",
+          "crates/weekend-db-typed/Cargo.toml",
+          "xtask/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "crates/weekend-db-typed/tests/renamed/Cargo.lock",
+        "manifest": "crates/weekend-db-typed/tests/renamed/Cargo.toml",
+        "members": [
+          "crates/weekend-db-typed/tests/renamed/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "examples/rust_package/Cargo.lock",
+        "manifest": "examples/rust_package/Cargo.toml",
+        "members": [
+          "examples/rust_package/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "fuzz/Cargo.lock",
+        "manifest": "fuzz/Cargo.toml",
+        "members": [
+          "fuzz/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "probe/rust/Cargo.lock",
+        "manifest": "probe/rust/Cargo.toml",
+        "members": [
+          "probe/rust/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/atomic-model/Cargo.lock",
+        "manifest": "tools/atomic-model/Cargo.toml",
+        "members": [
+          "tools/atomic-model/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/decision-inventory/Cargo.lock",
+        "manifest": "tools/decision-inventory/Cargo.toml",
+        "members": [
+          "tools/decision-inventory/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/incident-recovery/Cargo.lock",
+        "manifest": "tools/incident-recovery/Cargo.toml",
+        "members": [
+          "tools/incident-recovery/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/monthly-workload/Cargo.lock",
+        "manifest": "tools/monthly-workload/Cargo.toml",
+        "members": [
+          "tools/monthly-workload/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/replica-progress-fixture/Cargo.lock",
+        "manifest": "tools/replica-progress-fixture/Cargo.toml",
+        "members": [
+          "tools/replica-progress-fixture/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/resource-envelope/Cargo.lock",
+        "manifest": "tools/resource-envelope/Cargo.toml",
+        "members": [
+          "tools/resource-envelope/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/serialization-scale/Cargo.lock",
+        "manifest": "tools/serialization-scale/Cargo.toml",
+        "members": [
+          "tools/serialization-scale/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/soak/Cargo.lock",
+        "manifest": "tools/soak/Cargo.toml",
+        "members": [
+          "tools/soak/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/sqlite-baseline/Cargo.lock",
+        "manifest": "tools/sqlite-baseline/Cargo.toml",
+        "members": [
+          "tools/sqlite-baseline/Cargo.toml"
+        ]
+      }
+    ]
+  },
+  "targets": [
+    {
+      "entry": "tools/incident-recovery/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "incident-recovery-consumer",
+      "package": "incident-recovery-consumer",
+      "package_manifest": "tools/incident-recovery/Cargo.toml",
+      "required_features": [],
+      "target": "incident-recovery-consumer::incident-recovery-consumer",
+      "workspace_manifest": "tools/incident-recovery/Cargo.toml"
+    },
+    {
+      "entry": "tools/monthly_workload.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "monthly-workload",
+      "package": "monthly-workload",
+      "package_manifest": "tools/monthly-workload/Cargo.toml",
+      "required_features": [],
+      "target": "monthly-workload::monthly-workload",
+      "workspace_manifest": "tools/monthly-workload/Cargo.toml"
+    },
+    {
+      "entry": "examples/rust_package/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "private-rust-consumer",
+      "package": "private-rust-consumer",
+      "package_manifest": "examples/rust_package/Cargo.toml",
+      "required_features": [],
+      "target": "private-rust-consumer::private-rust-consumer",
+      "workspace_manifest": "examples/rust_package/Cargo.toml"
+    },
+    {
+      "entry": "tools/replica-progress-fixture/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "replica-progress-fixture",
+      "package": "replica-progress-fixture",
+      "package_manifest": "tools/replica-progress-fixture/Cargo.toml",
+      "required_features": [],
+      "target": "replica-progress-fixture::replica-progress-fixture",
+      "workspace_manifest": "tools/replica-progress-fixture/Cargo.toml"
+    },
+    {
+      "entry": "apps/study-peer/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "study-peer",
+      "package": "study-peer",
+      "package_manifest": "apps/study-peer/Cargo.toml",
+      "required_features": [],
+      "target": "study-peer::study-peer",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "crates/weekend-db-typed/tests/renamed/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "typed-renamed-consumer",
+      "package": "typed-renamed-consumer",
+      "package_manifest": "crates/weekend-db-typed/tests/renamed/Cargo.toml",
+      "required_features": [],
+      "target": "typed-renamed-consumer::typed-renamed-consumer",
+      "workspace_manifest": "crates/weekend-db-typed/tests/renamed/Cargo.toml"
+    },
+    {
+      "entry": "tools/atomic-model/src/budget.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "budget",
+      "package": "weekend-atomic-model",
+      "package_manifest": "tools/atomic-model/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-atomic-model::budget",
+      "workspace_manifest": "tools/atomic-model/Cargo.toml"
+    },
+    {
+      "entry": "tools/atomic-model/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-atomic-model",
+      "package": "weekend-atomic-model",
+      "package_manifest": "tools/atomic-model/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-atomic-model::weekend-atomic-model",
+      "workspace_manifest": "tools/atomic-model/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/backup_restore.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "backup_restore",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::backup_restore",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/bytestore_contract.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "bytestore_contract",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::bytestore_contract",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/commit_crash.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "commit_crash",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::commit_crash",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/coordinator_protocol.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "coordinator_protocol",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::coordinator_protocol",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/crdt_frames.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "crdt_frames",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::crdt_frames",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/crdt_schedule.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "crdt_schedule",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::crdt_schedule",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/examples/crdt_seeds.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "crdt_seeds",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::crdt_seeds",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/derive_tokens.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "derive_tokens",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::derive_tokens",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/ffi_ops.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "ffi_ops",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::ffi_ops",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/image_and_ops.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "image_and_ops",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::image_and_ops",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/logical_import_export.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "logical_import_export",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::logical_import_export",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/open_image_bytes.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "open_image_bytes",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::open_image_bytes",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/open_structured_image.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "open_structured_image",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::open_structured_image",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/examples/operations_seeds.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "operations_seeds",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::operations_seeds",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/peer_transport.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "peer_transport",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::peer_transport",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/register_causality.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "register_causality",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::register_causality",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/replacement_namespace.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "replacement_namespace",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::replacement_namespace",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/retention_compact_crash.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "retention_compact_crash",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::retention_compact_crash",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/schema_index_migration.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "schema_index_migration",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::schema_index_migration",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/examples/seed_corpus.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "seed_corpus",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::seed_corpus",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/snapshot_frames.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "snapshot_frames",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::snapshot_frames",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/snapshot_install_schedule.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "snapshot_install_schedule",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::snapshot_install_schedule",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/examples/snapshot_seeds.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "snapshot_seeds",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::snapshot_seeds",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/tree_adversarial_keys.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "tree_adversarial_keys",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::tree_adversarial_keys",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/txn_schedule.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "txn_schedule",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::txn_schedule",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/value_ops.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "value_ops",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::value_ops",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/src/lib.rs",
+      "kinds": [
+        "lib"
+      ],
+      "name": "weekend_db_fuzz",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::weekend_db_fuzz",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "crates/weekend-db-macros/src/lib.rs",
+      "kinds": [
+        "proc-macro"
+      ],
+      "name": "weekend_db_macros",
+      "package": "weekend-db-macros",
+      "package_manifest": "crates/weekend-db-macros/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-macros::weekend_db_macros",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "crates/weekend-db-typed/src/lib.rs",
+      "kinds": [
+        "lib"
+      ],
+      "name": "weekend_db_typed",
+      "package": "weekend-db-typed",
+      "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-typed::weekend_db_typed",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/benchmark.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "benchmark",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::benchmark",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/crdt_policy_migration.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "crdt_policy_migration",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [
+        "crdt"
+      ],
+      "target": "weekend-db::crdt_policy_migration",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/file.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "file",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::file",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/file_worker.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "file-worker",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [
+        "fault-injection"
+      ],
+      "target": "weekend-db::file-worker",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/memory.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "memory",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::memory",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/native_faults.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "native_faults",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::native_faults",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/quota/fixture.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "native_quota",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::native_quota",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/raw_tasks.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "raw_tasks",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::raw_tasks",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/recovery_scale.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "recovery_scale",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::recovery_scale",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/simulated.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "simulated",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::simulated",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/storage_lifecycle.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "storage_lifecycle",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::storage_lifecycle",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/study_progress.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "study_progress",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [
+        "crdt"
+      ],
+      "target": "weekend-db::study_progress",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/typed.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "typed",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::typed",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/admin.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-admin",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::weekend-admin",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "src/lib.rs",
+      "kinds": [
+        "cdylib",
+        "rlib"
+      ],
+      "name": "weekend_db",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::weekend_db",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/decision-inventory/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-decision-inventory",
+      "package": "weekend-decision-inventory",
+      "package_manifest": "tools/decision-inventory/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-decision-inventory::weekend-decision-inventory",
+      "workspace_manifest": "tools/decision-inventory/Cargo.toml"
+    },
+    {
+      "entry": "tools/soak/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-native-soak",
+      "package": "weekend-native-soak",
+      "package_manifest": "tools/soak/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-native-soak::weekend-native-soak",
+      "workspace_manifest": "tools/soak/Cargo.toml"
+    },
+    {
+      "entry": "probe/rust/src/lib.rs",
+      "kinds": [
+        "cdylib",
+        "rlib",
+        "staticlib"
+      ],
+      "name": "weekend_probe",
+      "package": "weekend-probe",
+      "package_manifest": "probe/rust/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-probe::weekend_probe",
+      "workspace_manifest": "probe/rust/Cargo.toml"
+    },
+    {
+      "entry": "apps/weekend-replicate/examples/live_month.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "live_month",
+      "package": "weekend-replicate",
+      "package_manifest": "apps/weekend-replicate/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-replicate::live_month",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "apps/weekend-replicate/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-replicate",
+      "package": "weekend-replicate",
+      "package_manifest": "apps/weekend-replicate/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-replicate::weekend-replicate",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/resource-envelope/src/compound.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-compound-resource",
+      "package": "weekend-resource-envelope",
+      "package_manifest": "tools/resource-envelope/Cargo.toml",
+      "required_features": [
+        "compound"
+      ],
+      "target": "weekend-resource-envelope::weekend-compound-resource",
+      "workspace_manifest": "tools/resource-envelope/Cargo.toml"
+    },
+    {
+      "entry": "tools/resource-envelope/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-resource-envelope",
+      "package": "weekend-resource-envelope",
+      "package_manifest": "tools/resource-envelope/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-resource-envelope::weekend-resource-envelope",
+      "workspace_manifest": "tools/resource-envelope/Cargo.toml"
+    },
+    {
+      "entry": "tools/serialization-scale/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-serialization-scale",
+      "package": "weekend-serialization-scale",
+      "package_manifest": "tools/serialization-scale/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-serialization-scale::weekend-serialization-scale",
+      "workspace_manifest": "tools/serialization-scale/Cargo.toml"
+    },
+    {
+      "entry": "tools/sqlite-baseline/src/sqlite.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "sqlite-comparator",
+      "package": "weekend-sqlite-baseline",
+      "package_manifest": "tools/sqlite-baseline/Cargo.toml",
+      "required_features": [
+        "sqlite-comparator"
+      ],
+      "target": "weekend-sqlite-baseline::sqlite-comparator",
+      "workspace_manifest": "tools/sqlite-baseline/Cargo.toml"
+    },
+    {
+      "entry": "tools/sqlite-baseline/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-sqlite-baseline",
+      "package": "weekend-sqlite-baseline",
+      "package_manifest": "tools/sqlite-baseline/Cargo.toml",
+      "required_features": [
+        "weekend-engine"
+      ],
+      "target": "weekend-sqlite-baseline::weekend-sqlite-baseline",
+      "workspace_manifest": "tools/sqlite-baseline/Cargo.toml"
+    },
+    {
+      "entry": "apps/weekend-tasks/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-tasks",
+      "package": "weekend-tasks",
+      "package_manifest": "apps/weekend-tasks/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-tasks::weekend-tasks",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "apps/weekend-tasks/src/lib.rs",
+      "kinds": [
+        "lib"
+      ],
+      "name": "weekend_tasks",
+      "package": "weekend-tasks",
+      "package_manifest": "apps/weekend-tasks/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-tasks::weekend_tasks",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "apps/write-coordinator/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "write-coordinator",
+      "package": "write-coordinator",
+      "package_manifest": "apps/write-coordinator/Cargo.toml",
+      "required_features": [],
+      "target": "write-coordinator::write-coordinator",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "xtask/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "xtask",
+      "package": "xtask",
+      "package_manifest": "xtask/Cargo.toml",
+      "required_features": [],
+      "target": "xtask::xtask",
+      "workspace_manifest": "Cargo.toml"
+    }
+  ],
+  "historical_targets": [
+    "study-peer::study-peer",
+    "weekend-db-macros::weekend_db_macros",
+    "weekend-db-typed::weekend_db_typed",
+    "weekend-db::benchmark",
+    "weekend-db::file-worker",
+    "weekend-db::weekend-admin",
+    "weekend-db::weekend_db",
+    "weekend-replicate::weekend-replicate",
+    "weekend-tasks::weekend-tasks",
+    "weekend-tasks::weekend_tasks",
+    "write-coordinator::write-coordinator",
+    "xtask::xtask"
+  ],
+  "target_scopes": {
+    "incident-recovery-consumer::incident-recovery-consumer": "tooling",
+    "monthly-workload::monthly-workload": "tooling",
+    "private-rust-consumer::private-rust-consumer": "tooling",
+    "replica-progress-fixture::replica-progress-fixture": "tooling",
+    "study-peer::study-peer": "runtime",
+    "typed-renamed-consumer::typed-renamed-consumer": "tooling",
+    "weekend-atomic-model::budget": "tooling",
+    "weekend-atomic-model::weekend-atomic-model": "tooling",
+    "weekend-db-fuzz::backup_restore": "tooling",
+    "weekend-db-fuzz::bytestore_contract": "tooling",
+    "weekend-db-fuzz::commit_crash": "tooling",
+    "weekend-db-fuzz::coordinator_protocol": "tooling",
+    "weekend-db-fuzz::crdt_frames": "tooling",
+    "weekend-db-fuzz::crdt_schedule": "tooling",
+    "weekend-db-fuzz::crdt_seeds": "tooling",
+    "weekend-db-fuzz::derive_tokens": "tooling",
+    "weekend-db-fuzz::ffi_ops": "tooling",
+    "weekend-db-fuzz::image_and_ops": "tooling",
+    "weekend-db-fuzz::logical_import_export": "tooling",
+    "weekend-db-fuzz::open_image_bytes": "tooling",
+    "weekend-db-fuzz::open_structured_image": "tooling",
+    "weekend-db-fuzz::operations_seeds": "tooling",
+    "weekend-db-fuzz::peer_transport": "tooling",
+    "weekend-db-fuzz::register_causality": "tooling",
+    "weekend-db-fuzz::replacement_namespace": "tooling",
+    "weekend-db-fuzz::retention_compact_crash": "tooling",
+    "weekend-db-fuzz::schema_index_migration": "tooling",
+    "weekend-db-fuzz::seed_corpus": "tooling",
+    "weekend-db-fuzz::snapshot_frames": "tooling",
+    "weekend-db-fuzz::snapshot_install_schedule": "tooling",
+    "weekend-db-fuzz::snapshot_seeds": "tooling",
+    "weekend-db-fuzz::tree_adversarial_keys": "tooling",
+    "weekend-db-fuzz::txn_schedule": "tooling",
+    "weekend-db-fuzz::value_ops": "tooling",
+    "weekend-db-fuzz::weekend_db_fuzz": "tooling",
+    "weekend-db-macros::weekend_db_macros": "runtime",
+    "weekend-db-typed::weekend_db_typed": "runtime",
+    "weekend-db::benchmark": "driver",
+    "weekend-db::crdt_policy_migration": "tooling",
+    "weekend-db::file": "tooling",
+    "weekend-db::file-worker": "driver",
+    "weekend-db::memory": "tooling",
+    "weekend-db::native_faults": "tooling",
+    "weekend-db::native_quota": "tooling",
+    "weekend-db::raw_tasks": "tooling",
+    "weekend-db::recovery_scale": "tooling",
+    "weekend-db::simulated": "tooling",
+    "weekend-db::storage_lifecycle": "tooling",
+    "weekend-db::study_progress": "tooling",
+    "weekend-db::typed": "tooling",
+    "weekend-db::weekend-admin": "driver",
+    "weekend-db::weekend_db": "runtime",
+    "weekend-decision-inventory::weekend-decision-inventory": "tooling",
+    "weekend-native-soak::weekend-native-soak": "tooling",
+    "weekend-probe::weekend_probe": "tooling",
+    "weekend-replicate::live_month": "tooling",
+    "weekend-replicate::weekend-replicate": "runtime",
+    "weekend-resource-envelope::weekend-compound-resource": "tooling",
+    "weekend-resource-envelope::weekend-resource-envelope": "tooling",
+    "weekend-serialization-scale::weekend-serialization-scale": "tooling",
+    "weekend-sqlite-baseline::sqlite-comparator": "tooling",
+    "weekend-sqlite-baseline::weekend-sqlite-baseline": "tooling",
+    "weekend-tasks::weekend-tasks": "runtime",
+    "weekend-tasks::weekend_tasks": "runtime",
+    "write-coordinator::write-coordinator": "runtime",
+    "xtask::xtask": "tooling"
+  }
 }

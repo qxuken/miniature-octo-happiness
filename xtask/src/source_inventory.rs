@@ -11,6 +11,8 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "build.rs",
         "include/weekend_db.h",
         ".cargo/config.toml",
+        "docs/decisions/workspaces.json",
+        "docs/decisions/current-scope.json",
         "tools/coverage-fixture.rs",
         "tools/admin.rs",
         "tools/benchmark.rs",
@@ -37,6 +39,8 @@ pub fn snapshot(root: &Path) -> Result<BTreeMap<String, String>> {
         "xtask",
         "probe",
         "tools/atomic-model",
+        "tools/decision-inventory",
+        "tools/replica-progress-fixture",
         "tools/serialization-scale",
         "tools/resource-envelope",
         "tools/sqlite-baseline",
@@ -104,6 +108,37 @@ pub fn seeds(root: &Path) -> Result<BTreeMap<String, String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn standalone_catalog_and_workspace_sources_are_campaign_inputs() {
+        let root = crate::support::Scratch::new(&std::env::temp_dir(), "catalog-inputs").unwrap();
+        for file in [
+            "docs/decisions/workspaces.json",
+            "docs/decisions/current-scope.json",
+            "tools/decision-inventory/Cargo.toml",
+            "tools/decision-inventory/Cargo.lock",
+            "tools/decision-inventory/src/discovery.rs",
+            "tools/decision-inventory/tests/catalog.rs",
+            "tools/replica-progress-fixture/Cargo.toml",
+            "tools/replica-progress-fixture/src/main.rs",
+        ] {
+            let path = root.path().join(file);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, "original").unwrap();
+            let before = snapshot(root.path()).unwrap();
+            assert_eq!(
+                before.get(file),
+                Some(&sha(&path).unwrap()),
+                "missing {file}"
+            );
+            fs::write(&path, "changed").unwrap();
+            assert_ne!(
+                before,
+                snapshot(root.path()).unwrap(),
+                "ignored change: {file}"
+            );
+        }
+    }
 
     #[test]
     fn admin_source_changes_are_part_of_campaign_input_identity() {
