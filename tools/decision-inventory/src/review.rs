@@ -559,10 +559,10 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
                 atoms.first().is_some_and(|a| a["start_byte"] == d["location"]["start_byte"]) && atoms.last().is_some_and(|a| a["end_byte"] == d["location"]["end_byte"])
             }).map(|c| c["name"].clone()).collect::<Vec<_>>()
         } else { Vec::new() };
-        let disposition = if !direct.is_empty() { "named_source_control" } else if related.len() == 1 { "C" } else if !historical.is_empty() { "historical_scoped_disposition" } else { "G" };
+        let disposition = if !direct.is_empty() { "named_source_control" } else if related.len() == 1 { "C" } else if historical.iter().any(|row| row["status"] != "G") { "historical_scoped_disposition" } else { "G" };
         let reason = if disposition == "G" {
             *gaps.entry(scope.into()).or_default() += 1;
-            Some(format!("Current {} in {}::{} has no exact per-decision mapping; review conditions {} and alternatives {} using the pinned group references. This is an individual reconciliation gap, not predicate or propagation coverage.",d["kind"].as_str().unwrap(),d["target"].as_str().unwrap(),d["owner"].as_str().unwrap(),condition_sources,d["alternatives"]))
+            Some(format!("Current {} in {}::{} has no qualifying per-decision evidence or reviewed non-gap disposition; review conditions {} and alternatives {} using the pinned group references. This is an individual reconciliation gap, not predicate or propagation coverage.",d["kind"].as_str().unwrap(),d["target"].as_str().unwrap(),d["owner"].as_str().unwrap(),condition_sources,d["alternatives"]))
         } else { None };
         json!({"id":d["id"],"target":d["target"],"group":b["group"],"scope":scope,"source_scope":b["scope"],"disposition":disposition,"gap_reason":reason,"historical_rows":historical,"controls":direct,"overlap_controls":if related.len()==1 {related} else {Vec::new()}})
     }).collect::<Vec<_>>();
@@ -912,6 +912,46 @@ mod tests {
             assert!(reason.contains("sample::lib::check"));
             assert!(reason.contains("[\"a\",\"b\"]"));
         }
+    }
+    #[test]
+    fn a_historical_gap_row_remains_an_individual_gap() {
+        let mut f = Fixture::new();
+        let d = f.report["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["kind"] == "if")
+            .unwrap();
+        fs::write(f.root.join("ledger.md"),format!("| `lib.rs` | `{}` |\n| G | lib.rs:{}:{}–1:99 | {}..{} | if | check | unresolved predicate |\n",f.manifest["source_files"]["lib.rs"].as_str().unwrap(),d["location"]["line"],d["location"]["column"],d["location"]["start_byte"],d["location"]["end_byte"])).unwrap();
+        f.manifest["reference_files"]["ledger.md"] =
+            json!(hash(&read(&f.root, "ledger.md").unwrap()));
+        let with_control = f.review().unwrap();
+        let qualified = with_control["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == d["id"])
+            .unwrap();
+        assert_eq!(qualified["historical_rows"][0]["status"], "G");
+        assert_eq!(qualified["disposition"], "named_source_control");
+        assert!(
+            with_control["individual_gap_counts"]
+                .as_object()
+                .unwrap()
+                .is_empty()
+        );
+        f.manifest["controls"] = json!([]);
+        let review = f.review().unwrap();
+        let row = review["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == d["id"])
+            .unwrap();
+        assert_eq!(row["historical_rows"][0]["status"], "G");
+        assert_eq!(row["disposition"], "G");
+        assert_eq!(review["individual_gap_counts"]["runtime"], 2);
+        assert!(row["gap_reason"].as_str().is_some_and(|r| !r.is_empty()));
     }
     #[test]
     fn position_only_rows_need_an_explicit_single_source_ledger() {

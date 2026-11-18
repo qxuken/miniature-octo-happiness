@@ -55,8 +55,19 @@ The [frozen catalog qualification](decision-inventory-catalog.md#frozen-follow-u
 passes debug/release on macOS and Docker Linux, with 31 inventory tests and
 seventeen detected R1 mutants per profile. Original and copied input identities,
 restoration and command retirement are independently checked. All 9,749
-individual G records remain explicit; native Windows/final-head CI are separate
-follow-ups rather than implied by the local result.
+individual G records remain explicit at that checkpoint. PR #8 head `edec275`
+subsequently passes all 23 hosted checks, including native Windows inventory
+contracts in both profiles, ASan and TSan. Its Windows inventory and review JSON
+match the local final-head reports exactly; all 322 source/reference/Cargo pins
+match the tested source. These hosted results retain their own source scope.
+
+The next [codec arithmetic batch](decisions/codec-arithmetic-current.md)
+reconciles nine current records using three named pairs, five propagation rows
+and a delegated 64-bit conversion. It fixes historical-G promotion and retains
+the pinned checksum-table G row as an unresolved example. The expanded queue
+now has 9,740 G records (2,411 runtime / 26 driver / 7,303 tooling); the ten new
+mutations and their actual platform results are recorded in that ledger.
+All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
 

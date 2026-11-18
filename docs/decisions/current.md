@@ -60,6 +60,21 @@ inventories are byte-identical across platforms. The individual G queue remains
 9,749 records: 2,420 runtime, 26 driver and 7,303 tooling. Native Windows and
 final-head CI results retain their own source scopes.
 
+The [codec arithmetic follow-up](codec-arithmetic-current.md) starts at PR #8
+head `edec275` and adds three named single-condition pairs, five scoped
+propagation rows and one delegated 64-bit conversion row. Production codec
+behavior is unchanged. The current denominator remains 10,482 records across
+215 files and 66 targets, with 4,946 blind spots. Fourteen named controls and
+731 exact ledger rows leave **9,740 individual G records**: 2,411 runtime,
+26 driver and 7,303 tooling. The checksum-table G row remains a gap despite its
+exact pin. Reconciliation now requires non-gap historical evidence before
+assigning a historical disposition; an independent named control can still
+qualify that same record. The inventory regression and its guard mutation
+exercise both the preserved gap and the separate named-control qualification.
+The prior checkpoint had no historical G rows, so this correction does not
+change its published 9,749-gap result. Platform execution is recorded separately
+in the follow-up; neither a source reference nor a delegated row measures MC/DC.
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

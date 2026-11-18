@@ -808,6 +808,117 @@
       "matches": 1,
       "package": "weekend-decision-inventory",
       "manifest": "tools/decision-inventory/Cargo.toml"
+    },
+    {
+      "name": "r1-codec-align-overflow",
+      "file": "src/storage/codec.rs",
+      "old": ".ok_or(Error::Limit)?;\n    if value > MAX_IMAGE_BYTES as u64",
+      "new": ".unwrap_or(0);\n    if value > MAX_IMAGE_BYTES as u64",
+      "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-codec-align-cap",
+      "file": "src/storage/codec.rs",
+      "old": "if value > MAX_IMAGE_BYTES as u64",
+      "new": "if value >= MAX_IMAGE_BYTES as u64",
+      "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-codec-take-bounds",
+      "file": "src/storage/codec.rs",
+      "old": ".filter(|n| *n <= self.bytes.len())",
+      "new": ".filter(|n| *n < self.bytes.len())",
+      "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-codec-take-propagation",
+      "file": "src/storage/codec.rs",
+      "old": ".ok_or(Error::Corrupt)?;\n        let out = &self.bytes[self.pos..end];",
+      "new": ".ok_or(Error::Corrupt).unwrap();\n        let out = &self.bytes[self.pos..end];",
+      "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-codec-int-propagation",
+      "file": "src/storage/codec.rs",
+      "old": "self.take(8)?",
+      "new": "self.take(8).unwrap()",
+      "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-codec-count-propagation",
+      "file": "src/storage/codec.rs",
+      "old": "usize::try_from(self.int()?)",
+      "new": "usize::try_from(self.int().unwrap())",
+      "test": "storage::codec::tests::cursor_zero_limits_and_short_tags_preserve_the_expected_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-codec-count-max",
+      "file": "src/storage/codec.rs",
+      "old": "if n > maximum",
+      "new": "if n >= maximum",
+      "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-codec-key-propagation",
+      "file": "src/storage/codec.rs",
+      "old": "let n = self.count(maximum)?;",
+      "new": "let n = self.count(maximum).unwrap();",
+      "test": "storage::codec::tests::cursor_zero_limits_and_short_tags_preserve_the_expected_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-codec-done",
+      "file": "src/storage/codec.rs",
+      "old": "if self.pos == self.bytes.len()",
+      "new": "if self.pos != self.bytes.len()",
+      "test": "storage::codec::tests::alignment_and_cursor_boundaries_preserve_failed_take_position",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-inventory-historical-gap",
+      "file": "tools/decision-inventory/src/review.rs",
+      "old": "historical.iter().any(|row| row[\"status\"] != \"G\")",
+      "new": "!historical.is_empty()",
+      "test": "weekend-decision-inventory",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-decision-inventory",
+      "manifest": "tools/decision-inventory/Cargo.toml"
     }
   ]
 }

@@ -8,7 +8,7 @@ The checked manifest subsequently advances with the R2 operational tooling;
 the generated report supplies its current denominator and individual gaps.
 The [checked manifest](current-scope.json)
 and [current ledger](current.md) bind every source/reference and conservatively
-reuse 721 exact historical row references plus eleven named controls. Unmatched records carry
+reuse the historical row references and named controls. Unmatched records carry
 individual G reasons; R1 remains open for that reconciliation. Tables below retain
 their original source/denominator; they are not silently transplanted to new
 positions or promoted to compiler-measured MC/DC.
@@ -18,6 +18,12 @@ workspaces, examples, benches and build scripts. The current review pins all
 66 non-test targets across fourteen workspaces, including macro-only targets
 with zero visible decisions. Per-target scopes and explicit historical
 eligibility prevent shared files from carrying credit into new contexts.
+
+The [current codec arithmetic ledger](codec-arithmetic-current.md) adds nine
+reviewed records and one explicit G row to that checkpoint: 731 exact ledger
+rows and fourteen named controls now leave 9,740 individual G records. Historical
+G rows remain gaps unless separate qualifying evidence applies. This partial
+ledger preserves the earlier module tables and their original scope.
 
 These ledgers classify explicit source records, including overlapping logical
 syntax and propagation sites. Counts are not independent MC/DC conditions or

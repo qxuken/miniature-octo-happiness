@@ -3261,6 +3261,48 @@ mod tests {
     }
 
     #[test]
+    fn cursor_zero_limits_and_short_tags_preserve_the_expected_position() {
+        let mut empty = Cursor::new(&[]);
+        assert_eq!(empty.done(), Ok(()));
+        assert_eq!(empty.take(0), Ok(&[][..]));
+        assert_eq!(empty.take(1), Err(Error::Corrupt));
+        assert_eq!(empty.pos, 0);
+        for length in 0..8 {
+            let bytes = [0_u8; 8];
+            let mut count = Cursor::new(&bytes[..length]);
+            assert_eq!(count.count(0), Err(Error::Corrupt));
+            assert_eq!(count.pos, 0);
+            let mut key = Cursor::new(&bytes[..length]);
+            assert_eq!(key.key(0), Err(Error::Corrupt));
+            assert_eq!(key.pos, 0);
+        }
+        let zero = 0_u64.to_le_bytes();
+        let mut count = Cursor::new(&zero);
+        assert_eq!(count.count(0), Ok(0));
+        assert_eq!(count.pos, 8);
+        assert_eq!(count.done(), Ok(()));
+        let mut key = Cursor::new(&zero);
+        assert_eq!(key.key(0), Ok(&[][..]));
+        assert_eq!(key.pos, 8);
+        assert_eq!(key.done(), Ok(()));
+        let one = 1_u64.to_le_bytes();
+        let mut count = Cursor::new(&one);
+        assert_eq!(count.count(0), Err(Error::Limit));
+        assert_eq!(count.pos, 8); // The tag was valid and has been consumed.
+        let mut key = Cursor::new(&one);
+        assert_eq!(key.key(0), Err(Error::Limit));
+        assert_eq!(key.pos, 8);
+        #[cfg(target_pointer_width = "64")]
+        {
+            let largest = u64::MAX.to_le_bytes();
+            assert_eq!(Cursor::new(&largest).count(usize::MAX), Ok(usize::MAX));
+            let mut key = Cursor::new(&largest);
+            assert_eq!(key.key(usize::MAX), Err(Error::Corrupt));
+            assert_eq!(key.pos, 8);
+        }
+    }
+
+    #[test]
     #[cfg(not(miri))]
     fn writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic() {
         let mem = Memory::new(Limits::default()).unwrap();

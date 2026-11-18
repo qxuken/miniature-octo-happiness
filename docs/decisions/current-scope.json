@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "baseline": "b32a868d3c66d9f18545d568006066e00b2045d0",
+  "baseline": "edec275384c7cf1d13cf9e0a05d9933f646cc436",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -104,7 +104,7 @@
     "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
     "src/schema.rs": "defe72214ddbf59e05bf291dcd93f97bd92a56cfb143f075858dfcab7001181a",
-    "src/storage/codec.rs": "dc442d771e2fbcb2ac883bca7849a801874b389ae2b89df35296b87f99e35883",
+    "src/storage/codec.rs": "34baf455a1e1ad7e8d76c932ed417fe60c324bbeaad64efd0ca398205012472d",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
     "src/storage/file.rs": "6665a77198f510e6f5c946c03093113e51011c3248c2f3b68efd61bccb0c472b",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
@@ -126,7 +126,7 @@
     "tools/benchmark.rs": "a522795d6ad4346dad50b9e9d8b1e790838895649bda034e2d25cdcc44d107ac",
     "tools/decision-inventory/src/discovery.rs": "a429a53f3a115e3e9727a90d9f14016efe220502268f2a3d6a9c3a03f34a6ffb",
     "tools/decision-inventory/src/main.rs": "e256b9c16f3646d3ec1cff91ce13ffa4e4d61afe2145478971b1eb37df1a1058",
-    "tools/decision-inventory/src/review.rs": "4332720f323fa009683869d18ff859a09f2e01c639e8e26200b278fc2a7854e6",
+    "tools/decision-inventory/src/review.rs": "f4b89c03f145797cd316372fd2e76007c5359b636b0c8704e3a7c8baa0d576d4",
     "tools/file_worker.rs": "991190d7e55147765a10d89ec30ca2fd71ad373532cf50d3febceab1006cbf5b",
     "tools/incident-recovery/src/main.rs": "81995d6a7ade96e89cc1068e41b724fbab2508798a67a5b6cd96792bd0fa5431",
     "tools/monthly_workload.rs": "693a87afddca4922dea6504ce7df666691c991011db24a6d282c1e0470e36ebf",
@@ -175,7 +175,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "71467d409546262dcc1dc4f5953773794c6132f1684660d88fdc344bbb6eb4a6",
+    "xtask/src/mutations.rs": "e13cb65068577ae7f69549c4fdac72946694cdc0e03b9435ce3c521e2a08044c",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
@@ -234,7 +234,7 @@
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "9f972339a5f27d2ecef0821d281cf02ec48076693e63983ff02ac4dc243bed44",
+    "docs/decisions/current.md": "0a2de7208073baa5b2a5c2ff06b9a6d4612441e839e16dc326abc4562837dc12",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -254,7 +254,7 @@
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "bc2ead0e8b3e6da63d18ba73d33c570068ab07ebe573494ccc26b8bc40dfea47",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "91dbaaf1dc77b856c44e008b0473d79424c8370bcbdc8b862dba0f604d1e77ac",
+    "docs/mutations.md": "898fca16b779e6ba035cb4da97eca6f6a3f3502e01f018a8df7ff0b5451f85f9",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -287,10 +287,11 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
-    "xtask/tests/mutations.json": "8fb50ef7be706d290bbd85ea9381ef3dc02b9014036d272193e29caf4e3ea613",
+    "xtask/tests/mutations.json": "a3f00711935bf15f2bf40433aae744373f4ec172be72b07870b52470487d067c",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "21cb7a6f3b4b0d9177940be1260b7ecb2a6a3667224d7328063f808c520959b0",
-    "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24"
+    "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
+    "docs/decisions/codec-arithmetic-current.md": "9f44520ad717f4e913f755ae7a3d55a55fc3876373a8f8c40860d1dc6b328723"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -477,9 +478,10 @@
         "docs/decisions/current.md",
         "docs/decisions/codec.md",
         "tests/durability.rs",
-        "tests/retention.rs"
+        "tests/retention.rs",
+        "docs/decisions/codec-arithmetic-current.md"
       ],
-      "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate."
+      "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
     {
       "name": "native",
@@ -1195,6 +1197,126 @@
           ],
           "outcome": false
         }
+      ]
+    },
+    {
+      "name": "CODEC-ALIGN-CAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "align",
+        "kind": "if",
+        "conditions": [
+          "value > MAX_IMAGE_BYTES as u64"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "alignment_and_cursor_boundaries_preserve_failed_take_position"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cursor_zero_limits_and_short_tags_preserve_the_expected_position"
+        }
+      ],
+      "mutations": [
+        "r1-codec-align-cap"
+      ]
+    },
+    {
+      "name": "CODEC-COUNT-MAX",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "count",
+        "kind": "if",
+        "conditions": [
+          "n > maximum"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "alignment_and_cursor_boundaries_preserve_failed_take_position"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cursor_zero_limits_and_short_tags_preserve_the_expected_position"
+        }
+      ],
+      "mutations": [
+        "r1-codec-count-max"
+      ]
+    },
+    {
+      "name": "CODEC-CURSOR-DONE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "done",
+        "kind": "if",
+        "conditions": [
+          "self.pos == self.bytes.len()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "alignment_and_cursor_boundaries_preserve_failed_take_position"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cursor_zero_limits_and_short_tags_preserve_the_expected_position"
+        }
+      ],
+      "mutations": [
+        "r1-codec-done"
       ]
     }
   ],

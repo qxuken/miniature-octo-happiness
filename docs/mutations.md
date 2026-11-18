@@ -24,6 +24,12 @@ target eligibility and per-target scope. Their only supported standalone
 manifest is `tools/decision-inventory/Cargo.toml`, paired with package
 `weekend-decision-inventory`; root-package selections retain their prior commands.
 Both test execution and package cleanup use that same registered manifest.
+Ten [codec arithmetic and gap-classification controls](decisions/codec-arithmetic-current.md)
+bring the registry to 83 cases (27 with the `r1-` prefix). Nine exercise alignment,
+cursor boundaries and error propagation; one restores the historical-G promotion
+defect. The short-tag and zero-limit regression supplies missing propagation
+controls. Each case retains the same bounded runner and genuine test-failure
+requirements. This finite batch does not qualify the complete codec or tool.
 All source expressions are checked before an output or source copy is acquired.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.

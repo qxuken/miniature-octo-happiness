@@ -335,6 +335,11 @@ The existing ledgers provide the starting pairs. The
 [Cargo catalog follow-up](decision-inventory-catalog.md) makes independent
 workspaces and consumer targets explicit, with separate context scopes and
 unqualified records. That source inventory expansion does not close MC/DC.
+The [current codec arithmetic batch](decisions/codec-arithmetic-current.md)
+reuses alignment/cursor tests, adds short-tag and zero-limit propagation cases,
+and binds three named pairs plus scoped execution/delegation rows. Historical
+G references remain individual gaps. The partial batch leaves the rest of the
+codec and expanded repository queue open.
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision
