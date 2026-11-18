@@ -32,6 +32,8 @@ struct Case {
     old: String,
     new: String,
     test: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exact_test: Option<String>,
     target: String,
     occurrence: usize,
     matches: Option<usize>,
@@ -103,6 +105,17 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 }
                 && !c.test.is_empty(),
             "invalid mutation contract"
+        );
+        ensure!(
+            c.exact_test.as_deref().is_none_or(|name| {
+                c.target == "--test"
+                    && name.split("::").all(|part| {
+                        !part.is_empty()
+                            && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                    })
+            }),
+            "invalid exact integration test for {}",
+            c.name
         );
     }
     ensure!(!data.cases.is_empty(), "empty mutation inventory");
@@ -176,7 +189,19 @@ fn command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
             manifest.to_string_lossy().into_owned(),
         ]);
     }
+    if let Some(test) = &case.exact_test {
+        args.extend([test.clone(), "--".into(), "--exact".into()]);
+    }
     args
+}
+#[cfg(unix)]
+fn expected_test_outcome(case: &Case, stdout: &[u8], outcome: &str) -> bool {
+    case.exact_test.as_ref().is_none_or(|test| {
+        let expected = format!("test {test} ... {outcome}");
+        String::from_utf8_lossy(stdout)
+            .lines()
+            .any(|line| line == expected)
+    })
 }
 #[cfg(unix)]
 fn baseline(report: &crate::supervise::Report, log: &str) -> bool {
@@ -341,10 +366,11 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                         .clone(),
                 )?;
                 let mut log = fs::read(c.output.join(format!("{name}.stdout.log")))?;
+                let selected_passed = expected_test_outcome(&case, &log, "ok");
                 log.extend(fs::read(c.output.join(format!("{name}.stderr.log")))?);
                 ensure!(
-                    baseline(&report, &String::from_utf8_lossy(&log)),
-                    "baseline failed or matched no tests for {}",
+                    selected_passed && baseline(&report, &String::from_utf8_lossy(&log)),
+                    "baseline failed or matched no intended test for {}",
                     case.name
                 );
             }
@@ -376,10 +402,11 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                     serde_json::from_value(row["supervision"].clone())
                         .context("mutant process report")?;
                 let mut log = fs::read(c.output.join(format!("{}.stdout.log", case.name)))?;
+                let selected_failed = expected_test_outcome(&case, &log, "FAILED");
                 log.extend(fs::read(
                     c.output.join(format!("{}.stderr.log", case.name)),
                 )?);
-                let detected = caught(&report, &String::from_utf8_lossy(&log));
+                let detected = selected_failed && caught(&report, &String::from_utf8_lossy(&log));
                 let row = c.evidence["commands"]
                     .as_array_mut()
                     .unwrap()
@@ -387,8 +414,13 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                     .unwrap();
                 row["passed"] = json!(detected);
                 row["expected_exit"] = json!(101);
-                row["expected_assertion"] = json!("test result: FAILED");
-                row["expected_assertion_stream"] = json!("combined");
+                if let Some(test) = &case.exact_test {
+                    row["expected_assertion"] = json!(format!("test {test} ... FAILED"));
+                    row["expected_assertion_stream"] = json!("stdout");
+                } else {
+                    row["expected_assertion"] = json!("test result: FAILED");
+                    row["expected_assertion_stream"] = json!("combined");
+                }
                 Ok(detected)
             })();
             fs::write(&file, &original)
@@ -588,6 +620,46 @@ mod tests {
             data["cases"][standalone]["manifest"] = manifest;
             assert!(parse_inventory(&data.to_string()).is_err());
         }
+    }
+    #[cfg(unix)]
+    #[test]
+    fn exact_integration_selection_requires_the_named_test_outcome() {
+        let inventory = inventory().unwrap();
+        let mut case = inventory.cases[0].clone();
+        case.exact_test = Some("module::expected".into());
+        let args = command(&case, Some("1.99.1"), true);
+        assert_eq!(
+            &args[args.len() - 4..],
+            ["--release", "module::expected", "--", "--exact"]
+        );
+        assert!(expected_test_outcome(
+            &case,
+            b"running 1 test\r\ntest module::expected ... ok\r\n",
+            "ok"
+        ));
+        assert!(expected_test_outcome(
+            &case,
+            b"test module::expected ... FAILED\n",
+            "FAILED"
+        ));
+        for log in [
+            b"test module::expected_suffix ... FAILED\n".as_slice(),
+            b"test module::other ... FAILED\n",
+            b"panic: test module::expected ... FAILED\n",
+            b"test module::expected ... ok\n",
+        ] {
+            assert!(!expected_test_outcome(&case, log, "FAILED"));
+        }
+
+        let mut data: Value = serde_json::from_str(FIXTURE).unwrap();
+        for name in ["", "--exact", "a:b", "a::", "a\nb"] {
+            data["cases"][0]["exact_test"] = json!(name);
+            assert!(parse_inventory(&data.to_string()).is_err(), "{name:?}");
+        }
+        data["cases"][0]["exact_test"] = json!("module::expected");
+        assert!(parse_inventory(&data.to_string()).is_ok());
+        data["cases"][0]["target"] = json!("--lib");
+        assert!(parse_inventory(&data.to_string()).is_err());
     }
     #[test]
     fn only_requested_production_occurrence_changes_and_source_drift_rejects() {
