@@ -139,6 +139,11 @@ regression](delivered-c-faults.md#ballast-sync-refusal-on-macos) confirms native
 allocation refusal from a fresh descriptor after a ballast sync reports
 `ENOSPC`. Three added tooling records keep G. The current queue has 9,611 G
 records (2,278 runtime / 26 driver / 7,307 tooling).
+The [helper registry](helper-controls.md) explicitly accounts for the new
+native APFS test. Its complete macOS audit passed 246 tests per profile
+across four suites, with three registered skips. The APFS test passed in
+its separate native run. The full local exact-dylib and near-cap copy,
+exchange and cleanup cases passed with verified image retirement.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

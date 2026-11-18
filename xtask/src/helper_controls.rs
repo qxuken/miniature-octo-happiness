@@ -31,6 +31,9 @@ const NATIVE_TLS: &str =
     "replica_progress::tests::authenticated_observations_restarts_dropped_reply_and_stale_capture";
 #[cfg(target_os = "macos")]
 const NATIVE_APFS: &str = "macos_volume::tests::native_busy_detach_releases_only_the_owned_image";
+#[cfg(target_os = "macos")]
+const NATIVE_APFS_BALLAST: &str =
+    "maintenance_space::native::native_ballast_sync_enospc_requires_a_fresh_refusal";
 
 #[derive(Args)]
 pub struct Options {
@@ -52,6 +55,8 @@ const XTASK: [Suite; 3] = [
             NATIVE_TLS,
             #[cfg(target_os = "macos")]
             NATIVE_APFS,
+            #[cfg(target_os = "macos")]
+            NATIVE_APFS_BALLAST,
         ],
     },
     Suite {
@@ -562,17 +567,17 @@ mod tests {
             validate_with_filtered(&skipped, &expected, &[NATIVE_TLS], expected_filtered).is_err()
         );
         #[cfg(target_os = "macos")]
-        {
+        for apfs_control in [NATIVE_APFS, NATIVE_APFS_BALLAST] {
             let expected = test_list(&invoke(&[
                 "--list",
                 "--format=terse",
                 "--exact",
                 control,
-                NATIVE_APFS,
+                apfs_control,
             ]))
             .unwrap();
             assert_eq!(expected.len(), 2);
-            let output = invoke(&["--exact", control, NATIVE_APFS]);
+            let output = invoke(&["--exact", control, apfs_control]);
             let registered = XTASK[0]
                 .ignores
                 .iter()
@@ -591,7 +596,7 @@ mod tests {
                 validate_with_filtered(
                     &output,
                     &expected,
-                    &[NATIVE_APFS, NATIVE_TLS],
+                    &[apfs_control, NATIVE_TLS],
                     expected_filtered - 1,
                 )
                 .is_err()
