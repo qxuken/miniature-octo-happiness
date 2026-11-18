@@ -81,6 +81,19 @@ The terminal report preserves every result and records negative-control outcomes
 explicitly. Every copied source hash must match after restoration, and the
 original input hash map must remain stable.
 
+The Unix registry binds 61 integration controls to specific libtest names
+using `exact_test`. Cargo selects the same integration binary and passes
+the name with `--exact`. The baseline and mutant must report `ok` and
+`FAILED` for that test on stdout. The command report carries the required
+name and marker alongside the general compile, exit and retirement checks.
+The existing registry labels and mutation expressions are preserved.
+
+A local pilot verified all eight integration names in both profiles. The
+72 command reports include the selected passing baselines and the named
+failures. Selecting an unrelated passing simulator test for a VALUE control
+returns an uncaught result even though it compiles and runs. These pilot
+receipts qualify the named selection contract for the sampled cases.
+
 This is a reviewed, finite mutation inventory, separate from compiler MC/DC and
 fuzzing. It deliberately avoids mutations that fabricate invalid raw pointers or
 invalidate object ownership. The source expressions and tests require review

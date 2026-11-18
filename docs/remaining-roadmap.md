@@ -152,6 +152,9 @@ has 9,581 G records (2,248 runtime / 26 driver / 7,307 tooling).
 Frozen `1450e64` passes on macOS and Docker Linux with all 186 controls per
 profile. The restored proof checks 17,137 payloads, both platform audits
 and the same source bundle. Hosted qualification uses six Unix shards.
+The [named integration controls](mutations.md) enforce exact test selection
+and failure attribution for 61 existing cases. Five new tooling records
+keep G, leaving 9,586 G records (2,248 runtime / 26 driver / 7,312 tooling).
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
