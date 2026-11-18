@@ -267,7 +267,7 @@
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
-    "tests/durability.rs": "6051eec8d5162c04e0198b03f5f19f726b4bf17b590c97735c3555ffc1bf1c82",
+    "tests/durability.rs": "08a89caa3e17c69bd255e29cd51921c22816c13e0ca0a1a175a08b1c03235704",
     "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
     "tests/files.rs": "11fb925f39e7ff6555ed776e28079e78f4e47359146b2685a70113a77a113260",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",

@@ -626,7 +626,10 @@ fn object_extents_and_directory_references_reject_before_outside_reads() {
     for (case, reference) in [
         ("parent itself", root as u64),
         ("physical image end", original.len() as u64),
-        ("largest aligned offset", u64::MAX & !(REGION as u64 - 1)),
+        (
+            "largest aligned offset",
+            u64::MAX - u64::MAX % REGION as u64,
+        ),
     ] {
         let mut image = original.clone();
         let descriptor = &mut image[root..root + REGION];
