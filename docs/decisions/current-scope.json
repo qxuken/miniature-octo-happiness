@@ -291,7 +291,7 @@
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "21cb7a6f3b4b0d9177940be1260b7ecb2a6a3667224d7328063f808c520959b0",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
-    "docs/decisions/codec-arithmetic-current.md": "9f44520ad717f4e913f755ae7a3d55a55fc3876373a8f8c40860d1dc6b328723"
+    "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

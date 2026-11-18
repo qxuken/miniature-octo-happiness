@@ -67,6 +67,11 @@ and a delegated 64-bit conversion. It fixes historical-G promotion and retains
 the pinned checksum-table G row as an unresolved example. The expanded queue
 now has 9,740 G records (2,411 runtime / 26 driver / 7,303 tooling); the ten new
 mutations and their actual platform results are recorded in that ledger.
+Frozen `a255842` passes both profiles on Mac/Linux: 32 inventory tests,
+341/348 core passes, 239/268 xtask passes and all 27 R1 mutants per profile.
+All four campaigns' copied/restored inputs and 96 command retirements verify;
+the 4,346-payload local proof passes fresh extraction and audit. Native Windows,
+final-head CI and eventual release custody retain their separate gates.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
