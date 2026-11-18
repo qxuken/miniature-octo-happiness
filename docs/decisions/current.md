@@ -24,8 +24,14 @@ The coordinator recovery controller and Windows package verification are new
 tooling inputs. Their tests and negative controls retain their explicit scope;
 they do not promote the new source records or macro blind spots to MC/DC pairs.
 Runtime sources and the existing R1 named controls are unchanged.
-The refreshed source inventory has 8,304 records in 134 files across 12 targets:
-3,023 runtime, 156 driver and 5,125 tooling records, with 3,565 macro/attribute
+The operator-handoff follow-up uses PR #5 head `2bc8e79` as its fixed baseline.
+It adds two assigned journals, credential and mixed-set checks, and a separate
+raw consumer. The consumer's standalone workspace is source-pinned as a
+reference; its decisions are outside this workspace AST denominator and remain
+an explicit tooling coverage obligation. No new condition independence or
+compiler coverage is inferred from the rehearsal.
+The refreshed source inventory has 8,360 records in 134 files across 12 targets:
+3,023 runtime, 156 driver and 5,181 tooling records, with 3,596 macro/attribute
 blind spots. New tooling records keep individual G obligations.
 
 R1 remains open for individual reconciliation outside the reviewed bindings.

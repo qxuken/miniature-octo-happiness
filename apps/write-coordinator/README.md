@@ -315,6 +315,11 @@ any histories that share the observed slot receipt.
 
 ### Back up and restore a coordinator with active journals
 
+The [operator handoff runbook](../../docs/coordinator-operator-handoff.md)
+specifies the complete slot list, common checkpoint, backup hashes, endpoint
+retirement and credential cutover. Its two-writer rehearsal also rejects a
+mixed journal set and checks continued writes in a fresh core process.
+
 1. Pause submissions and run `journal check` for every assigned slot. Resolve
    pending writes against the current authority before taking a coordinated
    backup. Record the common `aligned` revision and counter, and the identity

@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     env:
-      R2_ENGINE_SOURCE: 6b657e516c13f678cd54c816db8a53ec5a11e395
+      R2_ENGINE_SOURCE: 2bc8e795934af30d108dae7bc6c7b0cbd5c4715b
     steps:
       - name: Preserve committed file bytes
         run: git config --global core.autocrlf false
@@ -27,7 +27,7 @@ jobs:
           rustup override set 1.99.1
           cargo fetch --locked
           cargo fetch --locked --manifest-path tools/incident-recovery/Cargo.toml
-      - name: Select the exact merged-main engine source
+      - name: Select the frozen qualified engine source
         run: |
           git fetch --no-tags --depth=1 origin ${{ env.R2_ENGINE_SOURCE }}
           git worktree add --detach target/r2-engine ${{ env.R2_ENGINE_SOURCE }}

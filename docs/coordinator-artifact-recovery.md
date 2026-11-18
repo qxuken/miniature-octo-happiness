@@ -187,3 +187,37 @@ nonsecret ACL fields on failure. The first `gh run download` attempt also
 reported no valid artifact immediately after upload; using the returned ID
 avoids run-level name discovery. Native verification of these fixes remains
 required before marking the new gate passed.
+
+## Hosted verification at PR #5
+
+PR head `2bc8e795934af30d108dae7bc6c7b0cbd5c4715b` passes all 22 checks.
+The tested merge `1bef7f9bc5c0393ffb7b2afa2e1a0e9422efec56` has the same Git
+tree. Native Linux x64, macOS arm64 and Windows x64 each pass the four schedules
+in debug/release, both before export and after downloading the exact uploaded
+source package: 48 schedule/profile executions in total. The Windows private
+creation/owner/inheritance control passes on its hosted administrative account;
+ordinary/service-account deployment remains a separate R5 gate.
+
+The independent download audit verifies all six original ZIP digests, complete
+package and proof inventories, exact result rows, actual retained executable
+hashes and unchanged package manifests. All 771 packaged source files match
+the tested Git blobs on each platform. Payload counts are 848 on Linux, 850 on
+macOS and 855 on Windows. Controller evidence records 336 scoped inputs on each
+Unix host and the existing 33 selected Windows inputs; those Windows input
+hashes are verified separately and do not claim the full Unix controller scope.
+
+| Platform | Producer artifact ID / ZIP SHA-256 | Post-download artifact ID / ZIP SHA-256 |
+|---|---|---|
+| Linux | `14378904740` / `595768ba4f9d2ac78e80cfa405f2d1846ea30a91031ba368e144203e8faede12` | `14380137880` / `43b2d27896a45029508e255188483626b72d14c83a5c3f13f03f32376b7bb9d1` |
+| macOS | `14379768763` / `6a2a6947a1b2f82bf3f7a3ad047c724c9044fbf30673af47a620fcd2cd8d0deb` | `14379963621` / `703fe1d815efb7df9bd6f44a16d14678c300535f58267c8118c274eabf157118` |
+| Windows | `14381560165` / `703c8acb6379086635931eeebfb410be4e802713aec49b0de5d0dbbd02cfdde0` | `14379724464` / `efc361588e7533beb3efbcc9b38dfb1c22c2b94684024cd4172fb9078b9bc535` |
+
+The [Engine run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44199530279)
+also passes native platform, exact-library, quota, coverage and R1 controls.
+ASan and TSan each pass 765 tests with seven explicit ignores; both sanitizer
+archives, all 336 declared input hashes and command/cleanup reports are checked
+against that tested merge. TSan's errno-reuse control and both expected race
+controls pass. The separate PR/push bounded fuzz jobs pass. All 21 manifests
+remain unpublished. Hosted retention and ignored local audits do not close
+durable proof custody. Other delivered profiles, the eventual release freeze
+and deployment/owner gates remain open.

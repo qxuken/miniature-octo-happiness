@@ -33,7 +33,16 @@ Frozen `f2e4d35` passes all eight schedule/profile combinations on macOS/APFS
 and Docker Linux/ext4; complete package/source inventories and retained
 executables are audited. Review fixes reject unexpected stderr and restrict
 evidence before its first write. Native Windows source-package/ACL execution
-and operator/deployment handoff remain required.
+and operator/deployment handoff remain required at that local checkpoint.
+PR #5 head `2bc8e79` subsequently passes all 22 checks: native Windows private
+creation and source-package recovery, all three post-download package runs,
+workspace ASan/TSan (765 passing tests/seven ignores each) and bounded fuzzing.
+The [hosted artifact audit](coordinator-artifact-recovery.md#hosted-verification-at-pr-5)
+records complete inventories, original archive digests and the separate
+Windows controller scope. The [two-writer handoff](coordinator-operator-handoff.md)
+now adds a complete assigned-slot checkpoint, stale/mixed-set and old-credential
+rejections, continued writes and a fresh raw-row observer. Frozen execution
+and actual deployment/owner handoff remain open.
 PR #3 passes all 19 checks at
 `952b5c3`, with successful native macOS and TSan retries after runner-capacity
 cancellations. This is not a final

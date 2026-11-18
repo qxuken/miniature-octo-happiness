@@ -1,0 +1,116 @@
+# Coordinated writer handoff
+
+This runbook applies to the authenticated localhost sequenced coordinator and
+its durable client journals. It moves a paused, acknowledged checkpoint to
+fresh files. The operator chooses the authority and keeps the previous
+endpoint stopped. The software cannot establish that another host or process
+has been fenced. Rotating the replacement's secret does not disable an old
+server that still holds the old secret.
+
+## Before moving files
+
+Record the qualified CLI source, executable hashes, platform/filesystem, and
+the complete operator-owned slot assignment list. One logical writer owns
+each assigned slot and journal. Server receipt rows cannot enumerate assigned
+but unused slots. Pause every writer and wait for its journal commands to exit.
+
+For **each** assigned journal, run these commands against the chosen authority:
+
+```sh
+write-coordinator journal status writer.db
+write-coordinator journal check writer.db PORT --secret-file current.secret
+```
+
+Reconcile pending requests against that authority before taking an acknowledged
+checkpoint. `pending-eligible` is insufficient to select an authority: an older
+same-identity backup can report it after the original server committed the
+request. Use the [pending recovery procedure](coordinator-pending-restore.md)
+and reconcile external effects before replay. Stop if the authority or history
+is uncertain.
+
+Require every check to report the **same** `aligned REV VALUE`. Record that
+checkpoint and the exact lineage, slot and receipt from every status. Stop the
+old server, verify its process/lease retirement, and keep submissions paused.
+An inaccessible endpoint alone is not proof of retirement.
+
+## Restore and verify before routing writers
+
+Use [offline verified backup and restore](operations.md) on the coordinator
+and every journal. Give every backup and destination a fresh path; retain the
+originals and the complete backup set with member names and hashes.
+
+```sh
+weekend-admin backup coordinator.db coordinator.backup
+weekend-admin backup writer.db writer.backup
+weekend-admin restore coordinator.backup restored-coordinator.db
+weekend-admin restore writer.backup restored-writer.db
+weekend-admin check restored-coordinator.db
+weekend-admin check restored-writer.db
+```
+
+Repeat the journal operations for the complete slot list. Verify the selected
+revision, identity, retained roots and application data; a generic file check
+does not validate an application's reserved rows. A stale server or a journal
+from a different checkpoint is not a coherent recovery set merely because
+each file is structurally valid.
+
+Provision the replacement credential under the intended account's private
+directory/ACL policy. Keep the old endpoint stopped and start the restored
+coordinator on an isolated loopback port using that new credential. With
+submissions still paused, require every restored status to match its recorded
+checkpoint and every live check to return the common `aligned REV VALUE`.
+Verify old credentials are rejected if rotation is part of the cutover.
+
+`journal resume` with no pending intent returns the locally saved receipt.
+That result alone neither contacts the server nor proves authority freshness.
+The live `journal check` is a separate observation. Neither result is a
+snapshot follower's durable acknowledgment.
+
+Route the assigned writers to the verified server and their restored journal
+paths. Continue with conditional writes and normal conflict handling. Keep
+the originals, backup hashes and authority decision until the continued state
+has been checked. A failure before routing leaves writers paused; preserve
+the failed outputs and select a recovery action explicitly. Never start both
+copies to see which one appears newer.
+
+## Executable rehearsal
+
+The existing private `cargo xtask incident-recovery` command now runs this
+procedure for synthetic slots **0 and 1023**, in addition to its physical,
+logical and one-journal recovery cases. It uses the selected real CLI binaries,
+new owned files and the existing bounded process supervisors. Evidence is
+private at directory creation. All synthetic credential files are removed
+before the final inventory, including when the drill fails.
+
+| Step | Required observation |
+|---|---|
+| Original writers commit 42 then 77 | Server revision 5; both checks `aligned 5 77`; slot receipts `1 3 42 4` and `1 4 77 5` |
+| Stop the owned original, back up all three files, restore fresh paths | Every restored file equals its backup; originals/backups remain unchanged |
+| Inspect an isolated revision-3 server | Both restored journals reject `behind 3 0`; no replay is submitted |
+| Pair the revision-5 server with a pre-write journal | `receipt-mismatch 5 77`; the fresh raw reader also rejects that mixed set at its journal-revision check |
+| Start the chosen revision-5 set with the replacement credential | Old credentials reject `Unauthorized`; both statuses and aligned checks match the checkpoint |
+| Report saved receipts without writing | Local acknowledgments 4 and 5; server and journals retain their exact bytes |
+| Continue both writers | Slot 0 commits revision 6/value 99; slot 1023's stale expectation conflicts before staging and preserves its journal bytes; its revised write commits revision 7/value 111 |
+| Stop and read in a fresh core process | Exact protocol marker, counter, both binary receipt rows, lineage, slots, journal revision/flags and empty pending fields match the independent fixed oracle |
+| Repeat local resume with no listening endpoint | Saved acknowledgments 6 and 7; all three files remain unchanged |
+
+The checkpoint is retained as `handoff-checkpoint.json`, including both journal
+statuses and the three backup hashes. `evidence.json` records actual CLI and
+consumer hashes, command outcomes, cleanup and the final inventory. Successful
+CLI invocations require empty stderr. The observer uses documented raw version-1
+rows through the public core API and does not import coordinator codecs.
+
+```sh
+cargo +1.99.1 xtask incident-recovery \
+  --admin /absolute/qualified/weekend-admin \
+  --coordinator /absolute/qualified/write-coordinator \
+  --artifact-source FULL_SELECTED_CLI_SOURCE_ID \
+  --output target/new-operator-handoff
+```
+
+This finite rehearsal does not qualify arbitrary slot sets, application
+schemas, remote/HA authorization, external effects, deployed account policies,
+device power loss, or the operator's actual authority decision. CLI source
+provenance remains separately established by delivery/build evidence; the
+command's `--artifact-source` is declared metadata. Native Windows and the
+frozen macOS/Linux result retain their execution gates until recorded below.
