@@ -267,7 +267,7 @@
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
-    "tests/durability.rs": "7fd179533328438ccf5e677b02a05a8030de66cdad1a128c504b574a6368a381",
+    "tests/durability.rs": "20c0effb828840c9ba26fd17807c1676e56f689622c9d5c63f6a326da4e1ddf9",
     "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
     "tests/files.rs": "11fb925f39e7ff6555ed776e28079e78f4e47359146b2685a70113a77a113260",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
@@ -298,7 +298,7 @@
     "docs/decisions/codec-catalog-current.md": "6f7d97e9a7924894a71e8b3373c55bda2a549918e5abd340404bdb5ca2878edc",
     "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
     "docs/decisions/codec-data-current.md": "84ff793f88390096fcba2c2700d1ddd218169dfc3387e52bf13cd309ac9f3834",
-    "docs/decisions/codec-value-current.md": "0697522eb7d6c227dac0c228fe6d8721e45ba4f832f7f577d436e23b65d87f69"
+    "docs/decisions/codec-value-current.md": "7ce3c6a1c78346fdef6c5bfc639a33a408891e1da3aa8dacac3a7faa322abb4d"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

@@ -16,8 +16,10 @@ directory that supplies the top-level value reference.
 The DATA and VALUE tests share a retained-history fixture. The malformed
 copies verify exact errors, no writes or syncs and complete byte preservation.
 Revision 4 opens with its distinct current rows and retained ID 1 at revision
-2 in the healthy fixture. Clearing the newest slot in each malformed copy
-lets revision 3 open with its own rows and the earlier retained snapshot.
+2 in the healthy fixture, both with the witness present and with it cleared.
+The malformed copies also clear that witness. Clearing the newest slot in
+each malformed copy lets revision 3 open with its own rows and the earlier
+retained snapshot.
 
 The first debug prototype detected 35 of 37 changes in their intended tests.
 The forward guard and cached end probes survived and are recorded separately
@@ -25,6 +27,9 @@ from the 35 registered controls. The aligned cache-offset check has a
 supplemental control for the delegated expression, outside the syntax
 inventory. The two tag switches have scoped alternative coverage. Compiler
 MC/DC, delegated calls and the remaining cache rules retain their own scope.
+The storage maintainers own review of the partial, coupled and invariant
+dispositions. Recheck these proofs if traversal order, extent validation or
+cache insertion changes.
 
 With the shared fixture, the two debug prototype shards detect all 29 DATA
 and all 35 VALUE controls. Each intended test fails in the corresponding

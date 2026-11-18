@@ -800,10 +800,17 @@ impl RetainedHistory {
     }
 
     fn assert_current_reopens(&self) {
-        let healthy = open(&SimulatedDisk::from_image(&self.image).unwrap());
-        assert_eq!(healthy.snapshot().revision(), 4);
-        assert_eq!(state(&healthy), self.current);
-        assert_eq!(retained_rows(&healthy), self.retained);
+        let mut unwitnessed = self.image.clone();
+        unwitnessed[3 * REGION..4 * REGION].fill(0);
+        for (case, image) in [
+            ("witness present", &self.image),
+            ("witness cleared", &unwitnessed),
+        ] {
+            let healthy = open(&SimulatedDisk::from_image(image).unwrap());
+            assert_eq!(healthy.snapshot().revision(), 4, "{case}");
+            assert_eq!(state(&healthy), self.current, "{case}");
+            assert_eq!(retained_rows(&healthy), self.retained, "{case}");
+        }
     }
 
     fn assert_newest_rejects(&self, case: &str, mut image: Vec<u8>, error: Error) {
