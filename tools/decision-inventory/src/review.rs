@@ -465,6 +465,10 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
         let name = c["name"].as_str().ok_or("control name required")?;
         ensure(control_names.insert(name), "duplicate control name")?;
         let s = &c["selector"];
+        let start_byte = s
+            .get("start_byte")
+            .map(|value| value.as_u64().ok_or("invalid control start byte"))
+            .transpose()?;
         let selected = decisions
             .iter()
             .filter(|d| {
@@ -472,6 +476,8 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
                     && d["location"]["file"] == s["file"]
                     && d["owner"] == s["owner"]
                     && d["kind"] == s["kind"]
+                    && start_byte
+                        .is_none_or(|byte| d["location"]["start_byte"].as_u64() == Some(byte))
                     && json!(
                         d["conditions"]
                             .as_array()
@@ -623,6 +629,9 @@ mod tests {
     }
     impl Fixture {
         fn new() -> Self {
+            Self::from_source("fn check(a:bool,b:bool) { if a || b {} }\n#[test] fn pair() {}\n")
+        }
+        fn from_source(source: &str) -> Self {
             let root = std::env::temp_dir().join(format!(
                 "decision-review-{}-{}",
                 std::process::id(),
@@ -630,7 +639,6 @@ mod tests {
             ));
             fs::create_dir(&root).unwrap();
             let root = root.canonicalize().unwrap();
-            let source = "fn check(a:bool,b:bool) { if a || b {} }\n#[test] fn pair() {}\n";
             fs::write(root.join("lib.rs"), source).unwrap();
             let mut audit = crate::Audit {
                 root: root.clone(),
@@ -774,6 +782,41 @@ mod tests {
             "not inferred from source references; see recorded campaigns"
         );
     }
+    #[test]
+    fn repeated_conditions_require_an_exact_control_start_byte() {
+        let mut f = Fixture::from_source(
+            "fn check(a:bool,b:bool) { if a || b {} if a || b {} }\n#[test] fn pair() {}\n",
+        );
+        let decisions: Vec<_> = f.report["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|d| d["kind"] == "if")
+            .cloned()
+            .collect();
+        assert_eq!(decisions.len(), 2);
+        assert!(f.review().unwrap_err().to_string().contains("ambiguous"));
+        for d in decisions {
+            f.manifest["controls"][0]["selector"]["start_byte"] =
+                d["location"]["start_byte"].clone();
+            assert_eq!(f.review().unwrap()["controls"][0]["decision_id"], d["id"]);
+        }
+        f.manifest["controls"][0]["selector"]["start_byte"] = json!(0);
+        assert!(
+            f.review()
+                .unwrap_err()
+                .to_string()
+                .contains("missing decision")
+        );
+        f.manifest["controls"][0]["selector"]["start_byte"] = Value::Null;
+        assert!(
+            f.review()
+                .unwrap_err()
+                .to_string()
+                .contains("invalid control start byte")
+        );
+    }
+
     #[test]
     fn catalog_review_keeps_zero_record_targets_and_pins_every_cargo_input() {
         let mut f = Fixture::new();

@@ -63,6 +63,10 @@ The six hosted Unix shards each select 31 cases per profile.
 The [encoder append batch](decisions/codec-append-current.md) adds 19
 `r1-encoder-` cases, bringing the registry to 261 and the R1 set to 205.
 Seven hosted Unix shards select 30, 30, 29, 29, 29, 29 and 29 cases.
+The [VALUE encoder batch](decisions/codec-encode-value-current.md) adds 28
+`r1-encode-value-` controls and `r1-inventory-selector-byte`. The registry
+has 290 cases and the R1 set has 234. Eight hosted Unix shards select
+30, 30, 29, 29, 29, 29, 29 and 29 cases per profile.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
 

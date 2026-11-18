@@ -356,6 +356,8 @@ The [encoder append ledger](decisions/codec-append-current.md) adds writer
 bounds, allocation propagation, segment rollover and write failures at two
 append offsets. Remaining encoder, cache, compiler and delegated obligations
 still require their own evidence.
+The [VALUE encoder ledger](decisions/codec-encode-value-current.md) covers
+cached identity, typed payloads, recursive writes and allocation propagation.
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision

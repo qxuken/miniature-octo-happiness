@@ -567,7 +567,7 @@ mod tests {
     #[test]
     fn fixture_preserves_test_commands_and_selects_release_explicitly() {
         let data = inventory().unwrap();
-        assert_eq!(data.cases.len(), 261);
+        assert_eq!(data.cases.len(), 290);
         let c = &data.cases[0];
         assert_eq!(
             command(c, None, false),

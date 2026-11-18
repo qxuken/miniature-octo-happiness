@@ -1494,6 +1494,113 @@ mod tests {
     }
 
     #[test]
+    fn value_encoding_reuses_cached_nodes_and_propagates_each_allocation_failure() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let cached = Value::bytes_new(&mem, b"shared").unwrap();
+        let uncached = Value::bytes_new(&mem, b"new").unwrap();
+        let make_encoder = |start, cache| Encoder {
+            mem: &mem,
+            identity: ID,
+            revision: 1,
+            start,
+            end: start,
+            bytes: AppendBytes::Contiguous(ChargedVec::new()),
+            cache,
+            data_cache: CacheState::Owned(DataCache::new()),
+        };
+        let mut seed = make_encoder(APPEND_START as u64, CacheState::Owned(ValueCache::new()));
+        let cached_offset = seed.value(&cached).unwrap();
+        // A half-full index must grow when the first new value is inserted.
+        for n in 0..3 {
+            seed.value(&Value::scalar(&mem, Kind::Unsigned, n).unwrap())
+                .unwrap();
+        }
+        let start = seed.end;
+        let cache = seed.cache.finish(&mem).unwrap();
+        drop(seed.bytes);
+        assert_eq!(cache.entries.len(), 4);
+        assert_eq!(cache.index.slots.len(), 8);
+
+        let empty_map = Value::scalar(&mem, Kind::Map, 0).unwrap();
+        let map = empty_map
+            .map_set(b"a", &cached)
+            .unwrap()
+            .map_set(b"b", &uncached)
+            .unwrap();
+        let empty_list = Value::scalar(&mem, Kind::List, 0).unwrap();
+        let list = empty_list
+            .list_push(&map)
+            .unwrap()
+            .list_push(&uncached)
+            .unwrap();
+        let inputs = [
+            Value::scalar(&mem, Kind::None, 0).unwrap(),
+            Value::scalar(&mem, Kind::Boolean, 1).unwrap(),
+            Value::scalar(&mem, Kind::Integer, u64::MAX).unwrap(),
+            Value::scalar(&mem, Kind::Unsigned, u64::MAX).unwrap(),
+            Value::scalar(&mem, Kind::Float, 0x7ff8_0000_0000_0042).unwrap(),
+            uncached,
+            empty_map,
+            map,
+            empty_list,
+            list,
+        ];
+
+        let before = mem.usage().0;
+        let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
+        mem.fail_after(Some(0));
+        assert_eq!(encoder.value(&cached), Ok(cached_offset));
+        assert_eq!(encoder.end, start);
+        assert!(matches!(&encoder.bytes, AppendBytes::Contiguous(bytes) if bytes.is_empty()));
+        assert!(matches!(&encoder.cache, CacheState::Borrowed(old) if old.ptr_eq(&cache)));
+        drop(encoder);
+        mem.fail_after(None);
+
+        for value in &inputs {
+            let mut failures = 0;
+            let mut completed = false;
+            for allowance in 0..64 {
+                let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
+                mem.fail_after(Some(allowance));
+                let result = encoder.value(value);
+                mem.fail_after(None);
+                match result {
+                    Ok(offset) => {
+                        let index = encoder
+                            .cache
+                            .index
+                            .get(value, &encoder.cache.entries)
+                            .unwrap();
+                        assert_eq!(encoder.cache.entries[index].offset, offset);
+                        assert!(encoder.cache.entries[index].value.same_node(value));
+                        assert_eq!(encoder.value(value), Ok(offset));
+                        assert!(encoder.cache.index.slots.len() > cache.index.slots.len());
+                        completed = true;
+                    }
+                    Err(error) => {
+                        assert_eq!(
+                            error,
+                            Error::OutOfMemory,
+                            "{:?} at {allowance}",
+                            value.kind()
+                        );
+                        failures += 1;
+                    }
+                }
+                drop(encoder);
+                assert_eq!(mem.usage().0, before);
+                assert_eq!(cache.entries.len(), 4);
+                assert_eq!(cache.index.get(&cached, &cache.entries), Some(0));
+                assert_eq!(cache.entries[0].offset, cached_offset);
+                if completed {
+                    break;
+                }
+            }
+            assert!(completed && failures > 0, "{:?}", value.kind());
+        }
+    }
+
+    #[test]
     fn writer_bulk_appends_reserve_known_size_and_small_fields_reuse_capacity() {
         let mem = Memory::new(Limits {
             max_live_bytes: 100,
