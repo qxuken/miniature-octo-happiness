@@ -340,6 +340,11 @@ reuses alignment/cursor tests, adds short-tag and zero-limit propagation cases,
 and binds three named pairs plus scoped execution/delegation rows. Historical
 G references remain individual gaps. The partial batch leaves the rest of the
 codec and expanded repository queue open.
+The subsequent [metadata/root-selection ledger](decisions/codec-metadata-current.md)
+reuses the header, metadata and six real-root schedules, with per-atom guard
+mutations. It preserves the dominated cap/alignment limitations and delegated
+iterator scope instead of promoting them to complete pairs. Remaining I/O,
+graph/cache and compiler obligations still require their own evidence.
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision

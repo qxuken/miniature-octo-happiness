@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn fixture_preserves_test_commands_and_selects_release_explicitly() {
         let data = inventory().unwrap();
-        assert_eq!(data.cases.len(), 83);
+        assert_eq!(data.cases.len(), 118);
         let c = &data.cases[0];
         assert_eq!(
             command(c, None, false),
@@ -495,9 +495,14 @@ mod tests {
             );
         }
         let mut data: Value = serde_json::from_str(FIXTURE).unwrap();
-        let last = data["cases"].as_array().unwrap().len() - 1;
+        let standalone = data["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|c| c["name"] == "r1-inventory-example-kind")
+            .unwrap();
         for manifest in [Value::Null, json!("../Cargo.toml"), json!("Cargo.toml")] {
-            data["cases"][last]["manifest"] = manifest;
+            data["cases"][standalone]["manifest"] = manifest;
             assert!(parse_inventory(&data.to_string()).is_err());
         }
     }

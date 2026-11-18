@@ -30,6 +30,14 @@ cursor boundaries and error propagation; one restores the historical-G promotion
 defect. The short-tag and zero-limit regression supplies missing propagation
 controls. Each case retains the same bounded runner and genuine test-failure
 requirements. This finite batch does not qualify the complete codec or tool.
+The [metadata/root-selection batch](decisions/codec-metadata-current.md) adds
+35 `r1-metadata-` controls using existing tests, bringing the registry to 118
+cases and the `r1-` prefix to 62. Header and metadata admission, separate magic
+branches, witness comparison and all six root-slot schedules receive controls.
+The three blocked layout atoms retain their partial dispositions; no omission
+detection is claimed for them. The first 83 registry entries remain unchanged.
+The standalone-manifest contract test selects its named case explicitly, so
+appending root-package cases cannot change which manifest rejection is tested.
 All source expressions are checked before an output or source copy is acquired.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.

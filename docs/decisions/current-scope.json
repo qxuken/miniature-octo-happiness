@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "baseline": "edec275384c7cf1d13cf9e0a05d9933f646cc436",
+  "baseline": "2d1f81eb704dc45163b6432dfed141d8b4b38aaa",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -175,7 +175,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "e13cb65068577ae7f69549c4fdac72946694cdc0e03b9435ce3c521e2a08044c",
+    "xtask/src/mutations.rs": "a18bb2206397b614d5d41f5c2697e265684554eea6fb745f4a9c74c154d8b368",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
@@ -234,7 +234,7 @@
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "0a2de7208073baa5b2a5c2ff06b9a6d4612441e839e16dc326abc4562837dc12",
+    "docs/decisions/current.md": "f3a172da27b520e96767ae2623f75467eea2320e4411688681b161cd18c0b029",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -254,7 +254,7 @@
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "bc2ead0e8b3e6da63d18ba73d33c570068ab07ebe573494ccc26b8bc40dfea47",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "898fca16b779e6ba035cb4da97eca6f6a3f3502e01f018a8df7ff0b5451f85f9",
+    "docs/mutations.md": "3fbef68d5c01fe8d3f77586b8cb84322798cdbdd058389ddecdb3ceab2b1342c",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -287,11 +287,12 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
-    "xtask/tests/mutations.json": "a3f00711935bf15f2bf40433aae744373f4ec172be72b07870b52470487d067c",
+    "xtask/tests/mutations.json": "4fc3456ebf8bb5041aee05b65da10200904ebba1c819b56bb18bd867992845c9",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "21cb7a6f3b4b0d9177940be1260b7ecb2a6a3667224d7328063f808c520959b0",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
-    "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d"
+    "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
+    "docs/decisions/codec-metadata-current.md": "ed9cacc01dd270d7b792c7bb04d72e48c0de8b60ad96842288b29e28fd124512"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -479,7 +480,8 @@
         "docs/decisions/codec.md",
         "tests/durability.rs",
         "tests/retention.rs",
-        "docs/decisions/codec-arithmetic-current.md"
+        "docs/decisions/codec-arithmetic-current.md",
+        "docs/decisions/codec-metadata-current.md"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
@@ -1317,6 +1319,733 @@
       ],
       "mutations": [
         "r1-codec-done"
+      ]
+    },
+    {
+      "name": "CODEC-REC-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "length < APPEND_START as u64",
+          "length > MAX_IMAGE_BYTES as u64"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_checks_image_length_before_reading_metadata"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-length-min",
+        "r1-metadata-length-max"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-FORMAT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "&header[..8] != b\"WEEKDB01\"",
+          "u32_at(&header, 8) != VERSION"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_rejects_each_invalid_header_field_before_reading_slots"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-header-magic",
+        "r1-metadata-header-version"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-HEADER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "checksum(&header, 64) != u64_at(&header, 64)",
+          "u32_at(&header, 12) != 0",
+          "u64_at(&header, 16) != REGION as u64",
+          "u64_at(&header, 24) != APPEND_START as u64",
+          "u64_at(&header, 48) != MAX_IMAGE_BYTES as u64",
+          "u64_at(&header, 56) != MAX_OBJECTS as u64",
+          "header[72..].iter().any(|b| *b != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_rejects_each_invalid_header_field_before_reading_slots"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-header-checksum",
+        "r1-metadata-header-reserved",
+        "r1-metadata-header-region",
+        "r1-metadata-header-append",
+        "r1-metadata-header-cap",
+        "r1-metadata-header-objects",
+        "r1-metadata-header-padding"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-IDENTITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "identity == [0; 16]"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_rejects_each_invalid_header_field_before_reading_slots"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-header-identity"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-ENCODE-KIND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "metadata",
+        "kind": "if",
+        "conditions": [
+          "witness"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-encode-kind"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-EMPTY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "if",
+        "conditions": [
+          "bytes.iter().all(|b| *b == 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "absent_or_torn_metadata_obeys_the_surviving_witness"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-absent"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-CHECKSUM",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "if",
+        "conditions": [
+          "checksum(bytes, 64) != u64_at(bytes, 64)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "absent_or_torn_metadata_obeys_the_surviving_witness"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-checksum"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-PARSE-KIND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "if",
+        "conditions": [
+          "witness"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-parse-kind"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "if",
+        "conditions": [
+          "&bytes[..8] != magic",
+          "u32_at(bytes, 8) != VERSION",
+          "u32_at(bytes, 12) != index as u32",
+          "bytes[16..32] != identity",
+          "bytes[72..].iter().any(|b| *b != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-magic",
+        "r1-metadata-version",
+        "r1-metadata-index",
+        "r1-metadata-identity",
+        "r1-metadata-padding"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-LAYOUT-AB",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "short_circuit_or",
+        "conditions": [
+          "slot.index != (slot.revision & 1) as usize",
+          "u64_at(bytes, 56) != slot.revision.saturating_sub(1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-parity",
+        "r1-metadata-predecessor"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-META-LAYOUT-ABC",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "parse_metadata",
+        "kind": "short_circuit_or",
+        "conditions": [
+          "slot.index != (slot.revision & 1) as usize",
+          "u64_at(bytes, 56) != slot.revision.saturating_sub(1)",
+          "slot.end > length"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_slot_and_witness_metadata_must_have_valid_fields"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-parity",
+        "r1-metadata-predecessor",
+        "r1-metadata-physical-end"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-WITNESS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "witness.revision > slot.revision",
+          "witness.revision == slot.revision",
+          "witness != slot"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_requires_witnesses_to_agree_with_the_selected_root"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-newer-witness",
+        "r1-metadata-matching-witness",
+        "r1-metadata-different-witness"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-ADJACENCY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "slots[0].is_some_and(|a| slots[1].is_some_and(|b| a.revision.abs_diff(b.revision) != 1))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_selects_the_newest_available_root_only_if_the_slots_agree"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-slot-gap",
+        "r1-metadata-require-even",
+        "r1-metadata-require-odd",
+        "r1-metadata-prefer-even",
+        "r1-metadata-prefer-odd"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-REC-ROOT-EXISTS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "slots\n            .into_iter()\n            .flatten()\n            .max_by_key(|s| s.revision)\n            .ok_or(Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "recovery_selects_the_newest_available_root_only_if_the_slots_agree"
+        }
+      ],
+      "mutations": [
+        "r1-metadata-no-root-error"
       ]
     }
   ],

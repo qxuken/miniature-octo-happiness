@@ -72,6 +72,13 @@ Frozen `a255842` passes both profiles on Mac/Linux: 32 inventory tests,
 All four campaigns' copied/restored inputs and 96 command retirements verify;
 the 4,346-payload local proof passes fresh extraction and audit. Native Windows,
 final-head CI and eventual release custody retain their separate gates.
+The [metadata/root-selection follow-up](decisions/codec-metadata-current.md)
+reuses existing tests and adds 35 mutation controls. It gives 37 current records
+explicit dispositions while retaining six B rows for partial layout guards.
+The current queue is 9,703 G records (2,374 runtime / 26 driver / 7,303 tooling).
+The unchanged codec file keeps the previous arithmetic bindings intact; backend
+I/O and the remaining graph/cache/compiler obligations are still open. Frozen
+execution results are recorded after their actual completion in that ledger.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

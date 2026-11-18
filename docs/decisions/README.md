@@ -24,6 +24,11 @@ reviewed records and one explicit G row to that checkpoint: 731 exact ledger
 rows and fourteen named controls now leave 9,740 individual G records. Historical
 G rows remain gaps unless separate qualifying evidence applies. This partial
 ledger preserves the earlier module tables and their original scope.
+The [metadata/root-selection follow-up](codec-metadata-current.md) subsequently
+maps 37 records while preserving the blocked layout conditions: 768 exact ledger
+references and 28 named controls leave 9,703 individual G records. The codec file
+and existing tests are unchanged; source traceability does not imply whole-codec
+or compiler-measured MC/DC.
 
 These ledgers classify explicit source records, including overlapping logical
 syntax and propagation sites. Counts are not independent MC/DC conditions or

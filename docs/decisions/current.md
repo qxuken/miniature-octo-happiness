@@ -75,6 +75,18 @@ The prior checkpoint had no historical G rows, so this correction does not
 change its published 9,749-gap result. Platform execution is recorded separately
 in the follow-up; neither a source reference nor a delegated row measures MC/DC.
 
+The [current metadata/root-selection batch](codec-metadata-current.md) advances
+from PR #9 head `2d1f81e`. Its codec file and tests are unchanged, so the nine
+arithmetic bindings remain intact. Fourteen additional named controls bind
+existing real-image/header tests, with 35 additional guard mutants. The 37 new
+ledger rows are 13 P, 14 coupled C, six partial B, three scoped E and one fixed-loop
+I. The cap/alignment limitations are preserved rather than assigned complete
+independence. The checked manifest now has 28 named controls and 768 exact ledger
+references, leaving **9,703 individual G records** (2,374 runtime / 26 driver /
+7,303 tooling). The denominator remains 10,482 records / 215 files / 66 targets /
+4,946 blind spots. Backend I/O propagation, the remaining graph/cache records
+and compiler/delegated/native/tooling gates retain their own obligations.
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are
