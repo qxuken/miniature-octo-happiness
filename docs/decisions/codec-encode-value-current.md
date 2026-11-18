@@ -84,3 +84,37 @@ original source hashes.
 | E | weekend-db::weekend_db | src/storage/codec.rs:607:66– | 20780..20781 | try_propagation | value | Borrowed cache fork error |
 | E | weekend-db::weekend_db | src/storage/codec.rs:610:72– | 20887..20888 | try_propagation | value | Index growth error |
 | E | weekend-db::weekend_db | src/storage/codec.rs:612:67– | 20973..20974 | try_propagation | value | Entry growth error |
+
+## Frozen qualification at cf3a5a2
+
+Source `cf3a5a215273c4b448cdfc0e0c2888cb4abe090c` passed in both profiles
+using Rust 1.99.1.
+
+| Host | Inventory tests per profile | Core tests per profile | xtask tests per profile | New controls per profile |
+|---|---|---|---|---|
+| macOS arm64/APFS | 33 passed | 348 passed, 2 explicit ignores | 243 passed, 3 explicit ignores | 29/29 detected |
+| Docker Linux arm64/ext4 | 33 passed | 355 passed, 2 explicit ignores | 272 passed, 1 explicit ignore | 29/29 detected |
+
+Formatting and strict all-target Clippy pass. The core suites include
+exact serialization, allocation failures, crash and retained-root tests.
+The pinned Docker build and runtime used an owned ext4 volume, retired
+after auditing the export. The core, xtask and inventory test targets
+cross-compile for Windows MSVC.
+
+Three disjoint local shards select 10, 10 and 9 controls. The audit verifies
+each intended failed test, including the selector-bypass control. It checks
+432 command retirements, 786 copied and restored source files and 347
+declared inputs per campaign. Both report hashes agree across platforms
+and profiles. All 915 prior exact references retain their bindings.
+
+| Report | SHA-256 |
+|---|---|
+| inventory.json | `ee69107989ef6dd93fb50bed6a761d1c1b327a4f93c9bacc1e33cc3731786ff4` |
+| review.json | `9756a7bfa1ce69dfd4495c66de8951af9b79e7e116d14e4ee057f71bd3fcd5df` |
+
+Local proof `target/archived-proof/r1-value-encoding-cf3a5a2.tar.gz` has
+SHA-256 `92a99727cf10f066ecaf676d721ab96d36f91a97a8b867acd97861755a1c549f`.
+Fresh extraction verifies 10,826 indexed payloads and replays both audits
+using the archived Git bundle. Actionlint 1.7.12 accepts the eight-shard
+matrix. The actual CLI lists all 234 hosted controls exactly once per
+profile. Hosted execution keeps its own scope.

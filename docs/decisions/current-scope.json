@@ -300,7 +300,7 @@
     "docs/decisions/codec-data-current.md": "47448255b009dbb18c9771fe07e8f3333cac79b7e639bff57a554c45278b85c6",
     "docs/decisions/codec-value-current.md": "dfc362e92c50de84bc3af219e17fd82618e6e4b84d606a80f8b68f8c5e48f749",
     "docs/decisions/codec-append-current.md": "9ce4bc9d6cc9c5ea9090cf79793c5e510b44e9d1914dd20ebff436b876ea6259",
-    "docs/decisions/codec-encode-value-current.md": "e0b271e91dd47084bd997e52fb9a0442a8adb8591680e788c0e2b3ee251ab0bc"
+    "docs/decisions/codec-encode-value-current.md": "db81a3079f7431db220fcf333bbbe2578fdbac3c522cbbc9c6c4a2ce6ba9690e"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
