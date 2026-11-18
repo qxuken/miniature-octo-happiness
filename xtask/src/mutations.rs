@@ -58,6 +58,12 @@ pub struct Options {
     /// Use optimized tests on Unix (Windows already qualifies both profiles).
     #[arg(long)]
     pub release: bool,
+    /// Zero-based Unix shard within the prefix-filtered registry.
+    #[arg(long, default_value_t = 0)]
+    pub shard_index: usize,
+    /// Number of disjoint Unix shards; defaults to the complete selection.
+    #[arg(long, default_value_t = 1)]
+    pub shard_count: usize,
 }
 fn parse_inventory(fixture: &str) -> Result<Inventory> {
     let data: Inventory = serde_json::from_str(fixture)?;
@@ -232,12 +238,27 @@ fn copy_source(root: &Path, output: &Path, names: &str) -> Result<Value> {
 }
 #[cfg(windows)]
 pub fn run(run: &Run, options: Options) -> Result<()> {
+    ensure!(
+        options.shard_index == 0 && options.shard_count == 1,
+        "native Windows RNG controls are not sharded"
+    );
     windows::run(run, options)
+}
+#[cfg(unix)]
+fn shard(cases: &[Case], index: usize, count: usize) -> Result<Vec<Case>> {
+    ensure!(count > 0 && index < count, "invalid mutation shard");
+    ensure!(count <= cases.len(), "more shards than selected cases");
+    Ok(cases
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| i % count == index)
+        .map(|(_, case)| case.clone())
+        .collect())
 }
 #[cfg(unix)]
 pub fn run(run: &Run, options: Options) -> Result<()> {
     let inventory = inventory()?;
-    let selected = inventory
+    let matching = inventory
         .cases
         .iter()
         .filter(|c| {
@@ -245,7 +266,8 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         })
         .cloned()
         .collect::<Vec<_>>();
-    ensure!(!selected.is_empty(), "no mutation cases selected");
+    ensure!(!matching.is_empty(), "no mutation cases selected");
+    let selected = shard(&matching, options.shard_index, options.shard_count)?;
     if options.list {
         for c in selected {
             println!("{}", c.name);
@@ -272,6 +294,13 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         &output,
         "Safe guard mutants in an isolated source copy; successful nonempty baselines and genuine test failures required",
     )?;
+    c.evidence["selection"] = json!({
+        "prefixes":options.prefixes,
+        "shard_index":options.shard_index,
+        "shard_count":options.shard_count,
+        "matching_cases":matching.iter().map(|case| &case.name).collect::<Vec<_>>(),
+        "selected_cases":selected.iter().map(|case| &case.name).collect::<Vec<_>>()
+    });
     let result = (|| {
         let mut compiler = cmd(["rustc"]);
         if let Some(t) = &options.toolchain {
@@ -408,6 +437,60 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[cfg(unix)]
+    fn shards_cover_the_selection_once_without_reordering_or_case_changes() {
+        let cases = inventory().unwrap().cases;
+        let matching = cases
+            .into_iter()
+            .filter(|case| case.name.starts_with("r1-"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            serde_json::to_value(shard(&matching, 0, 1).unwrap()).unwrap(),
+            serde_json::to_value(&matching).unwrap()
+        );
+        for count in [2, 3, 7] {
+            let mut seen = BTreeSet::new();
+            let mut lengths = Vec::new();
+            for index in 0..count {
+                let selected = shard(&matching, index, count).unwrap();
+                assert!(!selected.is_empty());
+                lengths.push(selected.len());
+                assert_eq!(
+                    serde_json::to_value(&selected).unwrap(),
+                    serde_json::to_value(shard(&matching, index, count).unwrap()).unwrap()
+                );
+                let mut previous = None;
+                for case in selected {
+                    let position = matching.iter().position(|c| c.name == case.name).unwrap();
+                    assert!(previous.is_none_or(|p| p < position));
+                    assert!(seen.insert(case.name.clone()));
+                    assert_eq!(
+                        serde_json::to_value(case).unwrap(),
+                        serde_json::to_value(&matching[position]).unwrap()
+                    );
+                    previous = Some(position);
+                }
+            }
+            assert_eq!(seen, matching.iter().map(|c| c.name.clone()).collect());
+            assert!(lengths.iter().max().unwrap() - lengths.iter().min().unwrap() <= 1);
+        }
+    }
+    #[test]
+    #[cfg(unix)]
+    fn invalid_and_empty_shards_reject_before_iteration() {
+        let cases = inventory().unwrap().cases;
+        for (index, count) in [
+            (0, 0),
+            (1, 1),
+            (3, 3),
+            (usize::MAX, 3),
+            (0, cases.len() + 1),
+        ] {
+            assert!(shard(&cases, index, count).is_err());
+        }
+        assert!(shard(&[], 0, 1).is_err());
+    }
     #[test]
     fn source_copy_skips_its_own_output_and_rejects_symlink_escape() {
         let root = crate::support::Scratch::new(&std::env::temp_dir(), "mutation-copy").unwrap();

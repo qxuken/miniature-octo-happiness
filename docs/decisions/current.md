@@ -93,6 +93,15 @@ native/final-head gates are recorded in the metadata ledger. PR #9's earlier
 `2d1f81e` source separately passes all 23 hosted checks; it is not substituted for
 this batch's source or eventual release qualification.
 
+The [CI shard follow-up](../r1-ci-shards.md) addresses the hosted macOS job's
+20-minute cancellation. All 62 R1 controls remain scheduled in both profiles,
+split into three disjoint Unix selections. The new selection propagation site
+adds one tooling record: the current denominator is 10,483 records / 215 files /
+66 targets / 4,950 blind spots. Runtime/driver records and all 768 historical
+references and 28 named controls are unchanged. The queue now has **9,704 G
+records** (2,374 runtime / 26 driver / 7,304 tooling). Functional shard tests do
+not promote that new tooling record or its macro blind spots to MC/DC evidence.
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

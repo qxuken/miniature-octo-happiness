@@ -29,6 +29,10 @@ maps 37 records while preserving the blocked layout conditions: 768 exact ledger
 references and 28 named controls leave 9,703 individual G records. The codec file
 and existing tests are unchanged; source traceability does not imply whole-codec
 or compiler-measured MC/DC.
+The [CI shard follow-up](../r1-ci-shards.md) adds one unqualified tooling
+propagation record and four blind spots, giving 10,483 records / 4,950 blind
+spots and 9,704 individual G records. Runtime bindings and all registry cases
+are preserved; sharding changes execution scheduling rather than coverage scope.
 
 These ledgers classify explicit source records, including overlapping logical
 syntax and propagation sites. Counts are not independent MC/DC conditions or

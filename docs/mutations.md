@@ -39,6 +39,13 @@ detection is claimed for them. The first 83 registry entries remain unchanged.
 The standalone-manifest contract test selects its named case explicitly, so
 appending root-package cases cannot change which manifest rejection is tested.
 All source expressions are checked before an output or source copy is acquired.
+Unix selections can be divided with `--shard-index I --shard-count N` after
+prefix filtering. Defaults 0/1 retain the complete selection. The recorded
+matching/selected names must form a disjoint, complete union across all shards;
+one passing shard cannot qualify the complete registry. Invalid or empty shards
+reject before output acquisition. The [CI shard contract](r1-ci-shards.md)
+records the observed deadline failure and preserves all command and cleanup
+requirements. The native Windows RNG controller remains unsharded.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
 

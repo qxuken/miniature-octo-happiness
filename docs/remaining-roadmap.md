@@ -90,6 +90,14 @@ per campaign; the intended named test must fail for each new control. The
 5,679-payload local proof passes fresh extraction and both audit replays. Changed
 source, false partial-row promotion and unrelated test-failure controls reject.
 Native Windows/final-head CI for this new source retain their separate gates.
+PR #10 head `5c4aa6f` reaches the macOS source job's 20-minute limit after debug
+finishes and before release completes. The [CI shard correction](r1-ci-shards.md)
+keeps all 62 controls in both profiles, divides each Unix selection into three
+disjoint jobs, and preserves the original command/job bounds. Its one new
+tooling propagation record remains G: the current queue is 9,704 (2,374 runtime /
+26 driver / 7,304 tooling), with 10,483 records and 4,950 blind spots. Complete
+same-head shard results are required; partial or earlier-source passes do not
+close the hosted gate.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
