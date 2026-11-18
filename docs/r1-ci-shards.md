@@ -97,3 +97,17 @@ hashes match the tested tree. The hosted archives exclude the copied source
 directories. All seven reconciliation reports match byte-for-byte, including
 the Windows reconciliation job. Local audit files are in
 `target/r1/hosted-e5ca577/`, with GitHub artifact IDs and digests.
+
+## Catalog shard count
+
+At PR #12 head `a1a95a1`, a hosted macOS job with 31 controls per profile
+took approximately 15 minutes. The catalog batch adds 27 controls, which
+would put 40 or 41 on each of three jobs. Four shards keep each hosted Unix
+job at 30 or 31 controls in each profile. The 20-minute job limit and
+120-second command deadline stay in force. Windows still runs one
+reconciliation job and the separate native RNG campaign.
+
+Mise-pinned actionlint 1.7.12 accepts the matrix. The actual CLI listing in
+both profiles verifies all 122 names across indices 0 through 3, with no
+duplicates or omissions. The catalog's frozen local run uses its original
+three-shard layout and provides evidence for that layout.

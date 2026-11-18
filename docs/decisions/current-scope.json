@@ -254,7 +254,7 @@
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "bc2ead0e8b3e6da63d18ba73d33c570068ab07ebe573494ccc26b8bc40dfea47",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "7ccb113d831cee9b5eb9d092ede9503b15a5593914a83dccbce27ec07eec1af0",
+    "docs/mutations.md": "b13dc8ef5c2fb89b17b147107c209c10a6fa1ba3025ee575769794c02c7fa535",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -293,9 +293,9 @@
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
     "docs/decisions/codec-metadata-current.md": "d51b3df64193e3a3a0d8e1752bf2061c9a47144b21148a069518ef5b69107b4f",
-    "docs/r1-ci-shards.md": "b5d5f745f15714ccc37cdc7451537056c55a1798c9a62257f84dc619314ea854",
+    "docs/r1-ci-shards.md": "d3739f73cc3ce9b78a82b074b89b6a7d13f17375fee8b9d1d029e4ccc1024704",
     "docs/decisions/codec-graph-current.md": "3d1efea52377ecd853760d008f2f38b1e523ddb42a2c7f0c3e76a01cb75a7bbc",
-    "docs/decisions/codec-catalog-current.md": "b436ea7a5f90e9ad53f01c9814edab649305f6f4dcb990300a9648fe1386b984",
+    "docs/decisions/codec-catalog-current.md": "77e0fc299e6b6d9b6154510bcb83daea995ac97e1470382379072bc78b8ee34a",
     "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a"
   },
   "target_records": {

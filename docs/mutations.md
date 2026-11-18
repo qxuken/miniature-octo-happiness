@@ -52,7 +52,8 @@ The new extent regression requires rejection before the read, and the overlap
 controls exercise both ordinary occupied regions and cached value starts.
 The [COMMIT and retained catalog batch](decisions/codec-catalog-current.md)
 adds 27 `r1-catalog-` cases, for 178 cases overall and 122 with the `r1-`
-prefix. Each Unix profile selects 41, 41 and 40 cases across the three shards.
+prefix. The frozen local runs select 41, 41 and 40 cases. Hosted Unix jobs
+select 31, 31, 30 and 30 cases across four shards in each profile.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
 
