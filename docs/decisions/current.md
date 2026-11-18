@@ -117,6 +117,14 @@ The manifest now has 48 named controls and 803 exact ledger references.
 inventory denominator remains 10,483 records / 215 files / 66 targets /
 4,950 blind spots.
 
+The [COMMIT payload and retained catalog batch](codec-catalog-current.md)
+adds 29 exact dispositions. Four P rows and five coupled C rows cover
+descriptor and retained-entry checks. Two B rows keep the dominated descriptor
+end comparison partial. Eighteen E rows cover scoped propagation and
+iteration, including eight identical field reads bound by their byte spans.
+The manifest has 61 named controls and 832 exact ledger references.
+**9,640 G records remain** (2,310 runtime / 26 driver / 7,304 tooling).
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

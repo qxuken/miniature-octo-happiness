@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "baseline": "e5ca577d2c4273d4df14732f798866c86e020e09",
+  "baseline": "a1a95a108593b9ef8b491570b831c90b4ed903f9",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -175,7 +175,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "cbb01c63c080e6ab8d59fb7c6c209cdd8e1fb2ede61fd7fa06a7ff89d124308d",
+    "xtask/src/mutations.rs": "cbefedfcb5fc5e77089222ecb08fe559cfc6f788f220f30b79bf46b0f0bb7185",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
@@ -234,7 +234,7 @@
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "b0c553002464164b0d3e9df7c82f651b70221f3077f6d7de36804f69e6965230",
+    "docs/decisions/current.md": "ee610eba48b6e91f95e52b5a30aff9f206a7539dbff6c44dab439e9d367d12d3",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -254,7 +254,7 @@
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "bc2ead0e8b3e6da63d18ba73d33c570068ab07ebe573494ccc26b8bc40dfea47",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "ca17dac2c918926083a75326cde2e69e91877ed1fc83db4b87b78f7269b57bfa",
+    "docs/mutations.md": "7ccb113d831cee9b5eb9d092ede9503b15a5593914a83dccbce27ec07eec1af0",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -267,7 +267,7 @@
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
-    "tests/durability.rs": "08a89caa3e17c69bd255e29cd51921c22816c13e0ca0a1a175a08b1c03235704",
+    "tests/durability.rs": "24442c5fd56df416c616b97dde4ba08645cf0647e521626eda44992ec3af1cc7",
     "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
     "tests/files.rs": "11fb925f39e7ff6555ed776e28079e78f4e47359146b2685a70113a77a113260",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
@@ -287,14 +287,16 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "b2be617f0ae3f116926213033b9d3b65e217b9560646a28cb919af33133aaa47",
+    "xtask/tests/mutations.json": "421c48442f9633d5d5895017859636b5f1717e7af43450d340916277e99e683e",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "21cb7a6f3b4b0d9177940be1260b7ecb2a6a3667224d7328063f808c520959b0",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
     "docs/decisions/codec-metadata-current.md": "d51b3df64193e3a3a0d8e1752bf2061c9a47144b21148a069518ef5b69107b4f",
     "docs/r1-ci-shards.md": "b5d5f745f15714ccc37cdc7451537056c55a1798c9a62257f84dc619314ea854",
-    "docs/decisions/codec-graph-current.md": "3d1efea52377ecd853760d008f2f38b1e523ddb42a2c7f0c3e76a01cb75a7bbc"
+    "docs/decisions/codec-graph-current.md": "3d1efea52377ecd853760d008f2f38b1e523ddb42a2c7f0c3e76a01cb75a7bbc",
+    "docs/decisions/codec-catalog-current.md": "b436ea7a5f90e9ad53f01c9814edab649305f6f4dcb990300a9648fe1386b984",
+    "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -484,7 +486,8 @@
         "tests/retention.rs",
         "docs/decisions/codec-arithmetic-current.md",
         "docs/decisions/codec-metadata-current.md",
-        "docs/decisions/codec-graph-current.md"
+        "docs/decisions/codec-graph-current.md",
+        "docs/decisions/codec-catalog-current.md"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
@@ -2677,6 +2680,419 @@
       ],
       "mutations": [
         "r1-graph-witness-diagnostic"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-DESCRIPTOR-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "reader.object(slot.descriptor, COMMIT, slot.end)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "object_extents_and_directory_references_reject_before_outside_reads"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-descriptor-read"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-DESCRIPTOR-REVISION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "revision != slot.revision",
+          "data_revision > revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-revision-agrees",
+        "r1-catalog-data-not-future"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-NEXT-ID",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "next_id == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "empty_retained_catalog_still_requires_nonzero_next_id"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-next-id-nonzero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-COUNT-PROPAGATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "cursor.count(MAX_RETAINED_SNAPSHOTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "commit_descriptor_requires_every_catalog_field_and_exact_payload_end"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "retained_catalog_bounds_ids_revisions_and_references_are_checked"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-count-propagation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-CURRENT-DATA-CHECK",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "reader.data(data_ref, slot.descriptor, data_revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "selected_graph_errors_do_not_reopen_the_older_root"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-current-data-check"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-CURRENT-HEAD-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(Head {\n            revision,\n            data_revision,\n            collections,\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-current-head-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-CATALOG-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut entries, count)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-catalog-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-ENTRY-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "id <= previous_id",
+          "id >= next_id",
+          "snapshot_revision >= revision",
+          "snapshot_data_revision > snapshot_revision",
+          "snapshot_data_revision > data_revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "retained_catalog_bounds_ids_revisions_and_references_are_checked"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-ordered-id",
+        "r1-catalog-id-before-next",
+        "r1-catalog-capture-before-current",
+        "r1-catalog-data-at-capture",
+        "r1-catalog-data-at-current"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-RETAINED-DATA-CHECK",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "reader.data(offset, slot.descriptor, snapshot_data_revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "retained_catalog_bounds_ids_revisions_and_references_are_checked"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-retained-data-check"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-NEXT-COLLECTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "if",
+        "conditions": [
+          "next_collection > head_next_collection"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_cache_accepts_sharing_and_rejects_inconsistent_aliases"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-next-collection-bound"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-RETAINED-HEAD-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(Head {\n                revision: snapshot_revision,\n                data_revision: snapshot_data_revision,\n                collections,\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-retained-head-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-PAYLOAD-END-PROPAGATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "cursor.done()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "commit_descriptor_requires_every_catalog_field_and_exact_payload_end"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-payload-end-propagation"
+      ]
+    },
+    {
+      "name": "CODEC-CATALOG-DATA-CACHE-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut data_cache, reader.data_cache.len())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-catalog-data-cache-allocation"
       ]
     }
   ],

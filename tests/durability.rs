@@ -527,35 +527,37 @@ fn recovery_errors_and_short_io_do_not_damage_a_clean_image() {
     }
 }
 
+const OBJECT_HEADER_BYTES: usize = 64;
+const OBJECT_CHECKSUM: std::ops::Range<usize> = 48..56;
+
+fn image_u64(bytes: &[u8], at: usize) -> u64 {
+    u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap())
+}
+
+fn image_crc64(bytes: &[u8]) -> u64 {
+    let mut crc = 0_u64;
+    for &byte in bytes {
+        crc ^= u64::from(byte) << 56;
+        for _ in 0..8 {
+            crc = if crc & (1 << 63) == 0 {
+                crc << 1
+            } else {
+                (crc << 1) ^ 0x42f0e1eba9ea3693
+            };
+        }
+    }
+    crc
+}
+
+fn resign_descriptor(bytes: &mut [u8]) {
+    bytes[OBJECT_CHECKSUM].fill(0);
+    let checksum = image_crc64(bytes);
+    bytes[OBJECT_CHECKSUM].copy_from_slice(&checksum.to_le_bytes());
+}
+
 #[test]
 fn object_extents_and_directory_references_reject_before_outside_reads() {
-    const HEADER_BYTES: usize = 64;
-    const CHECKSUM: std::ops::Range<usize> = 48..56;
-
-    fn integer(bytes: &[u8], at: usize) -> u64 {
-        u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap())
-    }
-    fn crc64(bytes: &[u8]) -> u64 {
-        let mut crc = 0_u64;
-        for &byte in bytes {
-            crc ^= u64::from(byte) << 56;
-            for _ in 0..8 {
-                crc = if crc & (1 << 63) == 0 {
-                    crc << 1
-                } else {
-                    (crc << 1) ^ 0x42f0e1eba9ea3693
-                };
-            }
-        }
-        crc
-    }
-    fn resign_descriptor(bytes: &mut [u8]) {
-        bytes[CHECKSUM].fill(0);
-        let checksum = crc64(bytes);
-        bytes[CHECKSUM].copy_from_slice(&checksum.to_le_bytes());
-    }
-
-    assert_eq!(crc64(b"123456789"), 0x6c40df5f0b497347);
+    assert_eq!(image_crc64(b"123456789"), 0x6c40df5f0b497347);
     let (disk, db) = base_store();
     let old = db.snapshot();
     let old_rows = state(&db);
@@ -571,12 +573,12 @@ fn object_extents_and_directory_references_reject_before_outside_reads() {
     let original = disk.durable_image().unwrap();
     drop(db);
     let index = (revision & 1) as usize;
-    let root = integer(&original, (1 + index) * REGION + 40) as usize;
+    let root = image_u64(&original, (1 + index) * REGION + 40) as usize;
     assert_eq!(root + REGION, original.len());
     let mut checked = original[root..root + REGION].to_vec();
-    let stored_crc = integer(&checked, 48);
-    checked[CHECKSUM].fill(0);
-    assert_eq!(crc64(&checked), stored_crc);
+    let stored_crc = image_u64(&checked, 48);
+    checked[OBJECT_CHECKSUM].fill(0);
+    assert_eq!(image_crc64(&checked), stored_crc);
     let healthy_disk = SimulatedDisk::from_image(&original).unwrap();
     let healthy = open(&healthy_disk);
     assert_eq!(healthy.snapshot().revision(), revision);
@@ -586,7 +588,7 @@ fn object_extents_and_directory_references_reject_before_outside_reads() {
     let clean_trace = healthy_disk.trace().unwrap();
     let header_at = clean_trace
         .iter()
-        .position(|e| (e.kind, e.offset, e.len) == (IoKind::Read, root as u64, HEADER_BYTES))
+        .position(|e| (e.kind, e.offset, e.len) == (IoKind::Read, root as u64, OBJECT_HEADER_BYTES))
         .unwrap();
     let full_at = header_at + 1;
     let full_read = clean_trace[full_at];
@@ -633,7 +635,7 @@ fn object_extents_and_directory_references_reject_before_outside_reads() {
     ] {
         let mut image = original.clone();
         let descriptor = &mut image[root..root + REGION];
-        let data_reference = HEADER_BYTES + 8;
+        let data_reference = OBJECT_HEADER_BYTES + 8;
         descriptor[data_reference..data_reference + 8].copy_from_slice(&reference.to_le_bytes());
         resign_descriptor(descriptor);
         reject(case, image, full_at);
@@ -659,6 +661,110 @@ fn object_extents_and_directory_references_reject_before_outside_reads() {
     assert_eq!(restored.snapshot().revision(), revision);
     assert_eq!(state(&restored), expected);
     assert_eq!(retained_rows(&restored), retained);
+}
+
+#[test]
+fn empty_retained_catalog_still_requires_nonzero_next_id() {
+    let mut image = base_image();
+    let healthy = open(&SimulatedDisk::from_image(&image).unwrap());
+    assert_eq!(healthy.snapshot().revision(), 2);
+    assert!(retained_rows(&healthy).is_empty());
+    drop(healthy);
+    let root = image_u64(&image, REGION + 40) as usize;
+    let descriptor = &mut image[root..root + REGION];
+    let next_id = OBJECT_HEADER_BYTES + 24;
+    assert_eq!(image_u64(descriptor, next_id), 1);
+    assert_eq!(image_u64(descriptor, next_id + 8), 0);
+    descriptor[next_id..next_id + 8].fill(0);
+    resign_descriptor(descriptor);
+    image[3 * REGION..4 * REGION].fill(0);
+
+    let disk = SimulatedDisk::from_image(&image).unwrap();
+    assert!(matches!(
+        Database::open_on(disk.clone(), Limits::default()),
+        Err(Error::Corrupt)
+    ));
+    assert!(
+        disk.trace()
+            .unwrap()
+            .iter()
+            .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync))
+    );
+    assert_eq!(disk.durable_image().unwrap(), image);
+    image[REGION..2 * REGION].fill(0);
+    let older = open(&SimulatedDisk::from_image(&image).unwrap());
+    assert_eq!(older.snapshot().revision(), 1);
+    assert!(state(&older).is_empty());
+    assert!(retained_rows(&older).is_empty());
+}
+
+#[test]
+fn commit_descriptor_requires_every_catalog_field_and_exact_payload_end() {
+    // Use consecutive real slots with different retained catalogs.
+    let (disk, db) = base_store();
+    let first = db.snapshot();
+    let first_rows = state(&db);
+    assert_eq!(first.revision(), 2);
+    assert_eq!(db.retain_snapshot(&first), Ok(1));
+    assert_eq!(staged(&db).commit(), Ok(4));
+    let second = db.snapshot();
+    let current_rows = state(&db);
+    assert_ne!(first_rows, current_rows);
+    assert_eq!(db.retain_snapshot(&second), Ok(2));
+    assert_eq!(db.snapshot().revision(), 5);
+    let original = disk.durable_image().unwrap();
+    drop(first);
+    drop(second);
+    drop(db);
+
+    let root = image_u64(&original, 2 * REGION + 40) as usize;
+    assert_eq!(root + REGION, original.len());
+    let payload_len = image_u64(&original, root + 16) as usize;
+    // Five descriptor words and four words per retained entry.
+    assert_eq!(payload_len, (5 + 2 * 4) * 8);
+    let older_catalog = vec![(1, 2, first_rows)];
+    let mut current_catalog = older_catalog.clone();
+    current_catalog.push((2, 4, current_rows.clone()));
+    let healthy = open(&SimulatedDisk::from_image(&original).unwrap());
+    assert_eq!(healthy.snapshot().revision(), 5);
+    assert_eq!(state(&healthy), current_rows);
+    assert_eq!(retained_rows(&healthy), current_catalog);
+    drop(healthy);
+
+    for len in (0..payload_len).step_by(8).chain([payload_len + 1]) {
+        let mut image = original.clone();
+        image[4 * REGION..5 * REGION].fill(0);
+        let descriptor = &mut image[root..root + REGION];
+        descriptor[16..24].copy_from_slice(&(len as u64).to_le_bytes());
+        descriptor[OBJECT_HEADER_BYTES + len..].fill(0);
+        resign_descriptor(descriptor);
+        let candidate = SimulatedDisk::from_image(&image).unwrap();
+        assert!(
+            matches!(
+                Database::open_on(candidate.clone(), Limits::default()),
+                Err(Error::Corrupt)
+            ),
+            "descriptor payload length {len}"
+        );
+        assert!(
+            candidate
+                .trace()
+                .unwrap()
+                .iter()
+                .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync)),
+            "descriptor payload length {len} wrote or synced"
+        );
+        assert_eq!(
+            candidate.durable_image().unwrap(),
+            image,
+            "descriptor payload length {len}"
+        );
+        image[2 * REGION..3 * REGION].fill(0);
+        let older = open(&SimulatedDisk::from_image(&image).unwrap());
+        assert_eq!(older.snapshot().revision(), 4, "payload length {len}");
+        assert_eq!(state(&older), current_rows, "payload length {len}");
+        assert_eq!(retained_rows(&older), older_catalog, "payload length {len}");
+    }
 }
 
 #[test]

@@ -50,6 +50,9 @@ The [object reader and recovery I/O batch](decisions/codec-graph-current.md)
 adds 33 `r1-graph-` cases for a total of 151 cases, 95 with the `r1-` prefix.
 The new extent regression requires rejection before the read, and the overlap
 controls exercise both ordinary occupied regions and cached value starts.
+The [COMMIT and retained catalog batch](decisions/codec-catalog-current.md)
+adds 27 `r1-catalog-` cases, for 178 cases overall and 122 with the `r1-`
+prefix. Each Unix profile selects 41, 41 and 40 cases across the three shards.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
 

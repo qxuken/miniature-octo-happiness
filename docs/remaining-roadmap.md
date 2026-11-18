@@ -109,6 +109,13 @@ Frozen `4d2e3eb` passes debug and release on macOS and Docker Linux, including
 all 95 R1 controls per profile. Its local proof passes fresh extraction and
 replay of the evidence audits across 13,621 payloads. The graph ledger lists
 the exact scope, fingerprints and earlier rejected candidates.
+The [COMMIT and retained catalog follow-up](decisions/codec-catalog-current.md)
+covers 29 further source records. It tests an invalid next ID with zero
+entries, truncation at every descriptor word and one trailing byte. The
+malformed newest slot rejects, and the previous slot opens with its own
+retained rows when selected independently. The 27 added mutation controls
+exercise both validation and propagation. The remaining R1 queue has 9,640
+G records (2,310 runtime / 26 driver / 7,304 tooling).
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
