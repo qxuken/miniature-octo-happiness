@@ -158,6 +158,11 @@ keep G, leaving 9,586 G records (2,248 runtime / 26 driver / 7,312 tooling).
 Frozen `a42358e` verifies all 61 exact integrations in both profiles on
 macOS and Docker Linux. The restored proof replays 880 command reports
 and checks 12,103 payloads.
+The [encoder append batch](decisions/codec-append-current.md) reconciles 21
+runtime decisions and adds 19 controls. It covers exact-cap admission,
+key-prefix and body allocation, equivalent staging layouts and writes that
+stop on the first error. The queue has 9,565 G records
+(2,227 runtime / 26 driver / 7,312 tooling).
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -131,3 +131,10 @@ native RNG campaign.
 At frozen `1450e64`, actionlint 1.7.12 accepts the workflow. The actual CLI
 listings select all 186 names exactly once in each profile, with 31 on each
 index. The local mutation evidence uses three 62-control shards.
+
+## Encoder append shard count
+
+The 205 R1 controls use seven Unix shards of 30, 30, 29, 29, 29, 29 and 29
+per profile. The existing 20-minute job limit and 120-second command
+limit apply. Windows runs one reconciliation job and its separate native
+RNG campaign.

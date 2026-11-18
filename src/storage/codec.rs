@@ -1515,6 +1515,40 @@ mod tests {
         drop(writer);
         assert_eq!(mem.usage().0, 0);
     }
+
+    #[test]
+    fn writer_equal_append_and_key_failures_preserve_the_written_prefix() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let mut writer = Writer::new(&mem);
+        writer.add(&[1; 17]).unwrap();
+        mem.fail_after(Some(0));
+        assert_eq!(writer.add(&[2; 17]), Err(Error::OutOfMemory));
+        assert_eq!(writer.bytes.as_slice(), &[1; 17]);
+        assert_eq!(mem.usage().0, 17);
+        mem.fail_after(None);
+        writer.add(&[2; 17]).unwrap();
+        assert_eq!(mem.usage(), (64, 81));
+        assert_eq!(&writer.bytes[..17], &[1; 17]);
+        assert_eq!(&writer.bytes[17..], &[2; 17]);
+        drop(writer);
+
+        let key = [3; 17];
+        let mut writer = Writer::new(&mem);
+        mem.fail_after(Some(0));
+        assert_eq!(writer.key(&[]), Err(Error::OutOfMemory));
+        assert!(writer.bytes.is_empty());
+        mem.fail_after(Some(1));
+        assert_eq!(writer.key(&key), Err(Error::OutOfMemory));
+        assert_eq!(writer.bytes.as_slice(), &17u64.to_le_bytes());
+        drop(writer);
+        assert_eq!(mem.usage().0, 0);
+
+        mem.fail_after(None);
+        let mut writer = Writer::new(&mem);
+        writer.key(&key).unwrap();
+        assert_eq!(&writer.bytes[..8], &17u64.to_le_bytes());
+        assert_eq!(&writer.bytes[8..], &key);
+    }
     #[test]
     fn data_index_rebuild_insert_and_first_match_preserve_cache_order() {
         let mem = Memory::new(Limits::default()).unwrap();
@@ -3315,7 +3349,6 @@ mod tests {
         );
         assert_eq!(writer.add(&bytes), Err(Error::Limit));
         assert!(writer.bytes.is_empty());
-        mem.fail_after(None);
         let mut encoder = Encoder {
             mem: &mem,
             identity: ID,
@@ -3326,6 +3359,17 @@ mod tests {
             cache: CacheState::Owned(ValueCache::new()),
             data_cache: CacheState::Owned(DataCache::new()),
         };
+        assert_eq!(
+            encoder.object(VALUE, &bytes[..MAX_IMAGE_BYTES]),
+            Err(Error::Limit)
+        );
+        assert_eq!(encoder.object(VALUE, &[0; 16]), Err(Error::OutOfMemory));
+        assert_eq!(encoder.end, (MAX_IMAGE_BYTES - REGION) as u64);
+        let AppendBytes::Contiguous(bytes) = &encoder.bytes else {
+            unreachable!()
+        };
+        assert!(bytes.is_empty());
+        mem.fail_after(None);
         assert_eq!(
             encoder.object(VALUE, &[0; 16]),
             Ok(((MAX_IMAGE_BYTES - REGION) as u64, MAX_IMAGE_BYTES as u64))
@@ -3434,14 +3478,27 @@ mod tests {
         let segmented = encode_fresh(&mem, &head, 2, ID, &retention).unwrap();
         assert_eq!(segmented.descriptor, contiguous.descriptor);
         assert_eq!(segmented.end, contiguous.end);
-        let write = |candidate: Candidate| {
+        let write = |candidate: &Candidate| {
             let mut disk = SimulatedDisk::new().unwrap();
             disk.lock().unwrap();
             candidate.write_append(&mut disk).unwrap();
             disk.sync().unwrap();
             (disk.durable_image().unwrap(), disk.trace().unwrap())
         };
-        assert_eq!(write(segmented), write(contiguous));
+        let (image, trace) = write(&contiguous);
+        assert_eq!(write(&segmented), (image, trace.clone()));
+
+        for candidate in [&contiguous, &segmented] {
+            for step in [0, APPEND_SEGMENT_BYTES / REGION] {
+                let mut disk = SimulatedDisk::new().unwrap();
+                disk.lock().unwrap();
+                disk.arm(step, crate::storage::Fault::Error);
+                assert_eq!(candidate.write_append(&mut disk), Err(Error::Io));
+                assert_eq!(disk.trace().unwrap(), trace[..=step]);
+                assert!(disk.durable_image().unwrap().is_empty());
+            }
+        }
+        drop((contiguous, segmented));
 
         let baseline = mem.usage().0;
         for allowance in 0..128 {

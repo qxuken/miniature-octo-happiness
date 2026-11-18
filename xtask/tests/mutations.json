@@ -2729,6 +2729,215 @@
       "matches": 1,
       "package": "weekend-db",
       "exact_test": "value_objects_require_complete_payloads"
+    },
+    {
+      "name": "r1-encoder-writer-cap-equality",
+      "file": "src/storage/codec.rs",
+      "old": ".is_none_or(|n| n > MAX_IMAGE_BYTES)",
+      "new": ".is_none_or(|n| n >= MAX_IMAGE_BYTES)",
+      "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-writer-cap-reject",
+      "file": "src/storage/codec.rs",
+      "old": ".is_none_or(|n| n > MAX_IMAGE_BYTES)",
+      "new": ".is_none_or(|_| false)",
+      "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-writer-bulk-equality",
+      "file": "src/storage/codec.rs",
+      "old": "if bytes.len() > self.bytes.len()",
+      "new": "if bytes.len() >= self.bytes.len()",
+      "test": "storage::codec::tests::writer_equal_append_and_key_failures_preserve_the_written_prefix",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-writer-bulk-reserve",
+      "file": "src/storage/codec.rs",
+      "old": "self.mem.reserve(&mut self.bytes, bytes.len())?;",
+      "new": "self.mem.reserve(&mut self.bytes, bytes.len()).or(Ok::<(), Error>(()))?;",
+      "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-writer-small-reserve",
+      "file": "src/storage/codec.rs",
+      "old": ".reserve_geometric(&mut self.bytes, bytes.len(), MAX_IMAGE_BYTES)?;",
+      "new": ".reserve_geometric(&mut self.bytes, bytes.len(), MAX_IMAGE_BYTES).or(Ok::<(), Error>(()))?;",
+      "test": "storage::codec::tests::writer_equal_append_and_key_failures_preserve_the_written_prefix",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-key-prefix",
+      "file": "src/storage/codec.rs",
+      "old": "self.int(bytes.len() as u64)?;",
+      "new": "self.int(bytes.len() as u64).or(Ok::<(), Error>(()))?;",
+      "test": "storage::codec::tests::writer_equal_append_and_key_failures_preserve_the_written_prefix",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-key-body",
+      "file": "src/storage/codec.rs",
+      "old": "self.int(bytes.len() as u64)?;\n        self.add(bytes)",
+      "new": "self.int(bytes.len() as u64)?;\n        self.add(bytes).or(Ok(()))",
+      "test": "storage::codec::tests::writer_equal_append_and_key_failures_preserve_the_written_prefix",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-object-align",
+      "file": "src/storage/codec.rs",
+      "old": "let size = align(length as u64)? as usize;",
+      "new": "let size = align(length as u64).unwrap_or(REGION as u64) as usize;",
+      "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-object-end-equality",
+      "file": "src/storage/codec.rs",
+      "old": ".filter(|n| *n <= MAX_IMAGE_BYTES as u64)",
+      "new": ".filter(|n| *n < MAX_IMAGE_BYTES as u64)",
+      "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-object-append",
+      "file": "src/storage/codec.rs",
+      "old": "MAX_IMAGE_BYTES - self.start as usize,\n        )?;",
+      "new": "MAX_IMAGE_BYTES - self.start as usize,\n        ).or(Ok::<(), Error>(()))?;",
+      "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-start-minimum",
+      "file": "src/storage/codec.rs",
+      "old": "start < APPEND_START as u64 || !start.is_multiple_of(REGION as u64)",
+      "new": "!start.is_multiple_of(REGION as u64)",
+      "test": "storage::codec::tests::encoder_start_and_cached_collection_counter_have_independent_controls",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-start-alignment",
+      "file": "src/storage/codec.rs",
+      "old": "start < APPEND_START as u64 || !start.is_multiple_of(REGION as u64)",
+      "new": "start < APPEND_START as u64",
+      "test": "storage::codec::tests::encoder_start_and_cached_collection_counter_have_independent_controls",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-segment-first",
+      "file": "src/storage/codec.rs",
+      "old": ".is_none_or(|segment| segment.len() == APPEND_SEGMENT_BYTES)",
+      "new": ".is_some_and(|segment| segment.len() == APPEND_SEGMENT_BYTES)",
+      "test": "storage::codec::tests::segmented_append_preserves_the_bytes_and_adapter_write_boundaries",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-segment-reuse",
+      "file": "src/storage/codec.rs",
+      "old": ".is_none_or(|segment| segment.len() == APPEND_SEGMENT_BYTES)",
+      "new": ".is_none_or(|segment| segment.len() <= APPEND_SEGMENT_BYTES)",
+      "test": "storage::codec::tests::segmented_append_preserves_the_bytes_and_adapter_write_boundaries",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-segment-rollover",
+      "file": "src/storage/codec.rs",
+      "old": ")\n                        {\n                            mem.reserve_geometric(\n                                segments,",
+      "new": ")\n                        {\n                            if segments.last().is_some() { return Err(Error::Limit); }\n                            mem.reserve_geometric(\n                                segments,",
+      "test": "storage::codec::tests::segmented_append_preserves_the_bytes_and_adapter_write_boundaries",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-segment-array-reserve",
+      "file": "src/storage/codec.rs",
+      "old": "MAX_IMAGE_BYTES.div_ceil(APPEND_SEGMENT_BYTES),\n                            )?;",
+      "new": "MAX_IMAGE_BYTES.div_ceil(APPEND_SEGMENT_BYTES),\n                            ).or(Ok::<(), Error>(()))?;",
+      "test": "storage::codec::tests::segmented_append_preserves_the_bytes_and_adapter_write_boundaries",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-segment-byte-reserve",
+      "file": "src/storage/codec.rs",
+      "old": "mem.reserve_geometric(segment, available, APPEND_SEGMENT_BYTES)?;",
+      "new": "mem.reserve_geometric(segment, available, APPEND_SEGMENT_BYTES).or(Ok::<(), Error>(()))?;",
+      "test": "storage::codec::tests::segmented_append_preserves_the_bytes_and_adapter_write_boundaries",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-contiguous-reserve",
+      "file": "src/storage/codec.rs",
+      "old": "mem.reserve_geometric(bytes, size, maximum)?;",
+      "new": "mem.reserve_geometric(bytes, size, maximum).or(Ok::<(), Error>(()))?;",
+      "test": "storage::codec::tests::writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encoder-append-io",
+      "file": "src/storage/codec.rs",
+      "old": "write_all(backend, offset, segment)?;",
+      "new": "write_all(backend, offset, segment).or(Ok::<(), Error>(()))?;",
+      "test": "storage::codec::tests::segmented_append_preserves_the_bytes_and_adapter_write_boundaries",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }

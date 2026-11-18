@@ -352,8 +352,10 @@ allocation propagation. The [DATA directory ledger](decisions/codec-data-current
 adds cache admission, object revision and collection checks, record order and
 payload consumption. The [VALUE reader ledger](decisions/codec-value-current.md)
 adds exact lengths, tag alternatives, shared cache behavior and propagation.
-Remaining encoder, cache, compiler and delegated obligations still require
-their own evidence.
+The [encoder append ledger](decisions/codec-append-current.md) adds writer
+bounds, allocation propagation, segment rollover and write failures at two
+append offsets. Remaining encoder, cache, compiler and delegated obligations
+still require their own evidence.
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision
