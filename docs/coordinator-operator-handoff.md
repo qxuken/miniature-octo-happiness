@@ -188,3 +188,44 @@ Its attempt-specific upload excludes
 all synthetic credential files. Native Windows execution, deployment-account
 acceptance, external authority/fencing, and the final release remain separate
 gates. Subsequent documentation does not relabel this frozen execution.
+
+## Hosted native follow-up at PR #6
+
+Head `3de695f70284ce562dcc6e03343a3f029f6b0abb` passes all 22 checks.
+The tested merge `75c20a9ea174741cc6bcc6215d84792851c072db` has the same Git
+tree. The [Engine run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44208666922)
+executes both selected CLI profiles on native Linux x64, macOS arm64 and
+Windows x64. Every one of the six rehearsals passes 85 outcomes and eight
+service retirements with selected CLI source `2bc8e79`.
+
+The downloaded original ZIPs match these digests:
+
+| Platform | Artifact ID | ZIP SHA-256 |
+|---|---|---|
+| Linux | `14385271355` | `af0c61333b21d8d0abde93bb2e4a26265c7545ccce6f23b1a67bd2a6f24bc87e` |
+| macOS | `14384259616` | `dca598ce3c776bd354063dfe9683bf2d40285c7a307f149477e77ffd96738911` |
+| Windows | `14384163898` | `468435fcc81430cb25b6302709fe73a44be07fda061ecaff548f480e7ea23ed7` |
+
+The independent extraction audit checks complete inventories, actual retained
+binaries, exact checkpoint/rejection/continuation/observer outputs, backup
+hashes and every command/cleanup report. Unix proofs contain 286 payloads and
+336 scoped inputs each; Windows proofs contain 201 payloads and its existing
+33 selected inputs. Every declared input matches the tested Git merge.
+Windows process reports are inline in its evidence; it does not export the
+Unix per-command process files. All synthetic credential files are absent.
+The Windows owner SID is the hosted administrative account, retaining the
+ordinary/service-account deployment gate.
+
+Workspace ASan and TSan each pass 766 tests with seven explicit ignores; both
+archives and all 336 recorded input hashes are independently checked. TSan's
+errno-reuse and both expected race controls pass. Original sanitizer archive
+digests are `24a53042be80b08172f849780749f518c54b0ef1f17bcbfb70a6b0487e6ee0f5`
+(ASan) and `19c52cf9a415a24c68b20e7614f65b2bbd9f3238f7d79b2777700f1e503553a5`
+(TSan). Native platforms, minimum compilers, quota, R1, coverage and both bounded
+fuzz jobs also pass. No production code or durability barrier changes.
+
+Hosted reports and the independent audit are retained under
+`target/r2/handoff-pr6-ci/`. This closes the named native Windows execution
+gap of the frozen local result above. External authority/fencing, actual
+deployment/account acceptance, further promised profiles and final release
+custody remain open.

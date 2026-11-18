@@ -54,8 +54,12 @@ rejections, continued writes and a fresh raw-row observer. Frozen controller
 and Docker Linux/ext4. The audit checks all 286 payloads and 336 source inputs
 per run; all owned Docker resources are retired. The complete macOS xtask suite
 passes 237 tests/two explicit ignores per profile, with strict Clippy on both
-hosts and passing Windows cross-checks. Native Windows execution and actual
-deployment/owner handoff remain open.
+hosts and passing Windows cross-checks. PR #6 head `3de695f` subsequently
+passes all 22 checks, including six native handoff rehearsals (debug/release
+selected CLIs on macOS, Linux and Windows), plus workspace ASan/TSan with
+766 tests/seven ignores each. The [hosted audit](coordinator-operator-handoff.md#hosted-native-follow-up-at-pr-6)
+checks all six inventories and keeps Windows's 33-input scope separate from
+Unix's 336. Actual deployment/account/owner handoff remains open.
 PR #3 passes all 19 checks at
 `952b5c3`, with successful native macOS and TSan retries after runner-capacity
 cancellations. This is not a final
