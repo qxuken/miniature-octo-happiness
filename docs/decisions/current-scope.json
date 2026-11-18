@@ -293,7 +293,7 @@
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
     "docs/decisions/codec-metadata-current.md": "d51b3df64193e3a3a0d8e1752bf2061c9a47144b21148a069518ef5b69107b4f",
-    "docs/r1-ci-shards.md": "e88b8e661b852e6ec3f1ba8061784085ba2c18338cdb13e317598c8447dd066e"
+    "docs/r1-ci-shards.md": "85005d9dad78fe6e4564e0d8a4db1808acbba36732160b5a2edc47709925c07f"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

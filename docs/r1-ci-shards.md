@@ -58,5 +58,24 @@ unchanged case fields and registry order. The real CLI test compares its
 unsharded list with every registered R1 name, then checks the three shards and
 rejects invalid indices/counts without creating outputs. This covers argument
 wiring as well as the selection helper. The former CLI rejects the shard flags;
-the new debug CLI passes these tests. Optimized, platform and hosted execution
-results retain their actual source and are recorded after completion.
+the new CLI passes these tests in both profiles. Hosted execution results retain
+their actual source and are recorded after completion.
+
+At frozen `45381c2fe93397422f0f5a5b0e6ca8d15ab097e7`, macOS arm64/APFS
+passes **242 xtask tests / two explicit ignores per profile**, strict all-target
+Clippy, formatting, and the Windows MSVC test cross-check. The latter compiles
+the Windows path; it does not qualify native execution. Mise-pinned
+`actionlint@1.7.12` accepts the workflow.
+
+Eight real sampled campaigns exercise unsharded selection and indices 0/1/2
+in debug/release. They use `r1-codec-align-cap`,
+`r1-inventory-historical-gap` and `r1-metadata-slot-gap`: a root library test,
+a standalone binary target and an integration target. Each profile's default
+selection catches all three; the three shards catch one each, forming the same
+complete union. All **80 command retirements** verify, all baselines are
+nonempty, and each mutant compiles and fails a real test with exit 101.
+Independent audits compare all **780 copied/restored files** and **347 declared
+inputs per campaign** to frozen Git, plus exact selection metadata and streams.
+The local reports and recipe remain under `target/ci-r1-shards/`; no complete
+62-control or Linux/Windows execution is inferred from this three-case sample.
+The full same-head CI shards must still finish before closing the hosted gate.
