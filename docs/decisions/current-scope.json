@@ -294,7 +294,7 @@
     "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
     "docs/decisions/codec-metadata-current.md": "d51b3df64193e3a3a0d8e1752bf2061c9a47144b21148a069518ef5b69107b4f",
     "docs/r1-ci-shards.md": "b5d5f745f15714ccc37cdc7451537056c55a1798c9a62257f84dc619314ea854",
-    "docs/decisions/codec-graph-current.md": "f789cb962f909d20ea7620f0354acdc3b8bc86d77b6cb80d578c876debdb5455"
+    "docs/decisions/codec-graph-current.md": "3d1efea52377ecd853760d008f2f38b1e523ddb42a2c7f0c3e76a01cb75a7bbc"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

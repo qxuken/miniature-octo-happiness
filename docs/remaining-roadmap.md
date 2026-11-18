@@ -105,6 +105,10 @@ rejects a damaged newest root before an out-of-bounds object read, even when
 the older root opens by itself. The manifest leaves 9,669 G records
 (2,339 runtime / 26 driver / 7,304 tooling). VALUE/DATA decoding, descriptor
 payloads, the retained catalog and cache decisions remain in the R1 queue.
+Frozen `4d2e3eb` passes debug and release on macOS and Docker Linux, including
+all 95 R1 controls per profile. Its local proof passes fresh extraction and
+replay of the evidence audits across 13,621 payloads. The graph ledger lists
+the exact scope, fingerprints and earlier rejected candidates.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

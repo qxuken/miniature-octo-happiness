@@ -108,3 +108,46 @@ delegated code and the remaining R1 through R7 gates stay open.
 | E | weekend-db::weekend_db | src/storage/codec.rs:1166:11– | 40113..40114 | try_propagation | recover | Scoped success/error propagation above |
 | E | weekend-db::weekend_db | src/storage/codec.rs:1170:73– | 40342..40343 | try_propagation | recover | Scoped success/error propagation above |
 | E | weekend-db::weekend_db | src/storage/codec.rs:1172:15– | 40425..40426 | try_propagation | recover | Scoped success/error propagation above |
+
+## Frozen qualification at 4d2e3eb
+
+Source `4d2e3ebb266f65d65365a29db4827b303935d220` passed on Rust 1.99.1
+in debug and release on macOS arm64/APFS and Docker Linux arm64/ext4.
+
+| Host | Inventory tests per profile | Core tests per profile | xtask tests per profile | Controls per profile |
+|---|---|---|---|---|
+| macOS | 32 passed | 342 passed, 2 explicit ignores | 242 passed, 2 explicit ignores | 95/95 detected |
+| Docker Linux | 32 passed | 349 passed, 2 explicit ignores | 271 passed, 1 explicit ignore | 95/95 detected |
+
+The all-features core suite includes allocation, budget, exact serialization,
+crash and retained-root tests. Both hosts passed strict all-target Clippy for
+all three packages and formatting for both workspaces. The earlier
+`633ffa2` candidate failed reconciliation on a stale reference pin.
+At `813c95e`, the tests and controls passed but strict Clippy rejected an
+identity mask in the test. The final candidate computes the same aligned
+offset by subtracting the remainder, and all checks ran again from that source.
+
+Each host ran three disjoint shards per profile, with 32, 32 and 31 cases.
+The audits verify all **1,384 command retirements** across twelve campaigns,
+the intended named test failures for the 33 graph additions and 35 metadata
+controls, and **781 copied/restored files and 347 input hashes per campaign**.
+All 46 prior codec bindings remain exact. The three B rows have no direct
+or overlap-control promotion. All four reports agree.
+
+| Report | SHA-256 |
+|---|---|
+| inventory.json | `08197eabb77a97ba2a539beb594025501d48b090d9fe2c8c1fe88192043f6213` |
+| review.json | `cba925380145fc693f4da3c6e288778865d1fc6311bb71288c11eadb523be6cf` |
+
+Docker uses image
+`sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`
+without networking. Source, dependencies, Cargo home, builds, temporary
+files and runtime evidence are on the owned ext4 volume. Export and audit
+passed before removal of the two owned containers and volume.
+
+The local proof `target/archived-proof/r1-graph-4d2e3eb.tar.gz` has SHA-256
+`7c115f87ec6e1c0c47067fa80ae0681fc639bdc8d1c93f49d51be06fa65942fc`.
+Fresh extraction verifies **13,621 indexed payloads** and repeats the audits
+against Git objects from the bundled source. The archive contains the source
+bundle, locked vendor inputs, scripts, reports and restored source copies.
+Hosted checks, including native Windows, retain their separate source scope.
