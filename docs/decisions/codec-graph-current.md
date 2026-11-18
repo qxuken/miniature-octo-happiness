@@ -14,16 +14,18 @@ file keeps the exact [arithmetic](codec-arithmetic-current.md) and
 | Object length and end | A normal extent is accepted. Header plus payload overflow, alignment error and an aligned extent past its bound return Corrupt. A checksummed COMMIT that fits the physical file but extends beyond the selected slot end must reject after its 64-byte header. |
 | Object birth revision | The valid graph opens. Moving a value's birth revision beyond the selected revision with a repaired checksum rejects after the first read. |
 | Full object verification | Stable matching header, checksum and padding allow open. Change the header only during the full read with valid checksum and padding, corrupt the checksum with a stable header, or set nonzero padding with a repaired checksum. Each case rejects. All false versus each single true supplies three pairs. |
-| Region index allocation | The first valid object allocates the region index. Later objects reuse it. Injected object buffer or index reservation failure returns OutOfMemory, leaves the source unchanged and permits successful recovery without the injection. |
+| Region index allocation | The first valid object starts with an empty region index. Once it is populated, later objects reach the same decision with an index present. The allocation sweep opens a fresh copy per attempt. Injected buffer or index reservation failure returns OutOfMemory and leaves each source unchanged. A later attempt with sufficient budget opens and preserves shared value identity. |
 | Recovery input and diagnostics | Fault every operation in the clean open trace. Length and metadata reads, the initial object header and full object reads each propagate Io on failure. Zero bytes on a read return Io and positive short reads finish recovery. Failure leaves the image unchanged and a retry recovers the original state. The four outer metadata-stage propagation sites are caught independently. |
 
 The new `object_extents_and_directory_references_reject_before_outside_reads`
-test opens revision **3** with retained snapshot **1** at revision **2**. Its
+test opens revision **4** with retained snapshot **1** at revision **2**, with
+distinct rows in the two snapshots. Its
 damaged newest graphs return Corrupt with the newest slot still selected and
-the newest witness cleared. It checks the last read, forbids writes and syncs,
+the newest witness cleared. It requires the complete operation trace to match
+the healthy prefix through the last permitted read, forbids writes and syncs,
 and compares the whole image. Removing the newest slot separately opens
-revision **2** with the expected rows and no retained IDs. A healthy image
-with an unselected tail still opens revision 3 with the same retained state.
+revision **3** with the expected rows and no retained IDs. A healthy image
+with an unselected tail still opens revision 4 with the same retained state.
 The test computes CRC independently and checks its recurrence against a known
 vector and the actual original descriptor.
 
