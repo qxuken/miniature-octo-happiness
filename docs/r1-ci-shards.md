@@ -28,8 +28,8 @@ selected set. All expected shards must pass, with identical source/fixture and
 matching-name lists, no duplicate selected names, and their union equal to the
 entire filtered registry. A partial set cannot qualify the complete R1 batch.
 
-CI runs indices 0, 1 and 2 on macOS and Linux, each in debug and release. The
-62 R1 controls divide into 21, 21 and 20 cases per profile; none are omitted.
+For this 62-control batch, CI ran indices 0, 1 and 2 on macOS and Linux, each
+in debug and release. The controls divided into 21, 21 and 20 cases per profile.
 Windows keeps one inventory/reconciliation job and its separate two-control
 native RNG campaign. Nondefault sharding of that native Windows campaign is
 rejected explicitly. Artifact names have `-shard-I` suffixes so concurrent jobs

@@ -116,6 +116,10 @@ malformed newest slot rejects, and the previous slot opens with its own
 retained rows when selected independently. The 27 added mutation controls
 exercise both validation and propagation. The remaining R1 queue has 9,640
 G records (2,310 runtime / 26 driver / 7,304 tooling).
+Frozen `89e1bb2` passes on macOS and Docker Linux in debug and release,
+with 122/122 controls detected per profile. Its archive verifies all
+14,689 payloads after fresh extraction and audit replay. The hosted Unix
+matrix uses four shards and keeps the existing deadlines.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -293,9 +293,9 @@
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
     "docs/decisions/codec-metadata-current.md": "d51b3df64193e3a3a0d8e1752bf2061c9a47144b21148a069518ef5b69107b4f",
-    "docs/r1-ci-shards.md": "d3739f73cc3ce9b78a82b074b89b6a7d13f17375fee8b9d1d029e4ccc1024704",
+    "docs/r1-ci-shards.md": "f65f55c6c31a4782c5ab32d55a16fd285b507df4e89764221d58d4b175030e85",
     "docs/decisions/codec-graph-current.md": "3d1efea52377ecd853760d008f2f38b1e523ddb42a2c7f0c3e76a01cb75a7bbc",
-    "docs/decisions/codec-catalog-current.md": "77e0fc299e6b6d9b6154510bcb83daea995ac97e1470382379072bc78b8ee34a",
+    "docs/decisions/codec-catalog-current.md": "6f7d97e9a7924894a71e8b3373c55bda2a549918e5abd340404bdb5ca2878edc",
     "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a"
   },
   "target_records": {
