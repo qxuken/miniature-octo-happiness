@@ -111,3 +111,11 @@ Mise-pinned actionlint 1.7.12 accepts the matrix. The actual CLI listing in
 both profiles verifies all 122 names across indices 0 through 3, with no
 duplicates or omissions. The catalog's frozen local run uses its original
 three-shard layout and provides evidence for that layout.
+
+## DATA directory shard count
+
+The longest completed PR #12 macOS shard ran for 15 minutes 17 seconds
+with 32 controls per profile. The DATA directory batch brings the total
+to 151. Five hosted Unix shards select 31, 30, 30, 30 and 30 cases per
+profile. The 20-minute job limit, 120-second command deadline and single
+Windows reconciliation job are preserved.
