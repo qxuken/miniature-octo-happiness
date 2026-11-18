@@ -41,8 +41,13 @@ The [hosted artifact audit](coordinator-artifact-recovery.md#hosted-verification
 records complete inventories, original archive digests and the separate
 Windows controller scope. The [two-writer handoff](coordinator-operator-handoff.md)
 now adds a complete assigned-slot checkpoint, stale/mixed-set and old-credential
-rejections, continued writes and a fresh raw-row observer. Frozen execution
-and actual deployment/owner handoff remain open.
+rejections, continued writes and a fresh raw-row observer. Frozen controller
+`f5287e6` passes all 85 outcomes in both selected-CLI profiles on macOS/APFS
+and Docker Linux/ext4. The audit checks all 286 payloads and 336 source inputs
+per run; all owned Docker resources are retired. The complete macOS xtask suite
+passes 237 tests/two explicit ignores per profile, with strict Clippy on both
+hosts and passing Windows cross-checks. Native Windows execution and actual
+deployment/owner handoff remain open.
 PR #3 passes all 19 checks at
 `952b5c3`, with successful native macOS and TSan retries after runner-capacity
 cancellations. This is not a final

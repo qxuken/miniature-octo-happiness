@@ -112,5 +112,78 @@ This finite rehearsal does not qualify arbitrary slot sets, application
 schemas, remote/HA authorization, external effects, deployed account policies,
 device power loss, or the operator's actual authority decision. CLI source
 provenance remains separately established by delivery/build evidence; the
-command's `--artifact-source` is declared metadata. Native Windows and the
-frozen macOS/Linux result retain their execution gates until recorded below.
+command's `--artifact-source` is declared metadata. Native Windows retains its
+own execution gate; cross-checking its build is a separate observation.
+
+## Frozen macOS and Docker Linux execution
+
+Controller `f5287e6f503dfe0147836f61fd6de0b597909474` passes the complete
+rehearsal on native macOS arm64/APFS and Docker Linux arm64/ext4 using Rust
+1.99.1. The administrative and coordinator binaries are built from clean
+selected source `2bc8e795934af30d108dae7bc6c7b0cbd5c4715b`, separately in debug
+and release. The fresh independent consumer uses the controller's source and
+debug profile in both runs. Each of the four runs passes **85 command/service
+outcomes**, including eight verified service retirements. Both source trees
+remain clean throughout their builds/runs.
+
+The independent audit verifies all 286 retained payloads per run, actual
+selected/retained executable hashes, all 336 scoped inputs against the frozen
+Git blobs, exact checkpoint/conflict/rejection/observer/local-replay outputs,
+and every command's stream sizes and cleanup reports. All three synthetic
+credential files are absent. Backup member hashes match the checkpoint file.
+Source inputs match across both operating systems; executable hashes retain
+their platform/profile scope.
+
+| Platform / selected CLI profile | Evidence SHA-256 |
+|---|---|
+| macOS / debug | `91fb416e559432bf2500fb9cce522e3dfdc926d5634f60fa1640657140243c80` |
+| macOS / release | `a7c97e78a3164cf90109835aab414a117f6a10292dd171977409bd5319014a8d` |
+| Linux / debug | `5223b6ea051d8f3260849200b8604ab9e4d6d9160ad4f2a38de2485d7e398bcc` |
+| Linux / release | `c258da593ef5300f2844bab96861d0eb8b33d5eb5d0ece1edf423f309cba237a` |
+
+The complete macOS xtask suite passes **237 tests, zero failures and two
+explicit ignores per profile**. Both CLI transcript adapter controls pass
+in each profile on Linux; strict all-target Clippy passes for xtask and the
+consumer on both hosts. Windows MSVC test/consumer cross-checks compile.
+Standards and specification reviews are both clear. The source reconciliation
+records 8,360 decisions in 134 files with 3,596 blind spots and no failures;
+new tooling records and the separate consumer's coverage obligations remain
+open rather than becoming MC/DC claims.
+
+The Linux image is
+`sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
+Source, locked vendored dependencies, Cargo home, every build target, temporary
+files, native databases and evidence use the owned ext4 volume. External
+networking is disabled. The source bundle SHA-256 is
+`506db5298a6789b9ec576bc272046f5994b284659005d53909f29a0174f34472`;
+the locked-dependency archive SHA-256 is
+`fcb7eba9136ea9989ebc65d000cf39cf97487036c8367115ffc2966f8f14b5cc`.
+Both archives are checked before extraction/use. The worker runs as UID 0,
+which does not establish permission denial against root. The final container
+exits 0; its container and volume are removed and their absence is verified
+after copying and auditing the evidence.
+
+The first Linux rehearsal passes its operations but inherits `/build` for
+helper tests/Clippy, outside the owned volume; it receives no complete
+all-builds-on-ext4 qualification. A subsequent full-cache copy exhausts setup
+space before any database operation. Replacing that copy with only the locked
+dependencies uses about 144 MiB of vendored source (a 154 MiB archive).
+The checksum guard then rejects a
+premature archive hash before extraction; hashing after archive completion
+corrects preparation. These setup reports remain separate from the passing
+final run. All of their owned containers and volumes are also retired.
+
+The initial macOS development run also catches an incorrect new-oracle
+expectation: a stale journal preflight never stages its rejected intent. The
+corrected oracle requires final local journal revision 6 in both slots, and
+the fixture checks that the preflight conflict preserves the exact journal
+bytes. Production journal behavior is unchanged.
+
+Local proofs are under `target/r2/handoff-macos-f5287e6-{debug,release}` and
+`target/r2/handoff-linux-final-f5287e6`, with `handoff-logs/frozen-audit.json`
+and retained controller binaries. These ignored local files are not durable
+off-machine custody. The three-platform CI job selects the same CLI source
+and records its own controller identity. Its attempt-specific upload excludes
+all synthetic credential files. Native Windows execution, deployment-account
+acceptance, external authority/fencing, and the final release remain separate
+gates. Subsequent documentation does not relabel this frozen execution.
