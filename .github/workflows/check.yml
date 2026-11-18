@@ -39,11 +39,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: operator-recovery-${{ runner.os }}-${{ runner.arch }}
+          name: operator-recovery-${{ runner.os }}-${{ runner.arch }}-attempt-${{ github.run_attempt }}
           if-no-files-found: warn
           path: |
             target/operator-recovery/**
-            !target/operator-recovery/synthetic.secret
+            !target/operator-recovery/*.secret
   coordinator-package-recovery:
     name: Packaged coordinator recovery (${{ matrix.os }})
     strategy:
