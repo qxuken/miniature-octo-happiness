@@ -137,13 +137,18 @@ PR #14's initial hosted run passed 29 of 30 engine jobs. The exact-dylib
 APFS fixture failed during private-volume preparation. Its [sync refusal
 regression](delivered-c-faults.md#ballast-sync-refusal-on-macos) confirms native
 allocation refusal from a fresh descriptor after a ballast sync reports
-`ENOSPC`. Three added tooling records keep G. The current queue has 9,611 G
-records (2,278 runtime / 26 driver / 7,307 tooling).
+`ENOSPC`. With three added tooling records, that head has 9,611 G records
+(2,278 runtime / 26 driver / 7,307 tooling).
 The [helper registry](helper-controls.md) explicitly accounts for the new
 native APFS test. Its complete macOS audit passed 246 tests per profile
 across four suites, with three registered skips. The APFS test passed in
 its separate native run. The full local exact-dylib and near-cap copy,
 exchange and cleanup cases passed with verified image retirement.
+The [VALUE reader follow-up](decisions/codec-value-current.md) maps 30 more
+decisions and adds 35 controls. The fixture checks every truncated prefix
+and one trailing byte for integer, bytes, map and list payloads, plus an
+unknown tag. It matches current, previous and retained rows. The queue now
+has 9,581 G records (2,248 runtime / 26 driver / 7,307 tooling).
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

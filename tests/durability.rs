@@ -767,34 +767,49 @@ fn commit_descriptor_requires_every_catalog_field_and_exact_payload_end() {
     }
 }
 
-#[test]
-fn data_directory_requires_complete_sorted_records() {
-    let (disk, db) = base_store();
-    let old = db.snapshot();
-    let older_rows = state(&db);
-    assert_eq!(old.revision(), 2);
-    assert_eq!(db.retain_snapshot(&old), Ok(1));
-    assert_eq!(staged(&db).commit(), Ok(4));
-    let current_rows = state(&db);
-    assert_ne!(older_rows, current_rows);
-    let retained = vec![(1, 2, older_rows.clone())];
-    let original = disk.durable_image().unwrap();
-    drop(old);
-    drop(db);
+struct RetainedHistory {
+    image: Vec<u8>,
+    current: Rows,
+    prior: Rows,
+    retained: Vec<(u64, u64, Rows)>,
+}
 
-    let root = image_u64(&original, REGION + 40) as usize;
-    let data = image_u64(&original, root + OBJECT_HEADER_BYTES + 8) as usize;
-    let payload_len = image_u64(&original, data + 16) as usize;
-    assert_eq!(payload_len, 128);
-    let healthy = open(&SimulatedDisk::from_image(&original).unwrap());
-    assert_eq!(healthy.snapshot().revision(), 4);
-    assert_eq!(state(&healthy), current_rows);
-    assert_eq!(retained_rows(&healthy), retained);
-    drop(healthy);
+impl RetainedHistory {
+    fn fixture() -> Self {
+        let (disk, db) = base_store();
+        let old = db.snapshot();
+        let prior = state(&db);
+        assert_eq!(old.revision(), 2);
+        assert_eq!(db.retain_snapshot(&old), Ok(1));
+        assert_eq!(staged(&db).commit(), Ok(4));
+        let current = state(&db);
+        assert_ne!(prior, current);
+        let retained = vec![(1, 2, prior.clone())];
+        let image = disk.durable_image().unwrap();
+        Self {
+            image,
+            current,
+            prior,
+            retained,
+        }
+    }
 
-    let reject = |case: &str, mut image: Vec<u8>, error: Error| {
+    fn current_data_offset(&self) -> usize {
+        let root = image_u64(&self.image, REGION + 40) as usize;
+        image_u64(&self.image, root + OBJECT_HEADER_BYTES + 8) as usize
+    }
+
+    fn assert_current_reopens(&self) {
+        let healthy = open(&SimulatedDisk::from_image(&self.image).unwrap());
+        assert_eq!(healthy.snapshot().revision(), 4);
+        assert_eq!(state(&healthy), self.current);
+        assert_eq!(retained_rows(&healthy), self.retained);
+    }
+
+    fn assert_newest_rejects(&self, case: &str, mut image: Vec<u8>, error: Error) {
+        // Revision 4 is in the even slot. Clear its witness to expose any
+        // fallback to revision 3 while the damaged newest slot is present.
         image[3 * REGION..4 * REGION].fill(0);
-        resign_object(&mut image[data..data + REGION]);
         let candidate = SimulatedDisk::from_image(&image).unwrap();
         assert_eq!(
             Database::open_on(candidate.clone(), Limits::default()).err(),
@@ -813,8 +828,23 @@ fn data_directory_requires_complete_sorted_records() {
         image[REGION..2 * REGION].fill(0);
         let older = open(&SimulatedDisk::from_image(&image).unwrap());
         assert_eq!(older.snapshot().revision(), 3, "{case}");
-        assert_eq!(state(&older), older_rows, "{case}");
-        assert_eq!(retained_rows(&older), retained, "{case}");
+        assert_eq!(state(&older), self.prior, "{case}");
+        assert_eq!(retained_rows(&older), self.retained, "{case}");
+    }
+}
+
+#[test]
+fn data_directory_requires_complete_sorted_records() {
+    let fixture = RetainedHistory::fixture();
+    let original = &fixture.image;
+    let data = fixture.current_data_offset();
+    let payload_len = image_u64(original, data + 16) as usize;
+    assert_eq!(payload_len, 128);
+    fixture.assert_current_reopens();
+
+    let reject = |case: &str, mut image: Vec<u8>, error: Error| {
+        resign_object(&mut image[data..data + REGION]);
+        fixture.assert_newest_rejects(case, image, error);
     };
 
     for len in (0..payload_len).chain([payload_len + 1]) {
@@ -830,7 +860,7 @@ fn data_directory_requires_complete_sorted_records() {
     let payload = data + OBJECT_HEADER_BYTES;
     let first_key_len = payload + 6 * 8;
     let second_key = first_key_len + 4 * 8 + 1;
-    assert_eq!(image_u64(&original, first_key_len), 1);
+    assert_eq!(image_u64(original, first_key_len), 1);
     assert_eq!(original[first_key_len + 8], b'a');
     assert_eq!(original[second_key], b'b');
     for (case, key) in [("duplicate key", b'a'), ("descending key", b'A')] {
@@ -848,6 +878,57 @@ fn data_directory_requires_complete_sorted_records() {
         image[pos..pos + 8].copy_from_slice(&(maximum as u64 + 1).to_le_bytes());
         reject(case, image, Error::Limit);
     }
+}
+
+#[test]
+fn value_objects_require_complete_payloads() {
+    let fixture = RetainedHistory::fixture();
+    let original = &fixture.image;
+    let data = fixture.current_data_offset();
+    let data_payload = data + OBJECT_HEADER_BYTES;
+    // The first two directory records have single-byte keys a and b.
+    assert_eq!(original[data_payload + 56], b'a');
+    assert_eq!(original[data_payload + 81], b'b');
+    let map = image_u64(original, data_payload + 65) as usize;
+    let scalar = image_u64(original, data_payload + 90) as usize;
+    let map_payload = map + OBJECT_HEADER_BYTES;
+    assert_eq!(&original[map_payload + 24..map_payload + 28], b"list");
+    let list = image_u64(original, map_payload + 28) as usize;
+    let bytes = image_u64(original, list + OBJECT_HEADER_BYTES + 24) as usize;
+    fixture.assert_current_reopens();
+
+    let reject = |case: &str, len: u64, offset: usize, mut image: Vec<u8>| {
+        let object = &mut image[offset..offset + REGION];
+        object[16..24].copy_from_slice(&len.to_le_bytes());
+        object[OBJECT_HEADER_BYTES + len as usize..].fill(0);
+        resign_object(object);
+        fixture.assert_newest_rejects(
+            &format!("{case} payload length {len}"),
+            image,
+            Error::Corrupt,
+        );
+    };
+    for (case, offset, tag, expected_len) in [
+        ("integer", scalar, 2, 16),
+        ("bytes", bytes, 5, 19),
+        ("map", map, 6, 36),
+        ("list", list, 7, 32),
+    ] {
+        assert_eq!(image_u64(original, offset + OBJECT_HEADER_BYTES), tag);
+        assert_eq!(image_u64(original, offset + 16), expected_len);
+        for len in (0..expected_len).chain([expected_len + 1]) {
+            reject(case, len, offset, original.clone());
+        }
+    }
+    let mut unknown = original.clone();
+    let tag_at = scalar + OBJECT_HEADER_BYTES;
+    unknown[tag_at..tag_at + 8].copy_from_slice(&8_u64.to_le_bytes());
+    reject(
+        "unknown value tag without trailing data",
+        8,
+        scalar,
+        unknown,
+    );
 }
 
 #[test]

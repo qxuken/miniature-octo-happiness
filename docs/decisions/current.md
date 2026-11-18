@@ -132,6 +132,13 @@ the cached end comparison. Seventeen E rows cover propagation and iteration.
 The manifest has 74 named controls and 864 exact ledger references.
 **9,608 G records remain** (2,278 runtime / 26 driver / 7,304 tooling).
 
+The [VALUE reader batch](codec-value-current.md) binds 30 more decisions.
+Three P rows, one C row and 23 E rows cover cache reuse, scalar errors, tag
+dispatch, ordering and propagation. Two B rows preserve the scope of the
+reference guard, and one I row records the cached end invariant. The
+manifest has 86 named controls and 894 exact ledger references.
+**9,578 G records remain** (2,248 runtime / 26 driver / 7,304 tooling).
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

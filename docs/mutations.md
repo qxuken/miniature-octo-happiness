@@ -57,6 +57,9 @@ for that batch select 31, 31, 30 and 30 cases per profile.
 The [DATA directory batch](decisions/codec-data-current.md) adds 29
 `r1-data-` cases, bringing the registry to 207 cases and the R1 set to 151.
 Its five hosted Unix shards select 31, 30, 30, 30 and 30 cases per profile.
+The [VALUE reader batch](decisions/codec-value-current.md) adds 35
+`r1-value-` cases, bringing the registry to 242 cases and the R1 set to 186.
+The six hosted Unix shards each select 31 cases per profile.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
 

@@ -119,3 +119,11 @@ ran for about 15 minutes with 32 controls per profile. The DATA directory batch 
 to 151. Five hosted Unix shards select 31, 30, 30, 30 and 30 cases per
 profile. The 20-minute job limit, 120-second command deadline and single
 Windows reconciliation job are preserved.
+
+## VALUE reader shard count
+
+The VALUE batch raises the R1 registry from 151 to 186 controls. Six hosted
+Unix shards run 31 controls each per profile, preserving the previously
+qualified per-job count. The job and command deadlines remain 20 minutes
+and 120 seconds. Windows retains one reconciliation job and the separate
+native RNG campaign.

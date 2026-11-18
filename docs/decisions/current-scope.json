@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "baseline": "c80567303edcf5577647425e50dd51b9d081dc98",
+  "baseline": "2a59de8d6d828f9b53343699ae2ddbeeb0ea3b01",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -175,7 +175,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "e0174dab92a4604c9385439fc73b8f8cbaa2f34cbc6b3c1a321ad564a6f1b076",
+    "xtask/src/mutations.rs": "83b0205b0e94aed51a47c99e31ee94f20b8e22e1e2e92a0d36d811fed4b5d0ff",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
@@ -234,7 +234,7 @@
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "79141b9dccefbe99a756e487a29a130f83f30adea0abcd9d95d73e7a1d43d8ae",
+    "docs/decisions/current.md": "8cd841c3fd3630a8672ec75ec306004a2b9772a8e596c7717cd6751511bdb217",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -254,7 +254,7 @@
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "e0198f592d4ed2e0c4b35e286dd771b8f04666192862354877c8aaa79307b9f8",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "7a530084ed715e49dc6e7d50c3fff02419d5332115e918c6bd53fc59c325fcf1",
+    "docs/mutations.md": "86287153ac89dca4e997b667f65ff1827f9dd32a3191399b00254b6974e9ee08",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -267,7 +267,7 @@
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
-    "tests/durability.rs": "61ef283579a61810a0f8cf55580d6bacf95f0d3c1a9addc8e0ec90eb15eb836d",
+    "tests/durability.rs": "7fd179533328438ccf5e677b02a05a8030de66cdad1a128c504b574a6368a381",
     "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
     "tests/files.rs": "11fb925f39e7ff6555ed776e28079e78f4e47359146b2685a70113a77a113260",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
@@ -287,17 +287,18 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "5cbfb45b14076cd9af4ec7f01eb5eabc8064480f9d5fe89ff48b5d0aca565867",
+    "xtask/tests/mutations.json": "e26ed69fc6f2bb9d8a166e924757d9aff42682bc9df874e6a1e06378e0c837b6",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "21cb7a6f3b4b0d9177940be1260b7ecb2a6a3667224d7328063f808c520959b0",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
     "docs/decisions/codec-metadata-current.md": "d51b3df64193e3a3a0d8e1752bf2061c9a47144b21148a069518ef5b69107b4f",
-    "docs/r1-ci-shards.md": "5a3ece1542ac6def840c24e532dda47bbff5f1916c1c3c5d406a4a320e55edd8",
+    "docs/r1-ci-shards.md": "ae0d4ba7810f0a8855951cef521d1ac72ea1c9b7c1ee969bfd4a71f4971bad01",
     "docs/decisions/codec-graph-current.md": "2668f270c43ef6b43748c45f64b1a3bffe341786b3fa217b764e1d9e2c6c8b1a",
     "docs/decisions/codec-catalog-current.md": "6f7d97e9a7924894a71e8b3373c55bda2a549918e5abd340404bdb5ca2878edc",
     "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
-    "docs/decisions/codec-data-current.md": "84ff793f88390096fcba2c2700d1ddd218169dfc3387e52bf13cd309ac9f3834"
+    "docs/decisions/codec-data-current.md": "84ff793f88390096fcba2c2700d1ddd218169dfc3387e52bf13cd309ac9f3834",
+    "docs/decisions/codec-value-current.md": "0697522eb7d6c227dac0c228fe6d8721e45ba4f832f7f577d436e23b65d87f69"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -489,7 +490,8 @@
         "docs/decisions/codec-metadata-current.md",
         "docs/decisions/codec-graph-current.md",
         "docs/decisions/codec-catalog-current.md",
-        "docs/decisions/codec-data-current.md"
+        "docs/decisions/codec-data-current.md",
+        "docs/decisions/codec-value-current.md"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
@@ -3548,6 +3550,317 @@
       ],
       "mutations": [
         "r1-data-cache-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-CACHE-LOOKUP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "pattern_test",
+        "conditions": [
+          "cached.map(|index| &self.cache[index])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-cache-reuse"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-OBJECT-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.object(offset, VALUE, parent)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-value-object-read"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-SCALAR-ERROR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "if",
+        "conditions": [
+          "e == Error::Invalid"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "checksummed_but_malformed_payloads_are_checked_before_use"
+        },
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-normalize-invalid",
+        "r1-value-preserve-allocation-error"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-SCALAR-CONSTRUCTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "Value::scalar(self.mem, kind, bits).map_err(|e| {\n                    if e == Error::Invalid {\n                        Error::Corrupt\n                    } else {\n                        e\n                    }\n                })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-scalar-construction"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-BYTES-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "Value::bytes_new(self.mem, cursor.key(self.mem.limits().max_bytes)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-bytes-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-MAP-KEY-ORDER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "if",
+        "conditions": [
+          "previous.is_some_and(|old| old >= key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "graph_traversal_checks_offsets_lengths_order_and_payload_shape"
+        }
+      ],
+      "mutations": [
+        "r1-value-map-key-order"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-MAP-INSERTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "map.set(self.mem, key, child)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-map-insertion"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-MAP-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "Value::from_map(self.mem, map)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-map-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-LIST-INSERTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "list.push(self.mem, child)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-list-insertion"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-LIST-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "Value::from_list(self.mem, list)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-list-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-PAYLOAD-END",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "cursor.done()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "value_objects_require_complete_payloads"
+        }
+      ],
+      "mutations": [
+        "r1-value-payload-end"
+      ]
+    },
+    {
+      "name": "CODEC-VALUE-CACHE-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "value_inner",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem\n            .reserve_geometric(&mut self.cache, 1, MAX_OBJECTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "recovery_preserves_shared_value_identity_and_fails_allocation_safely"
+        }
+      ],
+      "mutations": [
+        "r1-value-cache-allocation"
       ]
     }
   ],
