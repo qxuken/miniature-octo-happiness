@@ -13,6 +13,12 @@ individual G reasons; R1 remains open for that reconciliation. Tables below reta
 their original source/denominator; they are not silently transplanted to new
 positions or promoted to compiler-measured MC/DC.
 
+The [Cargo catalog follow-up](../decision-inventory-catalog.md) adds independent
+workspaces, examples, benches and build scripts. The current review pins all
+66 non-test targets across fourteen workspaces, including macro-only targets
+with zero visible decisions. Per-target scopes and explicit historical
+eligibility prevent shared files from carrying credit into new contexts.
+
 These ledgers classify explicit source records, including overlapping logical
 syntax and propagation sites. Counts are not independent MC/DC conditions or
 compiler-measured branches. Each ledger binds source/test hashes and separates

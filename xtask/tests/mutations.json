@@ -760,6 +760,54 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-inventory-example-kind",
+      "file": "tools/decision-inventory/src/discovery.rs",
+      "old": ".any(|k| k == \"test\")",
+      "new": ".any(|k| k == \"test\" || k == \"example\")",
+      "test": "catalog",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-decision-inventory",
+      "manifest": "tools/decision-inventory/Cargo.toml"
+    },
+    {
+      "name": "r1-inventory-target-count",
+      "file": "tools/decision-inventory/src/review.rs",
+      "old": "target_counts.insert(id.to_owned(), 0)",
+      "new": "target_counts.insert(id.to_owned(), 1)",
+      "test": "weekend-decision-inventory",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-decision-inventory",
+      "manifest": "tools/decision-inventory/Cargo.toml"
+    },
+    {
+      "name": "r1-inventory-historical-target",
+      "file": "tools/decision-inventory/src/review.rs",
+      "old": "if catalog_review && !historical_targets.contains(d[\"target\"].as_str().unwrap()) { continue; }",
+      "new": "if false { continue; }",
+      "test": "weekend-decision-inventory",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-decision-inventory",
+      "manifest": "tools/decision-inventory/Cargo.toml"
+    },
+    {
+      "name": "r1-inventory-target-scope",
+      "file": "tools/decision-inventory/src/review.rs",
+      "old": "let scope = target_scopes.get(d[\"target\"].as_str().unwrap()).copied().unwrap_or(b[\"scope\"].as_str().unwrap());",
+      "new": "let scope = b[\"scope\"].as_str().unwrap();",
+      "test": "weekend-decision-inventory",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-decision-inventory",
+      "manifest": "tools/decision-inventory/Cargo.toml"
     }
   ]
 }

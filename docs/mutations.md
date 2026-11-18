@@ -7,6 +7,7 @@ cargo xtask mutations --list
 cargo xtask mutations --case tls- --output target/tls-mutations-new
 cargo xtask mutations --case r1- --output target/r1-mutations-new
 cargo xtask mutations --case r1- --release --output target/r1-mutations-release-new
+cargo xtask mutations --case r1-inventory- --toolchain 1.99.1 --output target/r1-inventory-mutations-new
 cargo xtask mutations --output target/all-mutations-new
 ```
 
@@ -17,6 +18,12 @@ Thirteen [R1 controls](decisions/current.md) extend that registry to 69 cases,
 reusing typed T11, CRDT C4 and snapshot R4/R5/R6 tests and adding direct admin
 export controls and the existing TX-V1 validation-mode table. The historical fixture provenance applies to the original
 56; the current reconciliation additionally pins the complete updated fixture.
+Four [Cargo inventory controls](decision-inventory-catalog.md) bring the current
+registry to 73 cases. They check example inclusion, zero target counts, historical
+target eligibility and per-target scope. Their only supported standalone
+manifest is `tools/decision-inventory/Cargo.toml`, paired with package
+`weekend-decision-inventory`; root-package selections retain their prior commands.
+Both test execution and package cleanup use that same registered manifest.
 All source expressions are checked before an output or source copy is acquired.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "manifests": [
+    "Cargo.toml",
+    "apps/study-peer/Cargo.toml",
+    "apps/weekend-replicate/Cargo.toml",
+    "apps/weekend-tasks/Cargo.toml",
+    "apps/write-coordinator/Cargo.toml",
+    "crates/weekend-db-macros/Cargo.toml",
+    "crates/weekend-db-typed/Cargo.toml",
+    "crates/weekend-db-typed/tests/renamed/Cargo.toml",
+    "examples/rust_package/Cargo.toml",
+    "fuzz/Cargo.toml",
+    "probe/rust/Cargo.toml",
+    "tools/atomic-model/Cargo.toml",
+    "tools/decision-inventory/Cargo.toml",
+    "tools/incident-recovery/Cargo.toml",
+    "tools/monthly-workload/Cargo.toml",
+    "tools/replica-progress-fixture/Cargo.toml",
+    "tools/resource-envelope/Cargo.toml",
+    "tools/serialization-scale/Cargo.toml",
+    "tools/soak/Cargo.toml",
+    "tools/sqlite-baseline/Cargo.toml",
+    "xtask/Cargo.toml"
+  ]
+}

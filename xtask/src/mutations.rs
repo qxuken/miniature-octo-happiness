@@ -36,6 +36,7 @@ struct Case {
     occurrence: usize,
     matches: Option<usize>,
     package: String,
+    manifest: Option<PathBuf>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -88,10 +89,12 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 && c.occurrence > 0
                 && c.matches.is_none_or(|n| n > 0)
                 && matches!(c.target.as_str(), "--lib" | "--test" | "--bin" | "--bins")
-                && matches!(
-                    c.package.as_str(),
-                    "weekend-db" | "weekend-db-typed" | "study-peer"
-                )
+                && match (&c.manifest, c.package.as_str()) {
+                    (None, "weekend-db" | "weekend-db-typed" | "study-peer") => true,
+                    (Some(manifest), "weekend-decision-inventory") =>
+                        manifest == Path::new("tools/decision-inventory/Cargo.toml"),
+                    _ => false,
+                }
                 && !c.test.is_empty(),
             "invalid mutation contract"
         );
@@ -160,6 +163,12 @@ fn command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
     );
     if release {
         args.push("--release".into());
+    }
+    if let Some(manifest) = &case.manifest {
+        args.extend([
+            "--manifest-path".into(),
+            manifest.to_string_lossy().into_owned(),
+        ]);
     }
     args
 }
@@ -321,6 +330,9 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                 clean.push(path(format!("+{t}")));
             }
             clean.extend(cmd(["clean", "--offline", "--locked", "-p", &case.package]));
+            if let Some(manifest) = &case.manifest {
+                clean.extend(cmd([path("--manifest-path"), path(manifest)]));
+            }
             let outcome: Result<bool> = (|| {
                 c.command_at(
                     clean.clone(),
@@ -440,7 +452,7 @@ mod tests {
     #[test]
     fn fixture_preserves_test_commands_and_selects_release_explicitly() {
         let data = inventory().unwrap();
-        assert_eq!(data.cases.len(), 69);
+        assert_eq!(data.cases.len(), 73);
         let c = &data.cases[0];
         assert_eq!(
             command(c, None, false),
@@ -460,6 +472,34 @@ mod tests {
         let mut optimized = command(c, None, false);
         optimized.push("--release".into());
         assert_eq!(command(c, None, true), optimized);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn standalone_mutations_select_the_pinned_manifest_in_both_profiles() {
+        let fixture = inventory().unwrap();
+        let case = fixture
+            .cases
+            .iter()
+            .find(|c| c.name == "r1-inventory-example-kind")
+            .unwrap();
+        for release in [false, true] {
+            let args = command(case, Some("1.99.1"), release);
+            assert_eq!(
+                &args[args.len() - 2..],
+                ["--manifest-path", "tools/decision-inventory/Cargo.toml"]
+            );
+            assert!(args.windows(2).any(|a| a == ["--test", "catalog"]));
+            assert_eq!(
+                args.iter().filter(|a| *a == "--release").count(),
+                usize::from(release)
+            );
+        }
+        let mut data: Value = serde_json::from_str(FIXTURE).unwrap();
+        let last = data["cases"].as_array().unwrap().len() - 1;
+        for manifest in [Value::Null, json!("../Cargo.toml"), json!("Cargo.toml")] {
+            data["cases"][last]["manifest"] = manifest;
+            assert!(parse_inventory(&data.to_string()).is_err());
+        }
     }
     #[test]
     fn only_requested_production_occurrence_changes_and_source_drift_rejects() {

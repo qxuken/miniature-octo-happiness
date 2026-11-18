@@ -105,10 +105,19 @@ jobs:
             target/coordinator-package-roundtrip/**
             !target/coordinator-package-roundtrip/cargo-target/**
   decision-inventory:
-    name: Source decision reconciliation and R1 controls
-    runs-on: ubuntu-latest
+    name: Source decision reconciliation and R1 controls (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     steps:
+      - name: Preserve committed file bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - name: Install the pinned compiler and cache locked inputs
         run: |
@@ -123,6 +132,7 @@ jobs:
       - name: Reject stale source, reference, decision and control bindings
         run: cargo +1.99.1 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/review --review docs/decisions/current-scope.json
       - name: Detect the R1 controls in debug and release
+        if: runner.os != 'Windows'
         run: |
           cargo +1.99.1 xtask mutations --case r1- --toolchain 1.99.1 --output target/r1/mutations-debug
           cargo +1.99.1 xtask mutations --case r1- --release --toolchain 1.99.1 --output target/r1/mutations-release

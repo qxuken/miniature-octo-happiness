@@ -331,10 +331,13 @@ length. Revisit the proof if bounds or check order change.
 | [CRDT core and containers](../src/crdt.rs), [container modules](../src/crdt) | Actor and policy validation, field codecs, actor-owned progress, bounded counters and clocks, add/remove and register causality, convergence/idempotence, conflict policy and durable local publication, stale actors and no-op replay |
 | [Apps](../apps), [examples](../examples), [probe](../probe), [tools](../tools) | Treat task CLI, peer and coordinator as their own lifecycle and protocol profiles if shipped. Run Rust/C/Odin examples as actual artifact consumers. Validate test-only tools and simulator oracles independently so mistakes in the harness can be detected |
 
-The existing ledger provides the starting pairs. For the next tranche,
-finish metadata parsing, graph traversal/cache checks, and record and
-collection validation. Then audit the allocator and FFI unsafe boundaries,
-file adapters, and replacement logic. Require every applicable decision
+The existing ledgers provide the starting pairs. The
+[Cargo catalog follow-up](decision-inventory-catalog.md) makes independent
+workspaces and consumer targets explicit, with separate context scopes and
+unqualified records. That source inventory expansion does not close MC/DC.
+Use the individual reconciliation queue to identify remaining metadata,
+graph/cache, record and collection, allocator, FFI, file-adapter and replacement
+decisions, retaining existing exact evidence where it applies. Require every applicable decision
 in a shipped safety-critical scope to have evidence or a reviewed
 disposition. An unexplained gap blocks that scope. Mutation checks should
 be reproducible per decision and demonstrate that a relevant test fails

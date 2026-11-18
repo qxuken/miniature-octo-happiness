@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "baseline": "2bc8e795934af30d108dae7bc6c7b0cbd5c4715b",
+  "schema_version": 2,
+  "baseline": "b32a868d3c66d9f18545d568006066e00b2045d0",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -11,6 +11,8 @@
     "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
     "apps/support/pinned_tls.rs": "3772645837b8f2f4e8ba8b1c743902538a2541f781999724a59de98395706b53",
     "apps/support/service_diagnostics.rs": "02a7c1dcba60626104be3f58da640459b5f185546b64a532c189d3f62ef07208",
+    "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
+    "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
     "apps/weekend-replicate/src/native.rs": "bf4b7a29d62011a342a9badb6dc8d74fcaab5ea51c901ff25cc19605d874679c",
     "apps/weekend-replicate/src/native/admission.rs": "7144c0e040b9955bf64fe857361653378d3e01fb784639da5c8eae125ad312c3",
@@ -32,7 +34,64 @@
     "crates/weekend-db-typed/src/codec.rs": "7725f08e3d1df5180cf839899c929e9d6219c92e7352d17e2758ef3f1fe127aa",
     "crates/weekend-db-typed/src/lib.rs": "e6a706a0b017b605cdde1d660f5e2c36504a61239500acb8b18f3d1fca98345d",
     "crates/weekend-db-typed/src/store.rs": "2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa",
+    "crates/weekend-db-typed/tests/renamed/src/main.rs": "55a6efdd13151b31a7910f0e165bc1cac9f0d5a3bb58f87bd2788b706795da6b",
+    "examples/crdt_policy_migration.rs": "22b9e35114d1f922a01bb04bb252f255c74f63239e16354bc3f8e71172f48d2a",
+    "examples/file.rs": "4cec06b13cc0fc8ac10a94bd357118681de8b658f6fe50098df783a604db2fc8",
+    "examples/memory.rs": "698133206c0f46b8f1e456b21f10ea0bd40c0cc0146ace1a27cc64ac4a9eccc0",
+    "examples/native_faults.rs": "7fa772dea3e74977e719f42d1b68701313a45aefb9c7c0af7a5c8d61273be302",
+    "examples/raw_tasks.rs": "d106d09d1f1b9416bb3ad6d2202974021fa64993bfa983d0d2ccb5343e844ff6",
+    "examples/recovery_scale.rs": "25038aaad6a0a22ba975cb42512ba99dd5ed44ed0e9addd617b7f004a46a295f",
+    "examples/rust_package/src/main.rs": "d3cf18dc8a86672f871f72e3102b0791ecfb82e7624cdc5f5b81765edd27e045",
+    "examples/simulated.rs": "2ab450d00ecc9e54b05358ad26de6803ef0e6f06084d8c3d1a26d1aefae157ea",
+    "examples/storage_lifecycle.rs": "538b183086a2f9f2d6227f3e767796f000175dd6404fbc2e8704312aa6249b99",
+    "examples/study_progress.rs": "955a8a62fe2985ff37788d30e93b679137985e9e93ec228a894c8c10c024b8a0",
     "examples/support/study.rs": "d2a119e71a0863fa16ab2da04a8254e8fee9c6584448f2810edf80996522226d",
+    "examples/support/users.rs": "9bc8d09ec23c475bc641abc059a54b6c8a211b9fd1b05fbbe3d8ef0c1b87871d",
+    "examples/typed.rs": "2cf1f8d30a277ecad9cca3fbee5e20170d94c7fcd9a85264d2f787c8deb9ab37",
+    "fuzz/examples/crdt_seeds.rs": "45533b55f81d0c9f7b355c19946ba33b11df54576c1cd2b5de625d94444ff807",
+    "fuzz/examples/operations_seeds.rs": "7990c5f26f154faab8996b7ca0623d83172a862ff03eeb1aa1749918ceeb0932",
+    "fuzz/examples/seed_corpus.rs": "0686b80393c1ab3cf6fe37de3627719663f3dc52fc9d08d915db09141dc4fb42",
+    "fuzz/examples/snapshot_seeds.rs": "4c08993ec89843cc8234d8d042f2fcdfa7108e4bb9ebf4b4ddd63b57e7456e68",
+    "fuzz/fuzz_targets/backup_restore.rs": "9fe3e5c75410743a4b5762391ded754b86529fde41fad174b10fc95304161a98",
+    "fuzz/fuzz_targets/bytestore_contract.rs": "2655cb3d7de6090e9f486685e2beaa47d226aaf9bd3cbdce1154ca1831b1d6c5",
+    "fuzz/fuzz_targets/commit_crash.rs": "9cc4f62e6f9a51f81e5cfba788d6d3811f4f5924122f31548e34665420a119a1",
+    "fuzz/fuzz_targets/coordinator_protocol.rs": "bccbae3f8a6f4e5c84dc701e08c0c53fca9dad156d0fe940fd677a2b34554227",
+    "fuzz/fuzz_targets/crdt_frames.rs": "6571a8d5439965bd56785270dfd088a165e95ce7ce8b25e8a1e71ff91812dddf",
+    "fuzz/fuzz_targets/crdt_schedule.rs": "9b4ec9586da281337e4b5c33cc85dbc42adeeb2dff7504ae1174ef5faac691ff",
+    "fuzz/fuzz_targets/derive_tokens.rs": "9d0692fc07a2ff5b97429b700ca365112fd2a497ab32985f036ad42343c0bfd7",
+    "fuzz/fuzz_targets/ffi_ops.rs": "73195e8a36458bcfface74fbf0166b5ea11f267308582a8383306cbfdcc1f2a5",
+    "fuzz/fuzz_targets/image_and_ops.rs": "ec4701f23cc98fd4e6cd700ae1fd2f7f3966aabe70a9c968d86cd24b421b54b4",
+    "fuzz/fuzz_targets/logical_import_export.rs": "410b99fe32ea58080f3abed9664e55d15e0afa42f90a7578bf5a6bd3adc4a2e7",
+    "fuzz/fuzz_targets/open_image_bytes.rs": "252a2ddc6fc01d648cb0e960d6ebd1c0ce8f6124e9f912a97b6b98e6d879e103",
+    "fuzz/fuzz_targets/open_structured_image.rs": "e3a31459d472916ebe2dbc9798dfd8c8a1f845a005c929f47f33ebf51ea284b5",
+    "fuzz/fuzz_targets/peer_transport.rs": "ed36f73e51adad0e87d8ce03a92e17a3f5e226774afd5945e542b6155ca51253",
+    "fuzz/fuzz_targets/register_causality.rs": "8af427fd1f9dc6c5ebcb45d850318800af0d0593705761575ba4ce03fe618827",
+    "fuzz/fuzz_targets/replacement_namespace.rs": "88331434bd72541f09cb50818523887bc217a5271738238824ae3d890e3f029a",
+    "fuzz/fuzz_targets/retention_compact_crash.rs": "77fbabe28694211aee701eaf67cf57a418a30840bd7566d255ee98727d7be11b",
+    "fuzz/fuzz_targets/schema_index_migration.rs": "09b64e60a7e5149a68aedf529bb08ec52dad2c3e1bcc9801005d1be03c8e710a",
+    "fuzz/fuzz_targets/snapshot_frames.rs": "6c41235fa50f157874c8d6280bcc0e91264a6afcf3ef1229a8f0068980ae263e",
+    "fuzz/fuzz_targets/snapshot_install_schedule.rs": "433d526b6a564eaaba330f6c405782075680af5db29f278bc37840b9abc1b019",
+    "fuzz/fuzz_targets/tree_adversarial_keys.rs": "6aff434582fc2df5d0ee9bd98c329cd0029b8109ab57e8fd4eddce96210b6d24",
+    "fuzz/fuzz_targets/txn_schedule.rs": "d90560585d3cb58e2179b6f50a2bbe45f5e1c560cabf436258f597651cb8f141",
+    "fuzz/fuzz_targets/value_ops.rs": "c8a26c2e2045f6978126ba196d41278c11da49fc3141decd65edfd5a2bd70d8e",
+    "fuzz/src/adversarial.rs": "6f5ba52ac952a27254b11d549e285881bfc77790a00f064cb70d7633193187ab",
+    "fuzz/src/coordinator.rs": "1427f64e32c15a5f255c50b4cb429320757d36e0fd9aa3d14be4b74fd1ff2e10",
+    "fuzz/src/crash.rs": "68efc68cae3e05925d90e4aaca2009f43cdb221772cbab2b81679a616975f146",
+    "fuzz/src/crdt.rs": "d1e4d28b8725696dea685c90c8bc19961e07b8cc23b03c62acdb1b2902b57ad0",
+    "fuzz/src/derive.rs": "09da8b335c76ab3ef393ce8f64a31480e0ad0f4dbe6f492b685593731532e448",
+    "fuzz/src/foreign.rs": "f905795854b2abf39ed250b5931a879bd4b6afbdada9498188a4cd96fad648f9",
+    "fuzz/src/history.rs": "e0dd4f80613e9d92a5245d0349055ac64f76aae50af0e8f846ae530365459732",
+    "fuzz/src/image.rs": "9770c956ae674397fd73e9441be5909d5d9b51f4d9b58e92241ebf4b4ce8c7dc",
+    "fuzz/src/lib.rs": "4529449d79a00dd7e64923d621c3c87c54c062a677102db52fa5774e5c9a46a0",
+    "fuzz/src/namespace.rs": "4b6255be88ad490dcdbf0d37bcac5f7220d7027348419b863add6675b9ca1568",
+    "fuzz/src/operations.rs": "699520bfb6c1d8e9d34548176618b8aeefef3d5957e7eac187a793876265cc71",
+    "fuzz/src/peer.rs": "8313a8b86ae207c8aa404266bef1ec115c06655b9f620a701788a9d6b2c13259",
+    "fuzz/src/registers.rs": "88f2ce21409b69c670287872731b89a52cbc6eb1141eeae0498f14c839571fc7",
+    "fuzz/src/schedule.rs": "6a1bed4fe291ce9ad20bcaf61352a5897d657e0cbae7b85dd6a47e63960f62d2",
+    "fuzz/src/snapshot.rs": "5494ffef0ccb1a202a2b7f0874d38844742d06e2f38a6a95d6819892498b6969",
+    "fuzz/src/typed.rs": "24b7fe87c47222a7a7db431cda2bcf7d9df6c8884c8e22b78385caa1cc1dbbb0",
+    "fuzz/src/values.rs": "b3330f3d996c0f2bd5932c11e169195a5e19258915bfda8f08b97352b4ce896c",
+    "probe/rust/src/lib.rs": "222e5f2f579448b9776748c7cee9d2efdacc63ae6b1b03208f68aa50dcb984c6",
     "src/crdt.rs": "314b94c63278801a91ee1cfd8f2f387a6c1452cc46c3ce5bbf380a3a6735bf45",
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
@@ -60,10 +119,32 @@
     "src/tree.rs": "bcec08cd41a96fa1e5f82fbeb2b469f4f459110995ee75abd5f6487e05c24cd0",
     "src/value.rs": "254aaa0b5e56fa7cdee7e164b93d655311e0585aee86f40494301688662b663d",
     "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
+    "tests/support/mod.rs": "007e7da58df3c8818418cb4460436e7b15e18026a32b5b0b742ebc78c89a7ab4",
     "tools/admin.rs": "5bf45aecb59283e8d3f5c3192fcc01fdf0abe983219402f2b7daba31a40611fb",
+    "tools/atomic-model/src/budget.rs": "ff9048fb065807c67190b52729e26c79980425c7eadd67b4354fa8befe58b6dc",
+    "tools/atomic-model/src/main.rs": "0e931398fbb8211d4c567fd87cd73b44c38e0e362c30a81bc5711ba40a238b18",
     "tools/benchmark.rs": "a522795d6ad4346dad50b9e9d8b1e790838895649bda034e2d25cdcc44d107ac",
+    "tools/decision-inventory/src/discovery.rs": "a429a53f3a115e3e9727a90d9f14016efe220502268f2a3d6a9c3a03f34a6ffb",
+    "tools/decision-inventory/src/main.rs": "e256b9c16f3646d3ec1cff91ce13ffa4e4d61afe2145478971b1eb37df1a1058",
+    "tools/decision-inventory/src/review.rs": "4332720f323fa009683869d18ff859a09f2e01c639e8e26200b278fc2a7854e6",
     "tools/file_worker.rs": "991190d7e55147765a10d89ec30ca2fd71ad373532cf50d3febceab1006cbf5b",
+    "tools/incident-recovery/src/main.rs": "81995d6a7ade96e89cc1068e41b724fbab2508798a67a5b6cd96792bd0fa5431",
+    "tools/monthly_workload.rs": "693a87afddca4922dea6504ce7df666691c991011db24a6d282c1e0470e36ebf",
+    "tools/quota/fixture.rs": "04758e5f7ba804c3348f9f6602d51679dd348d52e2c1edc9a66bf42f5de958aa",
     "tools/quota/windows_identity.rs": "922a2a19d3c1733d4a60367ea4b8b3854d6769720d11aca82ce22843245d0030",
+    "tools/replica-progress-fixture/src/main.rs": "35cabc9d12739c2ba6b4bb6fdd193b7eef867c7d5bf3540388d4080d967830f3",
+    "tools/resource-envelope/src/breadth.rs": "c8f75762ab0be822b23f2d5ad1de2eda11f8f0aede3e4dc34da9e84ea47c92d0",
+    "tools/resource-envelope/src/breadth_sustained.rs": "dcd460e4e890c23f3aeb378d9913db4337ce928f2053fa0793070e40cb191fcf",
+    "tools/resource-envelope/src/compound.rs": "51435c5b6ffe140485462d04b8d07040750daeb7f04e3ad9727941056181faa6",
+    "tools/resource-envelope/src/main.rs": "075cfb94d5e37877aa9c460a5970d83da8df2818b1b981d64230efbbe7450ffb",
+    "tools/resource-envelope/src/quota_token.rs": "011249b28caeecd91e3fa785960539f2859dc98c0b68a70cc8fe323779bc2ffe",
+    "tools/resource-envelope/src/resilience.rs": "9968790397356be1f0c0f79136abf65de9bbd89983eb57165605372cbfc28b50",
+    "tools/resource-envelope/src/space.rs": "f30a72044aa4a9aa98ca0c17e49b416bfdfc011e6b34f5f9c414bd11749b9da5",
+    "tools/serialization-scale/src/main.rs": "0909b8979b84c66038abec340e86539bf10ada0df1f3d72e65672fc7708c01e8",
+    "tools/snapshot-test-keygen.rs": "65ba364c6b8eecdb7a2449531002d2c7d61638ce34efc5807b9f68bcdd6d9456",
+    "tools/soak/src/main.rs": "566cd6367494efaec1c81955f5c0d1ca8ecc7f5dd0088895f32a493cdf7efb12",
+    "tools/sqlite-baseline/src/main.rs": "2297471dc12831bde01c8ca25b9c1dc91f7151e078547339f4e5ed075f1d23ce",
+    "tools/sqlite-baseline/src/sqlite.rs": "cc5f57d4a114f45695d39760b9b1c6201948616d8ed54216f77b7199d4970e1d",
     "tools/sqlite-baseline/src/workload.rs": "b501e8c6cd62d9de0ca0056c8d67ca745bd021b9c5e3da6f56b76af427d7014d",
     "xtask/src/abi.rs": "f7f089dfd602962861fe05505d6e0938c64cbc85098ef1677f555fb118a7df7a",
     "xtask/src/apfs_exhaustion.rs": "9f27265733bb1d83bbc4319ea5f349a59241af6e4d0a9af02067f84872f2c19e",
@@ -76,11 +157,11 @@
     "xtask/src/clean.rs": "6f6ee36687033547a9c1e1e47b1ba89091a51a76a0691a2a2b185866980bd241",
     "xtask/src/compatibility.rs": "036b3da70dc40dcbce45d4d0fe61894591c0674c180824fef40c7e89abfc37f4",
     "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
-    "xtask/src/coverage_executables.rs": "2de11e2b513e474850d7ee28593f312fc3035d6b8c725df5b9acc5d19a999bc4",
     "xtask/src/coverage.rs": "701672c26b2ff14a6397bac61add44a6c6ddb18570948548e97fd561162af930",
+    "xtask/src/coverage_executables.rs": "2de11e2b513e474850d7ee28593f312fc3035d6b8c725df5b9acc5d19a999bc4",
     "xtask/src/delivered_faults.rs": "adb0c3f9e44844324ba67e6550123424b4b6fd2231605c3c39dd23d01c795861",
-    "xtask/src/delivery_matrix.rs": "0dc8cdb7bc1391df4da16436626f2912c5695ae701ea254debde705c6274ca6a",
     "xtask/src/delivery.rs": "6fd257af131db1925e24b1ed44752d824be5e615f5f59e8361b184fb372f0d63",
+    "xtask/src/delivery_matrix.rs": "0dc8cdb7bc1391df4da16436626f2912c5695ae701ea254debde705c6274ca6a",
     "xtask/src/faults.rs": "917a52091957921af9204c042206938c8dbcc3176717bcb3a0e9810784186d67",
     "xtask/src/follower_backup.rs": "27635ce94ecaebc27c6ba86dc3ec6d7ef63761bcaa260300522b734c4dfbc713",
     "xtask/src/fuzz.rs": "4ead6868462757555c71f051383530c9b73bc5d3c60d6894ea654e8d41fb4d76",
@@ -94,8 +175,8 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
+    "xtask/src/mutations.rs": "71467d409546262dcc1dc4f5953773794c6132f1684660d88fdc344bbb6eb4a6",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
-    "xtask/src/mutations.rs": "51f80a8becc36b8c6d72b8b29f57d11b83d6f9052753df96f045723d81a6170c",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
     "xtask/src/package.rs": "d9e495f91599d787084e316289bf5a0c64b9be575ea72d7782e343d3dbf34f49",
@@ -117,8 +198,8 @@
     "xtask/src/serialization_scale.rs": "396f0888a76395d2878c189d3a5a922206b0d055fa3b673cdaa84b88e36a78be",
     "xtask/src/snapshot_month.rs": "86bde06a13cae25ff0fd2ec05acef8cefb0988e08b14fde6ef7617f269be434a",
     "xtask/src/snapshot_proof.rs": "3a6f37f065f74bab278f2f6136cad970b979512f8daac485dabf77bc09811d0c",
-    "xtask/src/snapshot_upgrade_linux.rs": "fae4a063edd468024ecbef2c97e433010d8a9c6f90f081aa5f730af4421c1d47",
     "xtask/src/snapshot_upgrade.rs": "a99bcdc33fdc164923c3b20fa0c4e5fc0a7e967b8630689bd1efc9521f6606fa",
+    "xtask/src/snapshot_upgrade_linux.rs": "fae4a063edd468024ecbef2c97e433010d8a9c6f90f081aa5f730af4421c1d47",
     "xtask/src/soak.rs": "371af9e99747f7fa33d0f4f89a5ff7e9ac728ad9c3e6c7b9e7f6fa854eb4cf6c",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
     "xtask/src/source_inventory.rs": "76d51506ef1a96357bdd0cc3639b5cc8e5703eaf1d5d96f10fbee79a0c38c4d7",
@@ -153,7 +234,7 @@
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
-    "docs/decisions/current.md": "97b987c21bdfc8f8d257559f25f715fbe6f284d1f7aa37494c7d64492256e787",
+    "docs/decisions/current.md": "9bebfe4566704dd6857e264b8b82a9d2dd07129f10cf5e3af87822651f74cf49",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
@@ -173,7 +254,7 @@
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "bc2ead0e8b3e6da63d18ba73d33c570068ab07ebe573494ccc26b8bc40dfea47",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "3d5b47bae8331053282f88af0686e995e9ad29ee4dd9ee3d8d2c202d0bd69dca",
+    "docs/mutations.md": "91dbaaf1dc77b856c44e008b0473d79424c8370bcbdc8b862dba0f604d1e77ac",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -206,22 +287,78 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "0e20e4bb5e06ce5638cba7e006d45eba960647f39ef2a7c9c67a2495f4ec18e9",
-    "xtask/tests/mutations.json": "2bcc0bf09ba4e9b5ea5e4781a7de104828ecf75bf97846409e3d55411eaa87fb",
-    "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43"
+    "xtask/tests/mutations.json": "8fb50ef7be706d290bbd85ea9381ef3dc02b9014036d272193e29caf4e3ea613",
+    "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
+    "docs/decision-inventory-catalog.md": "6121fc4a1e4d1574269e3456d7e7bd9d81c42042b64d56d0e253868c6c3b02cd",
+    "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24"
   },
   "target_records": {
+    "incident-recovery-consumer::incident-recovery-consumer": 7,
+    "monthly-workload::monthly-workload": 25,
+    "private-rust-consumer::private-rust-consumer": 34,
+    "replica-progress-fixture::replica-progress-fixture": 2,
     "study-peer::study-peer": 295,
+    "typed-renamed-consumer::typed-renamed-consumer": 3,
+    "weekend-atomic-model::budget": 6,
+    "weekend-atomic-model::weekend-atomic-model": 2,
+    "weekend-db-fuzz::backup_restore": 0,
+    "weekend-db-fuzz::bytestore_contract": 0,
+    "weekend-db-fuzz::commit_crash": 0,
+    "weekend-db-fuzz::coordinator_protocol": 0,
+    "weekend-db-fuzz::crdt_frames": 0,
+    "weekend-db-fuzz::crdt_schedule": 0,
+    "weekend-db-fuzz::crdt_seeds": 4,
+    "weekend-db-fuzz::derive_tokens": 0,
+    "weekend-db-fuzz::ffi_ops": 0,
+    "weekend-db-fuzz::image_and_ops": 0,
+    "weekend-db-fuzz::logical_import_export": 0,
+    "weekend-db-fuzz::open_image_bytes": 0,
+    "weekend-db-fuzz::open_structured_image": 0,
+    "weekend-db-fuzz::operations_seeds": 10,
+    "weekend-db-fuzz::peer_transport": 0,
+    "weekend-db-fuzz::register_causality": 0,
+    "weekend-db-fuzz::replacement_namespace": 0,
+    "weekend-db-fuzz::retention_compact_crash": 0,
+    "weekend-db-fuzz::schema_index_migration": 0,
+    "weekend-db-fuzz::seed_corpus": 22,
+    "weekend-db-fuzz::snapshot_frames": 0,
+    "weekend-db-fuzz::snapshot_install_schedule": 0,
+    "weekend-db-fuzz::snapshot_seeds": 12,
+    "weekend-db-fuzz::tree_adversarial_keys": 0,
+    "weekend-db-fuzz::txn_schedule": 0,
+    "weekend-db-fuzz::value_ops": 0,
+    "weekend-db-fuzz::weekend_db_fuzz": 573,
     "weekend-db-macros::weekend_db_macros": 108,
     "weekend-db-typed::weekend_db_typed": 315,
     "weekend-db::benchmark": 93,
+    "weekend-db::crdt_policy_migration": 64,
+    "weekend-db::file": 16,
     "weekend-db::file-worker": 33,
+    "weekend-db::memory": 29,
+    "weekend-db::native_faults": 9,
+    "weekend-db::native_quota": 16,
+    "weekend-db::raw_tasks": 37,
+    "weekend-db::recovery_scale": 15,
+    "weekend-db::simulated": 19,
+    "weekend-db::storage_lifecycle": 37,
+    "weekend-db::study_progress": 31,
+    "weekend-db::typed": 186,
     "weekend-db::weekend-admin": 30,
     "weekend-db::weekend_db": 1623,
+    "weekend-decision-inventory::weekend-decision-inventory": 397,
+    "weekend-native-soak::weekend-native-soak": 17,
+    "weekend-probe::weekend_probe": 46,
+    "weekend-replicate::live_month": 128,
     "weekend-replicate::weekend-replicate": 246,
+    "weekend-resource-envelope::weekend-compound-resource": 207,
+    "weekend-resource-envelope::weekend-resource-envelope": 30,
+    "weekend-serialization-scale::weekend-serialization-scale": 9,
+    "weekend-sqlite-baseline::sqlite-comparator": 114,
+    "weekend-sqlite-baseline::weekend-sqlite-baseline": 11,
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5181
+    "xtask::xtask": 5185
   },
   "groups": [
     {
@@ -594,9 +731,102 @@
         "xtask/src/windows_compatibility.rs",
         "docs/coordinator-operator-handoff.md",
         "xtask/src/incident_recovery.rs",
-        "tools/incident-recovery/src/main.rs"
+        "tools/incident-recovery/src/main.rs",
+        "docs/decision-inventory-catalog.md",
+        "tools/decision-inventory/tests/catalog.rs"
       ],
-      "residual": "Unit/helper and native negative controls are scoped evidence, not individual independence pairs for all tooling records. The standalone incident consumer is a pinned reference outside this workspace AST denominator; its own decisions remain unqualified tooling obligations."
+      "residual": "Helper and native negative controls remain scoped evidence, not individual independence pairs for all tooling records. Standalone workspaces and consumers are now inventoried in their own target contexts; their records and macro/compiled boundaries remain explicit obligations."
+    },
+    {
+      "name": "standalone-and-example-tooling",
+      "scope": "tooling",
+      "paths": [
+        "examples/crdt_policy_migration.rs",
+        "examples/file.rs",
+        "examples/memory.rs",
+        "examples/native_faults.rs",
+        "examples/raw_tasks.rs",
+        "examples/recovery_scale.rs",
+        "examples/rust_package/src/main.rs",
+        "examples/simulated.rs",
+        "examples/storage_lifecycle.rs",
+        "examples/study_progress.rs",
+        "examples/support/users.rs",
+        "examples/typed.rs",
+        "fuzz/examples/crdt_seeds.rs",
+        "fuzz/examples/operations_seeds.rs",
+        "fuzz/examples/seed_corpus.rs",
+        "fuzz/examples/snapshot_seeds.rs",
+        "fuzz/fuzz_targets/backup_restore.rs",
+        "fuzz/fuzz_targets/bytestore_contract.rs",
+        "fuzz/fuzz_targets/commit_crash.rs",
+        "fuzz/fuzz_targets/coordinator_protocol.rs",
+        "fuzz/fuzz_targets/crdt_frames.rs",
+        "fuzz/fuzz_targets/crdt_schedule.rs",
+        "fuzz/fuzz_targets/derive_tokens.rs",
+        "fuzz/fuzz_targets/ffi_ops.rs",
+        "fuzz/fuzz_targets/image_and_ops.rs",
+        "fuzz/fuzz_targets/logical_import_export.rs",
+        "fuzz/fuzz_targets/open_image_bytes.rs",
+        "fuzz/fuzz_targets/open_structured_image.rs",
+        "fuzz/fuzz_targets/peer_transport.rs",
+        "fuzz/fuzz_targets/register_causality.rs",
+        "fuzz/fuzz_targets/replacement_namespace.rs",
+        "fuzz/fuzz_targets/retention_compact_crash.rs",
+        "fuzz/fuzz_targets/schema_index_migration.rs",
+        "fuzz/fuzz_targets/snapshot_frames.rs",
+        "fuzz/fuzz_targets/snapshot_install_schedule.rs",
+        "fuzz/fuzz_targets/tree_adversarial_keys.rs",
+        "fuzz/fuzz_targets/txn_schedule.rs",
+        "fuzz/fuzz_targets/value_ops.rs",
+        "fuzz/src/adversarial.rs",
+        "fuzz/src/coordinator.rs",
+        "fuzz/src/crash.rs",
+        "fuzz/src/crdt.rs",
+        "fuzz/src/derive.rs",
+        "fuzz/src/foreign.rs",
+        "fuzz/src/history.rs",
+        "fuzz/src/image.rs",
+        "fuzz/src/lib.rs",
+        "fuzz/src/namespace.rs",
+        "fuzz/src/operations.rs",
+        "fuzz/src/peer.rs",
+        "fuzz/src/registers.rs",
+        "fuzz/src/schedule.rs",
+        "fuzz/src/snapshot.rs",
+        "fuzz/src/typed.rs",
+        "fuzz/src/values.rs",
+        "probe/rust/src/lib.rs",
+        "tests/support/mod.rs",
+        "tools/atomic-model/src/budget.rs",
+        "tools/atomic-model/src/main.rs",
+        "tools/decision-inventory/src/discovery.rs",
+        "tools/decision-inventory/src/main.rs",
+        "tools/decision-inventory/src/review.rs",
+        "tools/incident-recovery/src/main.rs",
+        "tools/monthly_workload.rs",
+        "tools/quota/fixture.rs",
+        "tools/replica-progress-fixture/src/main.rs",
+        "tools/resource-envelope/src/breadth.rs",
+        "tools/resource-envelope/src/breadth_sustained.rs",
+        "tools/resource-envelope/src/compound.rs",
+        "tools/resource-envelope/src/main.rs",
+        "tools/resource-envelope/src/quota_token.rs",
+        "tools/resource-envelope/src/resilience.rs",
+        "tools/resource-envelope/src/space.rs",
+        "tools/serialization-scale/src/main.rs",
+        "tools/snapshot-test-keygen.rs",
+        "tools/soak/src/main.rs",
+        "tools/sqlite-baseline/src/main.rs",
+        "tools/sqlite-baseline/src/sqlite.rs"
+      ],
+      "references": [
+        "docs/decisions/current.md",
+        "docs/decision-inventory-catalog.md",
+        "docs/mutations.md",
+        "tools/decision-inventory/tests/catalog.rs"
+      ],
+      "residual": "Additional Cargo target contexts and oracle/consumer code retain individual G obligations. Macro expansion, compiled configurations and delegated/native behavior need separate qualification."
     }
   ],
   "controls": [
@@ -967,5 +1197,1650 @@
         }
       ]
     }
-  ]
+  ],
+  "cargo_scope": {
+    "catalog": {
+      "file": "docs/decisions/workspaces.json",
+      "sha256": "55033f5aa3f6889085e4808a51fffbeb039f8a33cf63546d82ec11e78daa7f3c"
+    },
+    "excluded_targets": [
+      {
+        "entry": "apps/study-peer/tests/cli.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "cli",
+        "package": "study-peer",
+        "package_manifest": "apps/study-peer/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "study-peer::cli",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/study-peer/tests/credential_rotation.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "credential_rotation",
+        "package": "study-peer",
+        "package_manifest": "apps/study-peer/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "study-peer::credential_rotation",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/study-peer/tests/service_diagnostics.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "service_diagnostics",
+        "package": "study-peer",
+        "package_manifest": "apps/study-peer/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "study-peer::service_diagnostics",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-macros/tests/compile_fail.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "compile_fail",
+        "package": "weekend-db-macros",
+        "package_manifest": "crates/weekend-db-macros/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-macros::compile_fail",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-macros/tests/expansion_guards.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "expansion_guards",
+        "package": "weekend-db-macros",
+        "package_manifest": "crates/weekend-db-macros/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-macros::expansion_guards",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-macros/tests/generated.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "generated",
+        "package": "weekend-db-macros",
+        "package_manifest": "crates/weekend-db-macros/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-macros::generated",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/catalog_admission.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "catalog_admission",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::catalog_admission",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/models.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "models",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::models",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/process_evolution.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "process_evolution",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::process_evolution",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "runtime_decisions",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::runtime_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/admin_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "admin_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::admin_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/allocation.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "allocation",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::allocation",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/bytestore.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "bytestore",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::bytestore",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/compaction.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "compaction",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::compaction",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/compatibility.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "compatibility",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::compatibility",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/concurrency.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "concurrency",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::concurrency",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/crdt.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "crdt",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::crdt",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/crdt_migration.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "crdt_migration",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::crdt_migration",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/durability.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "durability",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::durability",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/engine_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "engine_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::engine_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/files.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "files",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::files",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/headroom.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "headroom",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::headroom",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/inspection.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "inspection",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::inspection",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/live_budget.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "live_budget",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::live_budget",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/live_budget_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "live_budget_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::live_budget_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/logical.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "logical",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::logical",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/replication.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "replication",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::replication",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/retention.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "retention",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::retention",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/salvage.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "salvage",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::salvage",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/schedules.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "schedules",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::schedules",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/schema.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "schema",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::schema",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/schema_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "schema_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::schema_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/storage_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "storage_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::storage_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/transactions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "transactions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::transactions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/value_decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "value_decisions",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::value_decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/values.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "values",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::values",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tools/decision-inventory/tests/catalog.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "catalog",
+        "package": "weekend-decision-inventory",
+        "package_manifest": "tools/decision-inventory/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-decision-inventory::catalog",
+        "workspace_manifest": "tools/decision-inventory/Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-replicate/tests/audit_cli.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "audit_cli",
+        "package": "weekend-replicate",
+        "package_manifest": "apps/weekend-replicate/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-replicate::audit_cli",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-replicate/tests/cli.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "cli",
+        "package": "weekend-replicate",
+        "package_manifest": "apps/weekend-replicate/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-replicate::cli",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-replicate/tests/credential_rotation.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "credential_rotation",
+        "package": "weekend-replicate",
+        "package_manifest": "apps/weekend-replicate/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-replicate::credential_rotation",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-replicate/tests/service_diagnostics.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "service_diagnostics",
+        "package": "weekend-replicate",
+        "package_manifest": "apps/weekend-replicate/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-replicate::service_diagnostics",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-tasks/tests/decisions.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "decisions",
+        "package": "weekend-tasks",
+        "package_manifest": "apps/weekend-tasks/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-tasks::decisions",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/weekend-tasks/tests/lifecycle.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "lifecycle",
+        "package": "weekend-tasks",
+        "package_manifest": "apps/weekend-tasks/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-tasks::lifecycle",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "apps/write-coordinator/tests/writers.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "writers",
+        "package": "write-coordinator",
+        "package_manifest": "apps/write-coordinator/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "write-coordinator::writers",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "xtask/tests/commands.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "commands",
+        "package": "xtask",
+        "package_manifest": "xtask/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "xtask::commands",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "xtask/tests/supervise.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "supervise",
+        "package": "xtask",
+        "package_manifest": "xtask/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "xtask::supervise",
+        "workspace_manifest": "Cargo.toml"
+      }
+    ],
+    "lockfiles_sha256": {
+      "Cargo.lock": "69a917a2f7fcbe4e81b3320a6c3729c184f7100255a5c822ce038bb051c00ca3",
+      "crates/weekend-db-typed/tests/renamed/Cargo.lock": "17dbfc0ba429ed634dfda7a6d650c91c253b280377dff4f8fe3ed59d660133cf",
+      "examples/rust_package/Cargo.lock": "82fca96f4d84a9c1b05b9bdd0c40a53497b795a03ed673cf0477307d7d883166",
+      "fuzz/Cargo.lock": "0a1c5b1b5e2c3dd2ffc169f065cfea52ba40662de837b7f0cdf6078ae21c18d8",
+      "probe/rust/Cargo.lock": "f0fde39b7cd666144d2dde4138ae3c3928de0462fb4fec595fff3883a150644e",
+      "tools/atomic-model/Cargo.lock": "aeb8f333884f9bdc64fb0026db8250cd8c030c598526f23be67ce806020505c2",
+      "tools/decision-inventory/Cargo.lock": "2fdc5b993b91ddd53561d0f8cc47451ff6cfeac2e04017ba2ae59cc993a4af6c",
+      "tools/incident-recovery/Cargo.lock": "d6b4d16afc7892ef9d1a68471e448d8927e392e39924c18f3da3fe53bcf7a3ba",
+      "tools/monthly-workload/Cargo.lock": "92c1540920bf59cf2138f2e596a37abdf99ea9659d5ff596b70f769ba83470cc",
+      "tools/replica-progress-fixture/Cargo.lock": "b45dd2714eb94c9c7a6f4ac44eed06a52aea72bba3e542fe083a39ea49e2a668",
+      "tools/resource-envelope/Cargo.lock": "09f3b918dea780d5fcdbc957007038a024c0dee07733cf5fd854246c4d2d590d",
+      "tools/serialization-scale/Cargo.lock": "44e06272c299abfac920d7bd6c21a401fdf66fbb852e5849d6cb0e26d770b270",
+      "tools/soak/Cargo.lock": "f051e9b956ffaf34fd62d219a976afde1e413b6a2e441efcf02cf5dbad62dd76",
+      "tools/sqlite-baseline/Cargo.lock": "e5a138acd0b70a0bbb47e7008e8a7abd7a49bb4c6791076249078f710a088f18"
+    },
+    "manifest_basis": "git-tracked",
+    "manifests_sha256": {
+      "Cargo.toml": "560e3b83a93489fd4c55d4834f6ee22120b080aa32965501bdad8afd5fba8640",
+      "apps/study-peer/Cargo.toml": "57b4402706bbab4f3e297c1bf472cb56031255e03e0d4bab952624360269b2f7",
+      "apps/weekend-replicate/Cargo.toml": "c73679e00c9c5186b92030c3b60437722aad05a02a906a67f037ab5f18a519a7",
+      "apps/weekend-tasks/Cargo.toml": "abb19f8bf5b903a93348e8fc7ef26aee7d817fc881f8087ffb67c06e2236fe0e",
+      "apps/write-coordinator/Cargo.toml": "47863b9007afb66e334facb42d4b272aca403ad305a26713ca6408f1f3c54765",
+      "crates/weekend-db-macros/Cargo.toml": "ab5f7f3bbe40ec935487f61eb98011196799d7fa77f291a440ebe3df836f9440",
+      "crates/weekend-db-typed/Cargo.toml": "dc68484fb08b00e3304c71e934169fb598976273eeea9c6ab88a96ea2065faa5",
+      "crates/weekend-db-typed/tests/renamed/Cargo.toml": "73e2b6ed65c2592e262b3b45716da76c92327e1e52efa85c12a020d7e6d9c58b",
+      "examples/rust_package/Cargo.toml": "304a79b1a06cd5ddcbb81b57b22c44fc532c04bb200e249e18084f3933049653",
+      "fuzz/Cargo.toml": "2061648c7b6955f6425d9d2c927b9f2420513c910d64c271078471c725ecb8fb",
+      "probe/rust/Cargo.toml": "4473ffc8adb51ae25b99766bb6140b9cdd2bf12ce2c931ee44e769694dfa7b5d",
+      "tools/atomic-model/Cargo.toml": "b81ed03bd3c8e33addd5d80e24163ff5583140cd1a5e1f54104408c112709917",
+      "tools/decision-inventory/Cargo.toml": "fa63c2aa8b4224523bd3d389776cafa1e2668348a0dc7f39683fc294c71d9946",
+      "tools/incident-recovery/Cargo.toml": "bf82fd87cb302a99a084561ac967a1467cb5d518c37ab9138378208a5e46a3dd",
+      "tools/monthly-workload/Cargo.toml": "602fab0903cb092cff06829d2e813d4b4e7a892de55ff1f50a44dbef07504e2a",
+      "tools/replica-progress-fixture/Cargo.toml": "fdbc20f4a93cd59d6e7e01c2b6d12f0a6c476da6887a2f5136cbece795b8145e",
+      "tools/resource-envelope/Cargo.toml": "eb4254b1827272d826a5982b27346ed981693587bf558062062d0bd82cbc49f7",
+      "tools/serialization-scale/Cargo.toml": "c9d08b2ba4c2c85eac5d1d403cebba05fb9d53b61cc77c8244a8a254d3711262",
+      "tools/soak/Cargo.toml": "d1571aeb1f17d1e5504e320dacbd7e0eafdd70b9e2f3495f5edf31ba0d2d87a5",
+      "tools/sqlite-baseline/Cargo.toml": "d77531c788e9c98745c9a9631f69440255bcc4c76787749e3428352c173d2a3a",
+      "xtask/Cargo.toml": "c518eb873a37b129923d44c57822e77d1033e7cbdb4774a7c52d468cdc4a85c3"
+    },
+    "mode": "repository_catalog",
+    "workspaces": [
+      {
+        "lockfile": "Cargo.lock",
+        "manifest": "Cargo.toml",
+        "members": [
+          "Cargo.toml",
+          "apps/study-peer/Cargo.toml",
+          "apps/weekend-replicate/Cargo.toml",
+          "apps/weekend-tasks/Cargo.toml",
+          "apps/write-coordinator/Cargo.toml",
+          "crates/weekend-db-macros/Cargo.toml",
+          "crates/weekend-db-typed/Cargo.toml",
+          "xtask/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "crates/weekend-db-typed/tests/renamed/Cargo.lock",
+        "manifest": "crates/weekend-db-typed/tests/renamed/Cargo.toml",
+        "members": [
+          "crates/weekend-db-typed/tests/renamed/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "examples/rust_package/Cargo.lock",
+        "manifest": "examples/rust_package/Cargo.toml",
+        "members": [
+          "examples/rust_package/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "fuzz/Cargo.lock",
+        "manifest": "fuzz/Cargo.toml",
+        "members": [
+          "fuzz/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "probe/rust/Cargo.lock",
+        "manifest": "probe/rust/Cargo.toml",
+        "members": [
+          "probe/rust/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/atomic-model/Cargo.lock",
+        "manifest": "tools/atomic-model/Cargo.toml",
+        "members": [
+          "tools/atomic-model/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/decision-inventory/Cargo.lock",
+        "manifest": "tools/decision-inventory/Cargo.toml",
+        "members": [
+          "tools/decision-inventory/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/incident-recovery/Cargo.lock",
+        "manifest": "tools/incident-recovery/Cargo.toml",
+        "members": [
+          "tools/incident-recovery/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/monthly-workload/Cargo.lock",
+        "manifest": "tools/monthly-workload/Cargo.toml",
+        "members": [
+          "tools/monthly-workload/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/replica-progress-fixture/Cargo.lock",
+        "manifest": "tools/replica-progress-fixture/Cargo.toml",
+        "members": [
+          "tools/replica-progress-fixture/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/resource-envelope/Cargo.lock",
+        "manifest": "tools/resource-envelope/Cargo.toml",
+        "members": [
+          "tools/resource-envelope/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/serialization-scale/Cargo.lock",
+        "manifest": "tools/serialization-scale/Cargo.toml",
+        "members": [
+          "tools/serialization-scale/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/soak/Cargo.lock",
+        "manifest": "tools/soak/Cargo.toml",
+        "members": [
+          "tools/soak/Cargo.toml"
+        ]
+      },
+      {
+        "lockfile": "tools/sqlite-baseline/Cargo.lock",
+        "manifest": "tools/sqlite-baseline/Cargo.toml",
+        "members": [
+          "tools/sqlite-baseline/Cargo.toml"
+        ]
+      }
+    ]
+  },
+  "targets": [
+    {
+      "entry": "tools/incident-recovery/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "incident-recovery-consumer",
+      "package": "incident-recovery-consumer",
+      "package_manifest": "tools/incident-recovery/Cargo.toml",
+      "required_features": [],
+      "target": "incident-recovery-consumer::incident-recovery-consumer",
+      "workspace_manifest": "tools/incident-recovery/Cargo.toml"
+    },
+    {
+      "entry": "tools/monthly_workload.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "monthly-workload",
+      "package": "monthly-workload",
+      "package_manifest": "tools/monthly-workload/Cargo.toml",
+      "required_features": [],
+      "target": "monthly-workload::monthly-workload",
+      "workspace_manifest": "tools/monthly-workload/Cargo.toml"
+    },
+    {
+      "entry": "examples/rust_package/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "private-rust-consumer",
+      "package": "private-rust-consumer",
+      "package_manifest": "examples/rust_package/Cargo.toml",
+      "required_features": [],
+      "target": "private-rust-consumer::private-rust-consumer",
+      "workspace_manifest": "examples/rust_package/Cargo.toml"
+    },
+    {
+      "entry": "tools/replica-progress-fixture/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "replica-progress-fixture",
+      "package": "replica-progress-fixture",
+      "package_manifest": "tools/replica-progress-fixture/Cargo.toml",
+      "required_features": [],
+      "target": "replica-progress-fixture::replica-progress-fixture",
+      "workspace_manifest": "tools/replica-progress-fixture/Cargo.toml"
+    },
+    {
+      "entry": "apps/study-peer/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "study-peer",
+      "package": "study-peer",
+      "package_manifest": "apps/study-peer/Cargo.toml",
+      "required_features": [],
+      "target": "study-peer::study-peer",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "crates/weekend-db-typed/tests/renamed/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "typed-renamed-consumer",
+      "package": "typed-renamed-consumer",
+      "package_manifest": "crates/weekend-db-typed/tests/renamed/Cargo.toml",
+      "required_features": [],
+      "target": "typed-renamed-consumer::typed-renamed-consumer",
+      "workspace_manifest": "crates/weekend-db-typed/tests/renamed/Cargo.toml"
+    },
+    {
+      "entry": "tools/atomic-model/src/budget.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "budget",
+      "package": "weekend-atomic-model",
+      "package_manifest": "tools/atomic-model/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-atomic-model::budget",
+      "workspace_manifest": "tools/atomic-model/Cargo.toml"
+    },
+    {
+      "entry": "tools/atomic-model/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-atomic-model",
+      "package": "weekend-atomic-model",
+      "package_manifest": "tools/atomic-model/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-atomic-model::weekend-atomic-model",
+      "workspace_manifest": "tools/atomic-model/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/backup_restore.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "backup_restore",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::backup_restore",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/bytestore_contract.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "bytestore_contract",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::bytestore_contract",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/commit_crash.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "commit_crash",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::commit_crash",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/coordinator_protocol.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "coordinator_protocol",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::coordinator_protocol",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/crdt_frames.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "crdt_frames",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::crdt_frames",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/crdt_schedule.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "crdt_schedule",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::crdt_schedule",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/examples/crdt_seeds.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "crdt_seeds",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::crdt_seeds",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/derive_tokens.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "derive_tokens",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::derive_tokens",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/ffi_ops.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "ffi_ops",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::ffi_ops",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/image_and_ops.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "image_and_ops",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::image_and_ops",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/logical_import_export.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "logical_import_export",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::logical_import_export",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/open_image_bytes.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "open_image_bytes",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::open_image_bytes",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/open_structured_image.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "open_structured_image",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::open_structured_image",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/examples/operations_seeds.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "operations_seeds",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::operations_seeds",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/peer_transport.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "peer_transport",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::peer_transport",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/register_causality.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "register_causality",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::register_causality",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/replacement_namespace.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "replacement_namespace",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::replacement_namespace",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/retention_compact_crash.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "retention_compact_crash",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::retention_compact_crash",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/schema_index_migration.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "schema_index_migration",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::schema_index_migration",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/examples/seed_corpus.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "seed_corpus",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::seed_corpus",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/snapshot_frames.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "snapshot_frames",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::snapshot_frames",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/snapshot_install_schedule.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "snapshot_install_schedule",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::snapshot_install_schedule",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/examples/snapshot_seeds.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "snapshot_seeds",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::snapshot_seeds",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/tree_adversarial_keys.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "tree_adversarial_keys",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::tree_adversarial_keys",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/txn_schedule.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "txn_schedule",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::txn_schedule",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/fuzz_targets/value_ops.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "value_ops",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::value_ops",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "fuzz/src/lib.rs",
+      "kinds": [
+        "lib"
+      ],
+      "name": "weekend_db_fuzz",
+      "package": "weekend-db-fuzz",
+      "package_manifest": "fuzz/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-fuzz::weekend_db_fuzz",
+      "workspace_manifest": "fuzz/Cargo.toml"
+    },
+    {
+      "entry": "crates/weekend-db-macros/src/lib.rs",
+      "kinds": [
+        "proc-macro"
+      ],
+      "name": "weekend_db_macros",
+      "package": "weekend-db-macros",
+      "package_manifest": "crates/weekend-db-macros/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-macros::weekend_db_macros",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "crates/weekend-db-typed/src/lib.rs",
+      "kinds": [
+        "lib"
+      ],
+      "name": "weekend_db_typed",
+      "package": "weekend-db-typed",
+      "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db-typed::weekend_db_typed",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/benchmark.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "benchmark",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::benchmark",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/crdt_policy_migration.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "crdt_policy_migration",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [
+        "crdt"
+      ],
+      "target": "weekend-db::crdt_policy_migration",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/file.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "file",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::file",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/file_worker.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "file-worker",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [
+        "fault-injection"
+      ],
+      "target": "weekend-db::file-worker",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/memory.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "memory",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::memory",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/native_faults.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "native_faults",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::native_faults",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/quota/fixture.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "native_quota",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::native_quota",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/raw_tasks.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "raw_tasks",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::raw_tasks",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/recovery_scale.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "recovery_scale",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::recovery_scale",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/simulated.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "simulated",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::simulated",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/storage_lifecycle.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "storage_lifecycle",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::storage_lifecycle",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/study_progress.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "study_progress",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [
+        "crdt"
+      ],
+      "target": "weekend-db::study_progress",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "examples/typed.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "typed",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::typed",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/admin.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-admin",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::weekend-admin",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "src/lib.rs",
+      "kinds": [
+        "cdylib",
+        "rlib"
+      ],
+      "name": "weekend_db",
+      "package": "weekend-db",
+      "package_manifest": "Cargo.toml",
+      "required_features": [],
+      "target": "weekend-db::weekend_db",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/decision-inventory/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-decision-inventory",
+      "package": "weekend-decision-inventory",
+      "package_manifest": "tools/decision-inventory/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-decision-inventory::weekend-decision-inventory",
+      "workspace_manifest": "tools/decision-inventory/Cargo.toml"
+    },
+    {
+      "entry": "tools/soak/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-native-soak",
+      "package": "weekend-native-soak",
+      "package_manifest": "tools/soak/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-native-soak::weekend-native-soak",
+      "workspace_manifest": "tools/soak/Cargo.toml"
+    },
+    {
+      "entry": "probe/rust/src/lib.rs",
+      "kinds": [
+        "cdylib",
+        "rlib",
+        "staticlib"
+      ],
+      "name": "weekend_probe",
+      "package": "weekend-probe",
+      "package_manifest": "probe/rust/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-probe::weekend_probe",
+      "workspace_manifest": "probe/rust/Cargo.toml"
+    },
+    {
+      "entry": "apps/weekend-replicate/examples/live_month.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "live_month",
+      "package": "weekend-replicate",
+      "package_manifest": "apps/weekend-replicate/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-replicate::live_month",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "apps/weekend-replicate/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-replicate",
+      "package": "weekend-replicate",
+      "package_manifest": "apps/weekend-replicate/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-replicate::weekend-replicate",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "tools/resource-envelope/src/compound.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-compound-resource",
+      "package": "weekend-resource-envelope",
+      "package_manifest": "tools/resource-envelope/Cargo.toml",
+      "required_features": [
+        "compound"
+      ],
+      "target": "weekend-resource-envelope::weekend-compound-resource",
+      "workspace_manifest": "tools/resource-envelope/Cargo.toml"
+    },
+    {
+      "entry": "tools/resource-envelope/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-resource-envelope",
+      "package": "weekend-resource-envelope",
+      "package_manifest": "tools/resource-envelope/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-resource-envelope::weekend-resource-envelope",
+      "workspace_manifest": "tools/resource-envelope/Cargo.toml"
+    },
+    {
+      "entry": "tools/serialization-scale/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-serialization-scale",
+      "package": "weekend-serialization-scale",
+      "package_manifest": "tools/serialization-scale/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-serialization-scale::weekend-serialization-scale",
+      "workspace_manifest": "tools/serialization-scale/Cargo.toml"
+    },
+    {
+      "entry": "tools/sqlite-baseline/src/sqlite.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "sqlite-comparator",
+      "package": "weekend-sqlite-baseline",
+      "package_manifest": "tools/sqlite-baseline/Cargo.toml",
+      "required_features": [
+        "sqlite-comparator"
+      ],
+      "target": "weekend-sqlite-baseline::sqlite-comparator",
+      "workspace_manifest": "tools/sqlite-baseline/Cargo.toml"
+    },
+    {
+      "entry": "tools/sqlite-baseline/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-sqlite-baseline",
+      "package": "weekend-sqlite-baseline",
+      "package_manifest": "tools/sqlite-baseline/Cargo.toml",
+      "required_features": [
+        "weekend-engine"
+      ],
+      "target": "weekend-sqlite-baseline::weekend-sqlite-baseline",
+      "workspace_manifest": "tools/sqlite-baseline/Cargo.toml"
+    },
+    {
+      "entry": "apps/weekend-tasks/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "weekend-tasks",
+      "package": "weekend-tasks",
+      "package_manifest": "apps/weekend-tasks/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-tasks::weekend-tasks",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "apps/weekend-tasks/src/lib.rs",
+      "kinds": [
+        "lib"
+      ],
+      "name": "weekend_tasks",
+      "package": "weekend-tasks",
+      "package_manifest": "apps/weekend-tasks/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-tasks::weekend_tasks",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "apps/write-coordinator/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "write-coordinator",
+      "package": "write-coordinator",
+      "package_manifest": "apps/write-coordinator/Cargo.toml",
+      "required_features": [],
+      "target": "write-coordinator::write-coordinator",
+      "workspace_manifest": "Cargo.toml"
+    },
+    {
+      "entry": "xtask/src/main.rs",
+      "kinds": [
+        "bin"
+      ],
+      "name": "xtask",
+      "package": "xtask",
+      "package_manifest": "xtask/Cargo.toml",
+      "required_features": [],
+      "target": "xtask::xtask",
+      "workspace_manifest": "Cargo.toml"
+    }
+  ],
+  "historical_targets": [
+    "study-peer::study-peer",
+    "weekend-db-macros::weekend_db_macros",
+    "weekend-db-typed::weekend_db_typed",
+    "weekend-db::benchmark",
+    "weekend-db::file-worker",
+    "weekend-db::weekend-admin",
+    "weekend-db::weekend_db",
+    "weekend-replicate::weekend-replicate",
+    "weekend-tasks::weekend-tasks",
+    "weekend-tasks::weekend_tasks",
+    "write-coordinator::write-coordinator",
+    "xtask::xtask"
+  ],
+  "target_scopes": {
+    "incident-recovery-consumer::incident-recovery-consumer": "tooling",
+    "monthly-workload::monthly-workload": "tooling",
+    "private-rust-consumer::private-rust-consumer": "tooling",
+    "replica-progress-fixture::replica-progress-fixture": "tooling",
+    "study-peer::study-peer": "runtime",
+    "typed-renamed-consumer::typed-renamed-consumer": "tooling",
+    "weekend-atomic-model::budget": "tooling",
+    "weekend-atomic-model::weekend-atomic-model": "tooling",
+    "weekend-db-fuzz::backup_restore": "tooling",
+    "weekend-db-fuzz::bytestore_contract": "tooling",
+    "weekend-db-fuzz::commit_crash": "tooling",
+    "weekend-db-fuzz::coordinator_protocol": "tooling",
+    "weekend-db-fuzz::crdt_frames": "tooling",
+    "weekend-db-fuzz::crdt_schedule": "tooling",
+    "weekend-db-fuzz::crdt_seeds": "tooling",
+    "weekend-db-fuzz::derive_tokens": "tooling",
+    "weekend-db-fuzz::ffi_ops": "tooling",
+    "weekend-db-fuzz::image_and_ops": "tooling",
+    "weekend-db-fuzz::logical_import_export": "tooling",
+    "weekend-db-fuzz::open_image_bytes": "tooling",
+    "weekend-db-fuzz::open_structured_image": "tooling",
+    "weekend-db-fuzz::operations_seeds": "tooling",
+    "weekend-db-fuzz::peer_transport": "tooling",
+    "weekend-db-fuzz::register_causality": "tooling",
+    "weekend-db-fuzz::replacement_namespace": "tooling",
+    "weekend-db-fuzz::retention_compact_crash": "tooling",
+    "weekend-db-fuzz::schema_index_migration": "tooling",
+    "weekend-db-fuzz::seed_corpus": "tooling",
+    "weekend-db-fuzz::snapshot_frames": "tooling",
+    "weekend-db-fuzz::snapshot_install_schedule": "tooling",
+    "weekend-db-fuzz::snapshot_seeds": "tooling",
+    "weekend-db-fuzz::tree_adversarial_keys": "tooling",
+    "weekend-db-fuzz::txn_schedule": "tooling",
+    "weekend-db-fuzz::value_ops": "tooling",
+    "weekend-db-fuzz::weekend_db_fuzz": "tooling",
+    "weekend-db-macros::weekend_db_macros": "runtime",
+    "weekend-db-typed::weekend_db_typed": "runtime",
+    "weekend-db::benchmark": "driver",
+    "weekend-db::crdt_policy_migration": "tooling",
+    "weekend-db::file": "tooling",
+    "weekend-db::file-worker": "driver",
+    "weekend-db::memory": "tooling",
+    "weekend-db::native_faults": "tooling",
+    "weekend-db::native_quota": "tooling",
+    "weekend-db::raw_tasks": "tooling",
+    "weekend-db::recovery_scale": "tooling",
+    "weekend-db::simulated": "tooling",
+    "weekend-db::storage_lifecycle": "tooling",
+    "weekend-db::study_progress": "tooling",
+    "weekend-db::typed": "tooling",
+    "weekend-db::weekend-admin": "driver",
+    "weekend-db::weekend_db": "runtime",
+    "weekend-decision-inventory::weekend-decision-inventory": "tooling",
+    "weekend-native-soak::weekend-native-soak": "tooling",
+    "weekend-probe::weekend_probe": "tooling",
+    "weekend-replicate::live_month": "tooling",
+    "weekend-replicate::weekend-replicate": "runtime",
+    "weekend-resource-envelope::weekend-compound-resource": "tooling",
+    "weekend-resource-envelope::weekend-resource-envelope": "tooling",
+    "weekend-serialization-scale::weekend-serialization-scale": "tooling",
+    "weekend-sqlite-baseline::sqlite-comparator": "tooling",
+    "weekend-sqlite-baseline::weekend-sqlite-baseline": "tooling",
+    "weekend-tasks::weekend-tasks": "runtime",
+    "weekend-tasks::weekend_tasks": "runtime",
+    "write-coordinator::write-coordinator": "runtime",
+    "xtask::xtask": "tooling"
+  }
 }

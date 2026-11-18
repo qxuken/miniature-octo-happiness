@@ -41,6 +41,18 @@ targets. The conditional test-only derive adds one explicit attribute blind
 spot, bringing the current total to 3,597. Source and reference pins are
 refreshed; helper execution does not promote any individual G obligation.
 
+The [repository Cargo catalog](../decision-inventory-catalog.md) advances the
+review baseline to PR #7 head `b32a868`. It includes all 21 manifests/fourteen
+workspaces and 66 non-test targets, with 46 integration targets explicitly
+excluded from the production view. Review schema 2 pins every Cargo input and
+target, including twenty-two zero-record fuzz wrappers. Existing target IDs,
+named source controls and historical eligibility are preserved. New target
+contexts receive tooling scopes and individual G obligations, even when they
+share runtime source files. The current denominator is 10,482 records across
+215 files, with 4,946 explicit macro/attribute blind spots. Runtime and driver
+counts stay 3,023 and 156; the tooling denominator is 7,303. This expands the
+unqualified queue and does not infer compiler MC/DC or new execution credit.
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

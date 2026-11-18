@@ -6,7 +6,6 @@ use std::{
     collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 use syn::{
     Attribute, Expr, Item, Meta, Token,
@@ -14,6 +13,7 @@ use syn::{
     spanned::Spanned,
     visit::{self, Visit},
 };
+mod discovery;
 mod review;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -183,6 +183,13 @@ impl Audit {
                 return;
             }
         };
+        let name = self.relative(&path);
+        let pin = hash(source.as_bytes());
+        if self.files.get(&name).is_some_and(|old| old != &pin) {
+            self.failures
+                .push(format!("source changed between target contexts: {name}"));
+            return;
+        }
         let file = match syn::parse_file(&source) {
             Ok(f) => f,
             Err(e) => {
@@ -190,8 +197,7 @@ impl Audit {
                 return;
             }
         };
-        self.files
-            .insert(self.relative(&path), hash(source.as_bytes()));
+        self.files.insert(name, pin);
         self.active.push(path.clone());
         let mut visitor = Scanner {
             audit: self,
@@ -547,6 +553,30 @@ fn markdown(report: &Value) -> String {
     for (kind, count) in kinds {
         out.push_str(&format!("| {kind} | {count} |\n"));
     }
+    if let Some(targets) = report["targets"].as_array() {
+        out.push_str(&format!("\nCargo scope: `{}`, {} workspaces, {} targets. Integration-test targets are enumerated separately unless `--include-tests` is selected. Zero-record targets remain explicit; macro bodies are not expanded.\n\n| Cargo target | Kinds | Entry | Visible AST records |\n|---|---|---|---:|\n", report["cargo_scope"]["mode"].as_str().unwrap_or("legacy"), report["cargo_scope"]["workspaces"].as_array().map_or(0, Vec::len), targets.len()));
+        let mut target_counts = BTreeMap::<&str, usize>::new();
+        for row in report["decisions"].as_array().unwrap() {
+            *target_counts
+                .entry(row["target"].as_str().unwrap())
+                .or_default() += 1;
+        }
+        for target in targets {
+            let id = target["target"].as_str().unwrap();
+            out.push_str(&format!(
+                "| {id} | {} | {} | {} |\n",
+                target["kinds"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|k| k.as_str().unwrap())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                target["entry"].as_str().unwrap(),
+                target_counts.get(id).copied().unwrap_or(0)
+            ));
+        }
+    }
     out.push_str("\n| Module | Unreviewed records | Existing module ledger, not condition coverage |\n|---|---:|---|\n");
     for (file, count) in counts {
         let links = ledger(&file)
@@ -591,72 +621,29 @@ fn main() -> Result<()> {
     if include_tests && review_manifest.is_some() {
         return Err("review requires the production inventory, without --include-tests".into());
     }
-    let metadata = Command::new("cargo")
-        .args([
-            "metadata",
-            "--offline",
-            "--locked",
-            "--no-deps",
-            "--format-version",
-            "1",
-        ])
-        .current_dir(&root)
-        .output()?;
-    if !metadata.status.success() {
-        return Err(String::from_utf8_lossy(&metadata.stderr)
-            .into_owned()
-            .into());
-    }
-    let metadata: Value = serde_json::from_slice(&metadata.stdout)?;
+    let discovery = discovery::discover(&root, include_tests)?;
     let mut audit = Audit {
         root: root.clone(),
         include_tests,
         ..Default::default()
     };
-    let mut targets = Vec::new();
-    for package in metadata["packages"]
-        .as_array()
-        .ok_or("missing metadata packages")?
-    {
-        if !metadata["workspace_members"]
-            .as_array()
-            .unwrap()
-            .contains(&package["id"])
-        {
-            continue;
-        }
-        for target in package["targets"].as_array().unwrap() {
-            let kinds = target["kind"].as_array().unwrap();
-            if !kinds.iter().any(|kind| {
-                matches!(
-                    kind.as_str(),
-                    Some("lib" | "rlib" | "cdylib" | "staticlib" | "dylib" | "proc-macro" | "bin")
-                )
-            }) {
-                continue;
-            }
-            let name = format!(
-                "{}::{}",
-                package["name"].as_str().unwrap(),
-                target["name"].as_str().unwrap()
-            );
-            let path = Path::new(target["src_path"].as_str().unwrap());
-            targets.push(json!({"target":name,"kinds":kinds,"required_features":target["required-features"],"entry":audit.relative(path)}));
-            audit.file(
-                path,
-                path.parent().unwrap().to_path_buf(),
-                Vec::new(),
-                &name,
-            );
-        }
+    for target in &discovery.targets {
+        let path = root.join(target["entry"].as_str().unwrap());
+        audit.file(
+            &path,
+            path.parent().unwrap().to_path_buf(),
+            Vec::new(),
+            target["target"].as_str().unwrap(),
+        );
     }
     audit
         .decisions
         .sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
-    let mut report = json!({"schema_version":1,"tool_version":env!("CARGO_PKG_VERSION"),"tool_source_sha256":hash(include_bytes!("main.rs")),"source_set_sha256":hash(&serde_json::to_vec(&audit.files)?),"scope":"source AST across feature/platform variants","include_tests":include_tests,"files":audit.files,"targets":targets,"decisions":audit.decisions,"exclusions":audit.exclusions,"blind_spots":audit.blind_spots,"failures":audit.failures});
+    let mut report = json!({"schema_version":1,"tool_version":env!("CARGO_PKG_VERSION"),"tool_source_sha256":hash(include_bytes!("main.rs")),"source_set_sha256":hash(&serde_json::to_vec(&audit.files)?),"scope":"source AST across feature/platform variants","include_tests":include_tests,"files":audit.files,"cargo_scope":discovery.scope,"targets":discovery.targets,"decisions":audit.decisions,"exclusions":audit.exclusions,"blind_spots":audit.blind_spots,"failures":audit.failures});
     report["tool_inputs_sha256"] = json!({
         "src/main.rs":hash(include_bytes!("main.rs")),
         "src/review.rs":hash(include_bytes!("review.rs")),
+        "src/discovery.rs":hash(include_bytes!("discovery.rs")),
         "Cargo.toml":hash(include_bytes!("../Cargo.toml")),
         "Cargo.lock":hash(include_bytes!("../Cargo.lock")),
     });
@@ -842,6 +829,23 @@ fn production() { if true {} }
             .find(|r| r["owner"] == "shared")
             .unwrap();
         assert!(shared["cfg"].as_array().unwrap().is_empty());
+    }
+    #[test]
+    fn shared_source_changes_between_targets_do_not_overwrite_earlier_provenance() {
+        let fixture = Fixture::new();
+        fs::write(fixture.0.join("lib.rs"), "fn first(){if true {}}\n").unwrap();
+        let mut audit = fixture.audit(false);
+        let original = audit.files["lib.rs"].clone();
+        fs::write(fixture.0.join("lib.rs"), "fn changed(){while false {}}\n").unwrap();
+        audit.file(
+            &fixture.0.join("lib.rs"),
+            fixture.0.clone(),
+            Vec::new(),
+            "another::context",
+        );
+        assert!(audit.failures.iter().any(|f| f.contains("source changed")));
+        assert_eq!(audit.files["lib.rs"], original);
+        assert!(!audit.decisions.iter().any(|d| d["owner"] == "changed"));
     }
     #[test]
     fn cfg_three_valued_evaluation_does_not_guess_features() {
