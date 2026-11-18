@@ -182,8 +182,9 @@ bytes. Production journal behavior is unchanged.
 Local proofs are under `target/r2/handoff-macos-f5287e6-{debug,release}` and
 `target/r2/handoff-linux-final-f5287e6`, with `handoff-logs/frozen-audit.json`
 and retained controller binaries. These ignored local files are not durable
-off-machine custody. The three-platform CI job selects the same CLI source
-and records its own controller identity. Its attempt-specific upload excludes
+off-machine custody. The three-platform CI job selects the same CLI source,
+executes both selected CLI profiles, and records its own controller identity.
+Its attempt-specific upload excludes
 all synthetic credential files. Native Windows execution, deployment-account
 acceptance, external authority/fencing, and the final release remain separate
 gates. Subsequent documentation does not relabel this frozen execution.

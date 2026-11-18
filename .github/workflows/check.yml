@@ -35,6 +35,10 @@ jobs:
         run: cargo build --offline --locked --manifest-path target/r2-engine/Cargo.toml --target-dir target/r2-artifacts -p weekend-db -p write-coordinator --all-features --bin weekend-admin --bin write-coordinator
       - name: Rehearse fresh restore and coordinated journal recovery
         run: cargo xtask incident-recovery --admin target/r2-artifacts/debug/weekend-admin${{ runner.os == 'Windows' && '.exe' || '' }} --coordinator target/r2-artifacts/debug/write-coordinator${{ runner.os == 'Windows' && '.exe' || '' }} --artifact-source ${{ env.R2_ENGINE_SOURCE }} --output target/operator-recovery
+      - name: Build the optimized selected administrative and coordinator CLIs
+        run: cargo build --offline --locked --release --manifest-path target/r2-engine/Cargo.toml --target-dir target/r2-artifacts -p weekend-db -p write-coordinator --all-features --bin weekend-admin --bin write-coordinator
+      - name: Rehearse the handoff against the optimized selected CLIs
+        run: cargo xtask incident-recovery --admin target/r2-artifacts/release/weekend-admin${{ runner.os == 'Windows' && '.exe' || '' }} --coordinator target/r2-artifacts/release/write-coordinator${{ runner.os == 'Windows' && '.exe' || '' }} --artifact-source ${{ env.R2_ENGINE_SOURCE }} --output target/operator-recovery-release
       - name: Retain operator recovery evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -44,6 +48,8 @@ jobs:
           path: |
             target/operator-recovery/**
             !target/operator-recovery/*.secret
+            target/operator-recovery-release/**
+            !target/operator-recovery-release/*.secret
   coordinator-package-recovery:
     name: Packaged coordinator recovery (${{ matrix.os }})
     strategy:
