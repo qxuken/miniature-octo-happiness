@@ -86,6 +86,12 @@ references, leaving **9,703 individual G records** (2,374 runtime / 26 driver /
 7,303 tooling). The denominator remains 10,482 records / 215 files / 66 targets /
 4,946 blind spots. Backend I/O propagation, the remaining graph/cache records
 and compiler/delegated/native/tooling gates retain their own obligations.
+The frozen follow-up verifies Mac/Linux debug/release and all 62 R1 mutants per
+profile, including intended-test attribution for every new control. Both reports
+match across all four configurations. Actual proof identities and the remaining
+native/final-head gates are recorded in the metadata ledger. PR #9's earlier
+`2d1f81e` source separately passes all 23 hosted checks; it is not substituted for
+this batch's source or eventual release qualification.
 
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its

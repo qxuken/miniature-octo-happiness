@@ -70,15 +70,26 @@ mutations and their actual platform results are recorded in that ledger.
 Frozen `a255842` passes both profiles on Mac/Linux: 32 inventory tests,
 341/348 core passes, 239/268 xtask passes and all 27 R1 mutants per profile.
 All four campaigns' copied/restored inputs and 96 command retirements verify;
-the 4,346-payload local proof passes fresh extraction and audit. Native Windows,
-final-head CI and eventual release custody retain their separate gates.
+the 4,346-payload local proof passes fresh extraction and audit. PR #9 head
+`2d1f81e` subsequently passes all 23 checks, including native Windows, ASan/TSan
+and bounded fuzzing. Windows inventory contracts pass 31 tests per profile;
+its archive digest and all 323 declared source/reference/Cargo pins verify, and
+both reports match the final local reports byte-for-byte. Its tested merge tree
+equals the pushed head. Those hosted results retain their own source scope;
+eventual release custody remains open.
 The [metadata/root-selection follow-up](decisions/codec-metadata-current.md)
 reuses existing tests and adds 35 mutation controls. It gives 37 current records
 explicit dispositions while retaining six B rows for partial layout guards.
 The current queue is 9,703 G records (2,374 runtime / 26 driver / 7,303 tooling).
 The unchanged codec file keeps the previous arithmetic bindings intact; backend
 I/O and the remaining graph/cache/compiler obligations are still open. Frozen
-execution results are recorded after their actual completion in that ledger.
+`795ea8a` passes both profiles on Mac/Linux: 32 inventory tests, 341/348 core
+passes, 239/268 xtask passes and all 62 R1 mutants per profile. Independent audits
+bind 779 copied/restored files, 347 declared inputs and 207 command retirements
+per campaign; the intended named test must fail for each new control. The
+5,679-payload local proof passes fresh extraction and both audit replays. Changed
+source, false partial-row promotion and unrelated test-failure controls reject.
+Native Windows/final-head CI for this new source retain their separate gates.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

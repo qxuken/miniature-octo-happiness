@@ -47,8 +47,8 @@ dominated cap retain B dispositions. The two shorter prefixes have only the
 independent parity/predecessor/physical-length atoms.
 
 C rows identify overlapping syntax under the documented parent pairs; they are
-not additional independent branches. The fixed `0..2` read loop is I: exactly
-two slot/witness positions, then exit. The witness iterator E row has empty,
+not additional independent branches. The fixed `0..2` read loop is I: two
+candidate positions on success; a propagated error can return early. The witness iterator E row has empty,
 one-witness and ordinary two-witness execution. Root-selection propagation E
 covers no-root, witness mismatch, nonadjacent and successful selection. Backend
 I/O propagation, other graph/cache rows, iterator internals, generated code and
@@ -72,8 +72,7 @@ cargo +1.99.1 xtask mutations --case r1-metadata- --release --toolchain 1.99.1 -
 ```
 
 The initial dirty-source debug prototype detected all 35 controls. It is a
-feedback loop, not frozen platform qualification. Full frozen profile/platform
-results are recorded only after they finish. Every baseline must be nonempty;
+feedback loop, separate from the frozen qualification below. Every baseline must be nonempty;
 mutants must compile and fail a real test with exit 101. Timeouts, compile errors
 and cleanup failures cannot qualify. Source restoration remains mandatory.
 
@@ -122,3 +121,68 @@ and cleanup failures cannot qualify. Source restoration remains mandatory.
 | C | weekend-db::weekend_db | src/storage/codec.rs:1182:21– | 40777..40829 | short_circuit_and | recover | Overlapping syntax under the documented parent pair |
 | P | weekend-db::weekend_db | src/storage/codec.rs:1187:9– | 40921..40923 | if | recover | Directed source pair above |
 | E | weekend-db::weekend_db | src/storage/codec.rs:1192:7– | 41096..41097 | try_propagation | recover | Scoped root-selection propagation or iterator execution above |
+
+## Frozen qualification at 795ea8a
+
+Source **`795ea8ad44268f65c5ccb848c17f006af23c9ddb`**, Rust **1.99.1**,
+passes debug/release on macOS arm64/APFS and offline Docker Linux arm64/ext4:
+
+| Host | Inventory tests / profile | Core tests / profile | xtask tests / profile | R1 mutations / profile |
+|---|---|---|---|---|
+| macOS | 32 passed | 341 passed, 2 explicit ignores | 239 passed, 2 explicit ignores | 62/62 detected |
+| Docker Linux | 32 passed | 348 passed, 2 explicit ignores | 268 passed, 1 explicit ignore | 62/62 detected |
+
+The complete core suite uses all features and includes all 39 codec tests,
+allocation/budget failures, crash/reopen, exact serialization goldens and
+retained roots. Ignored entries retain the [arithmetic batch's explicit scope](codec-arithmetic-current.md#frozen-qualification-at-a255842):
+the private core worker is used by parent tests; the manifest-growth control,
+authenticated replica-progress fixture and macOS busy-detach control are
+separate lanes. No skipped entry receives implied standalone execution credit.
+All three packages pass strict all-target Clippy; both touched workspaces pass
+formatting. The codec file, including its tests, is byte-identical to `2d1f81e`.
+
+Each of four campaigns starts from clean Git. Independent audits compare all
+**779 copied/restored files** and **347 declared inputs** to frozen blobs.
+All **207 command reports per campaign** have verified retirement, matching
+stream lengths and matching separate process reports. Baselines are nonempty;
+every mutant compiles and produces an actual failed test with exit 101. For all
+35 additions the audit also requires the intended named test to fail, including
+the six root-matrix cases selected through the complete durability test target.
+
+The reports are byte-identical across both hosts and profiles:
+
+| Report | SHA-256 |
+|---|---|
+| inventory.json | `334272325f46bae3c6337a68af746c95b49ba09549e3a776d3c3094173c8e105` |
+| review.json | `1ec1561e2e568ac5eaf318be6965917d6a12d2b5a272459ad4513b8555e41aa1` |
+
+They retain the denominator of 10,482 records / 215 files / 66 targets /
+4,946 blind spots, with zero failures, all 22 zero-record targets, fourteen
+locks and 21 manifests. All 37 new bindings and nine preceding arithmetic
+bindings remain; the six B rows have no named or overlap-control promotion.
+Twenty-eight named controls and 768 exact ledger references leave **9,703 G
+records** (2,374 runtime / 26 driver / 7,303 tooling). This is traceability and
+scoped evidence; it does not measure complete compiler MC/DC.
+
+Linux source, vendor dependencies, Cargo home, builds, temporary/runtime files
+and evidence reside on the owned ext4 volume with networking disabled. The
+immutable image remains
+`sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
+Source bundle SHA-256:
+`8e572b3f4f094137a19a544376846734c05fad8651820f120dc59c1d526d6085`.
+Locked vendor archive SHA-256:
+`7775e0b19c5b40db61946a31589855313dc6c91c12a46c96a1076a0cc80bddf6`.
+The container exits 0. Export/audit finish before both owned containers and the
+volume are removed; absence is checked and recorded.
+
+Local proof: `target/archived-proof/r1-metadata-795ea8a.tar.gz`, SHA-256
+**`4279f45d37447117e61aae29c4a1b7fed4468551e6bddad96fc55fb2d0a18bcf`**.
+Fresh extraction verifies **all 5,679 indexed payloads** and repeats both audits.
+Restored-copy controls reject changed codec bytes, promotion of a partial layout
+row and an unrelated failed test replacing the intended root-matrix failure.
+Restoring original bytes passes again, and all payloads still match their index.
+The proof retains source/vendor bundles, launchers, raw logs, process reports,
+restored source copies and the independent audit recipe; build caches are
+excluded. R7 off-machine custody remains open. Native Windows and final-head
+CI for this new source remain separate follow-ups. All 21 manifests retain
+`publish = false`; crates remain unpublished.
