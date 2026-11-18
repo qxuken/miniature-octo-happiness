@@ -137,7 +137,7 @@ Three P rows, one C row and 23 E rows cover cache reuse, scalar errors, tag
 dispatch, ordering and propagation. Two B rows preserve the scope of the
 reference guard, and one I row records the cached end invariant. The
 manifest has 86 named controls and 894 exact ledger references.
-**9,578 G records remain** (2,248 runtime / 26 driver / 7,304 tooling).
+**9,581 G records remain** (2,248 runtime / 26 driver / 7,307 tooling).
 
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
