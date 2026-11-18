@@ -51,6 +51,12 @@ on macOS and Docker Linux. The standalone workspace/example/build-script
 inventory is now implemented. R1 next requires individual reconciliation of the
 expanded G queue and its compiler/delegated boundaries; all R2–R7 release gates
 remain open.
+The [frozen catalog qualification](decision-inventory-catalog.md#frozen-follow-up-at-bea0e71)
+passes debug/release on macOS and Docker Linux, with 31 inventory tests and
+seventeen detected R1 mutants per profile. Original and copied input identities,
+restoration and command retirement are independently checked. All 9,749
+individual G records remain explicit; native Windows/final-head CI are separate
+follow-ups rather than implied by the local result.
 
 ## Deployment and owner gates
 

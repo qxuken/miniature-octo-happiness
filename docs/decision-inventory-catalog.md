@@ -120,11 +120,63 @@ lacked the standalone crate's pinned `serde_json` 1.0.149. Regenerating the lock
 offline vendor set for the root and inventory workspaces fixes the input seed
 without changing any lockfile or bypassing offline checks. Its archive SHA-256 is
 `7775e0b19c5b40db61946a31589855313dc6c91c12a46c96a1076a0cc80bddf6`.
-Linux and hosted native follow-ups are recorded after their actual completion.
-CI runs discovery/reconciliation contracts in both
+The completed Linux follow-up is recorded below. CI runs
+discovery/reconciliation contracts in both
 profiles on macOS, Linux and Windows, preserving committed bytes and using
 fail-fast Bash steps. R1 mutation campaigns run on the two Unix lanes; Windows
 retains its separate native RNG inventory.
+
+## Frozen follow-up at `bea0e71`
+
+Candidate `bea0e71ed8aae9967f956f3d1e3b6db900c5cd7a` includes the additional
+input bindings. Rust 1.99.1 passes the same source on macOS arm64/APFS and
+Docker Linux arm64/ext4. Linux source, dependency inputs, builds, temporary
+files and runtime data reside on an owned ext4 volume; networking is disabled.
+The immutable image is
+`sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
+
+| Platform | Inventory tests, each profile | xtask tests, each profile | R1 mutations, each profile |
+|---|---:|---:|---:|
+| macOS arm64/APFS | 31 passed, no ignores | 239 passed, 2 registered ignores | 17/17 detected |
+| Docker Linux arm64/ext4 | 31 passed, no ignores | 268 passed, 1 registered ignore | 17/17 detected |
+
+Debug and release both pass, as do both crates' Clippy checks. xtask counts
+include its two command and five supervision integration tests. Registered
+ignores retain their existing separate qualification requirements.
+All four mutation campaigns begin with a clean checkout. Independent audits
+verify all 777 copied files and 347 declared inputs against the frozen Git
+blobs, every restored copied file, all 64 command retirement reports per
+campaign, nonempty baselines and seventeen genuine exit-101 test failures.
+The added catalog/workspace inputs are present in the enlarged input map.
+
+Production inventory and review JSON are byte-identical across both tool
+profiles and both operating systems. Their frozen-result SHA-256 digests are:
+
+- Inventory: `9434a3de19081b9a4c61a2b5f167bacc90501061de2c3a0df9c3b1b49a627b06`.
+- Review: `8e7259e90d5ce539607bea2221dbc0b63ed65f047c368310c56b1a89f4bc2a36`.
+
+The optional test-mode inventory is also byte-identical between platforms:
+112 targets, 277 source files, 13,596 records, 12,326 blind spots, no failures.
+Those records remain unreviewed. Combining test mode with a production review
+rejects before creating output.
+
+The current production review retains 721 historical row references and eleven
+named controls. It explicitly identifies 9,749 remaining G records: 2,420
+runtime, 26 driver and all 7,303 tooling records. The four added functional
+mutants do not close their individual MC/DC gaps.
+
+Raw results, restored source copies and independent audits are under
+`target/r1/frozen-c2-macos/`, `target/r1/frozen-c2-linux/` and the two macOS
+`target/r1/catalog-r1-*-bea0e71/` campaign directories. The Linux proof export
+(excluding owned Cargo build caches) has SHA-256
+`d502544a762e9c768fbd80ce0a703301ca58ee7c1e44ab2331103d72bd5fd372`.
+Hosted native Windows and final-head CI results remain separate follow-ups;
+this local checkpoint does not close R5 deployment/account gates or R7 custody.
+The local archive `target/archived-proof/r1-catalog-bea0e71.tar.gz` has SHA-256
+`a748df2b5e305f8550a1d1b556e7a5c08833dd668a48e8efbc6e2ee40fe24bc1`.
+Fresh extraction reruns both independent platform audits, including restored
+source files and input identities. Owned Cargo build caches are excluded;
+this is source-test evidence, with the exact delivered-artifact tracks separate.
 
 All Cargo packages remain unpublished. Full per-decision reconciliation,
 expanded/generated code, delegated native behavior and the remaining R2–R7

@@ -52,6 +52,13 @@ share runtime source files. The current denominator is 10,482 records across
 215 files, with 4,946 explicit macro/attribute blind spots. Runtime and driver
 counts stay 3,023 and 156; the tooling denominator is 7,303. This expands the
 unqualified queue and does not infer compiler MC/DC or new execution credit.
+The [frozen follow-up](../decision-inventory-catalog.md#frozen-follow-up-at-bea0e71)
+verifies both Mac/Linux tool profiles and all seventeen R1 mutants per profile.
+All 777 copied inputs and 347 declared campaign inputs match `bea0e71`; all
+restored copies and process-retirement reports pass. Production and test-mode
+inventories are byte-identical across platforms. The individual G queue remains
+9,749 records: 2,420 runtime, 26 driver and 7,303 tooling. Native Windows and
+final-head CI results retain their own source scopes.
 
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
