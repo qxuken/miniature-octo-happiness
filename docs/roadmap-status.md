@@ -12,6 +12,14 @@ for e2d2268. Older entries below retain their historical source and scope.
 The project name is provisional. Baseline `1e883c8` checkpoints the prior
 decision tests and first four fuzz targets.
 
+The [2026-11-18 dependency snapshot](locked-dependency-review-3de695f.md)
+scans all fourteen lockfiles at `3de695f` against frozen RustSec `233155b`
+(1,527 parsed advisories): zero reported vulnerabilities and warnings.
+Independent extraction checks all 1,595 proof payloads and reproduces every
+raw scan result with the retained tool/database. R6's final distribution,
+attribution, registry metadata and owner actions remain open; local proof
+retention does not close R7 custody.
+
 The [R2 operational refresh](r2-qualification.md) uses engine `6b657e5` for fresh
 Mac/Linux operator, offline StudyProgress and live snapshot-month rehearsals.
 All scoped local workloads pass, including preserved retained roots, exact
