@@ -127,3 +127,7 @@ Unix shards run 31 controls each per profile, preserving the previously
 qualified per-job count. The job and command deadlines remain 20 minutes
 and 120 seconds. Windows retains one reconciliation job and the separate
 native RNG campaign.
+
+At frozen `1450e64`, actionlint 1.7.12 accepts the workflow. The actual CLI
+listings select all 186 names exactly once in each profile, with 31 on each
+index. The local mutation evidence uses three 62-control shards.

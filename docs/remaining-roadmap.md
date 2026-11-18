@@ -149,6 +149,9 @@ decisions and adds 35 controls. The fixture checks every truncated prefix
 and one trailing byte for integer, bytes, map and list payloads, plus an
 unknown tag. It matches current, previous and retained rows. The queue now
 has 9,581 G records (2,248 runtime / 26 driver / 7,307 tooling).
+Frozen `1450e64` passes on macOS and Docker Linux with all 186 controls per
+profile. The restored proof checks 17,137 payloads, both platform audits
+and the same source bundle. Hosted qualification uses six Unix shards.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

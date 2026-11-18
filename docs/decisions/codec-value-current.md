@@ -33,8 +33,8 @@ cache insertion changes.
 
 With the shared fixture, the two debug prototype shards detect all 29 DATA
 and all 35 VALUE controls. Each intended test fails in the corresponding
-variant, and all 218 command retirements verify. Frozen qualification is
-still pending.
+variant, and all 218 command retirements verify. The frozen run below
+verifies the witness-held-constant fixture on both platforms.
 
 ## Exact current source rows
 
@@ -74,3 +74,45 @@ still pending.
 | E | weekend-db::weekend_db | src/storage/codec.rs:1006:49– | 34327..34328 | try_propagation | value_inner | Scoped propagation above |
 | E | weekend-db::weekend_db | src/storage/codec.rs:1010:22– | 34420..34421 | try_propagation | value_inner | Scoped propagation above |
 | E | weekend-db::weekend_db | src/storage/codec.rs:1012:64– | 34503..34504 | try_propagation | value_inner | Scoped propagation above |
+
+## Frozen qualification at 1450e64
+
+Source `1450e643e36539e5840a0392af882e4d6319e2d5` passed both profiles on
+Rust 1.99.1. The earlier `e2e98e5` run was cancelled after the witness control
+review and receives no frozen qualification credit.
+
+| Host | Inventory tests per profile | Core tests per profile | xtask tests per profile | R1 controls per profile |
+|---|---|---|---|---|
+| macOS arm64/APFS | 32 passed | 346 passed, 2 explicit ignores | 242 passed, 2 explicit ignores | 186/186 detected |
+| Docker Linux arm64/ext4 | 32 passed | 353 passed, 2 explicit ignores | 271 passed, 1 explicit ignore | 186/186 detected |
+
+Formatting and strict all-target Clippy passed for the core, xtask and
+inventory packages on both hosts. The core tests include allocation failures,
+exact bytes, crash schedules and current and retained roots. Docker ran
+without networking, using the pinned image and vendor inputs from the
+[graph batch](codec-graph-current.md#frozen-qualification-at-4d2e3eb).
+Source, Cargo and runtime files lived on ext4. The audited export preceded
+removal of the owned containers and volume.
+
+The three local shards ran 62 controls each per profile. The audits verified
+2,544 command retirements and 784 copied and restored source files and 347
+declared inputs per campaign. They checked the intended test failures for
+all 35 VALUE controls and preserved all 142 earlier codec bindings. The two
+forward-reference B rows and cached-end I row retain their scope. Both
+report hashes agree across platforms and profiles.
+
+| Report | SHA-256 |
+|---|---|
+| inventory.json | `582399287d7f57b511987e56fd33fe4731b7eddd0f9abee70d91fea49805236f` |
+| review.json | `2abe4a86552d1992e5884656919444c84d081e113a9c663c369b93779289ba29` |
+
+Local proof `target/archived-proof/r1-value-1450e64.tar.gz` SHA-256 is
+`986995b90653582e7b476afe916cb8101103aed46f5846ad00beeb0386720138`.
+Fresh extraction verifies 17,137 indexed payloads and replays both source
+audits using the included Git bundle. The archive contains recipes, locked
+vendor inputs, command reports and restored source copies.
+
+The [hosted matrix](../r1-ci-shards.md#value-reader-shard-count) uses six
+Unix shards. Actionlint 1.7.12 and the actual CLI listings in both profiles
+verify the complete 31/31/31/31/31/31 selection. Hosted execution and native
+Windows keep separate source scope.
