@@ -151,3 +151,15 @@ Fresh extraction verifies **13,621 indexed payloads** and repeats the audits
 against Git objects from the bundled source. The archive contains the source
 bundle, locked vendor inputs, scripts, reports and restored source copies.
 Hosted checks, including native Windows, retain their separate source scope.
+
+## Hosted results at a1a95a1
+
+PR #12 head `a1a95a108593b9ef8b491570b831c90b4ed903f9` passed all
+[26 engine jobs](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44277108233)
+and [bounded fuzzing](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44277108308).
+The tested merge `0c2896457eabc8176c4f39f257a1d75aad88e3f5` has the
+same tree as the head. The audit verifies all seven artifact digests and
+exact reconciliation reports, including Windows. The Linux and macOS unions
+contain all 95 controls per profile with no duplicated cases. All 1,384
+process retirements verify. These artifacts contain copied-source hashes
+and command reports. The local proof above includes the restored files.

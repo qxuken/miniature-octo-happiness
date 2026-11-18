@@ -114,8 +114,8 @@ three-shard layout and provides evidence for that layout.
 
 ## DATA directory shard count
 
-The longest completed PR #12 macOS shard ran for 15 minutes 17 seconds
-with 32 controls per profile. The DATA directory batch brings the total
+The longest completed [PR #12 macOS shard](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44277108233/job/134707930309)
+ran for about 15 minutes with 32 controls per profile. The DATA directory batch brings the total
 to 151. Five hosted Unix shards select 31, 30, 30, 30 and 30 cases per
 profile. The 20-minute job limit, 120-second command deadline and single
 Windows reconciliation job are preserved.

@@ -109,6 +109,9 @@ Frozen `4d2e3eb` passes debug and release on macOS and Docker Linux, including
 all 95 R1 controls per profile. Its local proof passes fresh extraction and
 replay of the evidence audits across 13,621 payloads. The graph ledger lists
 the exact scope, fingerprints and earlier rejected candidates.
+The [hosted result](decisions/codec-graph-current.md#hosted-results-at-a1a95a1)
+passes all 27 checks at `a1a95a1`. All seven artifact digests and both
+95-control Unix unions verify.
 The [COMMIT and retained catalog follow-up](decisions/codec-catalog-current.md)
 covers 29 further source records. It tests an invalid next ID with zero
 entries, truncation at every descriptor word and one trailing byte. The
@@ -118,14 +121,18 @@ exercise both validation and propagation. The remaining R1 queue has 9,640
 G records (2,310 runtime / 26 driver / 7,304 tooling).
 Frozen `89e1bb2` passes on macOS and Docker Linux in debug and release,
 with 122/122 controls detected per profile. Its archive verifies all
-14,689 payloads after fresh extraction and audit replay. The hosted Unix
-matrix uses four shards and keeps the existing deadlines.
+14,689 payloads after fresh extraction and audit replay. The catalog's
+hosted Unix matrix has four shards under the existing deadlines.
 The [DATA directory follow-up](decisions/codec-data-current.md) maps 32
 more decisions and adds 29 controls. It verifies key ordering, exact
 payload length and limit failures. Each damaged newest DATA object is
 rejected, and the previous slot independently opens with its retained
 catalog. The queue now has 9,608 G records (2,278 runtime / 26 driver /
 7,304 tooling).
+Frozen `0c1969a` passes debug and release on macOS and Docker Linux, including
+151/151 controls per profile. Its archive independently verifies and replays
+15,817 payloads after fresh extraction. The hosted Unix matrix uses five
+shards and preserves the deadlines.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

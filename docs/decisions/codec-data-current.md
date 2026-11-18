@@ -72,3 +72,44 @@ preserves the earlier 178 mutations and the pinned production codec.
 | E | weekend-db::weekend_db | src/storage/codec.rs:1101:14– | 37746..37747 | try_propagation | data_inner | Scoped propagation above |
 | E | weekend-db::weekend_db | src/storage/codec.rs:1103:22– | 37780..37781 | try_propagation | data_inner | Scoped propagation above |
 | E | weekend-db::weekend_db | src/storage/codec.rs:1105:69– | 37868..37869 | try_propagation | data_inner | Scoped propagation above |
+
+## Frozen qualification at 0c1969a
+
+Source `0c1969ad4a115c20be3a10fe791d7f8c795ba644` passed in both
+profiles on Rust 1.99.1.
+
+| Host | Inventory tests per profile | Core tests per profile | xtask tests per profile | Controls per profile |
+|---|---|---|---|---|
+| macOS arm64/APFS | 32 passed | 345 passed, 2 explicit ignores | 242 passed, 2 explicit ignores | 151/151 detected |
+| Docker Linux arm64/ext4 | 32 passed | 352 passed, 2 explicit ignores | 271 passed, 1 explicit ignore | 151/151 detected |
+
+Both hosts passed formatting and strict all-target Clippy for the core,
+xtask and inventory packages. The core suite includes exact serialization,
+allocation, crash recovery and retained roots. Docker used the pinned
+offline image and vendor inputs from the [graph batch](codec-graph-current.md#frozen-qualification-at-4d2e3eb).
+Source, Cargo home, builds, temporary files and runtime evidence resided on
+ext4. The exported audit passed before both containers and the owned volume
+were removed.
+
+The three local shards ran 51, 50 and 50 controls per profile. The audits
+verify **2,108 command retirements**, **783 copied and restored source files
+and 347 inputs per campaign**, the intended named test failures for all 29
+DATA controls and preservation of the prior 110 codec bindings. The two
+cached-end B rows retain their partial scope. Both report hashes match
+across platforms and profiles.
+
+| Report | SHA-256 |
+|---|---|
+| inventory.json | `978ac78a04a81ca179e26569692983f420e4f6e1f01f8854d3f75180a9691580` |
+| review.json | `7995e8e0ef1f53424d4584ed5d79af89976d144acb1291638a55142bf07ac66e` |
+
+Local proof `target/archived-proof/r1-data-0c1969a.tar.gz` SHA-256 is
+`23cb44d800b672d509af158b80041d5ae011499161912ec9c0ff1c808c1f164d`.
+Fresh extraction verifies **15,817 indexed payloads** and replays both
+audits from the included Git bundle. The archive also contains the locked
+vendor inputs, recipes, reports and restored source copies.
+
+The [hosted matrix](../r1-ci-shards.md#data-directory-shard-count) uses five
+Unix shards. Actionlint 1.7.12 and the actual CLI listings in both profiles
+verify the complete 31/30/30/30/30 selection. Hosted execution and native
+Windows retain a separate source scope.

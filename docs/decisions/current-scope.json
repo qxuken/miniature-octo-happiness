@@ -293,11 +293,11 @@
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "36650f97a3d193f3dd32060935248921d846a0bcaf9062eea859c13ce5629d3d",
     "docs/decisions/codec-metadata-current.md": "d51b3df64193e3a3a0d8e1752bf2061c9a47144b21148a069518ef5b69107b4f",
-    "docs/r1-ci-shards.md": "8cb7caf4de1189f4af30af06308ffd38d80b92120fc5426ad9094f307e74ac5e",
-    "docs/decisions/codec-graph-current.md": "3d1efea52377ecd853760d008f2f38b1e523ddb42a2c7f0c3e76a01cb75a7bbc",
+    "docs/r1-ci-shards.md": "5a3ece1542ac6def840c24e532dda47bbff5f1916c1c3c5d406a4a320e55edd8",
+    "docs/decisions/codec-graph-current.md": "2668f270c43ef6b43748c45f64b1a3bffe341786b3fa217b764e1d9e2c6c8b1a",
     "docs/decisions/codec-catalog-current.md": "6f7d97e9a7924894a71e8b3373c55bda2a549918e5abd340404bdb5ca2878edc",
     "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
-    "docs/decisions/codec-data-current.md": "5964e979db71efccc926d765b09809c48cd778c322490a07251ed7a9df862dc3"
+    "docs/decisions/codec-data-current.md": "84ff793f88390096fcba2c2700d1ddd218169dfc3387e52bf13cd309ac9f3834"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
