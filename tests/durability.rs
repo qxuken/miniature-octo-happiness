@@ -549,7 +549,7 @@ fn image_crc64(bytes: &[u8]) -> u64 {
     crc
 }
 
-fn resign_descriptor(bytes: &mut [u8]) {
+fn resign_object(bytes: &mut [u8]) {
     bytes[OBJECT_CHECKSUM].fill(0);
     let checksum = image_crc64(bytes);
     bytes[OBJECT_CHECKSUM].copy_from_slice(&checksum.to_le_bytes());
@@ -637,7 +637,7 @@ fn object_extents_and_directory_references_reject_before_outside_reads() {
         let descriptor = &mut image[root..root + REGION];
         let data_reference = OBJECT_HEADER_BYTES + 8;
         descriptor[data_reference..data_reference + 8].copy_from_slice(&reference.to_le_bytes());
-        resign_descriptor(descriptor);
+        resign_object(descriptor);
         reject(case, image, full_at);
     }
     // An unselected tail is legal. A descriptor may not extend into it even
@@ -651,7 +651,7 @@ fn object_extents_and_directory_references_reject_before_outside_reads() {
     drop(with_tail);
     let descriptor = &mut extended[root..root + 2 * REGION];
     descriptor[16..24].copy_from_slice(&(REGION as u64).to_le_bytes());
-    resign_descriptor(descriptor);
+    resign_object(descriptor);
     reject(
         "descriptor extends outside selected end",
         extended,
@@ -676,7 +676,7 @@ fn empty_retained_catalog_still_requires_nonzero_next_id() {
     assert_eq!(image_u64(descriptor, next_id), 1);
     assert_eq!(image_u64(descriptor, next_id + 8), 0);
     descriptor[next_id..next_id + 8].fill(0);
-    resign_descriptor(descriptor);
+    resign_object(descriptor);
     image[3 * REGION..4 * REGION].fill(0);
 
     let disk = SimulatedDisk::from_image(&image).unwrap();
@@ -737,7 +737,7 @@ fn commit_descriptor_requires_every_catalog_field_and_exact_payload_end() {
         let descriptor = &mut image[root..root + REGION];
         descriptor[16..24].copy_from_slice(&(len as u64).to_le_bytes());
         descriptor[OBJECT_HEADER_BYTES + len..].fill(0);
-        resign_descriptor(descriptor);
+        resign_object(descriptor);
         let candidate = SimulatedDisk::from_image(&image).unwrap();
         assert!(
             matches!(
@@ -764,6 +764,89 @@ fn commit_descriptor_requires_every_catalog_field_and_exact_payload_end() {
         assert_eq!(older.snapshot().revision(), 4, "payload length {len}");
         assert_eq!(state(&older), current_rows, "payload length {len}");
         assert_eq!(retained_rows(&older), older_catalog, "payload length {len}");
+    }
+}
+
+#[test]
+fn data_directory_requires_complete_sorted_records() {
+    let (disk, db) = base_store();
+    let old = db.snapshot();
+    let older_rows = state(&db);
+    assert_eq!(old.revision(), 2);
+    assert_eq!(db.retain_snapshot(&old), Ok(1));
+    assert_eq!(staged(&db).commit(), Ok(4));
+    let current_rows = state(&db);
+    assert_ne!(older_rows, current_rows);
+    let retained = vec![(1, 2, older_rows.clone())];
+    let original = disk.durable_image().unwrap();
+    drop(old);
+    drop(db);
+
+    let root = image_u64(&original, REGION + 40) as usize;
+    let data = image_u64(&original, root + OBJECT_HEADER_BYTES + 8) as usize;
+    let payload_len = image_u64(&original, data + 16) as usize;
+    assert_eq!(payload_len, 128);
+    let healthy = open(&SimulatedDisk::from_image(&original).unwrap());
+    assert_eq!(healthy.snapshot().revision(), 4);
+    assert_eq!(state(&healthy), current_rows);
+    assert_eq!(retained_rows(&healthy), retained);
+    drop(healthy);
+
+    let reject = |case: &str, mut image: Vec<u8>, error: Error| {
+        image[3 * REGION..4 * REGION].fill(0);
+        resign_object(&mut image[data..data + REGION]);
+        let candidate = SimulatedDisk::from_image(&image).unwrap();
+        assert_eq!(
+            Database::open_on(candidate.clone(), Limits::default()).err(),
+            Some(error),
+            "{case}"
+        );
+        assert!(
+            candidate
+                .trace()
+                .unwrap()
+                .iter()
+                .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync)),
+            "{case} wrote or synced"
+        );
+        assert_eq!(candidate.durable_image().unwrap(), image, "{case}");
+        image[REGION..2 * REGION].fill(0);
+        let older = open(&SimulatedDisk::from_image(&image).unwrap());
+        assert_eq!(older.snapshot().revision(), 3, "{case}");
+        assert_eq!(state(&older), older_rows, "{case}");
+        assert_eq!(retained_rows(&older), retained, "{case}");
+    };
+
+    for len in (0..payload_len).chain([payload_len + 1]) {
+        let mut image = original.clone();
+        let object = &mut image[data..data + REGION];
+        object[16..24].copy_from_slice(&(len as u64).to_le_bytes());
+        object[OBJECT_HEADER_BYTES + len..].fill(0);
+        reject(&format!("DATA payload length {len}"), image, Error::Corrupt);
+    }
+
+    // DATA and collection headers each have three words. A record has a
+    // length word, key bytes, write revision and value offset.
+    let payload = data + OBJECT_HEADER_BYTES;
+    let first_key_len = payload + 6 * 8;
+    let second_key = first_key_len + 4 * 8 + 1;
+    assert_eq!(image_u64(&original, first_key_len), 1);
+    assert_eq!(original[first_key_len + 8], b'a');
+    assert_eq!(original[second_key], b'b');
+    for (case, key) in [("duplicate key", b'a'), ("descending key", b'A')] {
+        let mut image = original.clone();
+        image[second_key] = key;
+        reject(case, image, Error::Corrupt);
+    }
+    let limits = Limits::default();
+    for (case, pos, maximum) in [
+        ("collection count", payload + 16, limits.max_entries),
+        ("record count", payload + 40, limits.max_entries),
+        ("key length", first_key_len, limits.max_bytes),
+    ] {
+        let mut image = original.clone();
+        image[pos..pos + 8].copy_from_slice(&(maximum as u64 + 1).to_le_bytes());
+        reject(case, image, Error::Limit);
     }
 }
 

@@ -348,8 +348,10 @@ iterator scope instead of promoting them to complete pairs. The
 adds read boundaries, scoped I/O and allocation propagation and explicit
 partial overlap dispositions. The [COMMIT and retained catalog ledger](decisions/codec-catalog-current.md)
 adds descriptor fields, retained-entry checks, exact payload consumption and
-allocation propagation. Remaining VALUE/DATA payloads, graph/cache and
-compiler obligations still require their own evidence.
+allocation propagation. The [DATA directory ledger](decisions/codec-data-current.md)
+adds cache admission, object revision and collection checks, record order and
+payload consumption. Remaining VALUE payloads, cache and compiler obligations
+still require their own evidence.
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision

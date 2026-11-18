@@ -125,6 +125,13 @@ iteration, including eight identical field reads bound by their byte spans.
 The manifest has 61 named controls and 832 exact ledger references.
 **9,640 G records remain** (2,310 runtime / 26 driver / 7,304 tooling).
 
+The [DATA directory batch](codec-data-current.md) adds 32 exact dispositions.
+Six P rows and seven coupled C rows cover directory lookup, revision and
+record checks. Two B rows preserve the limit on independent evidence for
+the cached end comparison. Seventeen E rows cover propagation and iteration.
+The manifest has 74 named controls and 864 exact ledger references.
+**9,608 G records remain** (2,278 runtime / 26 driver / 7,304 tooling).
+
 R1 remains open for individual reconciliation outside the reviewed bindings.
 Every unmatched record now has its own `G` disposition and reason naming its
 current target, owner, kind, conditions and alternatives. Group references are

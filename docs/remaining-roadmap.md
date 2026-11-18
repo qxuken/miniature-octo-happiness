@@ -120,6 +120,12 @@ Frozen `89e1bb2` passes on macOS and Docker Linux in debug and release,
 with 122/122 controls detected per profile. Its archive verifies all
 14,689 payloads after fresh extraction and audit replay. The hosted Unix
 matrix uses four shards and keeps the existing deadlines.
+The [DATA directory follow-up](decisions/codec-data-current.md) maps 32
+more decisions and adds 29 controls. It verifies key ordering, exact
+payload length and limit failures. Each damaged newest DATA object is
+rejected, and the previous slot independently opens with its retained
+catalog. The queue now has 9,608 G records (2,278 runtime / 26 driver /
+7,304 tooling).
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
