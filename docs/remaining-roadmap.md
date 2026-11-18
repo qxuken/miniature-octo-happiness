@@ -155,6 +155,9 @@ and the same source bundle. Hosted qualification uses six Unix shards.
 The [named integration controls](mutations.md) enforce exact test selection
 and failure attribution for 61 existing cases. Five new tooling records
 keep G, leaving 9,586 G records (2,248 runtime / 26 driver / 7,312 tooling).
+Frozen `a42358e` verifies all 61 exact integrations in both profiles on
+macOS and Docker Linux. The restored proof replays 880 command reports
+and checks 12,103 payloads.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

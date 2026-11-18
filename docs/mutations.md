@@ -94,6 +94,25 @@ failures. Selecting an unrelated passing simulator test for a VALUE control
 returns an uncaught result even though it compiles and runs. These pilot
 receipts qualify the named selection contract for the sampled cases.
 
+### Frozen named selection
+
+Frozen `a42358e40ead8394918d297a52189cd8cacae118` passes all ten runner
+tests and all 61 exact integration controls in debug and release on macOS
+arm64/APFS and Docker Linux arm64/ext4 with Rust 1.99.1. The prefix search
+also selects `r1-value-map-key-order`, which passes its library test.
+Each profile has three disjoint shards of 21, 21 and 20 cases.
+
+The audits match every expected single-test baseline and failure to its
+compiled command, verify all 880 command retirements, and rehash every
+restored source file. Docker ran offline with source, Cargo, builds and
+runtime files on its owned ext4 volume. The export passed verification
+before both containers and the volume were retired. The xtask tests also
+compile for x86_64 Windows MSVC.
+
+The local archive `target/archived-proof/r1-named-a42358e.tar.gz` contains
+12,103 indexed payloads and replays both audits from a fresh extraction.
+Its SHA-256 is `cecbc96ac135c9a922ff27b4c88451658fdd352d53a098c7865eafb75708dd98`.
+
 This is a reviewed, finite mutation inventory, separate from compiler MC/DC and
 fuzzing. It deliberately avoids mutations that fabricate invalid raw pointers or
 invalidate object ownership. The source expressions and tests require review
