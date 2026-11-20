@@ -62,3 +62,34 @@ matching compact and backup images. Production codec bytes match the parent.
 | E | weekend-db::weekend_db | src/storage/codec.rs:676:71– | 23333..23334 | try_propagation | data | Borrowed DATA cache fork error |
 | E | weekend-db::weekend_db | src/storage/codec.rs:677:63– | 23398..23399 | try_propagation | data | DATA index reserve error |
 | E | weekend-db::weekend_db | src/storage/codec.rs:679:67– | 23484..23485 | try_propagation | data | DATA cache entry reserve error |
+
+## Frozen qualification at 45e5705
+
+Source `45e5705233d3a42b1100930595f666571fa5d31a` passed with Rust 1.99.1
+in debug and release on both hosts.
+
+| Host | Core tests per profile | xtask tests per profile | Inventory tests per profile | DATA controls per profile |
+|---|---:|---:|---:|---:|
+| macOS arm64 | 349 passed, 2 ignored | 243 passed, 3 ignored | 33 passed | 25/25 detected |
+| Docker Linux arm64/ext4 | 356 passed, 2 ignored | 272 passed, 1 ignored | 33 passed | 25/25 detected |
+
+Formatting and strict core all-target Clippy passed on both hosts. The
+core suites include the golden DATA history, allocation failures, durable
+publication and retained-root recovery. The Linux source, build and test
+runtime used an owned ext4 volume. Its pinned image ID was
+`sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
+The proof was exported before the volume was retired.
+
+The three local shards select 9, 8 and 8 controls per profile. The audit
+checks 360 command retirements, including the successful baseline and
+the exact named test failure for each compiled variant. Each campaign's
+787 copied files match the frozen Git tree byte for byte. Both hosts
+produced identical reconciliation reports with 140 named controls.
+Actionlint 1.7.12 passed, and each profile's CLI listing selects all
+259 R1 controls exactly once over the nine hosted shards.
+
+The archive `target/archived-proof/r1-data-encoding-45e5705.tar.gz` has
+SHA-256 `f5fa681960117b3761f839c5cc002729dc5ab3ecaf40a7d45e68252a1b6e9b7c`.
+Fresh extraction verifies 10,588 indexed payloads and reproduces the
+combined audit using the retained Git bundle. Hosted and final release
+qualification retain their own source and platform scope.
