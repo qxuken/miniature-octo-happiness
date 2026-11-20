@@ -63,6 +63,50 @@ fn historical_retain_release_and_live_lifetimes_survive_reopening() {
     assert_eq!(db.release_retained(2), Err(Error::NotFound));
 }
 
+#[cfg(feature = "fault-injection")]
+#[test]
+fn allocation_failure_during_retain_leaves_the_acknowledged_image() {
+    use weekend_db::storage::IoKind;
+
+    let image = fixture();
+    let disk = SimulatedDisk::from_image(&image).unwrap();
+    let db = open(&disk);
+    let captured = db.snapshot();
+    let baseline = db.memory_usage().live_bytes;
+    for allowance in 0..64 {
+        disk.arm(usize::MAX, Fault::Error);
+        db.fail_allocations_after(Some(allowance));
+        let result = db.retain_snapshot(&captured);
+        db.fail_allocations_after(None);
+        if result == Ok(2) {
+            assert!(allowance > 0);
+            drop(captured);
+            drop(db);
+            let db = open(&disk);
+            assert_eq!(db.retained_ids().unwrap(), [1, 2]);
+            assert_eq!(
+                bytes(&db.retained_snapshot(1).unwrap(), &db),
+                b"historical-only"
+            );
+            assert_eq!(bytes(&db.retained_snapshot(2).unwrap(), &db), b"current");
+            return;
+        }
+        assert_eq!(result, Err(Error::OutOfMemory), "allocation {allowance}");
+        assert!(
+            disk.trace()
+                .unwrap()
+                .iter()
+                .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync)),
+            "allocation {allowance}"
+        );
+        assert_eq!(disk.durable_image().unwrap(), image);
+        assert_eq!(db.snapshot().revision(), captured.revision());
+        assert_eq!(db.retained_ids().unwrap(), [1]);
+        assert_eq!(db.memory_usage().live_bytes, baseline);
+    }
+    panic!("snapshot was not retained after the bounded allocation sweep");
+}
+
 #[test]
 fn stale_record_commits_preserve_current_retention_without_resurrection() {
     let disk = SimulatedDisk::from_image(&fixture()).unwrap();

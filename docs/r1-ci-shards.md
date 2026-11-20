@@ -151,3 +151,8 @@ The 259 R1 controls use nine Unix shards, with 29 cases for indexes 0 through
 6 and 28 cases for indexes 7 and 8. Debug and release use the same selections.
 The 20-minute job and 120-second command limits apply. Windows runs one
 reconciliation job and the separate native RNG campaign.
+
+## COMMIT encoder shard count
+
+The 276 R1 controls use the nine hosted Unix shards, with 31 cases for
+indexes 0 through 5 and 30 for indexes 6 through 8 in each profile.

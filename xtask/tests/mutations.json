@@ -3533,6 +3533,193 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-current-data-stage",
+      "file": "src/storage/codec.rs",
+      "old": "encoder.data(head, next_collection)?",
+      "new": "encoder.data(head, next_collection).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_encoding_preserves_retained_references_and_rolls_back",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-revision",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(head.revision)?",
+      "new": "commit.int(head.revision).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-current-data-ref",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(data_ref)?",
+      "new": "commit.int(data_ref).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-current-data-revision",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(head.data_revision)?",
+      "new": "commit.int(head.data_revision).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-next-id",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(retention.next_id)?",
+      "new": "commit.int(retention.next_id).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-count",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(retention.entries.len() as u64)?",
+      "new": "commit.int(retention.entries.len() as u64).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-retained-data-stage",
+      "file": "src/storage/codec.rs",
+      "old": "encoder.data(&retained.head, retained.next_collection)?",
+      "new": "encoder.data(&retained.head, retained.next_collection).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_encoding_preserves_retained_references_and_rolls_back",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-retained-id",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(retained.id)?",
+      "new": "commit.int(retained.id).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-retained-revision",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(retained.head.revision)?",
+      "new": "commit.int(retained.head.revision).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-retained-data-ref",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(offset)?",
+      "new": "commit.int(offset).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-retained-data-revision",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(retained.head.data_revision)?",
+      "new": "commit.int(retained.head.data_revision).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_fields_propagate_tight_budget_failures",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-object",
+      "file": "src/storage/codec.rs",
+      "old": "encoder.object(COMMIT, &commit.bytes)?",
+      "new": "encoder.object(COMMIT, &commit.bytes).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_encoding_preserves_retained_references_and_rolls_back",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-value-cache-finish",
+      "file": "src/storage/codec.rs",
+      "old": "encoder.cache.finish(mem)?",
+      "new": "encoder.cache.finish(mem).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_encoding_preserves_retained_references_and_rolls_back",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-data-cache-finish",
+      "file": "src/storage/codec.rs",
+      "old": "encoder.data_cache.finish(mem)?",
+      "new": "encoder.data_cache.finish(mem).map_err(|_| Error::Invalid)?",
+      "test": "storage::codec::tests::commit_encoding_preserves_retained_references_and_rolls_back",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-catalog-skip",
+      "file": "src/storage/codec.rs",
+      "old": "for retained in &retention.entries {",
+      "new": "for retained in retention.entries.iter().skip(1) {",
+      "test": "storage::codec::tests::commit_encoding_preserves_retained_references_and_rolls_back",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-golden-data-revision",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(head.data_revision)?",
+      "new": "commit.int(head.revision)?",
+      "test": "storage::codec::tests::serialization_data_golden_history",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-encode-commit-golden-next-id",
+      "file": "src/storage/codec.rs",
+      "old": "commit.int(retention.next_id)?",
+      "new": "commit.int(retention.entries.len() as u64 + 1)?",
+      "test": "storage::codec::tests::serialization_data_golden_history",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
