@@ -165,13 +165,21 @@ Thus the successful producer jobs do not qualify that exported package.
 The source-package upload now explicitly includes hidden files within its
 validated package/proof directories. GitHub documents the
 [hidden-file exclusion and archive permission behavior](https://github.com/actions/upload-artifact#uploading-hidden-files).
-The job downloads the immutable ID returned by its own upload with
-[download-artifact](https://github.com/actions/download-artifact#download-artifacts-by-id),
-rejecting digest mismatches, then runs the same inventory check and both
-recovery profiles against the extracted source package. Download access is
-scoped to the current run; no extra repository Actions permission or token is
-needed. Attempt-specific names preserve prior evidence
-when a job is retried. Post-download evidence is uploaded separately.
+The job uses the [GitHub artifact download endpoint](https://docs.github.com/en/rest/actions/artifacts#download-an-artifact)
+with the immutable ID returned by its own upload. It bounds retries and
+checks the ZIP against the upload's SHA-256 output before extraction. The
+job token has Actions read access. The same inventory check and both
+recovery profiles run against the extracted package. Attempt-specific names
+preserve prior evidence when a job is retried. Post-download evidence is
+uploaded separately.
+
+Both Windows attempts on the first PR #19 revision finalized the upload,
+then failed when `download-artifact` omitted the new ID from the run's
+artifact listing. The first ZIP subsequently downloaded by that exact ID
+and matched the upload digest. Direct download avoids the listing and
+keeps the package digest tied to the same-job upload.
+[Initial Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44764951342/job/136386956484),
+[Windows retry](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44764951342/job/136425035475).
 
 This remains a source-delivery profile: executables are rebuilt and relocated
 from the extracted source. The ZIP is not a permission-preserving installer

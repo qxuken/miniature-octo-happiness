@@ -52,6 +52,9 @@ jobs:
             !target/operator-recovery-release/*.secret
   coordinator-package-recovery:
     name: Packaged coordinator recovery (${{ matrix.os }})
+    permissions:
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -87,11 +90,27 @@ jobs:
             target/coordinator-package-recovery/**
             !target/coordinator-package-recovery/cargo-target/**
       - name: Download the exact uploaded source package
-        uses: actions/download-artifact@v8
-        with:
-          artifact-ids: ${{ steps.coordinator-package-upload.outputs.artifact-id }}
-          path: target/coordinator-delivered
-          digest-mismatch: error
+        shell: pwsh
+        env:
+          ARTIFACT_ID: ${{ steps.coordinator-package-upload.outputs.artifact-id }}
+          ARTIFACT_SHA256: ${{ steps.coordinator-package-upload.outputs.artifact-digest }}
+          ARTIFACT_TOKEN: ${{ github.token }}
+        run: |
+          if ($env:ARTIFACT_ID -notmatch '^[0-9]+$' -or $env:ARTIFACT_SHA256 -notmatch '^[0-9a-f]{64}$') {
+            throw 'The package upload did not report an artifact ID and SHA-256 digest.'
+          }
+          $archive = 'target/coordinator-delivered.zip'
+          # Download by exact ID without waiting for the run's artifact listing.
+          $uri = "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/actions/artifacts/$env:ARTIFACT_ID/zip"
+          Invoke-WebRequest -Uri $uri -Headers @{ Authorization = "Bearer $env:ARTIFACT_TOKEN" } `
+            -ConnectionTimeoutSeconds 10 -OperationTimeoutSeconds 45 -MaximumRetryCount 4 -RetryIntervalSec 2 `
+            -OutFile $archive
+          $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+          if ($digest -ne $env:ARTIFACT_SHA256) {
+            throw "Artifact $env:ARTIFACT_ID SHA-256 mismatch: $digest."
+          }
+          Write-Host "Verified artifact $env:ARTIFACT_ID SHA-256 $digest"
+          Expand-Archive -LiteralPath $archive -DestinationPath target/coordinator-delivered
       - name: Verify and exercise the delivered package after extraction
         run: cargo xtask coordinator-recovery --package target/coordinator-delivered/coordinator-private-package --expected-source ${{ github.sha }} --output target/coordinator-package-roundtrip
       - name: Retain the post-download recovery evidence
@@ -110,7 +129,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8]
         exclude:
           - os: windows-latest
             shard: 1
@@ -126,6 +145,8 @@ jobs:
             shard: 6
           - os: windows-latest
             shard: 7
+          - os: windows-latest
+            shard: 8
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:
@@ -150,8 +171,8 @@ jobs:
       - name: Detect the R1 controls in debug and release
         if: runner.os != 'Windows'
         run: |
-          cargo +1.99.1 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 8 --toolchain 1.99.1 --output target/r1/mutations-debug
-          cargo +1.99.1 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 8 --release --toolchain 1.99.1 --output target/r1/mutations-release
+          cargo +1.99.1 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --toolchain 1.99.1 --output target/r1/mutations-debug
+          cargo +1.99.1 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --release --toolchain 1.99.1 --output target/r1/mutations-release
       - name: Retain the source-bound reconciliation and mutation evidence
         if: always()
         uses: actions/upload-artifact@v7

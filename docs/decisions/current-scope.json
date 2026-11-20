@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "baseline": "f66a7c523b24f47c1d04db9d615574cb855b05b2",
+  "baseline": "5152d50ab7b789a1779ec22195aa69dbc5da32a2",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
@@ -104,7 +104,7 @@
     "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
     "src/schema.rs": "defe72214ddbf59e05bf291dcd93f97bd92a56cfb143f075858dfcab7001181a",
-    "src/storage/codec.rs": "367ce41fbb62e2efe1acc7bd0c2c38e57511a3060d2fffb92f1c6eadfe884903",
+    "src/storage/codec.rs": "d0ec5a37605a1221aebfa6cf5cc53f1a7314139b19d477d4e104807a32cbf373",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
     "src/storage/file.rs": "6665a77198f510e6f5c946c03093113e51011c3248c2f3b68efd61bccb0c472b",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
@@ -175,7 +175,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "b507402fb04223e50ed9ad613427a1d2637ab99b3b27395d1cdd330b512b3803",
+    "xtask/src/mutations.rs": "bd08f91e464777d2cd9b27d862f5278a36d27d1f2f511a991ec68172970b6adb",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
@@ -228,7 +228,7 @@
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
-    "docs/coordinator-artifact-recovery.md": "dc3f8e77d77ee0255c93ffbe80aac9c6baed5e32322489e88b7f0a7afa7fcf08",
+    "docs/coordinator-artifact-recovery.md": "c99d117748cd2d14e85c8e3f27dfe1745ff28faf19406c3e561d2abd5bfd8939",
     "docs/coordinator-operator-handoff.md": "b87f399fc29eb77a18fb1ea99fb62bfae6ae0f025ca50e06a6cc29dc85dc088a",
     "docs/coordinator-pending-restore.md": "d05d279ac7d4586c8e5caff39d6075edeac3ce57a439d419b1c21dc6ce1a2c18",
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
@@ -254,7 +254,7 @@
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "e0198f592d4ed2e0c4b35e286dd771b8f04666192862354877c8aaa79307b9f8",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
-    "docs/mutations.md": "3bb42f8ae5f7a7bf26a2288fb9a0f64aa13e8679a89f08fbd27e34a170c53605",
+    "docs/mutations.md": "8f8713b171c681b2fa2a142c5b13e6e690dae4188f6d3fd6fa95c474c28cfc48",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
@@ -287,20 +287,21 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "71752e57cd7aedd42b990f3400f4b0c0ac12b9632909e0f5956da5e2fcb15b3e",
+    "xtask/tests/mutations.json": "28f913e9986973856eea7d0dbc03019d1c883081ef42de3fec7ef33df2058a79",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "70a5e8e23b8b319859e06aa7767042a75af5afe8a447e349c16e0c3834f8f9e7",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
-    "docs/decisions/codec-arithmetic-current.md": "33e90c7232ee689720e9925d87025442b71e1a09b0f772dad06b1a958f45c5c9",
-    "docs/decisions/codec-metadata-current.md": "01909d5fc12230d094c242b2b7ce777c95deb5390db98c4ff2a2b4b56420c95c",
-    "docs/r1-ci-shards.md": "c15f37562168ca2d9755159176c7ec9e3e5cca5f673fc6955a85fdfbf2b43fae",
-    "docs/decisions/codec-graph-current.md": "0d86e37c827598afe50c8bf9ecb665c612424ed43423114bcbda071671fe9221",
-    "docs/decisions/codec-catalog-current.md": "c65cd33147fde66e2ab7440a6bafe1a65256e46e49bf973e505dfca36d1a6c0d",
+    "docs/decisions/codec-arithmetic-current.md": "524b1499ac315c4ee4b6a1e9d7c4fac8a4cfccf501ac1c48c90498d2a3b97cca",
+    "docs/decisions/codec-metadata-current.md": "1f34c1d1cda1f9bed6bd2dbd96bad77ea62c8ffa3ee348f660b28c9b4c29f93c",
+    "docs/r1-ci-shards.md": "1ff6cf4abddd3b3e82be26f687436aa1ca71a57f90ab4e1d2f222997f1b04025",
+    "docs/decisions/codec-graph-current.md": "cf743639b0ea4afb6d43371001671f2772aea1c8207833ee8cfacd9330b98315",
+    "docs/decisions/codec-catalog-current.md": "56c8a39b093de3ba92e11cb35d4bc6af560060443493e5c3342f988e1ec10c81",
     "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
-    "docs/decisions/codec-data-current.md": "47448255b009dbb18c9771fe07e8f3333cac79b7e639bff57a554c45278b85c6",
-    "docs/decisions/codec-value-current.md": "dfc362e92c50de84bc3af219e17fd82618e6e4b84d606a80f8b68f8c5e48f749",
-    "docs/decisions/codec-append-current.md": "9ce4bc9d6cc9c5ea9090cf79793c5e510b44e9d1914dd20ebff436b876ea6259",
-    "docs/decisions/codec-encode-value-current.md": "db81a3079f7431db220fcf333bbbe2578fdbac3c522cbbc9c6c4a2ce6ba9690e"
+    "docs/decisions/codec-data-current.md": "a60ad5e0afd3907e97162465511f0186e9b3a38f94519e9ea4f024b30819bdd5",
+    "docs/decisions/codec-value-current.md": "92c1f72d8c5620b0d1154b221c1b23c1eed7b4653d818d9d09f082e988513946",
+    "docs/decisions/codec-append-current.md": "68ba4b25e6e03c0448281f1a3a9342acc246ef8ea8007df7635b1b505388cc28",
+    "docs/decisions/codec-encode-value-current.md": "89dc7f5d939b7efe097bc9675059bab7f20b17b7d8a9378078c3b46c63a67b3e",
+    "docs/decisions/codec-encode-data-current.md": "1a45ab2c0e09d1a07dd8c68d6b6778424d2bcb13364c77dd69e662e4c5c05dcd"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -495,7 +496,8 @@
         "docs/decisions/codec-data-current.md",
         "docs/decisions/codec-value-current.md",
         "docs/decisions/codec-append-current.md",
-        "docs/decisions/codec-encode-value-current.md"
+        "docs/decisions/codec-encode-value-current.md",
+        "docs/decisions/codec-encode-data-current.md"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
@@ -4703,6 +4705,474 @@
       ],
       "mutations": [
         "r1-encode-value-entry-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-CACHE-HIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "pattern_test",
+        "conditions": [
+          "cached"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-cache-hit"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-CACHE-COUNTER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "if",
+        "conditions": [
+          "old.next_collection != next_collection"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-cache-counter"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-REVISION-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.int(head.data_revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-revision-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-NEXT-COLLECTION-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.int(next_collection)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-next-collection-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-COLLECTION-COUNT-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.int(head.collections.len() as u64)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-collection-count-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-COLLECTION-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.reserve(&mut collections, head.collections.len())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-collection-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-COLLECTION-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "key.try_into().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-collection-key"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-COLLECTION-VISIT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "head.collections.visit(&mut |key, c| {\n            let id = u64::from_le_bytes(key.try_into().map_err(|_| Error::Invalid)?);\n            collections.push((id, c));\n            Ok(())\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-collection-visit"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-COLLECTION-ID-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.int(id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-collection-id-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-COLLECTION-REVISION-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.int(c.revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-collection-revision-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-RECORD-COUNT-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.int(c.records.len() as u64)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-record-count-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-RECORD-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.reserve(&mut records, c.records.len())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-record-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-VALUE-CHILD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.value(&r.value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-value-child"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-RECORD-KEY-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.key(key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-record-key-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-RECORD-REVISION-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.int(r.revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-record-revision-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-RECORD-OFFSET-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "payload.int(offset)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-record-offset-write"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-OBJECT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "self\n            .object_born(DATA, &payload.bytes, head.data_revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-object"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-CACHE-FORK",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.data_cache.make_mut(|old| old.fork(self.mem))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-cache-fork"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-INDEX-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "cache.index.reserve(self.mem, cache.entries.len() + 1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-index-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-ENCODE-DATA-ENTRY-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "data",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem\n            .reserve_geometric(&mut cache.entries, 1, MAX_OBJECTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_encoding_orders_records_and_keeps_the_acknowledged_cache"
+        }
+      ],
+      "mutations": [
+        "r1-encode-data-entry-reserve"
       ]
     }
   ],

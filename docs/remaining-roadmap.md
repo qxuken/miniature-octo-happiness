@@ -176,6 +176,16 @@ records (2,194 runtime / 26 driver / 7,314 tooling).
 Frozen `cf3a5a2` passes all 29 new controls and the full core, xtask and
 inventory suites in both profiles on macOS and Docker Linux. The restored
 proof validates 10,826 payloads and replays both platform audits.
+The [DATA encoder batch](decisions/codec-encode-data-current.md) reconciles
+24 runtime decisions and adds 25 controls for cache admission, exact DATA
+bytes and allocation failure. Its ledger binds the existing golden history
+with reopened and retained roots. The queue has 9,510 G records
+(2,170 runtime / 26 driver / 7,314 tooling). COMMIT and retained-catalog
+encoding remain in the R1 queue.
+Frozen `45e5705` passed the core, xtask and inventory suites in debug and
+release on macOS and Docker Linux arm64/ext4, with all 25 DATA controls
+detected per profile. The restored proof verifies 10,588 payloads and
+replays the exact-source audit for both hosts.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -80,7 +80,7 @@ and cleanup failures cannot qualify. Source restoration remains mandatory.
 
 | Source | SHA-256 |
 |---|---|
-| `src/storage/codec.rs` | `367ce41fbb62e2efe1acc7bd0c2c38e57511a3060d2fffb92f1c6eadfe884903` |
+| `src/storage/codec.rs` | `d0ec5a37605a1221aebfa6cf5cc53f1a7314139b19d477d4e104807a32cbf373` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence / residual |
 |---|---|---|---|---|---|---|

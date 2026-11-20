@@ -9,27 +9,37 @@ scratch="$(mktemp -d "${TMPDIR:-/tmp}/weekend-tsan-runtime.XXXXXXXX")"
 trap 'rm -r "$scratch"' EXIT
 
 llvm=0a5579eb649d3634a9c30ac873300cc2944fa070
-tls_fix=4a3ac30a53ba0417941cab04f51c6ce8a8a67feb
-input="$scratch/rust-llvm.tar.gz"
-tls_patch="$scratch/darwin-tls.patch"
-curl -fsSL --retry 2 --max-time 180 --max-filesize 350000000 \
-  "https://codeload.github.com/rust-lang/llvm-project/tar.gz/$llvm" -o "$input"
-curl -fsSL --retry 2 --max-time 30 --max-filesize 100000 \
-  "https://github.com/llvm/llvm-project/commit/$tls_fix.patch" -o "$tls_patch"
-printf '%s  %s\n' \
-  7091936a040073d4ac7d9a150f558c1e488eadd8ae3565b654fed3b7be17a576 "$input" \
-  9e97d82ab249fd11b14b9380bf355804be69e8450fe669b7fe9dab35e90a7c22 "$tls_patch" \
+tls_patch="$root/darwin-tls.patch"
+printf '%s  %s\n' 9e97d82ab249fd11b14b9380bf355804be69e8450fe669b7fe9dab35e90a7c22 "$tls_patch" \
   > "$output/inputs.sha256"
 shasum -a 256 -c "$output/inputs.sha256"
-shasum -a 256 "$root/errno-shadow.patch" >> "$output/inputs.sha256"
 
 source="$scratch/source"
-mkdir "$source"
-tar -xzf "$input" -C "$source" --strip-components 1 \
-  "llvm-project-$llvm/compiler-rt" "llvm-project-$llvm/cmake" \
-  "llvm-project-$llvm/llvm/cmake" "llvm-project-$llvm/llvm/include" \
-  "llvm-project-$llvm/llvm/utils/gn" "llvm-project-$llvm/llvm/CMakeLists.txt" \
-  "llvm-project-$llvm/third-party" "llvm-project-$llvm/LICENSE.TXT"
+llvm_paths=(compiler-rt cmake llvm/cmake llvm/include llvm/utils/gn llvm/CMakeLists.txt third-party LICENSE.TXT)
+printf 'Fetching LLVM source at %s\n' "$llvm"
+(
+  export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+  mkdir "$source"
+  cd "$source"
+  git init --quiet --template=
+  git config core.autocrlf false
+  git config http.lowSpeedLimit 1024
+  git config http.lowSpeedTime 40
+  git remote add origin https://github.com/rust-lang/llvm-project.git
+  printf '/%s\n' "${llvm_paths[@]}" | git sparse-checkout set --no-cone --stdin
+  git -c protocol.version=2 fetch --no-tags --depth=1 --filter=blob:none origin "$llvm"
+  git checkout --quiet --detach FETCH_HEAD
+  [[ "$(git rev-parse HEAD)" = "$llvm" ]]
+  printf '%s\n' "$llvm" > "$output/llvm-revision.txt"
+  # Match the SHA-256 manifest of the selected files from the pinned archive.
+  [[ -z "$(find "${llvm_paths[@]}" ! -type f ! -type d -print -quit)" ]]
+  find "${llvm_paths[@]}" -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 \
+    > "$output/llvm-source.sha256"
+  printf '%s  %s\n' 9458ecabc08a5c66c664b554d8e044f7dd6c17c2930389e1b5dee9707069d231 "$output/llvm-source.sha256" \
+    | tee -a "$output/inputs.sha256" | shasum -a 256 -c
+)
+rm -r "$source/.git"
+shasum -a 256 "$root/errno-shadow.patch" >> "$output/inputs.sha256"
 (
   cd "$source"
   git apply "$tls_patch"

@@ -144,3 +144,10 @@ RNG campaign.
 The 234 R1 controls use eight Unix shards of 30, 30, 29, 29, 29, 29, 29
 and 29 per profile. They use the 20-minute job and 120-second command limits.
 Windows runs one reconciliation job and the separate native RNG campaign.
+
+## DATA encoder shard count
+
+The 259 R1 controls use nine Unix shards, with 29 cases for indexes 0 through
+6 and 28 cases for indexes 7 and 8. Debug and release use the same selections.
+The 20-minute job and 120-second command limits apply. Windows runs one
+reconciliation job and the separate native RNG campaign.
