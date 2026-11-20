@@ -1,0 +1,130 @@
+From 4a3ac30a53ba0417941cab04f51c6ce8a8a67feb Mon Sep 17 00:00:00 2001
+From: Denis P <dark.0x5a@gmail.com>
+Date: Sun, 15 Nov 2026 22:52:46 +0300
+Subject: [PATCH] [sanitizer_common][Darwin] Fix TLS base and size on arm64
+ (#242018)
+
+On arm64 Darwin, GetThreadStackAndTls() returns an empty TLS range, so
+LSan
+never scans a thread's TSD. Memory that is only referenced from a live
+thread's TSD is then reported as leaked, for example
+pthread_setspecific()
+values or the continuation cache libdispatch keeps in a worker thread.
+
+There are two bugs. TlsBaseAddr() reads TPIDRRO_EL0 and then does
+`segbase &= 0x07ul`, which keeps the low 3 bits instead of clearing
+them.
+TlsSize() returns 0 on arm64, so the bad base was never used. The mask
+was
+added in 443820179a.
+
+Up to xnu-7195 (macOS 11), xnu's `_os_tsd_get_base()` also cleared the
+low
+3 bits of TPIDRRO_EL0, which held the CPU number. Since xnu-8019 (macOS
+12)
+it uses the register as is. The TSD array is 16-byte aligned, so
+clearing
+the bits is correct on both.
+
+TlsSize() now returns the size of the TSD array on arm64. The slot count
+is
+`_INTERNAL_POSIX_THREAD_KEYS_END` from libpthread's
+src/types_internal.h:
+768 on macOS (512 external + 256 internal keys) and 512 on iOS-like
+devices
+(256 + 256). It has not changed since macOS 11. `tsd` is the last member
+of
+`struct pthread_s`, so the range does not go past the struct.
+
+ASan and TSan also use this range. ASan clears its shadow when a thread
+starts and ends, and TSan marks it as written when a thread starts. With
+this patch they do that on arm64 too, as on x86_64.
+
+Testing: on Apple platforms TestThreadInfo now creates every pthread key
+it
+can and checks that the range holds each one's slot. On arm64 it also
+checks
+that the range is exactly the TSD: its first slot holds pthread_self()
+and
+its last slot is a key's. It fails on macOS arm64 without this patch.
+With
+the LSan lit tests enabled locally for arm64, many_tls_keys_pthread.cpp
+and
+many_tls_keys_thread.cpp now pass, standalone and with ASan. No new
+failures
+in check-asan, check-tsan and check-sanitizer.
+
+Assisted-by: Claude
+---
+ .../lib/sanitizer_common/sanitizer_mac.cpp    | 13 +++++++----
+ .../tests/sanitizer_common_test.cpp           | 23 +++++++++++++++++++
+ 2 files changed, 32 insertions(+), 4 deletions(-)
+
+diff --git a/compiler-rt/lib/sanitizer_common/sanitizer_mac.cpp b/compiler-rt/lib/sanitizer_common/sanitizer_mac.cpp
+index 374a5bf2cd4804..9b887042491b24 100644
+--- a/compiler-rt/lib/sanitizer_common/sanitizer_mac.cpp
++++ b/compiler-rt/lib/sanitizer_common/sanitizer_mac.cpp
+@@ -585,7 +585,7 @@ uptr TlsBaseAddr() {
+   asm("movl %%gs:0,%0" : "=r"(segbase));
+ #elif defined(__aarch64__)
+   asm("mrs %x0, tpidrro_el0" : "=r"(segbase));
+-  segbase &= 0x07ul;  // clearing lower bits, cpu id stored there
++  segbase &= ~0x07ul;  // macOS < 12 keeps the cpu id in the low 3 bits
+ #endif
+   return segbase;
+ }
+@@ -593,12 +593,17 @@ uptr TlsBaseAddr() {
+ // The size of the tls on darwin does not appear to be well documented,
+ // however the vm memory map suggests that it is 1024 uptrs in size,
+ // with a size of 0x2000 bytes on x86_64 and 0x1000 bytes on i386.
++// On arm64 it is the size of the TSD array, from libpthread headers.
+ uptr TlsSize() {
+-#if defined(__x86_64__) || defined(__i386__)
++#  if defined(__x86_64__) || defined(__i386__)
+   return 1024 * sizeof(uptr);
+-#else
++#  elif defined(__aarch64__) && SANITIZER_IOSDEVICE
++  return 512 * sizeof(uptr);
++#  elif defined(__aarch64__)
++  return 768 * sizeof(uptr);
++#  else
+   return 0;
+-#endif
++#  endif
+ }
+ 
+ void GetThreadStackAndTls(bool main, uptr *stk_begin, uptr *stk_end,
+diff --git a/compiler-rt/lib/sanitizer_common/tests/sanitizer_common_test.cpp b/compiler-rt/lib/sanitizer_common/tests/sanitizer_common_test.cpp
+index 917ba847ad4784..010bce55a2afdb 100644
+--- a/compiler-rt/lib/sanitizer_common/tests/sanitizer_common_test.cpp
++++ b/compiler-rt/lib/sanitizer_common/tests/sanitizer_common_test.cpp
+@@ -229,6 +229,29 @@ void TestThreadInfo(bool main) {
+   EXPECT_TRUE(tls_end < stk_begin || tls_end >= stk_end);
+   EXPECT_TRUE((tls_begin < stk_begin) == (tls_end < stk_begin));
+ #endif
++
++#if SANITIZER_APPLE
++  ASSERT_LT(tls_begin, tls_end);
++  InternalMmapVector<pthread_key_t> keys;
++  for (pthread_key_t key; pthread_key_create(&key, nullptr) == 0;)
++    keys.push_back(key);
++  ASSERT_FALSE(keys.empty());
++  int marker = 0;
++  for (pthread_key_t key : keys)
++    ASSERT_EQ(0, pthread_setspecific(key, &marker));
++  void** slots = reinterpret_cast<void**>(tls_begin);
++  uptr slot_count = (tls_end - tls_begin) / sizeof(uptr);
++  uptr seen = 0;
++  for (uptr i = 0; i < slot_count; ++i) seen += slots[i] == &marker;
++  EXPECT_EQ(keys.size(), seen);
++#  if defined(__aarch64__)
++  // On arm64 the range is exactly the TSD: slot 0 holds the thread's
++  // pthread_t, and the last slot is a key's.
++  EXPECT_EQ(pthread_self(), slots[0]);
++  EXPECT_EQ(&marker, slots[slot_count - 1]);
++#  endif
++  for (pthread_key_t key : keys) ASSERT_EQ(0, pthread_key_delete(key));
++#endif
+ }
+ 
+ static void *WorkerThread(void *arg) {

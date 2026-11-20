@@ -4,3 +4,6 @@ tests/fixtures/*.bin binary
 
 # Frozen oracle transcripts are byte fixtures on every checkout.
 xtask/tests/*.expected text eol=lf
+
+# Preserve the exact upstream patch, including its diff context lines.
+tools/macos-tsan/darwin-tls.patch -text -whitespace
