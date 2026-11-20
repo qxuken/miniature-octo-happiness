@@ -67,6 +67,9 @@ The [VALUE encoder batch](decisions/codec-encode-value-current.md) adds 28
 `r1-encode-value-` controls and `r1-inventory-selector-byte`. The registry
 has 290 cases and the R1 set has 234. Eight hosted Unix shards select
 30, 30, 29, 29, 29, 29, 29 and 29 cases per profile.
+The [DATA encoder batch](decisions/codec-encode-data-current.md) adds 25
+`r1-encode-data-` controls. The registry has 315 cases and the R1 set has 259.
+Nine hosted Unix shards have at most 29 cases per profile.
 `--case` is a repeatable name-prefix filter; no matches reject. Every output is
 new. Optional `--toolchain` selects an installed Rust toolchain explicitly.
 

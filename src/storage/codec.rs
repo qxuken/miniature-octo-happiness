@@ -1723,6 +1723,210 @@ mod tests {
             assert_eq!(index.get(entry.revision, &cache), Some(i));
         }
     }
+    #[test]
+    fn data_encoding_orders_records_and_keeps_the_acknowledged_cache() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let make_encoder = |start, data_cache| Encoder {
+            mem: &mem,
+            identity: ID,
+            revision: 6,
+            start,
+            end: start,
+            bytes: AppendBytes::Contiguous(ChargedVec::new()),
+            cache: CacheState::Owned(ValueCache::new()),
+            data_cache,
+        };
+        let next_collection = 257;
+        let mut empty = Head {
+            revision: 5,
+            data_revision: 1,
+            collections: Map::new(),
+        };
+        let mut seed = make_encoder(APPEND_START as u64, CacheState::Owned(DataCache::new()));
+        for revision in 1..=4 {
+            empty.data_revision = revision;
+            assert_eq!(
+                seed.data(&empty, next_collection),
+                Ok((APPEND_START + (revision as usize - 1) * REGION) as u64)
+            );
+        }
+        let start = seed.end;
+        let cache = seed.data_cache.finish(&mem).unwrap();
+        drop(seed.bytes);
+        let before = mem.usage().0;
+        let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
+        mem.fail_after(Some(0));
+        assert_eq!(
+            encoder.data(&empty, next_collection),
+            Ok(start - REGION as u64)
+        );
+        assert_eq!(
+            encoder.data(&empty, next_collection + 1),
+            Err(Error::Invalid)
+        );
+        assert_eq!(encoder.end, start);
+        assert!(matches!(&encoder.bytes, AppendBytes::Contiguous(bytes) if bytes.is_empty()));
+        assert!(matches!(&encoder.data_cache, CacheState::Borrowed(old) if old.ptr_eq(&cache)));
+        drop(encoder);
+        mem.fail_after(None);
+        assert_eq!(mem.usage().0, before);
+
+        let shared = Value::scalar(&mem, Kind::Unsigned, 42).unwrap();
+        let distinct = Value::bytes_new(&mem, b"value").unwrap();
+        let rows: [(&[u8], u64, &Value); 4] = [
+            (b"z", 4, &shared),
+            (b"a\0", 2, &distinct),
+            (b"", 1, &shared),
+            (b"a", 3, &shared),
+        ];
+        let mut records = Map::new();
+        for (key, revision, value) in rows {
+            records = records
+                .set(
+                    &mem,
+                    key,
+                    Record {
+                        revision,
+                        value: value.clone(),
+                    },
+                )
+                .unwrap();
+        }
+        let with_records = |records| Head {
+            revision: 5,
+            data_revision: 5,
+            collections: Map::new()
+                .set(
+                    &mem,
+                    &256u64.to_le_bytes(),
+                    Collection {
+                        revision: 2,
+                        records: Map::new(),
+                    },
+                )
+                .unwrap()
+                .set(
+                    &mem,
+                    &8u64.to_le_bytes(),
+                    Collection {
+                        revision: 4,
+                        records,
+                    },
+                )
+                .unwrap(),
+        };
+        let head = with_records(records);
+        let invalid = Head {
+            collections: head
+                .collections
+                .set(
+                    &mem,
+                    b"short",
+                    Collection {
+                        revision: 1,
+                        records: Map::new(),
+                    },
+                )
+                .unwrap(),
+            ..head
+        };
+        let before = mem.usage().0;
+        let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
+        assert_eq!(encoder.data(&invalid, next_collection), Err(Error::Invalid));
+        assert_eq!(encoder.end, start);
+        drop(encoder);
+        assert_eq!(mem.usage().0, before);
+
+        // The trie visits collection 256 before 8, and a\0 before the empty
+        // record key. DATA must nevertheless use numeric IDs and bytewise keys.
+        let mut payload = Vec::new();
+        for field in [5, next_collection, 2, 8, 4, 4] {
+            payload.extend(field.to_le_bytes());
+        }
+        for (key, revision, offset) in [
+            (b"".as_slice(), 1u64, start),
+            (b"a", 3, start),
+            (b"a\0", 2, start + REGION as u64),
+            (b"z", 4, start),
+        ] {
+            payload.extend((key.len() as u64).to_le_bytes());
+            payload.extend(key);
+            payload.extend(revision.to_le_bytes());
+            payload.extend(offset.to_le_bytes());
+        }
+        for field in [256u64, 2, 0] {
+            payload.extend(field.to_le_bytes());
+        }
+        let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
+        let offset = encoder.data(&head, next_collection).unwrap();
+        assert_eq!(offset, start + 2 * REGION as u64);
+        assert_eq!(encoder.end, offset + REGION as u64);
+        let AppendBytes::Contiguous(bytes) = &encoder.bytes else {
+            unreachable!()
+        };
+        let object = &bytes[2 * REGION..];
+        assert_eq!(u32_at(object, 8), DATA);
+        assert_eq!(u64_at(object, 16), payload.len() as u64);
+        assert_eq!(u64_at(object, 24), head.data_revision);
+        assert_eq!(
+            &object[OBJECT_HEADER..OBJECT_HEADER + payload.len()],
+            payload
+        );
+        let entry = &encoder.data_cache.entries[encoder
+            .data_cache
+            .index
+            .get(5, &encoder.data_cache.entries)
+            .unwrap()];
+        assert_eq!(
+            (entry.revision, entry.next_collection, entry.offset),
+            (5, next_collection, offset)
+        );
+        assert_eq!(encoder.data(&head, next_collection), Ok(offset));
+        drop(encoder);
+        assert_eq!(mem.usage().0, before);
+
+        // These widths put the growth of the DATA payload at the record
+        // revision, collection record count and collection ID, respectively.
+        let single_record = |width| {
+            with_records(
+                Map::new()
+                    .set(
+                        &mem,
+                        &vec![b'x'; width],
+                        Record {
+                            revision: 1,
+                            value: shared.clone(),
+                        },
+                    )
+                    .unwrap(),
+            )
+        };
+        for input in [head, single_record(1), single_record(40), single_record(56)] {
+            let before = mem.usage().0;
+            let mut completed = false;
+            for allowance in 0..64 {
+                let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
+                mem.fail_after(Some(allowance));
+                let result = encoder.data(&input, next_collection);
+                mem.fail_after(None);
+                match result {
+                    Ok(_) => {
+                        assert!(allowance > 0);
+                        completed = true;
+                    }
+                    Err(error) => assert_eq!(error, Error::OutOfMemory),
+                }
+                drop(encoder);
+                assert_eq!(mem.usage().0, before);
+                assert_eq!(&*cache.index.order, &[0, 1, 2, 3]);
+                assert_eq!(cache.entries.len(), 4);
+                if completed {
+                    break;
+                }
+            }
+            assert!(completed);
+        }
+    }
 
     #[test]
     fn data_index_budget_and_object_bound_precede_allocation() {
