@@ -287,6 +287,17 @@ checks the runtime SHA-256, confirms the library loaded in all three
 calibration controls, and runs the entire all-feature workspace with
 instrumented std. The patch applies only to the diagnostic runtime.
 
+Three attempts at `5152d50` failed with HTTP 503 while downloading the
+runtime inputs, before calibration. The builder now shallow-fetches the
+pinned LLVM commit with sparse checkout and applies the upstream TSD
+patch stored in `tools/macos-tsan/darwin-tls.patch`. The patch retains its
+original SHA-256 pin. The SHA-256 manifest of all 8,824 selected files
+matched the verified archive byte for byte. The local comparison used
+21 MiB of Git packs and a 265 MiB compressed archive. The builder checks
+the commit and manifest before applying either patch, then records both
+in the runtime diagnostics.
+[Failed macOS job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/44744001807/job/136338585354).
+
 The maintained command passed on a clean `a16d10e` checkout with
 the independently rebuilt runtime SHA-256
 `d2aad029c8e571d9f3861798eb382f4367ef3e6fa78eae41b2bd071c9f619734`.
