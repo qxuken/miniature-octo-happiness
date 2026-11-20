@@ -69,7 +69,7 @@ delegated code and the remaining R1 through R7 gates stay open.
 
 | Source | SHA-256 |
 |---|---|
-| `src/storage/codec.rs` | `15be88e7381e9ea806ee9c9219505526b1cc2d30c79b3bce877ea65ec28f71ea` |
+| `src/storage/codec.rs` | `367ce41fbb62e2efe1acc7bd0c2c38e57511a3060d2fffb92f1c6eadfe884903` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence / residual |
 |---|---|---|---|---|---|---|

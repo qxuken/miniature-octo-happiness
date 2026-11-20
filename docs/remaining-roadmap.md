@@ -169,6 +169,13 @@ stop on the first error. The queue has 9,565 G records
 Frozen `906b8ed` passes all 19 new controls and the full core, xtask and
 inventory suites in both profiles on macOS and Docker Linux. The restored
 proof replays both audits and checks 10,476 payloads.
+The [VALUE encoder batch](decisions/codec-encode-value-current.md) reconciles
+33 runtime decisions. It adds 28 payload, cache and allocation controls
+and one mutation for exact byte-position selection. The queue has 9,534 G
+records (2,194 runtime / 26 driver / 7,314 tooling).
+Frozen `cf3a5a2` passes all 29 new controls and the full core, xtask and
+inventory suites in both profiles on macOS and Docker Linux. The restored
+proof validates 10,826 payloads and replays both platform audits.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

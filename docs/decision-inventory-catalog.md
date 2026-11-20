@@ -181,3 +181,15 @@ this is source-test evidence, with the exact delivered-artifact tracks separate.
 All Cargo packages remain unpublished. Full per-decision reconciliation,
 expanded/generated code, delegated native behavior and the remaining R2–R7
 release gates stay open.
+
+## Repeated decision selectors
+
+A named control can supply a nonnegative integer `selector.start_byte`.
+The reconciler first matches the target, pinned file, owner, syntax kind
+and conditions, and requires the selected decision to begin at that
+zero-based byte position. A selector with identical candidates requires
+this position. Invalid or unmatched positions fail review. The VALUE
+encoder uses this field for the identical map and list offset expressions.
+Its real parse regression checks both positions, ambiguity, an unmatched
+position and an explicit null. The selector mutation verifies detection
+when the position predicate is bypassed.
