@@ -189,26 +189,30 @@ fn s(p: impl AsRef<Path>) -> String {
 fn v(args: &[&str]) -> Vec<String> {
     args.iter().map(|s| s.to_string()).collect()
 }
-fn image(c: &mut Campaign, id: &str) -> Result<()> {
-    ensure!(
+fn image(c: &mut Campaign, reference: &str) -> Result<String> {
+    let is_id = |id: &str| {
         id.len() == 71
             && id.starts_with("sha256:")
             && id[7..]
                 .bytes()
-                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+    };
+    let pinned_default = reference == crate::toolchain::RUST_BOOKWORM_IMAGE;
+    ensure!(
+        pinned_default || is_id(reference),
         "immutable already-local Docker image required"
     );
+    let id = c.ok(
+        v(&["docker", "image", "inspect", "--format={{.Id}}", reference]),
+        "image",
+        30.,
+    )?;
+    let id = id.trim();
     ensure!(
-        c.ok(
-            v(&["docker", "image", "inspect", "--format={{.Id}}", id]),
-            "image",
-            30.
-        )?
-        .trim()
-            == id,
+        is_id(id) && (pinned_default || id == reference),
         "Docker image identity mismatch"
     );
-    Ok(())
+    Ok(id.to_owned())
 }
 // Both retirements are attempted even if the first command/probe fails. Absence
 // queries must succeed; a timed-out daemon is never proof of absence.
@@ -309,7 +313,7 @@ fn native(run: &Run, opts: Native) -> Result<()> {
             source.len() == 40 && source.bytes().all(|b| b.is_ascii_hexdigit()),
             "invalid source identity"
         );
-        image(&mut c, &opts.image)?;
+        let image = image(&mut c, &opts.image)?;
         let archive = output.join("source.tar");
         c.ok(
             vec![
@@ -343,7 +347,7 @@ fn native(run: &Run, opts: Native) -> Result<()> {
         c.evidence["driver_overlay"] = json!({overlay:sha(&tree.join(overlay))?});
         c.evidence["source_files_sha256"] = json!(before);
         c.evidence["runner_sha256"] = json!(sha(&env::current_exe()?)?);
-        c.evidence["image"] = json!(opts.image);
+        c.evidence["image"] = json!(image);
         let script = include_str!("native-faults.sh");
         let registry = env::var_os("CARGO_HOME")
             .map(PathBuf::from)
@@ -376,7 +380,7 @@ fn native(run: &Run, opts: Native) -> Result<()> {
                 "CARGO_INCREMENTAL=0".into(),
                 "-e".into(),
                 format!("WEEKEND_DB_SOURCE_ID={source}"),
-                opts.image,
+                image,
                 "sh".into(),
                 "-c".into(),
                 script.into(),
@@ -517,7 +521,7 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
     let mut acquired = false;
     let result = (|| -> Result<()> {
         let info = crate::delivered_faults::package(&package, "libweekend_db.so")?;
-        image(&mut c, &opts.image)?;
+        let image = image(&mut c, &opts.image)?;
         let inputs = output.join("inputs");
         fs::create_dir(&inputs)?;
         for n in fixture_sources(odin.is_some()) {
@@ -538,7 +542,7 @@ fn delivered(run: &Run, opts: Delivered) -> Result<()> {
         let runner_before = inventory(&runner)?;
         c.evidence["runner_inputs_sha256"] = json!(runner_before);
         c.evidence["package_manifest_sha256"] = json!(manifest);
-        c.evidence["image"] = json!(opts.image);
+        c.evidence["image"] = json!(image);
         c.evidence["container"] = json!(name);
         c.evidence["volume"] = json!(volume);
         acquired = true;
@@ -598,13 +602,7 @@ exec /work/tool/debug/xtask faults delivered --worker --output /work/result "$@"
         } else {
             None
         };
-        docker.extend([
-            opts.image,
-            "sh".into(),
-            "-c".into(),
-            script.into(),
-            "sh".into(),
-        ]);
+        docker.extend([image, "sh".into(), "-c".into(), script.into(), "sh".into()]);
         docker.extend(worker_args);
         let execution = c.ok(docker, "docker", 300.);
         let copied = c.ok(

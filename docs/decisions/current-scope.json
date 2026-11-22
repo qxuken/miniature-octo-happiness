@@ -162,7 +162,7 @@
     "xtask/src/delivered_faults.rs": "adb0c3f9e44844324ba67e6550123424b4b6fd2231605c3c39dd23d01c795861",
     "xtask/src/delivery.rs": "6fd257af131db1925e24b1ed44752d824be5e615f5f59e8361b184fb372f0d63",
     "xtask/src/delivery_matrix.rs": "0dc8cdb7bc1391df4da16436626f2912c5695ae701ea254debde705c6274ca6a",
-    "xtask/src/faults.rs": "4492a244cb5474fa38f8fcc086384ed007834a6195857cce532773c72d85f8ff",
+    "xtask/src/faults.rs": "0c9fa8a9b335557b4ed3605a16fcf90a96cd891ba845d03a0f4c60adc47c5b9c",
     "xtask/src/follower_backup.rs": "27635ce94ecaebc27c6ba86dc3ec6d7ef63761bcaa260300522b734c4dfbc713",
     "xtask/src/fuzz.rs": "4ead6868462757555c71f051383530c9b73bc5d3c60d6894ea654e8d41fb4d76",
     "xtask/src/helper_controls.rs": "69397de68528b9eb0051b2cc901d54ee9d7f0ac621f8e0e2821a6ce5949ee5ed",
@@ -370,7 +370,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5194
+    "xtask::xtask": 5198
   },
   "groups": [
     {
