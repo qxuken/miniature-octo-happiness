@@ -198,8 +198,8 @@
     "xtask/src/serialization_scale.rs": "396f0888a76395d2878c189d3a5a922206b0d055fa3b673cdaa84b88e36a78be",
     "xtask/src/snapshot_month.rs": "86bde06a13cae25ff0fd2ec05acef8cefb0988e08b14fde6ef7617f269be434a",
     "xtask/src/snapshot_proof.rs": "3a6f37f065f74bab278f2f6136cad970b979512f8daac485dabf77bc09811d0c",
-    "xtask/src/snapshot_upgrade.rs": "a99bcdc33fdc164923c3b20fa0c4e5fc0a7e967b8630689bd1efc9521f6606fa",
-    "xtask/src/snapshot_upgrade_linux.rs": "fae4a063edd468024ecbef2c97e433010d8a9c6f90f081aa5f730af4421c1d47",
+    "xtask/src/snapshot_upgrade.rs": "acf857f2c4cc8a40b9a1f64651cdb39fcda163aa42e792b6d9e4479edf60b73f",
+    "xtask/src/snapshot_upgrade_linux.rs": "daf6113e3e0039b56478371ec341d472f582c7fa5efb675cc59d46dc6c1ae853",
     "xtask/src/soak.rs": "371af9e99747f7fa33d0f4f89a5ff7e9ac728ad9c3e6c7b9e7f6fa854eb4cf6c",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
     "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
@@ -370,7 +370,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5198
+    "xtask::xtask": 5206
   },
   "groups": [
     {
