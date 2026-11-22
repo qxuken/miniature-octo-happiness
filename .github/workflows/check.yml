@@ -200,9 +200,9 @@ jobs:
       - name: Verify native Windows paths and allocator lifetimes
         if: runner.os == 'Windows'
         run: |
-          cargo test --offline --locked -p weekend-db --all-features --lib --test allocation --test live_budget --test files
+          cargo test --offline --locked -p weekend-db --all-features --lib --test allocation --test allocator_routing --test live_budget --test files
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --offline --locked -p weekend-db --all-features --release --lib --test allocation --test live_budget --test files
+          cargo test --offline --locked -p weekend-db --all-features --release --lib --test allocation --test allocator_routing --test live_budget --test files
       - name: Detect the two native Windows RNG guard mutants in both profiles
         if: runner.os == 'Windows'
         id: windows_rng_mutations

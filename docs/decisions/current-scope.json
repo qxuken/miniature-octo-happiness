@@ -104,20 +104,20 @@
     "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
     "src/schema.rs": "defe72214ddbf59e05bf291dcd93f97bd92a56cfb143f075858dfcab7001181a",
-    "src/storage/codec.rs": "7b9a71d1a41a71e0cfca7dc61184d247066146f6ceb631a76e042658f8d1967b",
+    "src/storage/codec.rs": "70908c466f7c30b70688ae8f438e04d659612bd93f6cfbed6956bff5a46e0396",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
     "src/storage/file.rs": "f4b9a4c7557e1506990eaeb962becf08e46930fef09c04da389ea148b7294f1d",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
     "src/storage/linux.rs": "683ab3ca0923c4aaf955f1ba1e24d7199b272fd71419a7624334ff151185edf7",
-    "src/storage/logical.rs": "c89ed8f2546ceace944d0be51e29cd32269c0f88c8923bae604ca30b3ae5560b",
+    "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
     "src/storage/macos.rs": "9174dad52d843a2c453c95f5abdede0acce311b6c9b2a83acb448c4aab4649a3",
     "src/storage/mod.rs": "7288ee09e76b6a0227deb4c050fc4a87c83b852b2c37cf6381aec5fd1cf834dd",
     "src/storage/replacement.rs": "76e5098896ecc0ede681526cbb8ba75fbe40b833e528eef95d748715de84cd07",
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
     "src/storage/simulator.rs": "e6b1b3a724c6618173704717380d50e948ef8d4dced051bc675a160e0e582003",
     "src/storage/windows.rs": "dcff3de55079e0d4cb70d7c6c20589b29102fda0aa5a5f3aa48625c57e8d64fc",
-    "src/tree.rs": "6ab37c4467b69c23eeccee5cabefa7c2853260cb4c2681628735aaa66c58a9d3",
-    "src/value.rs": "49ba7c0fd5d3f99b8cf03082234ee349bfd02a53e77668d4b97bfdcd8a8d7cc0",
+    "src/tree.rs": "71e23e66d95a34d8919fd29e8361a1bf30d7e11198c077cf776385f88c7514b6",
+    "src/value.rs": "d5c52024269fa18a0d7cd387692da1f9e845bccc75eab66207bbd193cb1df975",
     "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
     "tests/support/mod.rs": "007e7da58df3c8818418cb4460436e7b15e18026a32b5b0b742ebc78c89a7ab4",
     "tools/admin.rs": "5bf45aecb59283e8d3f5c3192fcc01fdf0abe983219402f2b7daba31a40611fb",
@@ -264,6 +264,7 @@
     "src/replication/tests.rs": "bf132cfa40f16f42665412d74603fb3e02be54596dd67ea5b3db6329c89f01b5",
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
     "tests/allocation.rs": "1fe93186d258e8f5a98d2b87f3a7eb34c9a6ca7e0b067833b940dabbfa939a86",
+    "tests/allocator_routing.rs": "618d9f0ad482da6d1d24d02a8ae5c8579c3440ac6163438ec72565788f043afd",
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
@@ -287,7 +288,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "9b8c5256e65382fc127f979236f017b5efc708d787bf7bd9d78b690ac5e17956",
+    "xtask/tests/mutations.json": "b07162dfbf2e4b433be8abd187427c816d6fb0c14d81f72c4429dc8ba4a35871",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -300,7 +301,7 @@
     "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
     "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
     "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
-    "docs/decisions/codec-encode-value-current.md": "f8eec20a28e2471e4808b0cec514a47b8ef6d6db00f7ba5d7487eede725ac8f5",
+    "docs/decisions/codec-encode-value-current.md": "032092f45656ff2b52d2ecc8cacc45c99d74afc71d94f549918d3c37cfffd11e",
     "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
     "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794"
   },
@@ -356,7 +357,7 @@
     "weekend-db::study_progress": 31,
     "weekend-db::typed": 186,
     "weekend-db::weekend-admin": 30,
-    "weekend-db::weekend_db": 1683,
+    "weekend-db::weekend_db": 1686,
     "weekend-decision-inventory::weekend-decision-inventory": 399,
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
@@ -499,7 +500,8 @@
         "docs/decisions/codec-append-current.md",
         "docs/decisions/codec-encode-value-current.md",
         "docs/decisions/codec-encode-data-current.md",
-        "docs/decisions/codec-encode-commit-current.md"
+        "docs/decisions/codec-encode-commit-current.md",
+        "tests/allocator_routing.rs"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
@@ -4452,7 +4454,7 @@
         "owner": "value",
         "kind": "try_propagation",
         "conditions": [
-          "value.map_entries()"
+          "value.map_entries_for_encoding(self.mem)"
         ]
       },
       "tests": [
@@ -4496,7 +4498,7 @@
         "owner": "value",
         "kind": "try_propagation",
         "conditions": [
-          "self.value(&child)"
+          "self.value(child)"
         ]
       },
       "tests": [
@@ -4518,7 +4520,7 @@
         "owner": "value",
         "kind": "try_propagation",
         "conditions": [
-          "payload.key(&key)"
+          "payload.key(map_key)"
         ]
       },
       "tests": [
@@ -4542,7 +4544,7 @@
         "conditions": [
           "payload.int(offset)"
         ],
-        "start_byte": 20342
+        "start_byte": 20369
       },
       "tests": [
         {
@@ -4609,7 +4611,7 @@
         "conditions": [
           "payload.int(offset)"
         ],
-        "start_byte": 20605
+        "start_byte": 20632
       },
       "tests": [
         {
@@ -5656,6 +5658,19 @@
         "reason": "integration test target; use --include-tests",
         "required_features": [],
         "target": "weekend-db::allocation",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/allocator_routing.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "allocator_routing",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::allocator_routing",
         "workspace_manifest": "Cargo.toml"
       },
       {

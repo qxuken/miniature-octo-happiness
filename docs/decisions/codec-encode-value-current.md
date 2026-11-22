@@ -22,8 +22,10 @@ file-boundary controls qualify the physical cap.
 `Value::kind` and the scalar/bytes accessors inspect the same immutable node.
 The selected list arm uses that same list for both length calls and the
 index range passed to `list_get`. The type and bounds results at these
-accessors are invariant in the encoder. The map materialization call can
-allocate and has a separate propagation control. Storage maintainers own
+accessors are invariant in the encoder. Map encoding sorts borrowed entries
+in the encoder's memory domain. It keeps the originating value's
+transaction-byte preflight and has a separate propagation control for the
+fallible scratch allocation. Storage maintainers own
 the invariant and coupled dispositions and revisit them if the value
 representation, traversal range or image geometry changes.
 
@@ -31,7 +33,7 @@ The wire alternatives and loops retain scoped evidence. Compiler MC/DC and
 delegated allocator and tree internals remain separate obligations.
 
 The map and list offset writes both have the expression `payload.int(offset)`.
-Their manifest selectors add exact byte positions 20342 and 20605. The new
+Their manifest selectors add exact byte positions 20369 and 20632. The new
 reconciliation test checks two repeated source decisions, selects each by
 its position, and rejects missing, malformed and unmatched positions where
 the selector would otherwise be ambiguous. The two added tooling decisions
@@ -43,11 +45,17 @@ the [append batch](codec-append-current.md) parent. The current codec ledgers
 bind the new file hash after test additions, and archived runs retain their
 original source hashes.
 
+The nested-map regression measured five `Global` requests before the change
+and zero during commit and compaction after it. The budget regression checks
+the original row limit and allocation refusal under a separate encoder budget.
+All 17 golden files match the bytes from `815fc3b` in debug and release on
+macOS arm64 and Docker Linux arm64/ext4.
+
 ## Exact current source rows
 
 | Source | SHA-256 |
 |---|---|
-| `src/storage/codec.rs` | `7b9a71d1a41a71e0cfca7dc61184d247066146f6ceb631a76e042658f8d1967b` |
+| `src/storage/codec.rs` | `70908c466f7c30b70688ae8f438e04d659612bd93f6cfbed6956bff5a46e0396` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence / residual |
 |---|---|---|---|---|---|---|
@@ -67,23 +75,23 @@ original source hashes.
 | E | weekend-db::weekend_db | src/storage/codec.rs:587:66– | 19969..19970 | try_propagation | value | Float payload allocation |
 | I | weekend-db::weekend_db | src/storage/codec.rs:588:56– | 20027..20028 | try_propagation | value | Selected immutable Bytes |
 | E | weekend-db::weekend_db | src/storage/codec.rs:588:58– | 20029..20030 | try_propagation | value | Bytes payload allocation |
-| E | weekend-db::weekend_db | src/storage/codec.rs:590:50– | 20108..20109 | try_propagation | value | Map materialization allocation |
-| E | weekend-db::weekend_db | src/storage/codec.rs:591:50– | 20160..20161 | try_propagation | value | Map count allocation |
-| E | weekend-db::weekend_db | src/storage/codec.rs:592:17– | 20179..20182 | for_iteration | value | Empty and populated map |
-| E | weekend-db::weekend_db | src/storage/codec.rs:593:52– | 20260..20261 | try_propagation | value | Recursive map child error |
-| E | weekend-db::weekend_db | src/storage/codec.rs:594:38– | 20300..20301 | try_propagation | value | Map key allocation |
-| E | weekend-db::weekend_db | src/storage/codec.rs:595:40– | 20342..20343 | try_propagation | value | Map offset allocation |
-| I | weekend-db::weekend_db | src/storage/codec.rs:599:40– | 20444..20445 | try_propagation | value | Selected immutable List |
-| E | weekend-db::weekend_db | src/storage/codec.rs:599:49– | 20453..20454 | try_propagation | value | List count allocation |
-| E | weekend-db::weekend_db | src/storage/codec.rs:600:17– | 20472..20475 | for_iteration | value | Empty and populated list |
-| I | weekend-db::weekend_db | src/storage/codec.rs:600:40– | 20495..20496 | try_propagation | value | Selected immutable List |
-| I | weekend-db::weekend_db | src/storage/codec.rs:601:63– | 20561..20562 | try_propagation | value | Index from the same list length |
-| E | weekend-db::weekend_db | src/storage/codec.rs:601:65– | 20563..20564 | try_propagation | value | Recursive list child error |
-| E | weekend-db::weekend_db | src/storage/codec.rs:602:40– | 20605..20606 | try_propagation | value | List offset allocation |
-| E | weekend-db::weekend_db | src/storage/codec.rs:606:63– | 20712..20713 | try_propagation | value | Object staging error |
-| E | weekend-db::weekend_db | src/storage/codec.rs:607:66– | 20780..20781 | try_propagation | value | Borrowed cache fork error |
-| E | weekend-db::weekend_db | src/storage/codec.rs:610:72– | 20887..20888 | try_propagation | value | Index growth error |
-| E | weekend-db::weekend_db | src/storage/codec.rs:612:67– | 20973..20974 | try_propagation | value | Entry growth error |
+| E | weekend-db::weekend_db | src/storage/codec.rs:590:71– | 20129..20130 | try_propagation | value | Borrowed map-entry scratch reservation |
+| E | weekend-db::weekend_db | src/storage/codec.rs:591:50– | 20181..20182 | try_propagation | value | Map count allocation |
+| E | weekend-db::weekend_db | src/storage/codec.rs:592:17– | 20200..20203 | for_iteration | value | Empty and populated map |
+| E | weekend-db::weekend_db | src/storage/codec.rs:593:51– | 20284..20285 | try_propagation | value | Recursive map child error |
+| E | weekend-db::weekend_db | src/storage/codec.rs:594:41– | 20327..20328 | try_propagation | value | Map key allocation |
+| E | weekend-db::weekend_db | src/storage/codec.rs:595:40– | 20369..20370 | try_propagation | value | Map offset allocation |
+| I | weekend-db::weekend_db | src/storage/codec.rs:599:40– | 20471..20472 | try_propagation | value | Selected immutable List |
+| E | weekend-db::weekend_db | src/storage/codec.rs:599:49– | 20480..20481 | try_propagation | value | List count allocation |
+| E | weekend-db::weekend_db | src/storage/codec.rs:600:17– | 20499..20502 | for_iteration | value | Empty and populated list |
+| I | weekend-db::weekend_db | src/storage/codec.rs:600:40– | 20522..20523 | try_propagation | value | Selected immutable List |
+| I | weekend-db::weekend_db | src/storage/codec.rs:601:63– | 20588..20589 | try_propagation | value | Index from the same list length |
+| E | weekend-db::weekend_db | src/storage/codec.rs:601:65– | 20590..20591 | try_propagation | value | Recursive list child error |
+| E | weekend-db::weekend_db | src/storage/codec.rs:602:40– | 20632..20633 | try_propagation | value | List offset allocation |
+| E | weekend-db::weekend_db | src/storage/codec.rs:606:63– | 20739..20740 | try_propagation | value | Object staging error |
+| E | weekend-db::weekend_db | src/storage/codec.rs:607:66– | 20807..20808 | try_propagation | value | Borrowed cache fork error |
+| E | weekend-db::weekend_db | src/storage/codec.rs:610:72– | 20914..20915 | try_propagation | value | Index growth error |
+| E | weekend-db::weekend_db | src/storage/codec.rs:612:67– | 21000..21001 | try_propagation | value | Entry growth error |
 
 ## Frozen qualification at cf3a5a2
 

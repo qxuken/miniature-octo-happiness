@@ -587,11 +587,11 @@ impl Encoder<'_> {
             Kind::Float => payload.int(value.as_f64()?.to_bits())?,
             Kind::Bytes => payload.key(value.as_bytes()?)?,
             Kind::Map => {
-                let entries = value.map_entries()?;
+                let entries = value.map_entries_for_encoding(self.mem)?;
                 payload.int(entries.len() as u64)?;
-                for (key, child) in entries {
-                    let offset = self.value(&child)?;
-                    payload.key(&key)?;
+                for (map_key, child) in entries {
+                    let offset = self.value(child)?;
+                    payload.key(map_key)?;
                     payload.int(offset)?;
                 }
             }

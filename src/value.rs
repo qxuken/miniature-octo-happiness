@@ -2,7 +2,7 @@ use crate::memory::ChargedVec;
 use crate::{
     Error, Result,
     memory::{Memory, Shared},
-    tree::{List, Map},
+    tree::{BorrowedEntries, List, Map},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -243,6 +243,18 @@ impl Value {
         map.materialize_owned(&self.mem, Clone::clone)
     }
 
+    pub(crate) fn map_entries_for_encoding(
+        &self,
+        mem: &Memory,
+    ) -> Result<BorrowedEntries<'_, Self>> {
+        let Data::Map(map) = &self.node.data else {
+            return Err(Error::Type);
+        };
+        // Keep the originating value's row preflight. The encoder pays for
+        // the borrowed entries using its own allocator and live-byte cap.
+        map.borrowed_entries(mem, self.mem.limits().max_transaction_bytes)
+    }
+
     pub fn list_get(&self, index: usize) -> Result<Self> {
         let Data::List(list) = &self.node.data else {
             return Err(Error::Type);
@@ -396,6 +408,65 @@ impl std::fmt::Debug for Value {
 #[cfg(test)]
 mod decision_tests {
     use super::*;
+
+    #[test]
+    fn encoding_map_entries_keep_row_limits_and_charge_the_encoder() {
+        let row_budget = 2 * std::mem::size_of::<(Vec<u8>, Value)>() + 3;
+        let scratch_bytes = 2 * std::mem::size_of::<(&[u8], &Value)>();
+        let make_map = |max_transaction_bytes| {
+            let mem = Memory::new(crate::Limits {
+                max_transaction_bytes,
+                ..Default::default()
+            })
+            .unwrap();
+            let child = Value::scalar(&mem, Kind::Unsigned, 7).unwrap();
+            Value::scalar(&mem, Kind::Map, 0)
+                .unwrap()
+                .map_set(b"\xff\0", &child)
+                .unwrap()
+                .map_set(b"\0", &child)
+                .unwrap()
+        };
+        let fits = make_map(row_budget);
+        let too_large = make_map(row_budget - 1);
+        let encoder = |max_live_bytes| {
+            Memory::new(crate::Limits {
+                max_live_bytes,
+                max_transaction_bytes: 0,
+                ..Default::default()
+            })
+            .unwrap()
+        };
+        let bounded = encoder(scratch_bytes - 1);
+        assert!(matches!(
+            fits.map_entries_for_encoding(&bounded),
+            Err(Error::Limit)
+        ));
+
+        let scratch = encoder(scratch_bytes);
+        scratch.fail_after(Some(0));
+        assert!(matches!(
+            too_large.map_entries_for_encoding(&scratch),
+            Err(Error::Limit)
+        ));
+        assert!(matches!(
+            fits.map_entries_for_encoding(&scratch),
+            Err(Error::OutOfMemory)
+        ));
+        assert_eq!(scratch.public_usage().live_bytes, 0);
+        scratch.fail_after(None);
+
+        let source_usage = fits.memory_usage();
+        let entries = fits.map_entries_for_encoding(&scratch).unwrap();
+        assert_eq!(entries[0].0, b"\0");
+        assert_eq!(entries[1].0, b"\xff\0");
+        assert!(entries[0].1.same_node(entries[1].1));
+        assert_eq!(scratch.public_usage().live_bytes, scratch_bytes);
+        assert_eq!(fits.memory_usage(), source_usage);
+        drop(entries);
+        assert_eq!(scratch.public_usage().live_bytes, 0);
+    }
+
     #[test]
     fn constructor_depth_weight_or_and_scalar_bits_have_controls() {
         let mem = Memory::new(crate::Limits {

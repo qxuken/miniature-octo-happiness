@@ -6,6 +6,7 @@ use crate::{
 
 type Key = Shared<ChargedVec<u8>>;
 type Children<V> = [Option<Shared<MapNode<V>>>; 16];
+pub(crate) type BorrowedEntries<'a, V> = ChargedVec<(&'a [u8], &'a V)>;
 enum MapNode<V: Clone> {
     Leaf {
         hash: u64,
@@ -106,13 +107,24 @@ impl<V: Clone> Map<V> {
     ) -> Result<ChargedVec<(ChargedVec<u8>, T)>> {
         self.materialize_with(mem, project, |key| mem.copy(key))
     }
+    pub(crate) fn borrowed_entries(
+        &self,
+        mem: &Memory,
+        row_budget: usize,
+    ) -> Result<BorrowedEntries<'_, V>> {
+        self.check_row_budget::<V>(row_budget)?;
+        self.collect_ordered(mem, |key, value| Ok((key, value)))
+    }
     fn materialize_with<T, K: AsRef<[u8]>>(
         &self,
         mem: &Memory,
         project: impl Fn(&V) -> T,
         copy_key: impl Fn(&[u8]) -> Result<K>,
     ) -> Result<ChargedVec<(K, T)>> {
-        let budget = mem.limits().max_transaction_bytes;
+        self.check_row_budget::<T>(mem.limits().max_transaction_bytes)?;
+        self.collect_ordered(mem, |key, value| Ok((copy_key(key)?, project(value))))
+    }
+    fn check_row_budget<T>(&self, budget: usize) -> Result<()> {
         let mut size = self
             .len
             .checked_mul(std::mem::size_of::<(Vec<u8>, T)>())
@@ -126,11 +138,17 @@ impl<V: Clone> Map<V> {
                 return Err(Error::Limit);
             }
             Ok(())
-        })?;
+        })
+    }
+    fn collect_ordered<'a, K: AsRef<[u8]>, T>(
+        &'a self,
+        mem: &Memory,
+        row: impl Fn(&'a [u8], &'a V) -> Result<(K, T)>,
+    ) -> Result<ChargedVec<(K, T)>> {
         let mut out = ChargedVec::new();
         mem.reserve(&mut out, self.len)?;
         self.visit(&mut |key, value| {
-            out.push((copy_key(key)?, project(value)));
+            out.push(row(key, value)?);
             Ok(())
         })?;
         out.sort_unstable_by(|a, b| a.0.as_ref().cmp(b.0.as_ref()));

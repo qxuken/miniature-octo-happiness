@@ -95,6 +95,11 @@ custom storage into a fallibly reserved output buffer. Values inside it still
 own their original core nodes. OS internals and caller-owned backend storage
 use their own allocation paths.
 
+Physical and logical encoders sort borrowed map entries in scratch allocated
+and charged by the encoder. They apply the originating value's existing
+transaction-byte preflight before reserving scratch. Keys and child values
+stay in the original map while the encoder writes them in binary key order.
+
 The database owns a reference to its allocator. Retained roots, live snapshots
 and cloned Rust values keep the allocation owner alive. A value can outlive the
 database that created it. C close returns `WDB_BUSY` while opaque handles are
