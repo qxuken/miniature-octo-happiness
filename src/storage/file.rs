@@ -47,7 +47,13 @@ pub struct FileStore {
     file: File,
     location: Location,
     parent_pending: bool,
-    claimed: bool,
+    lease: Lease,
+}
+#[derive(PartialEq, Eq)]
+enum Lease {
+    Open,
+    Claimed,
+    Released,
 }
 impl FileStore {
     pub fn create(path: impl AsRef<Path>) -> Result<Self> {
@@ -68,12 +74,25 @@ impl FileStore {
         Location::new_in(path.as_ref(), allocator)?.open_mode(create, true)
     }
     fn check(&self) -> Result<()> {
-        if self.claimed { Ok(()) } else { Err(Error::Io) }
+        if self.lease == Lease::Claimed {
+            Ok(())
+        } else {
+            Err(Error::Io)
+        }
+    }
+}
+#[cfg(target_os = "linux")]
+impl Drop for FileStore {
+    fn drop(&mut self) {
+        // A concurrent fork can keep the open description alive until exec.
+        if self.lease != Lease::Released {
+            self.unlock();
+        }
     }
 }
 impl ByteStore for FileStore {
     fn lock(&mut self) -> Result<()> {
-        if self.claimed {
+        if self.lease == Lease::Claimed {
             return Err(Error::Busy);
         }
         retry(NativeIoOperation::Lock, || {
@@ -83,23 +102,28 @@ impl ByteStore for FileStore {
                 Err(io::Error::last_os_error())
             }
         })?;
+        self.lease = Lease::Open;
         if let Err(error) = self.location.check_lease(&self.file) {
             self.unlock();
             return Err(error);
         }
-        self.claimed = true;
+        self.lease = Lease::Claimed;
         Ok(())
     }
     fn unlock(&mut self) {
-        let _ = retry(NativeIoOperation::Unlock, || {
+        let result = retry(NativeIoOperation::Unlock, || {
             if unsafe { flock(self.file.as_raw_fd(), 8) } == 0 {
                 Ok(())
             } else {
                 Err(io::Error::last_os_error())
             }
         });
-        // If explicit unlock fails, closing the owned File still releases it.
-        self.claimed = false;
+        self.lease = if result.is_ok() {
+            Lease::Released
+        } else {
+            // Disable I/O and leave the descriptor available for cleanup.
+            Lease::Open
+        };
     }
     fn length(&mut self) -> Result<u64> {
         self.check()?;
@@ -213,7 +237,7 @@ impl Location {
             file,
             location: self,
             parent_pending: create,
-            claimed: false,
+            lease: Lease::Open,
         })
     }
     fn acquire_open_lease(&self, file: &File) -> Result<()> {
@@ -541,6 +565,28 @@ impl FileStore {
 ))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dropping_open_store_releases_lease_with_an_inherited_descriptor() {
+        let path =
+            std::env::temp_dir().join(format!("weekend-open-inherited-{}.db", std::process::id()));
+        struct Cleanup(std::path::PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        let cleanup = Cleanup(path);
+        let store = FileStore::create(&cleanup.0).unwrap();
+        // Like a descriptor inherited during fork, this shares the open file description.
+        let inherited = store.file.try_clone().unwrap();
+        assert_eq!(FileStore::open(&cleanup.0).err(), Some(Error::Busy));
+        drop(store);
+        let reopened = FileStore::open(&cleanup.0).unwrap();
+        assert!(inherited.metadata().is_ok());
+        drop(reopened);
+    }
+
     #[test]
     fn opener_paused_before_flock_rejects_the_replaced_inode() {
         let path =

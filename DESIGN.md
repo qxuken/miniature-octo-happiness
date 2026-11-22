@@ -1801,6 +1801,11 @@ manual reuse of an unlocked adapter after its inode has been replaced. The
 common check now protects both adapters. Cooperating opens, hard-link aliases
 and separate processes share inode exclusion; no sidecar lock is introduced.
 
+Dropping a Linux file adapter explicitly releases its lease if the kernel
+still holds it. This allows immediate reopen when a concurrently forked child
+retains a descriptor until exec. An adapter that has already unlocked skips the
+drop-time unlock.
+
 Creation necessarily has an open-to-flock interval on Linux. A competing opener
 may briefly see an incomplete new file and receive a format/corruption error,
 or win the lease and make creation return `Busy`. It cannot recover an
