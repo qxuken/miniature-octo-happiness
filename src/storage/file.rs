@@ -312,7 +312,7 @@ struct Observer {
     hook: Option<crate::memory::Shared<std::sync::Mutex<Hook>>>,
 }
 #[cfg(any(test, feature = "fault-injection"))]
-type Hook = Box<dyn FnMut(CompactionEvent) -> Result<()> + Send, crate::memory::CoreAllocator>;
+type Hook = Box<dyn FnMut(CompactionEvent) -> Result<()> + Send, crate::AllocatorHandle>;
 impl Observer {
     fn event(&self, step: CompactionStep, after: bool) -> Result<()> {
         #[cfg(any(test, feature = "fault-injection"))]

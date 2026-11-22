@@ -1,6 +1,6 @@
 use crate::memory::ChargedVec;
 use crate::{
-    Error, Kind, Limits, Result, Value,
+    AllocatorHandle, Error, Kind, Limits, Result, Value,
     memory::{Memory, Shared},
     storage::{ByteStore, Storage},
     tree::Map,
@@ -131,6 +131,36 @@ impl Publication<'_> {
         drop(state);
         drop((old_head, old_retention));
         Ok(())
+    }
+}
+
+/// Resource policy and allocator for an in-memory or durable database.
+#[derive(Default)]
+pub struct DatabaseOptions {
+    pub limits: Limits,
+    allocator: AllocatorHandle,
+}
+
+impl From<Limits> for DatabaseOptions {
+    fn from(limits: Limits) -> Self {
+        Self {
+            limits,
+            ..Self::default()
+        }
+    }
+}
+
+impl DatabaseOptions {
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.limits = limits;
+        self
+    }
+
+    /// Select the allocator for core storage and opaque handles. Allocator
+    /// methods may run on multiple threads and must avoid reentering the database.
+    pub fn with_allocator(mut self, allocator: AllocatorHandle) -> Self {
+        self.allocator = allocator;
+        self
     }
 }
 
@@ -344,8 +374,8 @@ impl Database {
     pub fn with_limits(limits: Limits) -> Result<Self> {
         Self::with_options(limits.into())
     }
-    pub fn with_options(options: crate::DatabaseOptions) -> Result<Self> {
-        let mem = Memory::with_options(options)?;
+    pub fn with_options(options: DatabaseOptions) -> Result<Self> {
+        let mem = Memory::with_allocator(options.limits, options.allocator)?;
         let store = NEXT_STORE
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
             .map_err(|_| Error::Exhausted)?;
@@ -377,7 +407,7 @@ impl Database {
     pub fn create_on_with_options<B: ByteStore + 'static>(
         backend: B,
         identity: [u8; 16],
-        options: crate::DatabaseOptions,
+        options: DatabaseOptions,
     ) -> Result<Self> {
         let mut db = Self::with_options(options)?;
         let storage = {
@@ -401,7 +431,7 @@ impl Database {
     }
     pub fn open_on_with_options<B: ByteStore + 'static>(
         backend: B,
-        options: crate::DatabaseOptions,
+        options: DatabaseOptions,
     ) -> Result<Self> {
         let mut db = Self::with_options(options)?;
         let (storage, head, next_collection, retention) = Storage::open(backend, &db.mem)?;
@@ -428,14 +458,14 @@ impl Database {
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn create_file_with_options(
         path: impl AsRef<std::path::Path>,
-        options: crate::DatabaseOptions,
+        options: DatabaseOptions,
     ) -> Result<Self> {
         Self::create_file_using(path, options, crate::storage::file_identity)
     }
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     fn create_file_using(
         path: impl AsRef<std::path::Path>,
-        options: impl Into<crate::DatabaseOptions>,
+        options: impl Into<DatabaseOptions>,
         make_identity: impl FnOnce() -> Result<[u8; 16]>,
     ) -> Result<Self> {
         // Entropy failure must return before even converting the pathname.
@@ -451,7 +481,7 @@ impl Database {
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn open_file_with_options(
         path: impl AsRef<std::path::Path>,
-        options: crate::DatabaseOptions,
+        options: DatabaseOptions,
     ) -> Result<Self> {
         options.limits.validate()?;
         Self::open_on_with_options(crate::storage::FileStore::open(path)?, options)
@@ -522,11 +552,14 @@ impl Database {
         })
     }
     pub fn retained_ids(&self) -> Result<Vec<u64>> {
+        self.retained_ids_owned()?.into_external()
+    }
+    pub(crate) fn retained_ids_owned(&self) -> Result<ChargedVec<u64>> {
         let state = self.read_state();
         let mut ids = ChargedVec::new();
         self.mem.reserve(&mut ids, state.retention.entries.len())?;
         ids.extend(state.retention.entries.iter().map(|r| r.id));
-        ids.into_external()
+        Ok(ids)
     }
     pub fn limits(&self) -> Limits {
         self.mem.limits()
@@ -656,6 +689,7 @@ fn key(db: &Database, key: &[u8]) -> Result<()> {
     }
 }
 pub type Rows = Vec<(Vec<u8>, Value)>;
+pub(crate) type OwnedRows = ChargedVec<(ChargedVec<u8>, Value)>;
 fn rows(db: &Database, records: &Map<Record>) -> Result<Rows> {
     records.materialize(&db.mem, |record| record.value.clone())
 }
@@ -678,6 +712,12 @@ impl Snapshot<'_> {
     pub fn scan(&self, id: CollectionId) -> Result<Rows> {
         self.db.check_collection(id)?;
         rows(self.db, &collection(&self.head, id)?.records)
+    }
+    pub(crate) fn scan_owned(&self, id: CollectionId) -> Result<OwnedRows> {
+        self.db.check_collection(id)?;
+        collection(&self.head, id)?
+            .records
+            .materialize_owned(&self.db.mem, |record| record.value.clone())
     }
     pub fn count(&self, id: CollectionId) -> Result<usize> {
         self.db.check_collection(id)?;
@@ -816,6 +856,13 @@ impl Transaction<'_> {
         Ok(())
     }
     pub fn scan(&mut self, id: CollectionId) -> Result<Rows> {
+        rows(self.db, &self.scan_records(id)?)
+    }
+    pub(crate) fn scan_owned(&mut self, id: CollectionId) -> Result<OwnedRows> {
+        self.scan_records(id)?
+            .materialize_owned(&self.db.mem, |record| record.value.clone())
+    }
+    fn scan_records(&mut self, id: CollectionId) -> Result<Map<Record>> {
         self.active()?;
         self.observe_collection(id)?;
         let mut records = collection(&self.base, id)?.records.clone();
@@ -841,10 +888,10 @@ impl Transaction<'_> {
                 None => records.remove(&self.db.mem, &w.key)?,
             };
         }
-        rows(self.db, &records)
+        Ok(records)
     }
     pub fn count(&mut self, id: CollectionId) -> Result<usize> {
-        Ok(self.scan(id)?.len())
+        Ok(self.scan_owned(id)?.len())
     }
     fn validate(&self, current: &Head) -> Result<()> {
         if self.validation == Validation::WholeDatabase && self.base.revision != current.revision {

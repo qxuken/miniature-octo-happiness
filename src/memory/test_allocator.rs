@@ -1,10 +1,12 @@
 use super::*;
-use std::sync::atomic::AtomicBool;
+use crate::DatabaseOptions;
+use std::sync::{Arc, atomic::AtomicBool};
 
 #[derive(Default)]
 pub(crate) struct TestAllocator {
     fail: AtomicBool,
     live: AtomicUsize,
+    bytes: AtomicUsize,
 }
 
 impl TestAllocator {
@@ -17,7 +19,15 @@ impl TestAllocator {
     }
 
     pub(crate) fn memory(self: &Arc<Self>, limits: Limits) -> Memory {
-        Memory::with_options(DatabaseOptions::from(limits).with_allocator(self.clone())).unwrap()
+        Memory::with_allocator(limits, self.handle()).unwrap()
+    }
+
+    pub(crate) fn live_bytes(&self) -> usize {
+        self.bytes.load(Ordering::Relaxed)
+    }
+
+    fn handle(self: &Arc<Self>) -> AllocatorHandle {
+        AllocatorHandle::try_new(TestProvider(self.clone())).unwrap()
     }
 
     fn check(&self) -> std::result::Result<(), AllocError> {
@@ -35,12 +45,14 @@ unsafe impl Allocator for TestAllocator {
         self.check()?;
         let block = Global.allocate(layout)?;
         self.live.fetch_add(1, Ordering::Relaxed);
+        self.bytes.fetch_add(layout.size(), Ordering::Relaxed);
         Ok(block)
     }
 
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         unsafe { Global.deallocate(ptr, layout) };
         self.live.fetch_sub(1, Ordering::Relaxed);
+        self.bytes.fetch_sub(layout.size(), Ordering::Relaxed);
     }
 
     unsafe fn grow(
@@ -50,7 +62,33 @@ unsafe impl Allocator for TestAllocator {
         new: Layout,
     ) -> std::result::Result<NonNull<[u8]>, AllocError> {
         self.check()?;
-        unsafe { Global.grow(ptr, old, new) }
+        let block = unsafe { Global.grow(ptr, old, new)? };
+        self.bytes
+            .fetch_add(new.size() - old.size(), Ordering::Relaxed);
+        Ok(block)
+    }
+}
+
+// Tests retain an independent observer of allocator calls and drop timing.
+struct TestProvider(Arc<TestAllocator>);
+
+// SAFETY: forwarding preserves allocation ownership and the provider lifetime.
+unsafe impl Allocator for TestProvider {
+    fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
+        self.0.allocate(layout)
+    }
+
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
+        unsafe { self.0.deallocate(ptr, layout) }
+    }
+
+    unsafe fn grow(
+        &self,
+        ptr: NonNull<u8>,
+        old: Layout,
+        new: Layout,
+    ) -> std::result::Result<NonNull<[u8]>, AllocError> {
+        unsafe { self.0.grow(ptr, old, new) }
     }
 }
 
@@ -61,7 +99,7 @@ fn retained_data_and_values_keep_their_database_allocator_alive() {
     let disk = SimulatedDisk::new().unwrap();
     let allocator = Arc::new(TestAllocator::default());
     let weak = Arc::downgrade(&allocator);
-    let options = || DatabaseOptions::default().with_allocator(allocator.clone());
+    let options = || DatabaseOptions::default().with_allocator(allocator.handle());
     let db = Database::create_on_with_options(disk.clone(), [3; 16], options()).unwrap();
     let collection = db.create_collection().unwrap();
     let mut tx = db.begin();
@@ -103,9 +141,10 @@ fn retained_data_and_values_keep_their_database_allocator_alive() {
 #[test]
 fn allocator_refusal_does_not_affect_another_database() {
     let allocator = Arc::new(TestAllocator::default());
-    let custom =
-        crate::Database::with_options(DatabaseOptions::default().with_allocator(allocator.clone()))
-            .unwrap();
+    let custom = crate::Database::with_options(
+        DatabaseOptions::default().with_allocator(allocator.handle()),
+    )
+    .unwrap();
     let default = crate::Database::new().unwrap();
     allocator.fail_next();
     default.create_collection().unwrap();
@@ -114,4 +153,44 @@ fn allocator_refusal_does_not_affect_another_database() {
     custom.create_collection().unwrap();
     drop(custom);
     assert_eq!(allocator.live(), 0);
+}
+
+#[test]
+fn budgets_are_independent_when_databases_share_one_allocator() {
+    use crate::Database;
+
+    let allocator = Arc::new(TestAllocator::default());
+    let handle = allocator.handle();
+    let options = || DatabaseOptions::default().with_allocator(handle.clone());
+    let db = Database::with_options(options()).unwrap();
+    let second = Database::with_options(options()).unwrap();
+    let second_before = second.memory_usage();
+    let denied = options().with_limits(Limits {
+        max_live_bytes: 0,
+        ..Limits::default()
+    });
+    assert!(matches!(Database::with_options(denied), Err(Error::Limit)));
+    let collection = db.create_collection().unwrap();
+    let mut tx = db.begin();
+    tx.put(collection, b"key", &db.bytes(b"bytes").unwrap())
+        .unwrap();
+    tx.commit().unwrap();
+    drop(tx);
+    let snapshot = db.snapshot();
+    let id = db.retain_snapshot(&snapshot).unwrap();
+    let rows = snapshot.scan_owned(collection).unwrap();
+    assert_eq!(rows[0].0.as_slice(), b"key");
+    assert_eq!(second.memory_usage(), second_before);
+    assert_eq!(
+        allocator.live_bytes(),
+        db.memory_usage().live_bytes + second_before.live_bytes
+    );
+    drop(rows);
+    db.release_retained(id).unwrap();
+    drop(snapshot);
+    drop(db);
+    assert_eq!(allocator.live_bytes(), second_before.live_bytes);
+    drop(second);
+    assert_eq!(allocator.live(), 0);
+    assert_eq!(allocator.live_bytes(), 0);
 }

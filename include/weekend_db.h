@@ -67,17 +67,43 @@ typedef struct wdb_allocator {
     void (*retain_context)(void *context);
     void (*release_context)(void *context);
 } wdb_allocator;
-wdb_status wdb_open_with_allocator(const wdb_allocator *allocator, wdb_database **out);
+typedef struct wdb_limits {
+    size_t max_live_bytes;
+    size_t max_bytes;
+    size_t max_value_bytes;
+    size_t max_depth;
+    size_t max_entries;
+    size_t max_writes;
+    size_t max_observations;
+    size_t max_transaction_bytes;
+} wdb_limits;
+typedef struct wdb_memory_usage {
+    size_t live_bytes;
+    size_t peak_bytes;
+    size_t limit_bytes;
+} wdb_memory_usage;
+typedef struct wdb_database_options {
+    wdb_limits limits;
+    const wdb_allocator *allocator;
+} wdb_database_options;
+/* Initialize before overriding individual limits or the allocator pointer.
+ * NULL options select default limits and the global allocator. The options and
+ * descriptor are read only during open. Memory usage counts requested live
+ * core heap layouts and their peak, including growth reservations. */
+wdb_status wdb_database_options_init(wdb_database_options *out);
+wdb_status wdb_open_with_options(const wdb_database_options *options, wdb_database **out);
+wdb_status wdb_database_get_limits(const wdb_database *db, wdb_limits *out);
+wdb_status wdb_database_get_memory_usage(const wdb_database *db, wdb_memory_usage *out);
 /* Explicit-length native path bytes on macOS and Linux x86_64/aarch64, UTF-8
  * on Windows (local fixed NTFS). Embedded NULs are invalid. Creation is
  * exclusive and never overwrites. Open is read/write with an exclusive lease.
  * Other platforms return UNSUPPORTED_PLATFORM. */
 wdb_status wdb_file_create(const uint8_t *path, size_t len, wdb_database **out);
 wdb_status wdb_file_open(const uint8_t *path, size_t len, wdb_database **out);
-wdb_status wdb_file_create_with_allocator(const uint8_t *path, size_t len,
-                                          const wdb_allocator *allocator, wdb_database **out);
-wdb_status wdb_file_open_with_allocator(const uint8_t *path, size_t len,
-                                        const wdb_allocator *allocator, wdb_database **out);
+wdb_status wdb_file_create_with_options(const uint8_t *path, size_t len,
+                                         const wdb_database_options *options, wdb_database **out);
+wdb_status wdb_file_open_with_options(const uint8_t *path, size_t len,
+                                       const wdb_database_options *options, wdb_database **out);
 /* Offline macOS/Linux compaction: close ALL database handles for this path first.
  * BUSY if an inode is leased; hard-link sources are rejected. Current/retained
  * roots, revisions and local IDs survive; file format remains v2. A verified,

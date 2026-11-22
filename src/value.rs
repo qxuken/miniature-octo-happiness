@@ -236,6 +236,13 @@ impl Value {
         map.materialize(&self.mem, Clone::clone)
     }
 
+    pub(crate) fn map_entries_owned(&self) -> Result<crate::engine::OwnedRows> {
+        let Data::Map(map) = &self.node.data else {
+            return Err(Error::Type);
+        };
+        map.materialize_owned(&self.mem, Clone::clone)
+    }
+
     pub fn list_get(&self, index: usize) -> Result<Self> {
         let Data::List(list) = &self.node.data else {
             return Err(Error::Type);

@@ -52,24 +52,33 @@ are explicitly transferred out of charged ownership or use named
 metadata vector is an application output. Independent opens, inspection, import,
 export, and backup calls create independent domains from their supplied limits;
 there is no process-global cap. Replication/CRDT/coordinator application-layer
-buffers are outside this core domain. Rust constructors accept `Limits`, and
-C constructors use the default limits.
+buffers are outside this core domain. Rust and C database options accept the
+same limits and expose the same budget measurements.
 
 ## Per-database allocators
 
-Rust and C use `Global` by default. Rust callers can pass an `Arc<dyn Allocator
-+ Send + Sync>` through `DatabaseOptions::with_allocator` and use the resulting
-options with the in-memory, byte-store or native-file constructors. C callers
-can pass a `wdb_allocator` to `wdb_open_with_allocator`,
-`wdb_file_create_with_allocator` or `wdb_file_open_with_allocator`. A null
-descriptor selects `Global`.
+Rust and C use `Global` by default. In Rust, `AllocatorHandle::try_new`
+fallibly takes ownership of the provider. Set it and the `Limits` on
+`DatabaseOptions` for the in-memory, byte-store or native-file constructors.
+In C, initialize `wdb_database_options` with `wdb_database_options_init`,
+then override any limits and optionally set a `wdb_allocator`. Pass the
+options to `wdb_open_with_options`, `wdb_file_create_with_options` or
+`wdb_file_open_with_options`. A null descriptor selects `Global`.
+`wdb_database_get_limits` and `wdb_database_get_memory_usage` return the
+same fields as their Rust counterparts.
 
-The selected allocator serves the database's core layouts, the storage adapter's
-owning box and C handle blocks. The last two stay outside the live-byte cap.
-The budget control block, file-adapter internals and ordinary Rust `Vec` output
-buffers use their existing allocation domains. When returning a `Vec` backed by
-a custom allocator, the engine moves its elements into a fallibly reserved
-global buffer. Values inside that buffer still own their original core nodes.
+Budget charges keep only the budget alive. Shared nodes, charged vectors and
+boxes carry the allocator they use to free storage. The selected allocator
+serves core layouts, C scan rows and keys, retained-ID scratch space, the
+storage adapter's owning box, and C handle blocks. The owning box and C
+handle blocks are outside the live-byte cap.
+
+Fixed bootstrap allocations use `Global` and are fallible. They hold the
+budget state and, for a custom provider, its boxed state and shared owner.
+Public Rust `Vec` outputs also use `Global`. The engine moves elements from
+custom storage into a fallibly reserved output buffer. Values inside it still
+own their original core nodes. Native file-adapter internals and caller-owned
+backend storage use their own allocation paths.
 
 The database owns a reference to its allocator. Retained roots, live snapshots
 and cloned Rust values keep the allocation owner alive. A value can outlive the

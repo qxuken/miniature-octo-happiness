@@ -35,7 +35,8 @@ pub fn generate(header: &str) -> Result<String> {
         lines.push(format!("{name} :: distinct rawptr"));
     }
     let allocator = re(r"(?s)typedef\s+struct\s+wdb_allocator\s*\{([^}]*)\}\s*wdb_allocator\s*;");
-    let has_allocator = if let Some(fields) = allocator.captures(&text) {
+    let mut records = BTreeMap::new();
+    if let Some(fields) = allocator.captures(&text) {
         let expected = "void *context;
             void *(*allocate)(void *context, size_t size, size_t align);
             void (*deallocate)(void *context, void *block, size_t size, size_t align);
@@ -55,10 +56,50 @@ pub fn generate(header: &str) -> Result<String> {
             "    release_context: proc \"c\" (ctx: rawptr),".into(),
             "}".into(),
         ]);
-        true
-    } else {
-        false
-    };
+        records.insert("wdb_allocator", "Allocator");
+    }
+    for (c_name, odin_name, fields) in [
+        (
+            "wdb_limits",
+            "Limits",
+            "max_live_bytes max_bytes max_value_bytes max_depth max_entries max_writes max_observations max_transaction_bytes",
+        ),
+        (
+            "wdb_memory_usage",
+            "Memory_Usage",
+            "live_bytes peak_bytes limit_bytes",
+        ),
+        (
+            "wdb_database_options",
+            "Database_Options",
+            "limits allocator",
+        ),
+    ] {
+        let declaration = re(&format!(
+            r"(?s)typedef\s+struct\s+{c_name}\s*\{{([^}}]*)\}}\s*{c_name}\s*;"
+        ));
+        let Some(definition) = declaration.captures(&text) else {
+            continue;
+        };
+        let mut expected = String::new();
+        lines.push(format!("{odin_name} :: struct {{"));
+        for field in fields.split_whitespace() {
+            let (c_type, odin_type) = match (c_name, field) {
+                ("wdb_database_options", "limits") => ("wdb_limits", "Limits"),
+                ("wdb_database_options", "allocator") => ("const wdb_allocator *", "^Allocator"),
+                _ => ("size_t", "c.size_t"),
+            };
+            expected.push_str(&format!("{c_type}{field};"));
+            lines.push(format!("    {field}: {odin_type},"));
+        }
+        ensure!(
+            definition[1].split_whitespace().collect::<String>()
+                == expected.split_whitespace().collect::<String>(),
+            "unsupported {c_name} layout"
+        );
+        lines.push("}".into());
+        records.insert(c_name, odin_name);
+    }
     lines.extend([
         "#assert(size_of(Database) == size_of(rawptr))".into(),
         "#assert(size_of(c.size_t) == size_of(uintptr))".into(),
@@ -103,12 +144,9 @@ pub fn generate(header: &str) -> Result<String> {
                         Some("*") => handle.to_string(),
                         _ => bail!("opaque handle must be a pointer"),
                     }
-                } else if base == "wdb_allocator" {
-                    ensure!(
-                        has_allocator && pointer == Some("*"),
-                        "allocator pointer required"
-                    );
-                    "^Allocator".into()
+                } else if let Some(record) = records.get(base) {
+                    ensure!(pointer == Some("*"), "{base} pointer required");
+                    format!("^{record}")
                 } else {
                     let kind = match base {
                         "uint8_t" => "u8",

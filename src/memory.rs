@@ -1,61 +1,13 @@
 use crate::{Error, Result};
+#[cfg(test)]
+use std::sync::Arc;
 use std::{
     alloc::{AllocError, Allocator, Global, Layout},
     marker::PhantomData,
     ops::Deref,
     ptr::NonNull,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
-
-pub(crate) type AllocatorRef = Arc<dyn Allocator + Send + Sync>;
-
-/// Options for an in-memory or durable database.
-#[derive(Default)]
-pub struct DatabaseOptions {
-    pub limits: Limits,
-    pub(crate) allocator: AllocatorChoice,
-}
-
-impl From<Limits> for DatabaseOptions {
-    fn from(limits: Limits) -> Self {
-        Self {
-            limits,
-            ..Self::default()
-        }
-    }
-}
-
-impl DatabaseOptions {
-    /// Use this allocator for the database's core allocations and handles.
-    /// The default delegates to Rust's global allocator. Cloned data can keep
-    /// the allocator alive after the database is dropped. Allocator methods
-    /// may run on multiple threads and must avoid reentering the database.
-    pub fn with_allocator(mut self, allocator: Arc<dyn Allocator + Send + Sync>) -> Self {
-        self.allocator = AllocatorChoice::Rust(allocator);
-        self
-    }
-}
-
-#[derive(Default)]
-pub(crate) enum AllocatorChoice {
-    #[default]
-    Global,
-    Rust(AllocatorRef),
-    Foreign(ForeignAllocator),
-}
-
-impl AllocatorChoice {
-    fn as_allocator(&self) -> &dyn Allocator {
-        match self {
-            Self::Global => &Global,
-            Self::Rust(allocator) => &**allocator,
-            Self::Foreign(allocator) => allocator,
-        }
-    }
-}
 
 // Copied from a C descriptor before the first allocator call.
 #[repr(C)]
@@ -129,29 +81,53 @@ unsafe impl Allocator for ForeignAllocator {
     }
 }
 
+/// A shared allocator for core storage and opaque handles. The default uses Global.
 #[derive(Clone, Default)]
-pub(crate) struct CoreAllocator(Option<Memory>);
+pub struct AllocatorHandle(Option<Shared<Box<dyn Allocator + Send + Sync>>>);
 
-// SAFETY: the optional Memory owns the allocator until the final block is
-// released. Expose only requested bytes even if the allocator supplies slack.
-unsafe impl Allocator for CoreAllocator {
-    fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
+impl AllocatorHandle {
+    /// Move an allocator into a fallible, shared owner. Cloning the handle
+    /// does not allocate. The fixed ownership blocks are allocated by Global.
+    pub fn try_new(allocator: impl Allocator + Send + Sync + 'static) -> Result<Self> {
+        let provider: Box<dyn Allocator + Send + Sync> = try_box_in(allocator, Global)?;
+        Ok(Self(Some(Shared::allocate(provider, None)?)))
+    }
+
+    fn as_allocator(&self) -> &dyn Allocator {
         match &self.0 {
-            None => Global.allocate(layout),
-            Some(mem) => mem
-                .0
-                .allocator
-                .as_allocator()
-                .allocate(layout)
-                .map(|block| NonNull::slice_from_raw_parts(block.cast(), layout.size())),
+            Some(provider) => &***provider,
+            None => &Global,
         }
+    }
+}
+
+fn try_box_in<T, A: Allocator>(value: T, allocator: A) -> Result<Box<T, A>> {
+    let layout = Layout::new::<T>();
+    if layout.size() == 0 {
+        return Ok(Box::new_in(value, allocator));
+    }
+    let ptr = allocator
+        .allocate(layout)
+        .map_err(|_| Error::OutOfMemory)?
+        .cast::<T>();
+    // SAFETY: the unique block came from this allocator with Layout<T>.
+    unsafe {
+        ptr.as_ptr().write(value);
+        Ok(Box::from_raw_in(ptr.as_ptr(), allocator))
+    }
+}
+
+// SAFETY: cloned handles share the provider until the final block is freed.
+// Report the requested layout even when the provider offers additional capacity.
+unsafe impl Allocator for AllocatorHandle {
+    fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
+        self.as_allocator()
+            .allocate(layout)
+            .map(|block| NonNull::slice_from_raw_parts(block.cast(), layout.size()))
     }
 
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        match &self.0 {
-            None => unsafe { Global.deallocate(ptr, layout) },
-            Some(mem) => unsafe { mem.0.allocator.as_allocator().deallocate(ptr, layout) },
-        }
+        unsafe { self.as_allocator().deallocate(ptr, layout) };
     }
 
     unsafe fn grow(
@@ -160,17 +136,15 @@ unsafe impl Allocator for CoreAllocator {
         old: Layout,
         new: Layout,
     ) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        match &self.0 {
-            None => unsafe { Global.grow(ptr, old, new) },
-            Some(mem) => unsafe { mem.0.allocator.as_allocator().grow(ptr, old, new) }
-                .map(|block| NonNull::slice_from_raw_parts(block.cast(), new.size())),
-        }
+        unsafe { self.as_allocator().grow(ptr, old, new) }
+            .map(|block| NonNull::slice_from_raw_parts(block.cast(), new.size()))
     }
 }
 
 /// Requested core allocation layouts, including in-flight reservations. Excludes
 /// allocator overhead, backend/application/foreign-handle buffers and the fixed
 /// budget control block. The peak includes old and new buffers during growth.
+#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemoryUsage {
     pub live_bytes: usize,
@@ -179,7 +153,8 @@ pub struct MemoryUsage {
 }
 
 /// Resource limits are checked before allocation or publication.
-#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
     /// Maximum requested bytes of live core heap allocations; excludes application outputs,
     /// backend storage, foreign handles, allocator overhead and the budget control block.
@@ -228,7 +203,7 @@ impl Limits {
 struct SharedBox<T> {
     refs: AtomicUsize,
     value: T,
-    charge: Option<Charge>,
+    ownership: Option<ChargedAllocation>,
 }
 pub(crate) struct Shared<T> {
     ptr: NonNull<SharedBox<T>>,
@@ -239,12 +214,14 @@ pub(crate) struct Shared<T> {
 unsafe impl<T: Send + Sync> Send for Shared<T> {}
 unsafe impl<T: Send + Sync> Sync for Shared<T> {}
 impl<T> Shared<T> {
-    fn allocate(value: T, charge: Option<Charge>) -> Result<Self> {
+    fn allocate(value: T, ownership: Option<ChargedAllocation>) -> Result<Self> {
         let layout = Layout::new::<SharedBox<T>>();
         // SharedBox always has a nonzero size due to the count.
-        let allocator = charge.as_ref().map_or(&Global as &dyn Allocator, |charge| {
-            charge.owner.0.allocator.as_allocator()
-        });
+        let allocator = ownership
+            .as_ref()
+            .map_or(&Global as &dyn Allocator, |owner| {
+                owner.allocator.as_allocator()
+            });
         let ptr = allocator
             .allocate(layout)
             .map_err(|_| Error::OutOfMemory)?
@@ -253,7 +230,7 @@ impl<T> Shared<T> {
             ptr.as_ptr().write(SharedBox {
                 refs: AtomicUsize::new(1),
                 value,
-                charge,
+                ownership,
             });
         }
         Ok(Self {
@@ -302,18 +279,18 @@ impl<T> Drop for Shared<T> {
             return;
         }
         // Keep the charge until destruction AND deallocation, including unwind.
-        let charge = unsafe { std::ptr::read(&self.ptr.as_ref().charge) };
+        let ownership = unsafe { std::ptr::read(&self.ptr.as_ref().ownership) };
         let _allocation = Allocation {
             ptr: self.ptr.cast(),
             layout: Layout::new::<SharedBox<T>>(),
-            _charge: charge,
+            ownership,
         };
         unsafe { std::ptr::drop_in_place(&mut (*self.ptr.as_ptr()).value) };
     }
 }
 
 struct Charge {
-    owner: Memory,
+    owner: Budget,
     bytes: usize,
 }
 impl Drop for Charge {
@@ -321,20 +298,25 @@ impl Drop for Charge {
         self.owner.0.used.fetch_sub(self.bytes, Ordering::AcqRel);
     }
 }
+struct ChargedAllocation {
+    allocator: AllocatorHandle,
+    _charge: Charge,
+}
+
 // Drop body deallocates before Rust drops the charge field. Also used when an
 // element destructor unwinds; allocated capacity must never become uncharged.
 struct Allocation {
     ptr: NonNull<u8>,
     layout: Layout,
-    _charge: Option<Charge>,
+    ownership: Option<ChargedAllocation>,
 }
 impl Drop for Allocation {
     fn drop(&mut self) {
         let allocator = self
-            ._charge
+            .ownership
             .as_ref()
-            .map_or(&Global as &dyn Allocator, |charge| {
-                charge.owner.0.allocator.as_allocator()
+            .map_or(&Global as &dyn Allocator, |owner| {
+                owner.allocator.as_allocator()
             });
         unsafe { allocator.deallocate(self.ptr, self.layout) };
     }
@@ -343,13 +325,13 @@ impl Drop for Allocation {
 /// Internal capacity with exact requested allocation layout. No method exposes
 /// a mutable Vec or grows implicitly; callers must reserve through Memory first.
 pub(crate) struct ChargedVec<T> {
-    vec: Vec<T, CoreAllocator>,
+    vec: Vec<T, AllocatorHandle>,
     charge: Option<Charge>,
 }
 impl<T> ChargedVec<T> {
     pub(crate) fn new() -> Self {
         Self {
-            vec: Vec::new_in(CoreAllocator::default()),
+            vec: Vec::new_in(AllocatorHandle::default()),
             charge: None,
         }
     }
@@ -439,13 +421,21 @@ impl<T> ChargedVec<T> {
             }
             let mut output = Vec::new();
             let charge = self.charge.as_ref().expect("allocated custom buffer");
-            charge.owner.reserve_external(&mut output, self.vec.len())?;
+            charge.owner.claim()?;
+            output
+                .try_reserve_exact(self.vec.len())
+                .map_err(|_| Error::OutOfMemory)?;
             output.extend(self.vec);
             return Ok(output);
         }
         let (ptr, len, capacity, _) = self.vec.into_raw_parts_with_allocator();
         // SAFETY: this buffer uses Global and transfers with its exact layout.
         Ok(unsafe { Vec::from_raw_parts(ptr, len, capacity) })
+    }
+}
+impl<T> AsRef<[T]> for ChargedVec<T> {
+    fn as_ref(&self) -> &[T] {
+        self.as_slice()
     }
 }
 impl<T> std::ops::Deref for ChargedVec<T> {
@@ -467,7 +457,7 @@ impl<'a, T> IntoIterator for &'a ChargedVec<T> {
     }
 }
 pub(crate) struct ChargedIntoIter<T> {
-    iter: <Vec<T, CoreAllocator> as IntoIterator>::IntoIter,
+    iter: <Vec<T, AllocatorHandle> as IntoIterator>::IntoIter,
     _charge: Option<Charge>,
 }
 impl<T> Iterator for ChargedIntoIter<T> {
@@ -490,25 +480,21 @@ impl<T> IntoIterator for ChargedVec<T> {
     }
 }
 
-struct MemoryState {
-    allocator: AllocatorChoice,
+struct BudgetState {
     limits: Limits,
     used: AtomicUsize,
     peak: AtomicUsize,
     #[cfg(any(test, feature = "fault-injection"))]
     remaining: AtomicUsize,
 }
+
 #[derive(Clone)]
-pub(crate) struct Memory(Shared<MemoryState>);
-impl Memory {
-    pub(crate) fn new(limits: Limits) -> Result<Self> {
-        Self::with_options(limits.into())
-    }
-    pub(crate) fn with_options(options: DatabaseOptions) -> Result<Self> {
+struct Budget(Shared<BudgetState>);
+impl Budget {
+    fn new(limits: Limits) -> Result<Self> {
         Ok(Self(Shared::allocate(
-            MemoryState {
-                limits: options.limits.validate()?,
-                allocator: options.allocator,
+            BudgetState {
+                limits: limits.validate()?,
                 used: AtomicUsize::new(0),
                 peak: AtomicUsize::new(0),
                 #[cfg(any(test, feature = "fault-injection"))]
@@ -516,15 +502,6 @@ impl Memory {
             },
             None,
         )?))
-    }
-    fn allocator(&self) -> CoreAllocator {
-        CoreAllocator((!matches!(self.0.allocator, AllocatorChoice::Global)).then(|| self.clone()))
-    }
-    pub(crate) fn limits(&self) -> Limits {
-        self.0.limits
-    }
-    pub(crate) fn same(&self, other: &Self) -> bool {
-        self.0.ptr_eq(&other.0)
     }
     pub(crate) fn claim(&self) -> Result<()> {
         #[cfg(any(test, feature = "fault-injection"))]
@@ -546,29 +523,6 @@ impl Memory {
             .remaining
             .store(n.unwrap_or(usize::MAX), Ordering::Relaxed);
     }
-    pub(crate) fn shared<T>(&self, value: T) -> Result<Shared<T>> {
-        self.claim()?;
-        let charge = self.admit(Layout::new::<SharedBox<T>>().size())?;
-        Shared::allocate(value, Some(charge))
-    }
-    pub(crate) fn reserve_external<T>(&self, vec: &mut Vec<T>, extra: usize) -> Result<()> {
-        let needed = vec.len().checked_add(extra).ok_or(Error::Limit)?;
-        if needed > vec.capacity() {
-            self.claim()?;
-            vec.try_reserve_exact(extra)
-                .map_err(|_| Error::OutOfMemory)?;
-        }
-        Ok(())
-    }
-    pub(crate) fn copy_external(&self, bytes: &[u8]) -> Result<Vec<u8>> {
-        if bytes.len() > isize::MAX as usize {
-            return Err(Error::Limit);
-        }
-        let mut vec = Vec::new();
-        self.reserve_external(&mut vec, bytes.len())?;
-        vec.extend_from_slice(bytes);
-        Ok(vec)
-    }
     fn admit(&self, bytes: usize) -> Result<Charge> {
         let previous = self
             .0
@@ -589,7 +543,7 @@ impl Memory {
         MemoryUsage {
             live_bytes,
             peak_bytes,
-            limit_bytes: self.limits().max_live_bytes,
+            limit_bytes: self.0.limits.max_live_bytes,
         }
     }
     pub(crate) fn usage(&self) -> (usize, usize) {
@@ -601,6 +555,79 @@ impl Memory {
             live,
             self.0.peak.fetch_max(live, Ordering::Relaxed).max(live),
         )
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Memory {
+    budget: Budget,
+    allocator: AllocatorHandle,
+}
+
+impl Memory {
+    pub(crate) fn new(limits: Limits) -> Result<Self> {
+        Self::with_allocator(limits, AllocatorHandle::default())
+    }
+    pub(crate) fn with_allocator(limits: Limits, allocator: AllocatorHandle) -> Result<Self> {
+        Ok(Self {
+            budget: Budget::new(limits)?,
+            allocator,
+        })
+    }
+    fn allocator(&self) -> AllocatorHandle {
+        self.allocator.clone()
+    }
+    pub(crate) fn limits(&self) -> Limits {
+        self.budget.0.limits
+    }
+    pub(crate) fn same(&self, other: &Self) -> bool {
+        self.budget.0.ptr_eq(&other.budget.0)
+    }
+    pub(crate) fn claim(&self) -> Result<()> {
+        self.budget.claim()
+    }
+    #[cfg(any(test, feature = "fault-injection"))]
+    pub(crate) fn fail_after(&self, n: Option<usize>) {
+        self.budget.fail_after(n);
+    }
+    fn admit(&self, bytes: usize) -> Result<Charge> {
+        self.budget.admit(bytes)
+    }
+    pub(crate) fn public_usage(&self) -> MemoryUsage {
+        self.budget.public_usage()
+    }
+    #[cfg(test)]
+    pub(crate) fn usage(&self) -> (usize, usize) {
+        self.budget.usage()
+    }
+    pub(crate) fn shared<T>(&self, value: T) -> Result<Shared<T>> {
+        self.claim()?;
+        let charge = self.admit(Layout::new::<SharedBox<T>>().size())?;
+        Shared::allocate(
+            value,
+            Some(ChargedAllocation {
+                allocator: self.allocator(),
+                _charge: charge,
+            }),
+        )
+    }
+    pub(crate) fn reserve_external<T>(&self, vec: &mut Vec<T>, extra: usize) -> Result<()> {
+        let needed = vec.len().checked_add(extra).ok_or(Error::Limit)?;
+        if needed > vec.capacity() {
+            self.claim()?;
+            vec.try_reserve_exact(extra)
+                .map_err(|_| Error::OutOfMemory)?;
+        }
+        Ok(())
+    }
+    pub(crate) fn copy_external(&self, bytes: &[u8]) -> Result<Vec<u8>> {
+        if bytes.len() > isize::MAX as usize {
+            return Err(Error::Limit);
+        }
+        let mut vec = Vec::new();
+        self.reserve_external(&mut vec, bytes.len())?;
+        vec.extend_from_slice(bytes);
+        Ok(vec)
     }
     pub(crate) fn reserve<T>(&self, vec: &mut ChargedVec<T>, extra: usize) -> Result<()> {
         vec.reserve(self, extra)
@@ -620,21 +647,11 @@ impl Memory {
         Ok(vec)
     }
     /// Allocate ownership fallibly. Zero-sized boxes require no claim.
-    pub(crate) fn boxed<T>(&self, value: T) -> Result<Box<T, CoreAllocator>> {
-        let allocator = self.allocator();
-        if std::mem::size_of::<T>() == 0 {
-            return Ok(Box::new_in(value, allocator));
+    pub(crate) fn boxed<T>(&self, value: T) -> Result<Box<T, AllocatorHandle>> {
+        if std::mem::size_of::<T>() != 0 {
+            self.claim()?;
         }
-        self.claim()?;
-        let ptr = allocator
-            .allocate(Layout::new::<T>())
-            .map_err(|_| Error::OutOfMemory)?
-            .cast::<T>();
-        // SAFETY: the unique block came from this allocator with Layout<T>.
-        unsafe {
-            ptr.as_ptr().write(value);
-            Ok(Box::from_raw_in(ptr.as_ptr(), allocator))
-        }
+        try_box_in(value, self.allocator())
     }
     pub(crate) fn raw<T>(&self, value: T) -> Result<*mut T> {
         assert!(std::mem::size_of::<T>() != 0);
@@ -1129,14 +1146,14 @@ mod live_budget_tests {
     fn usage_bounds_peak_during_admission_update_window() {
         let mem = memory(8);
         // Model the interval between admission CAS and fetch_max.
-        mem.0.used.store(8, Ordering::Release);
+        mem.budget.0.used.store(8, Ordering::Release);
         assert_eq!(mem.public_usage().peak_bytes, 8);
         // Another old owner can drop before the admitting thread updates peak.
         // A later query must not forget high water already reported above.
-        mem.0.used.store(4, Ordering::Release);
+        mem.budget.0.used.store(4, Ordering::Release);
         assert_eq!(mem.public_usage().peak_bytes, 8);
-        mem.0.peak.fetch_max(8, Ordering::Relaxed);
-        mem.0.used.store(0, Ordering::Release);
+        mem.budget.0.peak.fetch_max(8, Ordering::Relaxed);
+        mem.budget.0.used.store(0, Ordering::Release);
         assert_eq!(mem.usage(), (0, 8));
     }
     #[test]

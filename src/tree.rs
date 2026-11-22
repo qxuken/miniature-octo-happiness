@@ -96,6 +96,22 @@ impl<V: Clone> Map<V> {
         mem: &Memory,
         project: impl Fn(&V) -> T,
     ) -> Result<Vec<(Vec<u8>, T)>> {
+        self.materialize_with(mem, project, |key| mem.copy_external(key))?
+            .into_external()
+    }
+    pub(crate) fn materialize_owned<T>(
+        &self,
+        mem: &Memory,
+        project: impl Fn(&V) -> T,
+    ) -> Result<ChargedVec<(ChargedVec<u8>, T)>> {
+        self.materialize_with(mem, project, |key| mem.copy(key))
+    }
+    fn materialize_with<T, K: AsRef<[u8]>>(
+        &self,
+        mem: &Memory,
+        project: impl Fn(&V) -> T,
+        copy_key: impl Fn(&[u8]) -> Result<K>,
+    ) -> Result<ChargedVec<(K, T)>> {
         let budget = mem.limits().max_transaction_bytes;
         let mut size = self
             .len
@@ -114,11 +130,11 @@ impl<V: Clone> Map<V> {
         let mut out = ChargedVec::new();
         mem.reserve(&mut out, self.len)?;
         self.visit(&mut |key, value| {
-            out.push((mem.copy_external(key)?, project(value)));
+            out.push((copy_key(key)?, project(value)));
             Ok(())
         })?;
-        out.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-        out.into_external()
+        out.sort_unstable_by(|a, b| a.0.as_ref().cmp(b.0.as_ref()));
+        Ok(out)
     }
     pub(crate) fn visit<'a>(
         &'a self,
