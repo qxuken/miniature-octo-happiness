@@ -70,15 +70,20 @@ same fields as their Rust counterparts.
 Budget charges keep only the budget alive. Shared nodes, charged vectors and
 boxes carry the allocator they use to free storage. The selected allocator
 serves core layouts, C scan rows and keys, retained-ID scratch space, the
-storage adapter's owning box, and C handle blocks. The owning box and C
-handle blocks are outside the live-byte cap.
+storage adapter's owning box, C handle blocks, and the macOS/Linux file leaf
+name. The owning box, C handle blocks, and leaf name are outside the
+live-byte cap. Native create and open on those platforms reserve the leaf
+including its terminating zero in one fallible request and move that buffer
+into the file lease. Leaf allocation failure precedes creation or opening of
+the database file.
 
 Fixed bootstrap allocations use `Global` and are fallible. They hold the
 budget state and, for a custom provider, its boxed state and shared owner.
 Public Rust `Vec` outputs also use `Global`. The engine moves elements from
 custom storage into a fallibly reserved output buffer. Values inside it still
-own their original core nodes. Native file-adapter internals and caller-owned
-backend storage use their own allocation paths.
+own their original core nodes. Parent pathname conversion in the standard
+library, Windows pathname construction, and caller-owned backend storage use
+their own allocation paths.
 
 The database owns a reference to its allocator. Retained roots, live snapshots
 and cloned Rust values keep the allocation owner alive. A value can outlive the

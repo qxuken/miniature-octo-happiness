@@ -6,7 +6,7 @@ use super::linux as sys;
 #[cfg(target_os = "macos")]
 use super::macos as sys;
 use super::{ByteStore, CompactionStats, Storage};
-use crate::{Error, Limits, Result, memory::Memory};
+use crate::{AllocatorHandle, Error, Limits, Result, memory::Memory};
 use std::{
     ffi::{c_char, c_int},
     fs::File,
@@ -50,17 +50,21 @@ pub struct FileStore {
 }
 impl FileStore {
     pub fn create(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), true)
+        Self::open_in(path, true, AllocatorHandle::default())
     }
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), false)
+        Self::open_in(path, false, AllocatorHandle::default())
     }
     /// Open with read access and the same exclusive lease as a writer.
     pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
         Location::new(path.as_ref())?.open_mode(false, false)
     }
-    fn open_impl(path: &Path, create: bool) -> Result<Self> {
-        Location::new(path)?.open(create)
+    pub(crate) fn open_in(
+        path: impl AsRef<Path>,
+        create: bool,
+        allocator: AllocatorHandle,
+    ) -> Result<Self> {
+        Location::new_in(path.as_ref(), allocator)?.open_mode(create, true)
     }
     fn check(&self) -> Result<()> {
         if self.claimed { Ok(()) } else { Err(Error::Io) }
@@ -127,10 +131,13 @@ impl ByteStore for FileStore {
 // a cooperating operation; recheck both inode identities before exchange.
 struct Location {
     directory: File,
-    name: Vec<u8>, // native leaf bytes, including terminating zero
+    name: Vec<u8, AllocatorHandle>, // native leaf bytes, including terminating zero
 }
 impl Location {
     fn new(path: &Path) -> Result<Self> {
+        Self::new_in(path, AllocatorHandle::default())
+    }
+    fn new_in(path: &Path, allocator: AllocatorHandle) -> Result<Self> {
         if !sys::SUPPORTED {
             return Err(Error::UnsupportedPlatform);
         }
@@ -155,23 +162,31 @@ impl Location {
                 .custom_flags(sys::OPEN_DIRECTORY)
                 .open(parent)
         })?;
-        let mem = Memory::new(Limits::default())?;
-        let mut name = mem.copy_external(name)?;
-        mem.reserve_external(&mut name, 1)?;
+        let mut name = Self::copy_name(allocator, name, 1)?;
         name.push(0);
         Ok(Self { directory, name })
     }
-    fn open(&self, create: bool) -> Result<FileStore> {
-        self.open_mode(create, true)
+    fn copy_name(
+        allocator: AllocatorHandle,
+        bytes: &[u8],
+        extra: usize,
+    ) -> Result<Vec<u8, AllocatorHandle>> {
+        let mut name = Vec::new_in(allocator);
+        name.try_reserve_exact(bytes.len() + extra)
+            .map_err(|_| Error::OutOfMemory)?;
+        name.extend_from_slice(bytes);
+        Ok(name)
     }
-    fn open_mode(&self, create: bool, writable: bool) -> Result<FileStore> {
-        // Allocate/copy the lease location before creating any directory entry.
-        let location = Self {
+    // Offline compaction keeps a location for the later exchange and cleanup.
+    fn duplicate(&self) -> Result<Self> {
+        Ok(Self {
             directory: retry(NativeIoOperation::DuplicateHandle, || {
                 self.directory.try_clone()
             })?,
-            name: Memory::new(Limits::default())?.copy_external(&self.name)?,
-        };
+            name: Self::copy_name(self.name.allocator().clone(), &self.name, 0)?,
+        })
+    }
+    fn open_mode(self, create: bool, writable: bool) -> Result<FileStore> {
         let access = if writable { 2 } else { 0 };
         let file = self.open_flags(access | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
         if !retry(NativeIoOperation::Metadata, || file.metadata())?.is_file() {
@@ -180,7 +195,7 @@ impl Location {
         self.acquire_open_lease(&file)?;
         Ok(FileStore {
             file,
-            location,
+            location: self,
             parent_pending: create,
             claimed: false,
         })
@@ -246,7 +261,10 @@ impl Location {
         }
     }
     fn scratch(&self, mem: &Memory) -> Result<Self> {
-        let mut name = mem.copy_external(b".wdb-compact-")?;
+        let prefix = b".wdb-compact-";
+        let mut name = Vec::new_in(self.name.allocator().clone());
+        mem.reserve_external(&mut name, prefix.len())?;
+        name.extend_from_slice(prefix);
         mem.reserve_external(&mut name, 37)?;
         for byte in identity()? {
             for n in [byte >> 4, byte & 15] {
@@ -400,7 +418,7 @@ pub fn compact_file_with_hook(
 }
 fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
     let original = Location::new(path)?;
-    let source = original.open(false)?;
+    let source = original.duplicate()?.open_mode(false, true)?;
     let old_file = retry(NativeIoOperation::DuplicateHandle, || {
         source.file.try_clone()
     })?;
@@ -418,7 +436,7 @@ fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<Co
     )?;
     storage.release_serialization_caches();
     let scratch = original.scratch(mem)?;
-    let target = scratch.open(true)?;
+    let target = scratch.duplicate()?.open_mode(true, true)?;
     let new_file = retry(NativeIoOperation::DuplicateHandle, || {
         target.file.try_clone()
     })?;

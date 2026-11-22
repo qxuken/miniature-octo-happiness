@@ -611,7 +611,11 @@ impl Memory {
             }),
         )
     }
-    pub(crate) fn reserve_external<T>(&self, vec: &mut Vec<T>, extra: usize) -> Result<()> {
+    pub(crate) fn reserve_external<T, A: Allocator>(
+        &self,
+        vec: &mut Vec<T, A>,
+        extra: usize,
+    ) -> Result<()> {
         let needed = vec.len().checked_add(extra).ok_or(Error::Limit)?;
         if needed > vec.capacity() {
             self.claim()?;

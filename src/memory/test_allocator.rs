@@ -7,6 +7,7 @@ pub(crate) struct TestAllocator {
     fail: AtomicBool,
     live: AtomicUsize,
     bytes: AtomicUsize,
+    requests: AtomicUsize,
 }
 
 impl TestAllocator {
@@ -26,6 +27,10 @@ impl TestAllocator {
         self.bytes.load(Ordering::Relaxed)
     }
 
+    fn requests(&self) -> usize {
+        self.requests.load(Ordering::Relaxed)
+    }
+
     fn handle(self: &Arc<Self>) -> AllocatorHandle {
         AllocatorHandle::try_new(TestProvider(self.clone())).unwrap()
     }
@@ -42,6 +47,7 @@ impl TestAllocator {
 // before allocation and growth.
 unsafe impl Allocator for TestAllocator {
     fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
+        self.requests.fetch_add(1, Ordering::Relaxed);
         self.check()?;
         let block = Global.allocate(layout)?;
         self.live.fetch_add(1, Ordering::Relaxed);
@@ -61,6 +67,7 @@ unsafe impl Allocator for TestAllocator {
         old: Layout,
         new: Layout,
     ) -> std::result::Result<NonNull<[u8]>, AllocError> {
+        self.requests.fetch_add(1, Ordering::Relaxed);
         self.check()?;
         let block = unsafe { Global.grow(ptr, old, new)? };
         self.bytes
@@ -146,8 +153,10 @@ fn allocator_refusal_does_not_affect_another_database() {
     )
     .unwrap();
     let default = crate::Database::new().unwrap();
+    let requests = allocator.requests();
     allocator.fail_next();
     default.create_collection().unwrap();
+    assert_eq!(allocator.requests(), requests);
     assert_eq!(custom.create_collection(), Err(Error::OutOfMemory));
     assert_eq!(custom.snapshot().revision(), 0);
     custom.create_collection().unwrap();
@@ -193,4 +202,83 @@ fn budgets_are_independent_when_databases_share_one_allocator() {
     drop(second);
     assert_eq!(allocator.live(), 0);
     assert_eq!(allocator.live_bytes(), 0);
+}
+
+#[cfg(all(not(miri), any(target_os = "macos", target_os = "linux")))]
+#[test]
+fn native_leaf_allocation_is_fallible_and_follows_the_file_lease() {
+    use crate::{Database, storage::FileStore};
+    use std::{fs, path::PathBuf, time::SystemTime};
+
+    struct Directory(PathBuf);
+    impl Drop for Directory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    let stamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!("wdb-leaf-{}-{stamp}", std::process::id()));
+    fs::create_dir(&directory).unwrap();
+    let directory = Directory(directory);
+    let leaf = "allocator-leaf.wdb";
+    let path = directory.0.join(leaf);
+    let allocator = Arc::new(TestAllocator::default());
+    let handle = allocator.handle();
+    let options = || DatabaseOptions::default().with_allocator(handle.clone());
+
+    allocator.fail_next();
+    assert!(matches!(
+        Database::create_file_with_options(&path, options()),
+        Err(Error::OutOfMemory)
+    ));
+    assert!(matches!(fs::metadata(&path), Err(err) if err.kind() == std::io::ErrorKind::NotFound));
+    assert_eq!(allocator.live(), 0);
+
+    let check_live = |db: &Database| {
+        assert_eq!(
+            allocator.live_bytes(),
+            db.memory_usage().live_bytes + std::mem::size_of::<FileStore>() + leaf.len() + 1
+        );
+    };
+    let db = Database::create_file_with_options(&path, options()).unwrap();
+    check_live(&db);
+    let collection = db.create_collection().unwrap();
+    let mut tx = db.begin();
+    tx.put(collection, b"key", &db.bytes(b"durable").unwrap())
+        .unwrap();
+    tx.commit().unwrap();
+    drop(tx);
+    let id = db.retain_snapshot(&db.snapshot()).unwrap();
+    check_live(&db);
+    drop(db);
+    assert_eq!(allocator.live(), 0);
+
+    let requests = allocator.requests();
+    let store = FileStore::open_in(&path, false, handle.clone()).unwrap();
+    assert_eq!(allocator.requests() - requests, 1);
+    assert_eq!(allocator.live_bytes(), leaf.len() + 1);
+    drop(store);
+    assert_eq!(allocator.live(), 0);
+
+    let image = fs::read(&path).unwrap();
+    allocator.fail_next();
+    assert!(matches!(
+        Database::open_file_with_options(&path, options()),
+        Err(Error::OutOfMemory)
+    ));
+    assert_eq!(fs::read(&path).unwrap(), image);
+    assert_eq!(allocator.live(), 0);
+
+    let db = Database::open_file_with_options(&path, options()).unwrap();
+    check_live(&db);
+    let retained = db.retained_snapshot(id).unwrap();
+    let value = retained.get(db.collection_id(1), b"key").unwrap().unwrap();
+    assert_eq!(value.as_bytes().unwrap(), b"durable");
+    drop(value);
+    drop(retained);
+    drop(db);
+    assert_eq!(allocator.live(), 0);
 }

@@ -472,7 +472,11 @@ impl Database {
         let options = options.into();
         options.limits.validate()?;
         let identity = make_identity()?;
-        Self::create_on_with_options(crate::storage::FileStore::create(path)?, identity, options)
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        let backend = crate::storage::FileStore::open_in(path, true, options.allocator.clone())?;
+        #[cfg(windows)]
+        let backend = crate::storage::FileStore::create(path)?;
+        Self::create_on_with_options(backend, identity, options)
     }
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn open_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
@@ -484,7 +488,11 @@ impl Database {
         options: DatabaseOptions,
     ) -> Result<Self> {
         options.limits.validate()?;
-        Self::open_on_with_options(crate::storage::FileStore::open(path)?, options)
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        let backend = crate::storage::FileStore::open_in(path, false, options.allocator.clone())?;
+        #[cfg(windows)]
+        let backend = crate::storage::FileStore::open(path)?;
+        Self::open_on_with_options(backend, options)
     }
     /// Publish a durable local snapshot ID. The snapshot can be historical, but
     /// must belong to this database. No record/value or old catalog is rewritten.
