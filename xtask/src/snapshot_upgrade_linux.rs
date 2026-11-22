@@ -1,5 +1,5 @@
 //! Optional Linux follower for the native-client upgrade sequence.
-use super::{Endpoint, STREAM};
+use super::{Endpoint, FixtureLink, STREAM};
 use crate::{
     artifact_trace::{docker_retire, nonce},
     assurance::Campaign,
@@ -225,7 +225,7 @@ impl Follower {
                 .context("source commit missing")?
                 .to_owned();
             let target = format!("/data/build/{name}");
-            c.command(
+            let messages = c.command(
                 cmd([
                     "docker",
                     "exec",
@@ -241,6 +241,7 @@ impl Follower {
                     "--offline",
                     "--locked",
                     "--release",
+                    "--message-format=json",
                     "-p",
                     "weekend-replicate",
                     "--target-dir",
@@ -250,49 +251,21 @@ impl Follower {
                 None,
                 240.,
             )?;
-            let deps = format!("{target}/release/deps");
-            let found = c.command(
-                self.exec(cmd([
-                    "find",
-                    &deps,
-                    "-maxdepth",
-                    "1",
-                    "-type",
-                    "f",
-                    "-name",
-                    "libweekend_db*.rlib",
-                ])),
-                &format!("{prefix}-rlib-discovery"),
-                None,
-                30.,
-            )?;
-            let rlibs: Vec<_> = found.lines().collect();
-            ensure!(
-                rlibs.len() == 1
-                    && rlibs[0].starts_with(&format!("{deps}/libweekend_db"))
-                    && rlibs[0].ends_with(".rlib"),
-                "one exact Linux engine rlib required"
-            );
-            let rlib = rlibs[0];
+            let link = FixtureLink::from_build(&messages, &["weekend_db"])?;
+            let rlib = link.libraries["weekend_db"]
+                .to_str()
+                .context("Linux Cargo artifact path")?;
             let linked_hash = self.digest(c, rlib, &format!("{prefix}-rlib"))?;
             ensure!(
                 self.digest(c, "/seed/fixture.rs", &format!("{prefix}-fixture-source"))?
                     == sha(fixture)?,
                 "Linux fixture source mismatch"
             );
+            let mut fixture_build = cmd(["rustc", "--edition=2024", "-O", "/seed/fixture.rs"]);
+            fixture_build.extend(link.flags());
+            fixture_build.extend(cmd(["-o", &Self::fixture(i)]));
             c.command(
-                self.exec(cmd([
-                    "rustc",
-                    "--edition=2024",
-                    "-O",
-                    "/seed/fixture.rs",
-                    "--extern",
-                    &format!("weekend_db={rlib}"),
-                    "-L",
-                    &format!("dependency={deps}"),
-                    "-o",
-                    &Self::fixture(i),
-                ])),
+                self.exec(fixture_build),
                 &format!("{prefix}-fixture-build"),
                 None,
                 90.,
