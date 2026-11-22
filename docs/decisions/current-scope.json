@@ -302,7 +302,7 @@
     "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
     "docs/decisions/codec-encode-value-current.md": "f8eec20a28e2471e4808b0cec514a47b8ef6d6db00f7ba5d7487eede725ac8f5",
     "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
-    "docs/decisions/codec-encode-commit-current.md": "f8dbcfa8038276f2a4271ffb8c6f45317d993e00a2a7e0c5c7fd00576ac13bd6"
+    "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

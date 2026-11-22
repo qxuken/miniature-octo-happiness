@@ -190,6 +190,10 @@ The [COMMIT encoder batch](decisions/codec-encode-commit-current.md) reconciles
 retained DATA references and cache finalization. The queue has 9,495 G
 records (2,155 runtime / 26 driver / 7,314 tooling). Cache and index internals
 retain their own R1 obligations.
+Frozen `a09bc83` passed the core, xtask and inventory suites and detected
+all 17 COMMIT controls per profile on macOS and Docker Linux arm64/ext4.
+The restored proof verifies 10,402 payloads and reproduces the audit for
+both hosts.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -55,3 +55,33 @@ These rows record scoped execution and propagation evidence.
 | E | weekend-db::weekend_db | src/storage/codec.rs:782:66– | 26230..26231 | try_propagation | encode_with_append | COMMIT object staging |
 | E | weekend-db::weekend_db | src/storage/codec.rs:788:41– | 26370..26371 | try_propagation | encode_with_append | VALUE cache finalization |
 | E | weekend-db::weekend_db | src/storage/codec.rs:789:51– | 26423..26424 | try_propagation | encode_with_append | DATA cache finalization |
+
+## Frozen qualification at a09bc83
+
+Source `a09bc83d2211efe4fbaaf5ccb37d544f5703df2a` passed with Rust 1.99.1
+in debug and release on both hosts.
+
+| Host | Core tests per profile | xtask tests per profile | Inventory tests per profile | COMMIT controls per profile |
+|---|---:|---:|---:|---:|
+| macOS arm64 | 352 passed, 2 ignored | 243 passed, 3 ignored | 33 passed | 17/17 detected |
+| Docker Linux arm64/ext4 | 359 passed, 2 ignored | 272 passed, 1 ignored | 33 passed | 17/17 detected |
+
+Formatting and strict core all-target Clippy passed on both hosts. The
+core suites include the golden history, allocation refusal and public
+retain-and-reopen tests. The Linux sources, caches, builds and runtime used
+an owned ext4 volume without network access. Its pinned image ID was
+`sha256:877e7780703eb3f4f5f85143e3cfd8ac9f57591ed45c83e2a357e7d2eb87403c`.
+
+The three local mutation shards select 6, 6 and 5 controls per profile. The
+audit verifies 284 command cleanup reports and checks that each compiled
+variant fails its named test after that test passes on the baseline. Each
+campaign's 789 copied files match the frozen Git tree. The inventory and
+reconciliation reports match across hosts, with 154 named controls and
+9,495 individual gaps. The CLI listings cover all 276 R1 controls exactly
+once over nine hosted shards in each profile.
+
+The local archive `target/archived-proof/r1-commit-encoding-a09bc83.tar.gz`
+has SHA-256
+`b7b95d7becca1d62e3a6397c43929ae114941d538feae353f38c127cba98346a`.
+Fresh extraction verifies all 10,402 indexed payloads and reproduces the
+audit from the retained Git bundle.
