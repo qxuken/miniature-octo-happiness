@@ -15,7 +15,7 @@ use std::{
         fd::{AsRawFd, FromRawFd},
         unix::{
             ffi::OsStrExt,
-            fs::{FileExt, MetadataExt, OpenOptionsExt},
+            fs::{FileExt, MetadataExt},
         },
     },
     path::Path,
@@ -23,6 +23,7 @@ use std::{
 use sys::{OPEN_CREATE, OPEN_LEASE, OPEN_REQUIRED, full_sync, identity, os_error};
 
 unsafe extern "C" {
+    fn open(path: *const c_char, flags: c_int, ...) -> c_int;
     fn openat(directory: c_int, path: *const c_char, flags: c_int, ...) -> c_int;
     fn flock(fd: c_int, operation: c_int) -> c_int;
     fn unlinkat(directory: c_int, name: *const c_char, flags: c_int) -> c_int;
@@ -156,26 +157,41 @@ impl Location {
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
-        let directory = retry(NativeIoOperation::OpenDirectory, || {
-            std::fs::OpenOptions::new()
-                .read(true)
-                .custom_flags(sys::OPEN_DIRECTORY)
-                .open(parent)
-        })?;
-        let mut name = Self::copy_name(allocator, name, 1)?;
-        name.push(0);
+        let directory = {
+            let parent = Self::terminated_path(allocator.clone(), parent.as_os_str().as_bytes())?;
+            retry(NativeIoOperation::OpenDirectory, || {
+                // SAFETY: parent is NUL-terminated. A read-only directory open needs no mode.
+                let fd =
+                    unsafe { open(parent.as_ptr().cast(), sys::OPEN_DIRECTORY | sys::O_CLOEXEC) };
+                if fd < 0 {
+                    Err(io::Error::last_os_error())
+                } else {
+                    // SAFETY: open returned a new owned descriptor.
+                    Ok(unsafe { File::from_raw_fd(fd) })
+                }
+            })?
+        };
+        let name = Self::terminated_path(allocator, name)?;
         Ok(Self { directory, name })
     }
-    fn copy_name(
+    fn terminated_path(
+        allocator: AllocatorHandle,
+        bytes: &[u8],
+    ) -> Result<Vec<u8, AllocatorHandle>> {
+        let mut path = Self::copy_path(allocator, bytes, 1)?;
+        path.push(0);
+        Ok(path)
+    }
+    fn copy_path(
         allocator: AllocatorHandle,
         bytes: &[u8],
         extra: usize,
     ) -> Result<Vec<u8, AllocatorHandle>> {
-        let mut name = Vec::new_in(allocator);
-        name.try_reserve_exact(bytes.len() + extra)
+        let mut path = Vec::new_in(allocator);
+        path.try_reserve_exact(bytes.len() + extra)
             .map_err(|_| Error::OutOfMemory)?;
-        name.extend_from_slice(bytes);
-        Ok(name)
+        path.extend_from_slice(bytes);
+        Ok(path)
     }
     // Offline compaction keeps a location for the later exchange and cleanup.
     fn duplicate(&self) -> Result<Self> {
@@ -183,7 +199,7 @@ impl Location {
             directory: retry(NativeIoOperation::DuplicateHandle, || {
                 self.directory.try_clone()
             })?,
-            name: Self::copy_name(self.name.allocator().clone(), &self.name, 0)?,
+            name: Self::copy_path(self.name.allocator().clone(), &self.name, 0)?,
         })
     }
     fn open_mode(self, create: bool, writable: bool) -> Result<FileStore> {

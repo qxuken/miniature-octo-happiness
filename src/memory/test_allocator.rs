@@ -1,18 +1,24 @@
 use super::*;
 use crate::DatabaseOptions;
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::Arc;
 
 #[derive(Default)]
 pub(crate) struct TestAllocator {
-    fail: AtomicBool,
+    fail_at: AtomicUsize,
     live: AtomicUsize,
     bytes: AtomicUsize,
     requests: AtomicUsize,
+    last_request_size: AtomicUsize,
 }
 
 impl TestAllocator {
     pub(crate) fn fail_next(&self) {
-        self.fail.store(true, Ordering::Relaxed);
+        self.fail_after(0);
+    }
+
+    fn fail_after(&self, allowed: usize) {
+        self.fail_at
+            .store(self.requests() + allowed + 1, Ordering::Relaxed);
     }
 
     pub(crate) fn live(&self) -> usize {
@@ -35,8 +41,15 @@ impl TestAllocator {
         AllocatorHandle::try_new(TestProvider(self.clone())).unwrap()
     }
 
-    fn check(&self) -> std::result::Result<(), AllocError> {
-        if self.fail.swap(false, Ordering::Relaxed) {
+    fn check(&self, layout: Layout) -> std::result::Result<(), AllocError> {
+        let request = self.requests.fetch_add(1, Ordering::Relaxed) + 1;
+        self.last_request_size
+            .store(layout.size(), Ordering::Relaxed);
+        if self
+            .fail_at
+            .compare_exchange(request, 0, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
             return Err(AllocError);
         }
         Ok(())
@@ -47,8 +60,7 @@ impl TestAllocator {
 // before allocation and growth.
 unsafe impl Allocator for TestAllocator {
     fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        self.requests.fetch_add(1, Ordering::Relaxed);
-        self.check()?;
+        self.check(layout)?;
         let block = Global.allocate(layout)?;
         self.live.fetch_add(1, Ordering::Relaxed);
         self.bytes.fetch_add(layout.size(), Ordering::Relaxed);
@@ -67,8 +79,7 @@ unsafe impl Allocator for TestAllocator {
         old: Layout,
         new: Layout,
     ) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        self.requests.fetch_add(1, Ordering::Relaxed);
-        self.check()?;
+        self.check(new)?;
         let block = unsafe { Global.grow(ptr, old, new)? };
         self.bytes
             .fetch_add(new.size() - old.size(), Ordering::Relaxed);
@@ -206,9 +217,14 @@ fn budgets_are_independent_when_databases_share_one_allocator() {
 
 #[cfg(all(not(miri), any(target_os = "macos", target_os = "linux")))]
 #[test]
-fn native_leaf_allocation_is_fallible_and_follows_the_file_lease() {
+fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
     use crate::{Database, storage::FileStore};
-    use std::{fs, path::PathBuf, time::SystemTime};
+    use std::{
+        fs,
+        os::unix::fs::symlink,
+        path::{Path, PathBuf},
+        time::SystemTime,
+    };
 
     struct Directory(PathBuf);
     impl Drop for Directory {
@@ -220,22 +236,45 @@ fn native_leaf_allocation_is_fallible_and_follows_the_file_lease() {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let directory = std::env::temp_dir().join(format!("wdb-leaf-{}-{stamp}", std::process::id()));
+    let directory = std::env::temp_dir().join(format!("wdb-path-{}-{stamp}", std::process::id()));
     fs::create_dir(&directory).unwrap();
     let directory = Directory(directory);
+    let mut nested = directory.0.clone();
+    for _ in 0..6 {
+        nested.push("x".repeat(70));
+    }
+    let parent = nested.join("actual");
+    fs::create_dir_all(&parent).unwrap();
+    let alias = nested.join("alias");
+    symlink(&parent, &alias).unwrap();
+
     let leaf = "allocator-leaf.wdb";
-    let path = directory.0.join(leaf);
+    let path = alias.join(leaf);
+    let parent_size = alias.as_os_str().as_encoded_bytes().len() + 1;
+    assert!(parent_size > 384);
+    let path_requests = [parent_size, leaf.len() + 1];
     let allocator = Arc::new(TestAllocator::default());
     let handle = allocator.handle();
     let options = || DatabaseOptions::default().with_allocator(handle.clone());
 
-    allocator.fail_next();
-    assert!(matches!(
-        Database::create_file_with_options(&path, options()),
-        Err(Error::OutOfMemory)
-    ));
-    assert!(matches!(fs::metadata(&path), Err(err) if err.kind() == std::io::ErrorKind::NotFound));
-    assert_eq!(allocator.live(), 0);
+    let check_refusal = |open: fn(&Path, DatabaseOptions) -> Result<Database>, allowed, size| {
+        let requests = allocator.requests();
+        allocator.fail_after(allowed);
+        assert!(matches!(open(&path, options()), Err(Error::OutOfMemory)));
+        assert_eq!(allocator.requests() - requests, allowed + 1);
+        assert_eq!(allocator.last_request_size.load(Ordering::Relaxed), size);
+        assert_eq!(allocator.live(), 0);
+    };
+    for (allowed, size) in path_requests.into_iter().enumerate() {
+        check_refusal(
+            |path, opts| Database::create_file_with_options(path, opts),
+            allowed,
+            size,
+        );
+        assert!(
+            matches!(fs::metadata(&path), Err(err) if err.kind() == std::io::ErrorKind::NotFound)
+        );
+    }
 
     let check_live = |db: &Database| {
         assert_eq!(
@@ -244,6 +283,10 @@ fn native_leaf_allocation_is_fallible_and_follows_the_file_lease() {
         );
     };
     let db = Database::create_file_with_options(&path, options()).unwrap();
+    assert!(matches!(
+        Database::open_file_with_options(parent.join(leaf), options()),
+        Err(Error::Busy)
+    ));
     check_live(&db);
     let collection = db.create_collection().unwrap();
     let mut tx = db.begin();
@@ -258,19 +301,20 @@ fn native_leaf_allocation_is_fallible_and_follows_the_file_lease() {
 
     let requests = allocator.requests();
     let store = FileStore::open_in(&path, false, handle.clone()).unwrap();
-    assert_eq!(allocator.requests() - requests, 1);
+    assert_eq!(allocator.requests() - requests, 2);
     assert_eq!(allocator.live_bytes(), leaf.len() + 1);
     drop(store);
     assert_eq!(allocator.live(), 0);
 
     let image = fs::read(&path).unwrap();
-    allocator.fail_next();
-    assert!(matches!(
-        Database::open_file_with_options(&path, options()),
-        Err(Error::OutOfMemory)
-    ));
-    assert_eq!(fs::read(&path).unwrap(), image);
-    assert_eq!(allocator.live(), 0);
+    for (allowed, size) in path_requests.into_iter().enumerate() {
+        check_refusal(
+            |path, opts| Database::open_file_with_options(path, opts),
+            allowed,
+            size,
+        );
+        assert_eq!(fs::read(&path).unwrap(), image);
+    }
 
     let db = Database::open_file_with_options(&path, options()).unwrap();
     check_live(&db);
