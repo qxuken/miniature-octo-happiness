@@ -175,3 +175,7 @@ Miri `708c94ef09` passed 15 memory tests and four FFI decision tests on macOS.
 The abort subprocess case runs only under the native harness. Strict Clippy
 passed for all core crate targets on both native platforms and when checking
 the `x86_64-pc-windows-msvc` target from macOS.
+
+The growth instrumentation counts the previous and new charges at the
+replacement statement. The focused growth test emitted the same counters
+from disposable builds of `459e4c4` and the allocator implementation.
