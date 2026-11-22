@@ -326,3 +326,112 @@ fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
     drop(db);
     assert_eq!(allocator.live(), 0);
 }
+
+#[cfg(all(windows, not(miri)))]
+#[test]
+fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
+    use crate::{Database, storage::FileStore};
+    use std::{
+        ffi::OsString,
+        fs,
+        os::windows::ffi::{OsStrExt, OsStringExt},
+        path::PathBuf,
+        time::SystemTime,
+    };
+
+    struct Directory(PathBuf);
+    impl Drop for Directory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    let stamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("wdb-path-{}-{stamp}", std::process::id()));
+    fs::create_dir(&root).unwrap();
+    let root = Directory(root);
+    let mut parent = root.0.clone();
+    for _ in 0..6 {
+        parent.push("x".repeat(70));
+    }
+    fs::create_dir_all(&parent).unwrap();
+    let verbatim = fs::canonicalize(parent).unwrap();
+    let units: Vec<_> = verbatim.as_os_str().encode_wide().collect();
+    let ordinary = PathBuf::from(OsString::from_wide(
+        units.strip_prefix(&[92, 92, 63, 92]).unwrap(),
+    ));
+    let allocator = Arc::new(TestAllocator::default());
+    let handle = allocator.handle();
+    let options = || DatabaseOptions::default().with_allocator(handle.clone());
+
+    for (parent, alias) in [(&ordinary, &verbatim), (&verbatim, &ordinary)] {
+        let leaf = "allocator-λ-🦀.wdb";
+        let path = parent.join(leaf);
+        assert!(parent.as_os_str().encode_wide().count() > 384);
+        let requests = allocator.requests();
+        let probe = FileStore::open_in(&path, true, handle.clone()).unwrap();
+        let path_requests = allocator.requests() - requests;
+        assert!(path_requests >= 2);
+        assert_eq!(allocator.live(), 0);
+        drop(probe);
+        fs::remove_file(&path).unwrap();
+
+        for allowed in 0..path_requests {
+            let requests = allocator.requests();
+            allocator.fail_after(allowed);
+            assert!(matches!(
+                Database::create_file_with_options(&path, options()),
+                Err(Error::OutOfMemory)
+            ));
+            assert_eq!(allocator.requests() - requests, allowed + 1);
+            assert_eq!(allocator.live(), 0);
+            assert!(
+                matches!(fs::metadata(&path), Err(err) if err.kind() == std::io::ErrorKind::NotFound)
+            );
+        }
+
+        let db = Database::create_file_with_options(&path, options()).unwrap();
+        assert!(matches!(
+            Database::open_file_with_options(alias.join(leaf), options()),
+            Err(Error::Busy)
+        ));
+        assert_eq!(
+            allocator.live_bytes(),
+            db.memory_usage().live_bytes + std::mem::size_of::<FileStore>()
+        );
+        let collection = db.create_collection().unwrap();
+        let mut tx = db.begin();
+        tx.put(collection, b"key", &db.bytes(b"durable").unwrap())
+            .unwrap();
+        tx.commit().unwrap();
+        drop(tx);
+        let id = db.retain_snapshot(&db.snapshot()).unwrap();
+        drop(db);
+        assert_eq!(allocator.live(), 0);
+
+        let image = fs::read(&path).unwrap();
+        for allowed in 0..path_requests {
+            let requests = allocator.requests();
+            allocator.fail_after(allowed);
+            assert!(matches!(
+                Database::open_file_with_options(&path, options()),
+                Err(Error::OutOfMemory)
+            ));
+            assert_eq!(allocator.requests() - requests, allowed + 1);
+            assert_eq!(allocator.live(), 0);
+            assert_eq!(fs::read(&path).unwrap(), image);
+        }
+
+        let db = Database::open_file_with_options(&path, options()).unwrap();
+        let snapshot = db.retained_snapshot(id).unwrap();
+        let value = snapshot.get(db.collection_id(1), b"key").unwrap().unwrap();
+        assert_eq!(value.as_bytes().unwrap(), b"durable");
+        drop(value);
+        drop(snapshot);
+        drop(db);
+        assert_eq!(allocator.live(), 0);
+        fs::remove_file(&path).unwrap();
+    }
+}

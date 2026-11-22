@@ -442,6 +442,7 @@ fn ntfs_compact_copy_retains_roots_and_source_remains_open() {
 #[cfg(windows)]
 #[test]
 fn windows_rejects_streams_and_devices_and_unlock_closes_handle() {
+    use std::ffi::OsString;
     use weekend_db::storage::{ByteStore, FileStore};
     let dir = Directory::new();
     let path = dir.file("store.db");
@@ -453,6 +454,12 @@ fn windows_rejects_streams_and_devices_and_unlock_closes_handle() {
     assert!(matches!(
         Database::open_file(r"\\.\NUL", Limits::default()),
         Err(Error::UnsupportedPlatform)
+    ));
+    let mut invalid = OsString::from(dir.0.canonicalize().unwrap());
+    invalid.push(r"\directory/store.db");
+    assert!(matches!(
+        Database::open_file(invalid, Limits::default()),
+        Err(Error::Invalid)
     ));
     let mut file = FileStore::open(&path).unwrap();
     file.lock().unwrap();

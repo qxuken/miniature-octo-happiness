@@ -76,14 +76,18 @@ outside the live-byte cap. Native create and open reserve each path buffer,
 including its terminating zero, in one fallible request. The parent buffer is
 freed after opening the directory and before reserving the leaf. The leaf
 buffer stays in the file lease. Failure to allocate either buffer precedes
-creation or opening of the database file.
+creation or opening of the database file. On Windows, the selected allocator
+also provides the temporary UTF-16 buffers for parent normalization, canonical
+path lookup, and the assembled file path. The adapter releases them before
+returning the lease. Allocator refusal during path construction precedes the
+target-file open on all three platforms.
 
 Fixed bootstrap allocations use `Global` and are fallible. They hold the
 budget state and, for a custom provider, its boxed state and shared owner.
 Public Rust `Vec` outputs also use `Global`. The engine moves elements from
 custom storage into a fallibly reserved output buffer. Values inside it still
-own their original core nodes. Windows pathname construction and caller-owned
-backend storage use their own allocation paths.
+own their original core nodes. OS internals and caller-owned backend storage
+use their own allocation paths.
 
 The database owns a reference to its allocator. Retained roots, live snapshots
 and cloned Rust values keep the allocation owner alive. A value can outlive the

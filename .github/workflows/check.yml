@@ -197,6 +197,12 @@ jobs:
         run: rustup toolchain install 1.100.0 --profile minimal --component rustfmt --component clippy
       - run: rustup override set 1.100.0
       - run: cargo fetch --locked
+      - name: Verify fallible native Windows path allocation
+        if: runner.os == 'Windows'
+        run: |
+          cargo test --offline --locked -p weekend-db --all-features --lib native_windows_path_allocations_are_fallible_and_preserve_the_file_lease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --offline --locked -p weekend-db --all-features --release --lib native_windows_path_allocations_are_fallible_and_preserve_the_file_lease
       - name: Detect the two native Windows RNG guard mutants in both profiles
         if: runner.os == 'Windows'
         id: windows_rng_mutations

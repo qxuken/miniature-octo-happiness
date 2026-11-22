@@ -1,15 +1,15 @@
 //! Exclusive, write-through regular files on local NTFS.
 use super::ByteStore;
 use super::{NativeIoOperation, diagnostics};
-use crate::{Error, Result};
+use crate::{AllocatorHandle, Error, Result};
 use std::{
     ffi::c_void,
-    fs::{File, OpenOptions},
+    fs::File,
     io,
     os::windows::{
         ffi::OsStrExt,
-        fs::{FileExt, MetadataExt, OpenOptionsExt},
-        io::AsRawHandle,
+        fs::{FileExt, MetadataExt},
+        io::{AsRawHandle, FromRawHandle},
     },
     path::{Component, Path, Prefix},
     ptr,
@@ -20,9 +20,38 @@ const OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 const WRITE_THROUGH: u32 = 0x8000_0000;
 const REPARSE_POINT: u32 = 0x400;
 const UNSUPPORTED_ATTRIBUTES: u32 = 0x200 | 0x800 | 0x4000; // sparse, compressed, encrypted
+const GENERIC_READ: u32 = 0x8000_0000;
+const GENERIC_WRITE: u32 = 0x4000_0000;
+const SHARE_READ_WRITE: u32 = 3;
+const SHARE_DELETE: u32 = 4;
+const CREATE_NEW: u32 = 1;
+const OPEN_EXISTING: u32 = 3;
+const MAX_PATH_UNITS: usize = 32_767;
+const BACKSLASH: u16 = b'\\' as u16;
+const SLASH: u16 = b'/' as u16;
+const COLON: u16 = b':' as u16;
+const QUERY: u16 = b'?' as u16;
+const DOT: u16 = b'.' as u16;
+const VERBATIM: &[u16] = &[BACKSLASH, BACKSLASH, QUERY, BACKSLASH];
+const NT_PREFIX: &[u16] = &[BACKSLASH, QUERY, QUERY, BACKSLASH];
+const VERBATIM_UNC: &[u16] = &[
+    BACKSLASH, BACKSLASH, QUERY, BACKSLASH, 85, 78, 67, BACKSLASH,
+];
+type WidePath = Vec<u16, AllocatorHandle>;
 
 #[link(name = "kernel32")]
 unsafe extern "system" {
+    fn CreateFileW(
+        path: *const u16,
+        access: u32,
+        share: u32,
+        security: *const c_void,
+        disposition: u32,
+        flags: u32,
+        template: *mut c_void,
+    ) -> *mut c_void;
+    fn GetFullPathNameW(path: *const u16, size: u32, out: *mut u16, leaf: *mut *mut u16) -> u32;
+    fn GetFinalPathNameByHandleW(file: *mut c_void, out: *mut u16, size: u32, flags: u32) -> u32;
     fn GetDriveTypeW(root: *const u16) -> u32;
     fn GetFileType(file: *mut c_void) -> u32;
     fn GetVolumeInformationByHandleW(
@@ -88,6 +117,124 @@ fn drive(path: &Path) -> Result<Option<u8>> {
     }
 }
 
+fn open_native(
+    path: &[u16],
+    access: u32,
+    share: u32,
+    disposition: u32,
+    flags: u32,
+    operation: NativeIoOperation,
+) -> Result<File> {
+    // SAFETY: callers pass a NUL-terminated path. Null security and template
+    // arguments select a non-inheritable handle and default file attributes.
+    let handle = unsafe {
+        CreateFileW(
+            path.as_ptr(),
+            access,
+            share,
+            ptr::null(),
+            disposition,
+            flags,
+            ptr::null_mut(),
+        )
+    };
+    if handle == (-1isize) as *mut c_void {
+        return Err(os_error(operation, io::Error::last_os_error()));
+    }
+    // SAFETY: CreateFileW returned a new owned handle.
+    Ok(unsafe { File::from_raw_handle(handle) })
+}
+
+// These path queries return the required size including NUL when short, and
+// the written length excluding NUL on success. Reuse the input buffer once the
+// parent handle has been opened.
+fn read_path(path: &mut WidePath, mut read: impl FnMut(&mut [u16]) -> u32) -> Result<()> {
+    let mut size = path.capacity().clamp(260, MAX_PATH_UNITS);
+    loop {
+        path.clear();
+        path.try_reserve_exact(size)
+            .map_err(|_| Error::OutOfMemory)?;
+        path.resize(size, 0);
+        let count = read(path) as usize;
+        if count == 0 {
+            return Err(os_error(
+                NativeIoOperation::OpenDirectory,
+                io::Error::last_os_error(),
+            ));
+        }
+        if count < size {
+            path.truncate(count + 1);
+            return Ok(());
+        }
+        size = count.max(size + 1);
+        if size > MAX_PATH_UNITS {
+            return Err(Error::Limit);
+        }
+    }
+}
+
+fn parent_path(parent: &Path, allocator: AllocatorHandle) -> Result<WidePath> {
+    let units = parent.as_os_str().encode_wide();
+    let mut input = Vec::new_in(allocator.clone());
+    input
+        .try_reserve_exact(units.clone().count() + 1)
+        .map_err(|_| Error::OutOfMemory)?;
+    input.extend(units);
+    input.push(0);
+    if input.starts_with(VERBATIM) || input.starts_with(NT_PREFIX) {
+        return Ok(input);
+    }
+    // Keep the short absolute and drive-root fast path used by Windows std.
+    if input.len() < 248
+        && matches!(
+            input.as_slice(),
+            [_, COLON, 0] | [_, COLON, SLASH | BACKSLASH, ..]
+        )
+    {
+        return Ok(input);
+    }
+
+    let mut path = Vec::new_in(allocator);
+    read_path(&mut path, |out| {
+        // SAFETY: input ends in NUL and out is writable for its full length.
+        unsafe {
+            GetFullPathNameW(
+                input.as_ptr(),
+                out.len() as u32,
+                out.as_mut_ptr(),
+                ptr::null_mut(),
+            )
+        }
+    })?;
+    let (prefix, skip): (&[u16], usize) = match path.as_slice() {
+        [_, COLON, BACKSLASH, ..] => (VERBATIM, 0),
+        [BACKSLASH, BACKSLASH, DOT, BACKSLASH, ..] => (VERBATIM, 4),
+        [BACKSLASH, BACKSLASH, QUERY, BACKSLASH, ..] | [BACKSLASH, QUERY, QUERY, BACKSLASH, ..] => {
+            return Ok(path);
+        }
+        [BACKSLASH, BACKSLASH, ..] => (VERBATIM_UNC, 2),
+        _ => return Ok(path),
+    };
+    let extra = prefix.len() - skip;
+    let len = path.len();
+    path.try_reserve_exact(extra)
+        .map_err(|_| Error::OutOfMemory)?;
+    path.resize(len + extra, 0);
+    path.copy_within(skip..len, prefix.len());
+    path[..prefix.len()].copy_from_slice(prefix);
+    Ok(path)
+}
+
+fn canonical_drive(path: &[u16]) -> Result<u8> {
+    if let Some([letter, COLON, BACKSLASH, ..]) = path.strip_prefix(VERBATIM)
+        && let Ok(letter) = u8::try_from(*letter)
+        && letter.is_ascii_alphabetic()
+    {
+        return Ok(letter.to_ascii_uppercase());
+    }
+    Err(Error::UnsupportedPlatform)
+}
+
 fn check_volume(parent: &File, drive: u8) -> Result<()> {
     let root = [u16::from(drive), u16::from(b':'), u16::from(b'\\'), 0];
     // SAFETY: root is a NUL-terminated drive root. The directory stays open.
@@ -130,22 +277,35 @@ pub struct FileStore {
 
 impl FileStore {
     pub fn create(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), true, true)
+        Self::open_in(path, true, AllocatorHandle::default())
     }
 
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), false, true)
+        Self::open_in(path, false, AllocatorHandle::default())
     }
 
     /// Open with read access and the same exclusive lease as a writer.
     pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), false, false)
+        Self::open_impl(path.as_ref(), false, false, AllocatorHandle::default())
     }
 
-    fn open_impl(path: &Path, create: bool, writable: bool) -> Result<Self> {
+    pub(crate) fn open_in(
+        path: impl AsRef<Path>,
+        create: bool,
+        allocator: AllocatorHandle,
+    ) -> Result<Self> {
+        Self::open_impl(path.as_ref(), create, true, allocator)
+    }
+
+    fn open_impl(
+        path: &Path,
+        create: bool,
+        writable: bool,
+        allocator: AllocatorHandle,
+    ) -> Result<Self> {
         drive(path)?;
         let units = path.as_os_str().encode_wide();
-        if units.clone().count() >= 32_767 {
+        if units.clone().count() >= MAX_PATH_UNITS {
             return Err(Error::Limit);
         }
         if units.clone().any(|unit| unit == 0)
@@ -155,7 +315,7 @@ impl FileStore {
         }
         let name = path.file_name().ok_or(Error::Invalid)?;
         if name.encode_wide().any(|unit| {
-            u8::try_from(unit).is_ok_and(|byte| byte < 32 || b"\"*:<>?|".contains(&byte))
+            u8::try_from(unit).is_ok_and(|byte| byte < 32 || b"\"*/:<>?|".contains(&byte))
         }) {
             return Err(Error::Invalid);
         }
@@ -163,16 +323,38 @@ impl FileStore {
         let parent = path
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or(Path::new("."))
-            .canonicalize()
-            .map_err(|error| os_error(NativeIoOperation::OpenDirectory, error))?;
-        let letter = drive(&parent)?.ok_or(Error::UnsupportedPlatform)?;
-        let directory = OpenOptions::new()
-            .read(true)
-            .share_mode(3) // FILE_SHARE_READ | FILE_SHARE_WRITE
-            .custom_flags(BACKUP_SEMANTICS)
-            .open(&parent)
-            .map_err(|error| os_error(NativeIoOperation::OpenDirectory, error))?;
+            .unwrap_or(Path::new("."));
+        let mut path = parent_path(parent, allocator)?;
+        let lookup = open_native(
+            &path,
+            0,
+            SHARE_READ_WRITE | SHARE_DELETE,
+            OPEN_EXISTING,
+            BACKUP_SEMANTICS,
+            NativeIoOperation::OpenDirectory,
+        )?;
+        read_path(&mut path, |out| {
+            // SAFETY: lookup is open and out is writable for its full length.
+            // Zero selects the normalized path with the DOS drive name.
+            unsafe {
+                GetFinalPathNameByHandleW(
+                    lookup.as_raw_handle(),
+                    out.as_mut_ptr(),
+                    out.len() as u32,
+                    0,
+                )
+            }
+        })?;
+        drop(lookup);
+        let letter = canonical_drive(&path)?;
+        let directory = open_native(
+            &path,
+            GENERIC_READ,
+            SHARE_READ_WRITE,
+            OPEN_EXISTING,
+            BACKUP_SEMANTICS,
+            NativeIoOperation::OpenDirectory,
+        )?;
         let metadata = directory
             .metadata()
             .map_err(|error| os_error(NativeIoOperation::Metadata, error))?;
@@ -186,23 +368,28 @@ impl FileStore {
 
         // Canonicalizing the parent gives an extended-length path. The final
         // component is checked separately and opened without following a link.
-        let file = OpenOptions::new()
-            .read(true)
-            .write(writable)
-            .create_new(create)
-            .share_mode(0)
-            .custom_flags(OPEN_REPARSE_POINT | WRITE_THROUGH)
-            .open(parent.join(name))
-            .map_err(|error| {
-                os_error(
-                    if create {
-                        NativeIoOperation::Create
-                    } else {
-                        NativeIoOperation::Open
-                    },
-                    error,
-                )
-            })?;
+        path.pop(); // Remove the terminator before appending the leaf.
+        let name = name.encode_wide();
+        path.try_reserve_exact(name.clone().count() + 2)
+            .map_err(|_| Error::OutOfMemory)?;
+        if path.last() != Some(&BACKSLASH) {
+            path.push(BACKSLASH);
+        }
+        path.extend(name);
+        path.push(0);
+        let file = open_native(
+            &path,
+            GENERIC_READ | if writable { GENERIC_WRITE } else { 0 },
+            0,
+            if create { CREATE_NEW } else { OPEN_EXISTING },
+            OPEN_REPARSE_POINT | WRITE_THROUGH,
+            if create {
+                NativeIoOperation::Create
+            } else {
+                NativeIoOperation::Open
+            },
+        )?;
+        drop(path);
         let metadata = file
             .metadata()
             .map_err(|error| os_error(NativeIoOperation::Metadata, error))?;
