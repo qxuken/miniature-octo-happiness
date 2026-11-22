@@ -342,7 +342,10 @@ impl Database {
         Self::with_limits(Limits::default())
     }
     pub fn with_limits(limits: Limits) -> Result<Self> {
-        let mem = Memory::new(limits)?;
+        Self::with_options(limits.into())
+    }
+    pub fn with_options(options: crate::DatabaseOptions) -> Result<Self> {
+        let mem = Memory::with_options(options)?;
         let store = NEXT_STORE
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
             .map_err(|_| Error::Exhausted)?;
@@ -369,7 +372,14 @@ impl Database {
         identity: [u8; 16],
         limits: Limits,
     ) -> Result<Self> {
-        let mut db = Self::with_limits(limits)?;
+        Self::create_on_with_options(backend, identity, limits.into())
+    }
+    pub fn create_on_with_options<B: ByteStore + 'static>(
+        backend: B,
+        identity: [u8; 16],
+        options: crate::DatabaseOptions,
+    ) -> Result<Self> {
+        let mut db = Self::with_options(options)?;
         let storage = {
             let state = db.read_state();
             Storage::create(
@@ -387,7 +397,13 @@ impl Database {
     /// Verify the full graph, stabilize its bytes/witness, then open. Recovery
     /// needs an exclusive writer lease and may perform sync/metadata I/O.
     pub fn open_on<B: ByteStore + 'static>(backend: B, limits: Limits) -> Result<Self> {
-        let mut db = Self::with_limits(limits)?;
+        Self::open_on_with_options(backend, limits.into())
+    }
+    pub fn open_on_with_options<B: ByteStore + 'static>(
+        backend: B,
+        options: crate::DatabaseOptions,
+    ) -> Result<Self> {
+        let mut db = Self::with_options(options)?;
         let (storage, head, next_collection, retention) = Storage::open(backend, &db.mem)?;
         *db.state.get_mut().unwrap() = State {
             head,
@@ -407,23 +423,38 @@ impl Database {
     }
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn create_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
-        Self::create_file_using(path, limits, crate::storage::file_identity)
+        Self::create_file_with_options(path, limits.into())
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    pub fn create_file_with_options(
+        path: impl AsRef<std::path::Path>,
+        options: crate::DatabaseOptions,
+    ) -> Result<Self> {
+        Self::create_file_using(path, options, crate::storage::file_identity)
     }
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     fn create_file_using(
         path: impl AsRef<std::path::Path>,
-        limits: Limits,
+        options: impl Into<crate::DatabaseOptions>,
         make_identity: impl FnOnce() -> Result<[u8; 16]>,
     ) -> Result<Self> {
         // Entropy failure must return before even converting the pathname.
-        limits.validate()?;
+        let options = options.into();
+        options.limits.validate()?;
         let identity = make_identity()?;
-        Self::create_on(crate::storage::FileStore::create(path)?, identity, limits)
+        Self::create_on_with_options(crate::storage::FileStore::create(path)?, identity, options)
     }
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub fn open_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result<Self> {
-        limits.validate()?;
-        Self::open_on(crate::storage::FileStore::open(path)?, limits)
+        Self::open_file_with_options(path, limits.into())
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    pub fn open_file_with_options(
+        path: impl AsRef<std::path::Path>,
+        options: crate::DatabaseOptions,
+    ) -> Result<Self> {
+        options.limits.validate()?;
+        Self::open_on_with_options(crate::storage::FileStore::open(path)?, options)
     }
     /// Publish a durable local snapshot ID. The snapshot can be historical, but
     /// must belong to this database. No record/value or old catalog is rewritten.
@@ -495,7 +526,7 @@ impl Database {
         let mut ids = ChargedVec::new();
         self.mem.reserve(&mut ids, state.retention.entries.len())?;
         ids.extend(state.retention.entries.iter().map(|r| r.id));
-        Ok(ids.into_external())
+        ids.into_external()
     }
     pub fn limits(&self) -> Limits {
         self.mem.limits()

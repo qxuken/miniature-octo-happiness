@@ -52,8 +52,32 @@ are explicitly transferred out of charged ownership or use named
 metadata vector is an application output. Independent opens, inspection, import,
 export, and backup calls create independent domains from their supplied limits;
 there is no process-global cap. Replication/CRDT/coordinator application-layer
-buffers are outside this core domain. C API defaults remain unchanged; this
-configuration is currently exposed through the Rust `Limits` API.
+buffers are outside this core domain. Rust constructors accept `Limits`, and
+C constructors use the default limits.
+
+## Per-database allocators
+
+Rust and C use `Global` by default. Rust callers can pass an `Arc<dyn Allocator
++ Send + Sync>` through `DatabaseOptions::with_allocator` and use the resulting
+options with the in-memory, byte-store or native-file constructors. C callers
+can pass a `wdb_allocator` to `wdb_open_with_allocator`,
+`wdb_file_create_with_allocator` or `wdb_file_open_with_allocator`. A null
+descriptor selects `Global`.
+
+The selected allocator serves the database's core layouts, the storage adapter's
+owning box and C handle blocks. The last two stay outside the live-byte cap.
+The budget control block, file-adapter internals and ordinary Rust `Vec` output
+buffers use their existing allocation domains. When returning a `Vec` backed by
+a custom allocator, the engine moves its elements into a fallibly reserved
+global buffer. Values inside that buffer still own their original core nodes.
+
+The database owns a reference to its allocator. Retained roots, live snapshots
+and cloned Rust values keep the allocation owner alive. A value can outlive the
+database that created it. C close returns `WDB_BUSY` while opaque handles are
+live. The C descriptor is copied at open. A supplied context retain/release pair
+keeps the context alive through the final free, including cleanup after failed
+open. Callbacks must be thread-safe and must avoid reentering the database.
+Allocator refusal reports `OutOfMemory` and releases provisional charges.
 
 Publication semantics are unchanged. A cap failure while preparing a candidate
 before backend I/O leaves the committed head unchanged and can be retried in a

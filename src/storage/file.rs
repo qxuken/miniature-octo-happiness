@@ -312,7 +312,7 @@ struct Observer {
     hook: Option<crate::memory::Shared<std::sync::Mutex<Hook>>>,
 }
 #[cfg(any(test, feature = "fault-injection"))]
-type Hook = Box<dyn FnMut(CompactionEvent) -> Result<()> + Send>;
+type Hook = Box<dyn FnMut(CompactionEvent) -> Result<()> + Send, crate::memory::CoreAllocator>;
 impl Observer {
     fn event(&self, step: CompactionStep, after: bool) -> Result<()> {
         #[cfg(any(test, feature = "fault-injection"))]
@@ -579,7 +579,7 @@ mod decision_tests {
         let verifications = Arc::new(AtomicUsize::new(0));
         let observed_verifications = verifications.clone();
         let mut check_next_read = true;
-        let hook: Hook = Box::new(move |event| {
+        let hook = move |event: CompactionEvent| {
             if event.step == CompactionStep::SyncMetadata && event.after {
                 check_next_read = true;
             }
@@ -606,7 +606,8 @@ mod decision_tests {
                 observed_verifications.fetch_add(1, Ordering::Relaxed);
             }
             Ok(())
-        });
+        };
+        let hook: Hook = memory.boxed(hook).unwrap();
         let observer = Observer {
             hook: Some(memory.shared(std::sync::Mutex::new(hook)).unwrap()),
         };

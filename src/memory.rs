@@ -1,42 +1,157 @@
 use crate::{Error, Result};
 use std::{
-    alloc::{AllocError, Allocator, Global, Layout, dealloc},
+    alloc::{AllocError, Allocator, Global, Layout},
     marker::PhantomData,
     ops::Deref,
     ptr::NonNull,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
-#[cfg(test)]
-thread_local! {
-    static FAIL_SYSTEM_ALLOCATION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+pub(crate) type AllocatorRef = Arc<dyn Allocator + Send + Sync>;
+
+/// Options for an in-memory or durable database.
+#[derive(Default)]
+pub struct DatabaseOptions {
+    pub limits: Limits,
+    pub(crate) allocator: AllocatorChoice,
 }
 
-struct CoreAllocator;
-
-impl CoreAllocator {
-    fn check_allocation() -> std::result::Result<(), AllocError> {
-        #[cfg(test)]
-        if FAIL_SYSTEM_ALLOCATION
-            .try_with(|fail| fail.replace(false))
-            .unwrap_or(false)
-        {
-            return Err(AllocError);
+impl From<Limits> for DatabaseOptions {
+    fn from(limits: Limits) -> Self {
+        Self {
+            limits,
+            ..Self::default()
         }
-        Ok(())
     }
 }
 
-// SAFETY: all blocks are owned by Global, with the requested layout. A failed
-// allocation or grow transfers no ownership. The test seam can only add errors.
-unsafe impl Allocator for CoreAllocator {
+impl DatabaseOptions {
+    /// Use this allocator for the database's core allocations and handles.
+    /// The default delegates to Rust's global allocator. Cloned data can keep
+    /// the allocator alive after the database is dropped. Allocator methods
+    /// may run on multiple threads and must avoid reentering the database.
+    pub fn with_allocator(mut self, allocator: Arc<dyn Allocator + Send + Sync>) -> Self {
+        self.allocator = AllocatorChoice::Rust(allocator);
+        self
+    }
+}
+
+#[derive(Default)]
+pub(crate) enum AllocatorChoice {
+    #[default]
+    Global,
+    Rust(AllocatorRef),
+    Foreign(ForeignAllocator),
+}
+
+impl AllocatorChoice {
+    fn as_allocator(&self) -> &dyn Allocator {
+        match self {
+            Self::Global => &Global,
+            Self::Rust(allocator) => &**allocator,
+            Self::Foreign(allocator) => allocator,
+        }
+    }
+}
+
+// Copied from a C descriptor before the first allocator call.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AllocatorCallbacks {
+    pub context: *mut std::ffi::c_void,
+    pub allocate:
+        Option<unsafe extern "C" fn(*mut std::ffi::c_void, usize, usize) -> *mut std::ffi::c_void>,
+    pub deallocate:
+        Option<unsafe extern "C" fn(*mut std::ffi::c_void, *mut std::ffi::c_void, usize, usize)>,
+    pub retain_context: Option<unsafe extern "C" fn(*mut std::ffi::c_void)>,
+    pub release_context: Option<unsafe extern "C" fn(*mut std::ffi::c_void)>,
+}
+
+pub(crate) struct ForeignAllocator(AllocatorCallbacks);
+
+// SAFETY: the C allocator interface requires concurrent calls to be safe.
+unsafe impl Send for ForeignAllocator {}
+unsafe impl Sync for ForeignAllocator {}
+
+impl ForeignAllocator {
+    /// The callback functions and their context must satisfy the C allocator contract.
+    pub(crate) unsafe fn new(callbacks: AllocatorCallbacks) -> Result<Self> {
+        if callbacks.allocate.is_none()
+            || callbacks.deallocate.is_none()
+            || callbacks.retain_context.is_some() != callbacks.release_context.is_some()
+        {
+            return Err(Error::Invalid);
+        }
+        if let Some(retain) = callbacks.retain_context {
+            unsafe { retain(callbacks.context) };
+        }
+        Ok(Self(callbacks))
+    }
+}
+
+impl Drop for ForeignAllocator {
+    fn drop(&mut self) {
+        if let Some(release) = self.0.release_context {
+            unsafe { release(self.0.context) };
+        }
+    }
+}
+
+// SAFETY: the C contract supplies layout-compatible blocks and matching frees.
+// The context is retained until all allocations using this adapter are freed.
+unsafe impl Allocator for ForeignAllocator {
     fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        Self::check_allocation()?;
-        Global.allocate(layout)
+        if layout.size() == 0 {
+            return Global.allocate(layout);
+        }
+        let allocate = self.0.allocate.expect("validated allocator");
+        let ptr = unsafe { allocate(self.0.context, layout.size(), layout.align()) };
+        NonNull::new(ptr.cast())
+            .map(|ptr| NonNull::slice_from_raw_parts(ptr, layout.size()))
+            .ok_or(AllocError)
     }
 
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        unsafe { Global.deallocate(ptr, layout) };
+        if layout.size() != 0 {
+            let deallocate = self.0.deallocate.expect("validated allocator");
+            unsafe {
+                deallocate(
+                    self.0.context,
+                    ptr.as_ptr().cast(),
+                    layout.size(),
+                    layout.align(),
+                )
+            };
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct CoreAllocator(Option<Memory>);
+
+// SAFETY: the optional Memory owns the allocator until the final block is
+// released. Expose only requested bytes even if the allocator supplies slack.
+unsafe impl Allocator for CoreAllocator {
+    fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
+        match &self.0 {
+            None => Global.allocate(layout),
+            Some(mem) => mem
+                .0
+                .allocator
+                .as_allocator()
+                .allocate(layout)
+                .map(|block| NonNull::slice_from_raw_parts(block.cast(), layout.size())),
+        }
+    }
+
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
+        match &self.0 {
+            None => unsafe { Global.deallocate(ptr, layout) },
+            Some(mem) => unsafe { mem.0.allocator.as_allocator().deallocate(ptr, layout) },
+        }
     }
 
     unsafe fn grow(
@@ -45,8 +160,11 @@ unsafe impl Allocator for CoreAllocator {
         old: Layout,
         new: Layout,
     ) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        Self::check_allocation()?;
-        unsafe { Global.grow(ptr, old, new) }
+        match &self.0 {
+            None => unsafe { Global.grow(ptr, old, new) },
+            Some(mem) => unsafe { mem.0.allocator.as_allocator().grow(ptr, old, new) }
+                .map(|block| NonNull::slice_from_raw_parts(block.cast(), new.size())),
+        }
     }
 }
 
@@ -124,7 +242,10 @@ impl<T> Shared<T> {
     fn allocate(value: T, charge: Option<Charge>) -> Result<Self> {
         let layout = Layout::new::<SharedBox<T>>();
         // SharedBox always has a nonzero size due to the count.
-        let ptr = CoreAllocator
+        let allocator = charge.as_ref().map_or(&Global as &dyn Allocator, |charge| {
+            charge.owner.0.allocator.as_allocator()
+        });
+        let ptr = allocator
             .allocate(layout)
             .map_err(|_| Error::OutOfMemory)?
             .cast::<SharedBox<T>>();
@@ -183,7 +304,7 @@ impl<T> Drop for Shared<T> {
         // Keep the charge until destruction AND deallocation, including unwind.
         let charge = unsafe { std::ptr::read(&self.ptr.as_ref().charge) };
         let _allocation = Allocation {
-            ptr: self.ptr.as_ptr().cast(),
+            ptr: self.ptr.cast(),
             layout: Layout::new::<SharedBox<T>>(),
             _charge: charge,
         };
@@ -203,13 +324,19 @@ impl Drop for Charge {
 // Drop body deallocates before Rust drops the charge field. Also used when an
 // element destructor unwinds; allocated capacity must never become uncharged.
 struct Allocation {
-    ptr: *mut u8,
+    ptr: NonNull<u8>,
     layout: Layout,
     _charge: Option<Charge>,
 }
 impl Drop for Allocation {
     fn drop(&mut self) {
-        unsafe { dealloc(self.ptr, self.layout) };
+        let allocator = self
+            ._charge
+            .as_ref()
+            .map_or(&Global as &dyn Allocator, |charge| {
+                charge.owner.0.allocator.as_allocator()
+            });
+        unsafe { allocator.deallocate(self.ptr, self.layout) };
     }
 }
 
@@ -222,7 +349,7 @@ pub(crate) struct ChargedVec<T> {
 impl<T> ChargedVec<T> {
     pub(crate) fn new() -> Self {
         Self {
-            vec: Vec::new_in(CoreAllocator),
+            vec: Vec::new_in(CoreAllocator::default()),
             charge: None,
         }
     }
@@ -234,6 +361,9 @@ impl<T> ChargedVec<T> {
         let layout = Layout::array::<T>(needed).map_err(|_| Error::Limit)?;
         let charge = mem.admit(layout.size())?;
         mem.claim()?;
+        if self.vec.capacity() == 0 {
+            self.vec = Vec::new_in(mem.allocator());
+        }
         self.vec
             .try_reserve_exact(extra)
             .map_err(|_| Error::OutOfMemory)?;
@@ -302,11 +432,20 @@ impl<T> ChargedVec<T> {
         self.vec.dedup_by_key(key);
     }
     /// Explicit ownership transfer to an uncharged application-output buffer.
-    pub(crate) fn into_external(self) -> Vec<T> {
+    pub(crate) fn into_external(self) -> Result<Vec<T>> {
+        if self.vec.allocator().0.is_some() {
+            if self.vec.is_empty() {
+                return Ok(Vec::new());
+            }
+            let mut output = Vec::new();
+            let charge = self.charge.as_ref().expect("allocated custom buffer");
+            charge.owner.reserve_external(&mut output, self.vec.len())?;
+            output.extend(self.vec);
+            return Ok(output);
+        }
         let (ptr, len, capacity, _) = self.vec.into_raw_parts_with_allocator();
-        // SAFETY: CoreAllocator forwards allocations to Global. The allocation
-        // layout, initialized prefix, and sole ownership transfer intact.
-        unsafe { Vec::from_raw_parts(ptr, len, capacity) }
+        // SAFETY: this buffer uses Global and transfers with its exact layout.
+        Ok(unsafe { Vec::from_raw_parts(ptr, len, capacity) })
     }
 }
 impl<T> std::ops::Deref for ChargedVec<T> {
@@ -352,6 +491,7 @@ impl<T> IntoIterator for ChargedVec<T> {
 }
 
 struct MemoryState {
+    allocator: AllocatorChoice,
     limits: Limits,
     used: AtomicUsize,
     peak: AtomicUsize,
@@ -362,9 +502,13 @@ struct MemoryState {
 pub(crate) struct Memory(Shared<MemoryState>);
 impl Memory {
     pub(crate) fn new(limits: Limits) -> Result<Self> {
+        Self::with_options(limits.into())
+    }
+    pub(crate) fn with_options(options: DatabaseOptions) -> Result<Self> {
         Ok(Self(Shared::allocate(
             MemoryState {
-                limits: limits.validate()?,
+                limits: options.limits.validate()?,
+                allocator: options.allocator,
                 used: AtomicUsize::new(0),
                 peak: AtomicUsize::new(0),
                 #[cfg(any(test, feature = "fault-injection"))]
@@ -372,6 +516,9 @@ impl Memory {
             },
             None,
         )?))
+    }
+    fn allocator(&self) -> CoreAllocator {
+        CoreAllocator((!matches!(self.0.allocator, AllocatorChoice::Global)).then(|| self.clone()))
     }
     pub(crate) fn limits(&self) -> Limits {
         self.0.limits
@@ -472,35 +619,36 @@ impl Memory {
         vec.extend_from_slice(bytes);
         Ok(vec)
     }
-    /// Allocate a foreign handle without the infallible Box::new path.
-    pub(crate) fn boxed<T>(&self, value: T) -> Result<Box<T>> {
+    /// Allocate ownership fallibly. Zero-sized boxes require no claim.
+    pub(crate) fn boxed<T>(&self, value: T) -> Result<Box<T, CoreAllocator>> {
+        let allocator = self.allocator();
         if std::mem::size_of::<T>() == 0 {
-            return Ok(Box::new(value));
+            return Ok(Box::new_in(value, allocator));
         }
-        self.allocate_handle(value)
-    }
-    pub(crate) fn raw<T>(&self, value: T) -> Result<*mut T> {
-        self.allocate_handle(value).map(Box::into_raw)
-    }
-    fn allocate_handle<T>(&self, value: T) -> Result<Box<T>> {
         self.claim()?;
-        let layout = Layout::new::<T>();
-        assert!(layout.size() != 0);
-        let ptr = CoreAllocator
-            .allocate(layout)
+        let ptr = allocator
+            .allocate(Layout::new::<T>())
             .map_err(|_| Error::OutOfMemory)?
             .cast::<T>();
-        // SAFETY: this unique block came from Global with Layout<T>.
+        // SAFETY: the unique block came from this allocator with Layout<T>.
         unsafe {
             ptr.as_ptr().write(value);
-            Ok(Box::from_raw_in(ptr.as_ptr(), Global))
+            Ok(Box::from_raw_in(ptr.as_ptr(), allocator))
         }
     }
+    pub(crate) fn raw<T>(&self, value: T) -> Result<*mut T> {
+        assert!(std::mem::size_of::<T>() != 0);
+        Ok(Box::into_raw_with_allocator(self.boxed(value)?).0)
+    }
+
+    /// Safety: ptr is consumed once and must come from this Memory's raw().
+    pub(crate) unsafe fn free_raw<T>(&self, ptr: *mut T) {
+        unsafe { drop(Box::from_raw_in(ptr, self.allocator())) };
+    }
 }
-/// Safety: ptr must be a live allocation returned by Memory::raw, consumed once.
-pub(crate) unsafe fn free_raw<T>(ptr: *mut T) {
-    unsafe { drop(Box::from_raw(ptr)) };
-}
+
+#[cfg(test)]
+pub(crate) mod test_allocator;
 
 #[cfg(test)]
 mod tests {
@@ -517,19 +665,20 @@ mod tests {
                 self.0.fetch_add(1, Ordering::Relaxed);
             }
         }
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let drops = Arc::new(AtomicUsize::new(0));
         for kind in 0..3 {
-            FAIL_SYSTEM_ALLOCATION.with(|flag| flag.set(true));
+            allocator.fail_next();
             let input = Probe(drops.clone());
             let result = match kind {
                 0 => mem.shared(input).map(drop),
                 1 => mem.boxed(input).map(drop),
-                _ => mem.raw(input).map(|ptr| unsafe { free_raw(ptr) }),
+                _ => mem.raw(input).map(|ptr| unsafe { mem.free_raw(ptr) }),
             };
             assert_eq!(result, Err(Error::OutOfMemory));
             assert_eq!(drops.load(Ordering::Relaxed), kind + 1);
-            assert!(!FAIL_SYSTEM_ALLOCATION.with(|flag| flag.get()));
+            assert_eq!(allocator.live(), 0);
         }
         drop(mem.shared(Probe(drops.clone())).unwrap());
         assert_eq!(drops.load(Ordering::Relaxed), 4);
@@ -631,7 +780,7 @@ mod tests {
             let result = match allocation {
                 0 => mem.shared(probe).map(drop),
                 1 => mem.boxed(probe).map(drop),
-                _ => mem.raw(probe).map(|ptr| unsafe { free_raw(ptr) }),
+                _ => mem.raw(probe).map(|ptr| unsafe { mem.free_raw(ptr) }),
             };
             assert_eq!(result, Err(Error::OutOfMemory));
             assert_eq!(drops.load(Ordering::Relaxed), allocation + 1);
@@ -652,7 +801,7 @@ mod tests {
         mem.fail_after(Some(2));
         drop(mem.boxed(Probe(drops.clone())).unwrap());
         let raw = mem.raw(Probe(drops.clone())).unwrap();
-        unsafe { free_raw(raw) };
+        unsafe { mem.free_raw(raw) };
         assert_eq!(drops.load(Ordering::Relaxed), 6);
         assert_eq!(mem.claim(), Err(Error::OutOfMemory));
     }
@@ -814,9 +963,13 @@ mod live_budget_tests {
         assert_eq!(bytes.vec.capacity(), 5);
         // A real allocator-null result on the rounded request must not be
         // hidden by retrying the smaller request after OutOfMemory.
-        let mem = memory(32);
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits {
+            max_live_bytes: 32,
+            ..Limits::default()
+        });
         let mut bytes = mem.copy(&[7; 4]).unwrap();
-        FAIL_SYSTEM_ALLOCATION.with(|fail| fail.set(true));
+        allocator.fail_next();
         assert_eq!(
             mem.reserve_geometric(&mut bytes, 1, 16),
             Err(Error::OutOfMemory)
@@ -829,9 +982,13 @@ mod live_budget_tests {
     }
     #[test]
     fn growth_reserves_both_buffers_and_rolls_back_failures() {
-        let mem = memory(23);
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits {
+            max_live_bytes: 23,
+            ..Limits::default()
+        });
         let mut bytes = ChargedVec::<u8>::new();
-        FAIL_SYSTEM_ALLOCATION.with(|fail| fail.set(true));
+        allocator.fail_next();
         assert_eq!(mem.reserve(&mut bytes, 8), Err(Error::OutOfMemory));
         assert_eq!(bytes.vec.capacity(), 0);
         assert_eq!(mem.usage(), (0, 8));
@@ -842,13 +999,16 @@ mod live_budget_tests {
         assert_eq!(mem.usage().0, 8);
         drop(bytes);
         assert_eq!(mem.usage().0, 0);
-        let mem = memory(24);
+        let mem = allocator.memory(Limits {
+            max_live_bytes: 24,
+            ..Limits::default()
+        });
         let mut bytes = mem.copy(&[1; 8]).unwrap();
         mem.fail_after(Some(0));
         assert_eq!(mem.reserve(&mut bytes, 8), Err(Error::OutOfMemory));
         assert_eq!(mem.usage().0, 8);
         mem.fail_after(None);
-        FAIL_SYSTEM_ALLOCATION.with(|fail| fail.set(true));
+        allocator.fail_next();
         assert_eq!(mem.reserve(&mut bytes, 8), Err(Error::OutOfMemory));
         assert_eq!(mem.usage().0, 8);
         mem.reserve(&mut bytes, 8).unwrap();
@@ -990,7 +1150,7 @@ mod live_budget_tests {
         let mem = memory(8);
         let bytes = mem.copy(&[7; 8]).unwrap();
         let addr = bytes.as_ptr().addr();
-        let output = bytes.into_external();
+        let output = bytes.into_external().unwrap();
         assert_eq!(mem.usage().0, 0);
         assert_eq!(output.as_ptr().addr(), addr);
         assert_eq!(output, [7; 8]);
@@ -1009,7 +1169,8 @@ mod allocation_layout_tests {
     }
     #[test]
     fn aligned_growth_partial_iteration_and_null_shared_cleanup() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let drops = std::sync::Arc::new(AtomicUsize::new(0));
         let mut values = ChargedVec::new();
         for i in 0..32 {
@@ -1028,7 +1189,7 @@ mod allocation_layout_tests {
         assert_eq!(mem.usage().0, 0);
         drop(first);
         assert_eq!(drops.load(Ordering::SeqCst), 32);
-        FAIL_SYSTEM_ALLOCATION.with(|v| v.set(true));
+        allocator.fail_next();
         assert!(matches!(
             mem.shared(Aligned(drops.clone(), 0)),
             Err(Error::OutOfMemory)

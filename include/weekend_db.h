@@ -50,12 +50,34 @@ uint32_t wdb_features(void);
 wdb_status wdb_package_version(uint8_t *buffer, size_t capacity, size_t *required);
 wdb_status wdb_source_id(uint8_t *buffer, size_t capacity, size_t *required);
 wdb_status wdb_open(wdb_database **out);
+/* A NULL descriptor selects the global allocator. Otherwise allocate and
+ * deallocate are required. Allocations have nonzero size and power-of-two
+ * alignment. Return NULL on allocation failure. Release blocks using the same
+ * size and alignment passed to allocate. Callbacks must be thread-safe and
+ * must not unwind or reenter the database. The descriptor is copied at open.
+ * Supply both context callbacks or neither. With both, the library retains
+ * once and releases once after its last free, including on failed open. With
+ * neither, keep the context and callbacks alive through the final close.
+ * The allocator covers core storage and opaque handles. Caller buffers and
+ * file-adapter buffers have their own allocation policy. */
+typedef struct wdb_allocator {
+    void *context;
+    void *(*allocate)(void *context, size_t size, size_t align);
+    void (*deallocate)(void *context, void *block, size_t size, size_t align);
+    void (*retain_context)(void *context);
+    void (*release_context)(void *context);
+} wdb_allocator;
+wdb_status wdb_open_with_allocator(const wdb_allocator *allocator, wdb_database **out);
 /* Explicit-length native path bytes on macOS and Linux x86_64/aarch64, UTF-8
  * on Windows (local fixed NTFS). Embedded NULs are invalid. Creation is
  * exclusive and never overwrites. Open is read/write with an exclusive lease.
  * Other platforms return UNSUPPORTED_PLATFORM. */
 wdb_status wdb_file_create(const uint8_t *path, size_t len, wdb_database **out);
 wdb_status wdb_file_open(const uint8_t *path, size_t len, wdb_database **out);
+wdb_status wdb_file_create_with_allocator(const uint8_t *path, size_t len,
+                                          const wdb_allocator *allocator, wdb_database **out);
+wdb_status wdb_file_open_with_allocator(const uint8_t *path, size_t len,
+                                        const wdb_allocator *allocator, wdb_database **out);
 /* Offline macOS/Linux compaction: close ALL database handles for this path first.
  * BUSY if an inode is leased; hard-link sources are rejected. Current/retained
  * roots, revisions and local IDs survive; file format remains v2. A verified,

@@ -118,7 +118,7 @@ impl<V: Clone> Map<V> {
             Ok(())
         })?;
         out.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-        Ok(out.into_external())
+        out.into_external()
     }
     pub(crate) fn visit<'a>(
         &'a self,

@@ -12,6 +12,13 @@ Value :: distinct rawptr
 Snapshot :: distinct rawptr
 Transaction :: distinct rawptr
 Scan :: distinct rawptr
+Allocator :: struct {
+    ctx: rawptr,
+    allocate: proc "c" (ctx: rawptr, size, align: c.size_t) -> rawptr,
+    deallocate: proc "c" (ctx, block: rawptr, size, align: c.size_t),
+    retain_context: proc "c" (ctx: rawptr),
+    release_context: proc "c" (ctx: rawptr),
+}
 #assert(size_of(Database) == size_of(rawptr))
 #assert(size_of(c.size_t) == size_of(uintptr))
 
@@ -56,8 +63,11 @@ foreign engine {
     wdb_package_version :: proc(buffer: [^]u8, capacity: c.size_t, required: ^c.size_t) -> Status ---
     wdb_source_id :: proc(buffer: [^]u8, capacity: c.size_t, required: ^c.size_t) -> Status ---
     wdb_open :: proc(out: ^Database) -> Status ---
+    wdb_open_with_allocator :: proc(allocator: ^Allocator, out: ^Database) -> Status ---
     wdb_file_create :: proc(path: [^]u8, len: c.size_t, out: ^Database) -> Status ---
     wdb_file_open :: proc(path: [^]u8, len: c.size_t, out: ^Database) -> Status ---
+    wdb_file_create_with_allocator :: proc(path: [^]u8, len: c.size_t, allocator: ^Allocator, out: ^Database) -> Status ---
+    wdb_file_open_with_allocator :: proc(path: [^]u8, len: c.size_t, allocator: ^Allocator, out: ^Database) -> Status ---
     wdb_file_compact :: proc(path: [^]u8, len: c.size_t, before: ^u64, after: ^u64) -> Status ---
     wdb_close :: proc(db: Database) -> Status ---
     wdb_snapshot_retain :: proc(db: Database, snapshot: Snapshot, out: ^u64) -> Status ---

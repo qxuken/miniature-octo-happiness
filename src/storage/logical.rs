@@ -140,7 +140,7 @@ pub fn export_logical_on<B: ByteStore + 'static>(source: B, limits: Limits) -> R
     // Expansion of shared values can outgrow the physical format. Promise a
     // restorable export by checking the same resource envelope before return.
     decode(&writer.bytes, &mem)?;
-    Ok(writer.bytes.into_external())
+    writer.bytes.into_external()
 }
 
 struct Reader<'a> {

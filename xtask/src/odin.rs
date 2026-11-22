@@ -34,6 +34,31 @@ pub fn generate(header: &str) -> Result<String> {
     for name in ["Database", "Value", "Snapshot", "Transaction", "Scan"] {
         lines.push(format!("{name} :: distinct rawptr"));
     }
+    let allocator = re(r"(?s)typedef\s+struct\s+wdb_allocator\s*\{([^}]*)\}\s*wdb_allocator\s*;");
+    let has_allocator = if let Some(fields) = allocator.captures(&text) {
+        let expected = "void *context;
+            void *(*allocate)(void *context, size_t size, size_t align);
+            void (*deallocate)(void *context, void *block, size_t size, size_t align);
+            void (*retain_context)(void *context);
+            void (*release_context)(void *context);";
+        ensure!(
+            fields[1].split_whitespace().collect::<String>()
+                == expected.split_whitespace().collect::<String>(),
+            "unsupported wdb_allocator layout"
+        );
+        lines.extend([
+            "Allocator :: struct {".into(),
+            "    ctx: rawptr,".into(),
+            "    allocate: proc \"c\" (ctx: rawptr, size, align: c.size_t) -> rawptr,".into(),
+            "    deallocate: proc \"c\" (ctx, block: rawptr, size, align: c.size_t),".into(),
+            "    retain_context: proc \"c\" (ctx: rawptr),".into(),
+            "    release_context: proc \"c\" (ctx: rawptr),".into(),
+            "}".into(),
+        ]);
+        true
+    } else {
+        false
+    };
     lines.extend([
         "#assert(size_of(Database) == size_of(rawptr))".into(),
         "#assert(size_of(c.size_t) == size_of(uintptr))".into(),
@@ -78,6 +103,12 @@ pub fn generate(header: &str) -> Result<String> {
                         Some("*") => handle.to_string(),
                         _ => bail!("opaque handle must be a pointer"),
                     }
+                } else if base == "wdb_allocator" {
+                    ensure!(
+                        has_allocator && pointer == Some("*"),
+                        "allocator pointer required"
+                    );
+                    "^Allocator".into()
                 } else {
                     let kind = match base {
                         "uint8_t" => "u8",
