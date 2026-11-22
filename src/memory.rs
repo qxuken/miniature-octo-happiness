@@ -1,6 +1,6 @@
 use crate::{Error, Result};
 use std::{
-    alloc::{Layout, alloc, dealloc, realloc},
+    alloc::{AllocError, Allocator, Global, Layout, dealloc},
     marker::PhantomData,
     ops::Deref,
     ptr::NonNull,
@@ -12,22 +12,42 @@ thread_local! {
     static FAIL_SYSTEM_ALLOCATION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-// Tests replace only this thread's next allocation result.
-unsafe fn allocate(layout: Layout) -> *mut u8 {
-    #[cfg(test)]
-    if FAIL_SYSTEM_ALLOCATION.with(|fail| fail.replace(false)) {
-        return std::ptr::null_mut();
+struct CoreAllocator;
+
+impl CoreAllocator {
+    fn check_allocation() -> std::result::Result<(), AllocError> {
+        #[cfg(test)]
+        if FAIL_SYSTEM_ALLOCATION
+            .try_with(|fail| fail.replace(false))
+            .unwrap_or(false)
+        {
+            return Err(AllocError);
+        }
+        Ok(())
     }
-    unsafe { alloc(layout) }
 }
 
-// Same test seam as allocate: realloc failure must leave its input allocation live.
-unsafe fn reallocate(ptr: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-    #[cfg(test)]
-    if FAIL_SYSTEM_ALLOCATION.with(|fail| fail.replace(false)) {
-        return std::ptr::null_mut();
+// SAFETY: all blocks are owned by Global, with the requested layout. A failed
+// allocation or grow transfers no ownership. The test seam can only add errors.
+unsafe impl Allocator for CoreAllocator {
+    fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
+        Self::check_allocation()?;
+        Global.allocate(layout)
     }
-    unsafe { realloc(ptr, layout, size) }
+
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
+        unsafe { Global.deallocate(ptr, layout) };
+    }
+
+    unsafe fn grow(
+        &self,
+        ptr: NonNull<u8>,
+        old: Layout,
+        new: Layout,
+    ) -> std::result::Result<NonNull<[u8]>, AllocError> {
+        Self::check_allocation()?;
+        unsafe { Global.grow(ptr, old, new) }
+    }
 }
 
 /// Requested core allocation layouts, including in-flight reservations. Excludes
@@ -104,8 +124,10 @@ impl<T> Shared<T> {
     fn allocate(value: T, charge: Option<Charge>) -> Result<Self> {
         let layout = Layout::new::<SharedBox<T>>();
         // SharedBox always has a nonzero size due to the count.
-        let ptr = NonNull::new(unsafe { allocate(layout) }.cast::<SharedBox<T>>())
-            .ok_or(Error::OutOfMemory)?;
+        let ptr = CoreAllocator
+            .allocate(layout)
+            .map_err(|_| Error::OutOfMemory)?
+            .cast::<SharedBox<T>>();
         unsafe {
             ptr.as_ptr().write(SharedBox {
                 refs: AtomicUsize::new(1),
@@ -194,13 +216,13 @@ impl Drop for Allocation {
 /// Internal capacity with exact requested allocation layout. No method exposes
 /// a mutable Vec or grows implicitly; callers must reserve through Memory first.
 pub(crate) struct ChargedVec<T> {
-    vec: Vec<T>,
+    vec: Vec<T, CoreAllocator>,
     charge: Option<Charge>,
 }
 impl<T> ChargedVec<T> {
     pub(crate) fn new() -> Self {
         Self {
-            vec: Vec::new(),
+            vec: Vec::new_in(CoreAllocator),
             charge: None,
         }
     }
@@ -212,27 +234,10 @@ impl<T> ChargedVec<T> {
         let layout = Layout::array::<T>(needed).map_err(|_| Error::Limit)?;
         let charge = mem.admit(layout.size())?;
         mem.claim()?;
-        let len = self.vec.len();
-        let capacity = self.vec.capacity();
-        // SAFETY: every nonempty buffer originated here with this exact layout.
-        // ZSTs have capacity usize::MAX and return before this branch. Realloc
-        // keeps alignment and preserves the old allocation on null. All bytes
-        // containing initialized elements remain valid in the returned buffer.
-        let raw = unsafe {
-            if capacity == 0 {
-                allocate(layout)
-            } else {
-                let old = Layout::array::<T>(capacity).expect("existing exact layout");
-                reallocate(self.vec.as_mut_ptr().cast(), old, layout.size())
-            }
-        };
-        let ptr = NonNull::new(raw.cast::<T>()).ok_or(Error::OutOfMemory)?;
-        // After successful realloc the old pointer must never be accessed or
-        // deallocated. These metadata-only operations cannot unwind. Disarm
-        // the old Vec and transfer sole ownership to the new exact capacity.
-        let new = unsafe { Vec::from_raw_parts(ptr.as_ptr(), len, needed) };
-        std::mem::forget(std::mem::replace(&mut self.vec, new));
-        self.charge = Some(charge); // release old charge only after successful realloc
+        self.vec
+            .try_reserve_exact(extra)
+            .map_err(|_| Error::OutOfMemory)?;
+        self.charge = Some(charge); // release old charge after successful growth
         Ok(())
     }
     /// Bounded power-of-two growth for append-heavy scratch/cache buffers.
@@ -298,7 +303,10 @@ impl<T> ChargedVec<T> {
     }
     /// Explicit ownership transfer to an uncharged application-output buffer.
     pub(crate) fn into_external(self) -> Vec<T> {
-        self.vec
+        let (ptr, len, capacity, _) = self.vec.into_raw_parts_with_allocator();
+        // SAFETY: CoreAllocator forwards allocations to Global. The allocation
+        // layout, initialized prefix, and sole ownership transfer intact.
+        unsafe { Vec::from_raw_parts(ptr, len, capacity) }
     }
 }
 impl<T> std::ops::Deref for ChargedVec<T> {
@@ -320,7 +328,7 @@ impl<'a, T> IntoIterator for &'a ChargedVec<T> {
     }
 }
 pub(crate) struct ChargedIntoIter<T> {
-    iter: std::vec::IntoIter<T>,
+    iter: <Vec<T, CoreAllocator> as IntoIterator>::IntoIter,
     _charge: Option<Charge>,
 }
 impl<T> Iterator for ChargedIntoIter<T> {
@@ -469,28 +477,29 @@ impl Memory {
         if std::mem::size_of::<T>() == 0 {
             return Ok(Box::new(value));
         }
-        // raw() and Box use the same global allocator and Layout<T>. Transfer
-        // ownership exactly once so ordinary Box destruction can release it.
-        Ok(unsafe { Box::from_raw(self.raw(value)?) })
+        self.allocate_handle(value)
     }
     pub(crate) fn raw<T>(&self, value: T) -> Result<*mut T> {
+        self.allocate_handle(value).map(Box::into_raw)
+    }
+    fn allocate_handle<T>(&self, value: T) -> Result<Box<T>> {
         self.claim()?;
         let layout = Layout::new::<T>();
         assert!(layout.size() != 0);
-        let ptr =
-            NonNull::new(unsafe { allocate(layout) }.cast::<T>()).ok_or(Error::OutOfMemory)?;
+        let ptr = CoreAllocator
+            .allocate(layout)
+            .map_err(|_| Error::OutOfMemory)?
+            .cast::<T>();
+        // SAFETY: this unique block came from Global with Layout<T>.
         unsafe {
             ptr.as_ptr().write(value);
+            Ok(Box::from_raw_in(ptr.as_ptr(), Global))
         }
-        Ok(ptr.as_ptr())
     }
 }
 /// Safety: ptr must be a live allocation returned by Memory::raw, consumed once.
 pub(crate) unsafe fn free_raw<T>(ptr: *mut T) {
-    unsafe {
-        std::ptr::drop_in_place(ptr);
-        dealloc(ptr.cast(), Layout::new::<T>());
-    }
+    unsafe { drop(Box::from_raw(ptr)) };
 }
 
 #[cfg(test)]
@@ -821,6 +830,11 @@ mod live_budget_tests {
     #[test]
     fn growth_reserves_both_buffers_and_rolls_back_failures() {
         let mem = memory(23);
+        let mut bytes = ChargedVec::<u8>::new();
+        FAIL_SYSTEM_ALLOCATION.with(|fail| fail.set(true));
+        assert_eq!(mem.reserve(&mut bytes, 8), Err(Error::OutOfMemory));
+        assert_eq!(bytes.vec.capacity(), 0);
+        assert_eq!(mem.usage(), (0, 8));
         let mut bytes = mem.copy(&[1; 8]).unwrap();
         assert_eq!(mem.usage().0, 8);
         assert_eq!(mem.reserve(&mut bytes, 8), Err(Error::Limit));
@@ -974,8 +988,11 @@ mod live_budget_tests {
         assert_eq!(values.len(), 3);
         assert_eq!(mem.usage(), (0, 0));
         let mem = memory(8);
-        let output = mem.copy(&[7; 8]).unwrap().into_external();
+        let bytes = mem.copy(&[7; 8]).unwrap();
+        let addr = bytes.as_ptr().addr();
+        let output = bytes.into_external();
         assert_eq!(mem.usage().0, 0);
+        assert_eq!(output.as_ptr().addr(), addr);
         assert_eq!(output, [7; 8]);
     }
 }

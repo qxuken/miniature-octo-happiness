@@ -1,12 +1,12 @@
 # Allocator source decision audit
 
-The inventory contains 37 production AST records in `src/memory.rs`: 20 `?`,
-eight ifs, seven overlapping ORs, one match and one loop. This is a source audit,
-not a compiler MC/DC percentage or a claim that allocator internals are covered.
-No production changes or duplicate allocator tests were needed for this tranche.
+This source audit covers the `src/memory.rs` allocator migration on Rust 1.100.
+Its 42 AST records include the conditional allocation-claim code for
+`fault-injection`. The scope is the library wrapper and its tests. The standard
+allocator's implementation and compiler MC/DC remain outside this audit.
 
-P denotes direct predicate controls; C overlapping syntax; E execution/error
-propagation evidence, not every transitive callee outcome; I an invariant exclusion.
+P denotes direct predicate controls, C overlapping syntax, E scoped execution or
+error propagation, and I an invariant exclusion.
 All source records have dispositions below. The [live budget ledger](../memory-budget-decisions.md)
 remains the detailed arithmetic, allocation rollback and ownership specification.
 
@@ -22,11 +22,16 @@ and tested separately; there is no missing max_live_bytes configuration predicat
 
 ## M2: shared allocation, reference count and destruction
 
-`memory::tests::null_system_allocation_drops_inputs_and_allows_retry` forces the
-thread-local raw allocator result to null, then permits success; value destruction
+`memory::tests::null_system_allocation_drops_inputs_and_allows_retry` injects
+`AllocError` before calling `Global`, then permits success. Value destruction
 occurs once and subsequent allocation works. `allocation_ownership_transfers_or_drops_exactly_once`
 controls failed claims, raw/Box/Shared transfers, two aliases versus last drop,
 and ZST box bypass under an exhausted fault budget.
+Both kinds of nonzero handle use the same fallible `Global` allocation path.
+An initialized allocation becomes a `Box<T>` and the raw FFI path consumes
+that box with `Box::into_raw`. Destruction reconstructs the box so deallocation
+also runs if a destructor unwinds. Foreign-handle bytes stay outside the live
+core budget.
 `last_shared_owner_destroys_once_after_cross_thread_accesses` exercises synchronized
 final destruction. `shared_clone_aborts_at_the_refcount_threshold_in_a_subprocess`
 compares MAX-1 to MAX without corrupting the parent: the child restores real
@@ -39,9 +44,10 @@ not a proof of every scheduling/platform implementation.
 
 `memory::live_budget_tests::charged_reserve_capacity_count_and_layout_decision_pairs`
 controls count addition, available capacity, layout validity and rejected growth.
-`growth_reserves_both_buffers_and_rolls_back_failures` covers empty allocation,
-nonempty realloc, cap equality/one byte short, failed claim and null realloc;
-old bytes and live charge survive failure. `admission_limit_and_overflow_decision_pairs`
+`growth_reserves_both_buffers_and_rolls_back_failures` covers initial and growth
+allocator failure, cap equality/one byte short and failed claims. Failed initial
+allocation leaves live bytes and capacity at zero. Failed growth preserves the
+old bytes and charge. `admission_limit_and_overflow_decision_pairs`
 controls checked addition and finite cap equality independently as sequential
 guards. `allocation_layout_tests::admission_overflow_rolls_back_exactly` covers
 maximum admitted charge plus one, and rolls back synthetic state on drop.
@@ -53,11 +59,23 @@ excluded from live-byte accounting; this is not a missing accounting branch.
 `aligned_growth_partial_iteration_and_null_shared_cleanup` and
 `shared_clones_keep_one_charge_and_unwind_reclaims_allocation` check over-alignment,
 partial iteration, normal/unwinding destruction and exact charge lifetimes.
-`zero_sized_elements_and_output_transfer` covers ZST storage and explicit transfer
-into external ownership. `usage_bounds_peak_during_admission_update_window` and
+`zero_sized_elements_and_output_transfer` covers ZST storage and verifies that
+transfer to an external `Vec` keeps the same address and releases its charge.
+`usage_bounds_peak_during_admission_update_window` and
 `concurrent_reservations_cannot_exceed_cap` check telemetry/concurrent admission.
-The detailed ledger records exact truth pairs and separates synthetic arithmetic
-states from physically realizable public cases.
+`geometric_growth_is_bounded_and_uses_logarithmic_allocation_claims` and
+`geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity` cover
+overflow, the maximum and spare capacity, rounded versus exact fallback, and
+OOM propagation without fallback. The detailed ledger records truth pairs for
+the reachable wrapper predicates.
+
+`ChargedVec` prechecks the requested layout and admits the full new buffer
+before consuming an allocation claim. `Vec::try_reserve_exact` and the private
+adapter to `Global` then own allocation and growth. The old charge remains live
+until growth succeeds, including when `Global::grow` can extend in place. The
+adapter delegates deallocation with the same layout. Its test-only fault seam
+can return an error before either Global call, leaving an existing allocation
+owned by the original vector.
 
 ## M4: copied bytes and invariants
 
@@ -68,131 +86,92 @@ Empty/nonempty copy success and allocation rejection are covered by ownership
 and public allocation-failure tests. `ChargedVec::extend` is exercised with empty
 and populated lists through existing value/tree tests; its loop delegates iterator
 implementation. Actual system exhaustion/allocator metadata behavior remains an
-allocator contract, independently of the injected null return.
+allocator contract, independently of the injected error return.
 
 ## Macro and generated boundaries
 
-The inventory excludes three derive expansions (`MemoryUsage`, `Limits`,
-`Memory`) and four production assert macros: reserve-before-push (line 237),
-reserve-before-extend (249), reserve-before-resize (259), and nonzero raw layout
-(446). Their false outcomes violate internal caller preconditions; normal
-mutations use reserved capacity, and ZST boxed values bypass raw. These are
-invariant obligations, not public rejection promises. The test-only thread_local
-seam is excluded with cfg(test), rather than counted as production syntax.
-Generated traits, atomics, Option/Result combinators,
-Vec/iterator code, global allocator implementation and standard-library unwind
-mechanics are outside the AST denominator. The budget ledger explicitly audits
-checked-add/filter closure predicates even though they are not separate AST ifs.
+The inventory excludes the derive expansions and four production assertions
+for reserved capacity before push, extend and resize, and for the nonzero
+handle layout. These guard private caller invariants. ZST boxes bypass the
+handle allocator. The `cfg(test)` fault predicate is outside the inventory.
+Generated traits, atomics, combinators, standard-library growth and unwind
+mechanics are outside the AST denominator. The budget ledger also audits the
+checked-add and filter predicates in the admission closure.
 
 ## Source records
 
-Source SHA-256: `56b3852ee4c3fc970cccf60a98cf5a3db4145c5298960f6d7200f48755b731dd`.
-Location is line:column; hash is the first 12 source-token SHA-256 digits.
+| Source | SHA-256 |
+| --- | --- |
+| `src/memory.rs` | `db8fdd3c84557996cf7a66cfbb50abb33a69ed8840aafe72fb849cf0fccefe3a` |
 
-| Location | Kind / owner | Disposition | Evidence | Token hash |
-| --- | --- | --- | --- | --- |
-| 73:9 | `if` / `validate` | C | M1 | `935f68319d4f` |
-| 73:12 | `short_circuit_or` / `validate` | C | M1 | `142fafc1b97a` |
-| 73:12 | `short_circuit_or` / `validate` | C | M1 | `eba9b457ca90` |
-| 73:12 | `short_circuit_or` / `validate` | C | M1 | `081a4c0c0476` |
-| 73:12 | `short_circuit_or` / `validate` | C | M1 | `63c86f5c7fa5` |
-| 73:12 | `short_circuit_or` / `validate` | C | M1 | `d65ce18fed56` |
-| 73:12 | `short_circuit_or` / `validate` | C | M1 | `65f7071c1b02` |
-| 73:12 | `short_circuit_or` / `validate` | P | M1 | `0d3ce3c67265` |
-| 108:39 | `try_propagation` / `allocate` | E | M2 | `8a8de823d5ed` |
-| 131:9 | `if` / `clone` | P | M2 | `935f68319d4f` |
-| 153:9 | `if` / `drop` | P | M2 | `935f68319d4f` |
-| 203:75 | `try_propagation` / `reserve` | E | M3 | `8a8de823d5ed` |
-| 204:9 | `if` / `reserve` | P | M3 | `935f68319d4f` |
-| 207:74 | `try_propagation` / `reserve` | E | M3 | `8a8de823d5ed` |
-| 208:46 | `try_propagation` / `reserve` | E | M3 | `8a8de823d5ed` |
-| 209:20 | `try_propagation` / `reserve` | E | M3 | `8a8de823d5ed` |
-| 217:13 | `if` / `reserve` | P | M3 | `935f68319d4f` |
-| 224:74 | `try_propagation` / `reserve` | E | M3 | `8a8de823d5ed` |
-| 241:9 | `for_iteration` / `extend` | E | M4 | `10c22bcf4c76` |
-| 334:42 | `try_propagation` / `new` | E | M1 | `8a8de823d5ed` |
-| 341:10 | `try_propagation` / `new` | E | M3 | `8a8de823d5ed` |
-| 354:17 | `match` / `claim` | P | M3 | `4945a70fa7f9` |
-| 360:45 | `try_propagation` / `claim` | E | M3 | `8a8de823d5ed` |
-| 370:21 | `try_propagation` / `shared` | E | M3 | `8a8de823d5ed` |
-| 371:70 | `try_propagation` / `shared` | E | M3 | `8a8de823d5ed` |
-| 375:70 | `try_propagation` / `reserve_external` | E | M3 | `8a8de823d5ed` |
-| 376:9 | `if` / `reserve_external` | P | M3 | `935f68319d4f` |
-| 377:25 | `try_propagation` / `reserve_external` | E | M3 | `8a8de823d5ed` |
-| 379:49 | `try_propagation` / `reserve_external` | E | M3 | `8a8de823d5ed` |
-| 384:9 | `if` / `copy_external` | I | M4 | `935f68319d4f` |
-| 388:53 | `try_propagation` / `copy_external` | E | M4 | `8a8de823d5ed` |
-| 400:39 | `try_propagation` / `admit` | E | M3 | `8a8de823d5ed` |
-| 430:44 | `try_propagation` / `copy` | E | M4 | `8a8de823d5ed` |
-| 436:9 | `if` / `boxed` | P | M3 | `935f68319d4f` |
-| 441:50 | `try_propagation` / `boxed` | E | M3 | `8a8de823d5ed` |
-| 444:21 | `try_propagation` / `raw` | E | M3 | `8a8de823d5ed` |
-| 448:92 | `try_propagation` / `raw` | E | M3 | `8a8de823d5ed` |
+B marks partial evidence for the initialization wrapper. Tests exercise the
+underlying shared allocator's failure and the initialization success path.
 
-Totals: C=7, E=21, I=1, P=8; 37 records.
+| Disposition | Location | Bytes | Kind | Owner | Evidence | Token hash |
+| --- | --- | --- | --- | --- | --- | --- |
+| E | `src/memory.rs:34:33–34:34` | `987..988` | `try_propagation` | `allocate` | M2 | `8a8de823d5ed` |
+| E | `src/memory.rs:48:33–48:34` | `1348..1349` | `try_propagation` | `grow` | M3 | `8a8de823d5ed` |
+| C | `src/memory.rs:93:9–93:11` | `2805..2807` | `if` | `validate` | M1 | `935f68319d4f` |
+| C | `src/memory.rs:93:12–94:35` | `2808..2862` | `short_circuit_or` | `validate` | M1 | `142fafc1b97a` |
+| C | `src/memory.rs:93:12–95:44` | `2808..2906` | `short_circuit_or` | `validate` | M1 | `eba9b457ca90` |
+| C | `src/memory.rs:93:12–96:43` | `2808..2949` | `short_circuit_or` | `validate` | M1 | `081a4c0c0476` |
+| C | `src/memory.rs:93:12–97:49` | `2808..2998` | `short_circuit_or` | `validate` | M1 | `63c86f5c7fa5` |
+| C | `src/memory.rs:93:12–98:52` | `2808..3050` | `short_circuit_or` | `validate` | M1 | `d65ce18fed56` |
+| C | `src/memory.rs:93:12–99:58` | `2808..3108` | `short_circuit_or` | `validate` | M1 | `65f7071c1b02` |
+| P | `src/memory.rs:93:12–100:64` | `2808..3172` | `short_circuit_or` | `validate` | M1 | `0d3ce3c67265` |
+| E | `src/memory.rs:129:45–129:46` | `4168..4169` | `try_propagation` | `allocate` | M2 | `8a8de823d5ed` |
+| P | `src/memory.rs:158:9–158:11` | `5145..5147` | `if` | `clone` | M2 | `935f68319d4f` |
+| P | `src/memory.rs:180:9–180:11` | `5873..5875` | `if` | `drop` | M2 | `935f68319d4f` |
+| E | `src/memory.rs:230:75–230:76` | `7463..7464` | `try_propagation` | `reserve` | M3 | `8a8de823d5ed` |
+| P | `src/memory.rs:231:9–231:11` | `7474..7476` | `if` | `reserve` | M3 | `935f68319d4f` |
+| E | `src/memory.rs:234:74–234:75` | `7619..7620` | `try_propagation` | `reserve` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:235:46–235:47` | `7667..7668` | `try_propagation` | `reserve` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:236:20–236:21` | `7689..7690` | `try_propagation` | `reserve` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:239:45–239:46` | `7791..7792` | `try_propagation` | `reserve` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:247:75–247:76` | `8295..8296` | `try_propagation` | `reserve_geometric` | M3 | `8a8de823d5ed` |
+| P | `src/memory.rs:248:9–248:11` | `8306..8308` | `if` | `reserve_geometric` | M3 | `935f68319d4f` |
+| P | `src/memory.rs:251:9–251:11` | `8384..8386` | `if` | `reserve_geometric` | M3 | `935f68319d4f` |
+| E | `src/memory.rs:258:9–258:14` | `8594..8599` | `match` | `reserve_geometric` | M3 | `4945a70fa7f9` |
+| P | `src/memory.rs:259:34–259:52` | `8680..8698` | `match_guard` | `reserve_geometric` | M3 | `748e6158ff2c` |
+| E | `src/memory.rs:271:9–271:12` | `9085..9088` | `for_iteration` | `extend` | M4 | `10c22bcf4c76` |
+| E | `src/memory.rs:367:42–367:43` | `11897..11898` | `try_propagation` | `new` | M1 | `8a8de823d5ed` |
+| B | `src/memory.rs:374:10–374:11` | `12148..12149` | `try_propagation` | `new` | M3 | `8a8de823d5ed` |
+| P | `src/memory.rs:387:17–387:22` | `12546..12551` | `match` | `claim` | M3 | `4945a70fa7f9` |
+| E | `src/memory.rs:393:45–393:46` | `12758..12759` | `try_propagation` | `claim` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:403:21–403:22` | `13085..13086` | `try_propagation` | `shared` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:404:70–404:71` | `13157..13158` | `try_propagation` | `shared` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:408:70–408:71` | `13374..13375` | `try_propagation` | `reserve_external` | M3 | `8a8de823d5ed` |
+| P | `src/memory.rs:409:9–409:11` | `13385..13387` | `if` | `reserve_external` | M3 | `935f68319d4f` |
+| E | `src/memory.rs:410:25–410:26` | `13438..13439` | `try_propagation` | `reserve_external` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:412:49–412:50` | `13530..13531` | `try_propagation` | `reserve_external` | M3 | `8a8de823d5ed` |
+| I | `src/memory.rs:417:9–417:11` | `13646..13648` | `if` | `copy_external` | M4 | `935f68319d4f` |
+| E | `src/memory.rs:421:53–421:54` | `13819..13820` | `try_propagation` | `copy_external` | M4 | `8a8de823d5ed` |
+| E | `src/memory.rs:433:39–433:40` | `14228..14229` | `try_propagation` | `admit` | M3 | `8a8de823d5ed` |
+| E | `src/memory.rs:471:44–471:45` | `15587..15588` | `try_propagation` | `copy` | M4 | `8a8de823d5ed` |
+| P | `src/memory.rs:477:9–477:11` | `15794..15796` | `if` | `boxed` | M3 | `935f68319d4f` |
+| E | `src/memory.rs:486:21–486:22` | `16127..16128` | `try_propagation` | `allocate_handle` | M2 | `8a8de823d5ed` |
+| E | `src/memory.rs:491:45–491:46` | `16314..16315` | `try_propagation` | `allocate_handle` | M2 | `8a8de823d5ed` |
 
-## Executed validation for this tranche
+Totals B=1, C=7, E=23, I=1, P=10 across 42 records.
 
-On macOS/aarch64, all-feature debug and release runs passed 14 FFI unit tests,
-14 memory unit tests (including the abort subprocess), five `allocation`, five
-`live_budget`, and two `live_budget_decisions` tests: 40 per profile. Four new FFI
-tests also passed `cargo +nightly miri test --offline -p weekend-db --all-features
---lib ffi::decision_tests::`. Strict all-feature library/test Clippy passed.
-The rebuilt debug cdylib passed `python3 tools/ffi_smoke.py
- target/verification-diagnostics/debug/libweekend_db.dylib`.
+## Rust 1.100 qualification
 
-Runs used `CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=target/verification-diagnostics`.
-The inventory completed without parse failures. No production code changed;
-only the appended FFI test module is new Rust source. Existing Miri, sanitizer,
-Loom and mutation results cited above are prior evidence, not newly rerun claims.
-This tranche does not claim Windows execution, exhaustive native failures,
-new mutations, compiler MC/DC percentages or completed project assurance.
+All runs used the pinned `src/memory.rs` above. The native debug and release
+runs enabled all features. The Linux source, build and scratch files were on
+the Docker VM's ext4 volume.
 
-## Charged geometric growth follow-up
+| Platform | Library tests per profile | Allocation, budget and retention integration tests per profile |
+| --- | ---: | ---: |
+| macOS arm64 | 159 passed | 19 passed |
+| Docker Linux arm64 | 165 passed | 19 passed |
 
-Candidate `742079c` adds five production AST records in
-`ChargedVec::reserve_geometric` (lines 242–254); the historical table above
-retains its original source scope. Memory source SHA-256:
-`05bc77b72292497b4d2ac9157e10b5d203407d08925ed9681b99aa816e371890`.
-See the [growth qualification](../serialization-buffer-growth.md) for the
-source-bound inventory, allocation work, exact bytes and platform runs.
+The library runs include the COMMIT and retained-catalog encoder cases.
+The DATA and VALUE-identity fixtures emitted seven and ten images respectively.
+All 17 matched the `459e4c4` baseline byte for byte on both platforms and in
+both profiles. The common sorted SHA-256 manifest has digest
+`fea361f3bb2f84c4543030d16fa16ab7aaff99f783a9a48ed5b2f9b09121f009`.
 
-| Guard / delegated operation | Evidence and limit of the claim |
-|---|---|
-| Checked length addition / `needed > maximum` | `geometric_growth_is_bounded_and_uses_logarithmic_allocation_claims` exercises ordinary appends, length overflow, exact bound, above-bound and zero maximum before allocation |
-| `needed <= capacity` | Thirteen successful claims build 4,096 bytes with exact contents; spare-capacity and zero-sized appends succeed with the next claim disabled; growth uses the existing allocator |
-| Next power / clamp / layout | Power-of-two capacities and a non-power maximum of six are checked; huge generic request exercises checked-power overflow and delegated layout rejection. Codec's 64 MiB / 16,384-entry maxima cannot approach integer/layout overflow on supported 64-bit targets |
-| `Err(Limit)` with a smaller exact capacity | `geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity`: caps 8/9/12 give both attempts rejected / exact capacity 5 / rounded capacity 8; old/new peak and preserved bytes are checked |
-| Other result / no smaller capacity | Successful rounds and injected/system-null `OutOfMemory` propagate without fallback, retaining the old allocation; exact retry can also fail allocation. When rounded capacity equals needed, retrying would repeat the identical request; a separate `Err(Limit)` equality-arm independence control remains to be added before claiming complete MC/DC for this helper |
-
-Both tests pass native debug/release and Miri. Existing allocator ownership,
-null result, admission concurrency, unwinding, all-candidate and copy failure
-sweeps pass. No unsafe allocator code changed. The optional growth wrapper
-introduces no new allocation mechanism; delegated allocator outcomes and
-standard-library arithmetic retain their separate scopes. This is a source
-mapping and directed validation, not measured compiler MC/DC.
-
-## Growth equality Limit pair closed
-
-At `910e490`, the existing
-`geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity` test
-adds the previously missing `Err(Limit)` / `capacity == needed` control.
-The production helper is unchanged; the prior residual above is now closed.
-Memory source SHA-256:
-`d357b4b549b6573eb18479be8f245f1a774d76af50c42414e3517515fdeb47a8`.
-
-Both cases begin with four initialized bytes/capacity four, cap nine and zero
-remaining allocation claims. The rounded allocation first fails admission with
-`Limit` in both cases:
-
-| Needed | Rounded capacity | `capacity != needed` | Selected outcome |
-|---:|---:|---|---|
-| 8 | 8 | false | Propagate Limit; no retry, old live/peak 4/4 and bytes preserved |
-| 5 | 8 | true | Retry exact five, admit to peak nine, injected allocation returns OutOfMemory; old live remains four |
-
-The second case already existed; enabling its allocation claim then succeeds
-with exact capacity five. The new false-arm case also verifies unchanged bytes,
-capacity, allocation allowance and full reclamation. Native debug/release,
-Miri nightly-2026-11-12 and Linux debug/release execute the pair. This closes
-the named manual guard pair, without claiming compiler-measured MC/DC or
-exhaustive standard-library/allocator control flow.
+Miri `708c94ef09` passed 15 memory tests and four FFI decision tests on macOS.
+The abort subprocess case runs only under the native harness. Strict Clippy
+passed for all core crate targets on both native platforms and when checking
+the `x86_64-pc-windows-msvc` target from macOS.
