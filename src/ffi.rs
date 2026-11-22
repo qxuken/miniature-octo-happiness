@@ -662,6 +662,8 @@ mod tests {
             unsafe { Arc::increment_strong_count(context.cast::<TestAllocator>()) };
         }
         unsafe extern "C" fn release(context: *mut c_void) {
+            let state = unsafe { &*context.cast::<TestAllocator>() };
+            assert_eq!(state.live(), 0);
             unsafe { Arc::decrement_strong_count(context.cast::<TestAllocator>()) };
         }
 
@@ -700,14 +702,17 @@ mod tests {
             assert!(options.allocator.is_null());
             options.limits.max_bytes = 3;
             options.allocator = &callbacks;
-            state.fail_next();
-            assert_eq!(
-                wdb_open_with_options(&options, &mut database),
-                Error::OutOfMemory as i32
-            );
-            assert!(database.is_null());
-            assert_eq!(Arc::strong_count(&state), 1);
-            assert_eq!(state.live(), 0);
+            // Refuse the provider block, the initial core head, and the C handle.
+            for allowed in 0..3 {
+                state.fail_after(allowed);
+                assert_eq!(
+                    wdb_open_with_options(&options, &mut database),
+                    Error::OutOfMemory as i32
+                );
+                assert!(database.is_null());
+                assert_eq!(Arc::strong_count(&state), 1);
+                assert_eq!(state.live(), 0);
+            }
 
             assert_eq!(wdb_open_with_options(&options, &mut database), 0);
             assert!(state.live() > 0);

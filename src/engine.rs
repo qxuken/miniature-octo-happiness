@@ -236,8 +236,8 @@ pub struct Transaction<'db> {
 }
 impl Database {
     /// Requested live core allocation bytes and observed high-water mark.
-    /// Excludes allocator overhead, backend/application/FFI buffers and the
-    /// fixed budget control allocation; this is not process RSS.
+    /// Counts core layouts. Allocator overhead, backend/application/FFI buffers,
+    /// and the fixed budget and allocator ownership blocks are outside this total.
     pub fn memory_usage(&self) -> crate::memory::MemoryUsage {
         self.mem.public_usage()
     }

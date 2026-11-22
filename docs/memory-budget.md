@@ -43,8 +43,8 @@ failure and remain attached through element destruction, deallocation, and
 partially consumed owned iterators, including unwinding destructors.
 
 This is **not a process RSS limit**. Exclusions are allocator metadata/rounding,
-stack memory, the fixed budget-control allocation, application-owned inputs and
-returned `Vec` buffers, foreign FFI handles, and backend allocations (native
+stack memory, the fixed budget and allocator ownership blocks, application-owned
+inputs and returned `Vec` buffers, foreign FFI handles, and backend allocations (native
 path/handle metadata and simulator images/traces/pending writes). Values carried
 inside returned buffers still retain their charged core nodes. Output buffers
 are explicitly transferred out of charged ownership or use named
@@ -82,8 +82,12 @@ path lookup, and the assembled file path. The adapter releases them before
 returning the lease. Allocator refusal during path construction precedes the
 target-file open on all three platforms.
 
-Fixed bootstrap allocations use `Global` and are fallible. They hold the
-budget state and, for a custom provider, its boxed state and shared owner.
+The budget control block uses `Global` and is fallible. A custom provider
+allocates one block containing the provider and its reference count. The handle
+is a single pointer, and its clones share the block without allocating. The
+last handle moves the provider out, frees the block through it, and then drops
+the provider. This keeps the C context alive through the block's deallocation.
+The default handle uses `Global` directly with no provider block.
 Public Rust `Vec` outputs also use `Global`. The engine moves elements from
 custom storage into a fallibly reserved output buffer. Values inside it still
 own their original core nodes. OS internals and caller-owned backend storage

@@ -82,21 +82,100 @@ unsafe impl Allocator for ForeignAllocator {
 }
 
 /// A shared allocator for core storage and opaque handles. The default uses Global.
-#[derive(Clone, Default)]
-pub struct AllocatorHandle(Option<Shared<Box<dyn Allocator + Send + Sync>>>);
+#[derive(Default)]
+pub struct AllocatorHandle(Option<NonNull<AllocatorOwner>>);
+
+struct AllocatorOwner {
+    refs: AtomicUsize,
+    vtable: &'static AllocatorVtable,
+}
+
+struct AllocatorVtable {
+    provider: unsafe fn(NonNull<AllocatorOwner>) -> NonNull<dyn Allocator>,
+    free: unsafe fn(NonNull<AllocatorOwner>),
+}
+
+// A pointer to the first field is also the base pointer of the whole block.
+#[repr(C)]
+struct OwnedAllocator<A> {
+    owner: AllocatorOwner,
+    provider: A,
+}
+
+impl<A: Allocator + Send + Sync + 'static> OwnedAllocator<A> {
+    const VTABLE: AllocatorVtable = AllocatorVtable {
+        provider: Self::provider,
+        free: Self::free,
+    };
+
+    unsafe fn provider(owner: NonNull<AllocatorOwner>) -> NonNull<dyn Allocator> {
+        let block = owner.cast::<Self>().as_ptr();
+        // SAFETY: this vtable belongs to the concrete type stored in the block.
+        NonNull::from(unsafe { &(*block).provider })
+    }
+
+    unsafe fn free(owner: NonNull<AllocatorOwner>) {
+        let block = owner.cast::<Self>();
+        // SAFETY: only the last owner reaches this method. Move the provider
+        // out so it can free the block before its own destructor runs.
+        let provider = unsafe { (&raw const (*block.as_ptr()).provider).read() };
+        unsafe { provider.deallocate(block.cast(), Layout::new::<Self>()) };
+    }
+}
+
+// SAFETY: try_new requires a thread-safe provider. The strong count keeps the
+// provider alive and synchronizes final destruction across all handles.
+unsafe impl Send for AllocatorHandle {}
+unsafe impl Sync for AllocatorHandle {}
 
 impl AllocatorHandle {
-    /// Move an allocator into a fallible, shared owner. Cloning the handle
-    /// does not allocate. The fixed ownership blocks are allocated by Global.
-    pub fn try_new(allocator: impl Allocator + Send + Sync + 'static) -> Result<Self> {
-        let provider: Box<dyn Allocator + Send + Sync> = try_box_in(allocator, Global)?;
-        Ok(Self(Some(Shared::allocate(provider, None)?)))
+    /// Move a provider into one shared block allocated by that provider.
+    /// Cloning the handle does not allocate.
+    pub fn try_new<A: Allocator + Send + Sync + 'static>(provider: A) -> Result<Self> {
+        let block = provider
+            .allocate(Layout::new::<OwnedAllocator<A>>())
+            .map_err(|_| Error::OutOfMemory)?
+            .cast::<OwnedAllocator<A>>();
+        // SAFETY: the provider returned a unique block with this layout. The
+        // Allocator contract preserves ownership when the provider is moved.
+        unsafe {
+            block.as_ptr().write(OwnedAllocator {
+                owner: AllocatorOwner {
+                    refs: AtomicUsize::new(1),
+                    vtable: &OwnedAllocator::<A>::VTABLE,
+                },
+                provider,
+            });
+        }
+        Ok(Self(Some(block.cast())))
     }
 
     fn as_allocator(&self) -> &dyn Allocator {
-        match &self.0 {
-            Some(provider) => &***provider,
+        match self.0 {
+            // SAFETY: self keeps the block alive for the returned borrow.
+            Some(owner) => unsafe { (owner.as_ref().vtable.provider)(owner).as_ref() },
             None => &Global,
+        }
+    }
+}
+
+impl Clone for AllocatorHandle {
+    fn clone(&self) -> Self {
+        if let Some(owner) = self.0 {
+            retain_ref(unsafe { &owner.as_ref().refs });
+        }
+        Self(self.0)
+    }
+}
+
+impl Drop for AllocatorHandle {
+    fn drop(&mut self) {
+        if let Some(owner) = self.0
+            && release_ref(unsafe { &owner.as_ref().refs })
+        {
+            let free = unsafe { owner.as_ref().vtable.free };
+            // SAFETY: the last decrement transfers exclusive ownership.
+            unsafe { free(owner) };
         }
     }
 }
@@ -143,7 +222,8 @@ unsafe impl Allocator for AllocatorHandle {
 
 /// Requested core allocation layouts, including in-flight reservations. Excludes
 /// allocator overhead, backend/application/foreign-handle buffers and the fixed
-/// budget control block. The peak includes old and new buffers during growth.
+/// budget and allocator ownership blocks. The peak includes old and new buffers
+/// during growth.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemoryUsage {
@@ -157,7 +237,8 @@ pub struct MemoryUsage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
     /// Maximum requested bytes of live core heap allocations; excludes application outputs,
-    /// backend storage, foreign handles, allocator overhead and the budget control block.
+    /// backend storage, foreign handles, allocator overhead and the fixed budget and allocator
+    /// ownership blocks.
     pub max_live_bytes: usize,
     pub max_bytes: usize,
     pub max_value_bytes: usize,
@@ -198,8 +279,20 @@ impl Limits {
     }
 }
 
-// Fallible atomic reference counting. No allocation occurs on clone.
-// All unsafe ownership code is contained here (and in the foreign boundary).
+fn retain_ref(refs: &AtomicUsize) {
+    // The live source handle keeps the value alive. Abort well below wraparound.
+    if refs.fetch_add(1, Ordering::Relaxed) >= isize::MAX as usize {
+        std::process::abort();
+    }
+}
+
+fn release_ref(refs: &AtomicUsize) -> bool {
+    // Acquire prior owners' accesses before destruction. AcqRel on every
+    // decrement is also understood by ThreadSanitizer.
+    refs.fetch_sub(1, Ordering::AcqRel) == 1
+}
+
+// Fallible atomic reference counting for core allocations.
 struct SharedBox<T> {
     refs: AtomicUsize,
     value: T,
@@ -249,13 +342,7 @@ impl<T> Shared<T> {
 }
 impl<T> Clone for Shared<T> {
     fn clone(&self) -> Self {
-        let refs = unsafe { &self.ptr.as_ref().refs };
-        // The live source handle already keeps the value alive. Cloning only
-        // needs an atomic increment, not publication of the immutable contents.
-        // Abort well below wraparound, including deliberately leaked handles.
-        if refs.fetch_add(1, Ordering::Relaxed) >= isize::MAX as usize {
-            std::process::abort();
-        }
+        retain_ref(unsafe { &self.ptr.as_ref().refs });
         Self {
             ptr: self.ptr,
             _owns: PhantomData,
@@ -270,12 +357,7 @@ impl<T> Deref for Shared<T> {
 }
 impl<T> Drop for Shared<T> {
     fn drop(&mut self) {
-        let refs = unsafe { &self.ptr.as_ref().refs };
-        // Release prior accesses; acquire the release sequence of previous
-        // owners before the last owner's destruction. AcqRel on every decrement
-        // is deliberately stronger than Arc's final acquire fence and is also
-        // understood by ThreadSanitizer.
-        if refs.fetch_sub(1, Ordering::AcqRel) != 1 {
+        if !release_ref(unsafe { &self.ptr.as_ref().refs }) {
             return;
         }
         // Keep the charge until destruction AND deallocation, including unwind.
@@ -688,6 +770,7 @@ mod tests {
         }
         let allocator = Arc::new(test_allocator::TestAllocator::default());
         let mem = allocator.memory(Limits::default());
+        let provider_bytes = allocator.live_bytes();
         let drops = Arc::new(AtomicUsize::new(0));
         for kind in 0..3 {
             allocator.fail_next();
@@ -699,7 +782,7 @@ mod tests {
             };
             assert_eq!(result, Err(Error::OutOfMemory));
             assert_eq!(drops.load(Ordering::Relaxed), kind + 1);
-            assert_eq!(allocator.live(), 0);
+            assert_eq!(allocator.live_bytes(), provider_bytes);
         }
         drop(mem.shared(Probe(drops.clone())).unwrap());
         assert_eq!(drops.load(Ordering::Relaxed), 4);

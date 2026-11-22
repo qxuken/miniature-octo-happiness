@@ -16,7 +16,7 @@ impl TestAllocator {
         self.fail_after(0);
     }
 
-    fn fail_after(&self, allowed: usize) {
+    pub(crate) fn fail_after(&self, allowed: usize) {
         self.fail_at
             .store(self.requests() + allowed + 1, Ordering::Relaxed);
     }
@@ -111,6 +111,40 @@ unsafe impl Allocator for TestProvider {
 }
 
 #[test]
+fn allocator_handle_owns_one_block_allocated_by_its_provider() {
+    let allocator = Arc::new(TestAllocator::default());
+    allocator.fail_next();
+    assert!(matches!(
+        AllocatorHandle::try_new(TestProvider(allocator.clone())),
+        Err(Error::OutOfMemory)
+    ));
+    assert_eq!(Arc::strong_count(&allocator), 1);
+    assert_eq!(allocator.requests(), 1);
+    assert_eq!(allocator.live(), 0);
+
+    let handle = allocator.handle();
+    assert_eq!(std::mem::size_of_val(&handle), std::mem::size_of::<usize>());
+    assert_eq!(allocator.requests(), 2);
+    assert_eq!(allocator.live(), 1);
+    assert_eq!(Arc::strong_count(&allocator), 2);
+    let other = handle.clone();
+    drop(handle);
+    assert_eq!(allocator.requests(), 2);
+    assert_eq!(allocator.live(), 1);
+    std::thread::spawn(move || {
+        let layout = Layout::new::<[u64; 8]>();
+        let block = other.allocate(layout).unwrap();
+        unsafe { other.deallocate(block.cast(), layout) };
+    })
+    .join()
+    .unwrap();
+    assert_eq!(allocator.requests(), 3);
+    assert_eq!(allocator.live(), 0);
+    assert_eq!(allocator.live_bytes(), 0);
+    assert_eq!(Arc::strong_count(&allocator), 1);
+}
+
+#[test]
 fn retained_data_and_values_keep_their_database_allocator_alive() {
     use crate::{Database, storage::SimulatedDisk};
 
@@ -181,6 +215,7 @@ fn budgets_are_independent_when_databases_share_one_allocator() {
 
     let allocator = Arc::new(TestAllocator::default());
     let handle = allocator.handle();
+    let provider_bytes = allocator.live_bytes();
     let options = || DatabaseOptions::default().with_allocator(handle.clone());
     let db = Database::with_options(options()).unwrap();
     let second = Database::with_options(options()).unwrap();
@@ -203,14 +238,19 @@ fn budgets_are_independent_when_databases_share_one_allocator() {
     assert_eq!(second.memory_usage(), second_before);
     assert_eq!(
         allocator.live_bytes(),
-        db.memory_usage().live_bytes + second_before.live_bytes
+        provider_bytes + db.memory_usage().live_bytes + second_before.live_bytes
     );
     drop(rows);
     db.release_retained(id).unwrap();
     drop(snapshot);
     drop(db);
-    assert_eq!(allocator.live_bytes(), second_before.live_bytes);
+    assert_eq!(
+        allocator.live_bytes(),
+        provider_bytes + second_before.live_bytes
+    );
     drop(second);
+    assert_eq!(allocator.live_bytes(), provider_bytes);
+    drop(handle);
     assert_eq!(allocator.live(), 0);
     assert_eq!(allocator.live_bytes(), 0);
 }
@@ -255,6 +295,7 @@ fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
     let path_requests = [parent_size, leaf.len() + 1];
     let allocator = Arc::new(TestAllocator::default());
     let handle = allocator.handle();
+    let provider_bytes = allocator.live_bytes();
     let options = || DatabaseOptions::default().with_allocator(handle.clone());
 
     let check_refusal = |open: fn(&Path, DatabaseOptions) -> Result<Database>, allowed, size| {
@@ -263,7 +304,7 @@ fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
         assert!(matches!(open(&path, options()), Err(Error::OutOfMemory)));
         assert_eq!(allocator.requests() - requests, allowed + 1);
         assert_eq!(allocator.last_request_size.load(Ordering::Relaxed), size);
-        assert_eq!(allocator.live(), 0);
+        assert_eq!(allocator.live_bytes(), provider_bytes);
     };
     for (allowed, size) in path_requests.into_iter().enumerate() {
         check_refusal(
@@ -279,7 +320,11 @@ fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
     let check_live = |db: &Database| {
         assert_eq!(
             allocator.live_bytes(),
-            db.memory_usage().live_bytes + std::mem::size_of::<FileStore>() + leaf.len() + 1
+            provider_bytes
+                + db.memory_usage().live_bytes
+                + std::mem::size_of::<FileStore>()
+                + leaf.len()
+                + 1
         );
     };
     let db = Database::create_file_with_options(&path, options()).unwrap();
@@ -297,14 +342,14 @@ fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
     let id = db.retain_snapshot(&db.snapshot()).unwrap();
     check_live(&db);
     drop(db);
-    assert_eq!(allocator.live(), 0);
+    assert_eq!(allocator.live_bytes(), provider_bytes);
 
     let requests = allocator.requests();
     let store = FileStore::open_in(&path, false, handle.clone()).unwrap();
     assert_eq!(allocator.requests() - requests, 2);
-    assert_eq!(allocator.live_bytes(), leaf.len() + 1);
+    assert_eq!(allocator.live_bytes(), provider_bytes + leaf.len() + 1);
     drop(store);
-    assert_eq!(allocator.live(), 0);
+    assert_eq!(allocator.live_bytes(), provider_bytes);
 
     let image = fs::read(&path).unwrap();
     for (allowed, size) in path_requests.into_iter().enumerate() {
@@ -324,6 +369,8 @@ fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
     drop(value);
     drop(retained);
     drop(db);
+    assert_eq!(allocator.live_bytes(), provider_bytes);
+    drop(handle);
     assert_eq!(allocator.live(), 0);
 }
 
@@ -364,6 +411,7 @@ fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
     ));
     let allocator = Arc::new(TestAllocator::default());
     let handle = allocator.handle();
+    let provider_bytes = allocator.live_bytes();
     let options = || DatabaseOptions::default().with_allocator(handle.clone());
 
     for (parent, alias) in [(&ordinary, &verbatim), (&verbatim, &ordinary)] {
@@ -374,7 +422,7 @@ fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
         let probe = FileStore::open_in(&path, true, handle.clone()).unwrap();
         let path_requests = allocator.requests() - requests;
         assert!(path_requests >= 2);
-        assert_eq!(allocator.live(), 0);
+        assert_eq!(allocator.live_bytes(), provider_bytes);
         drop(probe);
         fs::remove_file(&path).unwrap();
 
@@ -386,7 +434,7 @@ fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
                 Err(Error::OutOfMemory)
             ));
             assert_eq!(allocator.requests() - requests, allowed + 1);
-            assert_eq!(allocator.live(), 0);
+            assert_eq!(allocator.live_bytes(), provider_bytes);
             assert!(
                 matches!(fs::metadata(&path), Err(err) if err.kind() == std::io::ErrorKind::NotFound)
             );
@@ -399,7 +447,7 @@ fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
         ));
         assert_eq!(
             allocator.live_bytes(),
-            db.memory_usage().live_bytes + std::mem::size_of::<FileStore>()
+            provider_bytes + db.memory_usage().live_bytes + std::mem::size_of::<FileStore>()
         );
         let collection = db.create_collection().unwrap();
         let mut tx = db.begin();
@@ -409,7 +457,7 @@ fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
         drop(tx);
         let id = db.retain_snapshot(&db.snapshot()).unwrap();
         drop(db);
-        assert_eq!(allocator.live(), 0);
+        assert_eq!(allocator.live_bytes(), provider_bytes);
 
         let image = fs::read(&path).unwrap();
         for allowed in 0..path_requests {
@@ -420,7 +468,7 @@ fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
                 Err(Error::OutOfMemory)
             ));
             assert_eq!(allocator.requests() - requests, allowed + 1);
-            assert_eq!(allocator.live(), 0);
+            assert_eq!(allocator.live_bytes(), provider_bytes);
             assert_eq!(fs::read(&path).unwrap(), image);
         }
 
@@ -431,7 +479,9 @@ fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
         drop(value);
         drop(snapshot);
         drop(db);
-        assert_eq!(allocator.live(), 0);
+        assert_eq!(allocator.live_bytes(), provider_bytes);
         fs::remove_file(&path).unwrap();
     }
+    drop(handle);
+    assert_eq!(allocator.live(), 0);
 }
