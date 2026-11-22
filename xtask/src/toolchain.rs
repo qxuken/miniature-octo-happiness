@@ -144,18 +144,15 @@ pub fn artifacts(platform: Platform) -> Result<Vec<&'static str>> {
 }
 pub fn which(name: &OsStr, values: &BTreeMap<OsString, OsString>) -> Option<PathBuf> {
     let executable = |p: &Path| {
-        if !p.is_file() {
-            return false;
-        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             p.metadata()
-                .is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
+                .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
         }
         #[cfg(not(unix))]
         {
-            true
+            p.is_file()
         }
     };
     let names = {

@@ -208,7 +208,7 @@
     "xtask/src/study_upgrade.rs": "632fcd52e908404ec09158a3ccc1e36fae9c06a87585bdd558ab173d66710f48",
     "xtask/src/supervise.rs": "d066164f1cf2d9e9efc473c539199af501acd37c7e455b9410708c70bd33e6be",
     "xtask/src/support.rs": "7b51f32c5cb794b3f0b6679fb4efbcd44ce50825a0c73ebac92e7bf9057e00a9",
-    "xtask/src/toolchain.rs": "06ec8e10e4f1c29ceddfdf84dc286d40c81ec35a46cf3b20534ccb3ffd08dc1a",
+    "xtask/src/toolchain.rs": "a0e44e9f90a3d893fa9402a64e4c860e44f0e3029020ce9f8395978fa92fa7b5",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
     "xtask/src/trace_process.rs": "4aec4b243ed658df90b82504583cb1827c2eafac553dfdfe4594eb809f9e300e",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
