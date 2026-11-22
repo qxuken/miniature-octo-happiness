@@ -180,12 +180,20 @@ The [DATA encoder batch](decisions/codec-encode-data-current.md) reconciles
 24 runtime decisions and adds 25 controls for cache admission, exact DATA
 bytes and allocation failure. Its ledger binds the existing golden history
 with reopened and retained roots. The queue has 9,510 G records
-(2,170 runtime / 26 driver / 7,314 tooling). COMMIT and retained-catalog
-encoding remain in the R1 queue.
+(2,170 runtime / 26 driver / 7,314 tooling) at that checkpoint.
 Frozen `45e5705` passed the core, xtask and inventory suites in debug and
 release on macOS and Docker Linux arm64/ext4, with all 25 DATA controls
 detected per profile. The restored proof verifies 10,588 payloads and
 replays the exact-source audit for both hosts.
+The [COMMIT encoder batch](decisions/codec-encode-commit-current.md) reconciles
+15 runtime decisions and adds 17 controls. It covers descriptor fields,
+retained DATA references and cache finalization. The queue has 9,495 G
+records (2,155 runtime / 26 driver / 7,314 tooling). Cache and index internals
+retain their own R1 obligations.
+Frozen `a09bc83` passed the core, xtask and inventory suites and detected
+all 17 COMMIT controls per profile on macOS and Docker Linux arm64/ext4.
+The restored proof verifies 10,402 payloads and reproduces the audit for
+both hosts.
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

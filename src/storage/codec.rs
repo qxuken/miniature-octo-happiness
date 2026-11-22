@@ -1929,6 +1929,270 @@ mod tests {
     }
 
     #[test]
+    fn commit_encoding_preserves_retained_references_and_rolls_back() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let initial = Head {
+            revision: 1,
+            data_revision: 1,
+            collections: Map::new(),
+        };
+        let empty = Retention {
+            next_id: 1,
+            entries: ChargedVec::new(),
+        };
+        let Candidate {
+            end: start,
+            cache,
+            data_cache,
+            ..
+        } = encode(
+            &mem,
+            &initial,
+            1,
+            ID,
+            APPEND_START as u64,
+            None,
+            None,
+            &empty,
+        )
+        .unwrap();
+        let assert_commit = |candidate: &Candidate, revision, words: &[u64]| {
+            let AppendBytes::Contiguous(bytes) = &candidate.bytes else {
+                unreachable!()
+            };
+            let object = &bytes[(candidate.descriptor - start) as usize..];
+            let payload = words
+                .iter()
+                .flat_map(|word| word.to_le_bytes())
+                .collect::<Vec<_>>();
+            assert_eq!(u32_at(object, 8), COMMIT);
+            assert_eq!(u64_at(object, 16), payload.len() as u64);
+            assert_eq!(u64_at(object, 24), revision);
+            assert_eq!(
+                &object[OBJECT_HEADER..OBJECT_HEADER + payload.len()],
+                payload
+            );
+        };
+        let metadata_only = Head {
+            revision: 2,
+            ..initial
+        };
+        let candidate = encode(
+            &mem,
+            &metadata_only,
+            1,
+            ID,
+            start,
+            Some(&cache),
+            Some(&data_cache),
+            &empty,
+        )
+        .unwrap();
+        assert_eq!(candidate.descriptor, start);
+        assert_commit(&candidate, 2, &[2, APPEND_START as u64, 1, 1, 0]);
+        assert!(candidate.cache.ptr_eq(&cache));
+        assert!(candidate.data_cache.ptr_eq(&data_cache));
+        drop(candidate);
+
+        let with_row = |revision, data_revision| Head {
+            revision,
+            data_revision,
+            collections: Map::new()
+                .set(
+                    &mem,
+                    &1u64.to_le_bytes(),
+                    Collection {
+                        revision: data_revision,
+                        records: Map::new()
+                            .set(
+                                &mem,
+                                b"row",
+                                Record {
+                                    revision: data_revision,
+                                    value: Value::scalar(&mem, Kind::Unsigned, data_revision)
+                                        .unwrap(),
+                                },
+                            )
+                            .unwrap(),
+                    },
+                )
+                .unwrap(),
+        };
+        let current = with_row(9, 5);
+        let mut entries = ChargedVec::new();
+        mem.reserve(&mut entries, 2).unwrap();
+        entries.push(Retained {
+            id: 2,
+            head: mem.shared(with_row(4, 3)).unwrap(),
+            next_collection: 2,
+        });
+        entries.push(Retained {
+            id: 7,
+            head: mem
+                .shared(Head {
+                    revision: 7,
+                    data_revision: current.data_revision,
+                    collections: current.collections.clone(),
+                })
+                .unwrap(),
+            next_collection: 2,
+        });
+        let retention = Retention {
+            next_id: 9,
+            entries,
+        };
+        let encode_candidate = || {
+            encode(
+                &mem,
+                &current,
+                2,
+                ID,
+                start,
+                Some(&cache),
+                Some(&data_cache),
+                &retention,
+            )
+        };
+        let before = mem.usage().0;
+        for allowance in 0..64 {
+            mem.fail_after(Some(allowance));
+            let result = encode_candidate();
+            mem.fail_after(None);
+            match result {
+                Ok(candidate) => {
+                    assert!(allowance > 0);
+                    let current_data = start + REGION as u64;
+                    let retained_data = start + 3 * REGION as u64;
+                    assert_eq!(candidate.descriptor, start + 4 * REGION as u64);
+                    assert_eq!(candidate.end, start + 5 * REGION as u64);
+                    assert_commit(
+                        &candidate,
+                        9,
+                        &[
+                            9,
+                            current_data,
+                            5,
+                            9,
+                            2,
+                            2,
+                            4,
+                            retained_data,
+                            3,
+                            7,
+                            7,
+                            current_data,
+                            5,
+                        ],
+                    );
+                    assert_eq!(candidate.cache.entries.len(), 2);
+                    assert_eq!(candidate.data_cache.entries.len(), 3);
+                    drop(candidate);
+                    assert_eq!(mem.usage().0, before);
+                    return;
+                }
+                Err(error) => assert_eq!(error, Error::OutOfMemory, "allocation {allowance}"),
+            }
+            assert_eq!(mem.usage().0, before);
+            assert!(cache.entries.is_empty());
+            assert_eq!(&*data_cache.index.order, &[0]);
+            let [entry] = &*data_cache.entries else {
+                unreachable!()
+            };
+            assert_eq!(
+                (entry.revision, entry.next_collection, entry.offset),
+                (1, 1, APPEND_START as u64)
+            );
+        }
+        panic!("COMMIT did not encode after the bounded allocation sweep");
+    }
+
+    #[test]
+    fn commit_fields_propagate_tight_budget_failures() {
+        let limit = 32 * 1024;
+        let mem = Memory::new(Limits {
+            max_live_bytes: limit,
+            ..Limits::default()
+        })
+        .unwrap();
+        let empty = Retention {
+            next_id: 1,
+            entries: ChargedVec::new(),
+        };
+        let make_head = |revision| Head {
+            revision,
+            data_revision: 1,
+            collections: Map::new(),
+        };
+        let Candidate {
+            end: start,
+            cache,
+            data_cache,
+            ..
+        } = encode(
+            &mem,
+            &make_head(1),
+            1,
+            ID,
+            APPEND_START as u64,
+            None,
+            None,
+            &empty,
+        )
+        .unwrap();
+        let mut entries = ChargedVec::new();
+        mem.reserve(&mut entries, 2).unwrap();
+        for revision in 1..=2 {
+            entries.push(Retained {
+                id: revision,
+                head: mem.shared(make_head(revision)).unwrap(),
+                next_collection: 1,
+            });
+        }
+        let retention = Retention {
+            next_id: 3,
+            entries,
+        };
+        let encode_candidate = || {
+            encode(
+                &mem,
+                &make_head(3),
+                1,
+                ID,
+                start,
+                Some(&cache),
+                Some(&data_cache),
+                &retention,
+            )
+        };
+        let before = mem.usage().0;
+        // Both roots hit the cache. These headrooms force refusal at each
+        // field, including fields that normally fit in geometric slack.
+        for (field, headroom) in [
+            ("revision", 0),
+            ("DATA reference", 8),
+            ("DATA revision", 24),
+            ("next snapshot ID", 40),
+            ("retained count", 48),
+            ("retained ID", 72),
+            ("retained revision", 88),
+            ("retained DATA revision", 96),
+            ("second retained DATA reference", 168),
+        ] {
+            let mut pressure = ChargedVec::<u8>::new();
+            mem.reserve(&mut pressure, limit - before - headroom)
+                .unwrap();
+            let charged = mem.usage().0;
+            assert_eq!(encode_candidate().err(), Some(Error::Limit), "{field}");
+            assert_eq!(mem.usage().0, charged, "{field}");
+        }
+        let candidate = encode_candidate().unwrap();
+        assert!(candidate.cache.ptr_eq(&cache));
+        assert!(candidate.data_cache.ptr_eq(&data_cache));
+        drop(candidate);
+        assert_eq!(mem.usage().0, before);
+    }
+
+    #[test]
     fn data_index_budget_and_object_bound_precede_allocation() {
         let slot = std::mem::size_of::<usize>();
         for cap in [slot - 1, slot] {

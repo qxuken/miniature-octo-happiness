@@ -361,6 +361,9 @@ cached identity, typed payloads, recursive writes and allocation propagation.
 The [DATA encoder ledger](decisions/codec-encode-data-current.md) covers
 cached revision and counter admission, numeric collection and bytewise record
 order, child staging and allocation propagation.
+The [COMMIT encoder ledger](decisions/codec-encode-commit-current.md) covers
+descriptor fields, retained DATA staging, catalog iteration and finishing
+both caches before publication.
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision

@@ -48,7 +48,7 @@ decision bindings. Their archived builds keep their original source hashes.
 
 | Source | SHA-256 |
 |---|---|
-| `src/storage/codec.rs` | `d0ec5a37605a1221aebfa6cf5cc53f1a7314139b19d477d4e104807a32cbf373` |
+| `src/storage/codec.rs` | `7b9a71d1a41a71e0cfca7dc61184d247066146f6ceb631a76e042658f8d1967b` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence / residual |
 |---|---|---|---|---|---|---|
