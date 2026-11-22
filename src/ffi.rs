@@ -702,8 +702,8 @@ mod tests {
             assert!(options.allocator.is_null());
             options.limits.max_bytes = 3;
             options.allocator = &callbacks;
-            // Refuse the provider block, the initial core head, and the C handle.
-            for allowed in 0..3 {
+            // Refuse the provider, budget, initial core head, and C handle blocks.
+            for allowed in 0..4 {
                 state.fail_after(allowed);
                 assert_eq!(
                     wdb_open_with_options(&options, &mut database),

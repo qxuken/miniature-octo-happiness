@@ -82,8 +82,10 @@ path lookup, and the assembled file path. The adapter releases them before
 returning the lease. Allocator refusal during path construction precedes the
 target-file open on all three platforms.
 
-The budget control block uses `Global` and is fallible. A custom provider
-allocates one block containing the provider and its reference count. The handle
+The selected allocator supplies each database's budget control block in a
+fallible allocation outside the live-byte cap. The block keeps its allocator
+alive until the last budget owner releases it. A custom provider allocates one
+block containing the provider and its reference count. The handle
 is a single pointer, and its clones share the block without allocating. The
 last handle moves the provider out, frees the block through it, and then drops
 the provider. This keeps the C context alive through the block's deallocation.

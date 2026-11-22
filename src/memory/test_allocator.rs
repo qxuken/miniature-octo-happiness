@@ -145,6 +145,46 @@ fn allocator_handle_owns_one_block_allocated_by_its_provider() {
 }
 
 #[test]
+fn budget_block_uses_the_provider_outside_the_live_byte_cap() {
+    let allocator = Arc::new(TestAllocator::default());
+    let handle = allocator.handle();
+    let provider_bytes = allocator.live_bytes();
+    let requests = allocator.requests();
+    let limits = Limits {
+        max_live_bytes: 0,
+        ..Limits::default()
+    };
+
+    allocator.fail_next();
+    assert!(matches!(
+        Memory::with_allocator(limits, handle.clone()),
+        Err(Error::OutOfMemory)
+    ));
+    assert_eq!(allocator.requests(), requests + 1);
+    assert_eq!(allocator.live_bytes(), provider_bytes);
+
+    let mem = Memory::with_allocator(limits, handle.clone()).unwrap();
+    assert_eq!(allocator.requests(), requests + 2);
+    assert_eq!(allocator.live(), 2);
+    assert_eq!(
+        mem.public_usage(),
+        MemoryUsage {
+            live_bytes: 0,
+            peak_bytes: 0,
+            limit_bytes: 0,
+        }
+    );
+
+    let budget = mem.budget.clone();
+    drop(handle);
+    drop(mem);
+    assert_eq!(allocator.live(), 2);
+    drop(budget);
+    assert_eq!(allocator.live(), 0);
+    assert_eq!(Arc::strong_count(&allocator), 1);
+}
+
+#[test]
 fn retained_data_and_values_keep_their_database_allocator_alive() {
     use crate::{Database, storage::SimulatedDisk};
 
@@ -219,6 +259,7 @@ fn budgets_are_independent_when_databases_share_one_allocator() {
     let options = || DatabaseOptions::default().with_allocator(handle.clone());
     let db = Database::with_options(options()).unwrap();
     let second = Database::with_options(options()).unwrap();
+    let budget_bytes = Layout::new::<SharedBox<BudgetState>>().size();
     let second_before = second.memory_usage();
     let denied = options().with_limits(Limits {
         max_live_bytes: 0,
@@ -238,7 +279,7 @@ fn budgets_are_independent_when_databases_share_one_allocator() {
     assert_eq!(second.memory_usage(), second_before);
     assert_eq!(
         allocator.live_bytes(),
-        provider_bytes + db.memory_usage().live_bytes + second_before.live_bytes
+        provider_bytes + 2 * budget_bytes + db.memory_usage().live_bytes + second_before.live_bytes
     );
     drop(rows);
     db.release_retained(id).unwrap();
@@ -246,7 +287,7 @@ fn budgets_are_independent_when_databases_share_one_allocator() {
     drop(db);
     assert_eq!(
         allocator.live_bytes(),
-        provider_bytes + second_before.live_bytes
+        provider_bytes + budget_bytes + second_before.live_bytes
     );
     drop(second);
     assert_eq!(allocator.live_bytes(), provider_bytes);
@@ -321,6 +362,7 @@ fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
         assert_eq!(
             allocator.live_bytes(),
             provider_bytes
+                + Layout::new::<SharedBox<BudgetState>>().size()
                 + db.memory_usage().live_bytes
                 + std::mem::size_of::<FileStore>()
                 + leaf.len()
@@ -447,7 +489,10 @@ fn native_windows_path_allocations_are_fallible_and_preserve_the_file_lease() {
         ));
         assert_eq!(
             allocator.live_bytes(),
-            provider_bytes + db.memory_usage().live_bytes + std::mem::size_of::<FileStore>()
+            provider_bytes
+                + Layout::new::<SharedBox<BudgetState>>().size()
+                + db.memory_usage().live_bytes
+                + std::mem::size_of::<FileStore>()
         );
         let collection = db.create_collection().unwrap();
         let mut tx = db.begin();

@@ -292,11 +292,11 @@ fn release_ref(refs: &AtomicUsize) -> bool {
     refs.fetch_sub(1, Ordering::AcqRel) == 1
 }
 
-// Fallible atomic reference counting for core allocations.
+// Fallible atomic reference counting for core and budget allocations.
 struct SharedBox<T> {
     refs: AtomicUsize,
     value: T,
-    ownership: Option<ChargedAllocation>,
+    ownership: AllocationOwner,
 }
 pub(crate) struct Shared<T> {
     ptr: NonNull<SharedBox<T>>,
@@ -307,15 +307,11 @@ pub(crate) struct Shared<T> {
 unsafe impl<T: Send + Sync> Send for Shared<T> {}
 unsafe impl<T: Send + Sync> Sync for Shared<T> {}
 impl<T> Shared<T> {
-    fn allocate(value: T, ownership: Option<ChargedAllocation>) -> Result<Self> {
+    fn allocate(value: T, allocator: AllocatorHandle, charge: Option<Charge>) -> Result<Self> {
         let layout = Layout::new::<SharedBox<T>>();
         // SharedBox always has a nonzero size due to the count.
-        let allocator = ownership
-            .as_ref()
-            .map_or(&Global as &dyn Allocator, |owner| {
-                owner.allocator.as_allocator()
-            });
         let ptr = allocator
+            .as_allocator()
             .allocate(layout)
             .map_err(|_| Error::OutOfMemory)?
             .cast::<SharedBox<T>>();
@@ -323,7 +319,10 @@ impl<T> Shared<T> {
             ptr.as_ptr().write(SharedBox {
                 refs: AtomicUsize::new(1),
                 value,
-                ownership,
+                ownership: AllocationOwner {
+                    allocator,
+                    _charge: charge,
+                },
             });
         }
         Ok(Self {
@@ -360,7 +359,7 @@ impl<T> Drop for Shared<T> {
         if !release_ref(unsafe { &self.ptr.as_ref().refs }) {
             return;
         }
-        // Keep the charge until destruction AND deallocation, including unwind.
+        // Keep the allocator and any charge through destruction and deallocation.
         let ownership = unsafe { std::ptr::read(&self.ptr.as_ref().ownership) };
         let _allocation = Allocation {
             ptr: self.ptr.cast(),
@@ -380,26 +379,21 @@ impl Drop for Charge {
         self.owner.0.used.fetch_sub(self.bytes, Ordering::AcqRel);
     }
 }
-struct ChargedAllocation {
+struct AllocationOwner {
     allocator: AllocatorHandle,
-    _charge: Charge,
+    _charge: Option<Charge>,
 }
 
-// Drop body deallocates before Rust drops the charge field. Also used when an
-// element destructor unwinds; allocated capacity must never become uncharged.
+// Deallocate before releasing the allocator and any charge, including when a
+// value destructor unwinds.
 struct Allocation {
     ptr: NonNull<u8>,
     layout: Layout,
-    ownership: Option<ChargedAllocation>,
+    ownership: AllocationOwner,
 }
 impl Drop for Allocation {
     fn drop(&mut self) {
-        let allocator = self
-            .ownership
-            .as_ref()
-            .map_or(&Global as &dyn Allocator, |owner| {
-                owner.allocator.as_allocator()
-            });
+        let allocator = self.ownership.allocator.as_allocator();
         unsafe { allocator.deallocate(self.ptr, self.layout) };
     }
 }
@@ -573,7 +567,7 @@ struct BudgetState {
 #[derive(Clone)]
 struct Budget(Shared<BudgetState>);
 impl Budget {
-    fn new(limits: Limits) -> Result<Self> {
+    fn new(limits: Limits, allocator: &AllocatorHandle) -> Result<Self> {
         Ok(Self(Shared::allocate(
             BudgetState {
                 limits: limits.validate()?,
@@ -582,6 +576,7 @@ impl Budget {
                 #[cfg(any(test, feature = "fault-injection"))]
                 remaining: AtomicUsize::new(usize::MAX),
             },
+            allocator.clone(),
             None,
         )?))
     }
@@ -652,7 +647,7 @@ impl Memory {
     }
     pub(crate) fn with_allocator(limits: Limits, allocator: AllocatorHandle) -> Result<Self> {
         Ok(Self {
-            budget: Budget::new(limits)?,
+            budget: Budget::new(limits, &allocator)?,
             allocator,
         })
     }
@@ -685,13 +680,7 @@ impl Memory {
     pub(crate) fn shared<T>(&self, value: T) -> Result<Shared<T>> {
         self.claim()?;
         let charge = self.admit(Layout::new::<SharedBox<T>>().size())?;
-        Shared::allocate(
-            value,
-            Some(ChargedAllocation {
-                allocator: self.allocator(),
-                _charge: charge,
-            }),
-        )
+        Shared::allocate(value, self.allocator(), Some(charge))
     }
     pub(crate) fn reserve_external<T, A: Allocator>(
         &self,
@@ -770,7 +759,7 @@ mod tests {
         }
         let allocator = Arc::new(test_allocator::TestAllocator::default());
         let mem = allocator.memory(Limits::default());
-        let provider_bytes = allocator.live_bytes();
+        let bootstrap_bytes = allocator.live_bytes();
         let drops = Arc::new(AtomicUsize::new(0));
         for kind in 0..3 {
             allocator.fail_next();
@@ -782,7 +771,7 @@ mod tests {
             };
             assert_eq!(result, Err(Error::OutOfMemory));
             assert_eq!(drops.load(Ordering::Relaxed), kind + 1);
-            assert_eq!(allocator.live_bytes(), provider_bytes);
+            assert_eq!(allocator.live_bytes(), bootstrap_bytes);
         }
         drop(mem.shared(Probe(drops.clone())).unwrap());
         assert_eq!(drops.load(Ordering::Relaxed), 4);
@@ -792,7 +781,7 @@ mod tests {
     fn shared_clone_aborts_at_the_refcount_threshold_in_a_subprocess() {
         const CHILD: &str = "WEEKEND_DB_REFCOUNT_ABORT_CHILD";
         if let Some(mode) = std::env::var_os(CHILD) {
-            let shared = Shared::allocate(7u8, None).unwrap();
+            let shared = Shared::allocate(7u8, AllocatorHandle::default(), None).unwrap();
             let before = if mode == "below" {
                 isize::MAX as usize - 1
             } else {
@@ -928,6 +917,7 @@ mod tests {
                 visits: Mutex::new(0),
                 drops: drops.clone(),
             },
+            AllocatorHandle::default(),
             None,
         )
         .unwrap();

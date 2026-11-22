@@ -58,10 +58,11 @@ wdb_status wdb_open(wdb_database **out);
  * Supply both context callbacks or neither. With both, the library retains
  * once and releases once after its last free, including on failed open. With
  * neither, keep the context and callbacks alive through the final close.
- * The allocator covers core storage, opaque handles and path buffers in the
- * macOS, Linux and Windows file adapters. Caller buffers and OS internals
- * have their own allocation policy. A custom allocator provides its own
- * shared ownership block, which is freed before releasing its context. */
+ * The allocator covers the budget control block, core storage, opaque handles
+ * and path buffers in the macOS, Linux and Windows file adapters. Caller
+ * buffers and OS internals have their own allocation policy. A custom
+ * allocator provides its own shared ownership block, which is freed before
+ * releasing its context. */
 typedef struct wdb_allocator {
     void *context;
     void *(*allocate)(void *context, size_t size, size_t align);
