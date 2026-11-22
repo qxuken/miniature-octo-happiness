@@ -28,7 +28,7 @@ pub struct Options {
     isolated: bool,
     #[arg(
         long = "rust-source-image",
-        default_value = "rust:1-bookworm",
+        default_value = crate::toolchain::RUST_BOOKWORM_IMAGE,
         value_name = "IMAGE",
         value_parser = clap::builder::NonEmptyStringValueParser::new()
     )]

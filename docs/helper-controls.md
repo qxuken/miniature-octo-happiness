@@ -180,11 +180,11 @@ are on an owned ext4 Docker volume, with no network:
 
 Counts include the two command tests and five supervision integration tests.
 The registered ignores retain their existing separate qualification duties.
-Run both profiles with `cargo +1.99.1 test --offline --locked -p xtask`
-and `cargo +1.99.1 test --offline --locked --release -p xtask`.
+Run both profiles with `cargo +1.100.0 test --offline --locked -p xtask`
+and `cargo +1.100.0 test --offline --locked --release -p xtask`.
 Other checks are
-`cargo +1.99.1 clippy --offline --locked -p xtask --all-targets -- -D warnings`
-and `cargo +1.99.1 fmt --all --check`. Run the named regression with
+`cargo +1.100.0 clippy --offline --locked -p xtask --all-targets -- -D warnings`
+and `cargo +1.100.0 fmt --all --check`. Run the named regression with
 `--bin xtask resource_campaign::tests::observer_runs_script_while_another_process_inherits_its_writer -- --exact --nocapture`.
 Local logs and before/after patches are in `target/ci-pr7-fix/evidence/`;
 this is a scoped helper regression, not new engine or MC/DC qualification.

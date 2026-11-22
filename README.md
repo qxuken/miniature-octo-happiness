@@ -78,7 +78,7 @@ cargo run --example file -- /tmp/weekend-demo.db
 cargo xtask check
 ```
 
-Rust/Cargo 1.99+ is required.
+Rust/Cargo 1.100 or later is required.
 The file example creates a new path, retains an old snapshot, reopens both
 versions, releases retention, and leaves the database in place. Creation never
 overwrites an existing file. `cargo xtask check` uses temporary paths and runs

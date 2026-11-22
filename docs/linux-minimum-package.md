@@ -102,11 +102,11 @@ with SHA-256 `c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab`.
 Make its compiler and Clang available on `PATH`. [Odin release](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10)
 
 ```sh
-rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
-cargo +1.99.0 fetch --locked
-cargo +1.99.0 fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
-cargo +1.99.0 fetch --locked --manifest-path examples/rust_package/Cargo.toml
-cargo +1.99.0 xtask linux-msrv --odin --output target/linux-msrv
+rustup toolchain install 1.100.0 --profile minimal --component rustfmt --component clippy
+cargo +1.100.0 fetch --locked
+cargo +1.100.0 fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
+cargo +1.100.0 fetch --locked --manifest-path examples/rust_package/Cargo.toml
+cargo +1.100.0 xtask linux-msrv --odin --output target/linux-msrv
 ```
 
 ### Recorded native x86_64 and arm64 results

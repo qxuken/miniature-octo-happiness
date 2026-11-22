@@ -69,14 +69,14 @@ on a smaller input-stability map.
 ## Reproduction
 
 ```sh
-cargo +1.99.1 fetch --locked --manifest-path tools/decision-inventory/Cargo.toml
-cargo +1.99.1 test --offline --locked --manifest-path tools/decision-inventory/Cargo.toml
-cargo +1.99.1 test --offline --locked --release --manifest-path tools/decision-inventory/Cargo.toml
-cargo +1.99.1 clippy --offline --locked --manifest-path tools/decision-inventory/Cargo.toml --all-targets -- -D warnings
-cargo +1.99.1 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/catalog-review --review docs/decisions/current-scope.json
-cargo +1.99.1 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/catalog-tests --include-tests
-cargo +1.99.1 xtask mutations --case r1-inventory- --toolchain 1.99.1 --output target/r1/catalog-mutants-debug
-cargo +1.99.1 xtask mutations --case r1-inventory- --release --toolchain 1.99.1 --output target/r1/catalog-mutants-release
+cargo +1.100.0 fetch --locked --manifest-path tools/decision-inventory/Cargo.toml
+cargo +1.100.0 test --offline --locked --manifest-path tools/decision-inventory/Cargo.toml
+cargo +1.100.0 test --offline --locked --release --manifest-path tools/decision-inventory/Cargo.toml
+cargo +1.100.0 clippy --offline --locked --manifest-path tools/decision-inventory/Cargo.toml --all-targets -- -D warnings
+cargo +1.100.0 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/catalog-review --review docs/decisions/current-scope.json
+cargo +1.100.0 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/catalog-tests --include-tests
+cargo +1.100.0 xtask mutations --case r1-inventory- --toolchain 1.100.0 --output target/r1/catalog-mutants-debug
+cargo +1.100.0 xtask mutations --case r1-inventory- --release --toolchain 1.100.0 --output target/r1/catalog-mutants-release
 ```
 
 Use fresh output paths. The [mutation runner](mutations.md) now accepts the

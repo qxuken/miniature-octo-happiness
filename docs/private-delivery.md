@@ -330,7 +330,7 @@ mkdir -p target
 bash tools/macos-tsan/build-runtime.sh target/macos-tsan-runtime
 runtime=target/macos-tsan-runtime
 pin=$(awk 'NR == 1 { print $1 }' "$runtime/runtime.sha256")
-cargo +1.99.1 xtask sanitizers thread --toolchain nightly-2026-11-12 \
+cargo +1.100.0 xtask sanitizers thread --toolchain nightly-2026-11-12 \
   --runtime "$runtime/libclang_rt.tsan_osx_dynamic.dylib" --runtime-sha256 "$pin"
 ```
 
@@ -480,13 +480,13 @@ compiler on `PATH`. Choose fresh output directories. On Mac, keep the
 temporary directory on APFS and outside the checkout.
 
 ```sh
-cargo +1.99.0 xtask macos-msrv --odin --output target/macos-msrv
-cargo +1.99.0 xtask package --output target/macos-base
-cargo +1.99.0 xtask package --features replication --output target/macos-replication
-cargo +1.99.0 xtask package --features crdt --output target/macos-crdt
-cargo +1.99.0 xtask faults delivered --macos --apfs-full \
+cargo +1.100.0 xtask macos-msrv --odin --output target/macos-msrv
+cargo +1.100.0 xtask package --output target/macos-base
+cargo +1.100.0 xtask package --features replication --output target/macos-replication
+cargo +1.100.0 xtask package --features crdt --output target/macos-crdt
+cargo +1.100.0 xtask faults delivered --macos --apfs-full \
   --package target/macos-msrv/package --output target/macos-c-faults
-cargo +1.99.0 xtask faults delivered --macos --odin "$(command -v odin)" \
+cargo +1.100.0 xtask faults delivered --macos --odin "$(command -v odin)" \
   --package target/macos-msrv/package --output target/macos-odin-faults
 ```
 

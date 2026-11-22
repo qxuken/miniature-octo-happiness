@@ -11,6 +11,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub(crate) const RUST_BOOKWORM_IMAGE: &str = "docker.io/library/rust:1.100.0-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea";
+
 fn env<'a>(values: &'a BTreeMap<OsString, OsString>, name: &str) -> Option<&'a OsStr> {
     values
         .iter()

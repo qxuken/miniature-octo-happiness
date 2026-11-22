@@ -1064,7 +1064,7 @@ contract; duplicate-symbol suppression is not a supported workaround. The
 [Rust linkage reference](https://doc.rust-lang.org/reference/linkage.html#mixed-rust-and-foreign-codebases)
 explains the broader integration constraint.
 
-The baseline uses Rust/Cargo 1.99 or later and edition 2024. The default engine
+The baseline uses Rust/Cargo 1.100 or later and edition 2024. The default engine
 build has no external crate dependencies.
 Tested on arm64 macOS 27.0.1 with rustc/Cargo 1.99.1, Apple clang 21.0.0, and
 Odin `dev-2026-10:a22aa1984`. `cargo build --release` builds the library/header

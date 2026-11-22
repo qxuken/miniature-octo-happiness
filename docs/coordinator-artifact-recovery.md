@@ -65,9 +65,9 @@ Start from a clean checkout and use the pinned compiler. Both output paths
 must be new; the commands never overwrite an existing package or proof.
 
 ```sh
-cargo +1.99.1 xtask package --features replication,crdt --rust-source \
+cargo +1.100.0 xtask package --features replication,crdt --rust-source \
   --output target/coordinator-package
-cargo +1.99.1 xtask coordinator-recovery \
+cargo +1.100.0 xtask coordinator-recovery \
   --package target/coordinator-package --expected-source FROZEN_FULL_GIT_ID \
   --output target/coordinator-recovery
 ```

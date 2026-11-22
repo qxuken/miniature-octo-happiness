@@ -13,7 +13,6 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-const IMAGE: &str = "sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08";
 #[cfg(target_os = "macos")]
 #[path = "apfs_exhaustion.rs"]
 mod apfs_exhaustion;
@@ -24,7 +23,7 @@ pub enum Task {
 }
 #[derive(Args)]
 pub struct Native {
-    #[arg(long,default_value=IMAGE)]
+    #[arg(long, default_value = crate::toolchain::RUST_BOOKWORM_IMAGE)]
     image: String,
     #[arg(long, default_value = "HEAD")]
     source: String,
@@ -37,7 +36,7 @@ pub struct Delivered {
     package: Option<PathBuf>,
     #[arg(long)]
     output: PathBuf,
-    #[arg(long,default_value=IMAGE)]
+    #[arg(long, default_value = crate::toolchain::RUST_BOOKWORM_IMAGE)]
     image: String,
     /// Run five native F_FULLFSYNC and root-write cases on macOS/APFS.
     #[arg(long, conflicts_with = "worker")]

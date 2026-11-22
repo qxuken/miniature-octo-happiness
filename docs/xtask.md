@@ -34,8 +34,8 @@ options reject through clap before any package or cleanup output is created.
 Every failed check/build subprocess stops the command and returns a failure.
 No command publishes to crates.io or a container registry.
 
-Rust/Cargo 1.99+ is required for check/build/package/cleanup. Qualification
-pins Rust/Cargo 1.99.1. All maintained commands and test oracles are Rust. See
+Rust/Cargo 1.100 or later is required for check/build/package/cleanup.
+Qualification pins Rust/Cargo 1.100.0. All maintained commands and test oracles are Rust. See
 the [conversion ledger](xtask-conversion.md) and [helper runbook](helper-controls.md).
 The alias builds xtask offline/locked into `target/xtask`; the initial fetch supplies its
 locked tooling dependencies. There are 20 private project manifests, all with
