@@ -566,6 +566,11 @@ impl Database {
     pub fn limits(&self) -> Limits {
         self.mem.limits()
     }
+    /// Share this database's allocator for caller-owned scratch. The returned
+    /// handle outlives the database and its allocations are outside the live-byte cap.
+    pub fn allocator(&self) -> AllocatorHandle {
+        self.mem.allocator()
+    }
     pub fn collection_id(&self, id: u64) -> CollectionId {
         CollectionId {
             store: self.store,
@@ -859,6 +864,15 @@ impl Transaction<'_> {
     }
     pub fn scan(&mut self, id: CollectionId) -> Result<Rows> {
         rows(self.db, &self.scan_records(id)?)
+    }
+    /// Materialize rows in binary-key order using this database's allocator
+    /// and budget. The iterator owns its rows, so the transaction can be
+    /// edited while consuming the scan result.
+    pub fn scan_iter(
+        &mut self,
+        id: CollectionId,
+    ) -> Result<impl Iterator<Item = (impl AsRef<[u8]> + use<>, Value)> + use<>> {
+        Ok(self.scan_owned(id)?.into_iter())
     }
     pub(crate) fn scan_owned(&mut self, id: CollectionId) -> Result<OwnedRows> {
         self.scan_records(id)?

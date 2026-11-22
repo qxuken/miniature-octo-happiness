@@ -33,7 +33,7 @@
     "crates/weekend-db-macros/src/resolution.rs": "a5c39e16b0c6d0dcfe382c673240baf76323fec22e3296be98ea8ee7855fa178",
     "crates/weekend-db-typed/src/codec.rs": "7725f08e3d1df5180cf839899c929e9d6219c92e7352d17e2758ef3f1fe127aa",
     "crates/weekend-db-typed/src/lib.rs": "e6a706a0b017b605cdde1d660f5e2c36504a61239500acb8b18f3d1fca98345d",
-    "crates/weekend-db-typed/src/store.rs": "2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa",
+    "crates/weekend-db-typed/src/store.rs": "b1d30c5b072b6daef5639794a211b86fefd37590cea097d895797ecb0d2e87fc",
     "crates/weekend-db-typed/tests/renamed/src/main.rs": "55a6efdd13151b31a7910f0e165bc1cac9f0d5a3bb58f87bd2788b706795da6b",
     "examples/crdt_policy_migration.rs": "22b9e35114d1f922a01bb04bb252f255c74f63239e16354bc3f8e71172f48d2a",
     "examples/file.rs": "4cec06b13cc0fc8ac10a94bd357118681de8b658f6fe50098df783a604db2fc8",
@@ -96,14 +96,14 @@
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
-    "src/engine.rs": "a3af9d078097f08ccaef17406a36fdafee3e04ad2fe000fba22137e72b6affb9",
+    "src/engine.rs": "c5ce673210ba9db249adc10768220305d7f51780f3d955642a9eab98d6ed0758",
     "src/ffi.rs": "cc3aac20e794ab565014c8f0185d4e35b150c703a9a4105346377eb23bc5f0b5",
     "src/lib.rs": "9ff143a41e86bd50fb5ec30486fe17a916eeae001f35349f88062bc3fa6c24b8",
-    "src/memory.rs": "3221e24fc83fa212935aa27d8cec89b2a8a844af86f4ee22b5c9a19b82a51e72",
+    "src/memory.rs": "dd4c8754ec790f53340cae4e4d1c12372683b8ac5279a9f9f04f32d71b1001d3",
     "src/replication/follower.rs": "7b1566228ed57f5b41d15be8a583416a14f8dcefae1521a5ba1764413e37e035",
     "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
-    "src/schema.rs": "defe72214ddbf59e05bf291dcd93f97bd92a56cfb143f075858dfcab7001181a",
+    "src/schema.rs": "66bb396906513bf771b53627bbfeccc9da8a719bb3667df996677398f17170b8",
     "src/storage/codec.rs": "70908c466f7c30b70688ae8f438e04d659612bd93f6cfbed6956bff5a46e0396",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
     "src/storage/file.rs": "f4b9a4c7557e1506990eaeb962becf08e46930fef09c04da389ea148b7294f1d",
@@ -226,6 +226,7 @@
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "ac142ebc689c4cb6257b9e483f21e10eb72a279a60f321f35911a5800fe2bb46",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
+    "crates/weekend-db-typed/tests/migration_allocator.rs": "e088a6164fe49caffcc9c7b32d736c4a47ddaa70a7a76bdfa4ef6094deb9876b",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
     "docs/coordinator-artifact-recovery.md": "89679ef0737929ae332126527d3532695f8e92c3716ccc33bea9d72fc1c6e60e",
@@ -342,7 +343,7 @@
     "weekend-db-fuzz::value_ops": 0,
     "weekend-db-fuzz::weekend_db_fuzz": 573,
     "weekend-db-macros::weekend_db_macros": 108,
-    "weekend-db-typed::weekend_db_typed": 315,
+    "weekend-db-typed::weekend_db_typed": 317,
     "weekend-db::benchmark": 93,
     "weekend-db::crdt_policy_migration": 64,
     "weekend-db::file": 16,
@@ -357,7 +358,7 @@
     "weekend-db::study_progress": 31,
     "weekend-db::typed": 186,
     "weekend-db::weekend-admin": 30,
-    "weekend-db::weekend_db": 1686,
+    "weekend-db::weekend_db": 1687,
     "weekend-decision-inventory::weekend-decision-inventory": 399,
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
@@ -603,7 +604,8 @@
         "docs/decisions/current.md",
         "docs/decisions/typed-runtime.md",
         "crates/weekend-db-typed/tests/runtime_decisions.rs",
-        "crates/weekend-db-typed/tests/models.rs"
+        "crates/weekend-db-typed/tests/models.rs",
+        "crates/weekend-db-typed/tests/migration_allocator.rs"
       ],
       "residual": "Generic instantiations and primitive errors retain scoped E/D evidence; named admission pairs do not close all residuals."
     },
@@ -5593,6 +5595,19 @@
         "reason": "integration test target; use --include-tests",
         "required_features": [],
         "target": "weekend-db-typed::catalog_admission",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "crates/weekend-db-typed/tests/migration_allocator.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "migration_allocator",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::migration_allocator",
         "workspace_manifest": "Cargo.toml"
       },
       {

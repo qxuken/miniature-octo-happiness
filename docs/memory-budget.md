@@ -100,6 +100,12 @@ and charged by the encoder. They apply the originating value's existing
 transaction-byte preflight before reserving scratch. Keys and child values
 stay in the original map while the encoder writes them in binary key order.
 
+Typed migrations use the database allocator for schema validation, row scans,
+ID sorting and unique-index scratch. Schema and scan buffers count toward the
+live-byte cap. The typed crate uses `Database::allocator()` for its ID and
+index vectors, which sit outside that cap. Model decoding and migration
+callbacks can allocate their own Rust fields and buffers.
+
 The database owns a reference to its allocator. Retained roots, live snapshots
 and cloned Rust values keep the allocation owner alive. A value can outlive the
 database that created it. C close returns `WDB_BUSY` while opaque handles are

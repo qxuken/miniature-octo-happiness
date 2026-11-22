@@ -197,6 +197,10 @@ jobs:
         run: rustup toolchain install 1.100.0 --profile minimal --component rustfmt --component clippy
       - run: rustup override set 1.100.0
       - run: cargo fetch --locked
+      - name: Verify typed migration allocation routing
+        run: cargo test --offline --locked -p weekend-db-typed --test migration_allocator
+      - name: Verify optimized typed migration allocation routing
+        run: cargo test --offline --locked --release -p weekend-db-typed --test migration_allocator
       - name: Verify native Windows paths and allocator lifetimes
         if: runner.os == 'Windows'
         run: |

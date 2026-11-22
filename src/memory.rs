@@ -651,7 +651,7 @@ impl Memory {
             allocator,
         })
     }
-    fn allocator(&self) -> AllocatorHandle {
+    pub(crate) fn allocator(&self) -> AllocatorHandle {
         self.allocator.clone()
     }
     pub(crate) fn limits(&self) -> Limits {

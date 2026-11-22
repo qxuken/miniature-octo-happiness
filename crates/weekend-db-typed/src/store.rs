@@ -1,11 +1,11 @@
 use crate::{
     Error, FieldValue, LookupValue, Model, Record, Result, Schema,
     engine::{
-        self, CollectionId, Database, Kind, Limits, Snapshot, Transaction, TransactionState, Value,
-        schema::ReadView,
+        self, AllocatorHandle, CollectionId, Database, Kind, Limits, Snapshot, Transaction,
+        TransactionState, Value, schema::ReadView,
     },
 };
-use std::{marker::PhantomData, ops::Deref};
+use std::{alloc::Allocator, marker::PhantomData, ops::Deref};
 const FORMAT: &[u8] = b"\0weekend-typed";
 
 pub struct Store {
@@ -122,7 +122,7 @@ impl View for Transaction<'_> {
     }
 }
 
-fn reserve<T>(vec: &mut Vec<T>, extra: usize) -> Result<()> {
+fn reserve<T, A: Allocator>(vec: &mut Vec<T, A>, extra: usize) -> Result<()> {
     vec.try_reserve_exact(extra)
         .map_err(|_| Error::Engine(engine::Error::OutOfMemory))
 }
@@ -148,11 +148,11 @@ struct Entry {
     records: u64,
     type_id: u64,
     version: u64,
-    unique: Vec<u64>,
+    unique: Vec<u64, AllocatorHandle>,
 }
 impl Entry {
-    fn parse(value: Value) -> Result<Self> {
-        let mut unique = Vec::new();
+    fn parse(value: Value, allocator: AllocatorHandle) -> Result<Self> {
+        let mut unique = Vec::new_in(allocator);
         let ids = field(&value, b"unique")?;
         if ids.kind() != Kind::List {
             return Err(Error::InvalidCatalog);
@@ -318,7 +318,9 @@ impl Store {
         key.extend_from_slice(b"table/");
         key.extend_from_slice(name.as_bytes());
         let schema = T::schema(&self.db)?;
-        let mut unique = T::UNIQUE_FIELDS.to_vec();
+        let mut unique = Vec::new_in(self.db.allocator());
+        reserve(&mut unique, T::UNIQUE_FIELDS.len())?;
+        unique.extend_from_slice(T::UNIQUE_FIELDS);
         unique.sort_unstable();
         for (i, id) in unique.iter().enumerate() {
             let field = schema.field(*id)?.ok_or(Error::NotIndexed(*id))?;
@@ -330,7 +332,7 @@ impl Store {
             .db
             .snapshot()
             .get(self.db.collection_id(1), &key)?
-            .map(Entry::parse)
+            .map(|value| Entry::parse(value, self.db.allocator()))
             .transpose()?;
         if let Some(entry) = &existing {
             if entry.type_id != T::TYPE_ID {
@@ -407,6 +409,7 @@ fn info<T: Model>(store: &Store, view: &mut impl View, table: &Table<T>) -> Resu
     let entry = Entry::parse(
         view.get_record(store.db.collection_id(1), &table.key)?
             .ok_or(Error::Engine(engine::Error::NotFound))?,
+        store.db.allocator(),
     )?;
     if entry.type_id != T::TYPE_ID || entry.records != table.records.as_u64() {
         return Err(Error::TypeMismatch);
@@ -458,22 +461,43 @@ fn list<T: Model>(
     out.sort_by_key(Document::id);
     Ok(out)
 }
-fn index_key(records: u64, field: u64, value: &Value) -> Result<Option<Vec<u8>>> {
-    let mut key = Vec::new();
-    let bytes: Vec<u8> = match value.kind() {
+type IndexKey = Vec<u8, AllocatorHandle>;
+type IndexKeys = Vec<(u64, IndexKey), AllocatorHandle>;
+
+fn index_key(
+    records: u64,
+    field: u64,
+    value: &Value,
+    allocator: AllocatorHandle,
+) -> Result<Option<IndexKey>> {
+    let scalar;
+    let bytes: &[u8] = match value.kind() {
         Kind::None => return Ok(None),
-        Kind::Boolean => vec![u8::from(value.as_bool()?)],
-        Kind::Integer => value.as_i64()?.to_le_bytes().to_vec(),
-        Kind::Unsigned => value.as_u64()?.to_le_bytes().to_vec(),
-        Kind::Float => value.as_f64()?.to_bits().to_le_bytes().to_vec(),
-        Kind::Bytes => value.as_bytes()?.to_vec(),
+        Kind::Boolean => {
+            scalar = u64::from(value.as_bool()?).to_le_bytes();
+            &scalar[..1]
+        }
+        Kind::Integer => {
+            scalar = value.as_i64()?.to_le_bytes();
+            &scalar
+        }
+        Kind::Unsigned => {
+            scalar = value.as_u64()?.to_le_bytes();
+            &scalar
+        }
+        Kind::Float => {
+            scalar = value.as_f64()?.to_bits().to_le_bytes();
+            &scalar
+        }
+        Kind::Bytes => value.as_bytes()?,
         _ => return Err(Error::NotIndexed(field)),
     };
+    let mut key = Vec::new_in(allocator);
     reserve(&mut key, 17 + bytes.len())?;
     key.extend_from_slice(&records.to_le_bytes());
     key.extend_from_slice(&field.to_le_bytes());
     key.push(value.kind() as u8);
-    key.extend_from_slice(&bytes);
+    key.extend_from_slice(bytes);
     Ok(Some(key))
 }
 fn record_keys<T: Model>(
@@ -481,17 +505,17 @@ fn record_keys<T: Model>(
     view: &mut impl View,
     entry: &Entry,
     raw: &Record,
-) -> Result<Vec<(u64, Vec<u8>)>> {
+) -> Result<IndexKeys> {
     if raw.type_id() != T::TYPE_ID {
         return Err(Error::TypeMismatch);
     }
     let schema = Schema::load(view, store.db.collection_id(2), T::TYPE_ID, raw.version())?;
     schema.validate(raw)?;
-    let mut keys = Vec::new();
+    let mut keys = Vec::new_in(store.db.allocator());
     reserve(&mut keys, entry.unique.len())?;
     for id in &entry.unique {
         if let Some(value) = raw.field(*id)?
-            && let Some(key) = index_key(entry.records, *id, &value)?
+            && let Some(key) = index_key(entry.records, *id, &value, store.db.allocator())?
         {
             keys.push((*id, key));
         }
@@ -500,7 +524,7 @@ fn record_keys<T: Model>(
 }
 struct IndexState {
     report: IndexReport,
-    expected: Vec<(Vec<u8>, u64)>,
+    expected: Vec<(IndexKey, u64)>,
     stored: engine::Rows,
 }
 fn index_state<T: Model>(
@@ -539,7 +563,7 @@ fn index_state<T: Model>(
         ..IndexReport::default()
     };
     for (key, id) in &expected {
-        match stored.binary_search_by(|(candidate, _)| candidate.cmp(key)) {
+        match stored.binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_slice())) {
             Err(_) => report.missing += 1,
             Ok(index) if stored[index].1.as_u64().ok() != Some(*id) => report.mismatched += 1,
             Ok(_) => {}
@@ -549,7 +573,7 @@ fn index_state<T: Model>(
         .iter()
         .filter(|(key, _)| {
             expected
-                .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                .binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_slice()))
                 .is_err()
         })
         .count();
@@ -581,7 +605,7 @@ fn find<T: Model, V: FieldValue, Q: LookupValue<V> + ?Sized>(
             reason: "lookup type differs from stored schema",
         });
     }
-    let Some(key) = index_key(entry.records, index.id, &encoded)? else {
+    let Some(key) = index_key(entry.records, index.id, &encoded, store.db.allocator())? else {
         return Ok(None);
     };
     let Some(id) = view.get_record(store.db.collection_id(3), &key)? else {
@@ -598,7 +622,7 @@ fn find<T: Model, V: FieldValue, Q: LookupValue<V> + ?Sized>(
     let actual = schema
         .read_field(doc.record(), index.id)?
         .ok_or(Error::IndexInconsistent)?;
-    if index_key(entry.records, index.id, &actual)? != Some(key) {
+    if index_key(entry.records, index.id, &actual, store.db.allocator())? != Some(key) {
         return Err(Error::IndexInconsistent);
     }
     Ok(Some(doc))
@@ -654,7 +678,7 @@ impl Write<'_> {
             for (key, _) in &state.stored {
                 if state
                     .expected
-                    .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                    .binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_slice()))
                     .is_err()
                 {
                     w.tx.delete(indexes, key)?;
@@ -663,7 +687,7 @@ impl Write<'_> {
             for (key, id) in &state.expected {
                 let existing = state
                     .stored
-                    .binary_search_by(|(candidate, _)| candidate.cmp(key))
+                    .binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_slice()))
                     .ok()
                     .and_then(|index| state.stored[index].1.as_u64().ok());
                 if existing != Some(*id) {
@@ -748,12 +772,12 @@ impl Write<'_> {
                 T::VERSION,
             )?;
             let mut count = 0;
-            for (key, value) in w.tx.scan(table.records)? {
+            for (key, value) in w.tx.scan_iter(table.records)? {
                 count += usize::from(w.migrate_record(
                     table,
                     &entry,
                     &target,
-                    (row_id(&key)?, value),
+                    (row_id(key.as_ref())?, value),
                     &mut convert,
                 )?);
             }
@@ -775,7 +799,7 @@ impl Write<'_> {
             if ids.len() > limits.max_writes || ids.len() > limits.max_observations {
                 return Err(Error::Engine(engine::Error::Limit));
             }
-            let mut sorted = Vec::new();
+            let mut sorted = Vec::new_in(w.store.db.allocator());
             reserve(&mut sorted, ids.len())?;
             sorted.extend_from_slice(ids);
             sorted.sort_unstable();
@@ -831,7 +855,7 @@ impl Write<'_> {
         self.put_raw(table, entry, doc.id, raw)?;
         Ok(true)
     }
-    fn keys<T: Model>(&mut self, entry: &Entry, raw: &Record) -> Result<Vec<(u64, Vec<u8>)>> {
+    fn keys<T: Model>(&mut self, entry: &Entry, raw: &Record) -> Result<IndexKeys> {
         record_keys::<T>(self.store, &mut self.tx, entry, raw)
     }
     fn put_raw<T: Model>(
@@ -851,7 +875,7 @@ impl Write<'_> {
             .as_ref()
             .map(|r| self.keys::<T>(entry, r))
             .transpose()?
-            .unwrap_or_default();
+            .unwrap_or_else(|| Vec::new_in(self.store.db.allocator()));
         let new_keys = self.keys::<T>(entry, &raw)?;
         let indexes = self.store.db.collection_id(3);
         for (_, key) in &old_keys {
