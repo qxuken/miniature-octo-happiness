@@ -526,7 +526,7 @@ mod tests {
         unsafe {
             let mut database = ptr::null_mut();
             assert_eq!(wdb_open(&mut database), 0);
-            for bytes in [b"".as_slice(), b"abc".as_slice()] {
+            for bytes in [b"".as_slice(), b"x".as_slice(), b"abc".as_slice()] {
                 let mut value = ptr::null_mut();
                 assert_eq!(
                     wdb_value_make(database, 5, 0, bytes.as_ptr(), bytes.len(), &mut value),
@@ -554,11 +554,11 @@ mod tests {
                         expected
                     );
                     assert_eq!(required, bytes.len());
-                    if expected == 0 && !bytes.is_empty() {
-                        assert_eq!(&buffer, bytes);
-                    } else {
-                        assert_eq!(buffer, [0xa5; 3]);
+                    let mut expected_buffer = [0xa5; 3];
+                    if expected == 0 {
+                        expected_buffer[..bytes.len()].copy_from_slice(bytes);
                     }
+                    assert_eq!(buffer, expected_buffer);
                 }
                 let mut untouched = [0xa5; 3];
                 assert_eq!(
@@ -626,6 +626,77 @@ mod tests {
             assert_eq!(wdb_tx_release(ptr::null_mut()), 0);
             assert_eq!(wdb_close(database), 0);
         }
+    }
+
+    #[test]
+    fn optional_database_options_and_byte_input_preserve_the_inclusive_limit() {
+        unsafe {
+            let mut database = ptr::dangling_mut();
+            assert_eq!(wdb_open_with_options(ptr::null(), &mut database), 0);
+            let mut limits = Limits {
+                max_bytes: 0,
+                ..Limits::default()
+            };
+            assert_eq!(wdb_database_get_limits(database, &mut limits), 0);
+            assert_eq!(limits, Limits::default());
+            assert_eq!(wdb_close(database), 0);
+
+            let options = CDatabaseOptions {
+                limits: Limits {
+                    max_bytes: 2,
+                    ..Limits::default()
+                },
+                allocator: ptr::null(),
+            };
+            assert_eq!(wdb_open_with_options(&options, &mut database), 0);
+            assert_eq!(wdb_database_get_limits(database, &mut limits), 0);
+            assert_eq!(limits, options.limits);
+            for bytes in [b"".as_slice(), b"x".as_slice(), b"xy".as_slice()] {
+                let input = if bytes.is_empty() {
+                    ptr::null()
+                } else {
+                    bytes.as_ptr()
+                };
+                let mut value = ptr::dangling_mut();
+                assert_eq!(
+                    wdb_value_make(database, 5, 0, input, bytes.len(), &mut value),
+                    0
+                );
+                let mut output = [0xa5; 2];
+                let mut required = usize::MAX;
+                assert_eq!(
+                    wdb_value_bytes(value, output.as_mut_ptr(), output.len(), &mut required),
+                    0
+                );
+                assert_eq!(required, bytes.len());
+                assert_eq!(&output[..required], bytes);
+                assert_eq!(wdb_value_release(value), 0);
+            }
+            let mut value = ptr::dangling_mut();
+            assert_eq!(
+                wdb_value_make(database, 5, 0, b"xyz".as_ptr(), 3, &mut value),
+                Error::Limit as i32
+            );
+            assert!(value.is_null());
+            assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn null_owner_is_rejected_before_constructing_a_slice_or_handle() {
+        let value = Database::new().unwrap().unsigned(7).unwrap();
+        let mut out = ptr::null_mut();
+        unsafe {
+            assert_eq!(
+                input(ptr::null_mut(), b"x".as_ptr(), 1),
+                Err(Error::Invalid)
+            );
+            assert_eq!(
+                make_handle(ptr::null_mut(), value, &mut out),
+                Err(Error::Invalid)
+            );
+        }
+        assert!(out.is_null());
     }
 
     #[test]
@@ -702,6 +773,22 @@ mod tests {
             assert!(options.allocator.is_null());
             options.limits.max_bytes = 3;
             options.allocator = &callbacks;
+            let invalid_limits = CDatabaseOptions {
+                limits: Limits {
+                    max_depth: 0,
+                    ..options.limits
+                },
+                allocator: options.allocator,
+            };
+            let before = state.requests();
+            database = ptr::dangling_mut();
+            assert_eq!(
+                wdb_open_with_options(&invalid_limits, &mut database),
+                Error::Invalid as i32
+            );
+            assert!(database.is_null());
+            assert_eq!(state.requests(), before);
+            assert_eq!(Arc::strong_count(&state), 1);
             // Refuse the provider, budget, initial core head, and C handle blocks.
             for allowed in 0..4 {
                 state.fail_after(allowed);
@@ -1259,6 +1346,10 @@ mod decision_tests {
     fn native_path_length_boundary_and_encoding_contract() {
         let bytes = vec![b'x'; 1024 * 1024];
         unsafe {
+            assert_eq!(path(ptr::null(), 1).err(), Some(Error::Invalid));
+            assert_eq!(path(b"x".as_ptr(), 0).err(), Some(Error::Invalid));
+            assert_eq!(path(b"x\0y".as_ptr(), 3).err(), Some(Error::Invalid));
+            assert_eq!(path(b"x".as_ptr(), 1).unwrap(), std::path::Path::new("x"));
             assert!(path(bytes.as_ptr(), bytes.len()).is_ok());
             assert_eq!(
                 path(bytes.as_ptr(), bytes.len() + 1).err(),
