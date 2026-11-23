@@ -266,8 +266,13 @@ mod identity_decisions {
                             "short read advances only its filled prefix"
                         );
                         assert!(suffix.iter().all(|byte| *byte == 0));
-                        suffix.fill(0x22);
-                        11
+                        suffix[..10].fill(0x22);
+                        10
+                    }
+                    3 => {
+                        assert_eq!(suffix, &[0]);
+                        suffix[0] = 0x33;
+                        1
                     }
                     _ => panic!("completed identity requested another read"),
                 }
@@ -275,9 +280,10 @@ mod identity_decisions {
             || panic!("nonnegative result consulted errno"),
         )
         .unwrap();
-        assert_eq!(calls, 2);
+        assert_eq!(calls, 3);
         assert_eq!(&id[..5], &[0x11; 5]);
-        assert_eq!(&id[5..], &[0x22; 11]);
+        assert_eq!(&id[5..15], &[0x22; 10]);
+        assert_eq!(id[15], 0x33);
     }
 
     #[test]
@@ -462,6 +468,160 @@ mod identity_decisions {
 #[cfg(test)]
 mod decision_tests {
     use super::*;
+    use crate::{Limits, memory::test_allocator::TestAllocator};
+    use std::{
+        fs,
+        os::{fd::OwnedFd, unix::net::UnixStream},
+        path::PathBuf,
+        sync::Arc,
+    };
+
+    struct NativeDirectory(PathBuf);
+
+    impl NativeDirectory {
+        fn new(case: &str) -> Self {
+            let directory = std::env::temp_dir().join(format!(
+                "weekend-linux-primitive-{case}-{}",
+                std::process::id()
+            ));
+            fs::create_dir(&directory).unwrap();
+            Self(directory)
+        }
+    }
+
+    impl Drop for NativeDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn native_flock_and_sync_report_kernel_errors() {
+        let directory = NativeDirectory::new("flock");
+        let path = directory.0.join("file");
+        fs::write(&path, b"kept").unwrap();
+        let first = File::options().write(true).open(&path).unwrap();
+        let second = File::open(&path).unwrap();
+        assert_eq!(diagnostics::capture(|| acquire_open_lock(&first)), Ok(()));
+        let failure = diagnostics::capture(|| acquire_open_lock(&second)).unwrap_err();
+        assert_eq!(failure.error, Error::Busy);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Lock);
+        assert_eq!(native.raw_os_error, Some(11));
+        assert_eq!(diagnostics::capture(|| full_sync(&first)), Ok(()));
+        drop(first);
+        assert_eq!(diagnostics::capture(|| acquire_open_lock(&second)), Ok(()));
+
+        let (socket, _peer) = UnixStream::pair().unwrap();
+        let socket = File::from(OwnedFd::from(socket));
+        let failure = diagnostics::capture(|| full_sync(&socket)).unwrap_err();
+        assert_eq!(failure.error, Error::Io);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Sync);
+        assert_eq!(native.raw_os_error, Some(22));
+        assert_eq!(fs::read(path).unwrap(), b"kept");
+    }
+
+    #[test]
+    fn native_exchange_preserves_the_original_when_the_partner_is_missing() {
+        let directory = NativeDirectory::new("exchange");
+        let old = directory.0.join("old");
+        let new = directory.0.join("new");
+        let parent = File::open(&directory.0).unwrap();
+        fs::write(&old, b"original").unwrap();
+        let old_inode = fs::metadata(&old).unwrap().ino();
+        let swap = || exchange(&parent, b"old\0", &parent, b"new\0");
+        let failure = diagnostics::capture(swap).unwrap_err();
+        assert_eq!(failure.error, Error::NotFound);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Exchange);
+        assert_eq!(native.raw_os_error, Some(2));
+        assert_eq!(fs::metadata(&old).unwrap().ino(), old_inode);
+        assert!(!new.exists());
+
+        fs::write(&new, b"replacement").unwrap();
+        let new_inode = fs::metadata(&new).unwrap().ino();
+        assert_eq!(diagnostics::capture(swap), Ok(()));
+        assert_eq!(fs::metadata(&new).unwrap().ino(), old_inode);
+        assert_eq!(fs::metadata(&old).unwrap().ino(), new_inode);
+        assert_eq!(fs::read(old).unwrap(), b"replacement");
+        assert_eq!(fs::read(new).unwrap(), b"original");
+    }
+
+    #[test]
+    fn metadata_copy_retries_selected_allocations_and_replaces_only_metadata() {
+        let directory = NativeDirectory::new("attributes");
+        let source = directory.0.join("source");
+        fs::write(&source, b"source bytes").unwrap();
+        fs::set_permissions(&source, Permissions::from_mode(0o640)).unwrap();
+        let from = File::open(&source).unwrap();
+        let shared = c"user.weekend-shared";
+        let stale = c"user.weekend-stale";
+        let set = |file: &File, name: &std::ffi::CStr, value: &[u8]| {
+            // The held descriptor, terminated name and input bytes outlive the call.
+            assert_eq!(
+                unsafe {
+                    fsetxattr(
+                        file.as_raw_fd(),
+                        name.as_ptr(),
+                        value.as_ptr().cast(),
+                        value.len(),
+                        0,
+                    )
+                },
+                0
+            );
+        };
+        set(&from, shared, b"source value");
+        let allocator = Arc::new(TestAllocator::default());
+        let memory = allocator.memory(Limits::default());
+        let baseline = allocator.live_bytes();
+
+        for allowed in 0..3 {
+            let target = directory.0.join(format!("target-{allowed}"));
+            fs::write(&target, b"target bytes").unwrap();
+            fs::set_permissions(&target, Permissions::from_mode(0o600)).unwrap();
+            let to = File::options().write(true).open(&target).unwrap();
+            set(&to, shared, b"previous value");
+            set(&to, stale, b"remove");
+            let (result, calls) = allocator.count_with_refusal(allowed, || {
+                diagnostics::capture(|| copy_metadata(&from, &to, &memory))
+            });
+            let failure = result.unwrap_err();
+            assert_eq!(failure.error, Error::OutOfMemory);
+            assert_eq!(failure.native, None);
+            assert_eq!(calls, allowed + 1);
+            assert_eq!(allocator.live_bytes(), baseline);
+            assert_eq!(fs::read(&source).unwrap(), b"source bytes");
+            assert_eq!(fs::read(&target).unwrap(), b"target bytes");
+
+            assert_eq!(
+                diagnostics::capture(|| copy_metadata(&from, &to, &memory)),
+                Ok(())
+            );
+            assert_eq!(allocator.live_bytes(), baseline);
+            assert_eq!(fs::metadata(&target).unwrap().mode() & 0o7777, 0o640);
+            let mut bytes = [0; 32];
+            // Read the kernel attributes directly as an oracle for the copy.
+            let length = unsafe {
+                fgetxattr(
+                    to.as_raw_fd(),
+                    shared.as_ptr(),
+                    bytes.as_mut_ptr().cast(),
+                    bytes.len(),
+                )
+            };
+            assert_eq!(length, b"source value".len() as isize);
+            assert_eq!(&bytes[..b"source value".len()], b"source value");
+            assert_eq!(
+                unsafe { fgetxattr(to.as_raw_fd(), stale.as_ptr(), std::ptr::null_mut(), 0) },
+                -1
+            );
+            assert_eq!(io::Error::last_os_error().raw_os_error(), Some(61));
+            assert_eq!(fs::read(target).unwrap(), b"target bytes");
+        }
+    }
+
     #[test]
     fn native_error_mapping_preserves_raw_code_and_operation() {
         for (code, expected) in [
