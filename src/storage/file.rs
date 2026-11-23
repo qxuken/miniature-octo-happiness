@@ -81,7 +81,6 @@ impl FileStore {
         }
     }
 }
-#[cfg(target_os = "linux")]
 impl Drop for FileStore {
     fn drop(&mut self) {
         // A concurrent fork can keep the open description alive until exec.
@@ -560,8 +559,13 @@ impl FileStore {
 
 #[cfg(all(
     test,
-    target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+    any(
+        target_os = "macos",
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    )
 ))]
 mod tests {
     use super::*;
@@ -588,6 +592,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     fn opener_paused_before_flock_rejects_the_replaced_inode() {
         let path =
             std::env::temp_dir().join(format!("weekend-open-race-{}.db", std::process::id()));
@@ -732,6 +740,64 @@ mod decision_tests {
         assert_eq!(file.lock(), Err(Error::Busy));
         assert_eq!(file.length(), Err(Error::Io));
     }
+
+    #[test]
+    fn all_io_requires_a_claim_and_failed_reacquisition_releases_the_inode() {
+        let dir =
+            std::env::temp_dir().join(format!("weekend-claim-decisions-{}", std::process::id()));
+        struct Cleanup(std::path::PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        std::fs::create_dir(&dir).unwrap();
+        let dir = Cleanup(dir);
+        let path = dir.0.join("data");
+        let moved = dir.0.join("moved");
+        let reject_io = |file: &mut FileStore| {
+            let mut byte = *b"?";
+            assert_eq!(file.length(), Err(Error::Io));
+            assert_eq!(file.read(0, &mut byte), Err(Error::Io));
+            assert_eq!(byte, *b"?");
+            assert_eq!(file.write(0, b"x"), Err(Error::Io));
+            assert_eq!(file.sync(), Err(Error::Io));
+        };
+        let mut first = FileStore::create(&path).unwrap();
+        reject_io(&mut first);
+        first.lock().unwrap();
+        assert_eq!(first.lock(), Err(Error::Busy));
+        assert_eq!(first.write(0, b"a"), Ok(1));
+        first.sync().unwrap();
+        assert!(!first.parent_pending);
+        first.unlock();
+        assert!(matches!(first.lease, Lease::Released));
+        reject_io(&mut first);
+        let competing = FileStore::open_read_only(&path).unwrap();
+        assert_eq!(first.lock(), Err(Error::Busy));
+        reject_io(&mut first);
+        assert!(matches!(FileStore::open(&path), Err(Error::Busy)));
+        drop(competing);
+        first.lock().unwrap();
+        assert_eq!(first.length(), Ok(1));
+        let mut byte = [0];
+        assert_eq!(first.read(0, &mut byte), Ok(1));
+        assert_eq!(byte, [b'a']);
+        first.unlock();
+
+        std::fs::rename(&path, &moved).unwrap();
+        std::fs::write(&path, b"replacement").unwrap();
+        assert_eq!(first.lock(), Err(Error::Busy));
+        reject_io(&mut first);
+        assert!(matches!(first.lease, Lease::Released));
+        // The stale adapter stays alive across this open of its old inode.
+        let old = FileStore::open(&moved).unwrap();
+        assert_eq!(std::fs::read(&moved).unwrap(), b"a");
+        assert_eq!(std::fs::read(&path).unwrap(), b"replacement");
+        drop(old);
+        drop(first);
+    }
+
     #[test]
     fn namespace_rechecks_distinguish_aliases_replacement_and_removal() {
         let path =
@@ -754,6 +820,14 @@ mod decision_tests {
         assert_eq!(location.matches(&store.file), Err(Error::NotFound));
         std::fs::write(&path, b"replacement").unwrap();
         assert_eq!(location.check_lease(&store.file), Err(Error::Busy));
+        assert_eq!(location.matches(&store.file), Err(Error::Invalid));
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert_eq!(location.check_lease(&store.file), Err(Error::Busy));
+        assert_eq!(location.matches(&store.file), Err(Error::Invalid));
+        std::fs::remove_dir(&path).unwrap();
+        std::os::unix::fs::symlink(&alias, &path).unwrap();
+        assert_eq!(location.check_lease(&store.file), Err(Error::Invalid));
         assert_eq!(location.matches(&store.file), Err(Error::Invalid));
         std::fs::remove_file(&path).unwrap();
     }
