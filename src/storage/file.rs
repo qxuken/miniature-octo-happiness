@@ -9,7 +9,7 @@ use super::{ByteStore, CompactionStats, Storage};
 use crate::{AllocatorHandle, Error, Limits, Result, memory::Memory};
 use std::{
     ffi::{c_char, c_int},
-    fs::File,
+    fs::{File, Metadata},
     io,
     os::{
         fd::{AsRawFd, FromRawFd},
@@ -38,6 +38,13 @@ pub(super) fn retry<T>(
             result => return result.map_err(|error| os_error(operation, error)),
         }
     }
+}
+fn file_metadata(file: &File) -> Result<Metadata> {
+    retry(NativeIoOperation::Metadata, || {
+        #[cfg(test)]
+        metadata_decisions::before_read()?;
+        file.metadata()
+    })
 }
 /// A regular-file writer lease on macOS or Linux. Final-component symlinks are
 /// rejected and hard-link aliases share the same inode lock. The held parent
@@ -126,7 +133,7 @@ impl ByteStore for FileStore {
     }
     fn length(&mut self) -> Result<u64> {
         self.check()?;
-        Ok(retry(NativeIoOperation::Metadata, || self.file.metadata())?.len())
+        Ok(file_metadata(&self.file)?.len())
     }
     fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
         self.check()?;
@@ -238,7 +245,7 @@ impl Location {
     fn open_mode(self, create: bool, writable: bool) -> Result<FileStore> {
         let access = if writable { 2 } else { 0 };
         let file = self.open_flags(access | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
-        if !retry(NativeIoOperation::Metadata, || file.metadata())?.is_file() {
+        if !file_metadata(&file)?.is_file() {
             return Err(Error::Invalid);
         }
         self.acquire_open_lease(&file)?;
@@ -262,8 +269,8 @@ impl Location {
             Err(Error::NotFound) => return Err(Error::Busy),
             other => other?,
         };
-        let actual = retry(NativeIoOperation::Metadata, || actual.metadata())?;
-        let expected = retry(NativeIoOperation::Metadata, || file.metadata())?;
+        let actual = file_metadata(&actual)?;
+        let expected = file_metadata(file)?;
         if actual.is_file() && actual.dev() == expected.dev() && actual.ino() == expected.ino() {
             Ok(())
         } else {
@@ -297,8 +304,8 @@ impl Location {
     }
     fn matches(&self, file: &File) -> Result<()> {
         let actual_file = self.open_flags(0)?;
-        let actual = retry(NativeIoOperation::Metadata, || actual_file.metadata())?;
-        let expected = retry(NativeIoOperation::Metadata, || file.metadata())?;
+        let actual = file_metadata(&actual_file)?;
+        let expected = file_metadata(file)?;
         if actual.is_file()
             && actual.dev() == expected.dev()
             && actual.ino() == expected.ino()
@@ -473,7 +480,7 @@ fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<Co
         source.file.try_clone()
     })?;
     // Replacing one name cannot preserve a hard-link alias's writer authority.
-    if retry(NativeIoOperation::Metadata, || old_file.metadata())?.nlink() != 1 {
+    if file_metadata(&old_file)?.nlink() != 1 {
         return Err(Error::Invalid);
     }
     let (mut storage, head, next_collection, retention) = Storage::open(
@@ -633,10 +640,10 @@ mod tests {
 mod decision_tests {
     use super::*;
 
-    struct PathFixture(std::path::PathBuf);
+    pub(super) struct PathFixture(pub(super) std::path::PathBuf);
 
     impl PathFixture {
-        fn new(case: &str) -> Self {
+        pub(super) fn new(case: &str) -> Self {
             let dir =
                 std::env::temp_dir().join(format!("weekend-path-{case}-{}", std::process::id()));
             std::fs::create_dir(&dir).unwrap();
@@ -1214,5 +1221,200 @@ mod decision_tests {
         });
         assert_eq!(result, Ok(9));
         assert_eq!(calls, 3);
+    }
+}
+
+#[cfg(test)]
+mod metadata_decisions {
+    use super::decision_tests::PathFixture;
+    use super::*;
+    use crate::{Database, storage::with_storage_diagnostics};
+    use std::{cell::Cell, fs};
+
+    #[derive(Clone, Copy)]
+    struct Probe {
+        fail: Option<(usize, i32)>,
+        calls: usize,
+    }
+
+    thread_local! {
+        static STAT: Cell<Option<Probe>> = const { Cell::new(None) };
+    }
+
+    pub(super) fn before_read() -> io::Result<()> {
+        STAT.with(|slot| {
+            if let Some(mut probe) = slot.get() {
+                let call = probe.calls;
+                probe.calls += 1;
+                slot.set(Some(probe));
+                if let Some((index, code)) = probe.fail
+                    && call == index
+                {
+                    return Err(io::Error::from_raw_os_error(code));
+                }
+            }
+            Ok(())
+        })
+    }
+
+    fn probing<T>(fail: Option<(usize, i32)>, action: impl FnOnce() -> T) -> (T, usize) {
+        struct Reset(Option<Probe>);
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                STAT.set(self.0);
+            }
+        }
+
+        let _reset = Reset(STAT.replace(Some(Probe { fail, calls: 0 })));
+        let result = action();
+        (result, STAT.get().unwrap().calls)
+    }
+
+    fn require_metadata_error<T>(result: std::result::Result<T, super::super::StorageFailure>) {
+        let failure = result.err().expect("metadata read must fail");
+        assert_eq!(failure.error, Error::Io);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Metadata);
+        assert_eq!(native.raw_os_error, Some(5)); // EIO
+    }
+
+    fn on_test_directory(case: &str, test: impl FnOnce(&Path)) {
+        let dir = PathFixture::new(case);
+        test(&dir.0);
+    }
+
+    #[test]
+    fn claimed_length_retries_interruption_and_preserves_terminal_metadata_error() {
+        on_test_directory("length", |dir| {
+            let path = dir.join("source");
+            fs::write(&path, b"kept").unwrap();
+            let mut store = FileStore::open_read_only(&path).unwrap();
+            store.lock().unwrap();
+            let (error, calls) =
+                probing(Some((0, 5)), || with_storage_diagnostics(|| store.length()));
+            require_metadata_error(error);
+            assert_eq!(calls, 1);
+            let (length, calls) = probing(Some((0, 4)), || store.length()); // EINTR
+            assert_eq!(length, Ok(4));
+            assert_eq!(calls, 2);
+            assert_eq!(store.length(), Ok(4));
+        });
+    }
+
+    #[test]
+    fn metadata_failure_at_open_or_claim_does_not_leave_a_lease() {
+        on_test_directory("lease", |dir| {
+            let path = dir.join("source");
+            fs::write(&path, b"unchanged").unwrap();
+
+            // A regular-file check, the reopened name, then the held file.
+            let (store, calls) = probing(None, || FileStore::open(&path));
+            drop(store.unwrap());
+            assert_eq!(calls, 3);
+            for fail in 0..3 {
+                let (result, calls) =
+                    probing(Some((fail, 5)), || FileStore::open_with_diagnostics(&path));
+                require_metadata_error(result);
+                assert_eq!(calls, fail + 1);
+                drop(FileStore::open(&path).unwrap());
+            }
+
+            for fail in 0..2 {
+                let mut store = FileStore::open(&path).unwrap();
+                let (result, calls) = probing(Some((fail, 5)), || {
+                    with_storage_diagnostics(|| store.lock())
+                });
+                require_metadata_error(result);
+                assert_eq!(calls, fail + 1);
+                assert_eq!(store.length(), Err(Error::Io));
+                // The failed adapter is still alive. Its lock must be gone.
+                drop(FileStore::open(&path).unwrap());
+            }
+            assert_eq!(fs::read(&path).unwrap(), b"unchanged");
+        });
+    }
+
+    #[test]
+    fn compaction_metadata_read_refusals_preserve_canonical_and_retained_images() {
+        on_test_directory("compaction", |dir| {
+            let limits = Limits::default();
+            let source = dir.join("source");
+            let db = Database::create_file(&source, limits).unwrap();
+            let c = db.create_collection().unwrap();
+            for n in [10, 20] {
+                let mut tx = db.begin();
+                tx.put(c, b"key", &db.integer(n).unwrap()).unwrap();
+                tx.commit().unwrap();
+                if n == 10 {
+                    db.retain_snapshot(&db.snapshot()).unwrap();
+                }
+            }
+            let revision = db.snapshot().revision();
+            let retained_revision = db.retained_snapshot(1).unwrap().revision();
+            drop(db);
+            let before = fs::read(&source).unwrap();
+            let reference = dir.join("reference");
+            fs::write(&reference, &before).unwrap();
+            let (stats, metadata_calls) =
+                probing(None, || Database::compact_file(&reference, limits));
+            stats.unwrap();
+            let compacted = fs::read(&reference).unwrap();
+            assert_ne!(compacted, before);
+            assert!(metadata_calls > 8);
+
+            // The source link count follows the three source-open reads.
+            // The final four reads check the two name/held-file pairs.
+            for fail in [
+                3,
+                metadata_calls - 4,
+                metadata_calls - 3,
+                metadata_calls - 2,
+                metadata_calls - 1,
+            ] {
+                let attempt = dir.join(format!("attempt-{fail}"));
+                fs::create_dir(&attempt).unwrap();
+                let path = attempt.join("canonical");
+                fs::write(&path, &before).unwrap();
+                let inode = fs::metadata(&path).unwrap().ino();
+                let (result, calls) = probing(Some((fail, 5)), || {
+                    Database::compact_file_with_diagnostics(&path, limits)
+                });
+                require_metadata_error(result);
+                assert_eq!(calls, fail + 1);
+                assert_eq!(fs::metadata(&path).unwrap().ino(), inode);
+                assert_eq!(fs::read(&path).unwrap(), before);
+
+                let mut names = fs::read_dir(&attempt)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .filter(|name| name != &path);
+                let scratch = if fail == 3 {
+                    None
+                } else {
+                    let name = names.next().unwrap();
+                    assert_eq!(fs::read(&name).unwrap(), compacted);
+                    Some(name)
+                };
+                assert!(names.next().is_none());
+
+                for retry in [false, true] {
+                    if retry {
+                        Database::compact_file(&path, limits).unwrap();
+                        assert_eq!(fs::read(&path).unwrap(), compacted);
+                        if let Some(name) = &scratch {
+                            assert_eq!(fs::read(name).unwrap(), compacted);
+                        }
+                    }
+                    let db = Database::open_file(&path, limits).unwrap();
+                    let c = db.collection_id(1);
+                    let current = db.snapshot();
+                    let retained = db.retained_snapshot(1).unwrap();
+                    assert_eq!(current.revision(), revision);
+                    assert_eq!(retained.revision(), retained_revision);
+                    assert_eq!(current.get(c, b"key").unwrap().unwrap().as_i64(), Ok(20));
+                    assert_eq!(retained.get(c, b"key").unwrap().unwrap().as_i64(), Ok(10));
+                }
+            }
+        });
     }
 }
