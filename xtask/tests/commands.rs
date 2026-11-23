@@ -36,6 +36,11 @@ fn real_mutation_cli_shards_cover_the_prefix_without_outputs_or_case_loss() {
         .as_array()
         .unwrap()
         .iter()
+        .filter(|case| {
+            case["os"]
+                .as_str()
+                .is_none_or(|os| os == std::env::consts::OS)
+        })
         .filter_map(|case| case["name"].as_str().filter(|name| name.starts_with("r1-")))
         .map(str::to_owned)
         .collect::<Vec<_>>();

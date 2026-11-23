@@ -377,7 +377,7 @@ fn qualify(
         e[format!("{name}_compiler")] = json!(run.capture(&strings(&consumer["version"])?)?);
         run.status(&strings(&consumer["command"])?)?;
         let exe = PathBuf::from(text(&consumer["executable"])?);
-        run.status(&[path(&exe)])?;
+        run_c_consumer(run, &exe)?;
         if platform == Platform::Windows {
             let mut c = strings(&plan["runtime_dependencies"])?;
             c.pop();
@@ -519,6 +519,15 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
+fn run_c_consumer(run: &mut Run, executable: &Path) -> Result<()> {
+    let mut scratch = Scratch::new(&std::env::temp_dir(), "package-c")?;
+    run.status_in(
+        &[path(executable), path("--file-allocator")],
+        scratch.path(),
+    )?;
+    scratch.close()
+}
+
 fn relocate(
     run: &mut Run,
     output: &Path,
@@ -540,18 +549,17 @@ fn relocate(
             "original package remains during relocation"
         );
         for exe in executables {
-            let mut c = vec![path(
-                relocated.join(exe.file_name().context("consumer name missing")?),
-            )];
-            if exe
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with("consumer-odin")
-            {
-                c.extend([path(scratch.path().join("relocated.db")), path(source_id)]);
+            let name = exe.file_name().context("consumer name missing")?;
+            let executable = relocated.join(name);
+            if name.to_string_lossy().starts_with("consumer-odin") {
+                run.status(&[
+                    path(&executable),
+                    path(scratch.path().join("relocated.db")),
+                    path(source_id),
+                ])?;
+            } else {
+                run_c_consumer(run, &executable)?;
             }
-            run.status(&c)?;
         }
         verify_library(run, &relocated.join(filename), source_id, feature_mask)
     })();

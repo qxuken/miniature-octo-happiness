@@ -9389,6 +9389,50 @@
       "package": "weekend-db"
     },
     {
+      "name": "r1-c-file-factories-path-status",
+      "file": "src/ffi.rs",
+      "old": "let name = path(bytes,len)?;",
+      "new": "let name = path(bytes,len).map_err(|_| Error::Io)?;",
+      "test": "ffi::tests::file_factories_forward_options_and_preserve_stage_errors",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-c-file-factories-options-status",
+      "file": "src/ffi.rs",
+      "old": "let database = Database::$method(name, database_options(options)?)?;",
+      "new": "let database = Database::$method(name, database_options(options).map_err(|_| Error::Limit)?)?;",
+      "test": "ffi::tests::file_factories_forward_options_and_preserve_stage_errors",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-c-file-factories-options-forwarding",
+      "file": "src/ffi.rs",
+      "old": "let database = Database::$method(name, database_options(options)?)?;",
+      "new": "let database = Database::$method(name, database_options(options).map(|_| DatabaseOptions::default())?)?;",
+      "test": "ffi::tests::file_factories_forward_options_and_preserve_stage_errors",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-c-file-factories-adapter-status",
+      "file": "src/ffi.rs",
+      "old": "let database = Database::$method(name, database_options(options)?)?;",
+      "new": "let database = Database::$method(name, database_options(options)?).map_err(|_| Error::Io)?;",
+      "test": "ffi::tests::file_factories_forward_options_and_preserve_stage_errors",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
       "name": "r1-generated-c-records-mode",
       "file": "src/ffi.rs",
       "old": "match validation { 0 => Validation::Records, 1 => Validation::WholeDatabase",

@@ -521,6 +521,92 @@ mod tests {
             assert_eq!(path(b"x".as_ptr(), 1).unwrap(), std::path::Path::new("x"));
         }
     }
+
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
+    #[test]
+    fn file_factories_forward_options_and_preserve_stage_errors() {
+        struct Scratch(std::path::PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let root = std::env::temp_dir().join(format!(
+            "weekend-ffi-file-options-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let scratch = Scratch(root);
+        let path = scratch.0.join("allocator.wdb");
+        let name = path.to_str().unwrap().as_bytes();
+        let options = CDatabaseOptions {
+            limits: Limits {
+                max_bytes: 3,
+                ..Limits::default()
+            },
+            allocator: ptr::null(),
+        };
+        let invalid = CDatabaseOptions {
+            limits: Limits {
+                max_depth: 0,
+                ..options.limits
+            },
+            allocator: ptr::null(),
+        };
+        type Factory = unsafe extern "C" fn(
+            *const u8,
+            usize,
+            *const CDatabaseOptions,
+            *mut *mut CDatabase,
+        ) -> i32;
+        unsafe {
+            for factory in [
+                wdb_file_create_with_options as Factory,
+                wdb_file_open_with_options,
+            ] {
+                let mut output = ptr::dangling_mut();
+                assert_eq!(
+                    factory(b"a\0b".as_ptr(), 3, &options, &mut output),
+                    Error::Invalid as i32
+                );
+                assert!(output.is_null());
+                assert_eq!(
+                    factory(name.as_ptr(), name.len(), &invalid, &mut output),
+                    Error::Invalid as i32
+                );
+                assert!(output.is_null());
+                assert!(!path.exists());
+            }
+            let mut output = ptr::dangling_mut();
+            assert_eq!(
+                wdb_file_open_with_options(name.as_ptr(), name.len(), &options, &mut output),
+                Error::NotFound as i32
+            );
+            assert!(output.is_null());
+            for factory in [
+                wdb_file_create_with_options as Factory,
+                wdb_file_open_with_options,
+            ] {
+                assert_eq!(factory(name.as_ptr(), name.len(), &options, &mut output), 0);
+                let mut actual = Limits::default();
+                assert_eq!(wdb_database_get_limits(output, &mut actual), 0);
+                assert_eq!(actual, options.limits);
+                assert_eq!(wdb_close(output), 0);
+            }
+            let before = std::fs::read(&path).unwrap();
+            assert_eq!(
+                wdb_file_create_with_options(name.as_ptr(), name.len(), &options, &mut output),
+                Error::AlreadyExists as i32
+            );
+            assert!(output.is_null());
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+        }
+    }
+
     #[test]
     fn byte_buffers_distinguish_null_capacity_and_required_length() {
         unsafe {

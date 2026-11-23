@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "support/allocator_contract.h"
+#include "support/file_allocator_contract.h"
 
 static wdb_value *integer(wdb_database *db, uint64_t n) {
     wdb_value *out = NULL;
@@ -15,7 +16,8 @@ static uint64_t scalar(wdb_value *value) {
     assert(wdb_value_scalar(value, &out) == WDB_OK);
     return out;
 }
-int main(void) {
+int main(int argc, char **argv) {
+    assert(argc == 1 || (argc == 2 && strcmp(argv[1], "--file-allocator") == 0));
     wdb_database *db;
     uint64_t collection, revision;
     wdb_tx *seed, *first, *second;
@@ -127,6 +129,7 @@ int main(void) {
     assert(wdb_value_release(NULL) == WDB_OK);
     assert(wdb_close(db) == WDB_OK);
     verify_allocator_contract();
+    if (argc == 2) verify_file_allocator_contract();
     puts("C shared-library engine: snapshots, merges, conflicts, values and cleanup passed.");
     return 0;
 }
