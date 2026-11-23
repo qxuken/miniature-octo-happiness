@@ -55,7 +55,7 @@ macOS arm64 and Docker Linux arm64/ext4.
 
 | Source | SHA-256 |
 |---|---|
-| `src/storage/codec.rs` | `70908c466f7c30b70688ae8f438e04d659612bd93f6cfbed6956bff5a46e0396` |
+| `src/storage/codec.rs` | `1a031048b4be3deea572313443ea7f6bfa9ba14e7ed2dbf48641ed5f492d1472` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence / residual |
 |---|---|---|---|---|---|---|

@@ -53,11 +53,15 @@ records the current baseline.
 
 ## Stack order
 
-The roadmap PR is the base. Start batch 2 with the simulator, then cover the
-plain Rust output boundary and retire the legacy hook after parity. Develop the
-support contract alongside the assurance work. The contract sets the deployment
-conditions for batches 15–22. Freeze the release after those gates and the
-applicable assurance batches are complete.
+The roadmap PR is the base. Batch 2 is split into the simulator allocator,
+the plain Rust output boundary, public hook retirement, and the remaining
+unit tests. The codec tests move first. Follow with cold-open and native
+adapter checks, then tree, value, and memory tests. Delete the unit-only
+counter once the remaining tests drive real allocation requests.
+
+Develop the support contract alongside the assurance work. The contract sets
+the deployment conditions for batches 15–22. Freeze the release after those
+gates and the applicable assurance batches are complete.
 
 Record each PR and its base in its description. Retarget dependent PRs in order
 when their bases merge. Record the exact evidence and remaining gates in the
