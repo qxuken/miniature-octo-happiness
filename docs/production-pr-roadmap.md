@@ -75,8 +75,9 @@ Batch 5 starts with [ByteStore transfers and local publication](decisions/bytest
 [Windows pathname preparation](decisions/windows-paths-current.md),
 [Unix scratch preparation and positioned I/O](decisions/unix-scratch-io-current.md),
 [Linux architecture admission](decisions/linux-architecture-current.md),
-and [Unix compaction descriptor exhaustion](decisions/unix-descriptors-current.md).
-Remaining descriptor clone and metadata syscall failures and native Win32
+[Unix compaction descriptor exhaustion](decisions/unix-descriptors-current.md),
+and [Unix metadata reads](decisions/unix-metadata-reads-current.md).
+Remaining descriptor clone failures, kernel metadata errors and native Win32
 decisions follow.
 Batch 9 covers the follower's separate durability acknowledgment.
 

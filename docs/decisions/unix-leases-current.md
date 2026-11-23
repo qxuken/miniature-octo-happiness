@@ -37,36 +37,36 @@ native barrier error evidence remain on the roadmap.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `0cfd7817b5af48fdcddc8d8b521cead6a4a47583c525aadb137c9c72f01264a2` |
+| `src/storage/file.rs` | `99da9a602d321584b14e7af1fbc9b9063e1ddeb94000a393a9ac268d0f559759` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| P | weekend-db::weekend_db | src/storage/file.rs:77:9– | 2594..2596 | if | check | Claimed allows I/O. Open and Released both require a claim. |
-| E | weekend-db::weekend_db | src/storage/file.rs:87:9– | 2845..2847 | if | drop | Closing an open description releases its lease despite an inherited descriptor. An explicit release also closes normally. |
-| P | weekend-db::weekend_db | src/storage/file.rs:94:9– | 3003..3005 | if | lock | Claim once and reject a repeated claim. |
-| P | weekend-db::weekend_db | src/storage/file.rs:98:13– | 3140..3142 | if | lock | The real flock succeeds without contention and returns Busy with a competing description. |
-| E | weekend-db::weekend_db | src/storage/file.rs:103:11– | 3313..3314 | try_propagation | lock | Preserve Busy after a failed reacquisition. The other owner stays exclusive. |
-| P | weekend-db::weekend_db | src/storage/file.rs:105:9– | 3358..3360 | if | lock | Claim the matching name or release the stale inode and return Busy. |
-| C | weekend-db::weekend_db | src/storage/file.rs:105:12– | 3361..3364 | pattern_test | lock | Same successful and failed recheck as the enclosing if-let. |
-| B | weekend-db::weekend_db | src/storage/file.rs:120:22– | 3834..3836 | if | unlock | Successful unlock sets Released. The failure outcome remains a kernel obligation. |
-| E | weekend-db::weekend_db | src/storage/file.rs:128:21– | 4077..4078 | try_propagation | length | Unclaimed length returns Io and a claimed length yields the exact size. |
-| E | weekend-db::weekend_db | src/storage/file.rs:132:21– | 4256..4257 | try_propagation | read | An unclaimed read preserves the output byte. A claimed read returns the expected byte. |
-| E | weekend-db::weekend_db | src/storage/file.rs:136:21– | 4429..4430 | try_propagation | write | Claimed write succeeds and unclaimed write returns Io without modifying the file. |
-| E | weekend-db::weekend_db | src/storage/file.rs:142:21– | 4599..4600 | try_propagation | sync | Reject the unclaimed adapter and allow the claimed one to synchronize. |
-| P | weekend-db::weekend_db | src/storage/file.rs:154:9– | 4892..4894 | if | sync_with | Creation sync clears the pending parent barrier after success. Reopened files already have no pending parent barrier. |
-| P | weekend-db::weekend_db | src/storage/file.rs:239:22– | 8093..8095 | if | open_mode | Read-write and read-only adapters can both claim. Only read-write can write. |
-| P | weekend-db::weekend_db | src/storage/file.rs:240:58– | 8180..8182 | if | open_mode | Create a new file or reject an existing name. Open an existing file without creation. |
-| E | weekend-db::weekend_db | src/storage/file.rs:240:95– | 8217..8218 | try_propagation | open_mode | Open the requested file or preserve refusal, including AlreadyExists and Busy. |
-| E | weekend-db::weekend_db | src/storage/file.rs:261:22– | 9062..9067 | match | check_lease | Missing name maps to Busy. Existing names continue and other open errors preserve their type. |
-| E | weekend-db::weekend_db | src/storage/file.rs:263:27– | 9176..9177 | try_propagation | check_lease | A final symlink returns Invalid through this path. |
-| B | weekend-db::weekend_db | src/storage/file.rs:267:9– | 9358..9360 | if | check_lease | Accept the held regular file and reject a different same-device inode. Distinct device/type predicates remain coupled. |
-| B | weekend-db::weekend_db | src/storage/file.rs:267:12– | 9361..9411 | short_circuit_and | check_lease | Regular file versus directory is exercised. Device independence remains open. |
-| C | weekend-db::weekend_db | src/storage/file.rs:267:12– | 9361..9445 | short_circuit_and | check_lease | Overlaps the lease validation if. The per-predicate limits are the same. |
-| E | weekend-db::weekend_db | src/storage/file.rs:299:45– | 10403..10404 | try_propagation | matches | An absent path returns NotFound before inode comparison. |
-| B | weekend-db::weekend_db | src/storage/file.rs:302:9– | 10579..10581 | if | matches | Same-device inode and same-inode link count are independent. Type and device remain coupled. |
-| B | weekend-db::weekend_db | src/storage/file.rs:302:12– | 10582..10644 | short_circuit_and | matches | Regular file and directory use the native metadata path. Device independence remains open. |
-| C | weekend-db::weekend_db | src/storage/file.rs:302:12– | 10582..10690 | short_circuit_and | matches | Shares the first three predicates and their limits with the replacement comparison. |
-| C | weekend-db::weekend_db | src/storage/file.rs:302:12– | 10582..10725 | short_circuit_and | matches | Shares all four predicates and their limits with the replacement comparison. |
+| P | weekend-db::weekend_db | src/storage/file.rs:84:9– | 2800..2802 | if | check | Claimed allows I/O. Open and Released both require a claim. |
+| E | weekend-db::weekend_db | src/storage/file.rs:94:9– | 3051..3053 | if | drop | Closing an open description releases its lease despite an inherited descriptor. An explicit release also closes normally. |
+| P | weekend-db::weekend_db | src/storage/file.rs:101:9– | 3209..3211 | if | lock | Claim once and reject a repeated claim. |
+| P | weekend-db::weekend_db | src/storage/file.rs:105:13– | 3346..3348 | if | lock | The real flock succeeds without contention and returns Busy with a competing description. |
+| E | weekend-db::weekend_db | src/storage/file.rs:110:11– | 3519..3520 | try_propagation | lock | Preserve Busy after a failed reacquisition. The other owner stays exclusive. |
+| P | weekend-db::weekend_db | src/storage/file.rs:112:9– | 3564..3566 | if | lock | Claim the matching name or release the stale inode and return Busy. |
+| C | weekend-db::weekend_db | src/storage/file.rs:112:12– | 3567..3570 | pattern_test | lock | Same successful and failed recheck as the enclosing if-let. |
+| B | weekend-db::weekend_db | src/storage/file.rs:127:22– | 4040..4042 | if | unlock | Successful unlock sets Released. The failure outcome remains a kernel obligation. |
+| E | weekend-db::weekend_db | src/storage/file.rs:135:21– | 4283..4284 | try_propagation | length | Unclaimed length returns Io and a claimed length yields the exact size. |
+| E | weekend-db::weekend_db | src/storage/file.rs:139:21– | 4428..4429 | try_propagation | read | An unclaimed read preserves the output byte. A claimed read returns the expected byte. |
+| E | weekend-db::weekend_db | src/storage/file.rs:143:21– | 4601..4602 | try_propagation | write | Claimed write succeeds and unclaimed write returns Io without modifying the file. |
+| E | weekend-db::weekend_db | src/storage/file.rs:149:21– | 4771..4772 | try_propagation | sync | Reject the unclaimed adapter and allow the claimed one to synchronize. |
+| P | weekend-db::weekend_db | src/storage/file.rs:161:9– | 5064..5066 | if | sync_with | Creation sync clears the pending parent barrier after success. Reopened files already have no pending parent barrier. |
+| P | weekend-db::weekend_db | src/storage/file.rs:246:22– | 8265..8267 | if | open_mode | Read-write and read-only adapters can both claim. Only read-write can write. |
+| P | weekend-db::weekend_db | src/storage/file.rs:247:58– | 8352..8354 | if | open_mode | Create a new file or reject an existing name. Open an existing file without creation. |
+| E | weekend-db::weekend_db | src/storage/file.rs:247:95– | 8389..8390 | try_propagation | open_mode | Open the requested file or preserve refusal, including AlreadyExists and Busy. |
+| E | weekend-db::weekend_db | src/storage/file.rs:268:22– | 9200..9205 | match | check_lease | Missing name maps to Busy. Existing names continue and other open errors preserve their type. |
+| E | weekend-db::weekend_db | src/storage/file.rs:270:27– | 9314..9315 | try_propagation | check_lease | A final symlink returns Invalid through this path. |
+| B | weekend-db::weekend_db | src/storage/file.rs:274:9– | 9427..9429 | if | check_lease | Accept the held regular file and reject a different same-device inode. Distinct device/type predicates remain coupled. |
+| B | weekend-db::weekend_db | src/storage/file.rs:274:12– | 9430..9480 | short_circuit_and | check_lease | Regular file versus directory is exercised. Device independence remains open. |
+| C | weekend-db::weekend_db | src/storage/file.rs:274:12– | 9430..9514 | short_circuit_and | check_lease | Overlaps the lease validation if. The per-predicate limits are the same. |
+| E | weekend-db::weekend_db | src/storage/file.rs:306:45– | 10472..10473 | try_propagation | matches | An absent path returns NotFound before inode comparison. |
+| B | weekend-db::weekend_db | src/storage/file.rs:309:9– | 10579..10581 | if | matches | Same-device inode and same-inode link count are independent. Type and device remain coupled. |
+| B | weekend-db::weekend_db | src/storage/file.rs:309:12– | 10582..10644 | short_circuit_and | matches | Regular file and directory use the native metadata path. Device independence remains open. |
+| C | weekend-db::weekend_db | src/storage/file.rs:309:12– | 10582..10690 | short_circuit_and | matches | Shares the first three predicates and their limits with the replacement comparison. |
+| C | weekend-db::weekend_db | src/storage/file.rs:309:12– | 10582..10725 | short_circuit_and | matches | Shares all four predicates and their limits with the replacement comparison. |
 
 ## Verification at 15b2993
 

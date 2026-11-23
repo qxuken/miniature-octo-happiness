@@ -382,6 +382,15 @@ reference bytes after freeing handles. Linux repeats both profiles as UID
 and GID 1000. Six propagation dispositions leave 9,439 open records
 (2,070 runtime / 26 driver / 7,343 tooling).
 
+The [Unix metadata ledger](decisions/unix-metadata-reads-current.md) binds
+eight new propagation dispositions at `0e22413`. A shared metadata query
+preserves retry and diagnostics. Scripted read failures exercise open and
+claim lease release, source link-count validation, and each of the four
+final name checks. Complete scratch custody, exact current and retained
+reopen, and retry to reference bytes pass in both profiles on macOS and
+Docker Linux. Kernel metadata errors remain a deployment evidence gate.
+The queue has 9,431 open records (2,062 runtime / 26 driver / 7,343 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

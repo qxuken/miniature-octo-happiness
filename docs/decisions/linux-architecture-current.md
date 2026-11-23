@@ -21,12 +21,12 @@ results are bound to the architecture of the running executable.
 | Source | SHA-256 |
 | --- | --- |
 | `src/storage/linux.rs` | `512931ec540b580a4cf83706878f73aeae4358e74fefd1e0b15fd74a3fcf0220` |
-| `src/storage/file.rs` | `0cfd7817b5af48fdcddc8d8b521cead6a4a47583c525aadb137c9c72f01264a2` |
+| `src/storage/file.rs` | `99da9a602d321584b14e7af1fbc9b9063e1ddeb94000a393a9ac268d0f559759` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | P | weekend-db::weekend_db | src/storage/linux.rs:84:5– | 3349..3351 | if | identity | Refuse unsupported architecture before the native entropy request. A supported target reaches native creation. |
-| P | weekend-db::weekend_db | src/storage/file.rs:175:9– | 5634..5636 | if | new_in | Refuse unsupported architecture before path validation and native admission. A supported target distinguishes invalid, missing, occupied and accepted paths. |
+| P | weekend-db::weekend_db | src/storage/file.rs:182:9– | 5806..5808 | if | new_in | Refuse unsupported architecture before path validation and native admission. A supported target distinguishes invalid, missing, occupied and accepted paths. |
 
 ## Verification
 
