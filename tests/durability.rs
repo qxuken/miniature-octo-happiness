@@ -1,8 +1,11 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
 mod support;
-use std::collections::BTreeMap;
+use allocator::TestAllocator;
+use std::{collections::BTreeMap, sync::Arc};
 use support::{Model, Rng};
 use weekend_db::{
-    Database, Error, Limits, TransactionState,
+    AllocatorHandle, Database, DatabaseOptions, Error, Limits, TransactionState,
     storage::{
         APPEND_START, ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk,
         inspect_on,
@@ -1131,58 +1134,105 @@ fn interrupted_initial_creation_has_no_prior_acknowledged_state() {
     }
 }
 
+#[test]
+fn preparation_allocation_failures_preserve_current_and_retained_roots() {
+    let (disk, db) = base_store();
+    assert_eq!(db.retain_snapshot(&db.snapshot()), Ok(1));
+    let previous_revision = db.snapshot().revision();
+    let previous_rows = state(&db);
+    let retained = retained_rows(&db);
+    let previous_image = disk.durable_image().unwrap();
+    drop(db);
+
+    let db = open(&disk);
+    let committed_revision = staged(&db).commit().unwrap();
+    let committed_rows = state(&db);
+    let committed_image = disk.durable_image().unwrap();
+    assert_ne!(committed_rows, previous_rows);
+    assert_eq!(retained_rows(&db), retained);
+    drop(db);
+
+    for allowance in 0..512 {
+        let disk = SimulatedDisk::from_image(&previous_image).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let options = DatabaseOptions::default().with_allocator(allocator.handle());
+        let db = Database::open_on_with_options(disk.clone(), options).unwrap();
+        let live = db.memory_usage().live_bytes;
+        let allocated = allocator.live_bytes();
+        let mut tx = staged(&db);
+        disk.arm(usize::MAX, Fault::Error);
+        let result = allocator.with_refusal(allowance, || tx.commit());
+        drop(tx);
+        let (revision, rows, image) = match result {
+            Ok(revision) => {
+                assert!(allowance > 0);
+                assert_eq!(revision, committed_revision);
+                (committed_revision, &committed_rows, &committed_image)
+            }
+            Err(e) => {
+                assert_eq!(e, Error::OutOfMemory, "allocation {allowance}");
+                assert!(!db.requires_recovery());
+                assert_eq!(db.memory_usage().live_bytes, live);
+                assert_eq!(allocator.live_bytes(), allocated);
+                assert!(
+                    disk.trace()
+                        .unwrap()
+                        .iter()
+                        .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync))
+                );
+                (previous_revision, &previous_rows, &previous_image)
+            }
+        };
+        assert_eq!(db.snapshot().revision(), revision);
+        assert_eq!(&state(&db), rows);
+        assert_eq!(retained_rows(&db), retained);
+        assert_eq!(&disk.durable_image().unwrap(), image);
+        drop(db);
+        assert_eq!(allocator.live(), 0);
+        disk.crash(Crash::DropAll).unwrap();
+        let recovered = open(&disk);
+        assert_eq!(recovered.snapshot().revision(), revision);
+        assert_eq!(&state(&recovered), rows);
+        assert_eq!(retained_rows(&recovered), retained);
+        if result.is_ok() {
+            return;
+        }
+    }
+    panic!("commit did not finish within the allocation sweep");
+}
+
 #[cfg(feature = "fault-injection")]
 #[test]
-fn preparation_and_backend_allocation_failures_preserve_the_acknowledged_state() {
+fn backend_allocation_failures_preserve_the_acknowledged_state() {
     let image = base_image();
     let old = state(&open(&SimulatedDisk::from_image(&image).unwrap()));
-    for backend_failure in [false, true] {
-        let mut succeeded = false;
-        let mut failures = 0;
-        for budget in 0..512 {
-            let disk = SimulatedDisk::from_image(&image).unwrap();
-            let db = open(&disk);
-            let mut tx = staged(&db);
-            if backend_failure {
-                disk.fail_allocations_after(Some(budget));
-            } else {
-                db.fail_allocations_after(Some(budget));
+    for allowance in 0..512 {
+        let disk = SimulatedDisk::from_image(&image).unwrap();
+        let db = open(&disk);
+        let mut tx = staged(&db);
+        disk.fail_allocations_after(Some(allowance));
+        let result = tx.commit();
+        disk.fail_allocations_after(None);
+        match result {
+            Ok(_) => {
+                assert!(allowance > 0);
+                return;
             }
-            let result = tx.commit();
-            disk.fail_allocations_after(None);
-            db.fail_allocations_after(None);
-            match result {
-                Ok(_) => {
-                    succeeded = true;
-                    break;
-                }
-                Err(e) => {
-                    failures += 1;
-                    assert_eq!(
-                        state(&db),
-                        old,
-                        "backend={backend_failure}, budget={budget}"
-                    );
-                    if backend_failure {
-                        assert!(matches!(e, Error::Io | Error::OutcomeUnknown));
-                        assert!(db.requires_recovery());
-                    } else {
-                        assert_eq!(e, Error::OutOfMemory);
-                        assert!(!db.requires_recovery());
-                        assert_eq!(disk.durable_image().unwrap(), image);
-                    }
-                    disk.crash(Crash::DropAll).unwrap();
-                    drop(tx);
-                    drop(db);
-                    let recovered = open(&disk);
-                    if !backend_failure || e == Error::Io {
-                        assert_eq!(state(&recovered), old);
-                    }
+            Err(e) => {
+                assert_eq!(state(&db), old, "allocation {allowance}");
+                assert!(matches!(e, Error::Io | Error::OutcomeUnknown));
+                assert!(db.requires_recovery());
+                disk.crash(Crash::DropAll).unwrap();
+                drop(tx);
+                drop(db);
+                let recovered = open(&disk);
+                if e == Error::Io {
+                    assert_eq!(state(&recovered), old);
                 }
             }
         }
-        assert!(succeeded && failures > 0, "backend={backend_failure}");
     }
+    panic!("commit did not finish within the backend allocation sweep");
 }
 
 #[test]

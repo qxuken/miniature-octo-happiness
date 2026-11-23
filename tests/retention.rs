@@ -1,6 +1,11 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+
+use allocator::TestAllocator;
+use std::sync::Arc;
 use weekend_db::{
-    Database, Error, Limits, MAX_RETAINED_SNAPSHOTS, Validation,
-    storage::{Crash, Fault, SimulatedDisk},
+    AllocatorHandle, Database, DatabaseOptions, Error, Limits, MAX_RETAINED_SNAPSHOTS, Validation,
+    storage::{Crash, Fault, IoKind, SimulatedDisk},
 };
 const ID: [u8; 16] = *b"retention-test-1";
 fn fixture() -> Vec<u8> {
@@ -63,25 +68,24 @@ fn historical_retain_release_and_live_lifetimes_survive_reopening() {
     assert_eq!(db.release_retained(2), Err(Error::NotFound));
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn allocation_failure_during_retain_leaves_the_acknowledged_image() {
-    use weekend_db::storage::IoKind;
-
     let image = fixture();
     let disk = SimulatedDisk::from_image(&image).unwrap();
-    let db = open(&disk);
+    let allocator = Arc::new(TestAllocator::default());
+    let options = DatabaseOptions::default().with_allocator(allocator.handle());
+    let db = Database::open_on_with_options(disk.clone(), options).unwrap();
     let captured = db.snapshot();
     let baseline = db.memory_usage().live_bytes;
+    let allocated = allocator.live_bytes();
     for allowance in 0..64 {
         disk.arm(usize::MAX, Fault::Error);
-        db.fail_allocations_after(Some(allowance));
-        let result = db.retain_snapshot(&captured);
-        db.fail_allocations_after(None);
+        let result = allocator.with_refusal(allowance, || db.retain_snapshot(&captured));
         if result == Ok(2) {
             assert!(allowance > 0);
             drop(captured);
             drop(db);
+            assert_eq!(allocator.live(), 0);
             let db = open(&disk);
             assert_eq!(db.retained_ids().unwrap(), [1, 2]);
             assert_eq!(
@@ -103,6 +107,7 @@ fn allocation_failure_during_retain_leaves_the_acknowledged_image() {
         assert_eq!(db.snapshot().revision(), captured.revision());
         assert_eq!(db.retained_ids().unwrap(), [1]);
         assert_eq!(db.memory_usage().live_bytes, baseline);
+        assert_eq!(allocator.live_bytes(), allocated);
     }
     panic!("snapshot was not retained after the bounded allocation sweep");
 }
@@ -261,38 +266,125 @@ fn retain_release_faults_recover_whole_catalogs_at_every_io_boundary() {
     }
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn retention_preparation_allocation_failures_are_atomic() {
     let image = fixture();
     for releasing in [false, true] {
         let mut succeeded = false;
-        for budget in 0..512 {
+        for allowance in 0..512 {
             let disk = SimulatedDisk::from_image(&image).unwrap();
-            let db = open(&disk);
+            let allocator = Arc::new(TestAllocator::default());
+            let options = DatabaseOptions::default().with_allocator(allocator.handle());
+            let db = Database::open_on_with_options(disk.clone(), options).unwrap();
             let snap = db.snapshot();
             let rev = snap.revision();
-            db.fail_allocations_after(Some(budget));
-            let result = if releasing {
-                db.release_retained(1)
-            } else {
-                db.retain_snapshot(&snap).map(|_| ())
-            };
-            db.fail_allocations_after(None);
-            match result {
-                Ok(()) => {
-                    succeeded = true;
-                    break;
+            let data_revision = snap.data_revision();
+            let live = db.memory_usage().live_bytes;
+            let allocated = allocator.live_bytes();
+            let result = allocator.with_refusal(allowance, || {
+                if releasing {
+                    db.release_retained(1)
+                } else {
+                    db.retain_snapshot(&snap).map(|_| ())
                 }
+            });
+            match result {
+                Ok(()) => assert!(allowance > 0),
                 Err(e) => {
                     assert_eq!(e, Error::OutOfMemory);
                     assert!(!db.requires_recovery());
                     assert_eq!(db.snapshot().revision(), rev);
-                    assert_eq!(db.retained_ids().unwrap(), vec![1]);
+                    assert_eq!(db.retained_ids().unwrap(), [1]);
                     assert_eq!(disk.durable_image().unwrap(), image);
+                    assert_eq!(db.memory_usage().live_bytes, live);
+                    assert_eq!(allocator.live_bytes(), allocated);
                 }
+            }
+            drop(snap);
+            drop(db);
+            assert_eq!(allocator.live(), 0);
+            let reopened = open(&disk);
+            let expected: &[u64] = match (result, releasing) {
+                (Ok(()), true) => &[],
+                (Ok(()), false) => &[1, 2],
+                (Err(_), _) => &[1],
+            };
+            assert_eq!(reopened.retained_ids().unwrap(), expected);
+            assert_eq!(
+                reopened.snapshot().revision(),
+                rev + u64::from(result.is_ok())
+            );
+            assert_eq!(reopened.snapshot().data_revision(), data_revision);
+            assert_eq!(bytes(&reopened.snapshot(), &reopened), b"current");
+            for &id in expected {
+                let payload: &[u8] = if id == 1 {
+                    b"historical-only"
+                } else {
+                    b"current"
+                };
+                assert_eq!(
+                    bytes(&reopened.retained_snapshot(id).unwrap(), &reopened),
+                    payload
+                );
+            }
+            if result.is_ok() {
+                succeeded = true;
+                break;
             }
         }
         assert!(succeeded, "release={releasing}");
     }
+}
+
+#[test]
+fn reopen_allocator_refusal_releases_the_lease_and_partial_graph() {
+    let image = fixture();
+    let allocator = Arc::new(TestAllocator::default());
+    let handle = allocator.handle();
+    let allocated = allocator.live_bytes();
+    for allowance in 0..512 {
+        let disk = SimulatedDisk::from_image(&image).unwrap();
+        let options = DatabaseOptions::default().with_allocator(handle.clone());
+        disk.arm(usize::MAX, Fault::Error);
+        let result = allocator.with_refusal(allowance, || {
+            Database::open_on_with_options(disk.clone(), options)
+        });
+        let succeeded = match result {
+            Ok(db) => {
+                assert!(allowance > 0);
+                assert_eq!(db.retained_ids().unwrap(), [1]);
+                assert_eq!(bytes(&db.snapshot(), &db), b"current");
+                assert_eq!(
+                    bytes(&db.retained_snapshot(1).unwrap(), &db),
+                    b"historical-only"
+                );
+                true
+            }
+            Err(e) => {
+                assert_eq!(e, Error::OutOfMemory);
+                assert!(
+                    disk.trace()
+                        .unwrap()
+                        .iter()
+                        .all(|event| !matches!(event.kind, IoKind::Write | IoKind::Sync))
+                );
+                false
+            }
+        };
+        assert_eq!(allocator.live_bytes(), allocated);
+        assert_eq!(disk.durable_image().unwrap(), image);
+        let reopened = open(&disk);
+        assert_eq!(bytes(&reopened.snapshot(), &reopened), b"current");
+        assert_eq!(reopened.retained_ids().unwrap(), [1]);
+        assert_eq!(
+            bytes(&reopened.retained_snapshot(1).unwrap(), &reopened),
+            b"historical-only"
+        );
+        if succeeded {
+            drop(handle);
+            assert_eq!(allocator.live(), 0);
+            return;
+        }
+    }
+    panic!("reopen did not finish within the allocation sweep");
 }
