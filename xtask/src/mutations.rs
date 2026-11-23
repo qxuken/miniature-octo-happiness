@@ -108,7 +108,10 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 && c.matches.is_none_or(|n| n > 0)
                 && matches!(c.target.as_str(), "--lib" | "--test" | "--bin" | "--bins")
                 && match (&c.manifest, c.package.as_str()) {
-                    (None, "weekend-db" | "weekend-db-typed" | "study-peer") => true,
+                    (
+                        None,
+                        "weekend-db" | "weekend-db-typed" | "weekend-db-macros" | "study-peer",
+                    ) => true,
                     (Some(manifest), "weekend-decision-inventory") =>
                         manifest == Path::new("tools/decision-inventory/Cargo.toml"),
                     _ => false,
@@ -636,8 +639,11 @@ mod tests {
     #[test]
     fn fixture_preserves_test_commands_and_selects_release_explicitly() {
         let data = inventory().unwrap();
-        assert_eq!(data.cases.len(), 871);
-        let c = &data.cases[0];
+        let c = data
+            .cases
+            .iter()
+            .find(|case| case.name == "memory-depth-zero")
+            .unwrap();
         assert_eq!(
             command(c, None, false),
             [
@@ -656,6 +662,36 @@ mod tests {
         let mut optimized = command(c, None, false);
         optimized.push("--release".into());
         assert_eq!(command(c, None, true), optimized);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn macro_mutations_run_the_named_expansion_test_in_the_workspace() {
+        let fixture = inventory().unwrap();
+        let case = fixture
+            .cases
+            .iter()
+            .find(|c| c.name == "r1-derive-model-parameters")
+            .unwrap();
+        assert_eq!(
+            command(case, Some("1.100.0"), true),
+            [
+                "cargo",
+                "+1.100.0",
+                "test",
+                "--offline",
+                "--locked",
+                "-p",
+                "weekend-db-macros",
+                "--all-features",
+                "--test",
+                "expansion_guards",
+                "--release",
+                "model_parameters_and_where_clause_reject_independently",
+                "--",
+                "--exact",
+            ]
+        );
     }
     #[cfg(unix)]
     #[test]

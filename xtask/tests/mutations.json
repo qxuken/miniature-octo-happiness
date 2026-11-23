@@ -4443,7 +4443,7 @@
       "exact_test": "overlay_scan_refusals_keep_only_the_dependencies_already_recorded",
       "target": "--test",
       "occurrence": 1,
-      "matches": 1,
+      "matches": 2,
       "package": "weekend-db"
     },
     {
@@ -10551,6 +10551,150 @@
       "matches": 1,
       "package": "weekend-db-typed",
       "exact_test": "migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress"
+    },
+    {
+      "name": "r1-derive-model-parameters",
+      "file": "crates/weekend-db-macros/src/model.rs",
+      "old": "!input.generics.params.is_empty() || input.generics.where_clause.is_some()",
+      "new": "input.generics.where_clause.is_some()",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "model_parameters_and_where_clause_reject_independently"
+    },
+    {
+      "name": "r1-derive-model-where-clause",
+      "file": "crates/weekend-db-macros/src/model.rs",
+      "old": "!input.generics.params.is_empty() || input.generics.where_clause.is_some()",
+      "new": "!input.generics.params.is_empty()",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "model_parameters_and_where_clause_reject_independently"
+    },
+    {
+      "name": "r1-derive-model-active-id",
+      "file": "crates/weekend-db-macros/src/model.rs",
+      "old": "ids.contains(&id) || retired.contains(&id)",
+      "new": "retired.contains(&id)",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "active_and_reserved_field_id_collisions_reject_independently"
+    },
+    {
+      "name": "r1-derive-model-reserved-id",
+      "file": "crates/weekend-db-macros/src/model.rs",
+      "old": "ids.contains(&id) || retired.contains(&id)",
+      "new": "ids.contains(&id)",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "active_and_reserved_field_id_collisions_reject_independently"
+    },
+    {
+      "name": "r1-derive-model-type-id",
+      "file": "crates/weekend-db-macros/src/model.rs",
+      "old": "if type_id.is_some() {",
+      "new": "if type_id.is_some() && false {",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "duplicate_model_type_id_has_single_declaration_control"
+    },
+    {
+      "name": "r1-derive-record-duplicate-field",
+      "file": "crates/weekend-db-macros/src/record.rs",
+      "old": "if names.contains(&name) {",
+      "new": "if names.contains(&name) && false {",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "record_wire_order_rejects_duplicate_unknown_and_omitted_fields"
+    },
+    {
+      "name": "r1-derive-record-unknown-field",
+      "file": "crates/weekend-db-macros/src/record.rs",
+      "old": ".ok_or_else(|| syn::Error::new(name.span(), \"unknown field in wire order\"))?",
+      "new": ".or_else(|| fields.first()).ok_or_else(|| syn::Error::new(name.span(), \"unknown field in wire order\"))?",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "record_wire_order_rejects_duplicate_unknown_and_omitted_fields"
+    },
+    {
+      "name": "r1-derive-record-omitted-field",
+      "file": "crates/weekend-db-macros/src/record.rs",
+      "old": "if names.len() != fields.len() {",
+      "new": "if names.len() != fields.len() && false {",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "record_wire_order_rejects_duplicate_unknown_and_omitted_fields"
+    },
+    {
+      "name": "r1-derive-resolution-struct-marker",
+      "file": "crates/weekend-db-macros/src/resolution.rs",
+      "old": "if attr.path().is_ident(\"resolve\") {",
+      "new": "if attr.path().is_ident(\"resolve\") && false {",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 2,
+      "package": "weekend-db-macros",
+      "exact_test": "resolve_on_struct_rejects_with_valid_field_control"
+    },
+    {
+      "name": "r1-derive-resolution-option",
+      "file": "crates/weekend-db-macros/src/resolution.rs",
+      "old": "if !meta.path.is_ident(\"crate\") {",
+      "new": "if !meta.path.is_ident(\"crate\") && false {",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "unknown_resolution_option_rejects_with_valid_crate_control"
+    },
+    {
+      "name": "r1-derive-resolution-duplicate-marker",
+      "file": "crates/weekend-db-macros/src/resolution.rs",
+      "old": "if resolve.replace(attr.span()).is_some() {",
+      "new": "if resolve.replace(attr.span()).is_some() && false {",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "duplicate_field_resolution_rejects_with_single_marker_control"
+    },
+    {
+      "name": "r1-derive-resolution-none-selected",
+      "file": "crates/weekend-db-macros/src/resolution.rs",
+      "old": "if selected.is_empty() {",
+      "new": "if selected.is_empty() && false {",
+      "test": "expansion_guards",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-macros",
+      "exact_test": "resolution_requires_a_selected_field"
     }
   ]
 }

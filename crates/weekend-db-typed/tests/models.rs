@@ -532,6 +532,71 @@ fn generated_field_constants_never_shadow_model_identity_in_expansions() -> Resu
     Ok(())
 }
 
+#[derive(Model)]
+#[weekend(type_id = 435, version = 1, reserved(9, 4))]
+struct DescriptorGolden {
+    #[weekend(id = 3, unique, name = "code-v1")]
+    code: u64,
+    #[weekend(id = 7)]
+    comment: Option<String>,
+    #[weekend(id = 1, default = 7)]
+    priority: u8,
+}
+
+#[test]
+fn emitted_model_schema_matches_the_golden_descriptor_after_reopen() -> Result<()> {
+    use engine::storage::SimulatedDisk;
+
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [43; 16], engine::Limits::default())?;
+    store.table::<DescriptorGolden>("descriptor")?;
+    let db = store.database();
+    let mut fields = db.map()?;
+    for (id, name, kind, required, nullable, default) in [
+        (1u64, "priority", 3, true, false, Some(7)),
+        (3, "code-v1", 3, true, false, None),
+        (7, "comment", 5, false, true, None),
+    ] {
+        let mut field = db
+            .map()?
+            .map_set(b"name", &db.bytes(name.as_bytes())?)?
+            .map_set(b"kind", &db.unsigned(kind)?)?
+            .map_set(b"required", &db.boolean(required)?)?
+            .map_set(b"nullable", &db.boolean(nullable)?)?;
+        if let Some(default) = default {
+            field = field.map_set(b"default", &db.unsigned(default)?)?;
+        }
+        fields = fields.map_set(&id.to_le_bytes(), &field)?;
+    }
+    let reserved = db
+        .list()?
+        .list_push(&db.unsigned(9)?)?
+        .list_push(&db.unsigned(4)?)?;
+    let expected = db
+        .map()?
+        .map_set(b"type", &db.unsigned(435)?)?
+        .map_set(b"version", &db.unsigned(1)?)?
+        .map_set(b"fields", &fields)?
+        .map_set(b"reserved", &reserved)?;
+    assert_eq!(DescriptorGolden::schema(db)?.as_value(), &expected);
+    assert_eq!(DescriptorGolden::UNIQUE_FIELDS, &[3]);
+    assert_eq!(DescriptorGolden::CODE.id(), 3);
+    assert_eq!(DescriptorGolden::COMMENT, 7);
+    assert_eq!(DescriptorGolden::PRIORITY, 1);
+    let mut key = [0; 16];
+    key[..8].copy_from_slice(&435u64.to_le_bytes());
+    key[8..].copy_from_slice(&1u64.to_le_bytes());
+    drop(store);
+
+    let reopened = Store::open_on(disk, engine::Limits::default())?;
+    let db = reopened.database();
+    assert_eq!(
+        db.snapshot().get(db.collection_id(2), &key)?,
+        Some(expected)
+    );
+    Ok(())
+}
+
 #[test]
 fn every_core_allocation_failure_aborts_primary_and_index_updates() -> Result<()> {
     let mut succeeded = false;

@@ -3,6 +3,8 @@
 //! compile_fail.rs. Source modules are imported unchanged, including their tests.
 #[path = "../src/model.rs"]
 mod model;
+#[path = "../src/record.rs"]
+mod record;
 #[path = "../src/resolution.rs"]
 mod resolution;
 
@@ -59,5 +61,64 @@ fn duplicate_field_resolution_rejects_with_single_marker_control() {
         resolution::expand,
         "struct A { #[resolve] #[resolve] a:u64 }",
         "duplicate #[resolve]",
+    );
+}
+
+#[test]
+fn model_parameters_and_where_clause_reject_independently() {
+    valid(model::expand, "#[weekend(type_id=1,version=1)] struct A {}");
+    for input in [
+        "#[weekend(type_id=1,version=1)] struct A<T> { #[weekend(id=1)] item:T }",
+        "#[weekend(type_id=1,version=1)] struct A where u64: Copy {}",
+    ] {
+        rejected(
+            model::expand,
+            input,
+            "Model requires an owned, nongeneric struct",
+        );
+    }
+}
+
+#[test]
+fn active_and_reserved_field_id_collisions_reject_independently() {
+    let source = |second_id| {
+        format!(
+            "#[weekend(type_id=1,version=1,reserved(9))] struct A {{ #[weekend(id=1)] a:u64, #[weekend(id={second_id})] b:u64 }}"
+        )
+    };
+    valid(model::expand, &source(2));
+    for id in [1, 9] {
+        rejected(
+            model::expand,
+            &source(id),
+            "field ID duplicates an active or reserved ID",
+        );
+    }
+}
+
+#[test]
+fn record_wire_order_rejects_duplicate_unknown_and_omitted_fields() {
+    let source = |order: &str| {
+        format!(
+            "#[record(key=b\"r\",format=b\"RECORD01\",fields({order}))] struct A {{ a:u64,b:u64 }}"
+        )
+    };
+    valid(record::expand, &source("b,a"));
+    for (order, diagnostic) in [
+        ("a,a", "duplicate field in wire order"),
+        ("a,c", "unknown field in wire order"),
+        ("a", "list every field exactly once in fields(...)"),
+    ] {
+        rejected(record::expand, &source(order), diagnostic);
+    }
+}
+
+#[test]
+fn resolution_requires_a_selected_field() {
+    valid(resolution::expand, "struct A { #[resolve] a:u64 }");
+    rejected(
+        resolution::expand,
+        "struct A { a:u64 }",
+        "mark a field with #[resolve]",
     );
 }
