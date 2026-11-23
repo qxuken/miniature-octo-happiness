@@ -1147,20 +1147,95 @@ fn catalogue_identity_survives_reopen_and_old_leases_cannot_unlock_a_new_writer(
 fn interrupted_initial_creation_has_no_prior_acknowledged_state() {
     let reference = SimulatedDisk::new().unwrap();
     reference.arm(usize::MAX, Fault::Error);
-    drop(Database::create_on(reference.clone(), ID, Limits::default()).unwrap());
+    let db = Database::create_on(reference.clone(), ID, Limits::default()).unwrap();
+    assert_eq!(db.snapshot().revision(), 0);
+    assert_eq!(db.storage_identity(), Ok(ID));
+    drop(db);
     let trace = reference.trace().unwrap();
+    let image = reference.durable_image().unwrap();
+    let [append_sync, root_sync, _] = commit_barriers(&trace);
+    assert_eq!(trace[0].kind, IoKind::Length);
+    for (index, event) in trace[1..=5].iter().enumerate() {
+        assert_eq!(event.kind, IoKind::Write);
+        assert_eq!(event.offset, (index * REGION) as u64);
+        assert_eq!(event.len, REGION);
+    }
+    assert!(append_sync > 6);
+    assert!(
+        trace[6..append_sync]
+            .iter()
+            .all(|event| { event.kind == IoKind::Write && event.offset >= APPEND_START as u64 })
+    );
     for step in 0..trace.len() {
         for policy in [Crash::DropAll, Crash::PersistAll] {
             let disk = SimulatedDisk::new().unwrap();
             disk.arm(step, Fault::Error);
-            assert!(Database::create_on(disk.clone(), ID, Limits::default()).is_err());
+            assert_eq!(
+                Database::create_on(disk.clone(), ID, Limits::default()).err(),
+                Some(if step <= append_sync {
+                    Error::Io
+                } else {
+                    Error::OutcomeUnknown
+                }),
+                "creation step={step}"
+            );
+            assert_eq!(disk.trace().unwrap(), trace[..=step]);
+            let mut probe = disk.clone();
+            probe.lock().expect("failed creation released its lease");
+            probe.unlock();
             disk.crash(policy).unwrap();
-            match Database::open_on(disk, Limits::default()) {
-                Ok(db) => assert_eq!(db.snapshot().revision(), 0),
-                Err(e) => assert!(matches!(e, Error::Corrupt | Error::UnsupportedFormat)),
+            let result = Database::open_on(disk.clone(), Limits::default());
+            if step > root_sync || step == root_sync && matches!(policy, Crash::PersistAll) {
+                let db = result.unwrap();
+                assert_eq!(db.snapshot().revision(), 0);
+                assert_eq!(db.storage_identity(), Ok(ID));
+                assert!(db.retained_ids().unwrap().is_empty());
+                assert_eq!(disk.durable_image().unwrap(), image);
+            } else {
+                assert_eq!(result.err(), Some(Error::Corrupt), "step={step} {policy:?}");
             }
         }
     }
+}
+
+#[test]
+fn creation_allocation_failures_precede_writes_and_release_the_lease() {
+    let mut refused_during_preparation = false;
+    for allowance in 0..64 {
+        let disk = SimulatedDisk::new().unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let options = allocator.options();
+        disk.arm(usize::MAX, Fault::Error);
+        let result = allocator.with_refusal(allowance, || {
+            Database::create_on_with_options(disk.clone(), ID, options)
+        });
+        let trace = disk.trace().unwrap();
+        let created = match result {
+            Ok(db) => {
+                assert_eq!(db.snapshot().revision(), 0);
+                assert_eq!(db.storage_identity(), Ok(ID));
+                assert!(refused_during_preparation);
+                true
+            }
+            Err(error) => {
+                assert_eq!(error, Error::OutOfMemory, "allowance={allowance}");
+                assert!(trace.iter().all(|event| event.kind == IoKind::Length));
+                refused_during_preparation |= !trace.is_empty();
+                assert!(disk.durable_image().unwrap().is_empty());
+                false
+            }
+        };
+        assert_eq!(allocator.live_bytes(), 0);
+        let mut probe = disk.clone();
+        probe.lock().unwrap();
+        assert_eq!(probe.length().unwrap() == 0, !created);
+        probe.unlock();
+        if created {
+            assert_eq!(open(&disk).snapshot().revision(), 0);
+            return;
+        }
+    }
+    panic!("creation did not finish within the allocation sweep");
 }
 
 #[test]
@@ -1281,12 +1356,18 @@ fn backend_allocation_failures_preserve_the_acknowledged_state() {
 
 #[test]
 fn reopening_an_uncertain_volatile_root_stabilizes_it_before_exposure() {
-    let image = base_image();
+    let (disk, original_db) = base_store();
+    assert_eq!(original_db.retain_snapshot(&original_db.snapshot()), Ok(1));
+    let image = disk.durable_image().unwrap();
     let trace = commit_trace(&image);
     let [_, root_sync, _] = commit_barriers(&trace);
-    let original_db = open(&SimulatedDisk::from_image(&image).unwrap());
     let original_revision = original_db.snapshot().revision();
     let original = state(&original_db);
+    let retained = retained_rows(&original_db);
+    let revision = original_revision + 1;
+    assert_eq!(staged(&original_db).commit(), Ok(revision));
+    let expected = state(&original_db);
+    let published = disk.durable_image().unwrap();
     drop(original_db);
     let make_uncertain = || {
         let disk = SimulatedDisk::from_image(&image).unwrap();
@@ -1301,15 +1382,18 @@ fn reopening_an_uncertain_volatile_root_stabilizes_it_before_exposure() {
     let disk = make_uncertain();
     disk.arm(usize::MAX, Fault::Error);
     let recovered = open(&disk);
-    let expected = state(&recovered);
-    let revision = recovered.snapshot().revision();
-    assert_eq!(revision, original_revision + 1);
+    assert_eq!(recovered.snapshot().revision(), revision);
+    assert_eq!(state(&recovered), expected);
+    assert_eq!(retained_rows(&recovered), retained);
+    assert_eq!(disk.durable_image().unwrap(), published);
+    assert_eq!(disk.clone().lock(), Err(Error::Busy));
     drop(recovered);
     let recovery_trace = disk.trace().unwrap();
     disk.crash(Crash::DropAll).unwrap();
     let reopened = open(&disk);
     assert_eq!(reopened.snapshot().revision(), revision);
     assert_eq!(state(&reopened), expected);
+    assert_eq!(retained_rows(&reopened), retained);
     drop(reopened);
 
     let barriers: Vec<_> = recovery_trace
@@ -1324,6 +1408,8 @@ fn reopening_an_uncertain_volatile_root_stabilizes_it_before_exposure() {
         [first.kind, witness.kind, last.kind],
         [IoKind::Sync, IoKind::Write, IoKind::Sync]
     );
+    assert_eq!(witness.offset, (3 + (revision & 1)) * REGION as u64);
+    assert_eq!(witness.len, REGION);
     for (step, event) in barriers.iter().copied() {
         let faults: &[(Fault, bool)] = if event.kind == IoKind::Sync {
             &[
@@ -1348,6 +1434,9 @@ fn reopening_an_uncertain_volatile_root_stabilizes_it_before_exposure() {
                     Err(Error::Io)
                 ));
                 assert_eq!(disk.trace().unwrap(), recovery_trace[..=step]);
+                let mut probe = disk.clone();
+                probe.lock().expect("failed open released its lease");
+                probe.unlock();
                 disk.clear_fault();
                 disk.crash(policy).unwrap();
                 let next =
@@ -1363,6 +1452,10 @@ fn reopening_an_uncertain_volatile_root_stabilizes_it_before_exposure() {
                     if next { &expected } else { &original },
                     "recovery step={step}, fault={fault:?}, crash={policy:?}",
                 );
+                assert_eq!(retained_rows(&recovered), retained);
+                if next {
+                    assert_eq!(disk.durable_image().unwrap(), published);
+                }
             }
         }
     }

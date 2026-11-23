@@ -380,8 +380,12 @@ fn durable_tear_growth_allocation_failure_leaves_both_images_and_pending_queue_u
 
 #[test]
 fn creation_identity_and_empty_destination_guards_release_failed_leases() {
-    for (identity, image) in [([0; 16], &b""[..]), ([1; 16], &b"occupied"[..])] {
+    for (identity, image, expected) in [
+        ([0; 16], &b""[..], &[][..]),
+        ([1; 16], &b"occupied"[..], &[IoKind::Length][..]),
+    ] {
         let disk = SimulatedDisk::from_image(image).unwrap();
+        disk.arm(usize::MAX, Fault::Error);
         assert_eq!(
             Database::create_on(disk.clone(), identity, Limits::default()).err(),
             Some(Error::Invalid)
@@ -390,11 +394,13 @@ fn creation_identity_and_empty_destination_guards_release_failed_leases() {
         let mut probe = disk.clone();
         probe.lock().unwrap();
         probe.unlock();
-        assert!(
+        assert_eq!(
             disk.trace()
                 .unwrap()
                 .iter()
-                .all(|event| event.kind == IoKind::Length)
+                .map(|event| event.kind)
+                .collect::<Vec<_>>(),
+            expected
         );
     }
     let disk = SimulatedDisk::new().unwrap();
@@ -404,4 +410,34 @@ fn creation_identity_and_empty_destination_guards_release_failed_leases() {
     let mut probe = disk.clone();
     probe.lock().unwrap();
     probe.unlock();
+}
+
+#[test]
+fn contended_creation_and_reopen_do_no_io_and_preserve_the_owner() {
+    let disk = SimulatedDisk::new().unwrap();
+    let mut owner = disk.clone();
+    owner.lock().unwrap();
+    disk.arm(usize::MAX, Fault::Error);
+    assert_eq!(
+        Database::create_on(disk.clone(), [1; 16], Limits::default()).err(),
+        Some(Error::Busy)
+    );
+    assert_eq!(
+        Database::open_on(disk.clone(), Limits::default()).err(),
+        Some(Error::Busy)
+    );
+    assert!(disk.trace().unwrap().is_empty());
+    assert_eq!(disk.clone().lock(), Err(Error::Busy));
+    assert_eq!(owner.length(), Ok(0));
+    owner.unlock();
+
+    let created = Database::create_on(disk.clone(), [1; 16], Limits::default()).unwrap();
+    assert_eq!(disk.clone().lock(), Err(Error::Busy));
+    drop(created);
+    let reopened = Database::open_on(disk.clone(), Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), 0);
+    assert_eq!(disk.clone().lock(), Err(Error::Busy));
+    drop(reopened);
+    owner.lock().unwrap();
+    owner.unlock();
 }
