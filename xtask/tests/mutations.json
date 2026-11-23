@@ -10871,6 +10871,248 @@
       "occurrence": 2,
       "matches": 2,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-live-config",
+      "file": "src/replication/mod.rs",
+      "old": "let mem = Memory::new(limits)?;\n        let state =",
+      "new": "let mem = Memory::new(limits).unwrap_or_else(|_| Memory::new(Limits::default()).unwrap());\n        let state =",
+      "test": "replication::tests::live_capture_source_and_limits_are_checked_before_creating_destination",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-live-source",
+      "file": "src/replication/mod.rs",
+      "old": "let state = source.replication_snapshot(&mem)?;",
+      "new": "let state = source.replication_snapshot(&mem).unwrap();",
+      "test": "replication::tests::live_capture_source_and_limits_are_checked_before_creating_destination",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-live-admission",
+      "file": "src/replication/mod.rs",
+      "old": "self.check_revision(state.identity, state.head.revision)?",
+      "new": "self.check_revision(state.identity, state.head.revision).unwrap_or(state.head.revision)",
+      "test": "replication::tests::live_capture_source_and_limits_are_checked_before_creating_destination",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-source-identity",
+      "file": "src/replication/mod.rs",
+      "old": "identity != self.enrollment.file_identity",
+      "new": "false",
+      "test": "replication::tests::live_capture_source_and_limits_are_checked_before_creating_destination",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-source-rollback",
+      "file": "src/replication/mod.rs",
+      "old": "revision < self.verified_revision",
+      "new": "false",
+      "test": "replication::tests::live_capture_source_and_limits_are_checked_before_creating_destination",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-live-destination",
+      "file": "src/replication/mod.rs",
+      "old": "state.encode(destination()?, &mem)",
+      "new": "state.encode(destination().unwrap(), &mem)",
+      "test": "replication::tests::live_capture_source_and_limits_are_checked_before_creating_destination",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-live-encode",
+      "file": "src/replication/mod.rs",
+      "old": "state.encode(destination()?, &mem)?",
+      "new": "state.encode(destination()?, &mem).unwrap()",
+      "test": "replication::tests::live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-live-verify",
+      "file": "src/replication/mod.rs",
+      "old": "storage.verify(&mem)?;",
+      "new": "let _ = storage.verify(&mem);",
+      "test": "replication::tests::live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-finish-digest",
+      "file": "src/replication/mod.rs",
+      "old": "image_digest(storage.image_bytes(), length)?",
+      "new": "image_digest(storage.image_bytes(), length).unwrap_or_default()",
+      "test": "replication::tests::live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-reopen-enrollment",
+      "file": "src/replication/mod.rs",
+      "old": "descriptor.enrollment != self.enrollment",
+      "new": "false",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-reopen-ahead",
+      "file": "src/replication/mod.rs",
+      "old": "descriptor.revision > self.verified_revision",
+      "new": "false",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-reopen-offer",
+      "file": "src/replication/mod.rs",
+      "old": "let offer = descriptor.offer();\n        offer.validate()?;",
+      "new": "let offer = descriptor.offer();\n        let _ = offer.validate();",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-reopen-config",
+      "file": "src/replication/mod.rs",
+      "old": "let mem = Memory::new(limits)?;\n        let mut storage =",
+      "new": "let mem = Memory::new(limits).unwrap_or_else(|_| Memory::new(Limits::default()).unwrap());\n        let mut storage =",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-reopen-lease",
+      "file": "src/replication/mod.rs",
+      "old": "Storage::locked(image, &mem)?",
+      "new": "Storage::locked(image, &mem).unwrap()",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-reopen-digest-io",
+      "file": "src/replication/mod.rs",
+      "old": "if image_digest(backend, offer.length)? != offer.digest",
+      "new": "if image_digest(backend, offer.length).unwrap_or_default() != offer.digest",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-reopen-digest",
+      "file": "src/replication/mod.rs",
+      "old": "image_digest(backend, offer.length)? != offer.digest",
+      "new": "{ let _ = image_digest(backend, offer.length)?; false }",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-reopen-verify",
+      "file": "src/replication/mod.rs",
+      "old": "recover_replica(\n            backend,\n            &mem,\n            self.enrollment.file_identity,\n            offer.revision,\n            offer.length,\n        )?;",
+      "new": "let _ = recover_replica(\n            backend,\n            &mem,\n            self.enrollment.file_identity,\n            offer.revision,\n            offer.length,\n        );",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-visit-exact-length",
+      "file": "src/replication/mod.rs",
+      "old": "backend.length()? != length",
+      "new": "{ let _ = backend.length()?; false }",
+      "test": "replication::tests::visit_image_length_and_callback_errors_stop_before_more_chunks",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-visit-read",
+      "file": "src/replication/mod.rs",
+      "old": "read_all(backend, offset, chunk)?;",
+      "new": "let _ = read_all(backend, offset, chunk);",
+      "test": "replication::tests::live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-visit-callback",
+      "file": "src/replication/mod.rs",
+      "old": "visit(chunk)?;",
+      "new": "let _ = visit(chunk);",
+      "test": "replication::tests::visit_image_length_and_callback_errors_stop_before_more_chunks",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-ship-enrollment",
+      "file": "src/replication/mod.rs",
+      "old": "export.enrollment != self.enrollment",
+      "new": "false",
+      "test": "replication::tests::source_and_export_identity_revision_guards_are_independent",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-capture-ship-ahead",
+      "file": "src/replication/mod.rs",
+      "old": "offer.revision > self.verified_revision",
+      "new": "false",
+      "test": "replication::tests::source_and_export_identity_revision_guards_are_independent",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }

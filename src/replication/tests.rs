@@ -107,13 +107,29 @@ fn live_poll_refreshes_local_revision_and_keeps_accepted_follower_progress() {
 
 #[test]
 fn live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged() {
-    use crate::storage::{Fault, IoKind, SimulatedDisk};
+    use crate::storage::{APPEND_START, Fault, IoEvent, IoKind, SimulatedDisk};
 
     let disk = SimulatedDisk::new().unwrap();
-    let source = Database::create_on(disk.clone(), [4; 16], Limits::default()).unwrap();
+    let mut source = Database::create_on(disk.clone(), [4; 16], Limits::default()).unwrap();
     let mut primary = Primary::new(&source, STREAM).unwrap();
-    source.create_collection().unwrap();
-    source.retain_snapshot(&source.snapshot()).unwrap();
+    let old = primary
+        .export_to(&mut source, MemoryStore::new().unwrap())
+        .unwrap();
+    let old_ack = ack(&old);
+    assert_eq!(
+        poll(&mut primary, Reply::Installed(old_ack)),
+        Ok(Some(old_ack))
+    );
+    let collection = source.create_collection().unwrap();
+    let write = |source: &Database, value| {
+        let mut tx = source.begin();
+        tx.put(collection, b"row", &source.unsigned(value).unwrap())
+            .unwrap();
+        tx.commit().unwrap()
+    };
+    assert_eq!(write(&source, 1), 2);
+    assert_eq!(source.retain_snapshot(&source.snapshot()), Ok(1));
+    assert_eq!(write(&source, 2), 4);
     let original = disk.durable_image().unwrap();
     let baseline = source.memory_usage().live_bytes;
     let rejected = SimulatedDisk::new().unwrap();
@@ -138,30 +154,182 @@ fn live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged() 
     let expected = probe
         .export_live_to(&source, trace.clone(), Limits::default())
         .unwrap();
-    let data_sync = trace
-        .trace()
-        .unwrap()
-        .iter()
-        .position(|event| event.kind == IoKind::Sync)
+    let expected_ack = ack(&expected);
+    let expected_bytes = trace.durable_image().unwrap();
+    let quiescent = probe
+        .export_to(&mut source, MemoryStore::new().unwrap())
         .unwrap();
-    let failed = SimulatedDisk::new().unwrap();
-    failed.arm(data_sync, Fault::Error);
-    assert_eq!(
-        primary
-            .export_live_to(&source, failed, Limits::default())
-            .err(),
-        Some(Error::Io)
+    assert_eq!(expected.descriptor(), quiescent.descriptor());
+    drop(quiescent);
+    let events = trace.trace().unwrap();
+    let after_sync = events
+        .iter()
+        .rposition(|event| event.kind == IoKind::Sync)
+        .unwrap()
+        + 1;
+    let root_offset = (1 + expected.revision() % 2) * REGION as u64;
+    let root_write = events[..after_sync]
+        .iter()
+        .rposition(|event| event.kind == IoKind::Write && event.offset == root_offset)
+        .unwrap();
+    // The last length check and contiguous full-image read are the digest pass.
+    // Witness and graph reads between the final sync and that pass are separate.
+    let mut digest = vec![IoEvent {
+        kind: IoKind::Length,
+        offset: 0,
+        len: 0,
+    }];
+    digest.extend(
+        expected_bytes
+            .chunks(REGION)
+            .enumerate()
+            .map(|(index, chunk)| IoEvent {
+                kind: IoKind::Read,
+                offset: (index * REGION) as u64,
+                len: chunk.len(),
+            }),
     );
-    assert_eq!(primary.verified_revision, 0);
-    assert_eq!(source.retained_ids().unwrap(), vec![1]);
-    assert!(!source.requires_recovery());
-    assert_eq!(source.memory_usage().live_bytes, baseline);
-    assert_eq!(disk.durable_image().unwrap(), original);
+    assert!(events.ends_with(&digest));
+    let verification = &events[after_sync..events.len() - digest.len()];
+    let witness = (3 + expected.revision() % 2) * REGION as u64;
+    assert!(
+        verification
+            .iter()
+            .any(|event| event.kind == IoKind::Read && event.offset == witness)
+    );
+    assert!(
+        verification
+            .iter()
+            .any(|event| event.kind == IoKind::Read && event.offset >= APPEND_START as u64)
+    );
+
+    for (step, event) in events.iter().enumerate() {
+        let mut failed = SimulatedDisk::new().unwrap();
+        failed.arm(step, Fault::Error);
+        let expected_error = if (root_write..after_sync).contains(&step) {
+            Error::OutcomeUnknown
+        } else {
+            Error::Io
+        };
+        assert_eq!(
+            primary
+                .export_live_to(&source, failed.clone(), Limits::default())
+                .err(),
+            Some(expected_error),
+            "step {step}: {event:?}"
+        );
+        assert_eq!(failed.trace().unwrap(), events[..=step]);
+        failed.lock().unwrap();
+        failed.unlock();
+        assert_eq!(primary.verified_revision, old_ack.revision);
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(expected_ack)),
+            Err(Error::ForeignStore)
+        );
+        assert_eq!(primary.progress, Some(old_ack));
+        assert!(!source.requires_recovery());
+        assert_eq!(source.memory_usage().live_bytes, baseline);
+        assert_eq!(disk.durable_image().unwrap(), original);
+    }
+    eprintln!(
+        "live capture: {} preparation operations ({} root and witness), {} verification, {} digest",
+        after_sync,
+        after_sync - root_write,
+        verification.len(),
+        digest.len()
+    );
+    let destination = SimulatedDisk::new().unwrap();
     let retry = primary
-        .export_live_to(&source, MemoryStore::new().unwrap(), Limits::default())
+        .export_live_to(&source, destination.clone(), Limits::default())
         .unwrap();
     assert_eq!(retry.descriptor(), expected.descriptor());
-    assert_eq!(source.begin().commit(), Ok(3));
+    assert_eq!(destination.durable_image().unwrap(), expected_bytes);
+    assert_eq!(primary.progress, Some(old_ack));
+    assert_eq!(
+        poll(&mut primary, Reply::Installed(expected_ack)),
+        Ok(Some(expected_ack))
+    );
+    let check_roots = |db: &Database| {
+        assert_eq!(db.retained_ids().unwrap(), [1]);
+        let retained = db.retained_snapshot(1).unwrap();
+        let current = db.snapshot();
+        let collection = db.collection_id(1);
+        assert_eq!(retained.revision(), 2);
+        assert_eq!(current.revision(), 4);
+        for (snapshot, value) in [(retained, 1), (current, 2)] {
+            assert_eq!(
+                snapshot.get(collection, b"row").unwrap().unwrap().as_u64(),
+                Ok(value)
+            );
+        }
+    };
+    check_roots(&source);
+    let recovered = Database::open_on(
+        SimulatedDisk::from_image(&expected_bytes).unwrap(),
+        Limits::default(),
+    )
+    .unwrap();
+    check_roots(&recovered);
+    assert_eq!(source.begin().commit(), Ok(5));
+}
+
+#[test]
+fn live_capture_source_and_limits_are_checked_before_creating_destination() {
+    let limits = Limits::default();
+    let create =
+        |identity| Database::create_on(MemoryStore::new().unwrap(), identity, limits).unwrap();
+    let source = create([1; 16]);
+    let older = create([1; 16]);
+    let foreign = create([9; 16]);
+    let volatile = Database::with_limits(limits).unwrap();
+    assert_eq!(source.begin().commit(), Ok(1));
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    assert_eq!(source.begin().commit(), Ok(2));
+    for (source, capture_limits, expected) in [
+        (
+            &source,
+            Limits {
+                max_depth: 0,
+                ..limits
+            },
+            Error::Invalid,
+        ),
+        (&volatile, limits, Error::Invalid),
+        (&older, limits, Error::ForeignStore),
+        (&foreign, limits, Error::ForeignStore),
+    ] {
+        assert_eq!(
+            primary
+                .capture_live::<MemoryStore>(source, capture_limits, || panic!(
+                    "destination created before admission"
+                ))
+                .err(),
+            Some(expected)
+        );
+        assert_eq!(primary.verified_revision, 1);
+    }
+    let mut calls = 0;
+    assert_eq!(
+        primary
+            .capture_live::<MemoryStore>(&source, limits, || {
+                calls += 1;
+                Err(Error::Busy)
+            })
+            .err(),
+        Some(Error::Busy)
+    );
+    assert_eq!(calls, 1);
+    assert_eq!(primary.verified_revision, 1);
+    let export = primary
+        .capture_live(&source, limits, || {
+            calls += 1;
+            MemoryStore::new()
+        })
+        .unwrap();
+    assert_eq!(calls, 2);
+    assert_eq!(export.revision(), 2);
+    assert_eq!(primary.verified_revision, 2);
+    assert!(primary.progress.is_none());
 }
 
 #[test]
@@ -242,6 +410,21 @@ fn reopened_exports_require_the_saved_identity_and_keep_the_original_bytes() {
     drop(export);
     source.begin().commit().unwrap();
     let mut primary = Primary::new(&source, STREAM).unwrap();
+    disk.arm(usize::MAX, Fault::Error);
+    assert_eq!(
+        primary
+            .reopen_export(
+                disk.clone(),
+                descriptor,
+                Limits {
+                    max_depth: 0,
+                    ..Limits::default()
+                }
+            )
+            .err(),
+        Some(Error::Invalid)
+    );
+    assert!(disk.trace().unwrap().is_empty());
     for (candidate, error) in [
         (
             ExportDescriptor {
@@ -314,6 +497,34 @@ fn reopened_exports_require_the_saved_identity_and_keep_the_original_bytes() {
             .err(),
         Some(Error::Corrupt)
     );
+    disk.arm(usize::MAX, Fault::Error);
+    let reopened = primary
+        .reopen_export(disk.clone(), descriptor, Limits::default())
+        .unwrap();
+    assert_eq!(reopened.descriptor(), descriptor);
+    let events = disk.trace().unwrap();
+    assert!(events.iter().any(|event| event.kind == IoKind::Read));
+    assert!(
+        events
+            .iter()
+            .all(|event| matches!(event.kind, IoKind::Length | IoKind::Read))
+    );
+    drop(reopened);
+    for (step, event) in events.iter().enumerate() {
+        disk.arm(step, Fault::Error);
+        assert_eq!(
+            primary
+                .reopen_export(disk.clone(), descriptor, Limits::default())
+                .err(),
+            Some(Error::Io),
+            "step {step}: {event:?}"
+        );
+        assert_eq!(disk.trace().unwrap(), events[..=step]);
+        assert_eq!(disk.durable_image().unwrap(), original);
+        assert_eq!(primary.verified_revision, 2);
+        assert!(primary.progress.is_none());
+    }
+    eprintln!("saved capture: {} read-only operations", events.len());
     disk.arm(usize::MAX, Fault::Error);
     let mut reopened = primary
         .reopen_export(disk.clone(), descriptor, Limits::default())
