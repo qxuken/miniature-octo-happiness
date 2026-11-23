@@ -209,13 +209,12 @@ struct Write {
     key: ChargedVec<u8>,
     value: Option<Value>,
 }
-// Logical draft charge, separate from physical allocation admission. Callers
-// validate keys/values before this point; both checked sums retain their guards.
-fn write_charge(key_bytes: usize, value_weight: usize) -> Result<usize> {
+// A saturated sum exceeds the validated transaction-byte cap. The caller
+// applies that cap after including the bytes already staged in the draft.
+fn write_charge(key_bytes: usize, value_weight: usize) -> usize {
     key_bytes
-        .checked_add(value_weight)
-        .and_then(|n| n.checked_add(std::mem::size_of::<Write>()))
-        .ok_or(Error::Limit)
+        .saturating_add(value_weight)
+        .saturating_add(std::mem::size_of::<Write>())
 }
 
 /// An exclusively owned draft: movable between threads, but not shareable.
@@ -845,7 +844,7 @@ impl Transaction<'_> {
         if self.writes.len() >= self.db.limits().max_writes {
             return Err(Error::Limit);
         }
-        let extra = write_charge(k.len(), weight)?;
+        let extra = write_charge(k.len(), weight);
         let bytes = self.charge(extra)?;
         let k = self.db.mem.copy(k)?;
         self.db.mem.reserve(&mut self.writes, 1)?;
@@ -1313,7 +1312,7 @@ mod tests {
         assert_eq!(tx.charge(0), Ok(before));
         assert_eq!(tx.charge(limit - before), Ok(limit));
         assert_eq!(tx.charge(limit - before + 1), Err(Error::Limit));
-        let extra = write_charge(1, largest.weight()).unwrap();
+        let extra = write_charge(1, largest.weight());
         assert!(before.checked_add(extra).is_none());
         assert_eq!(tx.put(c, b"b", &largest), Err(Error::Limit));
         assert_eq!(tx.bytes, before);
@@ -1416,14 +1415,33 @@ mod tests {
     fn new_write_charge_checks_each_sum_without_allocating_giant_keys() {
         let overhead = std::mem::size_of::<Write>();
         let half = isize::MAX as usize;
-        // Both conceptual inputs satisfy the public individual size bounds.
-        // Only the final fixed-overhead sum changes from MAX to overflow.
+        let db = Database::with_limits(Limits {
+            max_transaction_bytes: half,
+            ..Limits::default()
+        })
+        .unwrap();
+        let tx = db.begin();
         let key = half - overhead + 1;
-        assert_eq!(write_charge(key, half), Ok(usize::MAX));
-        assert_eq!(write_charge(key + 1, half), Err(Error::Limit));
-        // The first sum cannot overflow under the two <=isize::MAX bounds.
-        // This defensive helper-only pair intentionally goes outside that domain.
-        assert_eq!(write_charge(usize::MAX, 1), Err(Error::Limit));
-        assert_eq!(write_charge(0, 0), Ok(overhead));
+        for (key_bytes, weight, expected) in [
+            (0, 0, overhead),
+            (0, half - overhead, half),
+            (0, half - overhead + 1, half + 1),
+            (key - 1, half, usize::MAX - 1),
+            (key, half, usize::MAX),
+            (key + 1, half, usize::MAX),
+            // Exercise the first addition outside the public key-length domain.
+            (usize::MAX, 1, usize::MAX),
+        ] {
+            let extra = write_charge(key_bytes, weight);
+            assert_eq!(extra, expected);
+            assert_eq!(
+                tx.charge(extra),
+                if expected <= half {
+                    Ok(expected)
+                } else {
+                    Err(Error::Limit)
+                }
+            );
+        }
     }
 }

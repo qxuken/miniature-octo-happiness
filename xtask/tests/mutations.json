@@ -4568,8 +4568,8 @@
     {
       "name": "r1-assign-commit-write-first-sum",
       "file": "src/engine.rs",
-      "old": "key_bytes\n        .checked_add(value_weight)",
-      "new": "Some(key_bytes.wrapping_add(value_weight))",
+      "old": "key_bytes\n        .saturating_add(value_weight)",
+      "new": "key_bytes\n        .wrapping_add(value_weight)",
       "test": "engine::tests::new_write_charge_checks_each_sum_without_allocating_giant_keys",
       "target": "--lib",
       "occurrence": 1,
@@ -4579,8 +4579,8 @@
     {
       "name": "r1-assign-commit-write-overhead-sum",
       "file": "src/engine.rs",
-      "old": ".and_then(|n| n.checked_add(std::mem::size_of::<Write>()))",
-      "new": ".map(|n| n.wrapping_add(std::mem::size_of::<Write>()))",
+      "old": ".saturating_add(std::mem::size_of::<Write>())",
+      "new": ".wrapping_add(std::mem::size_of::<Write>())",
       "test": "engine::tests::new_write_charge_checks_each_sum_without_allocating_giant_keys",
       "target": "--lib",
       "occurrence": 1,
