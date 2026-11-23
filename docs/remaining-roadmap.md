@@ -348,7 +348,7 @@ mutations. The fixtures exercise metadata read refusal, independent
 ownership and mode checks, and native EBADF for each mutating syscall.
 Both Linux profiles detect all 24 selected controls. The queue has
 9,474 open records (2,105 runtime / 26 driver / 7,343 tooling).
-The Linux architecture guard and deployed-device persistence remain open.
+Deployed-device persistence remains open.
 
 The [Windows pathname ledger](decisions/windows-paths-current.md) records
 27 helper dispositions at `a28cca6`, including three partial let-chain
@@ -366,6 +366,13 @@ collision, unlink, short reads, EOF, offsets and read-only write refusal.
 Both profiles on macOS and Docker Linux pass storage, recovery and
 golden-image tests and detect all 12 named controls. The queue has 9,447
 open records (2,078 runtime / 26 driver / 7,343 tooling).
+
+The [Linux architecture admission ledger](decisions/linux-architecture-current.md)
+records both file adapter guards at `dbf19a5`. Native AArch64 admits file
+operations. Emulated RISC-V rejects them before path admission and can commit
+and reopen through a portable ByteStore. Both profiles detect both guard
+mutations on both targets. The queue has 9,445 open records
+(2,076 runtime / 26 driver / 7,343 tooling).
 
 All R1 and R2–R7 completion gates above remain open.
 

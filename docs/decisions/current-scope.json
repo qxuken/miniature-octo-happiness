@@ -178,7 +178,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "fa2618fb68ad6c0c8d4b4b817c78beba802a41719763d432f571b48ba50f677f",
+    "xtask/src/mutations.rs": "8a515d35af939ea26e1a32782e7cbd8a7872797c298ac2603565591e76002cd5",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -292,7 +292,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "6709f337a24f784cb957b7c2ecff15b84d2a802a14631faa7dbf25050aa3b0b5",
+    "xtask/tests/mutations.json": "91cddb098121b23b03a929d7f056b2ea281d211bf898a50466b5c5d7c2c637fc",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -327,11 +327,13 @@
     "docs/decisions/unix-leases-current.md": "1f6d1761bc7623e15cb73511dc9c54ae37e8b4613d7ad65d7f2a71cf88965fe5",
     "docs/decisions/unix-path-admission-current.md": "f940a41af355506aa5dad551c189cb57fffcb8d33d7bf2ed88fe47dfd12cc436",
     "docs/decisions/unix-sync-current.md": "70e56c2a5726f94957696358da7ca04b3a20db9c9ea1a8f8fd055d33143b32fd",
-    "docs/decisions/macos-primitives-current.md": "ade5e8c70297138dae753718bc92e3a6b7f30127a9b61f20935fd61f3de92a60",
+    "docs/decisions/macos-primitives-current.md": "a31c2ab96a65ee91c6c540f44b03d606d41a16e83e3fe090fffdf5b1d4897d34",
     "docs/decisions/linux-primitives-current.md": "05d0e30b6bc23b0ad93116c44a941db70768b2e568797669085679c27c9ec1ed",
     "docs/decisions/linux-metadata-current.md": "9322111c3a33fd7c8b048a9874d150c550644dbd100b5a12a73ab4eda2cee12e",
     "docs/decisions/windows-paths-current.md": "09fc05b2d123e33c10006f65242359f7ea2002bf1774dfc3bfc16557b33f7a6f",
-    "docs/decisions/unix-scratch-io-current.md": "20bc30d251900817ba3657f612e3c644d5f0dac37a3f3f299f4e5ff18d2d3f91"
+    "docs/decisions/unix-scratch-io-current.md": "20bc30d251900817ba3657f612e3c644d5f0dac37a3f3f299f4e5ff18d2d3f91",
+    "tests/linux_architecture.rs": "45f6c0859c890fe3540f3f322f0d1d5d41aff762eb116066fe07ec0143a36e2e",
+    "docs/decisions/linux-architecture-current.md": "0e9e61838150c31ed4bae24900752ecb5404cd0a9599ce7ff257d4157a758272"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -578,7 +580,9 @@
         "docs/decisions/linux-primitives-current.md",
         "docs/decisions/linux-metadata-current.md",
         "docs/decisions/windows-paths-current.md",
-        "docs/decisions/unix-scratch-io-current.md"
+        "docs/decisions/unix-scratch-io-current.md",
+        "tests/linux_architecture.rs",
+        "docs/decisions/linux-architecture-current.md"
       ],
       "residual": "Kernel outcomes, coupled pathname predicates, unsupported ABIs and physical power loss remain separate from callback controls."
     },
@@ -15076,6 +15080,78 @@
           "outcome": true
         }
       ]
+    },
+    {
+      "name": "LINUX-ARCHITECTURE-ENTROPY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "identity",
+        "kind": "if",
+        "conditions": [
+          "!SUPPORTED"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/linux_architecture.rs",
+          "name": "database_create_checks_entropy_architecture_before_path_conversion"
+        }
+      ],
+      "mutations": [
+        "r1-linux-architecture-entropy"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-ARCHITECTURE-PATHNAME",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "new_in",
+        "kind": "if",
+        "conditions": [
+          "!sys::SUPPORTED"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/linux_architecture.rs",
+          "name": "file_adapter_checks_architecture_before_path_admission"
+        }
+      ],
+      "mutations": [
+        "r1-linux-architecture-pathname"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
     }
   ],
   "cargo_scope": {
@@ -15407,6 +15483,19 @@
         "reason": "integration test target; use --include-tests",
         "required_features": [],
         "target": "weekend-db::inspection",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/linux_architecture.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "linux_architecture",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::linux_architecture",
         "workspace_manifest": "Cargo.toml"
       },
       {
