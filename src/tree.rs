@@ -518,6 +518,159 @@ mod tests {
     }
 
     #[test]
+    fn map_edit_refusals_keep_collision_and_removal_roots() {
+        use std::collections::BTreeMap;
+
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Default::default());
+        let mut colliding = Map::new();
+        let mut natural = Map::new();
+        let mut original = BTreeMap::new();
+        for (key, value, hash) in [(b"a", 1, 0), (b"b", 2, 0), (b"c", 3, 16), (b"d", 4, 1)] {
+            colliding = colliding.set_hashed(&mem, key, value, hash).unwrap();
+            natural = natural.set(&mem, key, value).unwrap();
+            original.insert(key.to_vec(), value);
+        }
+        let rows = |map: &Map<i32>| {
+            let mut found = BTreeMap::new();
+            map.visit(&mut |key, value| {
+                assert!(found.insert(key.to_vec(), *value).is_none());
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(map.len(), found.len());
+            found
+        };
+        let unchanged = allocator
+            .with_refusal(0, || natural.remove(&mem, b"missing"))
+            .unwrap();
+        assert!(
+            unchanged
+                .root
+                .as_ref()
+                .unwrap()
+                .ptr_eq(natural.root.as_ref().unwrap())
+        );
+
+        let add = || colliding.set_hashed(&mem, b"e", 5, 0);
+        let replace = || colliding.set_hashed(&mem, b"a", 9, 0);
+        let remove_collision = || {
+            Ok(Map {
+                root: remove(&mem, colliding.root.as_ref().unwrap(), b"b", 0, 0)?,
+                len: colliding.len() - 1,
+            })
+        };
+        let remove_public = || natural.remove(&mem, b"b");
+        let baseline = (mem.usage().0, allocator.live_bytes());
+        for (edit, key, value) in [
+            (&add as &dyn Fn() -> Result<Map<i32>>, b"e", Some(5)),
+            (&replace, b"a", Some(9)),
+            (&remove_collision, b"b", None),
+            (&remove_public, b"b", None),
+        ] {
+            let mut expected = original.clone();
+            if let Some(value) = value {
+                expected.insert(key.to_vec(), value);
+            } else {
+                expected.remove(key.as_slice());
+            }
+            let mut completed = false;
+            for allowance in 0..40 {
+                match allocator.with_refusal(allowance, edit) {
+                    Ok(next) => {
+                        assert!(allowance > 0);
+                        assert_eq!(rows(&next), expected);
+                        completed = true;
+                    }
+                    Err(error) => assert_eq!(error, Error::OutOfMemory),
+                }
+                assert_eq!(rows(&natural), original);
+                assert_eq!(rows(&colliding), original);
+                assert_eq!((mem.usage().0, allocator.live_bytes()), baseline);
+                if completed {
+                    break;
+                }
+            }
+            assert!(completed);
+        }
+    }
+
+    #[test]
+    fn ordered_row_budget_and_allocation_failures_preserve_tree() {
+        assert_eq!(Map::<u64>::new().check_row_budget::<u64>(0), Ok(()));
+        let source = Memory::new(Default::default()).unwrap();
+        let map = Map::new()
+            .set(&source, b"z", 1u64)
+            .unwrap()
+            .set(&source, b"\xff\0", 2)
+            .unwrap()
+            .set(&source, b"\0", 3)
+            .unwrap();
+        let headers = 3 * std::mem::size_of::<(Vec<u8>, u64)>();
+        let exact = headers + 4;
+        let allocator = Arc::new(TestAllocator::default());
+        for cap in [headers - 1, exact - 1] {
+            let mem = allocator.memory(crate::Limits {
+                max_transaction_bytes: cap,
+                ..Default::default()
+            });
+            assert!(matches!(
+                allocator.with_refusal(0, || map.materialize_owned::<u64>(&mem, |_| panic!(
+                    "project called before budget approval"
+                ))),
+                Err(Error::Limit)
+            ));
+            assert!(matches!(
+                allocator.with_refusal(0, || map.borrowed_entries(&mem, cap)),
+                Err(Error::Limit)
+            ));
+            assert_eq!(mem.usage(), (0, 0));
+        }
+        let mem = allocator.memory(crate::Limits {
+            max_transaction_bytes: exact,
+            ..Default::default()
+        });
+        let before = (mem.usage().0, allocator.live_bytes());
+        assert!(matches!(
+            allocator.with_refusal(0, || map.materialize(&mem, |v| *v)),
+            Err(Error::OutOfMemory)
+        ));
+        assert!(matches!(
+            allocator.with_refusal(0, || map.borrowed_entries(&mem, exact)),
+            Err(Error::OutOfMemory)
+        ));
+        let expected = [
+            (b"\0".as_slice(), 3),
+            (b"z".as_slice(), 1),
+            (b"\xff\0".as_slice(), 2),
+        ];
+        for allowance in 0..=4 {
+            let result = allocator.with_refusal(allowance, || map.materialize_owned(&mem, |v| *v));
+            if allowance == 4 {
+                let rows = result.unwrap();
+                assert!(
+                    rows.iter()
+                        .map(|(key, value)| (key.as_slice(), *value))
+                        .eq(expected)
+                );
+            } else {
+                assert!(matches!(result, Err(Error::OutOfMemory)));
+            }
+            assert_eq!((mem.usage().0, allocator.live_bytes()), before);
+        }
+        let borrowed = map.borrowed_entries(&mem, exact).unwrap();
+        assert!(
+            borrowed
+                .iter()
+                .map(|(key, value)| (*key, **value))
+                .eq(expected)
+        );
+        for (key, value) in expected {
+            assert_eq!(map.get(key), Some(&value));
+        }
+    }
+
+    #[test]
     fn untouched_branches_are_shared_and_path_failures_preserve_roots() {
         let allocator = Arc::new(TestAllocator::default());
         let mem = allocator.memory(Default::default());
@@ -537,9 +690,10 @@ mod tests {
         assert!(!old[0].as_ref().unwrap().ptr_eq(new[0].as_ref().unwrap()));
 
         let mut list = List::new();
-        for i in 0..257 {
+        for i in 0..258 {
             list = list.push(&mem, i).unwrap();
         }
+        let full = list.pop(&mem).unwrap().pop(&mem).unwrap();
         let edited = list.set(&mem, 0, 999).unwrap();
         let (ListNode::Branch(old), ListNode::Branch(new)) = (
             &**list.root.as_ref().unwrap(),
@@ -550,13 +704,14 @@ mod tests {
         assert!(old[1].as_ref().unwrap().ptr_eq(new[1].as_ref().unwrap()));
         assert!(!old[0].as_ref().unwrap().ptr_eq(new[0].as_ref().unwrap()));
         let baseline = (mem.usage().0, allocator.live_bytes());
-        for operation in 0..3 {
+        for operation in 0..4 {
             let mut succeeded = false;
             for allowance in 0..80 {
                 let result = allocator.with_refusal(allowance, || match operation {
                     0 => map.set_hashed(&mem, b"c", 3, 1 << 60).map(drop),
                     1 => list.set(&mem, 17, 999).map(drop),
-                    _ => list.pop(&mem).map(drop),
+                    2 => list.pop(&mem).map(drop),
+                    _ => full.push(&mem, 999).map(drop),
                 });
                 assert_eq!((mem.usage().0, allocator.live_bytes()), baseline);
                 assert_eq!(map.get_hashed(b"a", 0), Some(&1));
@@ -615,18 +770,41 @@ mod decision_tests {
     }
     #[test]
     fn list_capacity_shrink_bounds_and_tail_clear_have_controls() {
-        let mem = Memory::new(crate::Limits {
+        let allocator =
+            std::sync::Arc::new(crate::memory::test_allocator::TestAllocator::default());
+        let mem = allocator.memory(crate::Limits {
             max_entries: 258,
             ..Default::default()
-        })
-        .unwrap();
+        });
         assert!(matches!(List::<u64>::new().pop(&mem), Err(Error::Bounds)));
         let mut list = List::new();
         for n in 0..258 {
             list = list.push(&mem, n).unwrap();
             if [1, 2, 16, 17, 18, 256, 257, 258].contains(&list.len()) {
                 let old = list.clone();
-                let popped = list.pop(&mem).unwrap();
+                let popped = if list.len() == 1 {
+                    let empty = allocator.with_refusal(0, || list.pop(&mem)).unwrap();
+                    assert!(empty.root.is_none());
+                    empty
+                } else {
+                    list.pop(&mem).unwrap()
+                };
+                if list.len() == 17 || list.len() == 18 {
+                    let cleared =
+                        list_clear(&mem, list.root.as_ref().unwrap(), 1, list.len() - 1).unwrap();
+                    let ListNode::Branch(children) = &*cleared else {
+                        panic!("clear returned the wrong root kind");
+                    };
+                    if list.len() == 17 {
+                        assert!(children[1].is_none());
+                    } else {
+                        let Some(ListNode::Leaf(items)) = children[1].as_deref() else {
+                            panic!("clear removed a partially occupied leaf");
+                        };
+                        assert_eq!(items[0], Some(16));
+                        assert_eq!(items[1], None);
+                    }
+                }
                 assert_eq!(popped.len(), list.len() - 1);
                 assert_eq!(
                     popped.height,
