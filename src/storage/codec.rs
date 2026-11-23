@@ -1376,6 +1376,40 @@ mod tests {
     }
 
     #[test]
+    fn cache_state_retries_refused_fork_and_reuses_owned_state() {
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
+        let published = mem.shared(mem.copy(b"prior").unwrap()).unwrap();
+        let baseline = (mem.usage().0, allocator.live_bytes());
+        let mut state = CacheState::Borrowed(&published);
+        assert_eq!(state.as_slice(), b"prior");
+
+        assert_eq!(
+            allocator.with_refusal(0, || {
+                state.make_mut(|old| mem.copy(old.as_slice())).map(|_| ())
+            }),
+            Err(Error::OutOfMemory)
+        );
+        assert!(matches!(&state, CacheState::Borrowed(old) if old.ptr_eq(&published)));
+        assert_eq!((mem.usage().0, allocator.live_bytes()), baseline);
+        let scratch = state.make_mut(|old| mem.copy(old.as_slice())).unwrap();
+        scratch.clear();
+        scratch.extend_from_slice(b"draft");
+        assert_eq!(state.as_slice(), b"draft");
+        assert_eq!(published.as_slice(), b"prior");
+        assert_eq!(
+            allocator.with_refusal(0, || {
+                state
+                    .make_mut(|_| panic!("owned cache forked again"))
+                    .map(|scratch| assert_eq!(scratch.as_slice(), b"draft"))
+            }),
+            Ok(())
+        );
+        drop(state);
+        assert_eq!((mem.usage().0, allocator.live_bytes()), baseline);
+    }
+
+    #[test]
     fn candidates_share_unchanged_caches_fork_only_appended_data_and_fail_atomically() {
         use crate::engine::{Collection, Record};
         let allocator = Arc::new(TestAllocator::default());
@@ -1737,6 +1771,18 @@ mod tests {
         for (i, entry) in cache.iter().enumerate() {
             assert_eq!(index.get(entry.revision, &cache), Some(i));
         }
+        // Inserting an equal revision takes the lower-bound path even
+        // when it equals the final entry. Retain cache emission order.
+        let duplicate = cache.len();
+        index.reserve(&mem, duplicate + 1).unwrap();
+        index.insert(u64::MAX, &cache, duplicate);
+        cache.push(DataEntry {
+            revision: u64::MAX,
+            next_collection: 9,
+            offset: duplicate as u64,
+        });
+        assert_eq!(&*index.order, &[1, 3, 0, 2, duplicate, 4]);
+        assert_eq!(index.get(u64::MAX, &cache), Some(duplicate));
     }
     #[test]
     fn data_encoding_orders_records_and_keeps_the_acknowledged_cache() {
@@ -2205,6 +2251,29 @@ mod tests {
     }
 
     #[test]
+    fn cache_indexes_admit_object_limit_and_reject_next_entry() {
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
+        let mut values = ValueIndex::new();
+        let mut data = DataIndex::new();
+        for (entries, expected) in [
+            (MAX_OBJECTS, Error::OutOfMemory),
+            (MAX_OBJECTS + 1, Error::Limit),
+        ] {
+            assert_eq!(
+                allocator.with_refusal(0, || values.reserve(&mem, &[], entries)),
+                Err(expected)
+            );
+            assert_eq!(
+                allocator.with_refusal(0, || data.reserve(&mem, entries)),
+                Err(expected)
+            );
+            assert!(values.slots.is_empty() && data.order.is_empty());
+            assert_eq!(mem.usage().0, 0);
+        }
+    }
+
+    #[test]
     fn data_index_budget_and_object_bound_precede_allocation() {
         let slot = std::mem::size_of::<usize>();
         for cap in [slot - 1, slot] {
@@ -2389,6 +2458,7 @@ mod tests {
         assert_eq!(selected.len(), 4);
         let mut cache = Vec::new();
         let mut index = ValueIndex::new();
+        assert_eq!(index.get(&selected[0], &cache), None);
         index.reserve(&mem, &cache, 4).unwrap();
         for value in &selected {
             assert_eq!(index.get(value, &cache), None);
@@ -2408,6 +2478,10 @@ mod tests {
         assert_eq!(index.get(&distinct, &cache), None);
         let before = mem.public_usage().live_bytes;
         let slots = index.slots.to_vec();
+        assert_eq!(
+            allocator.with_refusal(0, || index.reserve(&mem, &cache, 4)),
+            Ok(())
+        );
         assert_eq!(
             allocator.with_refusal(0, || index.reserve(&mem, &cache, 5)),
             Err(Error::OutOfMemory)
