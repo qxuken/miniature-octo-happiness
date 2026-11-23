@@ -400,6 +400,14 @@ cover the new clone paths and the earlier descriptor fixtures. Two new
 propagation dispositions leave 9,429 open records
 (2,060 runtime / 26 driver / 7,343 tooling).
 
+The [Windows admission ledger](decisions/windows-admission-current.md)
+qualifies the shared fixed-drive and NTFS checks, directory and leaf
+attributes, and create/write mode selection at `438b6cb`. Both profiles
+on macOS and Docker Linux detect all 14 controls. Windows cross-target
+Clippy passes. The Win32 entry points and deployment still require native
+evidence. The queue has 9,419 open records
+(2,050 runtime / 26 driver / 7,343 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

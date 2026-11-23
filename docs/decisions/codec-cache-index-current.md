@@ -68,7 +68,7 @@ The remaining 9,871 open records include 2,501 runtime records.
 | Source | SHA-256 |
 |---|---|
 | `src/storage/codec.rs` | `593b1dc249ceca770b436133c894b41aad0596c5f20be79abf96cd69644205ee` |
-| `src/storage/mod.rs` | `766426d305e57117d821826ee50054283cc2bb0c86769a94a65e28666ba2e38b` |
+| `src/storage/mod.rs` | `8faf388e6554532a060f2c1d9895f594d035ab9615e85d83663af9d4a604caab` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence |
 |---|---|---|---|---|---|---|
@@ -98,5 +98,5 @@ The remaining 9,871 open records include 2,501 runtime records.
 | E | weekend-db::weekend_db | src/storage/codec.rs:389:42– | 13205..13206 | try_propagation | make_mut | Refused fork keeps the same borrowed object, exact charge and provider bytes. Retry owns a draft. |
 | E | weekend-db::weekend_db | src/storage/codec.rs:391:9– | 13227..13232 | match | make_mut | After a successful fork and on a later call, the owned arm returns the same draft. |
 | E | weekend-db::weekend_db | src/storage/codec.rs:397:9– | 13415..13420 | match | finish | Borrowed returns the same shared identity. Owned allocates a header and propagates refusal. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:251:80– | 9000..9001 | try_propagation | open | VALUE cache header refusal releases the lease before stabilization. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:252:89– | 9091..9092 | try_propagation | open | DATA cache header refusal releases the lease before stabilization. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:253:80– | 9050..9051 | try_propagation | open | VALUE cache header refusal releases the lease before stabilization. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:254:89– | 9141..9142 | try_propagation | open | DATA cache header refusal releases the lease before stabilization. |
