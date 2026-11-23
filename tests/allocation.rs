@@ -105,6 +105,8 @@ fn every_nested_edit_allocation_can_fail_without_changing_inputs() {
         .map_set(b"old", &list)
         .unwrap()
         .map_set(b"keep", &number)
+        .unwrap()
+        .map_set(b"flag", &flag)
         .unwrap();
 
     let list_items = [
@@ -115,6 +117,7 @@ fn every_nested_edit_allocation_can_fail_without_changing_inputs() {
     let map_rows = BTreeMap::from([
         (b"old".to_vec(), Model::List(list_items.to_vec())),
         (b"keep".to_vec(), Model::Int(2)),
+        (b"flag".to_vec(), Model::Bool(false)),
     ]);
     let original_list = Model::List(list_items.to_vec());
     let original_map = Model::Map(map_rows.clone());
