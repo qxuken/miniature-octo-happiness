@@ -14,21 +14,20 @@ public `OutOfMemory` result, and an eventual successful retry.
 | Image inspection and logical export | The read-only sweeps cover their fallible Global allocation paths on a retained image. Successful inspection returns the retained ID and revision. Successful export matches the baseline bytes. The operation trace contains only length queries and reads, and the source bytes and lease remain usable. |
 
 The allocation suite separately uses the selected allocator for observation,
-overlay and allocator-owned scans. Existing synthetic allocation failures
-elsewhere retain their own scope pending migration.
+overlay and allocator-owned scans. External reservations delegate capacity
+reuse and grow refusal to Vec. The engine checks count overflow separately.
 
 | Source | SHA-256 |
 |---|---|
-| `src/memory.rs` | `6f8a11e417e5fc684f70944c98ccef5e785bdbb79fc58c9e1dca1b7446df0d0b` |
-| `src/tree.rs` | `71e23e66d95a34d8919fd29e8361a1bf30d7e11198c077cf776385f88c7514b6` |
+| `src/memory.rs` | `e6ebf06ad09de067f4ad341c7f517532cd9d8ca0c33fb41cc4575b092c8062cf` |
+| `src/tree.rs` | `e869d415667661e56dc63766af54e70b77dfd0f14627d1d310e26312d0183f6e` |
 | `src/storage/inspection.rs` | `f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6` |
 | `src/storage/simulator.rs` | `f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence |
 |---|---|---|---|---|---|---|
-| E | weekend-db::weekend_db | src/memory.rs:503:49– | 16997..16998 | try_propagation | into_external | Selected-to-Global output refusal |
-| E | weekend-db::weekend_db | src/memory.rs:694:49– | 22720..22721 | try_propagation | reserve_external | Rejected Global reservation propagates |
-| E | weekend-db::weekend_db | src/memory.rs:703:53– | 23009..23010 | try_propagation | copy_external | Refusal while copying a key or image |
+| E | weekend-db::weekend_db | src/memory.rs:500:49– | 16859..16860 | try_propagation | into_external | Selected-to-Global output refusal |
+| E | weekend-db::weekend_db | src/memory.rs:663:53– | 21790..21791 | try_propagation | copy_external | Refusal while copying a key or image |
 | E | weekend-db::weekend_db | src/tree.rs:100:74– | 3210..3211 | try_propagation | materialize | Refusal while gathering ordered keys |
 | E | weekend-db::weekend_db | src/storage/inspection.rs:33:75– | 1060..1061 | try_propagation | information | Refusal of retained metadata output |
 | E | weekend-db::weekend_db | src/storage/simulator.rs:125:63– | 3691..3692 | try_propagation | trace | Refusal of trace output |

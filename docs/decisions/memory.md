@@ -1,8 +1,9 @@
 # Allocator source decision audit
 
 This source audit covers the `src/memory.rs` allocator migration on Rust 1.100.
-Its 42 AST records include the conditional allocation-claim code for
-`fault-injection`. The scope is the library wrapper and its tests. The standard
+The 42 records below describe the historical source and include the
+allocation-claim code. The [unit allocator migration](unit-allocator-retirement.md)
+records the current provider tests and removal of that counter. The standard
 allocator's implementation and compiler MC/DC remain outside this audit.
 
 P denotes direct predicate controls, C overlapping syntax, E scoped execution or
