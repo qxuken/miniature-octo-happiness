@@ -108,7 +108,7 @@
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
     "src/storage/file.rs": "5c00d486e37527ce3e3a0375f9eb53163338bd24f3828e439a4bcac908fea144",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
-    "src/storage/linux.rs": "66ecec433f1528399accaa63db7ef6fab850fff54a9d64dc4d2bd51acf2f6dcc",
+    "src/storage/linux.rs": "d9ef4abcfcbb9a0d048f67b38b81d23bdae27241b70ad99f4f212ac3dc7040ea",
     "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
     "src/storage/macos.rs": "da5c860e2e339f78e53b9d63e993c96c89aeee62f40e22c4c06c15952c6700e2",
     "src/storage/mod.rs": "68916e5c5a0e7003a5e77a047e40f6af8de5c8a569c384e254e26f2851d0b457",
@@ -177,7 +177,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "e2dc3410e5c60cd308c48af729bd7f0c2a19c90840abe4b8a9f9901df29c70a7",
+    "xtask/src/mutations.rs": "ad6a891d0bdafeda82e528f2be08a7362d8b49ac99fbaea741cacdc4df06c51b",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -291,7 +291,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "9fcb56bba224ab15428f044e023e83b65b6b0e4275fe532a2138a4736a3abcb9",
+    "xtask/tests/mutations.json": "c40fc466b11a1a874dfa448d82a24c0a344308e1a513948cf641a1cef78c9228",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -326,7 +326,8 @@
     "docs/decisions/unix-leases-current.md": "c80fbab71423448f42ad159b6812a9816b2024881005e97b5c40a3ce5a893a92",
     "docs/decisions/unix-path-admission-current.md": "4c262c0e96ca8353dfd9b66f120d50be018b19106f2712c9bce4bfa574765f50",
     "docs/decisions/unix-sync-current.md": "71608f60f15a1bd3e6c878ddb1f5760ab611f411597f44ede20f98b039ee6503",
-    "docs/decisions/macos-primitives-current.md": "67685820638c39c853334813fb74537ad6739ce2b7bf6d25ac32237b3708d17c"
+    "docs/decisions/macos-primitives-current.md": "cfbb980cc7e2ccf956a1b616dd4e96db8610aa965bfd3532fca1256b0fe89612",
+    "docs/decisions/linux-primitives-current.md": "81ddff00c74e1c6156fc62fc91faf8fbb49cbd731169be78c1eecf7a1531262e"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -568,7 +569,8 @@
         "docs/decisions/unix-leases-current.md",
         "docs/decisions/unix-path-admission-current.md",
         "docs/decisions/unix-sync-current.md",
-        "docs/decisions/macos-primitives-current.md"
+        "docs/decisions/macos-primitives-current.md",
+        "docs/decisions/linux-primitives-current.md"
       ],
       "residual": "Kernel outcomes, coupled pathname predicates, unsupported ABIs and physical power loss remain separate from callback controls."
     },
@@ -13409,6 +13411,594 @@
           ],
           "outcome": true
         }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-FLOCK",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "acquire_open_lock",
+        "kind": "if",
+        "conditions": [
+          "unsafe { flock(file.as_raw_fd(), 2 | 4) } == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "native_flock_and_sync_report_kernel_errors"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-flock"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-ENTROPY-FINAL-BYTE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "identity_with",
+        "kind": "while",
+        "conditions": [
+          "offset < id.len()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "identity_fills_only_the_remaining_suffix_without_errno"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-entropy-final-byte"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-ENTROPY-NEGATIVE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "identity_with",
+        "kind": "if",
+        "conditions": [
+          "n < 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "identity_terminal_errors_preserve_random_operation_errno_and_mapping"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-entropy-negative"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-ENTROPY-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "identity_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "retry(NativeIoOperation::Random, || {\n                let n = read(&mut id[offset..]);\n                if n < 0 {\n                    // Capture errno immediately after the negative result.\n                    Err(last_error())\n                } else {\n                    Ok(n as usize)\n                }\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "identity_terminal_errors_preserve_random_operation_errno_and_mapping"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-entropy-error"
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-ENTROPY-ZERO-PROGRESS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "identity_with",
+        "kind": "if",
+        "conditions": [
+          "n == 0",
+          "n > id.len() - offset"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "identity_rejects_zero_and_oversized_progress_without_errno"
+        },
+        {
+          "file": "src/storage/linux.rs",
+          "name": "identity_fills_only_the_remaining_suffix_without_errno"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-entropy-zero-progress",
+        "r1-linux-primitive-entropy-overcount"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-ENTROPY-ZERO-ID",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "identity_with",
+        "kind": "if",
+        "conditions": [
+          "id != [0; 16]"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "identity_accepts_first_or_third_final_byte_and_rejects_exactly_three_zeros"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-entropy-zero-id"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-EXCHANGE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "exchange",
+        "kind": "if",
+        "conditions": [
+          "unsafe {\n        renameat2(\n            from_dir.as_raw_fd(),\n            from.as_ptr().cast(),\n            to_dir.as_raw_fd(),\n            to.as_ptr().cast(),\n            2,\n        )\n    } == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "native_exchange_preserves_the_original_when_the_partner_is_missing"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-exchange"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-NATIVE-STATUS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "status",
+        "kind": "if",
+        "conditions": [
+          "code == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_blob_retries_interruption_and_reports_terminal_callback_error"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-native-status"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-BLOB-NEGATIVE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "blob",
+        "kind": "if",
+        "conditions": [
+          "n < 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_blob_retries_interruption_and_reports_terminal_callback_error"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-blob-negative"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-BLOB-QUERY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "blob",
+        "kind": "try_propagation",
+        "conditions": [
+          "call(std::ptr::null_mut(), 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_blob_retries_interruption_and_reports_terminal_callback_error"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-blob-query"
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-BLOB-CAP-EQUALITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "blob",
+        "kind": "if",
+        "conditions": [
+          "size > 65536"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_blob_bounds_exact_fill_and_short_callbacks"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-blob-cap-equality",
+        "r1-linux-primitive-blob-cap-excess"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-BLOB-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "blob",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve_external(&mut bytes, size)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_blob_bounds_exact_fill_and_short_callbacks"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-blob-reserve"
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-BLOB-FILL",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "blob",
+        "kind": "try_propagation",
+        "conditions": [
+          "call(bytes.as_mut_ptr().cast(), size)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_blob_retries_interruption_and_reports_terminal_callback_error"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-blob-fill"
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-BLOB-SIZE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "blob",
+        "kind": "if",
+        "conditions": [
+          "n != size"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_blob_bounds_exact_fill_and_short_callbacks"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-blob-size"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-NAMES-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "names",
+        "kind": "try_propagation",
+        "conditions": [
+          "blob(mem, |buffer, size| unsafe {\n        flistxattr(file.as_raw_fd(), buffer.cast(), size)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_copy_retries_selected_allocations_and_replaces_only_metadata"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-names-read"
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-COPY-SOURCE-LIST",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "copy_metadata",
+        "kind": "try_propagation",
+        "conditions": [
+          "names(from, mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_copy_retries_selected_allocations_and_replaces_only_metadata"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-copy-source-list"
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-COPY-TARGET-LIST",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "copy_metadata",
+        "kind": "try_propagation",
+        "conditions": [
+          "names(to, mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_copy_retries_selected_allocations_and_replaces_only_metadata"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-copy-target-list"
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-RETAIN-SHARED-NAME",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "copy_metadata",
+        "kind": "if",
+        "conditions": [
+          "!source_names\n            .split_inclusive(|b| *b == 0)\n            .any(|other| other == name)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_copy_retries_selected_allocations_and_replaces_only_metadata"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-retain-shared-name"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "LINUX-PRIMITIVE-COPY-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/linux.rs",
+        "owner": "copy_metadata",
+        "kind": "try_propagation",
+        "conditions": [
+          "blob(mem, |buffer, size| unsafe {\n            fgetxattr(from.as_raw_fd(), name.as_ptr().cast(), buffer, size)\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/linux.rs",
+          "name": "metadata_copy_retries_selected_allocations_and_replaces_only_metadata"
+        }
+      ],
+      "mutations": [
+        "r1-linux-primitive-copy-value"
       ]
     }
   ],

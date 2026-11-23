@@ -332,7 +332,15 @@ exercise success and native refusal. Both macOS profiles detect all 12
 native controls. The Unix controller selects host-specific cases before
 sharding. Its macOS and Linux lists agree on the 620 shared R1 names.
 The queue has 9,513 open records (2,144 runtime / 26 driver / 7,343 tooling).
-Linux and Windows adapter decisions and device persistence remain open.
+
+The [Linux primitive ledger](decisions/linux-primitives-current.md) maps
+24 of the 40 Linux adapter records at `355447a`. It records real flock,
+sync and exchange outcomes, bounded entropy and metadata reads, and
+successful ext4 metadata retry after all three selected allocation refusals.
+Both Linux profiles detect all 31 selected controls. The native fixtures
+also pass under UID 1000 on ext4. The queue has 9,489 open records
+(2,120 runtime / 26 driver / 7,343 tooling). The remaining Linux and Windows
+decisions and deployed-device persistence remain open.
 
 All R1 and R2–R7 completion gates above remain open.
 
