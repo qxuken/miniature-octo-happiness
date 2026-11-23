@@ -5,6 +5,8 @@ use loom::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+mod ffi;
+
 struct SharedModel {
     refs: AtomicUsize,
     visits: [AtomicUsize; 2],
@@ -29,6 +31,17 @@ impl SharedModel {
 }
 
 fn main() {
+    let control = match std::env::args().nth(1).as_deref() {
+        Some("--ffi-handles") => Some(ffi::Control::None),
+        Some("--broken-ffi-reservation") => Some(ffi::Control::LoadStore),
+        Some("--broken-ffi-rollback") => Some(ffi::Control::SkipRollback),
+        None => None,
+        Some(mode) => panic!("unknown ownership model mode: {mode}"),
+    };
+    if let Some(control) = control {
+        ffi::run(control);
+        return;
+    }
     let mut model = loom::model::Builder::new();
     model.max_threads = 3;
     model.preemption_bound = Some(2);

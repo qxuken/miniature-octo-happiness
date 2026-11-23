@@ -1021,6 +1021,73 @@ mod tests {
         assert_eq!(allocator.live(), 0);
     }
     #[test]
+    fn concurrent_handle_allocation_refusal_keeps_only_the_successful_clone() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::{Arc, Barrier, atomic::AtomicPtr};
+
+        let allocator = Arc::new(TestAllocator::default());
+        unsafe {
+            let database =
+                into_database_handle(Database::with_options(allocator.options()).unwrap()).unwrap();
+            let mut source = ptr::null_mut();
+            assert_eq!(
+                wdb_value_make(
+                    database,
+                    Kind::Unsigned as i32,
+                    7,
+                    ptr::null(),
+                    0,
+                    &mut source
+                ),
+                0
+            );
+            let live = allocator.live();
+            // The source stays live and immutable until both calls have returned.
+            let shared = AtomicPtr::new(source);
+            let outputs = [const { AtomicPtr::new(ptr::null_mut()) }; 2];
+            let start = Barrier::new(outputs.len());
+            let (statuses, requests) = allocator.count_with_refusal(1, || {
+                std::thread::scope(|scope| {
+                    let workers = outputs.each_ref().map(|output| {
+                        let (shared, start) = (&shared, &start);
+                        scope.spawn(move || {
+                            start.wait();
+                            let mut cloned = ptr::null_mut();
+                            let status =
+                                wdb_value_clone(shared.load(Ordering::Relaxed), &mut cloned);
+                            output.store(cloned, Ordering::Relaxed);
+                            status
+                        })
+                    });
+                    workers.map(|worker| worker.join().unwrap())
+                })
+            });
+            assert_eq!(requests, 2);
+            assert_eq!(statuses.iter().filter(|&&status| status == 0).count(), 1);
+            assert_eq!((*database).handles.load(Ordering::Acquire), 2);
+            assert_eq!(allocator.live(), live + 1);
+            assert_eq!(wdb_close(database), Error::Busy as i32);
+            for (status, output) in statuses.into_iter().zip(outputs) {
+                let cloned = output.into_inner();
+                if status == 0 {
+                    let mut bits = 0;
+                    assert_eq!(wdb_value_scalar(cloned, &mut bits), 0);
+                    assert_eq!(bits, 7);
+                    assert_eq!(wdb_value_release(cloned), 0);
+                } else {
+                    assert_eq!(status, Error::OutOfMemory as i32);
+                    assert!(cloned.is_null());
+                }
+            }
+            assert_eq!((*database).handles.load(Ordering::Acquire), 1);
+            assert_eq!(allocator.live(), live);
+            assert_eq!(wdb_value_release(source), 0);
+            assert_eq!(wdb_close(database), 0);
+        }
+        assert_eq!(allocator.live(), 0);
+    }
+
+    #[test]
     fn invalid_commit_output_cannot_publish_and_live_handles_block_close() {
         unsafe {
             let mut database = ptr::null_mut();
