@@ -226,8 +226,11 @@ The library's synthetic counter is now confined to unit tests. The
 [codec allocation tests](decisions/codec-allocator-tests.md) now drive
 real provider refusal across encoding, recovery, cache reuse and fresh
 image creation. The two golden histories and named COMMIT controls pass.
-Cold-open and native adapter checks, then tree, value and memory tests
-remain before the unit-only counter can be removed.
+The [cold-open and Linux metadata tests](decisions/storage-allocator-tests.md)
+now exercise real refusals. The cold-open test preserves revision 4 and
+retained revision 2, and Linux compaction preserves metadata and ACLs.
+Tree, value and memory tests remain before the unit-only counter can
+be removed.
 
 All R1 and R2–R7 completion gates above remain open.
 
