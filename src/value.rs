@@ -408,6 +408,8 @@ impl std::fmt::Debug for Value {
 #[cfg(test)]
 mod decision_tests {
     use super::*;
+    use crate::memory::test_allocator::TestAllocator;
+    use std::sync::Arc;
 
     #[test]
     fn encoding_map_entries_keep_row_limits_and_charge_the_encoder() {
@@ -429,32 +431,30 @@ mod decision_tests {
         };
         let fits = make_map(row_budget);
         let too_large = make_map(row_budget - 1);
+        let allocator = Arc::new(TestAllocator::default());
         let encoder = |max_live_bytes| {
-            Memory::new(crate::Limits {
+            allocator.memory(crate::Limits {
                 max_live_bytes,
                 max_transaction_bytes: 0,
                 ..Default::default()
             })
-            .unwrap()
         };
         let bounded = encoder(scratch_bytes - 1);
         assert!(matches!(
-            fits.map_entries_for_encoding(&bounded),
+            allocator.with_refusal(0, || fits.map_entries_for_encoding(&bounded)),
             Err(Error::Limit)
         ));
 
         let scratch = encoder(scratch_bytes);
-        scratch.fail_after(Some(0));
         assert!(matches!(
-            too_large.map_entries_for_encoding(&scratch),
+            allocator.with_refusal(0, || too_large.map_entries_for_encoding(&scratch)),
             Err(Error::Limit)
         ));
         assert!(matches!(
-            fits.map_entries_for_encoding(&scratch),
+            allocator.with_refusal(0, || fits.map_entries_for_encoding(&scratch)),
             Err(Error::OutOfMemory)
         ));
         assert_eq!(scratch.public_usage().live_bytes, 0);
-        scratch.fail_after(None);
 
         let source_usage = fits.memory_usage();
         let entries = fits.map_entries_for_encoding(&scratch).unwrap();

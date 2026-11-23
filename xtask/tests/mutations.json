@@ -91,10 +91,10 @@
       "package": "weekend-db"
     },
     {
-      "name": "memory-capacity",
+      "name": "memory-reservation-count-overflow",
       "file": "src/memory.rs",
-      "old": "needed > vec.capacity()",
-      "new": "needed >= vec.capacity()",
+      "old": "vec.len().checked_add(extra).ok_or(Error::Limit)?",
+      "new": "vec.len().checked_add(extra).ok_or(Error::OutOfMemory)?",
       "test": "memory::tests::reservation_checks",
       "target": "--lib",
       "occurrence": 1,

@@ -457,6 +457,9 @@ fn list_clear<V: Clone>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::test_allocator::TestAllocator;
+    use std::sync::Arc;
+
     #[test]
     fn map_capacity_and_collision_lookup_have_independent_controls() {
         let mem = Memory::new(crate::Limits {
@@ -516,7 +519,8 @@ mod tests {
 
     #[test]
     fn untouched_branches_are_shared_and_path_failures_preserve_roots() {
-        let mem = Memory::new(Default::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Default::default());
         let map = Map::new()
             .set_hashed(&mem, b"a", 1, 0)
             .unwrap()
@@ -545,16 +549,16 @@ mod tests {
         };
         assert!(old[1].as_ref().unwrap().ptr_eq(new[1].as_ref().unwrap()));
         assert!(!old[0].as_ref().unwrap().ptr_eq(new[0].as_ref().unwrap()));
+        let baseline = (mem.usage().0, allocator.live_bytes());
         for operation in 0..3 {
             let mut succeeded = false;
-            for budget in 0..80 {
-                mem.fail_after(Some(budget));
-                let result = match operation {
-                    0 => map.set_hashed(&mem, b"c", 3, 1 << 60).map(|_| ()),
-                    1 => list.set(&mem, 17, 999).map(|_| ()),
-                    _ => list.pop(&mem).map(|_| ()),
-                };
-                mem.fail_after(None);
+            for allowance in 0..80 {
+                let result = allocator.with_refusal(allowance, || match operation {
+                    0 => map.set_hashed(&mem, b"c", 3, 1 << 60).map(drop),
+                    1 => list.set(&mem, 17, 999).map(drop),
+                    _ => list.pop(&mem).map(drop),
+                });
+                assert_eq!((mem.usage().0, allocator.live_bytes()), baseline);
                 assert_eq!(map.get_hashed(b"a", 0), Some(&1));
                 assert_eq!(map.get_hashed(b"c", 1 << 60), None);
                 assert_eq!(list.get(17), Some(&17));
