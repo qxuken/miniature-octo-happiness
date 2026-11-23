@@ -194,6 +194,19 @@ Frozen `a09bc83` passed the core, xtask and inventory suites and detected
 all 17 COMMIT controls per profile on macOS and Docker Linux arm64/ext4.
 The restored proof verifies 10,402 payloads and reproduces the audit for
 both hosts.
+
+The [selected allocator batch](decisions/allocation-recovery-current.md)
+moves the nested-edit, candidate, catalog, retain and release sweeps to the
+selected allocator and adds a cold-reopen sweep. Core refusals preserve
+the prior image, live-byte charge, current revision and retained roots.
+Successful nested commits match the default allocator's exact bytes.
+At `545d214`, the macOS and Docker Linux core and typed suites passed in
+debug and release alongside all six new propagation controls and five
+existing live-budget controls. The R1 queue is 9,916 individual gaps
+(2,556 runtime / 26 driver / 7,334 tooling). The simulator and raw Rust
+output failure coverage are separate follow-ups before retiring the legacy
+allocation hook.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -175,7 +175,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "401e798f2f2f62f98f29989c8097323600b2fe6235529c8406df740fa06d6c77",
+    "xtask/src/mutations.rs": "a376b3a4ca2f458b9ab29fdddc8d9086da13421d22f3ce6d7da839cbee26310d",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -305,7 +305,7 @@
     "docs/decisions/codec-encode-value-current.md": "032092f45656ff2b52d2ecc8cacc45c99d74afc71d94f549918d3c37cfffd11e",
     "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
     "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
-    "docs/decisions/allocation-recovery-current.md": "748d613082510af7a213cb0ebacc0962deafb2949c62821a9546e5d32270a849",
+    "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
     "src/memory/test_allocator.rs": "0dcf1c3e7056957d7489076d161b57f7f1b7996480ff5827ad7db2c0584d01e2",
     "tests/support/allocator.rs": "837f4b1deb5e6b06754c966d331b196af2e90693b9937fee611ae494817bb0af"
   },
