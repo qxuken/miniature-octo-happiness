@@ -7553,6 +7553,131 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-sync-file-first",
+      "file": "src/storage/file.rs",
+      "old": "sync_file(&self.file)?;",
+      "new": "sync_file(&self.file).map_err(|_| Error::Io)?;",
+      "test": "storage::file::decision_tests::creation_sync_retries_every_barrier_after_each_possible_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 2,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-sync-file-last",
+      "file": "src/storage/file.rs",
+      "old": "sync_file(&self.file)?;",
+      "new": "sync_file(&self.file).map_err(|_| Error::Io)?;",
+      "test": "storage::file::decision_tests::creation_sync_retries_every_barrier_after_each_possible_failure",
+      "target": "--lib",
+      "occurrence": 2,
+      "matches": 2,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-sync-directory",
+      "file": "src/storage/file.rs",
+      "old": "sync_parent(&self.location)?;",
+      "new": "sync_parent(&self.location).map_err(|_| Error::Io)?;",
+      "test": "storage::file::decision_tests::creation_sync_retries_every_barrier_after_each_possible_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-sync-order",
+      "file": "src/storage/file.rs",
+      "old": "        sync_file(&self.file)?;\n        if self.parent_pending {\n            sync_parent(&self.location)?;\n            sync_file(&self.file)?;\n            self.parent_pending = false;\n        }",
+      "new": "        if self.parent_pending {\n            sync_parent(&self.location)?;\n            sync_file(&self.file)?;\n            self.parent_pending = false;\n        }\n        sync_file(&self.file)?;",
+      "test": "storage::file::decision_tests::creation_sync_retries_every_barrier_after_each_possible_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-sync-pending-on-failure",
+      "file": "src/storage/file.rs",
+      "old": "            sync_parent(&self.location)?;\n            sync_file(&self.file)?;\n            self.parent_pending = false;",
+      "new": "            self.parent_pending = false;\n            sync_parent(&self.location)?;\n            sync_file(&self.file)?;",
+      "test": "storage::file::decision_tests::creation_sync_retries_every_barrier_after_each_possible_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-sync-retry-eintr",
+      "file": "src/storage/file.rs",
+      "old": "e.kind() == io::ErrorKind::Interrupted",
+      "new": "e.kind() != io::ErrorKind::Interrupted",
+      "test": "storage::file::decision_tests::interrupted_retry_can_finish_successfully_without_diagnostics",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-sync-retry-terminal",
+      "file": "src/storage/file.rs",
+      "old": "result => return result.map_err(|error| os_error(operation, error)),",
+      "new": "result => return result.map_err(|_| Error::Io),",
+      "test": "storage::diagnostics::tests::retried_interruptions_never_replace_the_terminal_native_error",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-sync-observed-length",
+      "file": "src/storage/file.rs",
+      "old": "if self.target {\n                CompactionStep::TargetLength\n            } else {\n                CompactionStep::SourceLength\n            }",
+      "new": "if !self.target {\n                CompactionStep::TargetLength\n            } else {\n                CompactionStep::SourceLength\n            }",
+      "test": "compaction",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "files::file_errors_at_every_observation_preserve_a_whole_canonical_store"
+    },
+    {
+      "name": "r1-unix-sync-observed-read",
+      "file": "src/storage/file.rs",
+      "old": "if self.target {\n                CompactionStep::TargetRead\n            } else {\n                CompactionStep::SourceRead\n            }",
+      "new": "if !self.target {\n                CompactionStep::TargetRead\n            } else {\n                CompactionStep::SourceRead\n            }",
+      "test": "compaction",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "files::file_errors_at_every_observation_preserve_a_whole_canonical_store"
+    },
+    {
+      "name": "r1-unix-sync-observed-write",
+      "file": "src/storage/file.rs",
+      "old": "if self.target {\n                CompactionStep::TargetWrite\n            } else {\n                CompactionStep::SourceWrite\n            }",
+      "new": "if !self.target {\n                CompactionStep::TargetWrite\n            } else {\n                CompactionStep::SourceWrite\n            }",
+      "test": "compaction",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "files::file_errors_at_every_observation_preserve_a_whole_canonical_store"
+    },
+    {
+      "name": "r1-unix-sync-observed-sync",
+      "file": "src/storage/file.rs",
+      "old": "if self.target {\n                CompactionStep::TargetSync\n            } else {\n                CompactionStep::SourceSync\n            }",
+      "new": "if !self.target {\n                CompactionStep::TargetSync\n            } else {\n                CompactionStep::SourceSync\n            }",
+      "test": "compaction",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "files::file_errors_at_every_observation_preserve_a_whole_canonical_store"
     }
   ]
 }

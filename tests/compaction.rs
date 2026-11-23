@@ -742,6 +742,34 @@ mod files {
             .rposition(|event| event.step == S::SourceLength && !event.after)
             .unwrap();
         let metadata = position(S::CopyMetadata, false);
+        for (range, operations) in [
+            (
+                0..scratch_created + 2,
+                [
+                    S::SourceLength,
+                    S::SourceRead,
+                    S::SourceWrite,
+                    S::SourceSync,
+                ],
+            ),
+            (
+                scratch_created + 2..metadata,
+                [
+                    S::TargetLength,
+                    S::TargetRead,
+                    S::TargetWrite,
+                    S::TargetSync,
+                ],
+            ),
+        ] {
+            let phase = &events[range];
+            assert!(phase.iter().all(|e| operations.contains(&e.step)));
+            assert!(
+                operations
+                    .iter()
+                    .all(|step| phase.iter().any(|e| e.step == *step))
+            );
+        }
         let first_exchange = position(S::Exchange, false);
         let exchanged = position(S::Exchange, true);
         let removed = position(S::RemoveOld, true);

@@ -140,10 +140,20 @@ impl ByteStore for FileStore {
     }
     fn sync(&mut self) -> Result<()> {
         self.check()?;
-        full_sync(&self.file)?;
+        self.sync_with(full_sync, Location::sync)
+    }
+}
+
+impl FileStore {
+    fn sync_with(
+        &mut self,
+        mut sync_file: impl FnMut(&File) -> Result<()>,
+        sync_parent: impl FnOnce(&Location) -> Result<()>,
+    ) -> Result<()> {
+        sync_file(&self.file)?;
         if self.parent_pending {
-            self.location.sync()?;
-            full_sync(&self.file)?;
+            sync_parent(&self.location)?;
+            sync_file(&self.file)?;
             self.parent_pending = false;
         }
         Ok(())
@@ -972,6 +982,66 @@ mod decision_tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"replacement");
         drop(old);
         drop(first);
+    }
+
+    #[test]
+    fn creation_sync_retries_every_barrier_after_each_possible_failure() {
+        use std::cell::RefCell;
+
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        enum Barrier {
+            File,
+            Parent,
+        }
+
+        let fixture = PathFixture::new("creation-sync");
+        let sequence = [Barrier::File, Barrier::Parent, Barrier::File];
+        let sync = |store: &mut FileStore, failure: Option<usize>, expected: &[Barrier]| {
+            let calls = RefCell::new(Vec::new());
+            let record = |barrier| {
+                let mut calls = calls.borrow_mut();
+                let index = calls.len();
+                calls.push(barrier);
+                if failure == Some(index) {
+                    Err(Error::Busy)
+                } else {
+                    Ok(())
+                }
+            };
+            let file_fd = store.file.as_raw_fd();
+            let parent_fd = store.location.directory.as_raw_fd();
+            let result = store.sync_with(
+                |file| {
+                    assert_eq!(file.as_raw_fd(), file_fd);
+                    record(Barrier::File)
+                },
+                |location| {
+                    assert_eq!(location.directory.as_raw_fd(), parent_fd);
+                    record(Barrier::Parent)
+                },
+            );
+            assert_eq!(calls.into_inner(), expected);
+            assert_eq!(result, failure.map_or(Ok(()), |_| Err(Error::Busy)));
+        };
+
+        for failure in 0..sequence.len() {
+            let path = fixture.0.join(format!("created-{failure}"));
+            let mut store = FileStore::create(&path).unwrap();
+            store.lock().unwrap();
+            sync(&mut store, Some(failure), &sequence[..=failure]);
+            assert!(store.parent_pending);
+            sync(&mut store, None, &sequence);
+            assert!(!store.parent_pending);
+            sync(&mut store, Some(0), &[Barrier::File]);
+            assert!(!store.parent_pending);
+            sync(&mut store, None, &[Barrier::File]);
+            drop(store);
+
+            let mut reopened = FileStore::open(&path).unwrap();
+            reopened.lock().unwrap();
+            sync(&mut reopened, None, &[Barrier::File]);
+            assert!(!reopened.parent_pending);
+        }
     }
 
     #[test]
