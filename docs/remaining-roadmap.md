@@ -489,6 +489,14 @@ the scan and its row usable. The C11 and C++17 consumers pass with the exact
 relocated packages on macOS and Docker Linux. Native Windows remains open.
 The six macro invocations retain their inventory boundaries.
 
+The [typed unique-claim ledger](decisions/typed-unique-claims-current.md)
+records eleven controls at `29f4f54` and verifies the current and retained
+indexes through replacement, allocation refusal and reopen. macOS and Docker
+Linux pass in debug and release. Compiler condition counts record both outcomes
+of six guards within named model instantiations. The queue has 9,365 open
+records (1,982 runtime / 26 driver / 7,357 tooling). Other typed paths and
+native Windows execution remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -101,6 +101,10 @@ The [C transaction and snapshot ledger](decisions/ffi-transaction-reads-current.
 qualifies error outputs, draft deletion, pinned reads and scan ownership.
 Continue with the remaining generated paths and delivered consumers per ABI.
 
+Batch 7 starts with [typed unique-claim replacement](decisions/typed-unique-claims-current.md).
+It covers stale, malformed and competing owners, paired primary and index
+updates, and allocation rollback with retained roots.
+
 Batch 9 covers the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets
