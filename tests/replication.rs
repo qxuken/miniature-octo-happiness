@@ -111,6 +111,47 @@ impl ByteStore for PausedCopy {
 }
 
 #[test]
+fn native_capture_factories_preserve_file_errors_and_exact_saved_bytes() {
+    let dir = Directory::new();
+    let limits = Limits::default();
+    let mut source = Database::create_file(dir.0.join("source"), limits).unwrap();
+    let mut foreign = Database::create_file(dir.0.join("foreign"), limits).unwrap();
+    let mut primary = Primary::new(&source, [7; 16]).unwrap();
+    let capture_path = dir.0.join("capture");
+    assert!(matches!(
+        primary.export_file(&mut foreign, &capture_path),
+        Err(Error::ForeignStore)
+    ));
+    assert!(!capture_path.exists());
+
+    assert_eq!(source.begin().commit(), Ok(1));
+    let occupied = dir.0.join("occupied");
+    fs::write(&occupied, b"keep").unwrap();
+    assert!(matches!(
+        primary.export_file(&mut source, &occupied),
+        Err(Error::AlreadyExists)
+    ));
+    assert_eq!(fs::read(&occupied).unwrap(), b"keep");
+
+    let export = primary.export_file(&mut source, &capture_path).unwrap();
+    let descriptor = export.descriptor();
+    assert_eq!(descriptor.revision, 1);
+    drop(export);
+    let original = fs::read(&capture_path).unwrap();
+    assert!(matches!(
+        primary.reopen_export_file(dir.0.join("missing"), descriptor, limits),
+        Err(Error::NotFound)
+    ));
+    let reopened = primary
+        .reopen_export_file(&capture_path, descriptor, limits)
+        .unwrap();
+    assert_eq!(reopened.descriptor(), descriptor);
+    drop(reopened);
+    assert_eq!(fs::read(&capture_path).unwrap(), original);
+    assert_eq!(source.snapshot().revision(), 1);
+}
+
+#[test]
 fn live_export_pins_old_roots_while_the_native_source_changes() {
     let dir = Directory::new();
     let limits = Limits::default();

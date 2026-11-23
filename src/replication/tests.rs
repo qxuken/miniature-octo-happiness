@@ -15,6 +15,10 @@ impl Exchange {
         for reply in replies {
             wire::reply(&mut bytes, Ok(reply)).unwrap();
         }
+        Self::raw(bytes)
+    }
+
+    fn raw(bytes: Vec<u8>) -> Self {
         Self {
             replies: Cursor::new(bytes),
             sent: Vec::new(),
@@ -103,6 +107,14 @@ fn live_poll_refreshes_local_revision_and_keeps_accepted_follower_progress() {
     assert_eq!(observed.local_revision, latest.revision + 1);
     assert_eq!(observed.follower, Some(latest));
     assert_eq!(observed.revision_gap(), Some(1));
+    assert_eq!(
+        ReplicaObservation {
+            local_revision: old.revision,
+            follower: Some(latest)
+        }
+        .revision_gap(),
+        None
+    );
 }
 
 #[test]
@@ -601,6 +613,169 @@ fn primary_poll_rejects_invalid_progress_without_losing_its_last_ack() {
             assert_eq!(poll(&mut primary, installed(current)), Err(Error::Conflict));
         }
     }
+}
+
+#[test]
+fn sender_reply_failures_preserve_last_receipt_before_and_after_upload() {
+    let (source, [old, mut offered, _]) = exports();
+    let previous = ack(&old);
+    let expected = ack(&offered);
+    let descriptor = offered.descriptor();
+    let mut offer_header = Vec::new();
+    wire::request(
+        &mut offer_header,
+        descriptor.enrollment,
+        Some(offered.offer),
+    )
+    .unwrap();
+    let mut poll_header = Vec::new();
+    wire::request(&mut poll_header, descriptor.enrollment, None).unwrap();
+    let mut upload = offer_header.clone();
+    upload.resize(offer_header.len() + descriptor.length as usize, 0);
+    read_all(
+        offered.storage.image_bytes(),
+        0,
+        &mut upload[offer_header.len()..],
+    )
+    .unwrap();
+
+    for (frame, error) in [
+        (&[][..], Error::Io),
+        (&[2, 0, 0], Error::Io),
+        (&[4], Error::ForeignStore),
+        (&[255], Error::UnsupportedFormat),
+        (&[0], Error::Conflict),
+    ] {
+        let mut primary = Primary::new(&source, STREAM).unwrap();
+        assert_eq!(
+            poll(&mut primary, Reply::Installed(previous)),
+            Ok(Some(previous))
+        );
+
+        let mut query = Exchange::raw(frame.to_vec());
+        assert_eq!(primary.poll(&mut query), Err(error), "poll {frame:?}");
+        assert_eq!(query.sent, poll_header);
+        assert_eq!(query.replies.position(), frame.len() as u64);
+        assert_eq!(primary.progress, Some(previous));
+
+        let mut pre_upload = Exchange::raw(frame.to_vec());
+        assert_eq!(
+            primary.ship(&mut offered, &mut pre_upload),
+            Err(error),
+            "initial {frame:?}"
+        );
+        assert_eq!(pre_upload.sent, offer_header);
+        assert_eq!(pre_upload.replies.position(), frame.len() as u64);
+        assert_eq!(primary.progress, Some(previous));
+
+        let mut bytes = vec![1];
+        bytes.extend_from_slice(frame);
+        let mut post_upload = Exchange::raw(bytes);
+        assert_eq!(
+            primary.ship(&mut offered, &mut post_upload),
+            Err(error),
+            "terminal {frame:?}"
+        );
+        assert_eq!(post_upload.sent, upload);
+        assert_eq!(post_upload.replies.position(), 1 + frame.len() as u64);
+        assert_eq!(primary.progress, Some(previous));
+
+        let mut retry = Exchange::new([Reply::Installed(expected)]);
+        assert_eq!(primary.ship(&mut offered, &mut retry), Ok(expected));
+        assert_eq!(retry.sent, offer_header);
+        assert_eq!(primary.progress, Some(expected));
+    }
+
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    assert_eq!(poll(&mut primary, Reply::Ready), Err(Error::Conflict));
+    assert!(primary.progress.is_none());
+    assert_eq!(
+        primary.ship(&mut offered, Exchange::new([Reply::Ready, Reply::Ready])),
+        Err(Error::Conflict)
+    );
+    assert!(primary.progress.is_none());
+}
+
+#[test]
+fn sender_creation_and_quiescent_capture_propagate_source_and_store_errors() {
+    use crate::storage::SimulatedDisk;
+
+    let limits = Limits::default();
+    let mut volatile = Database::with_limits(limits).unwrap();
+    assert!(matches!(
+        Primary::new(&volatile, STREAM),
+        Err(Error::Invalid)
+    ));
+    let mut source = Database::create_on(MemoryStore::new().unwrap(), [1; 16], limits).unwrap();
+    assert!(matches!(
+        Primary::new(&source, [0; 16]),
+        Err(Error::Invalid)
+    ));
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    let mut channel = Exchange::new([Reply::Empty]);
+    assert_eq!(
+        primary.poll_live(&volatile, &mut channel),
+        Err(Error::Invalid)
+    );
+    assert!(channel.sent.is_empty());
+
+    let mut foreign = Database::create_on(MemoryStore::new().unwrap(), [9; 16], limits).unwrap();
+    for (db, error) in [
+        (&mut volatile, Error::Invalid),
+        (&mut foreign, Error::ForeignStore),
+    ] {
+        let destination = SimulatedDisk::new().unwrap();
+        assert!(
+            matches!(primary.export_to(db, destination.clone()), Err(actual) if actual == error)
+        );
+        assert!(destination.trace().unwrap().is_empty());
+        assert!(destination.durable_image().unwrap().is_empty());
+    }
+
+    assert_eq!(source.begin().commit(), Ok(1));
+    let mut occupied = SimulatedDisk::from_image(b"occupied").unwrap();
+    assert!(matches!(
+        primary.export_to(&mut source, occupied.clone()),
+        Err(Error::Invalid)
+    ));
+    assert_eq!(occupied.durable_image().unwrap(), b"occupied");
+    occupied.lock().unwrap();
+    occupied.unlock();
+    assert_eq!(primary.verified_revision, 0);
+    assert!(primary.progress.is_none());
+
+    let captured = primary
+        .export_to(&mut source, MemoryStore::new().unwrap())
+        .unwrap();
+    assert_eq!(captured.revision(), 1);
+    assert_eq!(primary.verified_revision, 1);
+    assert!(primary.progress.is_none());
+}
+
+#[test]
+fn final_capture_validation_releases_invalid_destination_without_lifting_the_bound() {
+    use crate::storage::SimulatedDisk;
+
+    let (source, [old, _, _]) = exports();
+    let previous = ack(&old);
+    let mut primary = Primary::new(&source, STREAM).unwrap();
+    assert_eq!(
+        poll(&mut primary, Reply::Installed(previous)),
+        Ok(Some(previous))
+    );
+    let bound = primary.verified_revision;
+    let mut disk = SimulatedDisk::new().unwrap();
+    let mem = Memory::new(Limits::default()).unwrap();
+    let destination = Storage::locked(disk.clone(), &mem).unwrap();
+    assert!(matches!(
+        primary.finish_capture(destination, bound + 1, 0),
+        Err(Error::Limit)
+    ));
+    assert_eq!(primary.verified_revision, bound);
+    assert_eq!(primary.progress, Some(previous));
+    disk.lock().unwrap();
+    disk.unlock();
+    assert!(disk.durable_image().unwrap().is_empty());
 }
 
 #[test]
@@ -1171,6 +1346,16 @@ fn source_and_export_identity_revision_guards_are_independent() {
 
 #[test]
 fn visit_image_length_and_callback_errors_stop_before_more_chunks() {
+    use crate::storage::{Fault, SimulatedDisk};
+
+    let mut disk = SimulatedDisk::new().unwrap();
+    disk.lock().unwrap();
+    disk.arm(0, Fault::Error);
+    assert_eq!(
+        visit_image(&mut disk, 0, |_| panic!("failed length visited")),
+        Err(Error::Io)
+    );
+
     let mut store = crate::storage::MemoryStore::new().unwrap();
     store.lock().unwrap();
     assert_eq!(
