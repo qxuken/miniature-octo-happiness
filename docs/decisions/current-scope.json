@@ -295,7 +295,7 @@
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "b5db51c831e6c224fe13c7858187536ad6ecf34c9266778d700c36436716bffd",
     "docs/decisions/codec-metadata-current.md": "4055bdaa6c5396f1cfd930e34a4dc130923256563109bbeea2488c6f8cd10edc",
-    "docs/r1-ci-shards.md": "c62bee32c2d0dd8ad5e7e58b63655f71d12298893165de0d8f9e4c966fa5a4ef",
+    "docs/r1-ci-shards.md": "626b7f7edebea4758b0420d760849f74d180960382ab2e0f8a4391caa0c70378",
     "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
     "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
     "src/storage/mod.rs": "7288ee09e76b6a0227deb4c050fc4a87c83b852b2c37cf6381aec5fd1cf834dd",
