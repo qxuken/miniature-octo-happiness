@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "support/allocator_contract.h"
 
 static wdb_value *integer(wdb_database *db, uint64_t n) {
     wdb_value *out = NULL;
@@ -125,6 +126,7 @@ int main(void) {
     assert(wdb_snapshot_release(historical) == WDB_OK);
     assert(wdb_value_release(NULL) == WDB_OK);
     assert(wdb_close(db) == WDB_OK);
+    verify_allocator_contract();
     puts("C shared-library engine: snapshots, merges, conflicts, values and cleanup passed.");
     return 0;
 }

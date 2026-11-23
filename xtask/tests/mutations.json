@@ -9389,6 +9389,116 @@
       "package": "weekend-db"
     },
     {
+      "name": "r1-generated-c-records-mode",
+      "file": "src/ffi.rs",
+      "old": "match validation { 0 => Validation::Records, 1 => Validation::WholeDatabase",
+      "new": "match validation { 0 => Validation::WholeDatabase, 1 => Validation::WholeDatabase",
+      "test": "ffi::tests::exported_transaction_modes_distinguish_disjoint_writes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-whole-database-mode",
+      "file": "src/ffi.rs",
+      "old": "match validation { 0 => Validation::Records, 1 => Validation::WholeDatabase",
+      "new": "match validation { 0 => Validation::Records, 1 => Validation::Records",
+      "test": "ffi::tests::exported_transaction_modes_distinguish_disjoint_writes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-commit-reset",
+      "file": "src/ffi.rs",
+      "old": "*out = 0;\n    *out = handle_mut(tx)?.value.commit()?;",
+      "new": "*out = 99;\n    *out = handle_mut(tx)?.value.commit()?;",
+      "test": "ffi::tests::exported_transaction_modes_distinguish_disjoint_writes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-busy-close",
+      "file": "src/ffi.rs",
+      "old": "handles.load(Ordering::Acquire) != 0 { return Err(Error::Busy); }",
+      "new": "handles.load(Ordering::Acquire) != 0 { return Err(Error::Invalid); }",
+      "test": "ffi::tests::invalid_commit_output_cannot_publish_and_live_handles_block_close",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-null-release",
+      "file": "src/ffi.rs",
+      "old": "if !value.is_null() {\n            let owner = handle(value)?.owner;",
+      "new": "if true {\n            let owner = handle(value)?.owner;",
+      "test": "ffi::tests::input_length_kind_and_output_guards_preserve_handle_ownership",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-integer-output",
+      "file": "src/ffi.rs",
+      "old": "Kind::Integer => value.as_i64()? as u64,",
+      "new": "Kind::Integer => 0,",
+      "test": "ffi::decision_tests::scalar_arms_and_output_failures_preserve_valid_handles",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-bytes-bits",
+      "file": "src/ffi.rs",
+      "old": "5 if bits == 0 => db.db.bytes(input(database, bytes, len)?)?,",
+      "new": "5 => db.db.bytes(input(database, bytes, len)?)?,",
+      "test": "ffi::tests::input_length_kind_and_output_guards_preserve_handle_ownership",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-id-null-condition",
+      "file": "src/ffi.rs",
+      "old": "if buffer.is_null() && capacity!=0 {return Err(Error::Invalid);}",
+      "new": "if capacity!=0 {return Err(Error::Invalid);}",
+      "test": "ffi::tests::retained_id_buffers_and_foreign_snapshots_preserve_outputs",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-id-capacity-condition",
+      "file": "src/ffi.rs",
+      "old": "if buffer.is_null() && capacity!=0 {return Err(Error::Invalid);}",
+      "new": "if buffer.is_null() {return Err(Error::Invalid);}",
+      "test": "ffi::tests::retained_id_buffers_and_foreign_snapshots_preserve_outputs",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-generated-c-scan-key-bounds",
+      "file": "src/ffi.rs",
+      "old": "let (key, _) = scan.value.get(index).ok_or(Error::Bounds)?;",
+      "new": "let (key, _) = scan.value.get(index).ok_or(Error::NotFound)?;",
+      "test": "ffi::tests::scan_bounds_and_invalid_transaction_modes_reset_outputs",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
       "name": "r1-ffi-boundary-panic",
       "file": "src/ffi.rs",
       "old": "Err(_) => Error::Panic as i32,",

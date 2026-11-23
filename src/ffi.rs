@@ -1039,6 +1039,80 @@ mod tests {
         }
     }
     #[test]
+    fn exported_transaction_modes_distinguish_disjoint_writes() {
+        unsafe {
+            for (mode, expected, revision) in [(0, 0, 4), (1, Error::Conflict as i32, 0)] {
+                let mut database = ptr::null_mut();
+                assert_eq!(wdb_open(&mut database), 0);
+                let mut collection = 0;
+                assert_eq!(wdb_collection_create(database, &mut collection), 0);
+                let mut initial = ptr::null_mut();
+                assert_eq!(
+                    wdb_value_make(
+                        database,
+                        Kind::Unsigned as i32,
+                        0,
+                        ptr::null(),
+                        0,
+                        &mut initial
+                    ),
+                    0
+                );
+                let mut seed = ptr::null_mut();
+                assert_eq!(wdb_tx_begin(database, 0, &mut seed), 0);
+                for key in [b"a", b"b"] {
+                    assert_eq!(wdb_tx_put(seed, collection, key.as_ptr(), 1, initial), 0);
+                }
+                let mut out = u64::MAX;
+                assert_eq!(wdb_tx_commit(seed, &mut out), 0);
+                assert_eq!(out, 2);
+                assert_eq!(wdb_tx_release(seed), 0);
+                assert_eq!(wdb_value_release(initial), 0);
+                let mut value = ptr::null_mut();
+                assert_eq!(
+                    wdb_value_make(
+                        database,
+                        Kind::Unsigned as i32,
+                        11,
+                        ptr::null(),
+                        0,
+                        &mut value
+                    ),
+                    0
+                );
+                let mut earlier = ptr::null_mut();
+                let mut later = ptr::null_mut();
+                assert_eq!(wdb_tx_begin(database, mode, &mut earlier), 0);
+                assert_eq!(wdb_tx_begin(database, 0, &mut later), 0);
+                assert_eq!(wdb_tx_put(earlier, collection, b"a".as_ptr(), 1, value), 0);
+                assert_eq!(wdb_tx_put(later, collection, b"b".as_ptr(), 1, value), 0);
+                assert_eq!(wdb_tx_commit(later, &mut out), 0);
+                assert_eq!(out, 3);
+                assert_eq!(wdb_tx_commit(earlier, &mut out), expected);
+                assert_eq!(out, revision);
+                assert_eq!(wdb_tx_release(earlier), 0);
+                assert_eq!(wdb_tx_release(later), 0);
+                assert_eq!(wdb_value_release(value), 0);
+                let mut snapshot = ptr::null_mut();
+                assert_eq!(wdb_snapshot_acquire(database, &mut snapshot), 0);
+                assert_eq!(wdb_snapshot_revision(snapshot, &mut out), 0);
+                assert_eq!(out, if mode == 0 { 4 } else { 3 });
+                for (key, bits) in [(b"a", if mode == 0 { 11 } else { 0 }), (b"b", 11)] {
+                    assert_eq!(
+                        wdb_snapshot_get(snapshot, collection, key.as_ptr(), 1, &mut value),
+                        0
+                    );
+                    assert_eq!(wdb_value_scalar(value, &mut out), 0);
+                    assert_eq!(out, bits);
+                    assert_eq!(wdb_value_release(value), 0);
+                }
+                assert_eq!(wdb_snapshot_release(snapshot), 0);
+                assert_eq!(wdb_close(database), 0);
+            }
+        }
+    }
+
+    #[test]
     fn shared_foreign_handles_count_concurrent_acquisition_and_release() {
         unsafe {
             let mut database = ptr::null_mut();
