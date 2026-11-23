@@ -70,10 +70,11 @@ Batch 5 starts with [ByteStore transfers and local publication](decisions/bytest
 [Unix pathname admission](decisions/unix-path-admission-current.md),
 [Unix sync and I/O attribution](decisions/unix-sync-current.md),
 [macOS native primitives](decisions/macos-primitives-current.md),
-[Linux primitives](decisions/linux-primitives-current.md), and
-[Linux metadata validation](decisions/linux-metadata-current.md).
-The Linux architecture gate, Windows adapter decisions and remaining raw
-I/O qualification follow.
+[Linux primitives](decisions/linux-primitives-current.md),
+[Linux metadata validation](decisions/linux-metadata-current.md), and
+[Windows pathname preparation](decisions/windows-paths-current.md).
+The Linux architecture gate, native Win32 decisions and remaining raw I/O
+qualification follow.
 Batch 9 covers the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets

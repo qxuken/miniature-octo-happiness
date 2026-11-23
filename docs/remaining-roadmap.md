@@ -348,8 +348,16 @@ mutations. The fixtures exercise metadata read refusal, independent
 ownership and mode checks, and native EBADF for each mutating syscall.
 Both Linux profiles detect all 24 selected controls. The queue has
 9,474 open records (2,105 runtime / 26 driver / 7,343 tooling).
-The Linux architecture guard, Windows adapter decisions and deployed-device
-persistence remain open.
+The Linux architecture guard and deployed-device persistence remain open.
+
+The [Windows pathname ledger](decisions/windows-paths-current.md) records
+27 helper dispositions at `a28cca6`, including three partial let-chain
+records. The adapter rejects over-cap normalized and assembled UTF-16
+paths before growth. The shared path tests pass on macOS and Docker Linux
+in both profiles, and macOS detects all 30 controls per profile. Windows
+cross-target Clippy passes. Native Win32 execution and the intended NTFS
+deployment remain separate gates. The queue has 9,453 open records
+(2,084 runtime / 26 driver / 7,343 tooling).
 
 All R1 and R2–R7 completion gates above remain open.
 

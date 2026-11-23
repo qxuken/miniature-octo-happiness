@@ -52,29 +52,29 @@ recreates the exact successful durable image.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/mod.rs` | `68916e5c5a0e7003a5e77a047e40f6af8de5c8a569c384e254e26f2851d0b457` |
+| `src/storage/mod.rs` | `766426d305e57117d821826ee50054283cc2bb0c86769a94a65e28666ba2e38b` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| E | weekend-db::weekend_db | src/storage/mod.rs:202:89– | 7212..7213 | try_propagation | locked | Refuse the backend box and leave no charge, acquired lease or data I/O. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:203:23– | 7237..7238 | try_propagation | locked | Busy leaves the existing owner in control. A subsequent uncontended claim succeeds. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:222:53– | 7734..7735 | try_propagation | create | Contended creation propagates Busy before checking the destination. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:223:9– | 7745..7747 | if | create | Zero identity stops before querying length; nonzero identity continues. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:226:9– | 7828..7830 | if | create | Reject a nonempty destination and accept an empty one with a valid identity. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:226:36– | 7855..7856 | try_propagation | create | Length refusal returns Io without advancing to preparation or writes. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:231:93– | 8123..8124 | try_propagation | create | An allocation failure after length preserves the empty volatile and durable images. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:233:53– | 8224..8225 | try_propagation | create | Header failure returns Io before zeroing any metadata region. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:235:9– | 8267..8270 | for_iteration | create | On success write all four zero regions in order; each failure stops at its own callback. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:236:73– | 8355..8356 | try_propagation | create | Each zero-region failure returns Io and releases the lease. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:238:50– | 8417..8418 | try_propagation | create | Initial publication preserves its Io or OutcomeUnknown status. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:245:53– | 8644..8645 | try_propagation | open | Contended open propagates Busy with no reads, writes or flushes. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:246:67– | 8713..8714 | try_propagation | open | Fault each recovery I/O call; read or length refusal returns Io and preserves the clean image. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:249:78– | 8953..8954 | try_propagation | open | ALLOC-REOPEN-VALUE-INDEX refuses the recovered VALUE index before writes. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:249:80– | 8955..8956 | try_propagation | open | CODEC-CACHE-OPEN-VALUE-HEADER refuses the VALUE cache header after the index. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:250:87– | 9044..9045 | try_propagation | open | ALLOC-REOPEN-DATA-INDEX refuses the recovered DATA index before writes. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:250:89– | 9046..9047 | try_propagation | open | CODEC-CACHE-OPEN-DATA-HEADER refuses the DATA cache header after the index. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:254:54– | 9339..9340 | try_propagation | open | Stabilization error reports Io and gates witness write. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:261:32– | 9601..9602 | try_propagation | open | Return a handle only after flushing the selected generation witness. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:204:89– | 7257..7258 | try_propagation | locked | Refuse the backend box and leave no charge, acquired lease or data I/O. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:205:23– | 7282..7283 | try_propagation | locked | Busy leaves the existing owner in control. A subsequent uncontended claim succeeds. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:224:53– | 7779..7780 | try_propagation | create | Contended creation propagates Busy before checking the destination. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:225:9– | 7790..7792 | if | create | Zero identity stops before querying length; nonzero identity continues. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:228:9– | 7873..7875 | if | create | Reject a nonempty destination and accept an empty one with a valid identity. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:228:36– | 7900..7901 | try_propagation | create | Length refusal returns Io without advancing to preparation or writes. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:233:93– | 8168..8169 | try_propagation | create | An allocation failure after length preserves the empty volatile and durable images. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:235:53– | 8269..8270 | try_propagation | create | Header failure returns Io before zeroing any metadata region. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:237:9– | 8312..8315 | for_iteration | create | On success write all four zero regions in order; each failure stops at its own callback. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:238:73– | 8400..8401 | try_propagation | create | Each zero-region failure returns Io and releases the lease. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:240:50– | 8462..8463 | try_propagation | create | Initial publication preserves its Io or OutcomeUnknown status. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:247:53– | 8689..8690 | try_propagation | open | Contended open propagates Busy with no reads, writes or flushes. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:248:67– | 8758..8759 | try_propagation | open | Fault each recovery I/O call; read or length refusal returns Io and preserves the clean image. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:251:78– | 8998..8999 | try_propagation | open | ALLOC-REOPEN-VALUE-INDEX refuses the recovered VALUE index before writes. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:251:80– | 9000..9001 | try_propagation | open | CODEC-CACHE-OPEN-VALUE-HEADER refuses the VALUE cache header after the index. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:252:87– | 9089..9090 | try_propagation | open | ALLOC-REOPEN-DATA-INDEX refuses the recovered DATA index before writes. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:252:89– | 9091..9092 | try_propagation | open | CODEC-CACHE-OPEN-DATA-HEADER refuses the DATA cache header after the index. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:256:54– | 9384..9385 | try_propagation | open | Stabilization error reports Io and gates witness write. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:263:32– | 9646..9647 | try_propagation | open | Return a handle only after flushing the selected generation witness. |
 
 ## Verification at de38aac
 
