@@ -7,6 +7,14 @@ Rehash preserves the first matching cache entry. A half-full table reuses its
 slots. Both indexes independently admit the exact object bound and refuse a
 larger count before allocating.
 
+The 64 MiB image and 4 KiB regions cap each cache at 16,384 entries.
+VALUE reserves at least two slots per possible entry before inserting, so
+a miss reaches an empty slot after at most the occupied count plus one
+probes. DATA bounds the sorted index at the same entry count. Insertion
+rotates at most that many positions. The existing
+[cache-sharing workload](../serialization-cache-sharing.md) records the
+measured copy, sort and lookup work.
+
 DATA rebuild keeps emission order and sorts a separate index by revision and
 original position. It selects the earliest entry for duplicate recovered
 revisions. The insertion test also controls the lower-bound path when an
@@ -41,9 +49,9 @@ stabilizes revision 4 and preserves retained revision 2.
 The production inventories match the parent. The table records ten directed
 source pairs, thirteen propagation rows, four scoped execution rows and one
 coupled row. The two outer cold-open header sites use the same calibrated
-fixture as index rebuild. The index-level calls in Storage::open already
-have their own retained-root controls. The unreachable borrowed arm after a successful fork is an
-invariant of `make_mut`'s preceding transition. Compiler coverage and the
+fixture as index rebuild. The index-level calls in `Storage::open` already
+have their own retained-root controls. The unreachable borrowed arm after
+a successful fork follows from `make_mut`'s preceding transition. Compiler coverage and the
 delegated comparison and allocator internals retain their own scope.
 
 ## Exact current source rows
