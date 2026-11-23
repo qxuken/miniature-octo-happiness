@@ -10179,6 +10179,138 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-typed-unique-claims-old-owner",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if self.tx.get(indexes, key)?.and_then(|v| v.as_u64().ok()) != Some(id) {",
+      "new": "if self.tx.get(indexes, key)?.and_then(|v| v.as_u64().ok()) != Some(id) && false {",
+      "test": "runtime_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "index_corruption_rejects_without_modifying_retained_roots_or_staged_writes"
+    },
+    {
+      "name": "r1-typed-unique-claims-existing-claim",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if let Some(existing) = self.tx.get(indexes, key)? {",
+      "new": "if let Some(existing) = self.tx.get(indexes, key)?.filter(|_| false) {",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "replacing_unique_claim_rejects_conflicting_malformed_and_stale_owners"
+    },
+    {
+      "name": "r1-typed-unique-claims-owner-decode",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "existing.as_u64().map_err(|_| Error::IndexInconsistent)?",
+      "new": "existing.as_u64().map_err(|_| Error::InvalidId)?",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "replacing_unique_claim_rejects_conflicting_malformed_and_stale_owners"
+    },
+    {
+      "name": "r1-typed-unique-claims-different-owner",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if existing != id {",
+      "new": "if existing != id && false {",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "replacing_unique_claim_rejects_conflicting_malformed_and_stale_owners"
+    },
+    {
+      "name": "r1-typed-unique-claims-same-owner-stale",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if !old_keys.iter().any(|(_, k)| k == key) {\n                    return Err(Error::IndexInconsistent);",
+      "new": "if !old_keys.iter().any(|(_, k)| k == key) && false {\n                    return Err(Error::IndexInconsistent);",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "replacing_unique_claim_rejects_conflicting_malformed_and_stale_owners"
+    },
+    {
+      "name": "r1-typed-unique-claims-remove-old",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if !new_keys.iter().any(|(_, k)| k == key) {",
+      "new": "if !new_keys.iter().any(|(_, k)| k == key) && false {",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "replacing_one_unique_claim_keeps_the_other_claim_and_reopens_both_roots"
+    },
+    {
+      "name": "r1-typed-unique-claims-keep-unchanged",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if !new_keys.iter().any(|(_, k)| k == key) {",
+      "new": "if !new_keys.iter().any(|(_, k)| k == key) || old_keys.len() > 1 {",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "replacing_one_unique_claim_keeps_the_other_claim_and_reopens_both_roots"
+    },
+    {
+      "name": "r1-typed-unique-claims-install-new",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if !old_keys.iter().any(|(_, k)| k == key) {\n                self.tx.put(indexes, key,",
+      "new": "if !old_keys.iter().any(|(_, k)| k == key) && old_keys.is_empty() {\n                self.tx.put(indexes, key,",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "replacing_one_unique_claim_keeps_the_other_claim_and_reopens_both_roots"
+    },
+    {
+      "name": "r1-typed-unique-claims-delete-propagation",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "self.tx.delete(indexes, key)?",
+      "new": "self.tx.delete(indexes, key).map_err(|_| Error::InvalidId)?",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "every_core_allocation_failure_aborts_primary_and_index_updates"
+    },
+    {
+      "name": "r1-typed-unique-claims-put-propagation",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "self.tx.put(indexes, key, &self.store.db.unsigned(id)?)?",
+      "new": "self.tx.put(indexes, key, &self.store.db.unsigned(id)?).map_err(|_| Error::InvalidId)?",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "every_core_allocation_failure_aborts_primary_and_index_updates"
+    },
+    {
+      "name": "r1-typed-unique-claims-primary-propagation",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "self.tx.put(table.records, &key, raw.as_value())?",
+      "new": "self.tx.put(table.records, &key, raw.as_value()).map_err(|_| Error::InvalidId)?",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "every_core_allocation_failure_aborts_primary_and_index_updates"
     }
   ]
 }

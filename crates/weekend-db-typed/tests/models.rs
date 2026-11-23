@@ -543,6 +543,12 @@ fn every_core_allocation_failure_aborts_primary_and_index_updates() -> Result<()
             w.insert(&table, 1, &old("a"))?;
             w.insert(&table, 2, &old("b"))
         })?;
+        let retained = store.checkpoint()?;
+        let db = store.database();
+        let indexes = db.collection_id(3);
+        let before = db.snapshot();
+        let primary_before = before.scan(table.collection())?;
+        let indexes_before = before.scan(indexes)?;
         let (result, actual) = allocator.count_with_refusal(budget, || {
             store.write(|w| {
                 w.update(&table, 1, |t| {
@@ -556,8 +562,20 @@ fn every_core_allocation_failure_aborts_primary_and_index_updates() -> Result<()
             })
         });
         assert_eq!(result.is_err(), actual > budget);
+        let pinned = db.retained_snapshot(retained)?;
+        assert_eq!(pinned.scan(table.collection())?, primary_before);
+        assert_eq!(pinned.scan(indexes)?, indexes_before);
+        let current = db.snapshot();
         if result.is_ok() {
             assert!(budget > 0);
+            assert_eq!(current.revision(), before.revision() + 1);
+            store.read(|r| {
+                assert_eq!(r.get(&table, 1)?.unwrap().title, "new title");
+                assert_eq!(r.find(&table, OldTask::SLUG, "new-slug")?.unwrap().id(), 2);
+                assert!(r.find(&table, OldTask::SLUG, "b")?.is_none());
+                assert!(r.check_indexes(&table)?.is_consistent());
+                Ok(())
+            })?;
             succeeded = true;
             break;
         }
@@ -566,6 +584,9 @@ fn every_core_allocation_failure_aborts_primary_and_index_updates() -> Result<()
             Err(Error::Engine(engine::Error::OutOfMemory)),
             "budget={budget}"
         );
+        assert_eq!(current.revision(), before.revision());
+        assert_eq!(current.scan(table.collection())?, primary_before);
+        assert_eq!(current.scan(indexes)?, indexes_before);
         store.read(|r| {
             assert_eq!(r.get(&table, 1)?.unwrap().title, "Read docs");
             assert!(r.find(&table, OldTask::SLUG, "b")?.is_some());
@@ -1202,6 +1223,127 @@ fn corrupt_index_key(records: u64, slug: &[u8]) -> Vec<u8> {
     key.push(engine::Kind::Bytes as u8);
     key.extend_from_slice(slug);
     key
+}
+
+#[test]
+fn replacing_unique_claim_rejects_conflicting_malformed_and_stale_owners() -> Result<()> {
+    for (candidate, injected, expected) in [
+        ("taken", None, Error::UniqueViolation(1)),
+        ("next", Some(false), Error::IndexInconsistent),
+        ("next", Some(true), Error::IndexInconsistent),
+    ] {
+        let mut store = Store::memory()?;
+        let table = store.table::<OldTask>("tasks")?;
+        store.write(|w| {
+            w.insert(&table, 1, &old("original"))?;
+            w.insert(&table, 2, &old("taken"))
+        })?;
+        let retained = store.checkpoint()?;
+        let db = store.database();
+        let indexes = db.collection_id(3);
+        if let Some(same_owner) = injected {
+            let key = corrupt_index_key(table.collection().as_u64(), candidate.as_bytes());
+            let owner = if same_owner {
+                db.unsigned(1)?
+            } else {
+                db.boolean(true)?
+            };
+            let mut tx = db.begin();
+            tx.put(indexes, &key, &owner)?;
+            tx.commit()?;
+        }
+        let before = db.snapshot();
+        let revision = before.revision();
+        let primary_before = before.scan(table.collection())?;
+        let indexes_before = before.scan(indexes)?;
+        let result = store.write(|w| {
+            w.insert(&table, 3, &old("draft"))?;
+            let change = w.update(&table, 1, |row| {
+                row.slug = candidate.into();
+                Ok(())
+            });
+            assert_eq!(change, Err(expected));
+            Ok(())
+        });
+        assert_eq!(result, Err(Error::Engine(engine::Error::Closed)));
+        let current = db.snapshot();
+        assert_eq!(current.revision(), revision);
+        assert_eq!(current.scan(table.collection())?, primary_before);
+        assert_eq!(current.scan(indexes)?, indexes_before);
+        store.read_retained(retained, |r| {
+            assert_eq!(r.find(&table, OldTask::SLUG, "original")?.unwrap().id(), 1);
+            assert_eq!(r.find(&table, OldTask::SLUG, "taken")?.unwrap().id(), 2);
+            assert!(r.find(&table, OldTask::SLUG, "next")?.is_none());
+            assert!(r.find(&table, OldTask::SLUG, "draft")?.is_none());
+            assert!(r.check_indexes(&table)?.is_consistent());
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+#[derive(Model)]
+#[weekend(type_id = 434, version = 1)]
+struct ClaimPair {
+    #[weekend(id = 1, unique)]
+    name: String,
+    #[weekend(id = 2, unique)]
+    code: u64,
+}
+
+#[test]
+fn replacing_one_unique_claim_keeps_the_other_claim_and_reopens_both_roots() -> Result<()> {
+    use engine::storage::SimulatedDisk;
+
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [21; 16], engine::Limits::default())?;
+    let table = store.table::<ClaimPair>("pairs")?;
+    store.write(|w| {
+        w.insert(
+            &table,
+            1,
+            &ClaimPair {
+                name: "before".into(),
+                code: 7,
+            },
+        )
+    })?;
+    let retained = store.checkpoint()?;
+    let before = store.database().snapshot().revision();
+    store.write(|w| {
+        w.update(&table, 1, |pair| {
+            pair.name = "after".into();
+            Ok(())
+        })?;
+        assert!(w.find(&table, ClaimPair::NAME, "before")?.is_none());
+        assert_eq!(w.find(&table, ClaimPair::NAME, "after")?.unwrap().id(), 1);
+        assert_eq!(w.find(&table, ClaimPair::CODE, &7)?.unwrap().name, "after");
+        assert!(w.check_indexes(&table)?.is_consistent());
+        Ok(())
+    })?;
+    assert_eq!(store.database().snapshot().revision(), before + 1);
+    drop(store);
+
+    let mut store = Store::open_on(disk, engine::Limits::default())?;
+    let table = store.table::<ClaimPair>("pairs")?;
+    store.read(|r| {
+        assert!(r.find(&table, ClaimPair::NAME, "before")?.is_none());
+        assert_eq!(r.find(&table, ClaimPair::NAME, "after")?.unwrap().id(), 1);
+        assert_eq!(r.find(&table, ClaimPair::CODE, &7)?.unwrap().name, "after");
+        let indexes = r.check_indexes(&table)?;
+        assert_eq!(indexes.expected_entries, 2);
+        assert_eq!(indexes.stored_entries, 2);
+        assert!(indexes.is_consistent());
+        Ok(())
+    })?;
+    store.read_retained(retained, |r| {
+        assert!(r.find(&table, ClaimPair::NAME, "after")?.is_none());
+        assert_eq!(r.find(&table, ClaimPair::NAME, "before")?.unwrap().id(), 1);
+        assert_eq!(r.find(&table, ClaimPair::CODE, &7)?.unwrap().name, "before");
+        assert!(r.check_indexes(&table)?.is_consistent());
+        Ok(())
+    })?;
+    Ok(())
 }
 
 #[test]
