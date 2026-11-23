@@ -797,6 +797,23 @@ mod decision_tests {
     }
 
     #[test]
+    fn compact_copy_releases_serialization_caches_before_verification() {
+        let (source, mem, head, retention, original) = fixture();
+        assert!(source.cache.is_some() && source.data_cache.is_some());
+        let disk = SimulatedDisk::new().unwrap();
+        let (mut copy, size) =
+            Storage::create_compact(disk.clone(), &mem, &head, 1, source.identity, &retention)
+                .unwrap();
+        assert!(copy.cache.is_none() && copy.data_cache.is_none());
+        assert_eq!(size as usize, disk.durable_image().unwrap().len());
+        assert_eq!(
+            disk.durable_image().unwrap(),
+            original.durable_image().unwrap()
+        );
+        assert_eq!(copy.verify(&mem), Ok(()));
+    }
+
+    #[test]
     fn verification_envelope_predicates_have_independent_controls() {
         for changed in ["none", "identity", "revision", "end", "witness"] {
             let (mut storage, mem, _, _, disk) = fixture();

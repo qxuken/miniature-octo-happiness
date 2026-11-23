@@ -1259,6 +1259,29 @@ mod tests {
         #[cfg(feature = "replication")]
         assert_eq!(db.replication_head(), Err(Error::RecoveryRequired));
     }
+
+    #[test]
+    fn compact_copy_rejects_poisoned_state_before_media_io() {
+        use crate::storage::{Fault, SimulatedDisk};
+
+        let source = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(source.clone(), [1; 16], Limits::default()).unwrap();
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _guard = db.state.write().unwrap();
+                panic!("intentional state-lock poison");
+            }))
+            .is_err()
+        );
+        let target = SimulatedDisk::new().unwrap();
+        source.arm(usize::MAX, Fault::Error);
+        target.arm(usize::MAX, Fault::Error);
+        assert_eq!(db.compact_to(target.clone()), Err(Error::RecoveryRequired));
+        assert!(source.trace().unwrap().is_empty());
+        assert!(target.trace().unwrap().is_empty());
+        assert_eq!(db.snapshot().revision(), 0);
+    }
+
     // Balanced shared children represent enormous logical values with O(bits)
     // distinct nodes. No enormous slice or forged Value is constructed.
     fn shared_weight(

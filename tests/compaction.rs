@@ -9,7 +9,7 @@ mod users;
 use support::Model;
 use weekend_db::{
     Database, Error, Limits,
-    storage::{ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk},
+    storage::{APPEND_START, ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk},
 };
 const ID: [u8; 16] = *b"compaction-test1";
 fn fixture() -> Vec<u8> {
@@ -105,6 +105,10 @@ fn compact_copy_preserves_roots_counters_and_owned_values() {
     let before = disk.durable_image().unwrap();
     let stats = source.compact_to(target.clone()).unwrap();
     assert_eq!(stats.before_bytes as usize, before.len());
+    assert_eq!(
+        stats.after_bytes as usize,
+        target.durable_image().unwrap().len()
+    );
     assert!(stats.after_bytes < stats.before_bytes / 2);
     assert_eq!(disk.durable_image().unwrap(), before);
     target.crash(Crash::DropAll).unwrap();
@@ -262,6 +266,20 @@ fn copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover(
     let target = SimulatedDisk::new().unwrap();
     source.compact_to(target.clone()).unwrap();
     let trace = target.trace().unwrap();
+    let compacted = target.durable_image().unwrap();
+    let [append_sync, root_sync, witness_sync]: [usize; 3] = trace
+        .iter()
+        .enumerate()
+        .filter_map(|(i, event)| (event.kind == IoKind::Sync).then_some(i))
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    assert_eq!(trace[witness_sync + 1].kind, IoKind::Length);
+    assert!(
+        trace[witness_sync + 2..]
+            .iter()
+            .all(|event| event.kind == IoKind::Read)
+    );
     for (step, event) in trace.iter().enumerate() {
         let faults = match event.kind {
             IoKind::Write => vec![
@@ -280,31 +298,102 @@ fn copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover(
             _ => vec![Fault::Error, Fault::Short(1)],
         };
         for fault in faults {
-            let disk = SimulatedDisk::from_image(&image).unwrap();
-            let mut source = Database::open_on(disk.clone(), Limits::default()).unwrap();
-            let before = disk.durable_image().unwrap();
-            let target = SimulatedDisk::new().unwrap();
-            target.arm(step, fault);
-            let result = source.compact_to(target.clone());
-            assert_eq!(
-                disk.durable_image().unwrap(),
-                before,
-                "step={step}, fault={fault:?}"
-            );
-            target.clear_fault();
-            target.crash(Crash::PersistAll).unwrap();
-            match Database::open_on(target, Limits::default()) {
-                Ok(copy) => check(&copy, &source),
-                Err(e) => {
-                    assert!(result.is_err());
-                    assert!(
-                        matches!(e, Error::Corrupt | Error::UnsupportedFormat),
-                        "step={step}, {e:?}"
+            for crash in [Crash::DropAll, Crash::PersistAll] {
+                let disk = SimulatedDisk::from_image(&image).unwrap();
+                let mut source = Database::open_on(disk.clone(), Limits::default()).unwrap();
+                disk.arm(usize::MAX, Fault::Error);
+                let target = SimulatedDisk::new().unwrap();
+                target.arm(step, fault);
+                let result = source.compact_to(target.clone());
+                let expected = if matches!(fault, Fault::Short(1))
+                    && matches!(event.kind, IoKind::Read | IoKind::Write)
+                {
+                    None
+                } else if step <= append_sync || step > witness_sync {
+                    Some(Error::Io)
+                } else {
+                    Some(Error::OutcomeUnknown)
+                };
+                assert_eq!(result.err(), expected, "step={step}, fault={fault:?}");
+                if expected.is_some() {
+                    assert_eq!(target.trace().unwrap(), trace[..=step]);
+                }
+                assert_eq!(disk.durable_image().unwrap(), image);
+                assert_eq!(
+                    disk.trace()
+                        .unwrap()
+                        .iter()
+                        .map(|e| e.kind)
+                        .collect::<Vec<_>>(),
+                    [IoKind::Length]
+                );
+                assert!(!source.requires_recovery());
+                let mut probe = target.clone();
+                probe.lock().expect("copy released the destination lease");
+                probe.unlock();
+                target.clear_fault();
+                target.crash(crash).unwrap();
+
+                let reopened = Database::open_on(target.clone(), Limits::default());
+                let root_survives = expected.is_none()
+                    || step > root_sync
+                    || step == root_sync
+                        && matches!(
+                            (crash, fault),
+                            (Crash::PersistAll, _) | (_, Fault::SyncError(Crash::PersistAll))
+                        );
+                if root_survives {
+                    check(&reopened.unwrap(), &source);
+                    assert_eq!(target.durable_image().unwrap(), compacted);
+                } else {
+                    // A durable append prefix can extend the sparse image past
+                    // the minimum length while the header is still volatile.
+                    let error = if step < append_sync
+                        && event.offset >= APPEND_START as u64
+                        && matches!((fault, crash), (Fault::Tear { .. }, Crash::DropAll))
+                    {
+                        Error::UnsupportedFormat
+                    } else {
+                        Error::Corrupt
+                    };
+                    assert_eq!(
+                        reopened.err(),
+                        Some(error),
+                        "step={step}, fault={fault:?}, crash={crash:?}"
                     );
                 }
             }
         }
     }
+}
+
+#[test]
+fn compact_source_length_failure_stops_before_destination_and_allows_retry() {
+    let image = fixture();
+    let disk = SimulatedDisk::from_image(&image).unwrap();
+    let mut source = Database::open_on(disk.clone(), Limits::default()).unwrap();
+    let target = SimulatedDisk::new().unwrap();
+    disk.arm(0, Fault::Error);
+    target.arm(usize::MAX, Fault::Error);
+    assert_eq!(source.compact_to(target.clone()), Err(Error::Io));
+    assert_eq!(
+        disk.trace()
+            .unwrap()
+            .iter()
+            .map(|e| e.kind)
+            .collect::<Vec<_>>(),
+        [IoKind::Length]
+    );
+    assert!(target.trace().unwrap().is_empty());
+    assert!(target.durable_image().unwrap().is_empty());
+    assert_eq!(disk.durable_image().unwrap(), image);
+    assert!(!source.requires_recovery());
+    disk.clear_fault();
+    source.compact_to(target.clone()).unwrap();
+    check(
+        &Database::open_on(target, Limits::default()).unwrap(),
+        &source,
+    );
 }
 #[test]
 fn allocation_failures_during_copy_and_verification_never_change_the_source() {
