@@ -76,9 +76,10 @@ Batch 5 starts with [ByteStore transfers and local publication](decisions/bytest
 [Unix scratch preparation and positioned I/O](decisions/unix-scratch-io-current.md),
 [Linux architecture admission](decisions/linux-architecture-current.md),
 [Unix compaction descriptor exhaustion](decisions/unix-descriptors-current.md),
-and [Unix metadata reads](decisions/unix-metadata-reads-current.md).
-Remaining descriptor clone failures, kernel metadata errors and native Win32
-decisions follow.
+[Unix metadata reads](decisions/unix-metadata-reads-current.md),
+and [Unix compaction file clone failures](decisions/unix-clone-failures-current.md).
+Kernel metadata errors, native Win32 decisions and deployed device
+qualification remain open.
 Batch 9 covers the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets

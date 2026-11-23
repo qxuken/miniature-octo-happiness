@@ -25,15 +25,15 @@ canonical and retained state at each existing publication observation.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `99da9a602d321584b14e7af1fbc9b9063e1ddeb94000a393a9ac268d0f559759` |
+| `src/storage/file.rs` | `cfcc5d7b40eadd689b34a717825cd59cdd62171a09c8397671c63e43f61c2756` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| E | weekend-db::weekend_db | src/storage/file.rs:325:10– | 11099..11100 | try_propagation | scratch | Propagate one selected allocator refusal before calling entropy. |
-| D | weekend-db::weekend_db | src/storage/file.rs:326:9– | 11110..11113 | for_iteration | scratch | Encode exactly 16 bytes in order. The successful iterator has a fixed nonzero cardinality. |
-| E | weekend-db::weekend_db | src/storage/file.rs:326:36– | 11137..11138 | try_propagation | scratch | Propagate a terminal identity failure and release the completed reservation. |
-| D | weekend-db::weekend_db | src/storage/file.rs:327:13– | 11153..11156 | for_iteration | scratch | Use both nibbles in order and encode them as lowercase hex. |
-| P | weekend-db::weekend_db | src/storage/file.rs:346:9– | 11790..11792 | if | remove | Preserve unlink success and an absent-leaf native error independently. |
+| E | weekend-db::weekend_db | src/storage/file.rs:330:10– | 11242..11243 | try_propagation | scratch | Propagate one selected allocator refusal before calling entropy. |
+| D | weekend-db::weekend_db | src/storage/file.rs:331:9– | 11253..11256 | for_iteration | scratch | Encode exactly 16 bytes in order. The successful iterator has a fixed nonzero cardinality. |
+| E | weekend-db::weekend_db | src/storage/file.rs:331:36– | 11280..11281 | try_propagation | scratch | Propagate a terminal identity failure and release the completed reservation. |
+| D | weekend-db::weekend_db | src/storage/file.rs:332:13– | 11296..11299 | for_iteration | scratch | Use both nibbles in order and encode them as lowercase hex. |
+| P | weekend-db::weekend_db | src/storage/file.rs:349:9– | 11860..11862 | if | remove | Preserve unlink success and an absent-leaf native error independently. |
 
 ## Verification
 

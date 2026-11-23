@@ -391,6 +391,15 @@ reopen, and retry to reference bytes pass in both profiles on macOS and
 Docker Linux. Kernel metadata errors remain a deployment evidence gate.
 The queue has 9,431 open records (2,062 runtime / 26 driver / 7,343 tooling).
 
+The [Unix file clone ledger](decisions/unix-clone-failures-current.md) records
+real EMFILE at both compaction file clones at `309ceae`. Both profiles on
+macOS and Docker Linux preserve the canonical inode, bytes and exact
+current and retained roots, then retry to the simulator reference image.
+Linux repeats both profiles as UID and GID 1000. The nine named controls
+cover the new clone paths and the earlier descriptor fixtures. Two new
+propagation dispositions leave 9,429 open records
+(2,060 runtime / 26 driver / 7,343 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

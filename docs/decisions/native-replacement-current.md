@@ -57,27 +57,27 @@ deployment filesystem qualification remain open.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `99da9a602d321584b14e7af1fbc9b9063e1ddeb94000a393a9ac268d0f559759` |
+| `src/storage/file.rs` | `cfcc5d7b40eadd689b34a717825cd59cdd62171a09c8397671c63e43f61c2756` |
 | `src/storage/replacement.rs` | `758de2d4ff064a05b11d046097206602d2f2504f9748d2d0e99ec3693b12ebdf` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| E | weekend-db::weekend_db | src/storage/file.rs:401:32– | 13454..13455 | try_propagation | call | A failed before callback prevents the action. |
-| E | weekend-db::weekend_db | src/storage/file.rs:403:31– | 13518..13519 | try_propagation | call | A failed after callback returns an error after the action executed. |
-| E | weekend-db::weekend_db | src/storage/file.rs:477:39– | 15704..15705 | try_propagation | compact_file_impl | Reject an empty path before opening a source. |
-| E | weekend-db::weekend_db | src/storage/file.rs:478:62– | 15768..15769 | try_propagation | compact_file_impl | Open a valid source and propagate missing or leased source errors. |
-| P | weekend-db::weekend_db | src/storage/file.rs:483:5– | 15962..15964 | if | compact_file_impl | Reject a two-link source before scratch creation, then accept the same source with one link. |
-| E | weekend-db::weekend_db | src/storage/file.rs:493:6– | 16262..16263 | try_propagation | compact_file_impl | A source recovery error stops before scratch creation. |
-| E | weekend-db::weekend_db | src/storage/file.rs:517:29– | 17079..17080 | try_propagation | compact_file_impl | A verification error for a published scratch image leaves the source name alone. |
-| P | weekend-db::weekend_db | src/storage/file.rs:521:13– | 17158..17160 | if | compact_file_impl | Remap OutcomeUnknown from target publication to Io and preserve ordinary errors. |
-| E | weekend-db::weekend_db | src/storage/file.rs:526:11– | 17279..17280 | try_propagation | compact_file_impl | A preparation error stops before copying metadata. |
-| E | weekend-db::weekend_db | src/storage/file.rs:529:7– | 17395..17396 | try_propagation | compact_file_impl | Metadata-copy refusal stops before metadata sync or exchange. |
-| E | weekend-db::weekend_db | src/storage/file.rs:530:73– | 17470..17471 | try_propagation | compact_file_impl | Metadata-sync refusal stops before verification and exchange. |
-| E | weekend-db::weekend_db | src/storage/file.rs:533:28– | 17655..17656 | try_propagation | compact_file_impl | Verify again after copying and syncing metadata. A failed read stops publication. |
-| E | weekend-db::weekend_db | src/storage/file.rs:535:36– | 17744..17745 | try_propagation | compact_file_impl | A replacement canonical inode independently rejects. |
-| E | weekend-db::weekend_db | src/storage/file.rs:537:7– | 17788..17789 | try_propagation | compact_file_impl | A replacement of either inode independently prevents exchange. |
-| E | weekend-db::weekend_db | src/storage/file.rs:541:40– | 18025..18030 | match | compact_file_impl | Verify all six stage dispatches with independent before and after observations. |
-| E | weekend-db::weekend_db | src/storage/file.rs:555:40– | 18762..18763 | try_propagation | compact_file_impl | A failed namespace action reports OutcomeUnknown with the observed inode and scratch state. |
+| E | weekend-db::weekend_db | src/storage/file.rs:404:32– | 13524..13525 | try_propagation | call | A failed before callback prevents the action. |
+| E | weekend-db::weekend_db | src/storage/file.rs:406:31– | 13588..13589 | try_propagation | call | A failed after callback returns an error after the action executed. |
+| E | weekend-db::weekend_db | src/storage/file.rs:480:39– | 15774..15775 | try_propagation | compact_file_impl | Reject an empty path before opening a source. |
+| E | weekend-db::weekend_db | src/storage/file.rs:481:62– | 15838..15839 | try_propagation | compact_file_impl | Open a valid source and propagate missing or leased source errors. |
+| P | weekend-db::weekend_db | src/storage/file.rs:484:5– | 15975..15977 | if | compact_file_impl | Reject a two-link source before scratch creation, then accept the same source with one link. |
+| E | weekend-db::weekend_db | src/storage/file.rs:494:6– | 16275..16276 | try_propagation | compact_file_impl | A source recovery error stops before scratch creation. |
+| E | weekend-db::weekend_db | src/storage/file.rs:516:29– | 17035..17036 | try_propagation | compact_file_impl | A verification error for a published scratch image leaves the source name alone. |
+| P | weekend-db::weekend_db | src/storage/file.rs:520:13– | 17114..17116 | if | compact_file_impl | Remap OutcomeUnknown from target publication to Io and preserve ordinary errors. |
+| E | weekend-db::weekend_db | src/storage/file.rs:525:11– | 17235..17236 | try_propagation | compact_file_impl | A preparation error stops before copying metadata. |
+| E | weekend-db::weekend_db | src/storage/file.rs:528:7– | 17351..17352 | try_propagation | compact_file_impl | Metadata-copy refusal stops before metadata sync or exchange. |
+| E | weekend-db::weekend_db | src/storage/file.rs:529:73– | 17426..17427 | try_propagation | compact_file_impl | Metadata-sync refusal stops before verification and exchange. |
+| E | weekend-db::weekend_db | src/storage/file.rs:532:28– | 17611..17612 | try_propagation | compact_file_impl | Verify again after copying and syncing metadata. A failed read stops publication. |
+| E | weekend-db::weekend_db | src/storage/file.rs:534:36– | 17700..17701 | try_propagation | compact_file_impl | A replacement canonical inode independently rejects. |
+| E | weekend-db::weekend_db | src/storage/file.rs:536:7– | 17744..17745 | try_propagation | compact_file_impl | A replacement of either inode independently prevents exchange. |
+| E | weekend-db::weekend_db | src/storage/file.rs:540:40– | 17981..17986 | match | compact_file_impl | Verify all six stage dispatches with independent before and after observations. |
+| E | weekend-db::weekend_db | src/storage/file.rs:554:40– | 18718..18719 | try_propagation | compact_file_impl | A failed namespace action reports OutcomeUnknown with the observed inode and scratch state. |
 | E | weekend-db::weekend_db | src/storage/replacement.rs:14:5– | 419..422 | for_iteration | publish | The six actions execute in the listed order. The fixed array contains six entries. |
 | E | weekend-db::weekend_db | src/storage/replacement.rs:22:20– | 600..601 | try_propagation | publish | An error at any stage stops at that action and preserves the precise callback status. |
 
