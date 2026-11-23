@@ -68,7 +68,7 @@ The remaining 9,871 open records include 2,501 runtime records.
 | Source | SHA-256 |
 |---|---|
 | `src/storage/codec.rs` | `593b1dc249ceca770b436133c894b41aad0596c5f20be79abf96cd69644205ee` |
-| `src/storage/mod.rs` | `30f5689a39d4953c8274f4deee56481edc6dc7066a65586bdb955e18099ef6f1` |
+| `src/storage/mod.rs` | `a317cd6f24525b6a6b776457ff2c6eb7cb796b28b97e13e7d4991b0251a57dc3` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence |
 |---|---|---|---|---|---|---|

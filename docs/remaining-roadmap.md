@@ -273,6 +273,15 @@ write storage. Both macOS profiles detected 32 controls, including the
 two sum boundaries and the upper cap guard. Batch 5 starts with ByteStore
 transfer progress and publication barriers.
 
+The [ByteStore and publication ledger](decisions/bytestore-publication-current.md)
+starts batch 5 with 20 more exact source dispositions. It records which
+revision reopens at each simulated publication failure and checks the
+retained rows throughout. Debug and release pass on macOS and Docker Linux
+at `e8d76f1`. Both macOS profiles detect all 27 selected controls.
+The queue has 9,628 open records (2,258 runtime / 26 driver / 7,344 tooling).
+Creation, lease cleanup, recovery stabilization, replacement, native adapter
+phases and follower durability remain in the queue.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
