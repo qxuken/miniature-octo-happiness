@@ -46,6 +46,13 @@ stabilizes revision 4 and preserves retained revision 2.
   `cargo xtask mutations --toolchain 1.100.0 --case r1-cache-` and use
   `--release` for the second profile.
 
+At `74a7beb`, both new cold-open header controls and both existing index
+controls were detected in debug and release on macOS. The two clean-source
+reports verify 36 command retirements. Reproduce with
+`cargo xtask mutations --toolchain 1.100.0 --case r1-cache-open- --case r1-alloc-reopen-`
+and repeat with `--release`. Both platforms also passed the selected-graph
+rejection and current/retained-root recovery tests.
+
 The production inventories match the parent. The table records ten directed
 source pairs, thirteen propagation rows, four scoped execution rows and one
 coupled row. The two outer cold-open header sites use the same calibrated
@@ -53,6 +60,8 @@ fixture as index rebuild. The index-level calls in `Storage::open` already
 have their own retained-root controls. The unreachable borrowed arm after
 a successful fork follows from `make_mut`'s preceding transition. Compiler coverage and the
 delegated comparison and allocator internals retain their own scope.
+The inventory reconciles 10,582 decisions, with 28 fewer open records.
+The remaining 9,871 open records include 2,501 runtime records.
 
 ## Exact current source rows
 

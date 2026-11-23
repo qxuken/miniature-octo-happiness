@@ -232,8 +232,14 @@ The [unit allocator migration](decisions/unit-allocator-retirement.md)
 finishes batch 2 on the stack. Tree, value and memory tests use the
 provider and the synthetic counter has been removed. Both golden histories
 pass on macOS and Docker Linux, and 22 allocator and encoder controls
-pass in each macOS profile. Batch 3 tracks codec, cache and index
-decision coverage.
+pass in each macOS profile.
+
+The [codec cache and index ledger](decisions/codec-cache-index-current.md)
+records batch 3 on the stack. It binds 28 source decisions to directed
+pairs, propagation tests, scoped execution and coupling. Both profiles
+caught all 31 new controls on macOS. The 17 golden images match across
+both profiles on macOS and Docker Linux. Batch 4 starts with transaction
+observations, overlay scans and their failure boundaries.
 
 All R1 and R2–R7 completion gates above remain open.
 

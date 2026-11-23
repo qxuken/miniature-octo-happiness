@@ -313,7 +313,7 @@
     "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
     "docs/decisions/rust-output-allocation.md": "69603e258aa0a28a24b407d22ceb289da8d870da60b77ff09bc3316b62bfabba",
     "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa",
-    "docs/decisions/codec-cache-index-current.md": "306756bc02d5ba860fe3e9b36820a4b8a508d454e490fa7df156bb1fc21e4ffd"
+    "docs/decisions/codec-cache-index-current.md": "d4121864b51ce73616d7355c69bc2347872339cde917e0c33fa0476573e21da1"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
