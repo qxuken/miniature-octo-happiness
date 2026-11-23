@@ -97,7 +97,7 @@
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
     "src/engine.rs": "c1a9f0d9f416442840397a04b3b5d1ac7b3332b5d6dec98495d346d1420dea6d",
-    "src/ffi.rs": "4e9a21c5ff377463642c3f52156cad82f190469daefe8250bdd8b7db2ec0294d",
+    "src/ffi.rs": "01efa471657057d8909ea82df1b78458ad3a44c4c6b920abd3fcb990ccc22daf",
     "src/lib.rs": "9ff143a41e86bd50fb5ec30486fe17a916eeae001f35349f88062bc3fa6c24b8",
     "src/memory.rs": "e6ebf06ad09de067f4ad341c7f517532cd9d8ca0c33fb41cc4575b092c8062cf",
     "src/replication/follower.rs": "7b1566228ed57f5b41d15be8a583416a14f8dcefae1521a5ba1764413e37e035",
@@ -182,7 +182,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "9cd494bb9bf9c584492f4bb9b22bdf8303127348f88604c99e360a70c9549d5e",
+    "xtask/src/mutations.rs": "965683eeabcf2d6ef5f595b3c772a31f246c100e2f0e2e01a86c957e6a9b489e",
     "xtask/src/mutations_windows.rs": "206ce8f319bb74534854fe9a6f93b4a227fde55bbc0bde8c09f34013dfe81f20",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "2a5130df96505af9c376b93036f20ba519b7b437bc11f9f397d93a180a065d30",
+    "xtask/tests/mutations.json": "6ffb89a48281a236d77daf3d08bdeefb418608295470a69ae01d7c40ec06689f",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -331,7 +331,7 @@
     "docs/decisions/unix-leases-current.md": "f5ac5e1ffb2fd9e20db12d310417e74c539e2c2f6bd40fcd426b0ea089c32a58",
     "docs/decisions/unix-path-admission-current.md": "8d91d7f48b4856fba8a09f3f3e3bafbd334fe39987d02655840c6ddb0180cd7c",
     "docs/decisions/unix-sync-current.md": "75017776f67659f67770a9bf187d253ee2da865bd3148e27d987f3d2a100033c",
-    "docs/decisions/macos-primitives-current.md": "270c71478a2f831e9365a00c55b3723890ef8adb91dd083d80fc0d9d0f3cab99",
+    "docs/decisions/macos-primitives-current.md": "9801cd315f8a974570aceb672c17b0aec4543871239bead550c5e95a7fdd70e5",
     "docs/decisions/linux-primitives-current.md": "05d0e30b6bc23b0ad93116c44a941db70768b2e568797669085679c27c9ec1ed",
     "docs/decisions/linux-metadata-current.md": "9322111c3a33fd7c8b048a9874d150c550644dbd100b5a12a73ab4eda2cee12e",
     "docs/decisions/windows-paths-current.md": "09fc05b2d123e33c10006f65242359f7ea2002bf1774dfc3bfc16557b33f7a6f",
@@ -347,7 +347,8 @@
     "docs/decisions/windows-handle-io-current.md": "ed74f70a7f7ce018c3aac4c879da8b637f84500e22c1a375bc76fe8d1a9a995a",
     "docs/decisions/windows-rng-results-current.md": "cc3e39c76f21ce226d474403cb5a31c14de93e5b3916350abee4e1e045f42a8f",
     "docs/decisions/windows-open-results-current.md": "1469eb6cc3a288e990f504e12d9ccbeda2c7e6cb85e30dd94ae4f5c90da7ad19",
-    "docs/decisions/ffi-handle-accounting-current.md": "e3d8761a89b228d7412094d729920d181e80b109a5e44a03ebdc8203011fa11a"
+    "docs/decisions/ffi-handle-accounting-current.md": "e3d8761a89b228d7412094d729920d181e80b109a5e44a03ebdc8203011fa11a",
+    "docs/decisions/ffi-boundaries-current.md": "134bbe5cd6dd47a8d6de146aa5613ee180d6be2a4a82873bb24c07a7eab860c1"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -521,7 +522,8 @@
         "docs/decisions/current.md",
         "docs/decisions/ffi.md",
         "include/weekend_db.h",
-        "docs/decisions/ffi-handle-accounting-current.md"
+        "docs/decisions/ffi-handle-accounting-current.md",
+        "docs/decisions/ffi-boundaries-current.md"
       ],
       "residual": "Generated export templates, pointer/lifetime contracts and per-ABI outcomes retain supplemental scope."
     },
@@ -16048,6 +16050,658 @@
       "mutations": [
         "r1-ffi-handles-allocation-status",
         "r1-ffi-handles-drop-reservation"
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-OUTPUT-NULL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "output",
+        "kind": "if",
+        "conditions": [
+          "out.is_null()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "input_length_kind_and_output_guards_preserve_handle_ownership"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-output-null"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-INPUT-CAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "input",
+        "kind": "if",
+        "conditions": [
+          "len > unsafe { db(owner)? }.db.limits().max_bytes"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "optional_database_options_and_byte_input_preserve_the_inclusive_limit"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-input-cap"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-INPUT-OWNER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "input",
+        "kind": "try_propagation",
+        "conditions": [
+          "db(owner)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "null_owner_is_rejected_before_constructing_a_slice_or_handle"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-input-owner"
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-INPUT-EMPTY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "input",
+        "kind": "if",
+        "conditions": [
+          "len == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "optional_database_options_and_byte_input_preserve_the_inclusive_limit"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-input-empty"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-INPUT-NULL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "input",
+        "kind": "if",
+        "conditions": [
+          "bytes.is_null()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "input_length_kind_and_output_guards_preserve_handle_ownership"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-input-null"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-HANDLE-OWNER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "make_handle",
+        "kind": "try_propagation",
+        "conditions": [
+          "db(owner)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "null_owner_is_rejected_before_constructing_a_slice_or_handle"
+        },
+        {
+          "file": "src/ffi.rs",
+          "name": "handle_count_exhaustion_rejects_clone_without_losing_source"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-handle-owner"
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-FOREIGN-OWNER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "same",
+        "kind": "if",
+        "conditions": [
+          "a == b"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "retained_id_buffers_and_foreign_snapshots_preserve_outputs"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-foreign-owner"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-COPY-REQUIRED",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "copy_bytes",
+        "kind": "if",
+        "conditions": [
+          "required.is_null()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "byte_buffers_distinguish_null_capacity_and_required_length"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-copy-required"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-COPY-NULL-CONDITION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "copy_bytes",
+        "kind": "if",
+        "conditions": [
+          "buffer.is_null()",
+          "capacity != 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "byte_buffers_distinguish_null_capacity_and_required_length"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-copy-null-condition",
+        "r1-ffi-boundary-copy-capacity-condition"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-COPY-CAPACITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "copy_bytes",
+        "kind": "if",
+        "conditions": [
+          "capacity < bytes.len()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "byte_buffers_distinguish_null_capacity_and_required_length"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-copy-capacity",
+        "r1-ffi-boundary-copy-reported-size"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-COPY-SINGLETON",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "copy_bytes",
+        "kind": "if",
+        "conditions": [
+          "!bytes.is_empty()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "byte_buffers_distinguish_null_capacity_and_required_length"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-copy-singleton"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-OPTIONS-DEFAULT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "database_options",
+        "kind": "let_else",
+        "conditions": [
+          "unsafe { raw.as_ref() }"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "optional_database_options_and_byte_input_preserve_the_inclusive_limit"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-options-default"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-OPTIONS-LIMITS-BEFORE-ALLOCATOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "database_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "raw.limits.validate()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "foreign_allocator_owns_context_through_snapshot_and_handle_release"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-options-limits-before-allocator"
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-OPTIONS-NULL-ALLOCATOR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "database_options",
+        "kind": "let_else",
+        "conditions": [
+          "unsafe { raw.allocator.as_ref() }"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "optional_database_options_and_byte_input_preserve_the_inclusive_limit"
+        },
+        {
+          "file": "src/ffi.rs",
+          "name": "foreign_allocator_owns_context_through_snapshot_and_handle_release"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-options-null-allocator"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-OPTIONS-CALLBACKS-STATUS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "database_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "ForeignAllocator::new(*callbacks)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "foreign_allocator_owns_context_through_snapshot_and_handle_release"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-options-callbacks-status"
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-OPTIONS-PROVIDER-STATUS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "database_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "AllocatorHandle::try_new(provider)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "foreign_allocator_owns_context_through_snapshot_and_handle_release"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-options-provider-status"
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-PATH-NULL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "path",
+        "kind": "if",
+        "conditions": [
+          "bytes.is_null()",
+          "len == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "native_path_length_boundary_and_encoding_contract"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-path-null",
+        "r1-ffi-boundary-path-empty"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-PATH-CAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "path",
+        "kind": "if",
+        "conditions": [
+          "len > 1024 * 1024"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "native_path_length_boundary_and_encoding_contract"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-path-cap"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FFI-BOUNDARY-PATH-NUL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/ffi.rs",
+        "owner": "path",
+        "kind": "if",
+        "conditions": [
+          "bytes.contains(&0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/ffi.rs",
+          "name": "native_path_length_boundary_and_encoding_contract"
+        }
+      ],
+      "mutations": [
+        "r1-ffi-boundary-path-nul"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
       ]
     }
   ],

@@ -442,6 +442,14 @@ tooling records remain open. The queue has 9,413 open records (2,036
 runtime / 26 driver / 7,351 tooling). Exact delivered consumers,
 additional export decisions and the remainder of batch 6 stay open.
 
+The [FFI boundary ledger](decisions/ffi-boundaries-current.md) adds explicit
+controls for input, output, options, path bytes and panic status at
+`9f5d81f`. Both profiles on macOS and Docker Linux catch all 23 controls.
+The packaged C/C++/Odin consumers and dynamic ABI smoke pass before
+and after relocation on both hosts. Native Windows UTF-8
+propagation, generated export decisions and remaining delivered profiles stay open.
+The queue has 9,391 open records (2,014 runtime / 26 driver / 7,351 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -86,8 +86,10 @@ Kernel metadata errors, native Win32 decisions and deployed device
 qualification remain open.
 
 Batch 6 starts with [FFI handle accounting and allocation refusal](decisions/ffi-handle-accounting-current.md).
-Continue with the remaining ownership, panic containment and generated
-export decisions, and qualify the delivered consumers per ABI.
+The [FFI boundary ledger](decisions/ffi-boundaries-current.md) adds portable
+source controls for buffers, options, path admission and panic status, plus
+the relocated macOS and Linux C/C++/Odin packages. Continue with generated
+export decisions, remaining ownership paths and delivered consumers per ABI.
 
 Batch 9 covers the follower's separate durability acknowledgment.
 
