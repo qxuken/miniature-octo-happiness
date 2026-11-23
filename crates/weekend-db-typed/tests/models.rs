@@ -1942,28 +1942,28 @@ fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -
         w.insert(&progress, 1, &MigrationProgress { completed: 0 })
     })?;
     let tasks = store.table::<Task>("tasks")?;
-    for ids in [
-        vec![1, 1],
-        vec![0],
-        vec![1, 0],
-        vec![1; store.database().limits().max_writes + 1],
+    for (ids, expected) in [
+        (vec![1, 1], Err(Error::InvalidId)),
+        (vec![0], Err(Error::InvalidId)),
+        (vec![1, 0], Err(Error::InvalidId)),
+        (
+            vec![1; store.database().limits().max_writes + 1],
+            Err(Error::Engine(engine::Error::Limit)),
+        ),
+        (vec![], Ok(0)),
     ] {
         let before = store.database().snapshot().revision();
-        let expected = if ids.len() > store.database().limits().max_writes {
-            Error::Engine(engine::Error::Limit)
-        } else {
-            Error::InvalidId
-        };
+        let advanced = u64::from(expected.is_ok());
         let mut calls = 0;
         assert_eq!(
             store.write(|w| w.migrate_ids(&tasks, &ids, |_, _, _| {
                 calls += 1;
                 Ok(())
             })),
-            Err(expected)
+            expected
         );
         assert_eq!(calls, 0);
-        assert_eq!(store.database().snapshot().revision(), before);
+        assert_eq!(store.database().snapshot().revision(), before + advanced);
     }
     for (ids, fail_callback, collide, error) in [
         (vec![1, 2], true, false, Error::InvalidId),
@@ -2008,10 +2008,6 @@ fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -
             Ok(())
         })?;
     }
-    assert_eq!(
-        store.write(|w| w.migrate_ids(&tasks, &[], |_, _, _| panic!("empty batch")))?,
-        0
-    );
     Ok(())
 }
 
