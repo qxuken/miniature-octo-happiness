@@ -3019,8 +3019,8 @@
     {
       "name": "r1-encode-value-map-entries",
       "file": "src/storage/codec.rs",
-      "old": "value.map_entries()?",
-      "new": "value.map_entries().map_err(|_| Error::Invalid)?",
+      "old": "value.map_entries_for_encoding(self.mem)?",
+      "new": "value.map_entries_for_encoding(self.mem).map_err(|_| Error::Invalid)?",
       "test": "storage::codec::tests::value_encoding_reuses_cached_nodes_and_propagates_each_allocation_failure",
       "target": "--lib",
       "occurrence": 1,
@@ -3041,8 +3041,8 @@
     {
       "name": "r1-encode-value-map-child",
       "file": "src/storage/codec.rs",
-      "old": "self.value(&child)?",
-      "new": "self.value(&child).map_err(|_| Error::Invalid)?",
+      "old": "self.value(child)?",
+      "new": "self.value(child).map_err(|_| Error::Invalid)?",
       "test": "storage::codec::tests::value_encoding_reuses_cached_nodes_and_propagates_each_allocation_failure",
       "target": "--lib",
       "occurrence": 1,
@@ -3052,8 +3052,8 @@
     {
       "name": "r1-encode-value-map-key",
       "file": "src/storage/codec.rs",
-      "old": "payload.key(&key)?",
-      "new": "payload.key(&key).map_err(|_| Error::Invalid)?",
+      "old": "payload.key(map_key)?",
+      "new": "payload.key(map_key).map_err(|_| Error::Invalid)?",
       "test": "storage::codec::tests::value_encoding_reuses_cached_nodes_and_propagates_each_allocation_failure",
       "target": "--lib",
       "occurrence": 1,

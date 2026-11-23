@@ -364,7 +364,7 @@ interruption remains a separate gate.
 The native Linux minimum-toolchain job reuses the package and pinned Odin
 compiler from its verified state trace. It checks that the package identifies
 the tested source and that the compiler digest matches the package manifest.
-The test image uses an amd64 Rust 1.99.0 base pinned by its OCI manifest and
+The current test image uses an amd64 Rust 1.100.0 base pinned by its OCI manifest and
 Debian Clang 16.0.6. The campaign runs in an offline container with its own
 ext4 volume and an 8 MiB tmpfs. Its proof includes both the image ID and the
 loader observations from the phase-specific consumers.

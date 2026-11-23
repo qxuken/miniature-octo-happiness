@@ -103,7 +103,7 @@ pub trait ByteStore: Send {
 }
 
 pub(crate) struct Storage {
-    backend: Box<dyn ByteStore>,
+    backend: Box<dyn ByteStore, crate::AllocatorHandle>,
     identity: [u8; 16],
     revision: u64,
     end: u64,
@@ -199,7 +199,7 @@ impl Storage {
         Ok(())
     }
     pub(crate) fn locked<B: ByteStore + 'static>(backend: B, mem: &Memory) -> Result<Self> {
-        let mut backend: Box<dyn ByteStore> = mem.boxed(backend)?;
+        let mut backend: Box<dyn ByteStore, crate::AllocatorHandle> = mem.boxed(backend)?;
         backend.lock()?;
         Ok(Self {
             backend,

@@ -6,7 +6,7 @@ use super::linux as sys;
 #[cfg(target_os = "macos")]
 use super::macos as sys;
 use super::{ByteStore, CompactionStats, Storage};
-use crate::{Error, Limits, Result, memory::Memory};
+use crate::{AllocatorHandle, Error, Limits, Result, memory::Memory};
 use std::{
     ffi::{c_char, c_int},
     fs::File,
@@ -15,7 +15,7 @@ use std::{
         fd::{AsRawFd, FromRawFd},
         unix::{
             ffi::OsStrExt,
-            fs::{FileExt, MetadataExt, OpenOptionsExt},
+            fs::{FileExt, MetadataExt},
         },
     },
     path::Path,
@@ -23,6 +23,7 @@ use std::{
 use sys::{OPEN_CREATE, OPEN_LEASE, OPEN_REQUIRED, full_sync, identity, os_error};
 
 unsafe extern "C" {
+    fn open(path: *const c_char, flags: c_int, ...) -> c_int;
     fn openat(directory: c_int, path: *const c_char, flags: c_int, ...) -> c_int;
     fn flock(fd: c_int, operation: c_int) -> c_int;
     fn unlinkat(directory: c_int, name: *const c_char, flags: c_int) -> c_int;
@@ -46,29 +47,52 @@ pub struct FileStore {
     file: File,
     location: Location,
     parent_pending: bool,
-    claimed: bool,
+    lease: Lease,
+}
+#[derive(PartialEq, Eq)]
+enum Lease {
+    Open,
+    Claimed,
+    Released,
 }
 impl FileStore {
     pub fn create(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), true)
+        Self::open_in(path, true, AllocatorHandle::default())
     }
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        Self::open_impl(path.as_ref(), false)
+        Self::open_in(path, false, AllocatorHandle::default())
     }
     /// Open with read access and the same exclusive lease as a writer.
     pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
         Location::new(path.as_ref())?.open_mode(false, false)
     }
-    fn open_impl(path: &Path, create: bool) -> Result<Self> {
-        Location::new(path)?.open(create)
+    pub(crate) fn open_in(
+        path: impl AsRef<Path>,
+        create: bool,
+        allocator: AllocatorHandle,
+    ) -> Result<Self> {
+        Location::new_in(path.as_ref(), allocator)?.open_mode(create, true)
     }
     fn check(&self) -> Result<()> {
-        if self.claimed { Ok(()) } else { Err(Error::Io) }
+        if self.lease == Lease::Claimed {
+            Ok(())
+        } else {
+            Err(Error::Io)
+        }
+    }
+}
+#[cfg(target_os = "linux")]
+impl Drop for FileStore {
+    fn drop(&mut self) {
+        // A concurrent fork can keep the open description alive until exec.
+        if self.lease != Lease::Released {
+            self.unlock();
+        }
     }
 }
 impl ByteStore for FileStore {
     fn lock(&mut self) -> Result<()> {
-        if self.claimed {
+        if self.lease == Lease::Claimed {
             return Err(Error::Busy);
         }
         retry(NativeIoOperation::Lock, || {
@@ -78,23 +102,28 @@ impl ByteStore for FileStore {
                 Err(io::Error::last_os_error())
             }
         })?;
+        self.lease = Lease::Open;
         if let Err(error) = self.location.check_lease(&self.file) {
             self.unlock();
             return Err(error);
         }
-        self.claimed = true;
+        self.lease = Lease::Claimed;
         Ok(())
     }
     fn unlock(&mut self) {
-        let _ = retry(NativeIoOperation::Unlock, || {
+        let result = retry(NativeIoOperation::Unlock, || {
             if unsafe { flock(self.file.as_raw_fd(), 8) } == 0 {
                 Ok(())
             } else {
                 Err(io::Error::last_os_error())
             }
         });
-        // If explicit unlock fails, closing the owned File still releases it.
-        self.claimed = false;
+        self.lease = if result.is_ok() {
+            Lease::Released
+        } else {
+            // Disable I/O and leave the descriptor available for cleanup.
+            Lease::Open
+        };
     }
     fn length(&mut self) -> Result<u64> {
         self.check()?;
@@ -127,10 +156,13 @@ impl ByteStore for FileStore {
 // a cooperating operation; recheck both inode identities before exchange.
 struct Location {
     directory: File,
-    name: Vec<u8>, // native leaf bytes, including terminating zero
+    name: Vec<u8, AllocatorHandle>, // native leaf bytes, including terminating zero
 }
 impl Location {
     fn new(path: &Path) -> Result<Self> {
+        Self::new_in(path, AllocatorHandle::default())
+    }
+    fn new_in(path: &Path, allocator: AllocatorHandle) -> Result<Self> {
         if !sys::SUPPORTED {
             return Err(Error::UnsupportedPlatform);
         }
@@ -149,29 +181,52 @@ impl Location {
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
-        let directory = retry(NativeIoOperation::OpenDirectory, || {
-            std::fs::OpenOptions::new()
-                .read(true)
-                .custom_flags(sys::OPEN_DIRECTORY)
-                .open(parent)
-        })?;
-        let mem = Memory::new(Limits::default())?;
-        let mut name = mem.copy_external(name)?;
-        mem.reserve_external(&mut name, 1)?;
-        name.push(0);
+        let directory = {
+            let parent = Self::terminated_path(allocator.clone(), parent.as_os_str().as_bytes())?;
+            retry(NativeIoOperation::OpenDirectory, || {
+                // SAFETY: parent is NUL-terminated. A read-only directory open needs no mode.
+                let fd =
+                    unsafe { open(parent.as_ptr().cast(), sys::OPEN_DIRECTORY | sys::O_CLOEXEC) };
+                if fd < 0 {
+                    Err(io::Error::last_os_error())
+                } else {
+                    // SAFETY: open returned a new owned descriptor.
+                    Ok(unsafe { File::from_raw_fd(fd) })
+                }
+            })?
+        };
+        let name = Self::terminated_path(allocator, name)?;
         Ok(Self { directory, name })
     }
-    fn open(&self, create: bool) -> Result<FileStore> {
-        self.open_mode(create, true)
+    fn terminated_path(
+        allocator: AllocatorHandle,
+        bytes: &[u8],
+    ) -> Result<Vec<u8, AllocatorHandle>> {
+        let mut path = Self::copy_path(allocator, bytes, 1)?;
+        path.push(0);
+        Ok(path)
     }
-    fn open_mode(&self, create: bool, writable: bool) -> Result<FileStore> {
-        // Allocate/copy the lease location before creating any directory entry.
-        let location = Self {
+    fn copy_path(
+        allocator: AllocatorHandle,
+        bytes: &[u8],
+        extra: usize,
+    ) -> Result<Vec<u8, AllocatorHandle>> {
+        let mut path = Vec::new_in(allocator);
+        path.try_reserve_exact(bytes.len() + extra)
+            .map_err(|_| Error::OutOfMemory)?;
+        path.extend_from_slice(bytes);
+        Ok(path)
+    }
+    // Offline compaction keeps a location for the later exchange and cleanup.
+    fn duplicate(&self) -> Result<Self> {
+        Ok(Self {
             directory: retry(NativeIoOperation::DuplicateHandle, || {
                 self.directory.try_clone()
             })?,
-            name: Memory::new(Limits::default())?.copy_external(&self.name)?,
-        };
+            name: Self::copy_path(self.name.allocator().clone(), &self.name, 0)?,
+        })
+    }
+    fn open_mode(self, create: bool, writable: bool) -> Result<FileStore> {
         let access = if writable { 2 } else { 0 };
         let file = self.open_flags(access | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
         if !retry(NativeIoOperation::Metadata, || file.metadata())?.is_file() {
@@ -180,9 +235,9 @@ impl Location {
         self.acquire_open_lease(&file)?;
         Ok(FileStore {
             file,
-            location,
+            location: self,
             parent_pending: create,
-            claimed: false,
+            lease: Lease::Open,
         })
     }
     fn acquire_open_lease(&self, file: &File) -> Result<()> {
@@ -246,7 +301,10 @@ impl Location {
         }
     }
     fn scratch(&self, mem: &Memory) -> Result<Self> {
-        let mut name = mem.copy_external(b".wdb-compact-")?;
+        let prefix = b".wdb-compact-";
+        let mut name = Vec::new_in(self.name.allocator().clone());
+        mem.reserve_external(&mut name, prefix.len())?;
+        name.extend_from_slice(prefix);
         mem.reserve_external(&mut name, 37)?;
         for byte in identity()? {
             for n in [byte >> 4, byte & 15] {
@@ -312,7 +370,7 @@ struct Observer {
     hook: Option<crate::memory::Shared<std::sync::Mutex<Hook>>>,
 }
 #[cfg(any(test, feature = "fault-injection"))]
-type Hook = Box<dyn FnMut(CompactionEvent) -> Result<()> + Send>;
+type Hook = Box<dyn FnMut(CompactionEvent) -> Result<()> + Send, crate::AllocatorHandle>;
 impl Observer {
     fn event(&self, step: CompactionStep, after: bool) -> Result<()> {
         #[cfg(any(test, feature = "fault-injection"))]
@@ -400,7 +458,7 @@ pub fn compact_file_with_hook(
 }
 fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
     let original = Location::new(path)?;
-    let source = original.open(false)?;
+    let source = original.duplicate()?.open_mode(false, true)?;
     let old_file = retry(NativeIoOperation::DuplicateHandle, || {
         source.file.try_clone()
     })?;
@@ -418,7 +476,7 @@ fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<Co
     )?;
     storage.release_serialization_caches();
     let scratch = original.scratch(mem)?;
-    let target = scratch.open(true)?;
+    let target = scratch.duplicate()?.open_mode(true, true)?;
     let new_file = retry(NativeIoOperation::DuplicateHandle, || {
         target.file.try_clone()
     })?;
@@ -507,6 +565,28 @@ impl FileStore {
 ))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dropping_open_store_releases_lease_with_an_inherited_descriptor() {
+        let path =
+            std::env::temp_dir().join(format!("weekend-open-inherited-{}.db", std::process::id()));
+        struct Cleanup(std::path::PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        let cleanup = Cleanup(path);
+        let store = FileStore::create(&cleanup.0).unwrap();
+        // Like a descriptor inherited during fork, this shares the open file description.
+        let inherited = store.file.try_clone().unwrap();
+        assert_eq!(FileStore::open(&cleanup.0).err(), Some(Error::Busy));
+        drop(store);
+        let reopened = FileStore::open(&cleanup.0).unwrap();
+        assert!(inherited.metadata().is_ok());
+        drop(reopened);
+    }
+
     #[test]
     fn opener_paused_before_flock_rejects_the_replaced_inode() {
         let path =
@@ -579,7 +659,7 @@ mod decision_tests {
         let verifications = Arc::new(AtomicUsize::new(0));
         let observed_verifications = verifications.clone();
         let mut check_next_read = true;
-        let hook: Hook = Box::new(move |event| {
+        let hook = move |event: CompactionEvent| {
             if event.step == CompactionStep::SyncMetadata && event.after {
                 check_next_read = true;
             }
@@ -606,7 +686,8 @@ mod decision_tests {
                 observed_verifications.fetch_add(1, Ordering::Relaxed);
             }
             Ok(())
-        });
+        };
+        let hook: Hook = memory.boxed(hook).unwrap();
         let observer = Observer {
             hook: Some(memory.shared(std::sync::Mutex::new(hook)).unwrap()),
         };

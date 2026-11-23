@@ -8,13 +8,13 @@ use crate::{
         Receipt, description_identity, finish_with_key_cleanup, receipt, selected_slot,
     },
     source_archive,
-    support::{Run, cargo_build_env, cmd, path, qualification_inventory as inventory, sha},
+    support::{Run, cargo_build_env, cmd, path, qualification_inventory as inventory, sha, text},
 };
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use serde_json::json;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     env::consts::EXE_SUFFIX,
     ffi::OsString,
     fs,
@@ -71,28 +71,59 @@ impl Endpoint {
     }
 }
 
-fn single_rlib(folder: &Path, library: &str) -> Result<PathBuf> {
-    let mut matches = Vec::new();
-    let bare = format!("lib{library}");
-    let with_disambiguator = format!("{bare}-");
-    for item in fs::read_dir(folder)? {
-        let item = item?;
-        let name = item.file_name();
-        if name
-            .to_str()
-            .and_then(|name| name.strip_suffix(".rlib"))
-            .is_some_and(|name| name == bare || name.starts_with(&with_disambiguator))
-        {
-            ensure!(item.file_type()?.is_file(), "nonregular linked rlib");
-            matches.push(item.path());
+struct FixtureLink {
+    libraries: BTreeMap<String, PathBuf>,
+    search: BTreeSet<PathBuf>,
+}
+
+impl FixtureLink {
+    fn from_build(messages: &str, required: &[&str]) -> Result<Self> {
+        let mut libraries = BTreeMap::new();
+        let mut search = BTreeSet::new();
+        for line in messages.lines() {
+            let artifact: serde_json::Value = serde_json::from_str(line)?;
+            if artifact["reason"] != "compiler-artifact" {
+                continue;
+            }
+            let name = text(&artifact["target"]["name"])?;
+            for filename in artifact["filenames"]
+                .as_array()
+                .context("Cargo artifact filenames")?
+            {
+                let file = Path::new(text(filename)?);
+                search.insert(file.parent().context("Cargo artifact parent")?.to_owned());
+                if required.contains(&name) && file.extension() == Some("rlib".as_ref()) {
+                    let prior = libraries.insert(name.to_owned(), file.to_owned());
+                    ensure!(
+                        prior.as_deref().is_none_or(|prior| prior == file),
+                        "ambiguous Cargo artifact for {name}"
+                    );
+                }
+            }
         }
+        for name in required {
+            ensure!(
+                libraries.contains_key(*name),
+                "missing Cargo rlib for {name}"
+            );
+        }
+        Ok(Self { libraries, search })
     }
-    ensure!(
-        matches.len() == 1,
-        "one exact {library} rlib required, found {}",
-        matches.len()
-    );
-    Ok(matches.pop().unwrap())
+
+    fn flags(&self) -> Vec<OsString> {
+        let mut flags = Vec::new();
+        for (name, file) in &self.libraries {
+            let mut external = OsString::from(format!("{name}="));
+            external.push(file);
+            flags.extend(["--extern".into(), external]);
+        }
+        for directory in &self.search {
+            let mut dependency = OsString::from("dependency=");
+            dependency.push(directory);
+            flags.extend(["-L".into(), dependency]);
+        }
+        flags
+    }
 }
 
 fn endpoint(c: &mut Campaign<'_>, name: &str, reference: &str, fixture: &Path) -> Result<Endpoint> {
@@ -124,12 +155,13 @@ fn endpoint(c: &mut Campaign<'_>, name: &str, reference: &str, fixture: &Path) -
         "--release",
         "--offline",
         "--locked",
+        "--message-format=json",
         "-p",
         "weekend-replicate",
         "--target-dir",
     ]);
     build.push(path(&target));
-    c.command_at(build, &format!("{name}-build"), None, 240., &source)?;
+    let messages = c.command_at(build, &format!("{name}-build"), None, 240., &source)?;
     let cli = output.join(format!("{name}-weekend-replicate{EXE_SUFFIX}"));
     fs::copy(
         target
@@ -137,36 +169,27 @@ fn endpoint(c: &mut Campaign<'_>, name: &str, reference: &str, fixture: &Path) -
             .join(format!("weekend-replicate{EXE_SUFFIX}")),
         &cli,
     )?;
-    let deps = target.join("release/deps");
-    let rlib = single_rlib(&deps, "weekend_db")?;
-    let linked_sha256 = sha(&rlib)?;
+    #[cfg(windows)]
+    let required = ["weekend_db", "rcgen"];
+    #[cfg(unix)]
+    let required = ["weekend_db"];
+    let link = FixtureLink::from_build(&messages, &required)?;
+    let rlib = &link.libraries["weekend_db"];
+    let linked_sha256 = sha(rlib)?;
+    #[cfg(windows)]
+    let credential_hash = sha(&link.libraries["rcgen"])?;
     let fixture_bin = output.join(format!("{name}-fixture{EXE_SUFFIX}"));
-    let mut external = OsString::from("weekend_db=");
-    external.push(&rlib);
-    let mut dependencies = OsString::from("dependency=");
-    dependencies.push(&deps);
     let mut fixture_build = vec![
         "rustc".into(),
         "--edition=2024".into(),
         "-O".into(),
         path(fixture),
-        "--extern".into(),
-        external,
-        "-L".into(),
-        dependencies,
     ];
-    #[cfg(windows)]
-    let rcgen = {
-        let rlib = single_rlib(&deps, "rcgen")?;
-        let mut external = OsString::from("rcgen=");
-        external.push(&rlib);
-        fixture_build.extend(["--extern".into(), external]);
-        (sha(&rlib)?, rlib)
-    };
+    fixture_build.extend(link.flags());
     fixture_build.extend(["-o".into(), path(&fixture_bin)]);
     c.command(fixture_build, &format!("{name}-fixture-build"), None, 90.)?;
     ensure!(
-        sha(&rlib)? == linked_sha256,
+        sha(rlib)? == linked_sha256,
         "linked core rlib changed during fixture build"
     );
     let identity = c.command(
@@ -183,10 +206,10 @@ fn endpoint(c: &mut Campaign<'_>, name: &str, reference: &str, fixture: &Path) -
     #[cfg(windows)]
     {
         ensure!(
-            sha(&rcgen.1)? == rcgen.0,
+            sha(&link.libraries["rcgen"])? == credential_hash,
             "fixture credential library changed"
         );
-        c.evidence["binaries"][name]["credential_rlib"] = json!(rcgen.0);
+        c.evidence["binaries"][name]["credential_rlib"] = json!(credential_hash);
     }
     ensure!(
         inventory(&source, &[])? == sources,
@@ -694,6 +717,46 @@ mod tests {
     use super::*;
     #[cfg(unix)]
     use crate::{delivery, support::Scratch};
+
+    #[test]
+    fn fixture_link_uses_reported_libraries_across_cargo_layouts() {
+        let root = std::env::temp_dir();
+        let artifact = |name: &str, file: &Path| json!({"reason":"compiler-artifact", "target":{"name":name}, "filenames":[file]});
+        let legacy = root.join("release").join("deps");
+        let modern = root.join("release").join("build");
+        let engine = modern.join("weekend-db").join("hash").join("out");
+        let credential = modern.join("rcgen").join("hash").join("out");
+        let link = |engine: &Path, credential: &Path| {
+            let library = engine.join("libweekend_db.rlib");
+            let credentials = credential.join("librcgen-hash.rlib");
+            let messages = format!(
+                "{}\n{}\n{}",
+                artifact("weekend_db", &library),
+                artifact("rcgen", &credentials),
+                json!({"reason":"build-finished", "success":true}),
+            );
+            let link = FixtureLink::from_build(&messages, &["weekend_db", "rcgen"]).unwrap();
+            assert_eq!(link.libraries["weekend_db"], library);
+            assert_eq!(link.libraries["rcgen"], credentials);
+            assert_eq!(
+                link.search,
+                BTreeSet::from([engine.into(), credential.into()])
+            );
+            assert!(FixtureLink::from_build(&messages, &["other"]).is_err());
+            assert!(
+                FixtureLink::from_build(
+                    &format!(
+                        "{messages}\n{}",
+                        artifact("weekend_db", &root.join("other.rlib"))
+                    ),
+                    &["weekend_db", "rcgen"],
+                )
+                .is_err()
+            );
+        };
+        link(&legacy, &legacy);
+        link(&engine, &credential);
+    }
 
     #[test]
     fn poll_accepts_historical_local_line_alongside_older_durable_receipt() {

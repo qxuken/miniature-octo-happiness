@@ -12,12 +12,12 @@ cargo xtask study-peer-soak /absolute/path/to/new-output \
 cargo test --offline --locked -p xtask --bin xtask study_soak
 ```
 
-The default immutable Docker image is the locally qualified Rust 1.99.1 image;
-use `--image` to identify another available tool image explicitly. The launcher
-resolves its immutable image ID and records the actual toolchain. This profile
-requires macOS, Docker, Rust 1.99.1, cached locked Cargo dependencies, and Unix
-credential modes. It does not install tools or run hosted CI. Evidence includes
-synthetic private test keys; keep the output private and outside distributions.
+The launcher resolves a local Docker image ID and records the actual
+toolchain. Preload the pinned Rust 1.100.0 Bookworm image listed in
+`cargo xtask study-peer-soak --help`, or select a local tool image with
+`--image`. This profile requires macOS, Docker, Rust 1.100.0, cached locked
+Cargo dependencies and Unix credential modes. Keep the output private
+because the evidence includes synthetic test keys.
 
 ## Workload and independent observations
 

@@ -11,7 +11,8 @@ use std::{
 pub(super) const SUPPORTED: bool = true;
 pub(super) const OPEN_DIRECTORY: c_int = 0x100000;
 // Verified against the installed macOS SDK sys/fcntl.h and sys/errno.h.
-pub(super) const OPEN_REQUIRED: c_int = 0x4 | 0x100 | 0x01000000;
+pub(super) const O_CLOEXEC: c_int = 0x01000000;
+pub(super) const OPEN_REQUIRED: c_int = 0x4 | 0x100 | O_CLOEXEC;
 pub(super) const OPEN_LEASE: c_int = 0x20; // O_EXLOCK, atomic with openat
 pub(super) const OPEN_CREATE: c_int = 0x200 | 0x800; // O_CREAT | O_EXCL
 const F_FULLFSYNC: c_int = 51;

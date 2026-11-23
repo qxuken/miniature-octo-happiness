@@ -207,7 +207,7 @@ impl Schema {
         if fields.kind() != Kind::Map {
             return Err(Error::InvalidDescriptor);
         }
-        let entries = fields.map_entries()?;
+        let entries = fields.map_entries_owned()?;
         let reserved = required(&raw, b"reserved")?;
         if reserved.kind() != Kind::List {
             return Err(Error::InvalidDescriptor);
@@ -269,7 +269,7 @@ impl Schema {
         if self.type_id != old.type_id || old.version.checked_add(1) != Some(self.version) {
             return Err(Error::Incompatible);
         }
-        for (key, old_value) in required(&old.raw, b"fields")?.map_entries()? {
+        for (key, old_value) in required(&old.raw, b"fields")?.map_entries_owned()? {
             let id = field_id(&key)?;
             match self.field(id)? {
                 Some(new) if new.kind == Field::parse(old_value)?.kind => {}
@@ -349,10 +349,10 @@ impl Schema {
     }
     pub fn validate(&self, record: &Record) -> Result<()> {
         self.envelope(record)?;
-        for (key, _) in required(&self.raw, b"fields")?.map_entries()? {
+        for (key, _) in required(&self.raw, b"fields")?.map_entries_owned()? {
             self.read_field(record, field_id(&key)?)?;
         }
-        for (key, _) in record.fields()?.map_entries()? {
+        for (key, _) in record.fields()?.map_entries_owned()? {
             let id = field_id(&key)?;
             if self.reserved(id)? {
                 return Err(Error::ReservedField(id));
@@ -386,7 +386,7 @@ impl Record {
         if type_id == 0 || version == 0 || fields.kind() != Kind::Map {
             return Err(Error::InvalidRecord);
         }
-        for (key, _) in fields.map_entries()? {
+        for (key, _) in fields.map_entries_owned()? {
             field_id(&key)?;
         }
         Ok(Self {

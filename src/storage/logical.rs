@@ -51,11 +51,11 @@ impl Writer<'_> {
             Kind::Float => self.int(value.as_f64()?.to_bits()),
             Kind::Bytes => self.blob(value.as_bytes()?),
             Kind::Map => {
-                let entries = value.map_entries()?;
+                let entries = value.map_entries_for_encoding(self.mem)?;
                 self.int(entries.len() as u64)?;
                 for (key, child) in entries {
-                    self.blob(&key)?;
-                    self.value(&child)?;
+                    self.blob(key)?;
+                    self.value(child)?;
                 }
                 Ok(())
             }
@@ -140,7 +140,7 @@ pub fn export_logical_on<B: ByteStore + 'static>(source: B, limits: Limits) -> R
     // Expansion of shared values can outgrow the physical format. Promise a
     // restorable export by checking the same resource envelope before return.
     decode(&writer.bytes, &mem)?;
-    Ok(writer.bytes.into_external())
+    writer.bytes.into_external()
 }
 
 struct Reader<'a> {

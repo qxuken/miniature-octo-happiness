@@ -1,4 +1,4 @@
-FROM docker.io/library/rust:1.99.0-bookworm@sha256:b36c246742b4d323472588f789601be34eb4af053255e2af53969078ee8dcec7
+FROM docker.io/library/rust:1.100.0-bookworm@sha256:198cd28b4ba92b20fe849d5d8b119ace1bd28423d9e82e9c4de5ee1300d453a0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends clang-16=1:16.0.6-15~deb12u1 \

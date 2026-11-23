@@ -24,7 +24,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-const IMAGE: &str = "sha256:c9f225b68fc1af1c121c0473d91bca23f81a3171fd3ae0a063a1daf8bfabec08";
 const COLLECTION: &str = "0123456789abcdef0123456789abcdef";
 
 #[derive(Args)]
@@ -32,7 +31,7 @@ pub struct Options {
     output: PathBuf,
     #[arg(long, default_value = "HEAD")]
     source: String,
-    #[arg(long, default_value = IMAGE)]
+    #[arg(long, default_value = crate::toolchain::RUST_BOOKWORM_IMAGE)]
     image: String,
     #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..=365))]
     rounds: u64,
@@ -828,7 +827,7 @@ mod tests {
             let options = Options {
                 output,
                 source: "HEAD".into(),
-                image: IMAGE.into(),
+                image: crate::toolchain::RUST_BOOKWORM_IMAGE.into(),
                 rounds,
                 restart_every,
             };

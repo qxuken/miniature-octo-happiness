@@ -156,3 +156,19 @@ reconciliation job and the separate native RNG campaign.
 
 The 276 R1 controls use the nine hosted Unix shards, with 31 cases for
 indexes 0 through 5 and 30 for indexes 6 through 8 in each profile.
+
+## Hosted macOS job deadline
+
+At PR #26 head `88e0030`, the 20-minute job deadline stopped macOS shards 2
+and 4 during release. Shard 2 finished on retry in 15m 34s. Shard 4 reached
+the job deadline again, just after logging its last of 31 release controls.
+The cancelled job is incomplete qualification. Linux shard 4 finished both
+profiles in 10m 08s.
+[Shard 2 retry](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45075433603/job/137561064463) ·
+[Shard 4 retry](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45075433603/job/137561064525) ·
+[Linux shard 4](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45075433603/job/137371496681)
+
+The macOS R1 jobs now have a 30-minute deadline for both profiles, final
+source verification and evidence upload. Linux and Windows use 20 minutes.
+All nine Unix shards retain their existing control sets and 120-second
+mutation test deadlines.

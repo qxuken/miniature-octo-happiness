@@ -1,6 +1,6 @@
 # Native storage source decision audit
 
-This audit covers 180 production AST records: `file.rs` 96, `macos.rs` 6,
+The original audit covered 180 production AST records: `file.rs` 96, `macos.rs` 6,
 `linux.rs` 40 and `windows.rs` 38. All spans are classified below. It reuses the
 namespace publication ledger and native fault/process tests without treating
 hook failures as actual kernel failures. Source records, overlapping expressions
@@ -10,7 +10,7 @@ P = directed predicate/arm controls; C = overlapping syntax; E = executed callin
 path/delegated propagation; B = mixed tested and coupled/uninjected predicates;
 D = native/platform outcome not directly demonstrated here; I = invariant.
 Windows rows are D in this host report even when new executable tests are supplied:
-cross-compilation is not execution. No production code changed.
+cross-compilation is not execution. The original audit changed only tests and documentation.
 
 ## N1: error mapping and retry
 
@@ -36,6 +36,13 @@ Limit. It creates a real file, rejects I/O before claim, accepts one claim,
 rejects double claim Busy, writes and syncs, then rejects I/O after unlock.
 Read-only reopening reads exact bytes and rejects writes with a real kernel error.
 Removing the pathname makes reacquisition Busy and leaves the adapter unclaimed.
+
+The Linux `dropping_open_store_releases_lease_with_an_inherited_descriptor`
+regression holds a duplicate of the same open file description. An independent
+open reports Busy while the adapter is live and succeeds after drop while the
+duplicate is still open. The duplicate models the descriptor a concurrently
+spawned process can hold before exec. Explicit unlock failure remains a
+delegated kernel outcome.
 
 New `namespace_rechecks_distinguish_aliases_replacement_and_removal` compares a
 matching inode, a same-inode hard-link alias, removed pathname and a newly created

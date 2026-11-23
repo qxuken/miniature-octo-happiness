@@ -33,7 +33,7 @@
     "crates/weekend-db-macros/src/resolution.rs": "a5c39e16b0c6d0dcfe382c673240baf76323fec22e3296be98ea8ee7855fa178",
     "crates/weekend-db-typed/src/codec.rs": "7725f08e3d1df5180cf839899c929e9d6219c92e7352d17e2758ef3f1fe127aa",
     "crates/weekend-db-typed/src/lib.rs": "e6a706a0b017b605cdde1d660f5e2c36504a61239500acb8b18f3d1fca98345d",
-    "crates/weekend-db-typed/src/store.rs": "2157407964fc4ff889737efb29f21270fe6ae2985db1288aac5d2dc740c1f7fa",
+    "crates/weekend-db-typed/src/store.rs": "b1d30c5b072b6daef5639794a211b86fefd37590cea097d895797ecb0d2e87fc",
     "crates/weekend-db-typed/tests/renamed/src/main.rs": "55a6efdd13151b31a7910f0e165bc1cac9f0d5a3bb58f87bd2788b706795da6b",
     "examples/crdt_policy_migration.rs": "22b9e35114d1f922a01bb04bb252f255c74f63239e16354bc3f8e71172f48d2a",
     "examples/file.rs": "4cec06b13cc0fc8ac10a94bd357118681de8b658f6fe50098df783a604db2fc8",
@@ -96,28 +96,28 @@
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
-    "src/engine.rs": "942f02751ee1c0f8c40b492f4a112aa8f6210cc39c046e99b18e1b1d073ade1b",
-    "src/ffi.rs": "36680a4ebabcab192b5695d1e9a82a8f5e100d843467c8c910aa78ce24ff8c5d",
-    "src/lib.rs": "f43a892f3773ef824fa62d22a08380066899ed4badfc82d3365b65170c1b3332",
-    "src/memory.rs": "d357b4b549b6573eb18479be8f245f1a774d76af50c42414e3517515fdeb47a8",
+    "src/engine.rs": "c5ce673210ba9db249adc10768220305d7f51780f3d955642a9eab98d6ed0758",
+    "src/ffi.rs": "cc3aac20e794ab565014c8f0185d4e35b150c703a9a4105346377eb23bc5f0b5",
+    "src/lib.rs": "9ff143a41e86bd50fb5ec30486fe17a916eeae001f35349f88062bc3fa6c24b8",
+    "src/memory.rs": "dd4c8754ec790f53340cae4e4d1c12372683b8ac5279a9f9f04f32d71b1001d3",
     "src/replication/follower.rs": "7b1566228ed57f5b41d15be8a583416a14f8dcefae1521a5ba1764413e37e035",
     "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
-    "src/schema.rs": "defe72214ddbf59e05bf291dcd93f97bd92a56cfb143f075858dfcab7001181a",
-    "src/storage/codec.rs": "7b9a71d1a41a71e0cfca7dc61184d247066146f6ceb631a76e042658f8d1967b",
+    "src/schema.rs": "66bb396906513bf771b53627bbfeccc9da8a719bb3667df996677398f17170b8",
+    "src/storage/codec.rs": "70908c466f7c30b70688ae8f438e04d659612bd93f6cfbed6956bff5a46e0396",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
-    "src/storage/file.rs": "6665a77198f510e6f5c946c03093113e51011c3248c2f3b68efd61bccb0c472b",
+    "src/storage/file.rs": "52546689de08dfbd8f59444dc5cddc411c4e8703fa0ed634faa3668d66337f12",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
-    "src/storage/linux.rs": "dfbf4db6f6d4cb58926d0ef1fbc3bce13e5484bc73c37159ff6bdc026259499f",
-    "src/storage/logical.rs": "b77ac1d8bf55ab8b7cd1aa31067b1e1568d872c09892df8d49b05fb43147ee66",
-    "src/storage/macos.rs": "077333d98d747e31e1091475cc4962f7b13362fb1463f0790aba9b890f5d74a6",
-    "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
+    "src/storage/linux.rs": "683ab3ca0923c4aaf955f1ba1e24d7199b272fd71419a7624334ff151185edf7",
+    "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
+    "src/storage/macos.rs": "9174dad52d843a2c453c95f5abdede0acce311b6c9b2a83acb448c4aab4649a3",
+    "src/storage/mod.rs": "7288ee09e76b6a0227deb4c050fc4a87c83b852b2c37cf6381aec5fd1cf834dd",
     "src/storage/replacement.rs": "76e5098896ecc0ede681526cbb8ba75fbe40b833e528eef95d748715de84cd07",
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
     "src/storage/simulator.rs": "e6b1b3a724c6618173704717380d50e948ef8d4dced051bc675a160e0e582003",
-    "src/storage/windows.rs": "42933c3f2718fa163da59e667c88634afe5d6c5ce5b2b47a073faa984438749e",
-    "src/tree.rs": "bcec08cd41a96fa1e5f82fbeb2b469f4f459110995ee75abd5f6487e05c24cd0",
-    "src/value.rs": "254aaa0b5e56fa7cdee7e164b93d655311e0585aee86f40494301688662b663d",
+    "src/storage/windows.rs": "dcff3de55079e0d4cb70d7c6c20589b29102fda0aa5a5f3aa48625c57e8d64fc",
+    "src/tree.rs": "71e23e66d95a34d8919fd29e8361a1bf30d7e11198c077cf776385f88c7514b6",
+    "src/value.rs": "d5c52024269fa18a0d7cd387692da1f9e845bccc75eab66207bbd193cb1df975",
     "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
     "tests/support/mod.rs": "007e7da58df3c8818418cb4460436e7b15e18026a32b5b0b742ebc78c89a7ab4",
     "tools/admin.rs": "5bf45aecb59283e8d3f5c3192fcc01fdf0abe983219402f2b7daba31a40611fb",
@@ -162,7 +162,7 @@
     "xtask/src/delivered_faults.rs": "adb0c3f9e44844324ba67e6550123424b4b6fd2231605c3c39dd23d01c795861",
     "xtask/src/delivery.rs": "6fd257af131db1925e24b1ed44752d824be5e615f5f59e8361b184fb372f0d63",
     "xtask/src/delivery_matrix.rs": "0dc8cdb7bc1391df4da16436626f2912c5695ae701ea254debde705c6274ca6a",
-    "xtask/src/faults.rs": "917a52091957921af9204c042206938c8dbcc3176717bcb3a0e9810784186d67",
+    "xtask/src/faults.rs": "0c9fa8a9b335557b4ed3605a16fcf90a96cd891ba845d03a0f4c60adc47c5b9c",
     "xtask/src/follower_backup.rs": "27635ce94ecaebc27c6ba86dc3ec6d7ef63761bcaa260300522b734c4dfbc713",
     "xtask/src/fuzz.rs": "4ead6868462757555c71f051383530c9b73bc5d3c60d6894ea654e8d41fb4d76",
     "xtask/src/helper_controls.rs": "69397de68528b9eb0051b2cc901d54ee9d7f0ac621f8e0e2821a6ce5949ee5ed",
@@ -178,8 +178,8 @@
     "xtask/src/mutations.rs": "401e798f2f2f62f98f29989c8097323600b2fe6235529c8406df740fa06d6c77",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
-    "xtask/src/odin.rs": "15f3c31646513f1f7a95718939d1125bc5eb6a42943356af14f64a059299e75c",
-    "xtask/src/package.rs": "d9e495f91599d787084e316289bf5a0c64b9be575ea72d7782e343d3dbf34f49",
+    "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
+    "xtask/src/package.rs": "44c390a85a37c2dcdc4f44d3215c69ce2a6e02ec34af2618c3b6fc57c5d1e066",
     "xtask/src/probe.rs": "5793e44937c675d43785de54db30ae555a4148038e8affc47377e2866e0c542b",
     "xtask/src/qualification_net.rs": "0c847dc8f58cfeb6ece7dd70af60dc6a442ffdcba959a1c93bd1efe525174fab",
     "xtask/src/quota_append.rs": "d5990604414837b4892388b794167d8dc3d34e07073782d88d6ed022643b8c55",
@@ -192,23 +192,23 @@
     "xtask/src/replica_progress/monitor.rs": "53081b155fe4a54391d4cee507f711013dcbac79cfb2c181963f05b26066061c",
     "xtask/src/resource_campaign.rs": "152668480aea00c741f15d25e9f625690be5b9a679764f130cc00d82965f1ba5",
     "xtask/src/resource_oracle.rs": "6426ff26830ab4625908c04f791fdff7da181696f84469038d9a513728c16a3c",
-    "xtask/src/resource_probe.rs": "d42c571001e07400a4de9ac6f2eecd4a32a9b3c35e62bbc0c52a662f0e525162",
+    "xtask/src/resource_probe.rs": "b6d8f07af61130877e29b84a062a7feb84502d62ef7a48bc4c50fad19d4c1c91",
     "xtask/src/rust_source.rs": "5b2e70c6ca96494204ea94d1adf8be2205135815724c321aa9739a2100434e17",
     "xtask/src/sanitizers.rs": "bc3f2dd6816c776d4345d0873c7a0b2dc8430e1852a67dd514992a271c85c2aa",
     "xtask/src/serialization_scale.rs": "396f0888a76395d2878c189d3a5a922206b0d055fa3b673cdaa84b88e36a78be",
     "xtask/src/snapshot_month.rs": "86bde06a13cae25ff0fd2ec05acef8cefb0988e08b14fde6ef7617f269be434a",
     "xtask/src/snapshot_proof.rs": "3a6f37f065f74bab278f2f6136cad970b979512f8daac485dabf77bc09811d0c",
-    "xtask/src/snapshot_upgrade.rs": "a99bcdc33fdc164923c3b20fa0c4e5fc0a7e967b8630689bd1efc9521f6606fa",
-    "xtask/src/snapshot_upgrade_linux.rs": "fae4a063edd468024ecbef2c97e433010d8a9c6f90f081aa5f730af4421c1d47",
+    "xtask/src/snapshot_upgrade.rs": "acf857f2c4cc8a40b9a1f64651cdb39fcda163aa42e792b6d9e4479edf60b73f",
+    "xtask/src/snapshot_upgrade_linux.rs": "daf6113e3e0039b56478371ec341d472f582c7fa5efb675cc59d46dc6c1ae853",
     "xtask/src/soak.rs": "371af9e99747f7fa33d0f4f89a5ff7e9ac728ad9c3e6c7b9e7f6fa854eb4cf6c",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
     "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
     "xtask/src/sqlite_baseline.rs": "1e50f199f66323eb9f6886395d3ca4f99f93931c778da71cf32a570874fb596d",
-    "xtask/src/study_soak.rs": "83609399872e25efcbda17416f35e0b2428faac44e7b485adb6c332c6dfce229",
+    "xtask/src/study_soak.rs": "430b55111e7145ab89fe9ce1ec5cfe94280dbb18b11087c4164a78e818cf650b",
     "xtask/src/study_upgrade.rs": "632fcd52e908404ec09158a3ccc1e36fae9c06a87585bdd558ab173d66710f48",
     "xtask/src/supervise.rs": "d066164f1cf2d9e9efc473c539199af501acd37c7e455b9410708c70bd33e6be",
     "xtask/src/support.rs": "7b51f32c5cb794b3f0b6679fb4efbcd44ce50825a0c73ebac92e7bf9057e00a9",
-    "xtask/src/toolchain.rs": "2dd83b9547622cc3bf1b6096f00c32bb31c327f8d95fd980320e7ec9ea1524c9",
+    "xtask/src/toolchain.rs": "a0e44e9f90a3d893fa9402a64e4c860e44f0e3029020ce9f8395978fa92fa7b5",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
     "xtask/src/trace_process.rs": "4aec4b243ed658df90b82504583cb1827c2eafac553dfdfe4594eb809f9e300e",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
@@ -226,9 +226,10 @@
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "ac142ebc689c4cb6257b9e483f21e10eb72a279a60f321f35911a5800fe2bb46",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
+    "crates/weekend-db-typed/tests/migration_allocator.rs": "e088a6164fe49caffcc9c7b32d736c4a47ddaa70a7a76bdfa4ef6094deb9876b",
     "crates/weekend-db-typed/tests/models.rs": "ff3aefad4f4efc37164c69e0355c2c27f81f0254bd5cfda5eb6f087f5afff932",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
-    "docs/coordinator-artifact-recovery.md": "c99d117748cd2d14e85c8e3f27dfe1745ff28faf19406c3e561d2abd5bfd8939",
+    "docs/coordinator-artifact-recovery.md": "89679ef0737929ae332126527d3532695f8e92c3716ccc33bea9d72fc1c6e60e",
     "docs/coordinator-operator-handoff.md": "b87f399fc29eb77a18fb1ea99fb62bfae6ae0f025ca50e06a6cc29dc85dc088a",
     "docs/coordinator-pending-restore.md": "d05d279ac7d4586c8e5caff39d6075edeac3ce57a439d419b1c21dc6ce1a2c18",
     "docs/decisions/codec.md": "cea8020355499587303f11844ab406e58efdeb9881f480b420066a2a5ed65ab9",
@@ -240,8 +241,8 @@
     "docs/decisions/engine.md": "3e12e3fbd89272a3a078ade46239cc2fd7712f454dd9d7bf7595e1ba550a12aa",
     "docs/decisions/ffi.md": "5de80429b18fb25cc5ff237cd58d96064b99e4e8335df23242b6334e1b9d36ef",
     "docs/decisions/macros.md": "abf03b25df4e801504b94bcfd6fb2eb038f8c9bf34cfce2356272ad6645f0f35",
-    "docs/decisions/memory.md": "aade82ce0ec324ea843205d6c812bd3747d9758b8e11fbcc06a79879b87a51e9",
-    "docs/decisions/native-storage.md": "512f6daa72a04578e4b2569509d873ad7e8ddb97cdf2ee4a030a9307c243891f",
+    "docs/decisions/memory.md": "8116189ca1c2b655f2bc5cc0e613b94ec7bf8efe98f6b5bc5e08a182adad62a7",
+    "docs/decisions/native-storage.md": "0bdafa8a9733a3ecb60625dff2d0298fe1653759b3a1fa6a54968e191e843af8",
     "docs/decisions/operations.md": "a4fddf27ab8fec2bc7f834536244ede88cca96fdb54fd3dc67eefb4e13111e3a",
     "docs/decisions/replacement.md": "51ca29d454cde7576cccb39e147449bd5dd5c1b47a53d308c2f52287a3754317",
     "docs/decisions/replication.md": "c878715b597564370205df1887d5b398fe278fb70948762023bea76f40b1eed8",
@@ -252,24 +253,25 @@
     "docs/decisions/tree.md": "dab795f63e6a510209051f2021b809474909da24e6350272acdce3545a6b57fb",
     "docs/decisions/typed-runtime.md": "fd53f0fdd169a7dcabab4362c88fcdffb96c338f5ddc6f25e8fe733d8f16a4a9",
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
-    "docs/helper-controls.md": "e0198f592d4ed2e0c4b35e286dd771b8f04666192862354877c8aaa79307b9f8",
+    "docs/helper-controls.md": "637a97679335158f58d134bb883b3f10ddca975256c89feb521a7e3ee923246f",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
     "docs/mutations.md": "e0ffd0a84abefe512a126f6c36ffd6d6f02b667c8ceb3f83e8fb2a956c97abba",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
     "docs/tls-handshake-decisions.md": "8642a290a1922b2056270d750e6cbb32a54f966e54807f865f71b48757825a78",
-    "include/weekend_db.h": "303319e5322c5c1687baae6dcbc59c56ad271d082ff299410cbfbd367ac194b1",
+    "include/weekend_db.h": "615e635bd99076fa2781a23ee04ca5083bf4c38332f45b6d37f2fb17774d524c",
     "src/replication/follower/tests.rs": "b19a7271558fb0a46db3928b55c274d8d15665cd7f595caa0671be09506cd85a",
     "src/replication/tests.rs": "bf132cfa40f16f42665412d74603fb3e02be54596dd67ea5b3db6329c89f01b5",
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
     "tests/allocation.rs": "1fe93186d258e8f5a98d2b87f3a7eb34c9a6ca7e0b067833b940dabbfa939a86",
+    "tests/allocator_routing.rs": "618d9f0ad482da6d1d24d02a8ae5c8579c3440ac6163438ec72565788f043afd",
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
     "tests/durability.rs": "20c0effb828840c9ba26fd17807c1676e56f689622c9d5c63f6a326da4e1ddf9",
     "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
-    "tests/files.rs": "11fb925f39e7ff6555ed776e28079e78f4e47359146b2685a70113a77a113260",
+    "tests/files.rs": "a6f1b4d109cc5998160476e6d419769905214710414e3d8446f31aa18af47f3c",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
@@ -287,20 +289,20 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "9b8c5256e65382fc127f979236f017b5efc708d787bf7bd9d78b690ac5e17956",
+    "xtask/tests/mutations.json": "b07162dfbf2e4b433be8abd187427c816d6fb0c14d81f72c4429dc8ba4a35871",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
-    "docs/decision-inventory-catalog.md": "70a5e8e23b8b319859e06aa7767042a75af5afe8a447e349c16e0c3834f8f9e7",
+    "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "b5db51c831e6c224fe13c7858187536ad6ecf34c9266778d700c36436716bffd",
     "docs/decisions/codec-metadata-current.md": "4055bdaa6c5396f1cfd930e34a4dc130923256563109bbeea2488c6f8cd10edc",
-    "docs/r1-ci-shards.md": "c62bee32c2d0dd8ad5e7e58b63655f71d12298893165de0d8f9e4c966fa5a4ef",
+    "docs/r1-ci-shards.md": "626b7f7edebea4758b0420d760849f74d180960382ab2e0f8a4391caa0c70378",
     "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
     "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
-    "src/storage/mod.rs": "e95943238fa8b703bfd33f851d5eb4b0a7951f603894d542e68e73ce549ec47a",
+    "src/storage/mod.rs": "7288ee09e76b6a0227deb4c050fc4a87c83b852b2c37cf6381aec5fd1cf834dd",
     "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
     "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
     "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
-    "docs/decisions/codec-encode-value-current.md": "f8eec20a28e2471e4808b0cec514a47b8ef6d6db00f7ba5d7487eede725ac8f5",
+    "docs/decisions/codec-encode-value-current.md": "032092f45656ff2b52d2ecc8cacc45c99d74afc71d94f549918d3c37cfffd11e",
     "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
     "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794"
   },
@@ -341,7 +343,7 @@
     "weekend-db-fuzz::value_ops": 0,
     "weekend-db-fuzz::weekend_db_fuzz": 573,
     "weekend-db-macros::weekend_db_macros": 108,
-    "weekend-db-typed::weekend_db_typed": 315,
+    "weekend-db-typed::weekend_db_typed": 317,
     "weekend-db::benchmark": 93,
     "weekend-db::crdt_policy_migration": 64,
     "weekend-db::file": 16,
@@ -356,7 +358,7 @@
     "weekend-db::study_progress": 31,
     "weekend-db::typed": 186,
     "weekend-db::weekend-admin": 30,
-    "weekend-db::weekend_db": 1623,
+    "weekend-db::weekend_db": 1689,
     "weekend-decision-inventory::weekend-decision-inventory": 399,
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
@@ -370,7 +372,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5194
+    "xtask::xtask": 5214
   },
   "groups": [
     {
@@ -499,7 +501,8 @@
         "docs/decisions/codec-append-current.md",
         "docs/decisions/codec-encode-value-current.md",
         "docs/decisions/codec-encode-data-current.md",
-        "docs/decisions/codec-encode-commit-current.md"
+        "docs/decisions/codec-encode-commit-current.md",
+        "tests/allocator_routing.rs"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
@@ -601,7 +604,8 @@
         "docs/decisions/current.md",
         "docs/decisions/typed-runtime.md",
         "crates/weekend-db-typed/tests/runtime_decisions.rs",
-        "crates/weekend-db-typed/tests/models.rs"
+        "crates/weekend-db-typed/tests/models.rs",
+        "crates/weekend-db-typed/tests/migration_allocator.rs"
       ],
       "residual": "Generic instantiations and primitive errors retain scoped E/D evidence; named admission pairs do not close all residuals."
     },
@@ -4452,7 +4456,7 @@
         "owner": "value",
         "kind": "try_propagation",
         "conditions": [
-          "value.map_entries()"
+          "value.map_entries_for_encoding(self.mem)"
         ]
       },
       "tests": [
@@ -4496,7 +4500,7 @@
         "owner": "value",
         "kind": "try_propagation",
         "conditions": [
-          "self.value(&child)"
+          "self.value(child)"
         ]
       },
       "tests": [
@@ -4518,7 +4522,7 @@
         "owner": "value",
         "kind": "try_propagation",
         "conditions": [
-          "payload.key(&key)"
+          "payload.key(map_key)"
         ]
       },
       "tests": [
@@ -4542,7 +4546,7 @@
         "conditions": [
           "payload.int(offset)"
         ],
-        "start_byte": 20342
+        "start_byte": 20369
       },
       "tests": [
         {
@@ -4609,7 +4613,7 @@
         "conditions": [
           "payload.int(offset)"
         ],
-        "start_byte": 20605
+        "start_byte": 20632
       },
       "tests": [
         {
@@ -5594,6 +5598,19 @@
         "workspace_manifest": "Cargo.toml"
       },
       {
+        "entry": "crates/weekend-db-typed/tests/migration_allocator.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "migration_allocator",
+        "package": "weekend-db-typed",
+        "package_manifest": "crates/weekend-db-typed/Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db-typed::migration_allocator",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
         "entry": "crates/weekend-db-typed/tests/models.rs",
         "kinds": [
           "test"
@@ -5656,6 +5673,19 @@
         "reason": "integration test target; use --include-tests",
         "required_features": [],
         "target": "weekend-db::allocation",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/allocator_routing.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "allocator_routing",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::allocator_routing",
         "workspace_manifest": "Cargo.toml"
       },
       {
@@ -6119,27 +6149,27 @@
     },
     "manifest_basis": "git-tracked",
     "manifests_sha256": {
-      "Cargo.toml": "560e3b83a93489fd4c55d4834f6ee22120b080aa32965501bdad8afd5fba8640",
-      "apps/study-peer/Cargo.toml": "57b4402706bbab4f3e297c1bf472cb56031255e03e0d4bab952624360269b2f7",
-      "apps/weekend-replicate/Cargo.toml": "c73679e00c9c5186b92030c3b60437722aad05a02a906a67f037ab5f18a519a7",
-      "apps/weekend-tasks/Cargo.toml": "abb19f8bf5b903a93348e8fc7ef26aee7d817fc881f8087ffb67c06e2236fe0e",
-      "apps/write-coordinator/Cargo.toml": "47863b9007afb66e334facb42d4b272aca403ad305a26713ca6408f1f3c54765",
-      "crates/weekend-db-macros/Cargo.toml": "ab5f7f3bbe40ec935487f61eb98011196799d7fa77f291a440ebe3df836f9440",
-      "crates/weekend-db-typed/Cargo.toml": "dc68484fb08b00e3304c71e934169fb598976273eeea9c6ab88a96ea2065faa5",
+      "Cargo.toml": "74c367d46cabadfc5777dd8bd6c69f1a0a40535e35d80d4f0d8b025d8187fd91",
+      "apps/study-peer/Cargo.toml": "92972159e35dbbb920d33865d888d825730d4ebb5f1d6bd1ba758e8b3bcb7be7",
+      "apps/weekend-replicate/Cargo.toml": "509d5e4a3e3dda3db8bb321fdd5c19bb42ae075653214212fbbdde75da70917e",
+      "apps/weekend-tasks/Cargo.toml": "d24b24cdf5feb588fec2ec71a2c5c7dd43ea3315e13ed2901727aa8ddd29fb65",
+      "apps/write-coordinator/Cargo.toml": "88ccc1ac79f567cd4e73fd62fcffc2823127093416377a16d4b0e2085375bda3",
+      "crates/weekend-db-macros/Cargo.toml": "c1303dd6da376faa3c6832c21e532a923daff856fbfaa7c5ba53be869c8229ff",
+      "crates/weekend-db-typed/Cargo.toml": "c53018bb8ad87247131cafe45bcf02b07b9062be7b3e46fb8e9ac55350f0db00",
       "crates/weekend-db-typed/tests/renamed/Cargo.toml": "73e2b6ed65c2592e262b3b45716da76c92327e1e52efa85c12a020d7e6d9c58b",
       "examples/rust_package/Cargo.toml": "304a79b1a06cd5ddcbb81b57b22c44fc532c04bb200e249e18084f3933049653",
       "fuzz/Cargo.toml": "2061648c7b6955f6425d9d2c927b9f2420513c910d64c271078471c725ecb8fb",
       "probe/rust/Cargo.toml": "4473ffc8adb51ae25b99766bb6140b9cdd2bf12ce2c931ee44e769694dfa7b5d",
       "tools/atomic-model/Cargo.toml": "b81ed03bd3c8e33addd5d80e24163ff5583140cd1a5e1f54104408c112709917",
-      "tools/decision-inventory/Cargo.toml": "fa63c2aa8b4224523bd3d389776cafa1e2668348a0dc7f39683fc294c71d9946",
-      "tools/incident-recovery/Cargo.toml": "bf82fd87cb302a99a084561ac967a1467cb5d518c37ab9138378208a5e46a3dd",
+      "tools/decision-inventory/Cargo.toml": "f6e014c287331ca38a9b032195665dd970f97f21ede29be0575a3e0645ecdec9",
+      "tools/incident-recovery/Cargo.toml": "50726862907b364b3b3767e2ada1d71549a90683b329eb6f398acb4a3f87bd94",
       "tools/monthly-workload/Cargo.toml": "602fab0903cb092cff06829d2e813d4b4e7a892de55ff1f50a44dbef07504e2a",
       "tools/replica-progress-fixture/Cargo.toml": "fdbc20f4a93cd59d6e7e01c2b6d12f0a6c476da6887a2f5136cbece795b8145e",
       "tools/resource-envelope/Cargo.toml": "eb4254b1827272d826a5982b27346ed981693587bf558062062d0bd82cbc49f7",
       "tools/serialization-scale/Cargo.toml": "c9d08b2ba4c2c85eac5d1d403cebba05fb9d53b61cc77c8244a8a254d3711262",
       "tools/soak/Cargo.toml": "d1571aeb1f17d1e5504e320dacbd7e0eafdd70b9e2f3495f5edf31ba0d2d87a5",
       "tools/sqlite-baseline/Cargo.toml": "d77531c788e9c98745c9a9631f69440255bcc4c76787749e3428352c173d2a3a",
-      "xtask/Cargo.toml": "c518eb873a37b129923d44c57822e77d1033e7cbdb4774a7c52d468cdc4a85c3"
+      "xtask/Cargo.toml": "d39b938409c3eb4d655fece5616ae8f7b80da4ce9bc379115f92a9b5d1e66975"
     },
     "mode": "repository_catalog",
     "workspaces": [

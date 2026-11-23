@@ -34,9 +34,12 @@ options reject through clap before any package or cleanup output is created.
 Every failed check/build subprocess stops the command and returns a failure.
 No command publishes to crates.io or a container registry.
 
-Rust/Cargo 1.99+ is required for check/build/package/cleanup. Qualification
-pins Rust/Cargo 1.99.1. All maintained commands and test oracles are Rust. See
-the [conversion ledger](xtask-conversion.md) and [helper runbook](helper-controls.md).
+Rust/Cargo 1.100 or later is required for check/build/package/cleanup.
+Qualification pins Rust/Cargo 1.100.0. All maintained commands and test oracles
+are Rust. See the [conversion ledger](xtask-conversion.md) and
+[helper runbook](helper-controls.md).
+For the optional Docker source, fault and study-peer runs, preload the pinned
+Bookworm image shown in the respective command's help.
 The alias builds xtask offline/locked into `target/xtask`; the initial fetch supplies its
 locked tooling dependencies. There are 20 private project manifests, all with
 `publish=false`.
@@ -226,3 +229,28 @@ Ignored proof is under `target/xtask-qualification/`. Independent review index
 The source IDs, platform scopes and artifact retention remain explicit; local
 ignored evidence is not permanent archival. Native Windows execution of the
 new entry points remains for CI. All 20 project manifests stay unpublished.
+
+## Rust 1.100.0 qualification
+
+The minimum-compiler runs at `5c577ad845bd120432c675431aedd60860ef1111`
+used Rust and Cargo 1.100.0, with rustc `0ef1bc386` and LLVM 23.1.5.
+Both ran offline from clean source. Linux used an owned Docker ext4 volume
+for source, build output and runtime files.
+
+| Host | Workspace tests per profile | Inventory tests per profile | Fuzz replay tests |
+|---|---:|---:|---:|
+| macOS arm64/APFS | 781 passed, 8 ignored | 33 passed | 31 passed |
+| Docker Linux arm64/ext4 | 818 passed, 8 ignored | 33 passed | 31 passed |
+
+Debug and release passed on both hosts. Formatting, strict workspace and
+inventory Clippy, the declared-minimum package workflows, and library
+coverage with the matching LLVM tools also passed. Both hosts verified all
+four package feature profiles, the packaged Rust source and the 134-cell
+Rust/C/Odin trace. The sampled R1 controls were detected in each profile,
+and the decision reconciliation reports matched byte for byte.
+
+An independent audit checked 109 minimum-compiler command reports, all 14
+tracked locks against the frozen Git blobs, and 7,481 indexed artifacts.
+Restoring `target/archived-proof/rust-1.100.0-5c577ad.tar.gz` reproduced the
+audit using the included source bundle. Archive SHA-256
+`2c07589d120a08a8d04c8a05c4ec4ac82de334944adb910d986b785f860faf8d`.

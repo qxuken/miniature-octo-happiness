@@ -50,12 +50,63 @@ uint32_t wdb_features(void);
 wdb_status wdb_package_version(uint8_t *buffer, size_t capacity, size_t *required);
 wdb_status wdb_source_id(uint8_t *buffer, size_t capacity, size_t *required);
 wdb_status wdb_open(wdb_database **out);
+/* A NULL descriptor selects the global allocator. Otherwise allocate and
+ * deallocate are required. Allocations have nonzero size and power-of-two
+ * alignment. Return NULL on allocation failure. Release blocks using the same
+ * size and alignment passed to allocate. Callbacks must be thread-safe and
+ * must not unwind or reenter the database. The descriptor is copied at open.
+ * Supply both context callbacks or neither. With both, the library retains
+ * once and releases once after its last free, including on failed open. With
+ * neither, keep the context and callbacks alive through the final close.
+ * The allocator covers the budget control block, core storage, opaque handles
+ * and path buffers in the macOS, Linux and Windows file adapters. Caller
+ * buffers and OS internals have their own allocation policy. A custom
+ * allocator provides its own shared ownership block, which is freed before
+ * releasing its context. */
+typedef struct wdb_allocator {
+    void *context;
+    void *(*allocate)(void *context, size_t size, size_t align);
+    void (*deallocate)(void *context, void *block, size_t size, size_t align);
+    void (*retain_context)(void *context);
+    void (*release_context)(void *context);
+} wdb_allocator;
+typedef struct wdb_limits {
+    size_t max_live_bytes;
+    size_t max_bytes;
+    size_t max_value_bytes;
+    size_t max_depth;
+    size_t max_entries;
+    size_t max_writes;
+    size_t max_observations;
+    size_t max_transaction_bytes;
+} wdb_limits;
+typedef struct wdb_memory_usage {
+    size_t live_bytes;
+    size_t peak_bytes;
+    size_t limit_bytes;
+} wdb_memory_usage;
+typedef struct wdb_database_options {
+    wdb_limits limits;
+    const wdb_allocator *allocator;
+} wdb_database_options;
+/* Initialize before overriding individual limits or the allocator pointer.
+ * NULL options select default limits and the global allocator. The options and
+ * descriptor are read only during open. Memory usage counts requested live
+ * core heap layouts and their peak, including growth reservations. */
+wdb_status wdb_database_options_init(wdb_database_options *out);
+wdb_status wdb_open_with_options(const wdb_database_options *options, wdb_database **out);
+wdb_status wdb_database_get_limits(const wdb_database *db, wdb_limits *out);
+wdb_status wdb_database_get_memory_usage(const wdb_database *db, wdb_memory_usage *out);
 /* Explicit-length native path bytes on macOS and Linux x86_64/aarch64, UTF-8
  * on Windows (local fixed NTFS). Embedded NULs are invalid. Creation is
  * exclusive and never overwrites. Open is read/write with an exclusive lease.
  * Other platforms return UNSUPPORTED_PLATFORM. */
 wdb_status wdb_file_create(const uint8_t *path, size_t len, wdb_database **out);
 wdb_status wdb_file_open(const uint8_t *path, size_t len, wdb_database **out);
+wdb_status wdb_file_create_with_options(const uint8_t *path, size_t len,
+                                         const wdb_database_options *options, wdb_database **out);
+wdb_status wdb_file_open_with_options(const uint8_t *path, size_t len,
+                                       const wdb_database_options *options, wdb_database **out);
 /* Offline macOS/Linux compaction: close ALL database handles for this path first.
  * BUSY if an inode is leased; hard-link sources are rejected. Current/retained
  * roots, revisions and local IDs survive; file format remains v2. A verified,

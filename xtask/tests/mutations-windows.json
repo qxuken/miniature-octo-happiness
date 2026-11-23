@@ -1,6 +1,6 @@
 {
-  "source_commit": "721cbdb01424e67c339c0fc8fb306050f0ca929f",
-  "source_sha256": "42933c3f2718fa163da59e667c88634afe5d6c5ce5b2b47a073faa984438749e",
+  "source_commit": "32372b30324ee595014a07be0e2dee55838a4e78",
+  "source_sha256": "dcff3de55079e0d4cb70d7c6c20589b29102fda0aa5a5f3aa48625c57e8d64fc",
   "cases": [
     {
       "file": "src/storage/windows.rs",

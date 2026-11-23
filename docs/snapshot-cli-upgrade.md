@@ -11,8 +11,9 @@ a supported rolling-upgrade promise for other versions or architectures.
 Neither source archive, Cargo manifest nor original lockfile is modified.
 The helper builds each CLI offline with `--release --locked`, then separately
 compiles a small public-API fixture against that archive's resulting engine
-rlib. Its native `SOURCE_ID` must equal the archive commit. The fixture is an
-explicit qualification consumer, not a replacement server or wire emulator.
+rlib. Cargo's `compiler-artifact` messages identify the linked libraries and
+dependency search paths on both sides of the Cargo 1.100 build layout change.
+The fixture checks that its native `SOURCE_ID` equals the archive commit.
 
 Both actual versions implement the same `weekend-snapshot/1` ALPN and exact-leaf
 mutual TLS profile. The common CLI operations are `describe`, `follower-init`,

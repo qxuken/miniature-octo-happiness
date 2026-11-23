@@ -30,7 +30,8 @@ pub(super) const OPEN_DIRECTORY: c_int = 0x4000;
 const O_NOFOLLOW: c_int = 0; // unreachable behind SUPPORTED
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 pub(super) const OPEN_DIRECTORY: c_int = 0;
-pub(super) const OPEN_REQUIRED: c_int = 0x800 | O_NOFOLLOW | 0x80000;
+pub(super) const O_CLOEXEC: c_int = 0x80000;
+pub(super) const OPEN_REQUIRED: c_int = 0x800 | O_NOFOLLOW | O_CLOEXEC;
 pub(super) const OPEN_LEASE: c_int = 0;
 pub(super) const OPEN_CREATE: c_int = 0x40 | 0x80; // O_CREAT | O_EXCL
 unsafe extern "C" {

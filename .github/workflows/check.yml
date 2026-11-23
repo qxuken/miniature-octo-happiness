@@ -23,8 +23,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install the pinned Rust compiler and cache locked inputs
         run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          rustup override set 1.99.1
+          rustup toolchain install 1.100.0 --profile minimal
+          rustup override set 1.100.0
           cargo fetch --locked
           cargo fetch --locked --manifest-path tools/incident-recovery/Cargo.toml
       - name: Select the frozen qualified engine source
@@ -67,8 +67,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install the pinned compiler and cache locked inputs
         run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          rustup override set 1.99.1
+          rustup toolchain install 1.100.0 --profile minimal
+          rustup override set 1.100.0
           cargo fetch --locked
       - name: Check native Windows evidence directory protection
         if: runner.os == 'Windows'
@@ -148,7 +148,7 @@ jobs:
           - os: windows-latest
             shard: 8
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 30 || 20 }}
     defaults:
       run:
         shell: bash
@@ -158,21 +158,21 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install the pinned compiler and cache locked inputs
         run: |
-          rustup toolchain install 1.99.1 --profile minimal --component clippy
-          cargo +1.99.1 fetch --locked
-          cargo +1.99.1 fetch --locked --manifest-path tools/decision-inventory/Cargo.toml
+          rustup toolchain install 1.100.0 --profile minimal --component clippy
+          cargo +1.100.0 fetch --locked
+          cargo +1.100.0 fetch --locked --manifest-path tools/decision-inventory/Cargo.toml
       - name: Test the inventory and reconciliation contracts in both profiles
         run: |
-          cargo +1.99.1 test --offline --locked --manifest-path tools/decision-inventory/Cargo.toml
-          cargo +1.99.1 test --offline --locked --release --manifest-path tools/decision-inventory/Cargo.toml
-          cargo +1.99.1 clippy --offline --locked --manifest-path tools/decision-inventory/Cargo.toml --all-targets -- -D warnings
+          cargo +1.100.0 test --offline --locked --manifest-path tools/decision-inventory/Cargo.toml
+          cargo +1.100.0 test --offline --locked --release --manifest-path tools/decision-inventory/Cargo.toml
+          cargo +1.100.0 clippy --offline --locked --manifest-path tools/decision-inventory/Cargo.toml --all-targets -- -D warnings
       - name: Reject stale source, reference, decision and control bindings
-        run: cargo +1.99.1 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/review --review docs/decisions/current-scope.json
+        run: cargo +1.100.0 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/review --review docs/decisions/current-scope.json
       - name: Detect the R1 controls in debug and release
         if: runner.os != 'Windows'
         run: |
-          cargo +1.99.1 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --toolchain 1.99.1 --output target/r1/mutations-debug
-          cargo +1.99.1 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --release --toolchain 1.99.1 --output target/r1/mutations-release
+          cargo +1.100.0 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --toolchain 1.100.0 --output target/r1/mutations-debug
+          cargo +1.100.0 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --release --toolchain 1.100.0 --output target/r1/mutations-release
       - name: Retain the source-bound reconciliation and mutation evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -194,14 +194,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust
-        run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
-      - run: rustup override set 1.99.1
+        run: rustup toolchain install 1.100.0 --profile minimal --component rustfmt --component clippy
+      - run: rustup override set 1.100.0
       - run: cargo fetch --locked
+      - name: Verify typed migration allocation routing
+        run: cargo test --offline --locked -p weekend-db-typed --test migration_allocator
+      - name: Verify optimized typed migration allocation routing
+        run: cargo test --offline --locked --release -p weekend-db-typed --test migration_allocator
+      - name: Verify native Windows paths and allocator lifetimes
+        if: runner.os == 'Windows'
+        run: |
+          cargo test --offline --locked -p weekend-db --all-features --lib --test allocation --test allocator_routing --test live_budget --test files
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --offline --locked -p weekend-db --all-features --release --lib --test allocation --test allocator_routing --test live_budget --test files
       - name: Detect the two native Windows RNG guard mutants in both profiles
         if: runner.os == 'Windows'
         id: windows_rng_mutations
         continue-on-error: true
-        run: cargo xtask mutations --case windows-rng- --toolchain 1.99.1 --output target/windows-rng-mutations
+        run: cargo xtask mutations --case windows-rng- --toolchain 1.100.0 --output target/windows-rng-mutations
       - name: Save native Windows RNG mutation evidence
         if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@v7
@@ -549,8 +559,8 @@ jobs:
       - name: Build the private controller and near-cap fixture
         shell: pwsh
         run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          rustup override set 1.99.1
+          rustup toolchain install 1.100.0 --profile minimal
+          rustup override set 1.100.0
           cargo fetch --locked
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo fetch --locked --manifest-path tools/resource-envelope/Cargo.toml
@@ -576,10 +586,10 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
       - uses: actions/checkout@v7
-      - name: Install Rust 1.99.0 and cache the locked inputs
+      - name: Install Rust 1.100.0 and cache the locked inputs
         run: |
-          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
-          rustup override set 1.99.0
+          rustup toolchain install 1.100.0 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.100.0
           cargo fetch --locked
           cargo fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
           cargo fetch --locked --manifest-path examples/rust_package/Cargo.toml
@@ -635,10 +645,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.99.0 and cache the locked inputs
+      - name: Install Rust 1.100.0 and cache the locked inputs
         run: |
-          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
-          rustup override set 1.99.0
+          rustup toolchain install 1.100.0 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.100.0
           cargo fetch --locked
           cargo fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
           cargo fetch --locked --manifest-path examples/rust_package/Cargo.toml
@@ -708,8 +718,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install Rust and cache the locked dependencies
         run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          rustup override set 1.99.1
+          rustup toolchain install 1.100.0 --profile minimal
+          rustup override set 1.100.0
           cargo fetch --locked
           cargo fetch --locked --manifest-path tools/sqlite-baseline/Cargo.toml
       - name: Ensure system SQLite is available
@@ -747,8 +757,8 @@ jobs:
           cat /etc/os-release > target/quota-host/os-release.txt
       - name: Build the private Rust quota controller without privileges
         run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          rustup override set 1.99.1
+          rustup toolchain install 1.100.0 --profile minimal
+          rustup override set 1.100.0
           cargo fetch --locked
           cargo build --offline --locked -p xtask --release --target-dir target/xtask
           sha256sum target/xtask/release/xtask > target/quota-host/xtask.sha256
@@ -758,10 +768,10 @@ jobs:
           cargo test --offline --locked -p xtask --bin xtask resource_oracle
       - name: Build the native core-only quota fixture
         run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          cargo +1.99.1 fetch --locked
-          cargo +1.99.1 build --offline --locked --release --example native_quota --target-dir target/quota-build
-          rustc +1.99.1 -Vv > target/quota-host/rustc.txt
+          rustup toolchain install 1.100.0 --profile minimal
+          cargo +1.100.0 fetch --locked
+          cargo +1.100.0 build --offline --locked --release --example native_quota --target-dir target/quota-build
+          rustc +1.100.0 -Vv > target/quota-host/rustc.txt
           sha256sum target/quota-build/release/examples/native_quota > target/quota-host/fixture.sha256
       - name: Calibrate actual EDQUOT and verify commit failure, reopening and retry
         run: |
@@ -775,7 +785,7 @@ jobs:
           sudo sha256sum target/native-writeback/evidence.json
       - name: Build the near-cap maintenance fixture
         run: |
-          cargo +1.99.1 build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-quota-build
+          cargo +1.100.0 build --offline --locked --release --manifest-path tools/resource-envelope/Cargo.toml --features compound --bin weekend-compound-resource --target-dir target/maintenance-quota-build
           sha256sum target/maintenance-quota-build/release/weekend-compound-resource > target/quota-host/maintenance-fixture.sha256
       - name: Verify maintenance EDQUOT, full-space reopen and retry
         run: |
@@ -873,14 +883,14 @@ jobs:
         kind: [address, thread]
     steps:
       - uses: actions/checkout@v7
-      - run: rustup toolchain install 1.99.1 --profile minimal
+      - run: rustup toolchain install 1.100.0 --profile minimal
       - if: matrix.kind == 'address'
         run: rustup toolchain install nightly --profile minimal --component rust-src
       - if: matrix.kind == 'thread'
         run: rustup toolchain install nightly-2026-11-12 --profile minimal --component rust-src
-      - run: cargo +1.99.1 fetch --locked
+      - run: cargo +1.100.0 fetch --locked
       - if: matrix.kind == 'address'
-        run: cargo +1.99.1 xtask sanitizers address
+        run: cargo +1.100.0 xtask sanitizers address
       - name: Build the pinned Darwin ThreadSanitizer runtime
         if: matrix.kind == 'thread'
         run: |
@@ -891,7 +901,7 @@ jobs:
         run: |
           runtime=target/macos-tsan-runtime
           pin=$(awk 'NR == 1 { print $1 }' "$runtime/runtime.sha256")
-          cargo +1.99.1 xtask sanitizers thread --toolchain nightly-2026-11-12 \
+          cargo +1.100.0 xtask sanitizers thread --toolchain nightly-2026-11-12 \
             --runtime "$runtime/libclang_rt.tsan_osx_dynamic.dylib" --runtime-sha256 "$pin"
       - name: Save bounded sanitizer diagnostics
         uses: actions/upload-artifact@v7
@@ -910,14 +920,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - run: rustup toolchain install 1.99.1 --profile minimal
+      - run: rustup toolchain install 1.100.0 --profile minimal
       - run: rustup toolchain install nightly --profile minimal --component rust-src
-      - run: cargo +1.99.1 fetch --locked
-      - run: cargo +1.99.1 xtask c-sanitizers
+      - run: cargo +1.100.0 fetch --locked
+      - run: cargo +1.100.0 xtask c-sanitizers
       - name: Bounded atomic models and fail-required controls
         env:
           MODEL_TOOLCHAIN: nightly
-        run: cargo +1.99.1 xtask atomic-model
+        run: cargo +1.100.0 xtask atomic-model
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -935,10 +945,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - run: rustup toolchain install 1.99.1 --profile minimal --component llvm-tools-preview
-      - run: rustup override set 1.99.1
+      - run: rustup toolchain install 1.100.0 --profile minimal --component llvm-tools-preview
+      - run: rustup override set 1.100.0
       - run: cargo fetch --locked
-      - run: cargo +1.99.1 xtask coverage --scope library --toolchain 1.99.1 --output target/coverage-library
+      - run: cargo +1.100.0 xtask coverage --scope library --toolchain 1.100.0 --output target/coverage-library
       - uses: actions/upload-artifact@v7
         if: always()
         with:

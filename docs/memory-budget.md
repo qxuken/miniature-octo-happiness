@@ -43,8 +43,8 @@ failure and remain attached through element destruction, deallocation, and
 partially consumed owned iterators, including unwinding destructors.
 
 This is **not a process RSS limit**. Exclusions are allocator metadata/rounding,
-stack memory, the fixed budget-control allocation, application-owned inputs and
-returned `Vec` buffers, foreign FFI handles, and backend allocations (native
+stack memory, the fixed budget and allocator ownership blocks, application-owned
+inputs and returned `Vec` buffers, foreign FFI handles, and backend allocations (native
 path/handle metadata and simulator images/traces/pending writes). Values carried
 inside returned buffers still retain their charged core nodes. Output buffers
 are explicitly transferred out of charged ownership or use named
@@ -52,8 +52,67 @@ are explicitly transferred out of charged ownership or use named
 metadata vector is an application output. Independent opens, inspection, import,
 export, and backup calls create independent domains from their supplied limits;
 there is no process-global cap. Replication/CRDT/coordinator application-layer
-buffers are outside this core domain. C API defaults remain unchanged; this
-configuration is currently exposed through the Rust `Limits` API.
+buffers are outside this core domain. Rust and C database options accept the
+same limits and expose the same budget measurements.
+
+## Per-database allocators
+
+Rust and C use `Global` by default. In Rust, `AllocatorHandle::try_new`
+fallibly takes ownership of the provider. Set it and the `Limits` on
+`DatabaseOptions` for the in-memory, byte-store or native-file constructors.
+In C, initialize `wdb_database_options` with `wdb_database_options_init`,
+then override any limits and optionally set a `wdb_allocator`. Pass the
+options to `wdb_open_with_options`, `wdb_file_create_with_options` or
+`wdb_file_open_with_options`. A null descriptor selects `Global`.
+`wdb_database_get_limits` and `wdb_database_get_memory_usage` return the
+same fields as their Rust counterparts.
+
+Budget charges keep only the budget alive. Shared nodes, charged vectors and
+boxes carry the allocator they use to free storage. The selected allocator
+serves core layouts, C scan rows and keys, retained-ID scratch space, the
+storage adapter's owning box, C handle blocks, and the macOS/Linux parent
+path and file leaf name. The owning box, C handle blocks, and path buffers are
+outside the live-byte cap. Native create and open reserve each path buffer,
+including its terminating zero, in one fallible request. The parent buffer is
+freed after opening the directory and before reserving the leaf. The leaf
+buffer stays in the file lease. Failure to allocate either buffer precedes
+creation or opening of the database file. On Windows, the selected allocator
+also provides the temporary UTF-16 buffers for parent normalization, canonical
+path lookup, and the assembled file path. The adapter releases them before
+returning the lease. Allocator refusal during path construction precedes the
+target-file open on all three platforms.
+
+The selected allocator supplies each database's budget control block in a
+fallible allocation outside the live-byte cap. The block keeps its allocator
+alive until the last budget owner releases it. A custom provider allocates one
+block containing the provider and its reference count. The handle
+is a single pointer, and its clones share the block without allocating. The
+last handle moves the provider out, frees the block through it, and then drops
+the provider. This keeps the C context alive through the block's deallocation.
+The default handle uses `Global` directly with no provider block.
+Public Rust `Vec` outputs also use `Global`. The engine moves elements from
+custom storage into a fallibly reserved output buffer. Values inside it still
+own their original core nodes. OS internals and caller-owned backend storage
+use their own allocation paths.
+
+Physical and logical encoders sort borrowed map entries in scratch allocated
+and charged by the encoder. They apply the originating value's existing
+transaction-byte preflight before reserving scratch. Keys and child values
+stay in the original map while the encoder writes them in binary key order.
+
+Typed migrations use the database allocator for schema validation, row scans,
+ID sorting and unique-index scratch. Schema and scan buffers count toward the
+live-byte cap. The typed crate uses `Database::allocator()` for its ID and
+index vectors, which sit outside that cap. Model decoding and migration
+callbacks can allocate their own Rust fields and buffers.
+
+The database owns a reference to its allocator. Retained roots, live snapshots
+and cloned Rust values keep the allocation owner alive. A value can outlive the
+database that created it. C close returns `WDB_BUSY` while opaque handles are
+live. The C descriptor is copied at open. A supplied context retain/release pair
+keeps the context alive through the final free, including cleanup after failed
+open. Callbacks must be thread-safe and must avoid reentering the database.
+Allocator refusal reports `OutOfMemory` and releases provisional charges.
 
 Publication semantics are unchanged. A cap failure while preparing a candidate
 before backend I/O leaves the committed head unchanged and can be retried in a

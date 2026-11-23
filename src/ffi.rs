@@ -8,8 +8,10 @@
 //! the snapshot/transaction borrows stored behind the opaque boundary.
 #![allow(clippy::missing_safety_doc)]
 use crate::{
-    Database, Error, Kind, Result, Snapshot, Transaction, Validation, Value, engine::Rows,
-    memory::free_raw,
+    AllocatorHandle, Database, DatabaseOptions, Error, Kind, Limits, MemoryUsage, Result, Snapshot,
+    Transaction, Validation, Value,
+    engine::OwnedRows,
+    memory::{AllocatorCallbacks, ForeignAllocator},
 };
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
@@ -28,7 +30,7 @@ pub struct Handle<T> {
 type CValue = Handle<Value>;
 type CSnapshot = Handle<Snapshot<'static>>;
 type CTransaction = Handle<Transaction<'static>>;
-type CScan = Handle<Rows>;
+type CScan = Handle<OwnedRows>;
 impl<T> Drop for Handle<T> {
     fn drop(&mut self) {
         // Close cannot free this owner until every handle has been destroyed.
@@ -43,7 +45,7 @@ fn boundary(f: impl FnOnce() -> Result<()>) -> i32 {
         Err(_) => Error::Panic as i32,
     }
 }
-unsafe fn db<'a>(ptr: *mut CDatabase) -> Result<&'a CDatabase> {
+unsafe fn db<'a>(ptr: *const CDatabase) -> Result<&'a CDatabase> {
     unsafe { ptr.as_ref() }.ok_or(Error::Invalid)
 }
 unsafe fn handle<'a, T>(ptr: *const Handle<T>) -> Result<&'a Handle<T>> {
@@ -125,11 +127,56 @@ macro_rules! export {
         }
     }
 }
+fn into_database_handle(database: Database) -> Result<*mut CDatabase> {
+    let mem = database.mem.clone();
+    mem.raw(CDatabase {
+        db: database,
+        handles: AtomicUsize::new(0),
+    })
+}
+
+#[repr(C)]
+pub struct CDatabaseOptions {
+    limits: Limits,
+    allocator: *const AllocatorCallbacks,
+}
+
+unsafe fn database_options(raw: *const CDatabaseOptions) -> Result<DatabaseOptions> {
+    let Some(raw) = (unsafe { raw.as_ref() }) else {
+        return Ok(DatabaseOptions::default());
+    };
+    let options = DatabaseOptions::from(raw.limits.validate()?);
+    let Some(callbacks) = (unsafe { raw.allocator.as_ref() }) else {
+        return Ok(options);
+    };
+    let provider = unsafe { ForeignAllocator::new(*callbacks)? };
+    Ok(options.with_allocator(AllocatorHandle::try_new(provider)?))
+}
+
+export!(wdb_database_options_init(out: *mut CDatabaseOptions) {
+    if out.is_null() { return Err(Error::Invalid); }
+    *out = CDatabaseOptions { limits: Limits::default(), allocator: ptr::null() };
+    Ok(())
+});
+export!(wdb_database_get_limits(database: *const CDatabase, out: *mut Limits) {
+    if out.is_null() { return Err(Error::Invalid); }
+    *out = db(database)?.db.limits();
+    Ok(())
+});
+export!(wdb_database_get_memory_usage(database: *const CDatabase, out: *mut MemoryUsage) {
+    if out.is_null() { return Err(Error::Invalid); }
+    *out = db(database)?.db.memory_usage();
+    Ok(())
+});
+
 export!(wdb_open(out: *mut *mut CDatabase) {
     output(out)?;
-    let database = Database::new()?;
-    let mem = database.mem.clone();
-    *out = mem.raw(CDatabase { db: database, handles: AtomicUsize::new(0) })?;
+    *out = into_database_handle(Database::new()?)?;
+    Ok(())
+});
+export!(wdb_open_with_options(options: *const CDatabaseOptions, out: *mut *mut CDatabase) {
+    output(out)?;
+    *out = into_database_handle(Database::with_options(database_options(options)?)?)?;
     Ok(())
 });
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
@@ -159,7 +206,7 @@ macro_rules! file_factory {
         #[cfg(any(target_os="macos",target_os="linux",windows))]
         {
             let database=Database::$method(path(bytes,len)?,crate::Limits::default())?;
-            let mem=database.mem.clone();*out=mem.raw(CDatabase {db:database,handles:AtomicUsize::new(0)})?;Ok(())
+            *out = into_database_handle(database)?; Ok(())
         }
         #[cfg(not(any(target_os="macos",target_os="linux",windows)))]
         {let _=(bytes,len);Err(Error::UnsupportedPlatform)}
@@ -167,6 +214,23 @@ macro_rules! file_factory {
 }
 file_factory!(wdb_file_create, create_file);
 file_factory!(wdb_file_open, open_file);
+macro_rules! file_factory_with_options {
+    ($name:ident,$method:ident) => { export!($name(
+        bytes:*const u8,len:usize,options:*const CDatabaseOptions,out:*mut *mut CDatabase
+    ) {
+        output(out)?;
+        #[cfg(any(target_os="macos",target_os="linux",windows))]
+        {
+            let name = path(bytes,len)?;
+            let database = Database::$method(name, database_options(options)?)?;
+            *out = into_database_handle(database)?; Ok(())
+        }
+        #[cfg(not(any(target_os="macos",target_os="linux",windows)))]
+        {let _=(bytes,len,options);Err(Error::UnsupportedPlatform)}
+    }); };
+}
+file_factory_with_options!(wdb_file_create_with_options, create_file_with_options);
+file_factory_with_options!(wdb_file_open_with_options, open_file_with_options);
 export!(wdb_file_compact(bytes: *const u8, len: usize, before: *mut u64, after: *mut u64) {
     if before.is_null() || after.is_null() {return Err(Error::Invalid);}
     *before = 0; *after = 0;
@@ -190,13 +254,14 @@ export!(wdb_retained_open(database:*mut CDatabase,id:u64,out:*mut *mut CSnapshot
 export!(wdb_retained_ids(database:*mut CDatabase,buffer:*mut u64,capacity:usize,required:*mut usize) {
     if required.is_null() {return Err(Error::Invalid);}*required=0;
     if buffer.is_null() && capacity!=0 {return Err(Error::Invalid);}
-    let ids=db(database)?.db.retained_ids()?;*required=ids.len();
+    let ids=db(database)?.db.retained_ids_owned()?;*required=ids.len();
     if capacity<ids.len() {return Err(Error::Buffer);}
     if !ids.is_empty() {ptr::copy_nonoverlapping(ids.as_ptr(),buffer,ids.len());}Ok(())
 });
 export!(wdb_close(database: *mut CDatabase) {
     if db(database)?.handles.load(Ordering::Acquire) != 0 { return Err(Error::Busy); }
-    free_raw(database); Ok(())
+    let mem = db(database)?.db.mem.clone();
+    mem.free_raw(database); Ok(())
 });
 export!(wdb_collection_create(database: *mut CDatabase, out: *mut u64) {
     if out.is_null() { return Err(Error::Invalid); } *out = 0;
@@ -223,7 +288,11 @@ export!(wdb_value_clone(value: *const CValue, out: *mut *mut CValue) {
 });
 macro_rules! release {
     ($name:ident, $ty:ty) => { export!($name(value: *mut $ty) {
-        if !value.is_null() { free_raw(value); } Ok(())
+        if !value.is_null() {
+            let owner = handle(value)?.owner;
+            db(owner)?.db.mem.free_raw(value);
+        }
+        Ok(())
     }); };
 }
 release!(wdb_value_release, CValue);
@@ -263,7 +332,7 @@ export!(wdb_map_remove(map: *const CValue, key: *const u8, len: usize, out: *mut
     make_handle(map.owner, map.value.map_remove(input(map.owner, key, len)?)?, out)
 });
 export!(wdb_map_scan(map: *const CValue, out: *mut *mut CScan) {
-    output(out)?; let map = handle(map)?; make_handle(map.owner, map.value.map_entries()?, out)
+    output(out)?; let map = handle(map)?; make_handle(map.owner, map.value.map_entries_owned()?, out)
 });
 export!(wdb_list_push(list: *const CValue, value: *const CValue, out: *mut *mut CValue) {
     output(out)?; let list = handle(list)?; let value = handle(value)?; same(list.owner, value.owner)?;
@@ -297,7 +366,7 @@ export!(wdb_snapshot_get(snapshot: *const CSnapshot, id: u64, key: *const u8, le
 });
 export!(wdb_snapshot_scan(snapshot: *const CSnapshot, id: u64, out: *mut *mut CScan) {
     output(out)?; let snapshot = handle(snapshot)?;
-    make_handle(snapshot.owner, snapshot.value.scan(db(snapshot.owner)?.db.collection_id(id))?, out)
+    make_handle(snapshot.owner, snapshot.value.scan_owned(db(snapshot.owner)?.db.collection_id(id))?, out)
 });
 export!(wdb_tx_begin(database: *mut CDatabase, validation: i32, out: *mut *mut CTransaction) {
     output(out)?;
@@ -319,7 +388,7 @@ export!(wdb_tx_delete(tx: *mut CTransaction, id: u64, key: *const u8, len: usize
 });
 export!(wdb_tx_scan(tx: *mut CTransaction, id: u64, out: *mut *mut CScan) {
     output(out)?; let tx = handle_mut(tx)?;
-    let rows = tx.value.scan(db(tx.owner)?.db.collection_id(id))?; make_handle(tx.owner, rows, out)
+    let rows = tx.value.scan_owned(db(tx.owner)?.db.collection_id(id))?; make_handle(tx.owner, rows, out)
 });
 export!(wdb_tx_commit(tx: *mut CTransaction, out: *mut u64) {
     if out.is_null() { return Err(Error::Invalid); } *out = 0;
@@ -556,6 +625,172 @@ mod tests {
             assert_eq!(wdb_scan_release(ptr::null_mut()), 0);
             assert_eq!(wdb_tx_release(ptr::null_mut()), 0);
             assert_eq!(wdb_close(database), 0);
+        }
+    }
+
+    #[test]
+    fn foreign_allocator_owns_context_through_snapshot_and_handle_release() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::{
+            alloc::{Allocator, Layout},
+            ffi::c_void,
+            sync::Arc,
+        };
+
+        unsafe extern "C" fn allocate(
+            context: *mut c_void,
+            size: usize,
+            align: usize,
+        ) -> *mut c_void {
+            let state = unsafe { &*context.cast::<TestAllocator>() };
+            match state.allocate(Layout::from_size_align(size, align).unwrap()) {
+                Ok(block) => block.cast::<u8>().as_ptr().cast(),
+                Err(_) => ptr::null_mut(),
+            }
+        }
+        unsafe extern "C" fn deallocate(
+            context: *mut c_void,
+            block: *mut c_void,
+            size: usize,
+            align: usize,
+        ) {
+            let state = unsafe { &*context.cast::<TestAllocator>() };
+            let block = std::ptr::NonNull::new(block.cast::<u8>()).unwrap();
+            unsafe { state.deallocate(block, Layout::from_size_align(size, align).unwrap()) };
+        }
+        unsafe extern "C" fn retain(context: *mut c_void) {
+            unsafe { Arc::increment_strong_count(context.cast::<TestAllocator>()) };
+        }
+        unsafe extern "C" fn release(context: *mut c_void) {
+            let state = unsafe { &*context.cast::<TestAllocator>() };
+            assert_eq!(state.live(), 0);
+            unsafe { Arc::decrement_strong_count(context.cast::<TestAllocator>()) };
+        }
+
+        let state = Arc::new(TestAllocator::default());
+        let weak = Arc::downgrade(&state);
+        let callbacks = AllocatorCallbacks {
+            context: Arc::as_ptr(&state).cast_mut().cast(),
+            allocate: Some(allocate),
+            deallocate: Some(deallocate),
+            retain_context: Some(retain),
+            release_context: Some(release),
+        };
+        unsafe {
+            let invalid = AllocatorCallbacks {
+                release_context: None,
+                ..callbacks
+            };
+            let mut database = ptr::dangling_mut();
+            assert_eq!(
+                wdb_open_with_options(
+                    &CDatabaseOptions {
+                        limits: Limits::default(),
+                        allocator: &invalid
+                    },
+                    &mut database
+                ),
+                Error::Invalid as i32
+            );
+            assert!(database.is_null());
+            assert_eq!(Arc::strong_count(&state), 1);
+
+            let mut options = std::mem::MaybeUninit::uninit();
+            assert_eq!(wdb_database_options_init(options.as_mut_ptr()), 0);
+            let mut options = options.assume_init();
+            assert_eq!(options.limits, Limits::default());
+            assert!(options.allocator.is_null());
+            options.limits.max_bytes = 3;
+            options.allocator = &callbacks;
+            // Refuse the provider, budget, initial core head, and C handle blocks.
+            for allowed in 0..4 {
+                state.fail_after(allowed);
+                assert_eq!(
+                    wdb_open_with_options(&options, &mut database),
+                    Error::OutOfMemory as i32
+                );
+                assert!(database.is_null());
+                assert_eq!(Arc::strong_count(&state), 1);
+                assert_eq!(state.live(), 0);
+            }
+
+            assert_eq!(wdb_open_with_options(&options, &mut database), 0);
+            assert!(state.live() > 0);
+            let mut limits = Limits::default();
+            assert_eq!(wdb_database_get_limits(database, &mut limits), 0);
+            assert_eq!(limits, options.limits);
+            let mut value = ptr::dangling_mut();
+            assert_eq!(
+                wdb_value_make(database, 5, 0, b"four".as_ptr(), 4, &mut value),
+                Error::Limit as i32
+            );
+            assert!(value.is_null());
+            drop(state);
+            assert_eq!(weak.strong_count(), 1);
+
+            let mut snapshot = ptr::dangling_mut();
+            weak.upgrade().unwrap().fail_next();
+            assert_eq!(
+                wdb_snapshot_acquire(database, &mut snapshot),
+                Error::OutOfMemory as i32
+            );
+            assert!(snapshot.is_null());
+            assert_eq!((*database).handles.load(Ordering::Acquire), 0);
+
+            assert_eq!(wdb_snapshot_acquire(database, &mut snapshot), 0);
+            let mut id = 0;
+            assert_eq!(wdb_snapshot_retain(database, snapshot, &mut id), 0);
+            assert_eq!(wdb_snapshot_release(snapshot), 0);
+            let mut retained = ptr::null_mut();
+            assert_eq!(wdb_retained_open(database, id, &mut retained), 0);
+            assert_eq!(wdb_retained_release(database, id), 0);
+            assert_eq!(wdb_close(database), Error::Busy as i32);
+            let mut revision = u64::MAX;
+            assert_eq!(wdb_snapshot_revision(retained, &mut revision), 0);
+            assert_eq!(revision, 0);
+            assert_eq!(wdb_snapshot_release(retained), 0);
+
+            let state = weak.upgrade().unwrap();
+            let mut collection = 0;
+            let mut tx = ptr::null_mut();
+            assert_eq!(wdb_collection_create(database, &mut collection), 0);
+            assert_eq!(wdb_tx_begin(database, 0, &mut tx), 0);
+            assert_eq!(
+                wdb_value_make(database, 5, 0, b"val".as_ptr(), 3, &mut value),
+                0
+            );
+            assert_eq!(wdb_tx_put(tx, collection, b"k".as_ptr(), 1, value), 0);
+            assert_eq!(wdb_tx_commit(tx, &mut revision), 0);
+            assert_eq!(wdb_tx_release(tx), 0);
+            assert_eq!(wdb_value_release(value), 0);
+            assert_eq!(wdb_snapshot_acquire(database, &mut snapshot), 0);
+            let before = state.live_bytes();
+            let mut usage = std::mem::MaybeUninit::uninit();
+            assert_eq!(
+                wdb_database_get_memory_usage(database, usage.as_mut_ptr()),
+                0
+            );
+            let before_charge = usage.assume_init_read().live_bytes;
+            let mut scan = ptr::null_mut();
+            assert_eq!(wdb_snapshot_scan(snapshot, collection, &mut scan), 0);
+            assert_eq!(
+                wdb_database_get_memory_usage(database, usage.as_mut_ptr()),
+                0
+            );
+            let added_charge = usage.assume_init().live_bytes - before_charge;
+            assert!(added_charge > 0);
+            assert_eq!(
+                state.live_bytes() - before,
+                added_charge + std::mem::size_of::<CScan>()
+            );
+            assert_eq!(wdb_scan_release(scan), 0);
+            assert_eq!(state.live_bytes(), before);
+            assert_eq!(wdb_snapshot_release(snapshot), 0);
+            assert_eq!(wdb_close(database), 0);
+            assert_eq!(state.live(), 0);
+            assert_eq!(Arc::strong_count(&state), 1);
+            drop(state);
+            assert!(weak.upgrade().is_none());
         }
     }
 

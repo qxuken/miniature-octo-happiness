@@ -28,8 +28,7 @@ const CACHE_FIELDS: [&str; 8] = [
     "data_positions_copied",
     "data_shifted",
 ];
-const GROWTH_SITE: &str =
-    "self.charge = Some(charge); // release old charge only after successful realloc";
+const GROWTH_SITE: &str = "self.charge = Some(charge);";
 const GROWTH_SUFFIX: &str = r#"
 // Disposable measurement only: fields/layout/allocation policy are unchanged.
 static VEC_GROWS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -87,7 +86,7 @@ fn growth_text(text: &str, cache: bool) -> Result<String> {
         text,
         GROWTH_SITE,
         &format!(
-            "VEC_GROWS.fetch_add(1, Ordering::Relaxed);\n        VEC_OLD_BYTES.fetch_add((capacity * std::mem::size_of::<T>()) as u64, Ordering::Relaxed);\n        VEC_NEW_BYTES.fetch_add(layout.size() as u64, Ordering::Relaxed);\n        {GROWTH_SITE}"
+            "VEC_GROWS.fetch_add(1, Ordering::Relaxed);\n        VEC_OLD_BYTES.fetch_add(self.charge.as_ref().map_or(0, |old| old.bytes) as u64, Ordering::Relaxed);\n        VEC_NEW_BYTES.fetch_add(charge.bytes as u64, Ordering::Relaxed);\n        {GROWTH_SITE}"
         ),
     )?;
     patched.push_str(GROWTH_SUFFIX);

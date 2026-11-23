@@ -49,11 +49,11 @@ toolchain. The hosted job disables Git line-ending conversion before checkout.
 Run the pinned compiler and cache the locked inputs before qualification.
 
 ```powershell
-rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
-cargo +1.99.0 fetch --locked
-cargo +1.99.0 fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
-cargo +1.99.0 fetch --locked --manifest-path examples/rust_package/Cargo.toml
-cargo +1.99.0 xtask windows-msrv --output target/windows-msrv
+rustup toolchain install 1.100.0 --profile minimal --component rustfmt --component clippy
+cargo +1.100.0 fetch --locked
+cargo +1.100.0 fetch --locked --manifest-path crates/weekend-db-typed/tests/renamed/Cargo.toml
+cargo +1.100.0 fetch --locked --manifest-path examples/rust_package/Cargo.toml
+cargo +1.100.0 xtask windows-msrv --output target/windows-msrv
 ```
 
 Add `--odin` to the last command to include the native Odin package and

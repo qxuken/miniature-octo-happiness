@@ -386,10 +386,10 @@ Process/Directory ownership handles child cleanup and temporary-file removal.
 Run the focused scenario or all coordinator tests locally:
 
 ```sh
-mise x rust@1.99.1 -- cargo test --offline --locked -p write-coordinator \
+mise x rust@1.100.0 -- cargo test --offline --locked -p write-coordinator \
   --test writers native_receipt_capacity_survives_restarts_backup_restore_and_compaction -- --nocapture
-mise x rust@1.99.1 -- cargo test --offline --locked -p write-coordinator
-mise x rust@1.99.1 -- cargo test --offline --locked --release -p write-coordinator
+mise x rust@1.100.0 -- cargo test --offline --locked -p write-coordinator
+mise x rust@1.100.0 -- cargo test --offline --locked --release -p write-coordinator
 ```
 
 The scenario has fixed counts, not a throughput/service-latency guarantee. It

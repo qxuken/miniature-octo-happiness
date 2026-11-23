@@ -12,6 +12,32 @@ Value :: distinct rawptr
 Snapshot :: distinct rawptr
 Transaction :: distinct rawptr
 Scan :: distinct rawptr
+Allocator :: struct {
+    ctx: rawptr,
+    allocate: proc "c" (ctx: rawptr, size, align: c.size_t) -> rawptr,
+    deallocate: proc "c" (ctx, block: rawptr, size, align: c.size_t),
+    retain_context: proc "c" (ctx: rawptr),
+    release_context: proc "c" (ctx: rawptr),
+}
+Limits :: struct {
+    max_live_bytes: c.size_t,
+    max_bytes: c.size_t,
+    max_value_bytes: c.size_t,
+    max_depth: c.size_t,
+    max_entries: c.size_t,
+    max_writes: c.size_t,
+    max_observations: c.size_t,
+    max_transaction_bytes: c.size_t,
+}
+Memory_Usage :: struct {
+    live_bytes: c.size_t,
+    peak_bytes: c.size_t,
+    limit_bytes: c.size_t,
+}
+Database_Options :: struct {
+    limits: Limits,
+    allocator: ^Allocator,
+}
 #assert(size_of(Database) == size_of(rawptr))
 #assert(size_of(c.size_t) == size_of(uintptr))
 
@@ -56,8 +82,14 @@ foreign engine {
     wdb_package_version :: proc(buffer: [^]u8, capacity: c.size_t, required: ^c.size_t) -> Status ---
     wdb_source_id :: proc(buffer: [^]u8, capacity: c.size_t, required: ^c.size_t) -> Status ---
     wdb_open :: proc(out: ^Database) -> Status ---
+    wdb_database_options_init :: proc(out: ^Database_Options) -> Status ---
+    wdb_open_with_options :: proc(options: ^Database_Options, out: ^Database) -> Status ---
+    wdb_database_get_limits :: proc(db: Database, out: ^Limits) -> Status ---
+    wdb_database_get_memory_usage :: proc(db: Database, out: ^Memory_Usage) -> Status ---
     wdb_file_create :: proc(path: [^]u8, len: c.size_t, out: ^Database) -> Status ---
     wdb_file_open :: proc(path: [^]u8, len: c.size_t, out: ^Database) -> Status ---
+    wdb_file_create_with_options :: proc(path: [^]u8, len: c.size_t, options: ^Database_Options, out: ^Database) -> Status ---
+    wdb_file_open_with_options :: proc(path: [^]u8, len: c.size_t, options: ^Database_Options, out: ^Database) -> Status ---
     wdb_file_compact :: proc(path: [^]u8, len: c.size_t, before: ^u64, after: ^u64) -> Status ---
     wdb_close :: proc(db: Database) -> Status ---
     wdb_snapshot_retain :: proc(db: Database, snapshot: Snapshot, out: ^u64) -> Status ---
