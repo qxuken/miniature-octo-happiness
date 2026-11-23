@@ -9090,6 +9090,160 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-fixed-drive",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if drive_type != 3 {",
+      "new": "if drive_type == 2 {",
+      "test": "storage::windows_admission::tests::volume_requires_fixed_drive_and_successful_exact_ntfs_name",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-volume-query",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if query(&mut name) == 0 {",
+      "new": "if query(&mut name) < 0 {",
+      "test": "storage::windows_admission::tests::volume_requires_fixed_drive_and_successful_exact_ntfs_name",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-ntfs-name",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if name[..5] != [b'N', b'T', b'F', b'S', 0].map(u16::from)",
+      "new": "if name[..4] != [b'N', b'T', b'F', b'S'].map(u16::from)",
+      "test": "storage::windows_admission::tests::volume_requires_fixed_drive_and_successful_exact_ntfs_name",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-directory-kind",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if !is_dir {",
+      "new": "if false {",
+      "test": "storage::windows_admission::tests::directory_type_and_attributes_have_ordered_errors",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-directory-attributes",
+      "file": "src/storage/windows_admission.rs",
+      "old": "    if !is_dir {\n        return Err(Error::Invalid);\n    }\n    if attributes & UNSUPPORTED_ATTRIBUTES != 0 {",
+      "new": "    if !is_dir {\n        return Err(Error::Invalid);\n    }\n    if false {",
+      "test": "storage::windows_admission::tests::directory_type_and_attributes_have_ordered_errors",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-leaf-type",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if file_type != 1 || !is_file || attributes & REPARSE_POINT != 0 {",
+      "new": "if false || !is_file || attributes & REPARSE_POINT != 0 {",
+      "test": "storage::windows_admission::tests::leaf_file_type_kind_and_reparse_flag_independently_reject",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-leaf-kind",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if file_type != 1 || !is_file || attributes & REPARSE_POINT != 0 {",
+      "new": "if file_type != 1 || false || attributes & REPARSE_POINT != 0 {",
+      "test": "storage::windows_admission::tests::leaf_file_type_kind_and_reparse_flag_independently_reject",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-leaf-reparse",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if file_type != 1 || !is_file || attributes & REPARSE_POINT != 0 {",
+      "new": "if file_type != 1 || !is_file || false {",
+      "test": "storage::windows_admission::tests::leaf_file_type_kind_and_reparse_flag_independently_reject",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-leaf-attributes",
+      "file": "src/storage/windows_admission.rs",
+      "old": "    if file_type != 1 || !is_file || attributes & REPARSE_POINT != 0 {\n        return Err(Error::Invalid);\n    }\n    if attributes & UNSUPPORTED_ATTRIBUTES != 0 {",
+      "new": "    if file_type != 1 || !is_file || attributes & REPARSE_POINT != 0 {\n        return Err(Error::Invalid);\n    }\n    if false {",
+      "test": "storage::windows_admission::tests::leaf_file_type_kind_and_reparse_flag_independently_reject",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-sparse",
+      "file": "src/storage/windows_admission.rs",
+      "old": "0x200 | 0x800 | 0x4000",
+      "new": "0 | 0x800 | 0x4000",
+      "test": "storage::windows_admission::tests::leaf_file_type_kind_and_reparse_flag_independently_reject",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-compressed",
+      "file": "src/storage/windows_admission.rs",
+      "old": "0x200 | 0x800 | 0x4000",
+      "new": "0x200 | 0 | 0x4000",
+      "test": "storage::windows_admission::tests::leaf_file_type_kind_and_reparse_flag_independently_reject",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-encrypted",
+      "file": "src/storage/windows_admission.rs",
+      "old": "0x200 | 0x800 | 0x4000",
+      "new": "0x200 | 0x800 | 0",
+      "test": "storage::windows_admission::tests::leaf_file_type_kind_and_reparse_flag_independently_reject",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-create-mode",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if create {",
+      "new": "if !create {",
+      "test": "storage::windows_admission::tests::create_disposition_and_write_access_are_independent",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-admission-write-mode",
+      "file": "src/storage/windows_admission.rs",
+      "old": "if writable { GENERIC_WRITE } else { 0 }",
+      "new": "if writable { 0 } else { GENERIC_WRITE }",
+      "test": "storage::windows_admission::tests::create_disposition_and_write_access_are_independent",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
