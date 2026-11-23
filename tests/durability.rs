@@ -1137,6 +1137,11 @@ fn interrupted_initial_creation_has_no_prior_acknowledged_state() {
 
 #[test]
 fn preparation_allocation_failures_preserve_current_and_retained_roots() {
+    fn prepare(db: &Database) -> weekend_db::Transaction<'_> {
+        let mut tx = staged(db);
+        tx.delete(db.collection_id(1), b"shared").unwrap();
+        tx
+    }
     let (disk, db) = base_store();
     assert_eq!(db.retain_snapshot(&db.snapshot()), Ok(1));
     let previous_revision = db.snapshot().revision();
@@ -1146,7 +1151,8 @@ fn preparation_allocation_failures_preserve_current_and_retained_roots() {
     drop(db);
 
     let db = open(&disk);
-    let committed_revision = staged(&db).commit().unwrap();
+    let committed_revision = prepare(&db).commit().unwrap();
+    assert_eq!(db.snapshot().get(db.collection_id(1), b"shared"), Ok(None));
     let committed_rows = state(&db);
     let committed_image = disk.durable_image().unwrap();
     assert_ne!(committed_rows, previous_rows);
@@ -1160,9 +1166,19 @@ fn preparation_allocation_failures_preserve_current_and_retained_roots() {
         let db = Database::open_on_with_options(disk.clone(), options).unwrap();
         let live = db.memory_usage().live_bytes;
         let allocated = allocator.live_bytes();
-        let mut tx = staged(&db);
+        let mut tx = prepare(&db);
         disk.arm(usize::MAX, Fault::Error);
         let result = allocator.with_refusal(allowance, || tx.commit());
+        assert_eq!(
+            tx.state(),
+            if result.is_ok() {
+                TransactionState::Committed
+            } else {
+                TransactionState::Failed
+            }
+        );
+        assert_eq!(tx.commit(), Err(Error::Closed));
+        assert_eq!(tx.abort(), Err(Error::Closed));
         drop(tx);
         let (revision, rows, image) = match result {
             Ok(revision) => {

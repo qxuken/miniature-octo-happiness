@@ -42,10 +42,11 @@ fn point_observation_matches_collection_and_key_independently() {
 
 #[test]
 fn overlay_lookup_and_replacement_match_both_identity_components() {
-    let db = Database::with_limits(Limits {
+    let allocator = Arc::new(TestAllocator::default());
+    let db = Database::with_options(allocator.options().with_limits(Limits {
         max_writes: 1,
         ..Limits::default()
-    })
+    }))
     .unwrap();
     let c = db.create_collection().unwrap();
     let other = db.create_collection().unwrap();
@@ -68,7 +69,10 @@ fn overlay_lookup_and_replacement_match_both_identity_components() {
         Err(Error::Limit)
     );
     assert_eq!(tx.put(c, b"b", &db.integer(20).unwrap()), Err(Error::Limit));
-    tx.put(c, b"a", &db.integer(30).unwrap()).unwrap();
+    let replacement = db.integer(30).unwrap();
+    allocator
+        .with_refusal(0, || tx.put(c, b"a", &replacement))
+        .unwrap();
     tx.commit().unwrap();
     assert_eq!(
         db.snapshot().get(c, b"a").unwrap().unwrap().as_i64(),

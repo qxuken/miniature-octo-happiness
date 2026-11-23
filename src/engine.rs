@@ -1334,6 +1334,85 @@ mod tests {
     }
 
     #[test]
+    fn assignment_refusals_preserve_the_overlay_and_record_only_completed_observations() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        for allowance in 0..=4 {
+            let allocator = Arc::new(TestAllocator::default());
+            let db = Database::with_options(allocator.options()).unwrap();
+            let c = db.create_collection().unwrap();
+            let old = db.integer(1).unwrap();
+            let staged = db.integer(2).unwrap();
+            let incoming = db.integer(3).unwrap();
+            let changed = db.integer(4).unwrap();
+            {
+                let mut seed = db.begin();
+                seed.put(c, b"a", &old).unwrap();
+                seed.put(c, b"b", &old).unwrap();
+                seed.commit().unwrap();
+            }
+            let base = db.snapshot();
+            let mut tx = db.begin();
+            tx.put(c, b"a", &staged).unwrap();
+            let before = (
+                db.memory_usage().live_bytes,
+                allocator.live_bytes(),
+                tx.bytes,
+            );
+
+            let result = allocator.with_refusal(allowance, || tx.put(c, b"b", &incoming));
+            assert_eq!(tx.state(), TransactionState::Active);
+            assert_eq!(db.snapshot().revision(), base.revision());
+            assert_eq!(db.snapshot().get(c, b"a").unwrap(), Some(old.clone()));
+            assert_eq!(db.snapshot().get(c, b"b").unwrap(), Some(old.clone()));
+            assert_eq!(tx.get(c, b"a").unwrap(), Some(staged.clone()));
+            if allowance == 4 {
+                assert_eq!(result, Ok(()));
+                tx.commit().unwrap();
+                assert_eq!(db.snapshot().get(c, b"a").unwrap(), Some(staged));
+                assert_eq!(db.snapshot().get(c, b"b").unwrap(), Some(incoming));
+                continue;
+            }
+
+            // The first two requests record b. The last two stage its write.
+            assert_eq!(result, Err(Error::OutOfMemory));
+            assert_eq!(tx.writes.len(), 1);
+            assert!(tx.collections.is_empty());
+            let recorded = allowance >= 2;
+            assert_eq!(tx.points.len(), if recorded { 2 } else { 1 });
+            let charge = if recorded {
+                1 + std::mem::size_of::<Point>()
+            } else {
+                0
+            };
+            assert_eq!(
+                (
+                    db.memory_usage().live_bytes,
+                    allocator.live_bytes(),
+                    tx.bytes
+                ),
+                (before.0 + charge, before.1 + charge, before.2 + charge)
+            );
+
+            let mut writer = db.begin();
+            writer.put(c, b"b", &changed).unwrap();
+            writer.commit().unwrap();
+            if recorded {
+                assert_eq!(tx.commit(), Err(Error::Conflict));
+                assert_eq!(tx.state(), TransactionState::Aborted);
+                assert_eq!(db.snapshot().get(c, b"a").unwrap(), Some(old.clone()));
+            } else {
+                tx.commit().unwrap();
+                assert_eq!(db.snapshot().get(c, b"a").unwrap(), Some(staged));
+            }
+            assert_eq!(db.snapshot().get(c, b"b").unwrap(), Some(changed));
+            assert_eq!(base.get(c, b"a").unwrap(), Some(old.clone()));
+            assert_eq!(base.get(c, b"b").unwrap(), Some(old));
+        }
+    }
+
+    #[test]
     fn new_write_charge_checks_each_sum_without_allocating_giant_keys() {
         let overhead = std::mem::size_of::<Write>();
         let half = isize::MAX as usize;
