@@ -414,7 +414,35 @@ mod transfer_tests {
     struct Progress {
         answer: Result<usize>,
         calls: Vec<(u64, usize)>,
+        written: Vec<u8>,
+        fail_at: Option<usize>,
+        sync_answer: Result<()>,
+        syncs: usize,
     }
+
+    impl Progress {
+        fn new(answer: Result<usize>) -> Self {
+            Self {
+                answer,
+                calls: Vec::new(),
+                written: Vec::new(),
+                fail_at: None,
+                sync_answer: Ok(()),
+                syncs: 0,
+            }
+        }
+
+        fn attempt(&mut self, offset: u64, size: usize) -> Result<usize> {
+            let index = self.calls.len();
+            self.calls.push((offset, size));
+            if self.fail_at == Some(index) {
+                Err(Error::Busy)
+            } else {
+                self.answer
+            }
+        }
+    }
+
     impl ByteStore for Progress {
         fn lock(&mut self) -> Result<()> {
             Ok(())
@@ -424,15 +452,20 @@ mod transfer_tests {
             Ok(0)
         }
         fn sync(&mut self) -> Result<()> {
-            Ok(())
+            self.syncs += 1;
+            self.sync_answer
         }
         fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
-            self.calls.push((offset, out.len()));
-            self.answer
+            let n = self.attempt(offset, out.len())?;
+            for (index, byte) in out.iter_mut().take(n).enumerate() {
+                *byte = (offset as u8).wrapping_add(index as u8);
+            }
+            Ok(n)
         }
         fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
-            self.calls.push((offset, bytes.len()));
-            self.answer
+            let n = self.attempt(offset, bytes.len())?;
+            self.written.extend_from_slice(&bytes[..n.min(bytes.len())]);
+            Ok(n)
         }
     }
 
@@ -440,10 +473,7 @@ mod transfer_tests {
     fn exact_transfers_reject_zero_oversized_and_failed_progress() {
         for writing in [false, true] {
             for answer in [Ok(0), Ok(1), Ok(3), Err(Error::Io)] {
-                let mut store = Progress {
-                    answer,
-                    calls: Vec::new(),
-                };
+                let mut store = Progress::new(answer);
                 let result = if writing {
                     write_all(&mut store, 0, &[0; 2])
                 } else {
@@ -464,11 +494,48 @@ mod transfer_tests {
     }
 
     #[test]
+    fn short_reads_fill_only_the_progressed_prefix_and_preserve_the_error() {
+        let start = REGION as u64 - 1;
+        let expected = [start as u8, (start + 1) as u8, (start + 2) as u8];
+        let calls = [(start, 3), (start + 1, 2), (start + 2, 1)];
+        let mut complete = Progress::new(Ok(1));
+        let mut output = [9; 3];
+        assert_eq!(read_all(&mut complete, start, &mut output), Ok(()));
+        assert_eq!(output, expected);
+        assert_eq!(complete.calls, calls);
+
+        let mut refused = Progress::new(Ok(1));
+        refused.fail_at = Some(1);
+        let mut output = [9; 3];
+        assert_eq!(read_all(&mut refused, start, &mut output), Err(Error::Busy));
+        assert_eq!(output, [expected[0], 9, 9]);
+        assert_eq!(refused.calls, calls[..2]);
+    }
+
+    #[test]
+    fn write_synced_flushes_only_a_complete_transfer() {
+        let start = REGION as u64 - 1;
+        let input = [1, 7, 9];
+        let calls = [(start, 1), (start + 1, 2), (start + 2, 1)];
+        for sync_answer in [Ok(()), Err(Error::Busy)] {
+            let mut store = Progress::new(Ok(1));
+            store.sync_answer = sync_answer;
+            assert_eq!(write_synced(&mut store, start, &input), sync_answer);
+            assert_eq!(store.calls, calls);
+            assert_eq!(store.written, input);
+            assert_eq!(store.syncs, 1);
+        }
+        let mut refused = Progress::new(Ok(1));
+        refused.fail_at = Some(1);
+        assert_eq!(write_synced(&mut refused, start, &input), Err(Error::Busy));
+        assert_eq!(refused.calls, calls[..2]);
+        assert_eq!(refused.written, input[..1]);
+        assert_eq!(refused.syncs, 0);
+    }
+
+    #[test]
     fn transfers_skip_empty_buffers_and_bound_offsets_and_regions() {
-        let mut store = Progress {
-            answer: Ok(1),
-            calls: Vec::new(),
-        };
+        let mut store = Progress::new(Ok(1));
         assert_eq!(read_all(&mut store, u64::MAX, &mut []), Ok(()));
         assert_eq!(write_all(&mut store, u64::MAX, &[]), Ok(()));
         assert!(store.calls.is_empty());
@@ -779,14 +846,17 @@ mod decision_tests {
 
     #[test]
     fn persist_revision_mismatch_and_exhaustion_reject_before_io() {
-        for (current, proposed, expected) in [
-            (0, 0, Err(Error::Invalid)),
-            (0, 2, Err(Error::Invalid)),
-            (u64::MAX, 0, Err(Error::Invalid)),
-            (0, 1, Ok(())),
+        for (poisoned, current, proposed, expected) in [
+            (false, 0, 0, Err(Error::Invalid)),
+            (false, 0, 2, Err(Error::Invalid)),
+            (false, u64::MAX, 0, Err(Error::Invalid)),
+            (true, 0, 1, Err(Error::RecoveryRequired)),
+            (false, 0, 1, Ok(())),
         ] {
             let (mut storage, mem, _, retention, disk) = fixture();
-            storage.revision = current; // model only the private precondition boundary
+            // Model the private persist preconditions independently.
+            storage.revision = current;
+            storage.poisoned = poisoned;
             let head = mem
                 .shared(Head {
                     revision: proposed,
@@ -800,7 +870,7 @@ mod decision_tests {
             if expected.is_err() {
                 assert!(disk.trace().unwrap().is_empty());
                 assert_eq!(disk.durable_image().unwrap(), before);
-                assert!(!storage.requires_recovery());
+                assert_eq!(storage.requires_recovery(), poisoned);
             } else {
                 assert_eq!(storage.revision, 1);
                 assert!(storage.verify(&mem).is_ok());

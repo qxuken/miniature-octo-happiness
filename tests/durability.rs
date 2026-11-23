@@ -184,12 +184,37 @@ fn real_codec_roundtrip_scalars_binary_and_shared_nested_values() {
 
 #[test]
 fn publication_failures_reopen_the_revision_that_survived() {
-    let image = base_image();
+    let (image, retained) = {
+        let (disk, db) = base_store();
+        db.retain_snapshot(&db.snapshot()).unwrap();
+        (disk.durable_image().unwrap(), retained_rows(&db))
+    };
     let trace = commit_trace(&image);
     let [append_sync, root_sync, _] = commit_barriers(&trace);
     let baseline = SimulatedDisk::from_image(&image).unwrap();
     let db = open(&baseline);
     let rev = db.snapshot().revision();
+    let parity = (rev + 1) & 1;
+    let operations: Vec<_> = trace.iter().map(|e| (e.kind, e.offset, e.len)).collect();
+    assert_eq!(operations[0], (IoKind::Length, 0, 0));
+    assert!(append_sync > 1);
+    assert!(
+        operations[1..append_sync]
+            .iter()
+            .all(|&(kind, offset, len)| {
+                kind == IoKind::Write && offset >= image.len() as u64 && len > 0 && len <= REGION
+            })
+    );
+    assert_eq!(
+        operations[append_sync..],
+        [
+            (IoKind::Sync, 0, 0),
+            (IoKind::Write, (1 + parity) * REGION as u64, REGION),
+            (IoKind::Sync, 0, 0),
+            (IoKind::Write, (3 + parity) * REGION as u64, REGION),
+            (IoKind::Sync, 0, 0),
+        ]
+    );
     let old = state(&db);
     let mut tx = staged(&db);
     assert_eq!(tx.commit(), Ok(rev + 1));
@@ -201,6 +226,7 @@ fn publication_failures_reopen_the_revision_that_survived() {
     let reopened = open(&baseline);
     assert_eq!(reopened.snapshot().revision(), rev + 1);
     assert_eq!(state(&reopened), new);
+    assert_eq!(retained_rows(&reopened), retained);
 
     let policies = [
         Crash::DropAll,
@@ -230,6 +256,7 @@ fn publication_failures_reopen_the_revision_that_survived() {
             assert!(db.requires_recovery());
             assert_eq!(db.snapshot().revision(), rev);
             assert_eq!(state(&db), old);
+            assert_eq!(retained_rows(&db), retained);
             assert_eq!(historical.revision(), rev);
             assert_eq!(
                 tx.state(),
@@ -247,6 +274,7 @@ fn publication_failures_reopen_the_revision_that_survived() {
             drop(historical);
             drop(db);
             let reopened = open(&disk);
+            assert_eq!(retained_rows(&reopened), retained);
             // At a failed root sync the only pending write is the new root.
             // In these policies a torn prefix of 63 bytes cannot validate it.
             let root_survives = matches!(policy, Crash::PersistAll)
