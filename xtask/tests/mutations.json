@@ -8728,6 +8728,138 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-allocation",
+      "file": "src/storage/file.rs",
+      "old": "2 * 16 + suffix.len(),\n        )?;",
+      "new": "2 * 16 + suffix.len(),\n        ).map_err(|_| Error::Io)?;",
+      "test": "storage::file::decision_tests::scratch_uses_one_selected_reservation_and_stops_on_entropy_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-entropy",
+      "file": "src/storage/file.rs",
+      "old": "for byte in make_identity()? {",
+      "new": "for byte in make_identity().map_err(|_| Error::Invalid)? {",
+      "test": "storage::file::decision_tests::scratch_uses_one_selected_reservation_and_stops_on_entropy_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-bytes",
+      "file": "src/storage/file.rs",
+      "old": "for byte in make_identity()? {",
+      "new": "for byte in make_identity()?.into_iter().take(15) {",
+      "test": "storage::file::decision_tests::scratch_uses_one_selected_reservation_and_stops_on_entropy_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-high-nibble",
+      "file": "src/storage/file.rs",
+      "old": "[byte >> 4, byte & 15]",
+      "new": "[byte >> 3, byte & 15]",
+      "test": "storage::file::decision_tests::scratch_uses_one_selected_reservation_and_stops_on_entropy_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-low-nibble",
+      "file": "src/storage/file.rs",
+      "old": "[byte >> 4, byte & 15]",
+      "new": "[byte >> 4, byte & 7]",
+      "test": "storage::file::decision_tests::scratch_uses_one_selected_reservation_and_stops_on_entropy_failure",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-remove-success",
+      "file": "src/storage/file.rs",
+      "old": "self.name.as_ptr().cast(), 0) } == 0 {",
+      "new": "self.name.as_ptr().cast(), 0) } != 0 {",
+      "test": "storage::file::decision_tests::scratch_collision_and_unlink_preserve_native_operation_and_siblings",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-remove-context",
+      "file": "src/storage/file.rs",
+      "old": "NativeIoOperation::Remove,\n                io::Error::last_os_error(),",
+      "new": "NativeIoOperation::Open,\n                io::Error::last_os_error(),",
+      "test": "storage::file::decision_tests::scratch_collision_and_unlink_preserve_native_operation_and_siblings",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-read-offset",
+      "file": "src/storage/file.rs",
+      "old": "self.file.read_at(out, offset)",
+      "new": "self.file.read_at(out, offset.saturating_sub(1))",
+      "test": "storage::file::decision_tests::native_positioned_io_distinguishes_progress_eof_and_refusal",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-read-eof",
+      "file": "src/storage/file.rs",
+      "old": "retry(NativeIoOperation::Read, || self.file.read_at(out, offset))",
+      "new": "retry(NativeIoOperation::Read, || self.file.read_at(out, offset)).map(|n| n.max(1))",
+      "test": "storage::file::decision_tests::native_positioned_io_distinguishes_progress_eof_and_refusal",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-read-context",
+      "file": "src/storage/file.rs",
+      "old": "retry(NativeIoOperation::Read, || self.file.read_at(out, offset))",
+      "new": "retry(NativeIoOperation::Metadata, || self.file.read_at(out, offset))",
+      "test": "storage::file::decision_tests::native_positioned_io_distinguishes_progress_eof_and_refusal",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-write-offset",
+      "file": "src/storage/file.rs",
+      "old": "self.file.write_at(bytes, offset)",
+      "new": "self.file.write_at(bytes, offset.saturating_sub(1))",
+      "test": "storage::file::decision_tests::native_positioned_io_distinguishes_progress_eof_and_refusal",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-scratch-io-write-context",
+      "file": "src/storage/file.rs",
+      "old": "retry(NativeIoOperation::Write, || {\n            self.file.write_at(bytes, offset)\n        })",
+      "new": "retry(NativeIoOperation::Sync, || {\n            self.file.write_at(bytes, offset)\n        })",
+      "test": "storage::file::decision_tests::native_positioned_io_distinguishes_progress_eof_and_refusal",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }

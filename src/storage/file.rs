@@ -309,18 +309,19 @@ impl Location {
             Err(Error::Invalid)
         }
     }
-    fn scratch(&self, mem: &Memory) -> Result<Self> {
-        let prefix = b".wdb-compact-";
-        let mut name = Vec::new_in(self.name.allocator().clone());
-        mem.reserve_external(&mut name, prefix.len())?;
-        name.extend_from_slice(prefix);
-        mem.reserve_external(&mut name, 37)?;
-        for byte in identity()? {
+    fn scratch(&self, make_identity: impl FnOnce() -> Result<[u8; 16]>) -> Result<Self> {
+        let suffix = b".tmp\0";
+        let mut name = Self::copy_path(
+            self.name.allocator().clone(),
+            b".wdb-compact-",
+            2 * 16 + suffix.len(),
+        )?;
+        for byte in make_identity()? {
             for n in [byte >> 4, byte & 15] {
                 name.push(b"0123456789abcdef"[n as usize]);
             }
         }
-        name.extend_from_slice(b".tmp\0");
+        name.extend_from_slice(suffix);
         Ok(Self {
             directory: retry(NativeIoOperation::DuplicateHandle, || {
                 self.directory.try_clone()
@@ -484,7 +485,7 @@ fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<Co
         mem,
     )?;
     storage.release_serialization_caches();
-    let scratch = original.scratch(mem)?;
+    let scratch = original.scratch(identity)?;
     let target = scratch.duplicate()?.open_mode(true, true)?;
     let new_file = retry(NativeIoOperation::DuplicateHandle, || {
         target.file.try_clone()
@@ -869,6 +870,126 @@ mod decision_tests {
         drop(duplicate);
         drop(location);
         assert_eq!(allocator.live_bytes(), live);
+    }
+
+    #[test]
+    fn scratch_uses_one_selected_reservation_and_stops_on_entropy_failure() {
+        use super::super::diagnostics::capture;
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let fixture = PathFixture::new("scratch-allocation");
+        let allocator = Arc::new(TestAllocator::default());
+        let location = Location::new_in(&fixture.0.join("source"), allocator.handle()).unwrap();
+        let live = allocator.live_bytes();
+        let expected = b".wdb-compact-0102030405060708090a0b0c0d0e0f10.tmp\0";
+
+        let (result, requests) = allocator.count_with_refusal(0, || {
+            capture(|| location.scratch(|| panic!("entropy queried after refused allocation")))
+        });
+        let failure = result.err().unwrap();
+        assert_eq!(failure.error, Error::OutOfMemory);
+        assert_eq!(failure.native, None);
+        assert_eq!(requests, 1);
+        assert_eq!(allocator.last_request_size(), expected.len());
+        assert_eq!(allocator.live_bytes(), live);
+
+        let (result, requests) =
+            allocator.count_with_refusal(1, || location.scratch(|| Err(Error::Io)));
+        assert_eq!(result.err(), Some(Error::Io));
+        assert_eq!(requests, 1);
+        assert_eq!(allocator.live_bytes(), live);
+        assert!(std::fs::read_dir(&fixture.0).unwrap().next().is_none());
+
+        let (result, requests) = allocator.count_with_refusal(1, || {
+            location.scratch(|| Ok(std::array::from_fn(|index| index as u8 + 1)))
+        });
+        let scratch = result.unwrap();
+        assert_eq!(requests, 1);
+        assert_eq!(allocator.last_request_size(), expected.len());
+        assert_eq!(scratch.name.as_slice(), expected);
+        assert_eq!(allocator.live_bytes(), live + expected.len());
+        let parent = scratch.directory.metadata().unwrap();
+        let actual = location.directory.metadata().unwrap();
+        assert_eq!((parent.dev(), parent.ino()), (actual.dev(), actual.ino()));
+        drop(scratch);
+        assert_eq!(allocator.live_bytes(), live);
+    }
+
+    #[test]
+    fn scratch_collision_and_unlink_preserve_native_operation_and_siblings() {
+        use super::super::diagnostics::capture;
+        use std::ffi::OsStr;
+
+        let fixture = PathFixture::new("scratch-remove");
+        let original = fixture.0.join("source");
+        std::fs::write(&original, b"canonical").unwrap();
+        let location = Location::new(&original).unwrap();
+        let scratch = location.scratch(|| Ok([0xa5; 16])).unwrap();
+        let scratch_path = fixture
+            .0
+            .join(OsStr::from_bytes(scratch.name.strip_suffix(&[0]).unwrap()));
+        let mut target = scratch.duplicate().unwrap().open_mode(true, true).unwrap();
+        target.lock().unwrap();
+        assert_eq!(target.write(0, b"candidate"), Ok(9));
+        target.sync().unwrap();
+        drop(target);
+
+        let collision = capture(|| scratch.duplicate()?.open_mode(true, true))
+            .err()
+            .unwrap();
+        assert_eq!(collision.error, Error::AlreadyExists);
+        let native = collision.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Create);
+        assert_eq!(native.raw_os_error, Some(17)); // EEXIST
+        assert_eq!(std::fs::read(&scratch_path).unwrap(), b"candidate");
+
+        capture(|| scratch.remove()).unwrap();
+        assert!(!scratch_path.exists());
+        let missing = capture(|| scratch.remove()).unwrap_err();
+        assert_eq!(missing.error, Error::NotFound);
+        let native = missing.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Remove);
+        assert_eq!(native.raw_os_error, Some(2)); // ENOENT
+        assert_eq!(std::fs::read(&original).unwrap(), b"canonical");
+    }
+
+    #[test]
+    fn native_positioned_io_distinguishes_progress_eof_and_refusal() {
+        use super::super::diagnostics::capture;
+
+        let fixture = PathFixture::new("positioned-io");
+        let path = fixture.0.join("store");
+        let mut writer = FileStore::create(&path).unwrap();
+        writer.lock().unwrap();
+        assert_eq!(writer.write(0, b"abcd"), Ok(4));
+        assert_eq!(writer.write(1, b"XY"), Ok(2));
+        writer.sync().unwrap();
+        assert_eq!(writer.length(), Ok(4));
+        drop(writer);
+
+        let mut reader = FileStore::open_read_only(&path).unwrap();
+        reader.lock().unwrap();
+        let mut out = *b"????";
+        assert_eq!(reader.read(1, &mut out), Ok(3));
+        assert_eq!(&out, b"XYd?");
+        assert_eq!(reader.read(4, &mut out), Ok(0));
+        assert_eq!(&out, b"XYd?");
+
+        let read = capture(|| reader.read(u64::MAX, &mut out)).unwrap_err();
+        assert_eq!(read.error, Error::Io);
+        let native = read.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Read);
+        assert_eq!(native.raw_os_error, Some(22)); // EINVAL
+        assert_eq!(&out, b"XYd?");
+
+        let write = capture(|| reader.write(1, b"!")).unwrap_err();
+        assert_eq!(write.error, Error::Io);
+        let native = write.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Write);
+        assert_eq!(native.raw_os_error, Some(9)); // EBADF
+        assert_eq!(reader.length(), Ok(4));
+        assert_eq!(std::fs::read(&path).unwrap(), b"aXYd");
     }
 
     #[test]
