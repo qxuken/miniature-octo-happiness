@@ -62,10 +62,10 @@ counter once the remaining tests drive real allocation requests.
 transition. Batch 3 starts with VALUE hash probing and rehash, DATA
 lookup and insertion, and the borrowed-to-owned cache transition.
 
-The first batch 5 PR covers [ByteStore transfers and local publication](decisions/bytestore-publication-current.md).
-Follow it with creation, lease cleanup and reopen stabilization, then
-maintenance replacement and native adapter decisions. Batch 9 covers the
-follower's separate durability acknowledgment.
+Batch 5 starts with [ByteStore transfers and local publication](decisions/bytestore-publication-current.md),
+then [creation, lease cleanup and reopen stabilization](decisions/storage-creation-reopen-current.md).
+Maintenance replacement and native adapter decisions follow. Batch 9 covers
+the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those

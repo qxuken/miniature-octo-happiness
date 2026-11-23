@@ -422,6 +422,12 @@ bytes survive modeled power loss. No write is assumed atomic. These are declared
 requirements, not established hardware guarantees. The milestone-7 adapter
 implements the macOS locking/sync/lifecycle policy described below.
 
+A successful `ByteStore::lock` hands the writer lease to the engine, which
+calls `unlock` when the storage owner drops. On a lock error, the engine
+drops the backend without calling `unlock`. By the time it is dropped,
+the backend must release any resources it acquired for the failed attempt
+and preserve any other owner's lease.
+
 Integers, lengths, and offsets are little-endian; unspecified/reserved bytes
 must be zero. Lengths/references are checked `u64` byte counts/offsets. A protected
 region is **4,096 bytes**. Images are capped at **64 MiB**, graph traversal at
@@ -2738,6 +2744,9 @@ state associated with the expected revision.
 This pass covers local publication, witness agreement, and writable
 recovery stabilization. The format parser, graph verifier, root-slot
 adjacency check, and follower acknowledgment have separate decisions.
+The [current creation and reopen ledger](docs/decisions/storage-creation-reopen-current.md)
+extends these checks with exact traces, lease reacquisition before a crash,
+and a byte-for-byte comparison against an independent successful commit.
 
 On arm64 macOS, 60 library, durability, compaction, file, replication,
 and retention tests passed in both debug and release with all features.

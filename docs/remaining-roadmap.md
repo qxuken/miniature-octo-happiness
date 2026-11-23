@@ -279,8 +279,15 @@ revision reopens at each simulated publication failure and checks the
 retained rows throughout. Debug and release pass on macOS and Docker Linux
 at `e8d76f1`. Both macOS profiles detect all 27 selected controls.
 The queue has 9,628 open records (2,258 runtime / 26 driver / 7,344 tooling).
-Creation, lease cleanup, recovery stabilization, replacement, native adapter
-phases and follower durability remain in the queue.
+
+The [creation and reopen ledger](decisions/storage-creation-reopen-current.md)
+maps 15 more source records at `de38aac`. It checks which initialization
+failures leave no usable image, and which stabilization failures reopen
+revision 3 or 4 with revision 2 still retained. Both profiles pass on
+macOS and Docker Linux. Both macOS profiles detect all 24 selected
+controls. The queue has 9,613 open records (2,243 runtime / 26 driver /
+7,344 tooling). Maintenance replacement and native adapter phases are
+next in batch 5. Follower durability has its own checks in batch 9.
 
 All R1 and R2–R7 completion gates above remain open.
 
