@@ -141,8 +141,10 @@ Existing fault sweeps supply successful and injected-failure controls:
 
 - `tests/allocation.rs::every_candidate_allocation_failure_leaves_all_records_and_history_unchanged`:
   candidate graph/head creation and atomic publication.
-- `observation_overlay_and_scan_failures_never_publish`: observation, overlay and
-  scan allocation paths preserve published records/revision.
+- `observation_overlay_and_owned_scan_failures_never_publish`: selected
+  allocator refusal preserves published records and revision. The
+  `allocator_routing` suite covers refusal while producing plain Rust scan
+  outputs.
 - `failed_collection_publication_is_atomic_and_ids_are_not_reused`: catalog
   removal preparation and pinned snapshots.
 - `tests/retention.rs::retention_preparation_allocation_failures_are_atomic`:

@@ -213,8 +213,12 @@ allocation hook.
 The [simulator allocator slice](decisions/simulator-allocator-current.md)
 uses an independent selected allocator for simulator storage and backend
 failure sweeps. The constructor, trace, write, crash, sync and reopen checks
-pass on macOS and Docker Linux in both profiles. The first stack leaves
-plain Rust output refusal and the remaining legacy hook users for batch 2.
+pass on macOS and Docker Linux in both profiles.
+
+The [Rust output slice](decisions/rust-output-allocation.md) exercises real
+Global refusal in map, scan, retained ID, simulator, inspection and logical
+export outputs. Observation, overlay and owned scans use selected-allocator
+refusals. Batch 2 continues with the remaining engine allocation hook users.
 
 All R1 and R2–R7 completion gates above remain open.
 

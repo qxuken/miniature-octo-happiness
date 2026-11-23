@@ -167,13 +167,12 @@ fn every_candidate_allocation_failure_leaves_all_records_and_history_unchanged()
     assert!(success);
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
-fn observation_overlay_and_scan_failures_never_publish() {
+fn observation_overlay_and_owned_scan_failures_never_publish() {
     for operation in 0..4 {
         let mut success = false;
         for budget in 0..160 {
-            let db = Database::new().unwrap();
+            let (allocator, db) = selected_database();
             let c = db.create_collection().unwrap();
             let item = db.integer(7).unwrap();
             let mut seed = db.begin();
@@ -181,14 +180,12 @@ fn observation_overlay_and_scan_failures_never_publish() {
             seed.commit().unwrap();
             let rev = db.snapshot().revision();
             let mut tx = db.begin();
-            db.fail_allocations_after(Some(budget));
-            let result = match operation {
+            let result = allocator.with_refusal(budget, || match operation {
                 0 => tx.get(c, b"x").map(|_| ()),
                 1 => tx.put(c, b"new", &item),
-                2 => tx.scan(c).map(|_| ()),
+                2 => tx.scan_iter(c).map(drop),
                 _ => tx.delete(c, b"x"),
-            };
-            db.fail_allocations_after(None);
+            });
             assert_eq!(db.snapshot().revision(), rev);
             assert_eq!(db.snapshot().get(c, b"x").unwrap(), Some(item));
             match result {

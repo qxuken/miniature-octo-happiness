@@ -238,7 +238,7 @@
     "docs/decisions/current.md": "fc26e89154fd2077e63ac2815bde91d8be7ac8275e627f686d03d9e2329e6c1f",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
-    "docs/decisions/engine.md": "ffdef02592a7082871cb0128d56f0f5df1a64e71ba1ecf2b82e15d12f4e168ba",
+    "docs/decisions/engine.md": "f5ad16c33b6559caa8301a2bff9861910d93f4c89af7811703b0ea51a047eaff",
     "docs/decisions/ffi.md": "5de80429b18fb25cc5ff237cd58d96064b99e4e8335df23242b6334e1b9d36ef",
     "docs/decisions/macros.md": "abf03b25df4e801504b94bcfd6fb2eb038f8c9bf34cfce2356272ad6645f0f35",
     "docs/decisions/memory.md": "8116189ca1c2b655f2bc5cc0e613b94ec7bf8efe98f6b5bc5e08a182adad62a7",
@@ -247,7 +247,7 @@
     "docs/decisions/replacement.md": "51ca29d454cde7576cccb39e147449bd5dd5c1b47a53d308c2f52287a3754317",
     "docs/decisions/replication.md": "c878715b597564370205df1887d5b398fe278fb70948762023bea76f40b1eed8",
     "docs/decisions/schema.md": "7ab28cc3450ecdf3d60b7b21da33878b4e70064171d7f254b1ab7e18b41553b7",
-    "docs/decisions/simulator.md": "0c26c5ad4f8ab2ffbb1b094e64dc6a28ba576bcfd0571eea4668031f868dde00",
+    "docs/decisions/simulator.md": "33cffe2f6c97cddde019f32fa292b7815afe0e7424d5bedebd38585821c8858f",
     "docs/decisions/snapshot-cli.md": "6f3016cf826a3c06985ffb1be8d25ca032bb7c886e6027741aa91d6076be9634",
     "docs/decisions/storage-core.md": "f4903525352908d017e9ff6858fdc70a45e38dcaca11e98a8ae726f96a2f2ef2",
     "docs/decisions/tree.md": "dab795f63e6a510209051f2021b809474909da24e6350272acdce3545a6b57fb",
@@ -264,8 +264,8 @@
     "src/replication/follower/tests.rs": "b19a7271558fb0a46db3928b55c274d8d15665cd7f595caa0671be09506cd85a",
     "src/replication/tests.rs": "bf132cfa40f16f42665412d74603fb3e02be54596dd67ea5b3db6329c89f01b5",
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
-    "tests/allocation.rs": "f89aa8b866c944f6416a8ed2453a449db38742ca5e9038370c76b6430dc6c1c6",
-    "tests/allocator_routing.rs": "618d9f0ad482da6d1d24d02a8ae5c8579c3440ac6163438ec72565788f043afd",
+    "tests/allocation.rs": "00805b07a5fe375bdfece310f0b3e847cadbd7e17bfbd9ae7a4a5bb6aed53104",
+    "tests/allocator_routing.rs": "9b692c6ff98ff66a9007a949852611fecdbf69aa68e377c5eed412c26427749b",
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
@@ -279,7 +279,7 @@
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
     "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
     "tests/schema.rs": "11f76f4abac949e644104b9be6a3805f059d607d9e33593cba69ddeb869a5314",
-    "tests/storage_decisions.rs": "d009c17e1388c4004b46067991414b0371d45bdec7b8784a37e2867a7b00b7d6",
+    "tests/storage_decisions.rs": "83a0d7e861bb0ead468889d4b9bc837b84da5188a6477fae7698d894791598cb",
     "tests/transactions.rs": "f4d6aec6b5f63cea148c64b9a31b89f755848b196fb0e38b542e5d4802cdf112",
     "tests/value_decisions.rs": "eda8394a8b1305e110ec99bb7d50ba78436c1a0843a0f472cdd6213fc6284574",
     "tests/values.rs": "adcb83f2d92ccae41fb25505d7e4e22334a77d03eec945ea711ff1616c3c1067",
@@ -308,7 +308,8 @@
     "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
     "src/memory/test_allocator.rs": "0dcf1c3e7056957d7489076d161b57f7f1b7996480ff5827ad7db2c0584d01e2",
     "tests/support/allocator.rs": "f038645fa4a5181c2690dfc3f64c007af47847dfafc19ec9c1740dbb46cc8474",
-    "docs/decisions/simulator-allocator-current.md": "f7918c90765407be71ffad0759ef0a4ff86f46ae73a1212fbc92659e2f31d1c2"
+    "docs/decisions/simulator-allocator-current.md": "f7918c90765407be71ffad0759ef0a4ff86f46ae73a1212fbc92659e2f31d1c2",
+    "docs/decisions/rust-output-allocation.md": "79637f720e15e798940bd55ff3225f66e2da170e50e2ed47bd6689373694aba7"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -427,7 +428,8 @@
         "tests/allocation.rs",
         "tests/live_budget_decisions.rs",
         "docs/decisions/allocation-recovery-current.md",
-        "tests/support/allocator.rs"
+        "tests/support/allocator.rs",
+        "docs/decisions/rust-output-allocation.md"
       ],
       "residual": "Allocator implementation and unsupported platform/resource combinations remain separate."
     },
@@ -455,7 +457,8 @@
         "docs/decisions/current.md",
         "docs/decisions/tree.md",
         "tests/value_decisions.rs",
-        "tests/values.rs"
+        "tests/values.rs",
+        "docs/decisions/rust-output-allocation.md"
       ],
       "residual": "Invariant and delegated dispositions retain the exact valid-structure domain.",
       "single_source_ledgers": [
@@ -546,7 +549,8 @@
         "tests/durability.rs",
         "docs/decisions/simulator-allocator-current.md",
         "tests/storage_decisions.rs",
-        "tests/support/allocator.rs"
+        "tests/support/allocator.rs",
+        "docs/decisions/rust-output-allocation.md"
       ],
       "residual": "Finite modeled schedules and allocation errors do not establish native device behavior."
     },
@@ -576,7 +580,8 @@
         "docs/decisions/operations.md",
         "tests/inspection.rs",
         "tests/logical.rs",
-        "tests/salvage.rs"
+        "tests/salvage.rs",
+        "docs/decisions/rust-output-allocation.md"
       ],
       "residual": "Complete-root salvage and known format/version profiles do not imply arbitrary partial salvage/conversion."
     },

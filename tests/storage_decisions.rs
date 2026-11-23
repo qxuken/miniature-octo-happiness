@@ -378,26 +378,6 @@ fn durable_tear_growth_allocation_failure_leaves_both_images_and_pending_queue_u
 }
 
 #[test]
-#[cfg(feature = "fault-injection")]
-fn trace_copy_and_first_event_failures_leave_io_state_unchanged() {
-    let mut disk = SimulatedDisk::new().unwrap();
-    disk.lock().unwrap();
-    disk.fail_allocations_after(Some(0));
-    assert_eq!(disk.trace(), Ok(vec![])); // empty output needs no allocation
-    assert_eq!(disk.write(0, &[1]), Err(Error::OutOfMemory)); // event allocation
-    disk.fail_allocations_after(None);
-    assert!(disk.trace().unwrap().is_empty());
-    assert_eq!(disk.length(), Ok(0));
-    disk.fail_allocations_after(Some(0));
-    assert_eq!(disk.trace(), Err(Error::OutOfMemory)); // nonempty output copy
-    disk.fail_allocations_after(None);
-    assert_eq!(disk.trace().unwrap().len(), 1);
-    disk.write(0, &[1]).unwrap();
-    disk.sync().unwrap();
-    assert_eq!(disk.durable_image().unwrap(), [1]);
-}
-
-#[test]
 fn creation_identity_and_empty_destination_guards_release_failed_leases() {
     for (identity, image) in [([0; 16], &b""[..]), ([1; 16], &b"occupied"[..])] {
         let disk = SimulatedDisk::from_image(image).unwrap();

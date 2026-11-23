@@ -33,9 +33,10 @@ New private `event_capacity_and_recording_controls_preserve_step_order` seeds a
 consistent 262143-entry/step trace, accepts the 262144th event and rejects the next
 without advancing steps. Disabling tracing admits I/O without growing the full
 log; an actual MemoryStore instance verifies record=false. New
-`trace_copy_and_first_event_failures_leave_io_state_unchanged` controls empty
-nonallocating trace versus nonempty failed output copy and first-event allocation
-failure before any I/O mutation. Existing backend allocation sweeps cover other
+`simulator_output_refusal_preserves_images_trace_and_lease` compares an empty,
+nonallocating trace with a nonempty output that propagates Global refusal.
+`first_event_allocator_refusal_keeps_the_armed_fault` covers selected-allocator
+refusal before any I/O mutation. Backend allocation sweeps cover additional
 trace allocation paths.
 
 ## S2: ranges and extent
