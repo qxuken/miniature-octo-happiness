@@ -93,8 +93,10 @@ the relocated macOS and Linux C/C++/Odin packages. The
 adds validation-mode controls, delivered allocator callback checks and the
 134-cell trace. The [C file-factory ledger](decisions/ffi-file-factories-current.md)
 sweeps selected-allocator create and reopen failures against the exact
-packaged libraries. Continue with remaining ownership and generated
-paths, and delivered consumers per ABI.
+packaged libraries. The [foreign allocator ledger](decisions/foreign-allocator-current.md)
+qualifies callback descriptor validation, context calls and zero-byte layout
+dispatch. Continue with the remaining provider ownership and generated paths,
+and delivered consumers per ABI.
 
 Batch 9 covers the follower's separate durability acknowledgment.
 

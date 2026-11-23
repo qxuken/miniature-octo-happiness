@@ -464,6 +464,14 @@ Linux, preserving exact bytes and both roots through failed reopen.
 Native Windows and the remaining generated paths stay open. The queue
 has 9,396 open records (2,014 runtime / 26 driver / 7,356 tooling).
 
+The [foreign allocator ledger](decisions/foreign-allocator-current.md) records
+callback descriptor and context pairs, plus zero-byte layout dispatch at
+`9822b4c`. Debug and release detect all eight controls on macOS and Docker
+Linux. Miri passes the eight portable allocator fixtures with strict
+provenance. The queue has 9,387 open records (2,005 runtime / 26 driver /
+7,356 tooling). Native Windows execution and the remaining provider ownership
+decisions stay open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "cfb12e69935a255d5a5b85500f29e0dc0534a8be0952a91a4a9894cfb8749281",
-    "xtask/tests/mutations.json": "dac6269eeaba4d486ef7b6a6459807bf6916a8098b015cd1d3ea570b8ea4ba3a",
+    "xtask/tests/mutations.json": "06672dbaba0fa7d20af56e94b5853471b7579c223c8d57523e3ca3448b6ad851",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -313,7 +313,7 @@
     "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
     "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
     "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
-    "src/memory/test_allocator.rs": "6e8b7e5ad1a708168c6fb16b67edcf9857d6c6beaa80b844c4e632a87f3e4caa",
+    "src/memory/test_allocator.rs": "3aa99cfd4830ed5b7fcef5f33cd93d90fd1c4813b6abbba7185ab845473fafee",
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
     "docs/decisions/rust-output-allocation.md": "d5da95d17be8fb22c7f6a4aefcf12d90779dc70685c7f9f02c33dcdb29f09623",
@@ -353,7 +353,8 @@
     "examples/memory.c": "10754519f2798a3124f378afe8d7eb491a9090599ee59cd66b3b1f05411bef43",
     "examples/support/allocator_contract.h": "b86da5ca90ca078d9c9cca8f6c8425b33150477534af65c31cb8029bec070fc9",
     "docs/decisions/ffi-file-factories-current.md": "53f0d983a931631ea8204b5341336f296156db46c153fa86383553184afb07da",
-    "examples/support/file_allocator_contract.h": "808ff3c0ac90512c74eb8f918ac4d419633364f8bfc2c50ee2cd51e204ab358b"
+    "examples/support/file_allocator_contract.h": "808ff3c0ac90512c74eb8f918ac4d419633364f8bfc2c50ee2cd51e204ab358b",
+    "docs/decisions/foreign-allocator-current.md": "4102fa64070f267104176245528c9e6156081a6c14db449f872dec5168ac4435"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -479,7 +480,9 @@
         "docs/decisions/allocation-recovery-current.md",
         "tests/support/allocator.rs",
         "docs/decisions/rust-output-allocation.md",
-        "docs/decisions/public-allocation-hook-retirement.md"
+        "docs/decisions/public-allocation-hook-retirement.md",
+        "src/memory/test_allocator.rs",
+        "docs/decisions/foreign-allocator-current.md"
       ],
       "residual": "Allocator implementation and unsupported platform/resource combinations remain separate."
     },
@@ -16698,6 +16701,330 @@
       ],
       "mutations": [
         "r1-ffi-boundary-path-nul"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FOREIGN-ALLOCATOR-DESCRIPTOR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "new",
+        "kind": "if",
+        "conditions": [
+          "callbacks.allocate.is_none()",
+          "callbacks.deallocate.is_none()",
+          "callbacks.retain_context.is_some() != callbacks.release_context.is_some()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "foreign_descriptor_rejects_each_missing_callback_independently"
+        }
+      ],
+      "mutations": [
+        "r1-foreign-allocator-require-allocate",
+        "r1-foreign-allocator-require-deallocate",
+        "r1-foreign-allocator-require-context-retain",
+        "r1-foreign-allocator-require-context-release"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FOREIGN-ALLOCATOR-ESSENTIAL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "new",
+        "kind": "short_circuit_or",
+        "conditions": [
+          "callbacks.allocate.is_none()",
+          "callbacks.deallocate.is_none()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "foreign_descriptor_rejects_each_missing_callback_independently"
+        }
+      ],
+      "mutations": [
+        "r1-foreign-allocator-require-allocate",
+        "r1-foreign-allocator-require-deallocate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FOREIGN-ALLOCATOR-RETAIN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "new",
+        "kind": "if",
+        "conditions": [
+          "let Some(retain) = callbacks.retain_context"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "foreign_descriptor_rejects_each_missing_callback_independently"
+        }
+      ],
+      "mutations": [
+        "r1-foreign-allocator-retain-context"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FOREIGN-ALLOCATOR-RETAIN-PATTERN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "new",
+        "kind": "pattern_test",
+        "conditions": [
+          "callbacks.retain_context"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "foreign_descriptor_rejects_each_missing_callback_independently"
+        }
+      ],
+      "mutations": [
+        "r1-foreign-allocator-retain-context"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FOREIGN-ALLOCATOR-RELEASE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "drop",
+        "kind": "if",
+        "conditions": [
+          "let Some(release) = self.0.release_context"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "foreign_descriptor_rejects_each_missing_callback_independently"
+        }
+      ],
+      "mutations": [
+        "r1-foreign-allocator-release-context"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FOREIGN-ALLOCATOR-RELEASE-PATTERN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "drop",
+        "kind": "pattern_test",
+        "conditions": [
+          "self.0.release_context"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "foreign_descriptor_rejects_each_missing_callback_independently"
+        }
+      ],
+      "mutations": [
+        "r1-foreign-allocator-release-context"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FOREIGN-ALLOCATOR-ZERO-ALLOCATE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "allocate",
+        "kind": "if",
+        "conditions": [
+          "layout.size() == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "foreign_zero_layout_skips_callbacks_and_nonzero_refusal_is_retryable"
+        }
+      ],
+      "mutations": [
+        "r1-foreign-allocator-zero-allocate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "FOREIGN-ALLOCATOR-ZERO-DEALLOCATE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "deallocate",
+        "kind": "if",
+        "conditions": [
+          "layout.size() != 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "foreign_zero_layout_skips_callbacks_and_nonzero_refusal_is_retryable"
+        }
+      ],
+      "mutations": [
+        "r1-foreign-allocator-zero-deallocate"
       ],
       "table": [
         {
