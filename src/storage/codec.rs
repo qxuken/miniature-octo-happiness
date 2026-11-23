@@ -1282,12 +1282,16 @@ mod tests {
     use super::*;
     use crate::{
         Database, Limits,
+        memory::test_allocator::TestAllocator,
         storage::{IoKind, SimulatedDisk, Storage},
     };
+    use std::sync::Arc;
+
     const ID: [u8; 16] = *b"codec-test-00001";
     #[test]
     fn cache_forks_preserve_indexes_first_match_and_rollback_every_allocation() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let mut entries = ChargedVec::new();
         mem.reserve(&mut entries, 20).unwrap();
         for i in 0..20 {
@@ -1316,28 +1320,29 @@ mod tests {
             )
             .unwrap();
         let baseline = mem.usage().0;
-        mem.fail_after(Some(0));
-        assert!(
-            CacheState::Borrowed(&values)
-                .finish(&mem)
-                .unwrap()
-                .ptr_eq(&values)
-        );
-        assert!(
-            CacheState::Borrowed(&data)
-                .finish(&mem)
-                .unwrap()
-                .ptr_eq(&data)
-        );
+        let ((), requests) = allocator.count_with_refusal(0, || {
+            assert!(
+                CacheState::Borrowed(&values)
+                    .finish(&mem)
+                    .unwrap()
+                    .ptr_eq(&values)
+            );
+            assert!(
+                CacheState::Borrowed(&data)
+                    .finish(&mem)
+                    .unwrap()
+                    .ptr_eq(&data)
+            );
+        });
+        assert_eq!(requests, 0);
         assert_eq!(mem.usage().0, baseline);
         // Each fork needs two vector allocations, then one shared header.
         for allowance in 0..=3 {
-            mem.fail_after(Some(allowance));
-            let result = (|| {
+            let result = allocator.with_refusal(allowance, || {
                 let mut state = CacheState::Borrowed(&values);
                 state.make_mut(|old| old.fork(&mem))?;
                 state.finish(&mem)
-            })();
+            });
             if allowance < 3 {
                 assert!(matches!(result, Err(Error::OutOfMemory)));
             } else {
@@ -1351,12 +1356,11 @@ mod tests {
             }
             drop(result);
             assert_eq!(mem.usage().0, baseline);
-            mem.fail_after(Some(allowance));
-            let result = (|| {
+            let result = allocator.with_refusal(allowance, || {
                 let mut state = CacheState::Borrowed(&data);
                 state.make_mut(|old| old.fork(&mem))?;
                 state.finish(&mem)
-            })();
+            });
             if allowance < 3 {
                 assert!(matches!(result, Err(Error::OutOfMemory)));
             } else {
@@ -1374,7 +1378,8 @@ mod tests {
     #[test]
     fn candidates_share_unchanged_caches_fork_only_appended_data_and_fail_atomically() {
         use crate::engine::{Collection, Record};
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let value = Value::bytes_new(&mem, b"old").unwrap();
         let records = Map::new()
             .set(&mem, b"row", Record { revision: 1, value })
@@ -1459,17 +1464,18 @@ mod tests {
         let before = mem.usage().0;
         let mut failures = 0;
         for allowance in 0..100 {
-            mem.fail_after(Some(allowance));
-            let result = encode(
-                &mem,
-                &head,
-                2,
-                ID,
-                data_only.end,
-                Some(&data_only.cache),
-                Some(&data_only.data_cache),
-                &retention,
-            );
+            let result = allocator.with_refusal(allowance, || {
+                encode(
+                    &mem,
+                    &head,
+                    2,
+                    ID,
+                    data_only.end,
+                    Some(&data_only.cache),
+                    Some(&data_only.data_cache),
+                    &retention,
+                )
+            });
             let success = result.is_ok();
             if !success {
                 assert!(matches!(result, Err(Error::OutOfMemory)));
@@ -1495,7 +1501,8 @@ mod tests {
 
     #[test]
     fn value_encoding_reuses_cached_nodes_and_propagates_each_allocation_failure() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let cached = Value::bytes_new(&mem, b"shared").unwrap();
         let uncached = Value::bytes_new(&mem, b"new").unwrap();
         let make_encoder = |start, cache| Encoder {
@@ -1548,22 +1555,21 @@ mod tests {
 
         let before = mem.usage().0;
         let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
-        mem.fail_after(Some(0));
-        assert_eq!(encoder.value(&cached), Ok(cached_offset));
+        assert_eq!(
+            allocator.with_refusal(0, || encoder.value(&cached)),
+            Ok(cached_offset)
+        );
         assert_eq!(encoder.end, start);
         assert!(matches!(&encoder.bytes, AppendBytes::Contiguous(bytes) if bytes.is_empty()));
         assert!(matches!(&encoder.cache, CacheState::Borrowed(old) if old.ptr_eq(&cache)));
         drop(encoder);
-        mem.fail_after(None);
 
         for value in &inputs {
             let mut failures = 0;
             let mut completed = false;
             for allowance in 0..64 {
                 let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
-                mem.fail_after(Some(allowance));
-                let result = encoder.value(value);
-                mem.fail_after(None);
+                let result = allocator.with_refusal(allowance, || encoder.value(value));
                 match result {
                     Ok(offset) => {
                         let index = encoder
@@ -1602,11 +1608,11 @@ mod tests {
 
     #[test]
     fn writer_bulk_appends_reserve_known_size_and_small_fields_reuse_capacity() {
-        let mem = Memory::new(Limits {
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits {
             max_live_bytes: 100,
             ..Limits::default()
-        })
-        .unwrap();
+        });
         let mut writer = Writer::new(&mem);
         writer.add(&[7; 17]).unwrap();
         assert_eq!(mem.usage(), (17, 17));
@@ -1614,8 +1620,7 @@ mod tests {
         assert_eq!(mem.usage(), (35, 52));
         writer.add(&[9]).unwrap();
         assert_eq!(mem.usage(), (64, 99));
-        mem.fail_after(Some(0));
-        writer.add(&[10]).unwrap();
+        allocator.with_refusal(0, || writer.add(&[10])).unwrap();
         assert_eq!(&writer.bytes[..17], &[7; 17]);
         assert_eq!(&writer.bytes[17..35], &[8; 18]);
         assert_eq!(&writer.bytes[35..], &[9, 10]);
@@ -1625,14 +1630,16 @@ mod tests {
 
     #[test]
     fn writer_equal_append_and_key_failures_preserve_the_written_prefix() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let mut writer = Writer::new(&mem);
         writer.add(&[1; 17]).unwrap();
-        mem.fail_after(Some(0));
-        assert_eq!(writer.add(&[2; 17]), Err(Error::OutOfMemory));
+        assert_eq!(
+            allocator.with_refusal(0, || writer.add(&[2; 17])),
+            Err(Error::OutOfMemory)
+        );
         assert_eq!(writer.bytes.as_slice(), &[1; 17]);
         assert_eq!(mem.usage().0, 17);
-        mem.fail_after(None);
         writer.add(&[2; 17]).unwrap();
         assert_eq!(mem.usage(), (64, 81));
         assert_eq!(&writer.bytes[..17], &[1; 17]);
@@ -1641,16 +1648,19 @@ mod tests {
 
         let key = [3; 17];
         let mut writer = Writer::new(&mem);
-        mem.fail_after(Some(0));
-        assert_eq!(writer.key(&[]), Err(Error::OutOfMemory));
+        assert_eq!(
+            allocator.with_refusal(0, || writer.key(&[])),
+            Err(Error::OutOfMemory)
+        );
         assert!(writer.bytes.is_empty());
-        mem.fail_after(Some(1));
-        assert_eq!(writer.key(&key), Err(Error::OutOfMemory));
+        assert_eq!(
+            allocator.with_refusal(1, || writer.key(&key)),
+            Err(Error::OutOfMemory)
+        );
         assert_eq!(writer.bytes.as_slice(), &17u64.to_le_bytes());
         drop(writer);
         assert_eq!(mem.usage().0, 0);
 
-        mem.fail_after(None);
         let mut writer = Writer::new(&mem);
         writer.key(&key).unwrap();
         assert_eq!(&writer.bytes[..8], &17u64.to_le_bytes());
@@ -1658,7 +1668,8 @@ mod tests {
     }
     #[test]
     fn data_index_rebuild_insert_and_first_match_preserve_cache_order() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let mut cache: Vec<_> = [100, 0, u64::MAX, 40, 100]
             .into_iter()
             .enumerate()
@@ -1685,17 +1696,21 @@ mod tests {
         );
         let live = mem.public_usage().live_bytes;
         let order = index.order.to_vec();
-        mem.fail_after(Some(0));
-        index.reserve(&mem, 6).unwrap(); // existing eight-slot capacity
-        assert_eq!(index.reserve(&mem, 9), Err(Error::OutOfMemory));
+        // Existing eight-slot capacity.
+        allocator
+            .with_refusal(0, || index.reserve(&mem, 6))
+            .unwrap();
+        assert_eq!(
+            allocator.with_refusal(0, || index.reserve(&mem, 9)),
+            Err(Error::OutOfMemory)
+        );
         assert_eq!(&*index.order, order);
         assert_eq!(mem.public_usage().live_bytes, live);
         assert!(matches!(
-            DataIndex::from_cache(&mem, &cache),
+            allocator.with_refusal(0, || DataIndex::from_cache(&mem, &cache)),
             Err(Error::OutOfMemory)
         ));
         assert_eq!(mem.public_usage().live_bytes, live);
-        mem.fail_after(None);
         for revision in [1, 55, u64::MAX - 1] {
             index.reserve(&mem, cache.len() + 1).unwrap();
             index.insert(revision, &cache, cache.len());
@@ -1725,7 +1740,8 @@ mod tests {
     }
     #[test]
     fn data_encoding_orders_records_and_keeps_the_acknowledged_cache() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let make_encoder = |start, data_cache| Encoder {
             mem: &mem,
             identity: ID,
@@ -1755,20 +1771,18 @@ mod tests {
         drop(seed.bytes);
         let before = mem.usage().0;
         let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
-        mem.fail_after(Some(0));
         assert_eq!(
-            encoder.data(&empty, next_collection),
+            allocator.with_refusal(0, || encoder.data(&empty, next_collection)),
             Ok(start - REGION as u64)
         );
         assert_eq!(
-            encoder.data(&empty, next_collection + 1),
+            allocator.with_refusal(0, || encoder.data(&empty, next_collection + 1)),
             Err(Error::Invalid)
         );
         assert_eq!(encoder.end, start);
         assert!(matches!(&encoder.bytes, AppendBytes::Contiguous(bytes) if bytes.is_empty()));
         assert!(matches!(&encoder.data_cache, CacheState::Borrowed(old) if old.ptr_eq(&cache)));
         drop(encoder);
-        mem.fail_after(None);
         assert_eq!(mem.usage().0, before);
 
         let shared = Value::scalar(&mem, Kind::Unsigned, 42).unwrap();
@@ -1906,9 +1920,8 @@ mod tests {
             let mut completed = false;
             for allowance in 0..64 {
                 let mut encoder = make_encoder(start, CacheState::Borrowed(&cache));
-                mem.fail_after(Some(allowance));
-                let result = encoder.data(&input, next_collection);
-                mem.fail_after(None);
+                let result =
+                    allocator.with_refusal(allowance, || encoder.data(&input, next_collection));
                 match result {
                     Ok(_) => {
                         assert!(allowance > 0);
@@ -1930,7 +1943,8 @@ mod tests {
 
     #[test]
     fn commit_encoding_preserves_retained_references_and_rolls_back() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let initial = Head {
             revision: 1,
             data_revision: 1,
@@ -2055,9 +2069,7 @@ mod tests {
         };
         let before = mem.usage().0;
         for allowance in 0..64 {
-            mem.fail_after(Some(allowance));
-            let result = encode_candidate();
-            mem.fail_after(None);
+            let result = allocator.with_refusal(allowance, || encode_candidate());
             match result {
                 Ok(candidate) => {
                     assert!(allowance > 0);
@@ -2196,11 +2208,11 @@ mod tests {
     fn data_index_budget_and_object_bound_precede_allocation() {
         let slot = std::mem::size_of::<usize>();
         for cap in [slot - 1, slot] {
-            let mem = Memory::new(Limits {
+            let allocator = Arc::new(TestAllocator::default());
+            let mem = allocator.memory(Limits {
                 max_live_bytes: cap,
                 ..Limits::default()
-            })
-            .unwrap();
+            });
             let mut index = DataIndex::from_cache(&mem, &[]).unwrap();
             assert_eq!(mem.public_usage().live_bytes, 0);
             assert_eq!(
@@ -2211,8 +2223,10 @@ mod tests {
                     Err(Error::Limit)
                 }
             );
-            mem.fail_after(Some(0));
-            assert_eq!(index.reserve(&mem, MAX_OBJECTS + 1), Err(Error::Limit));
+            assert_eq!(
+                allocator.with_refusal(0, || index.reserve(&mem, MAX_OBJECTS + 1)),
+                Err(Error::Limit)
+            );
             drop(index);
             assert_eq!(mem.public_usage().live_bytes, 0);
         }
@@ -2356,7 +2370,8 @@ mod tests {
     }
     #[test]
     fn value_index_collisions_wrap_growth_and_first_identity_match() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let mut values = Vec::new();
         let mut selected = Vec::new();
         // Keep all rejected allocations alive too: allocator address reuse must
@@ -2393,11 +2408,12 @@ mod tests {
         assert_eq!(index.get(&distinct, &cache), None);
         let before = mem.public_usage().live_bytes;
         let slots = index.slots.to_vec();
-        mem.fail_after(Some(0));
-        assert_eq!(index.reserve(&mem, &cache, 5), Err(Error::OutOfMemory));
+        assert_eq!(
+            allocator.with_refusal(0, || index.reserve(&mem, &cache, 5)),
+            Err(Error::OutOfMemory)
+        );
         assert_eq!(&*index.slots, slots);
         assert_eq!(mem.public_usage().live_bytes, before);
-        mem.fail_after(None);
         // Rebuild accepts arbitrary cache order and preserves first match.
         cache.reverse();
         cache.push(cache[0].clone());
@@ -2413,11 +2429,11 @@ mod tests {
     #[test]
     fn value_index_budget_is_charged_reclaimed_and_bounds_precede_allocation() {
         for cap in [63, 64] {
-            let mem = Memory::new(Limits {
+            let allocator = Arc::new(TestAllocator::default());
+            let mem = allocator.memory(Limits {
                 max_live_bytes: cap,
                 ..Limits::default()
-            })
-            .unwrap();
+            });
             let mut index = ValueIndex::new();
             index.reserve(&mem, &[], 0).unwrap();
             assert_eq!(mem.public_usage().live_bytes, 0);
@@ -2430,8 +2446,10 @@ mod tests {
                 if cap == 64 { 64 } else { 0 }
             );
             assert_eq!(index.reserve(&mem, &[], 5), Err(Error::Limit));
-            mem.fail_after(Some(0));
-            assert_eq!(index.reserve(&mem, &[], MAX_OBJECTS + 1), Err(Error::Limit));
+            assert_eq!(
+                allocator.with_refusal(0, || index.reserve(&mem, &[], MAX_OBJECTS + 1)),
+                Err(Error::Limit)
+            );
             drop(index);
             assert_eq!(mem.public_usage().live_bytes, 0);
         }
@@ -3572,10 +3590,9 @@ mod tests {
         for budget in 0..512 {
             let mut disk = SimulatedDisk::from_image(&image).unwrap();
             disk.lock().unwrap();
-            let mem = Memory::new(Limits::default()).unwrap();
-            mem.fail_after(Some(budget));
-            let result = recover(&mut disk, &mem);
-            mem.fail_after(None);
+            let allocator = Arc::new(TestAllocator::default());
+            let mem = allocator.memory(Limits::default());
+            let result = allocator.with_refusal(budget, || recover(&mut disk, &mem));
             disk.unlock();
             assert_eq!(disk.durable_image().unwrap(), image);
             match result {
@@ -3781,13 +3798,16 @@ mod tests {
                 offset: Some(root)
             }
         );
-        let mem = Memory::new(Limits::default()).unwrap();
-        mem.fail_after(Some(0));
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let mut disk = SimulatedDisk::from_image(&image).unwrap();
         disk.lock().unwrap();
-        let failure =
-            crate::storage::with_storage_diagnostics(|| recover(&mut disk, &mem).map(|_| ()))
-                .unwrap_err();
+        let failure = crate::storage::with_storage_diagnostics(|| {
+            allocator
+                .with_refusal(0, || recover(&mut disk, &mem))
+                .map(|_| ())
+        })
+        .unwrap_err();
         assert_eq!(failure.error, Error::OutOfMemory);
         assert_eq!(
             failure.verification.unwrap(),
@@ -3914,15 +3934,18 @@ mod tests {
     #[test]
     #[cfg(not(miri))]
     fn writer_cap_rejects_before_allocator_and_encoder_last_region_is_atomic() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let bytes = vec![0; MAX_IMAGE_BYTES + 1];
-        mem.fail_after(Some(0));
         let mut writer = Writer::new(&mem);
         assert_eq!(
-            writer.add(&bytes[..MAX_IMAGE_BYTES]),
+            allocator.with_refusal(0, || writer.add(&bytes[..MAX_IMAGE_BYTES])),
             Err(Error::OutOfMemory)
         );
-        assert_eq!(writer.add(&bytes), Err(Error::Limit));
+        assert_eq!(
+            allocator.with_refusal(0, || writer.add(&bytes)),
+            Err(Error::Limit)
+        );
         assert!(writer.bytes.is_empty());
         let mut encoder = Encoder {
             mem: &mem,
@@ -3935,16 +3958,18 @@ mod tests {
             data_cache: CacheState::Owned(DataCache::new()),
         };
         assert_eq!(
-            encoder.object(VALUE, &bytes[..MAX_IMAGE_BYTES]),
+            allocator.with_refusal(0, || encoder.object(VALUE, &bytes[..MAX_IMAGE_BYTES])),
             Err(Error::Limit)
         );
-        assert_eq!(encoder.object(VALUE, &[0; 16]), Err(Error::OutOfMemory));
+        assert_eq!(
+            allocator.with_refusal(0, || encoder.object(VALUE, &[0; 16])),
+            Err(Error::OutOfMemory)
+        );
         assert_eq!(encoder.end, (MAX_IMAGE_BYTES - REGION) as u64);
         let AppendBytes::Contiguous(bytes) = &encoder.bytes else {
             unreachable!()
         };
         assert!(bytes.is_empty());
-        mem.fail_after(None);
         assert_eq!(
             encoder.object(VALUE, &[0; 16]),
             Ok(((MAX_IMAGE_BYTES - REGION) as u64, MAX_IMAGE_BYTES as u64))
@@ -4013,7 +4038,8 @@ mod tests {
 
     #[test]
     fn segmented_append_preserves_the_bytes_and_adapter_write_boundaries() {
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
         let mut records = Map::new();
         for key in 0..3 {
             let value = Value::bytes_new(&mem, &vec![key; APPEND_SEGMENT_BYTES + 1]).unwrap();
@@ -4078,9 +4104,9 @@ mod tests {
         let baseline = mem.usage().0;
         for allowance in 0..128 {
             let disk = SimulatedDisk::new().unwrap();
-            mem.fail_after(Some(allowance));
-            let result = Storage::create(disk.clone(), &mem, &head, 2, ID, &retention);
-            mem.fail_after(None);
+            let result = allocator.with_refusal(allowance, || {
+                Storage::create(disk.clone(), &mem, &head, 2, ID, &retention)
+            });
             match result {
                 Ok(storage) => {
                     drop(storage);
