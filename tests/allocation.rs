@@ -3,7 +3,10 @@ pub mod allocator;
 use weekend_db as allocator_engine;
 
 use allocator::TestAllocator;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
+use support::Model;
+
+mod support;
 use weekend_db::{Database, DatabaseOptions, Error, Limits, TransactionState};
 
 fn selected_database() -> (Arc<TestAllocator>, Database) {
@@ -85,40 +88,99 @@ fn allocation_limits_reject_each_independent_invalid_configuration() {
 fn every_nested_edit_allocation_can_fail_without_changing_inputs() {
     let (allocator, db) = selected_database();
     let item = db.bytes(b"original").unwrap();
-    let list = db.list().unwrap().list_push(&item).unwrap();
-    let map = db.map().unwrap().map_set(b"old", &list).unwrap();
-    let live = db.memory_usage().live_bytes;
+    let number = db.integer(2).unwrap();
+    let flag = db.boolean(false).unwrap();
+    let list = db
+        .list()
+        .unwrap()
+        .list_push(&item)
+        .unwrap()
+        .list_push(&number)
+        .unwrap()
+        .list_push(&flag)
+        .unwrap();
+    let map = db
+        .map()
+        .unwrap()
+        .map_set(b"old", &list)
+        .unwrap()
+        .map_set(b"keep", &number)
+        .unwrap();
+
+    let list_items = [
+        Model::Bytes(b"original".to_vec()),
+        Model::Int(2),
+        Model::Bool(false),
+    ];
+    let map_rows = BTreeMap::from([
+        (b"old".to_vec(), Model::List(list_items.to_vec())),
+        (b"keep".to_vec(), Model::Int(2)),
+    ]);
+    let original_list = Model::List(list_items.to_vec());
+    let original_map = Model::Map(map_rows.clone());
+
+    let baseline = (db.memory_usage().live_bytes, allocator.live_bytes());
     for operation in 0..7 {
-        let mut success = false;
-        let mut failures = 0;
-        for budget in 0..160 {
-            let result = allocator.with_refusal(budget, || match operation {
+        let mut expected_map = map_rows.clone();
+        let mut expected_list = list_items.to_vec();
+        let expected = match operation {
+            0 => {
+                expected_map.insert(b"new".to_vec(), list_items[0].clone());
+                Model::Map(expected_map)
+            }
+            1 => {
+                expected_map.remove(b"old".as_slice());
+                Model::Map(expected_map)
+            }
+            2 => {
+                expected_list[1] = original_map.clone();
+                Model::List(expected_list)
+            }
+            3 => {
+                expected_list.push(original_map.clone());
+                Model::List(expected_list)
+            }
+            4 => {
+                expected_list.insert(0, original_map.clone());
+                Model::List(expected_list)
+            }
+            5 => {
+                expected_list.remove(0);
+                Model::List(expected_list)
+            }
+            _ => Model::Bytes(b"copied".to_vec()),
+        };
+
+        let mut completed = false;
+        for allowance in 0..160 {
+            let result = allocator.with_refusal(allowance, || match operation {
                 0 => map.map_set(b"new", &item),
                 1 => map.map_remove(b"old"),
-                2 => list.list_set(0, &map),
+                2 => list.list_set(1, &map),
                 3 => list.list_push(&map),
                 4 => list.list_insert(0, &map),
                 5 => list.list_remove(0),
                 _ => db.bytes(b"copied"),
             });
-            assert_eq!(map.map_get(b"old").unwrap().unwrap(), list);
-            assert!(map.map_get(b"new").unwrap().is_none());
-            assert_eq!(list.list_get(0).unwrap(), item);
             match result {
-                Ok(_) => {
-                    success = true;
-                    break;
+                Ok(edited) => {
+                    assert!(allowance > 0, "operation={operation}");
+                    assert_eq!(Model::read(&edited), expected, "operation={operation}");
+                    completed = true;
                 }
-                Err(e) => {
-                    assert_eq!(e, Error::OutOfMemory);
-                    assert_eq!(db.memory_usage().live_bytes, live);
-                    failures += 1;
-                }
+                Err(e) => assert_eq!(e, Error::OutOfMemory),
+            }
+            assert_eq!(Model::read(&map), original_map);
+            assert_eq!(Model::read(&list), original_list);
+            assert_eq!(
+                (db.memory_usage().live_bytes, allocator.live_bytes()),
+                baseline
+            );
+            if completed {
+                break;
             }
         }
-        assert!(success, "operation={operation}");
-        // Removing a singleton list needs only a new empty value, still fallible.
-        assert!(failures > 0);
+        assert!(completed, "operation={operation}");
     }
 }
 
