@@ -293,9 +293,16 @@ adds 21 exact dispositions at `fa87e4b`. The sweep faults every destination
 callback and checks source bytes, lease release, and exact bytes and retained
 rows when a destination reopens. Debug and release pass on macOS and Docker
 Linux. Both macOS profiles detect all 22 selected controls. The queue has
-9,592 open records (2,222 runtime / 26 driver / 7,344 tooling). Native
-namespace replacement and adapter phases remain in batch 5. Follower
-durability has its own checks in batch 9.
+9,592 open records (2,222 runtime / 26 driver / 7,344 tooling).
+
+The [native replacement ledger](decisions/native-replacement-current.md)
+maps 18 more runtime records at `23eb940`. It checks which inode remains
+canonical at each before/after failure, when the old scratch file is
+removed, and which names survive each simulated persistence choice.
+Both profiles pass on macOS and Docker Linux. Both macOS profiles detect
+all 21 selected controls. The deeper native adapter decisions remain
+in batch 5, and follower durability has its own checks in batch 9.
+The queue has 9,574 open records (2,204 runtime / 26 driver / 7,344 tooling).
 
 All R1 and R2–R7 completion gates above remain open.
 

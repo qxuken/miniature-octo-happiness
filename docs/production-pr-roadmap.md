@@ -64,9 +64,10 @@ lookup and insertion, and the borrowed-to-owned cache transition.
 
 Batch 5 starts with [ByteStore transfers and local publication](decisions/bytestore-publication-current.md),
 [creation and reopen stabilization](decisions/storage-creation-reopen-current.md),
-and [verified compact copies and headroom](decisions/compact-copy-current.md).
-Native namespace replacement and adapter decisions follow. Batch 9 covers
-the follower's separate durability acknowledgment.
+[verified compact copies and headroom](decisions/compact-copy-current.md), and
+[native namespace replacement](decisions/native-replacement-current.md).
+Native adapter decisions follow. Batch 9 covers the follower's separate
+durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those

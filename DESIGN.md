@@ -1473,6 +1473,11 @@ compaction removes only its own old scratch name. Unrelated siblings are never
 selected or removed. Cleanup failures can leave the old file consuming space
 while the canonical compact file is already usable.
 
+The [native replacement ledger](docs/decisions/native-replacement-current.md)
+records canonical and scratch inode outcomes at each before and after hook.
+It separately records which names survive under the namespace model's durable,
+flushed and volatile persistence choices.
+
 **Durability scope and tests.** The namespace model assumes exchange is atomic
 under recovery (old or swapped mappings), directory fsync submits namespace
 updates, and the following full sync persists those ordered updates before old

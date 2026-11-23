@@ -112,7 +112,7 @@
     "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
     "src/storage/macos.rs": "9174dad52d843a2c453c95f5abdede0acce311b6c9b2a83acb448c4aab4649a3",
     "src/storage/mod.rs": "68916e5c5a0e7003a5e77a047e40f6af8de5c8a569c384e254e26f2851d0b457",
-    "src/storage/replacement.rs": "76e5098896ecc0ede681526cbb8ba75fbe40b833e528eef95d748715de84cd07",
+    "src/storage/replacement.rs": "758de2d4ff064a05b11d046097206602d2f2504f9748d2d0e99ec3693b12ebdf",
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
     "src/storage/simulator.rs": "f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50",
     "src/storage/windows.rs": "dcff3de55079e0d4cb70d7c6c20589b29102fda0aa5a5f3aa48625c57e8d64fc",
@@ -177,7 +177,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "db8b25261e58032f7f0119a427ede34798ad2ad290c6a8ff7a03bdca15bd8fe4",
+    "xtask/src/mutations.rs": "da817487a94870401da58e4d597e5dd060c5f4c33d62303703ffffd797742b31",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -268,7 +268,7 @@
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
     "tests/allocation.rs": "51a2cef72eb588bfde632380569398692d6cd7dee182d4b5b0c6a63bc03418f4",
     "tests/allocator_routing.rs": "676dd268e0fac2108ec4a98558ecd1f6766f90d9b64125edc26c77298cbd038e",
-    "tests/compaction.rs": "744e2c43679e90e0262eabf7df25b1f40fd6069d01d2d15d8dcabad5e25ea961",
+    "tests/compaction.rs": "26906e146b20c79b2ee72dd1fa99c6e6bc44b608cc5ae6259dd325950de414e9",
     "tests/concurrency.rs": "2455b3fc5fc857a26753d3182ebd2186f2322222a07dabcd09df8e1baffb8774",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
     "tests/durability.rs": "dfefb8f8abdc5c6613bd3b80947769f31a2cba5892046437748a7c2d2aa65f79",
@@ -291,7 +291,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "b2732dc580fe6fd8d9efa1fa25b1a79b61f79536634a71fb4eda084412ace1d1",
+    "xtask/tests/mutations.json": "30f063df41fcb96aad96b6776311d12219d88fd455ea85848038b99e2e4c033d",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -321,7 +321,8 @@
     "docs/decisions/bytestore-publication-current.md": "3070505ae68fdfd3f7bfc76a247e1f8aae870fd4e8e6ce32f07ffa59bf2b9daa",
     "docs/decisions/storage-creation-reopen-current.md": "be65e90b2cf80d470fd3e06e4bd72eea3bdb81f07a961a1d3c99878cae9d49bb",
     "tests/headroom.rs": "d9ea3f3559aabc199495fba51a8d4020bb7f472b8a3112155e1d8e920005606c",
-    "docs/decisions/compact-copy-current.md": "27435043efe4a51e8c1dc193986659e207fff80b7bab0b329563661886eb833d"
+    "docs/decisions/compact-copy-current.md": "27435043efe4a51e8c1dc193986659e207fff80b7bab0b329563661886eb833d",
+    "docs/decisions/native-replacement-current.md": "b5c5ab90ab3071f4c25bc4b94d79b619fb1f7ac02fe222334f93c1221cecf862"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -558,7 +559,8 @@
         "docs/decisions/native-storage.md",
         "docs/native-identity-assurance.md",
         "tests/files.rs",
-        "tests/compaction.rs"
+        "tests/compaction.rs",
+        "docs/decisions/native-replacement-current.md"
       ],
       "residual": "Kernel outcomes, coupled pathname predicates, unsupported ABIs and physical power loss remain separate from callback controls."
     },
@@ -589,7 +591,8 @@
       "references": [
         "docs/decisions/current.md",
         "docs/decisions/replacement.md",
-        "tests/compaction.rs"
+        "tests/compaction.rs",
+        "docs/decisions/native-replacement-current.md"
       ],
       "residual": "Namespace model evidence and real filesystem/device durability remain distinct."
     },
@@ -11780,6 +11783,393 @@
           ],
           "outcome": true
         }
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-OBSERVER-BEFORE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "call",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.event(step, false)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-observer-before"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-OBSERVER-AFTER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "call",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.event(step, true)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-observer-after"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-PATH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "Location::new(path)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "offline_file_compaction_preserves_metadata_and_enforces_quiescence"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-path"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-SOURCE-FILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "original.duplicate()?.open_mode(false, true)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "offline_file_compaction_preserves_metadata_and_enforces_quiescence"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-source-file"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-HARD-LINK",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "if",
+        "conditions": [
+          "retry(NativeIoOperation::Metadata, || old_file.metadata())?.nlink() != 1"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "offline_file_compaction_preserves_metadata_and_enforces_quiescence"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-hard-link"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-SOURCE-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "Storage::open(\n        Observed {\n            file: source,\n            observer: observer.clone(),\n            target: false,\n        },\n        mem,\n    )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-source-open"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-VERIFY-COPY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "copy.verify(mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-verify-copy"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-PRE-EXCHANGE-STATUS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "if",
+        "conditions": [
+          "e == Error::OutcomeUnknown"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-pre-exchange-status",
+        "r1-native-replace-pre-exchange-other-status"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-PREPARE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "prepared\n        .and_then(|(mut copy, stats)| {\n            copy.verify(mem)?;\n            Ok((copy, stats))\n        })\n        .map_err(|e| {\n            if e == Error::OutcomeUnknown {\n                Error::Io\n            } else {\n                e\n            }\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-prepare"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-COPY-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "observer.call(CompactionStep::CopyMetadata, || {\n        sys::copy_metadata(&old_file, &new_file, mem)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-copy-metadata"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-SYNC-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "observer.call(CompactionStep::SyncMetadata, || full_sync(&new_file))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-sync-metadata"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-VERIFY-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "replacement.verify(mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        },
+        {
+          "file": "src/storage/file.rs",
+          "name": "file_compaction_verifies_without_holding_copy_graphs_or_releasing_leases"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-verify-metadata",
+        "r1-native-replace-reverify-metadata"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-CANONICAL-NAME",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "original.matches(&old_file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "recheck_rejects_replaced_canonical_or_scratch_inode_before_exchange"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-canonical-name"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-RECHECK",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "observer.call(CompactionStep::CheckNames, || {\n        original.matches(&old_file)?;\n        scratch.matches(&new_file)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "recheck_rejects_replaced_canonical_or_scratch_inode_before_exchange"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-recheck",
+        "r1-native-replace-scratch-name"
+      ]
+    },
+    {
+      "name": "NATIVE-REPLACE-PUBLISH-RESULT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "compact_file_impl",
+        "kind": "try_propagation",
+        "conditions": [
+          "super::replacement::publish(|step| match step {\n        Step::Exchange => observer.call(CompactionStep::Exchange, || original.exchange(&scratch)),\n        Step::SyncDirectory => observer.call(CompactionStep::SyncDirectory, || original.sync()),\n        Step::SyncReplacement => {\n            observer.call(CompactionStep::SyncReplacement, || full_sync(&new_file))\n        }\n        Step::RemoveOld => observer.call(CompactionStep::RemoveOld, || scratch.remove()),\n        Step::SyncCleanupDirectory => {\n            observer.call(CompactionStep::SyncCleanupDirectory, || original.sync())\n        }\n        Step::SyncCleanupFile => {\n            observer.call(CompactionStep::SyncCleanupFile, || full_sync(&new_file))\n        }\n    })\n    .map_err(|_| Error::OutcomeUnknown)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "file_errors_at_every_observation_preserve_a_whole_canonical_store"
+        }
+      ],
+      "mutations": [
+        "r1-native-replace-publish-result"
+      ]
+    },
+    {
+      "name": "REPLACEMENT-ERRORS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/replacement.rs",
+        "owner": "publish",
+        "kind": "try_propagation",
+        "conditions": [
+          "apply(step)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/replacement.rs",
+          "name": "namespace_publication_stops_at_each_failed_barrier"
+        }
+      ],
+      "mutations": [
+        "replacement-errors"
       ]
     }
   ],
