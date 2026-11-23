@@ -226,6 +226,44 @@ fn allocator_handle_owns_one_block_allocated_by_its_provider() {
 }
 
 #[test]
+fn racing_allocator_owners_free_the_provider_before_releasing_its_context() {
+    const WORKERS: usize = 4;
+    let probe = ForeignProbe::default();
+    let provider = unsafe { ForeignAllocator::new(probe.callbacks()) }.unwrap();
+    let handle = AllocatorHandle::try_new(provider).unwrap();
+    let phase = std::sync::Barrier::new(WORKERS + 1);
+
+    std::thread::scope(|scope| {
+        for _ in 0..WORKERS {
+            let handle = handle.clone();
+            let phase = &phase;
+            scope.spawn(move || {
+                let layout = Layout::new::<[u64; 8]>();
+                let block = handle.allocate(layout);
+                phase.wait();
+                phase.wait();
+                unsafe { handle.deallocate(block.unwrap().cast(), layout) };
+                drop(handle);
+            });
+        }
+        // Capture the intermediate state while every worker holds its block.
+        // Unblock them before asserting so a failed observation cannot hang.
+        phase.wait();
+        drop(handle);
+        let live_before_release = probe.allocator.live();
+        let context_before_release = probe.context_calls();
+        phase.wait();
+        assert_eq!(live_before_release, WORKERS + 1);
+        assert_eq!(context_before_release, (1, 0));
+    });
+
+    assert_eq!(probe.allocator.requests(), WORKERS + 1);
+    assert_eq!(probe.frees.load(Ordering::Relaxed), WORKERS + 1);
+    assert_eq!(probe.allocator.live(), 0);
+    assert_eq!(probe.context_calls(), (1, 1));
+}
+
+#[test]
 fn budget_block_uses_the_provider_outside_the_live_byte_cap() {
     let allocator = Arc::new(TestAllocator::default());
     let handle = allocator.handle();

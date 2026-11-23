@@ -37,6 +37,11 @@ pub fn run(run: &Run, mut options: Options) -> Result<()> {
         c.evidence["rustc"] = serde_json::json!(version);
         for (binary, mode, expected) in [
             ("weekend-atomic-model", "baseline", None),
+            (
+                "weekend-atomic-model",
+                "broken-shared-release",
+                Some("final owner must observe earlier owners' accesses"),
+            ),
             ("weekend-atomic-model", "ffi-handles", None),
             (
                 "weekend-atomic-model",

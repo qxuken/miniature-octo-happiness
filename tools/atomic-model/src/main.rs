@@ -1,4 +1,4 @@
-//! Bounded ownership model of src/memory.rs Shared::clone and Shared::drop.
+//! Bounded ownership model of retain_ref and release_ref in src/memory.rs.
 //! Allocation and pointer validity remain obligations of the native/Miri tests.
 use loom::sync::{
     Arc,
@@ -9,6 +9,7 @@ mod ffi;
 
 struct SharedModel {
     refs: AtomicUsize,
+    release_order: Ordering,
     visits: [AtomicUsize; 2],
     destroyed: AtomicUsize,
 }
@@ -19,38 +20,53 @@ impl SharedModel {
     }
 
     fn drop_owner(&self) {
-        if self.refs.fetch_sub(1, Ordering::AcqRel) != 1 {
+        if self.refs.fetch_sub(1, self.release_order) != 1 {
             return;
         }
         // Final destruction must observe both prior owners' accesses through
         // the release sequence on refs, without relying on thread joins.
-        assert_eq!(self.visits[0].load(Ordering::Relaxed), 1);
-        assert_eq!(self.visits[1].load(Ordering::Relaxed), 1);
+        assert_eq!(
+            self.visits[0].load(Ordering::Relaxed),
+            1,
+            "final owner must observe earlier owners' accesses"
+        );
+        assert_eq!(
+            self.visits[1].load(Ordering::Relaxed),
+            1,
+            "final owner must observe earlier owners' accesses"
+        );
         assert_eq!(self.destroyed.fetch_add(1, Ordering::Relaxed), 0);
     }
 }
 
 fn main() {
-    let control = match std::env::args().nth(1).as_deref() {
+    let mode = std::env::args().nth(1);
+    let control = match mode.as_deref() {
         Some("--ffi-handles") => Some(ffi::Control::None),
         Some("--broken-ffi-reservation") => Some(ffi::Control::LoadStore),
         Some("--broken-ffi-rollback") => Some(ffi::Control::SkipRollback),
-        None => None,
+        None | Some("--broken-shared-release") => None,
         Some(mode) => panic!("unknown ownership model mode: {mode}"),
     };
     if let Some(control) = control {
         ffi::run(control);
         return;
     }
+    let release_order = if mode.as_deref() == Some("--broken-shared-release") {
+        Ordering::Relaxed
+    } else {
+        Ordering::AcqRel
+    };
     let mut model = loom::model::Builder::new();
     model.max_threads = 3;
     model.preemption_bound = Some(2);
     model.max_branches = 1000;
     model.max_permutations = None;
     model.max_duration = None;
-    model.check(|| {
+    model.check(move || {
         let state = Arc::new(SharedModel {
             refs: AtomicUsize::new(3),
+            release_order,
             visits: [AtomicUsize::new(0), AtomicUsize::new(0)],
             destroyed: AtomicUsize::new(0),
         });

@@ -9981,6 +9981,94 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-provider-ownership-bootstrap-error",
+      "file": "src/memory.rs",
+      "old": ".allocate(Layout::new::<OwnedAllocator<A>>())\n            .map_err(|_| Error::OutOfMemory)?",
+      "new": ".allocate(Layout::new::<OwnedAllocator<A>>())\n            .map_err(|_| Error::Invalid)?",
+      "test": "memory::test_allocator::allocator_handle_owns_one_block_allocated_by_its_provider",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-provider-ownership-default-dispatch",
+      "file": "src/memory.rs",
+      "old": "None => &Global,",
+      "new": "None => panic!(\"default allocator ignored\"),",
+      "test": "memory::test_allocator::allocator_refusal_does_not_affect_another_database",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-provider-ownership-clone-count",
+      "file": "src/memory.rs",
+      "old": "retain_ref(unsafe { &owner.as_ref().refs });",
+      "new": "retain_ref(unsafe { &owner.as_ref().refs });\n            retain_ref(unsafe { &owner.as_ref().refs });",
+      "test": "memory::test_allocator::allocator_handle_owns_one_block_allocated_by_its_provider",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-provider-ownership-final-free",
+      "file": "src/memory.rs",
+      "old": "unsafe { free(owner) };",
+      "new": "let _ = free;",
+      "test": "memory::test_allocator::racing_allocator_owners_free_the_provider_before_releasing_its_context",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-provider-ownership-box-zero-layout",
+      "file": "src/memory.rs",
+      "old": "if layout.size() == 0 {\n        return Ok(Box::new_in",
+      "new": "if layout.size() == 0 && layout.align() > 1 {\n        return Ok(Box::new_in",
+      "test": "memory::tests::allocation_ownership_transfers_or_drops_exactly_once",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-provider-ownership-box-error",
+      "file": "src/memory.rs",
+      "old": "let ptr = allocator\n        .allocate(layout)\n        .map_err(|_| Error::OutOfMemory)?",
+      "new": "let ptr = allocator\n        .allocate(layout)\n        .map_err(|_| Error::Invalid)?",
+      "test": "memory::tests::null_system_allocation_drops_inputs_and_allows_retry",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-provider-ownership-shared-error",
+      "file": "src/memory.rs",
+      "old": ".as_allocator()\n            .allocate(layout)\n            .map_err(|_| Error::OutOfMemory)?",
+      "new": ".as_allocator()\n            .allocate(layout)\n            .map_err(|_| Error::Invalid)?",
+      "test": "memory::tests::null_system_allocation_drops_inputs_and_allows_retry",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-provider-ownership-shared-final-drop",
+      "file": "src/memory.rs",
+      "old": "if !release_ref(unsafe { &self.ptr.as_ref().refs }) {",
+      "new": "if !release_ref(unsafe { &self.ptr.as_ref().refs }) || true {",
+      "test": "memory::live_budget_tests::shared_clones_keep_one_charge_and_unwind_reclaims_allocation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
