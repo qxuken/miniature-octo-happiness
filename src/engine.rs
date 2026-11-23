@@ -677,11 +677,6 @@ impl Database {
     pub fn list(&self) -> Result<Value> {
         Value::scalar(&self.mem, Kind::List, 0)
     }
-    /// Deterministic allocation-failure hook, available only in testing builds.
-    #[cfg(any(test, feature = "fault-injection"))]
-    pub fn fail_allocations_after(&self, remaining: Option<usize>) {
-        self.mem.fail_after(remaining);
-    }
 }
 fn collection(head: &Head, id: CollectionId) -> Result<&Collection> {
     head.collections

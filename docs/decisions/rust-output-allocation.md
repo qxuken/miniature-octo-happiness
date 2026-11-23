@@ -19,16 +19,16 @@ elsewhere retain their own scope pending migration.
 
 | Source | SHA-256 |
 |---|---|
-| `src/memory.rs` | `dd4c8754ec790f53340cae4e4d1c12372683b8ac5279a9f9f04f32d71b1001d3` |
+| `src/memory.rs` | `6f8a11e417e5fc684f70944c98ccef5e785bdbb79fc58c9e1dca1b7446df0d0b` |
 | `src/tree.rs` | `71e23e66d95a34d8919fd29e8361a1bf30d7e11198c077cf776385f88c7514b6` |
 | `src/storage/inspection.rs` | `f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6` |
-| `src/storage/simulator.rs` | `af1a89b919143469a2f722695fefc1d9013e332e84803de2e216f6e9eaa29416` |
+| `src/storage/simulator.rs` | `f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence |
 |---|---|---|---|---|---|---|
 | E | weekend-db::weekend_db | src/memory.rs:503:49– | 16997..16998 | try_propagation | into_external | Selected-to-Global output refusal |
-| E | weekend-db::weekend_db | src/memory.rs:694:49– | 22890..22891 | try_propagation | reserve_external | Rejected Global reservation propagates |
-| E | weekend-db::weekend_db | src/memory.rs:703:53– | 23179..23180 | try_propagation | copy_external | Refusal while copying a key or image |
+| E | weekend-db::weekend_db | src/memory.rs:694:49– | 22720..22721 | try_propagation | reserve_external | Rejected Global reservation propagates |
+| E | weekend-db::weekend_db | src/memory.rs:703:53– | 23009..23010 | try_propagation | copy_external | Refusal while copying a key or image |
 | E | weekend-db::weekend_db | src/tree.rs:100:74– | 3210..3211 | try_propagation | materialize | Refusal while gathering ordered keys |
 | E | weekend-db::weekend_db | src/storage/inspection.rs:33:75– | 1060..1061 | try_propagation | information | Refusal of retained metadata output |
 | E | weekend-db::weekend_db | src/storage/simulator.rs:125:63– | 3691..3692 | try_propagation | trace | Refusal of trace output |

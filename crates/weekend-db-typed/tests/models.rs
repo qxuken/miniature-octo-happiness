@@ -1,3 +1,8 @@
+#[path = "../../../tests/support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db_typed::engine as allocator_engine;
 use weekend_db_typed::{
     Error, Model, Presence, Result, Store,
     engine::{self, storage::MemoryStore},
@@ -527,30 +532,32 @@ fn generated_field_constants_never_shadow_model_identity_in_expansions() -> Resu
     Ok(())
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn every_core_allocation_failure_aborts_primary_and_index_updates() -> Result<()> {
     let mut succeeded = false;
     for budget in 0..1024 {
-        let mut store = Store::memory()?;
+        let allocator = Arc::new(TestAllocator::default());
+        let mut store = Store::initialize(engine::Database::with_options(allocator.options())?)?;
         let table = store.table::<OldTask>("tasks")?;
         store.write(|w| {
             w.insert(&table, 1, &old("a"))?;
             w.insert(&table, 2, &old("b"))
         })?;
-        store.database().fail_allocations_after(Some(budget));
-        let result = store.write(|w| {
-            w.update(&table, 1, |t| {
-                t.title = "new title".into();
-                Ok(())
-            })?;
-            w.update(&table, 2, |t| {
-                t.slug = "new-slug".into();
-                Ok(())
+        let (result, actual) = allocator.count_with_refusal(budget, || {
+            store.write(|w| {
+                w.update(&table, 1, |t| {
+                    t.title = "new title".into();
+                    Ok(())
+                })?;
+                w.update(&table, 2, |t| {
+                    t.slug = "new-slug".into();
+                    Ok(())
+                })
             })
         });
-        store.database().fail_allocations_after(None);
+        assert_eq!(result.is_err(), actual > budget);
         if result.is_ok() {
+            assert!(budget > 0);
             succeeded = true;
             break;
         }
@@ -1375,12 +1382,12 @@ fn rebuilding_conflicts_with_primary_or_index_changes_and_aborts_caught_errors()
     Ok(())
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn failed_rebuild_allocations_preserve_every_index_and_primary_row() -> Result<()> {
     let mut succeeded = false;
     for budget in 0..1024 {
-        let mut store = Store::memory()?;
+        let allocator = Arc::new(TestAllocator::default());
+        let mut store = Store::initialize(engine::Database::with_options(allocator.options())?)?;
         let table = store.table::<OldTask>("tasks")?;
         store.write(|w| {
             w.insert(&table, 1, &old("one"))?;
@@ -1401,14 +1408,15 @@ fn failed_rebuild_allocations_preserve_every_index_and_primary_row() -> Result<(
         tx.commit()?;
         drop(tx);
         let before = db.snapshot();
-        db.fail_allocations_after(Some(budget));
-        let result = store.write(|w| w.rebuild_indexes(&table));
-        db.fail_allocations_after(None);
+        let (result, actual) =
+            allocator.count_with_refusal(budget, || store.write(|w| w.rebuild_indexes(&table)));
+        assert_eq!(result.is_err(), actual > budget);
         assert_eq!(
             db.snapshot().scan(table.collection())?,
             before.scan(table.collection())?
         );
         if result.is_ok() {
+            assert!(budget > 0);
             assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
             succeeded = true;
             break;

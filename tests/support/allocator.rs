@@ -1,4 +1,4 @@
-use super::{AllocatorHandle, Error};
+use super::allocator_engine::{AllocatorHandle, DatabaseOptions, Error};
 use std::{
     alloc::{AllocError, Allocator, Global, Layout},
     ptr::NonNull,
@@ -77,6 +77,10 @@ impl TestAllocator {
 
     pub fn handle(self: &Arc<Self>) -> AllocatorHandle {
         self.try_handle().unwrap()
+    }
+
+    pub fn options(self: &Arc<Self>) -> DatabaseOptions {
+        DatabaseOptions::default().with_allocator(self.handle())
     }
 
     pub fn last_request_size(&self) -> usize {

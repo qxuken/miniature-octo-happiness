@@ -1,4 +1,5 @@
 use super::*;
+use crate as allocator_engine;
 use crate::DatabaseOptions;
 use std::sync::Arc;
 

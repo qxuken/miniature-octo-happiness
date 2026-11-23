@@ -1,11 +1,12 @@
 #[path = "support/allocator.rs"]
 pub mod allocator;
+use weekend_db as allocator_engine;
 mod support;
 use allocator::TestAllocator;
 use std::{collections::BTreeMap, sync::Arc};
 use support::{Model, Rng};
 use weekend_db::{
-    AllocatorHandle, Database, DatabaseOptions, Error, Limits, TransactionState,
+    Database, DatabaseOptions, Error, Limits, TransactionState,
     storage::{
         APPEND_START, ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk,
         inspect_on,

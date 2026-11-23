@@ -15,7 +15,7 @@ reopened state, and the preceding acknowledged image.
 
 | Source | SHA-256 |
 |---|---|
-| `src/storage/simulator.rs` | `af1a89b919143469a2f722695fefc1d9013e332e84803de2e216f6e9eaa29416` |
+| `src/storage/simulator.rs` | `f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence |
 |---|---|---|---|---|---|---|
@@ -24,14 +24,14 @@ reopened state, and the preceding acknowledged image.
 | E | weekend-db::weekend_db | src/storage/simulator.rs:97:39– | 2804..2805 | try_propagation | from_image_with_allocator | Durable image copy refusal |
 | E | weekend-db::weekend_db | src/storage/simulator.rs:105:12– | 3037..3038 | try_propagation | from_image_with_allocator | Shared disk block refusal |
 | E | weekend-db::weekend_db | src/storage/simulator.rs:136:49– | 4170..4171 | try_propagation | crash | Volatile copy refusal after survivor copy |
-| E | weekend-db::weekend_db | src/storage/simulator.rs:164:59– | 5056..5057 | try_propagation | event | First-event refusal keeps the next fault |
-| E | weekend-db::weekend_db | src/storage/simulator.rs:186:51– | 5812..5813 | try_propagation | copy | Buffer reservation reports allocator refusal |
-| E | weekend-db::weekend_db | src/storage/simulator.rs:200:45– | 6317..6318 | try_propagation | survive | Initial survivor copy refusal |
-| E | weekend-db::weekend_db | src/storage/simulator.rs:307:52– | 9767..9768 | try_propagation | write | Tear prefix copy refusal |
-| E | weekend-db::weekend_db | src/storage/simulator.rs:308:60– | 9829..9830 | try_propagation | write | Pending buffer refusal |
-| E | weekend-db::weekend_db | src/storage/simulator.rs:310:65– | 9961..9962 | try_propagation | write | Volatile growth refusal |
-| E | weekend-db::weekend_db | src/storage/simulator.rs:314:68– | 10213..10214 | try_propagation | write | Durable growth refusal |
-| E | weekend-db::weekend_db | src/storage/simulator.rs:339:62– | 10969..10970 | try_propagation | sync | Durable copy refusal |
+| E | weekend-db::weekend_db | src/storage/simulator.rs:160:59– | 4906..4907 | try_propagation | event | First-event refusal keeps the next fault |
+| E | weekend-db::weekend_db | src/storage/simulator.rs:182:51– | 5662..5663 | try_propagation | copy | Buffer reservation reports allocator refusal |
+| E | weekend-db::weekend_db | src/storage/simulator.rs:196:45– | 6167..6168 | try_propagation | survive | Initial survivor copy refusal |
+| E | weekend-db::weekend_db | src/storage/simulator.rs:303:52– | 9617..9618 | try_propagation | write | Tear prefix copy refusal |
+| E | weekend-db::weekend_db | src/storage/simulator.rs:304:60– | 9679..9680 | try_propagation | write | Pending buffer refusal |
+| E | weekend-db::weekend_db | src/storage/simulator.rs:306:65– | 9811..9812 | try_propagation | write | Volatile growth refusal |
+| E | weekend-db::weekend_db | src/storage/simulator.rs:310:68– | 10063..10064 | try_propagation | write | Durable growth refusal |
+| E | weekend-db::weekend_db | src/storage/simulator.rs:335:62– | 10819..10820 | try_propagation | sync | Durable copy refusal |
 
 These rows record tested propagation. The public output tests and the
 remaining legacy hook users retain their own assurance work.

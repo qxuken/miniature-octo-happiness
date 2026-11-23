@@ -1,10 +1,11 @@
 #[path = "support/allocator.rs"]
 pub mod allocator;
+use weekend_db as allocator_engine;
 
 use allocator::TestAllocator;
 use std::sync::Arc;
 use weekend_db::{
-    AllocatorHandle, Database, DatabaseOptions, Error, Limits, MAX_RETAINED_SNAPSHOTS, Validation,
+    Database, DatabaseOptions, Error, Limits, MAX_RETAINED_SNAPSHOTS, Validation,
     storage::{Crash, Fault, IoKind, SimulatedDisk},
 };
 const ID: [u8; 16] = *b"retention-test-1";

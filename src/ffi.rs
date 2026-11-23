@@ -992,14 +992,21 @@ mod tests {
     }
     #[test]
     fn foreign_handle_allocation_failure_rolls_back_live_count() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let allocator = Arc::new(TestAllocator::default());
         unsafe {
-            let mut database = ptr::null_mut();
-            assert_eq!(wdb_open(&mut database), 0);
+            let database =
+                into_database_handle(Database::with_options(allocator.options()).unwrap()).unwrap();
+            let live = allocator.live_bytes();
             for budget in 0..3 {
-                (*database).db.fail_allocations_after(Some(budget));
                 let mut value = ptr::null_mut();
-                let status = wdb_value_make(database, 0, 0, ptr::null(), 0, &mut value);
-                (*database).db.fail_allocations_after(None);
+                let (status, actual) = allocator.count_with_refusal(budget, || {
+                    wdb_value_make(database, 0, 0, ptr::null(), 0, &mut value)
+                });
+                assert_eq!(actual, (budget + 1).min(2));
+                assert_eq!(status == 0, budget == 2);
                 if status == 0 {
                     assert_eq!(wdb_value_release(value), 0);
                 } else {
@@ -1007,9 +1014,11 @@ mod tests {
                     assert!(value.is_null());
                 }
                 assert_eq!((*database).handles.load(Ordering::Acquire), 0);
+                assert_eq!(allocator.live_bytes(), live);
             }
             assert_eq!(wdb_close(database), 0);
         }
+        assert_eq!(allocator.live(), 0);
     }
     #[test]
     fn invalid_commit_output_cannot_publish_and_live_handles_block_close() {

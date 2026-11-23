@@ -5,8 +5,9 @@ use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
+use weekend_db as allocator_engine;
 use weekend_db::{
-    AllocatorHandle, Database, Error, Limits, Result,
+    Database, Error, Limits, Result,
     storage::{ByteStore, Crash, Fault, IoKind, MAX_IMAGE_BYTES, MemoryStore, SimulatedDisk},
 };
 

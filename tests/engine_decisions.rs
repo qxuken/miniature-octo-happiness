@@ -1,3 +1,8 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db as allocator_engine;
 use weekend_db::{Database, Error, Limits, TransactionState, Validation};
 
 fn seed(db: &Database, c: weekend_db::CollectionId) {
@@ -304,15 +309,16 @@ fn abort_and_failed_commit_clear_owned_payloads_before_draft_drop() {
     }
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn retained_id_output_allocation_failure_does_not_change_catalog() {
-    let db = Database::new().unwrap();
+    let allocator = Arc::new(TestAllocator::default());
+    let db = Database::with_options(allocator.options()).unwrap();
     let retained = db.retain_snapshot(&db.snapshot()).unwrap();
     let revision = db.snapshot().revision();
-    db.fail_allocations_after(Some(0));
-    assert_eq!(db.retained_ids(), Err(Error::OutOfMemory));
-    db.fail_allocations_after(None);
+    assert_eq!(
+        allocator.with_refusal(0, || db.retained_ids()),
+        Err(Error::OutOfMemory)
+    );
     assert_eq!(db.retained_ids(), Ok(vec![retained]));
     assert_eq!(db.snapshot().revision(), revision);
 }

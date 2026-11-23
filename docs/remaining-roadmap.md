@@ -220,6 +220,11 @@ Global refusal in map, scan, retained ID, simulator, inspection and logical
 export outputs. Observation, overlay and owned scans use selected-allocator
 refusals. Batch 2 continues with the remaining engine allocation hook users.
 
+The [public allocation hook retirement](decisions/public-allocation-hook-retirement.md)
+migrates the remaining integration callers and the compound resource driver.
+The library's synthetic counter is now confined to unit tests. Completing
+batch 2 requires migrating those unit sweeps and removing the counter.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

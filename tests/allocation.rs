@@ -1,9 +1,10 @@
 #[path = "support/allocator.rs"]
 pub mod allocator;
+use weekend_db as allocator_engine;
 
 use allocator::TestAllocator;
 use std::sync::Arc;
-use weekend_db::{AllocatorHandle, Database, DatabaseOptions, Error, Limits, TransactionState};
+use weekend_db::{Database, DatabaseOptions, Error, Limits, TransactionState};
 
 fn selected_database() -> (Arc<TestAllocator>, Database) {
     let allocator = Arc::new(TestAllocator::default());

@@ -144,10 +144,6 @@ impl SimulatedDisk {
         disk.events.clear();
         Ok(())
     }
-    #[cfg(any(test, feature = "fault-injection"))]
-    pub fn fail_allocations_after(&self, n: Option<usize>) {
-        self.mem.fail_after(n);
-    }
     fn check(&self, disk: &Disk) -> Result<()> {
         if disk.locked && self.lease == Some(disk.epoch) {
             Ok(())

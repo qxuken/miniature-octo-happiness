@@ -1,7 +1,12 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
 use std::{
     alloc::{GlobalAlloc, Layout, System},
     cell::Cell,
 };
+use weekend_db as allocator_engine;
 use weekend_db::{
     AllocatorHandle, Database, DatabaseOptions, Error, Limits, Result,
     storage::{ByteStore, Fault, IoEvent, IoKind, SimulatedDisk, export_logical_on, inspect_on},
@@ -87,6 +92,30 @@ fn sweep_global_refusal<T>(mut operation: impl FnMut() -> Result<T>) -> T {
         }
     }
     panic!("Global refusal sweep did not reach success");
+}
+
+#[test]
+fn oversized_nested_map_scan_is_rejected_before_allocating_output() {
+    let allocator = Arc::new(TestAllocator::default());
+    let options = allocator.options().with_limits(Limits {
+        max_transaction_bytes: 0,
+        ..Limits::default()
+    });
+    let db = Database::with_options(options).unwrap();
+    let key = [b'x'; 1024];
+    let map = db
+        .map()
+        .unwrap()
+        .map_set(&key, &db.none().unwrap())
+        .unwrap();
+    let ((result, selected), global) =
+        global_requests(0, || allocator.count_with_refusal(0, || map.map_entries()));
+    assert_eq!(result, Err(Error::Limit));
+    assert_eq!((selected, global), (0, 0));
+    assert_eq!(
+        map.map_get(&key).unwrap().unwrap().kind(),
+        weekend_db::Kind::None
+    );
 }
 
 // Preallocate the test backend before measurement. Its I/O never grows a buffer.

@@ -1,3 +1,8 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db as allocator_engine;
 mod support;
 #[path = "../examples/support/users.rs"]
 mod users;
@@ -301,21 +306,21 @@ fn copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover(
         }
     }
 }
-#[cfg(feature = "fault-injection")]
 #[test]
 fn allocation_failures_during_copy_and_verification_never_change_the_source() {
     let image = fixture();
     let mut success = false;
     for budget in 0..1024 {
         let disk = SimulatedDisk::from_image(&image).unwrap();
-        let mut source = Database::open_on(disk.clone(), Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mut source = Database::open_on_with_options(disk.clone(), allocator.options()).unwrap();
         let before = disk.durable_image().unwrap();
         let target = SimulatedDisk::new().unwrap();
-        source.fail_allocations_after(Some(budget));
-        let result = source.compact_to(target.clone());
-        source.fail_allocations_after(None);
+        let live = allocator.live_bytes();
+        let result = allocator.with_refusal(budget, || source.compact_to(target.clone()));
         assert_eq!(disk.durable_image().unwrap(), before);
         if result.is_ok() {
+            assert!(budget > 0);
             check(
                 &Database::open_on(target, Limits::default()).unwrap(),
                 &source,
@@ -324,6 +329,7 @@ fn allocation_failures_during_copy_and_verification_never_change_the_source() {
             break;
         }
         assert_eq!(result, Err(Error::OutOfMemory), "budget={budget}");
+        assert_eq!(allocator.live_bytes(), live);
     }
     assert!(success);
 }

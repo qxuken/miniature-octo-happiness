@@ -1,3 +1,8 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db as allocator_engine;
 mod support;
 use std::collections::BTreeMap;
 use support::{Model, Rng};
@@ -227,29 +232,6 @@ fn nested_map_scans_enforce_zero_and_exact_buffer_budgets() {
     }
 }
 
-#[cfg(feature = "fault-injection")]
-#[test]
-fn oversized_nested_map_scan_is_rejected_before_allocating_output() {
-    let db = Database::with_limits(Limits {
-        max_transaction_bytes: 0,
-        ..Limits::default()
-    })
-    .unwrap();
-    let map = db
-        .map()
-        .unwrap()
-        .map_set(&vec![b'x'; 1024], &db.none().unwrap())
-        .unwrap();
-    db.fail_allocations_after(Some(0));
-    let result = map.map_entries();
-    db.fail_allocations_after(None);
-    assert_eq!(result, Err(Error::Limit));
-    assert_eq!(
-        map.map_get(&vec![b'x'; 1024]).unwrap().unwrap().kind(),
-        weekend_db::Kind::None
-    );
-}
-
 #[test]
 fn value_edit_weight_and_child_depth_have_independent_boundaries() {
     for operation in ["map-set", "list-set", "list-push", "list-insert"] {
@@ -261,12 +243,13 @@ fn value_edit_weight_and_child_depth_have_independent_boundaries() {
             _ => 32,
         };
         for (extra_weight, child_depth, succeeds) in [(0, 2, true), (1, 2, false), (0, 3, false)] {
-            let db = Database::with_limits(Limits {
+            let allocator = Arc::new(TestAllocator::default());
+            let options = allocator.options().with_limits(Limits {
                 max_value_bytes: 80,
                 max_depth: 3,
                 ..Limits::default()
-            })
-            .unwrap();
+            });
+            let db = Database::with_options(options).unwrap();
             let scalar = db.integer(7).unwrap();
             let base = if operation == "map-set" {
                 db.map().unwrap().map_set(b"k", &scalar).unwrap()
@@ -281,18 +264,19 @@ fn value_edit_weight_and_child_depth_have_independent_boundaries() {
             }
             // Zero budget distinguishes these early guards from the later
             // constructor check that would reject after path allocation.
-            #[cfg(feature = "fault-injection")]
-            if !succeeds {
-                db.fail_allocations_after(Some(0));
-            }
-            let result = match operation {
+            let edit = || match operation {
                 "map-set" => base.map_set(b"k", &child),
                 "list-set" => base.list_set(0, &child),
                 "list-push" => base.list_push(&child),
                 _ => base.list_insert(0, &child),
             };
-            #[cfg(feature = "fault-injection")]
-            db.fail_allocations_after(None);
+            let result = if succeeds {
+                edit()
+            } else {
+                let (result, requests) = allocator.count_with_refusal(0, edit);
+                assert_eq!(requests, 0, "{operation}");
+                result
+            };
             if succeeds {
                 let edited = result.unwrap();
                 let selected = match operation {

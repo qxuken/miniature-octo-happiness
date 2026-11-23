@@ -560,7 +560,7 @@ struct BudgetState {
     limits: Limits,
     used: AtomicUsize,
     peak: AtomicUsize,
-    #[cfg(any(test, feature = "fault-injection"))]
+    #[cfg(test)]
     remaining: AtomicUsize,
 }
 
@@ -573,7 +573,7 @@ impl Budget {
                 limits: limits.validate()?,
                 used: AtomicUsize::new(0),
                 peak: AtomicUsize::new(0),
-                #[cfg(any(test, feature = "fault-injection"))]
+                #[cfg(test)]
                 remaining: AtomicUsize::new(usize::MAX),
             },
             allocator.clone(),
@@ -581,7 +581,7 @@ impl Budget {
         )?))
     }
     pub(crate) fn claim(&self) -> Result<()> {
-        #[cfg(any(test, feature = "fault-injection"))]
+        #[cfg(test)]
         self.0
             .remaining
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
@@ -594,7 +594,7 @@ impl Budget {
             .map_err(|_| Error::OutOfMemory)?;
         Ok(())
     }
-    #[cfg(any(test, feature = "fault-injection"))]
+    #[cfg(test)]
     pub(crate) fn fail_after(&self, n: Option<usize>) {
         self.0
             .remaining
@@ -663,7 +663,7 @@ impl Memory {
     pub(crate) fn claim(&self) -> Result<()> {
         self.budget.claim()
     }
-    #[cfg(any(test, feature = "fault-injection"))]
+    #[cfg(test)]
     pub(crate) fn fail_after(&self, n: Option<usize>) {
         self.budget.fail_after(n);
     }

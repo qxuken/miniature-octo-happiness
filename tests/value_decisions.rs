@@ -1,3 +1,8 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db as allocator_engine;
 use weekend_db::{Database, Error, Limits, Value};
 #[test]
 fn scalar_accessors_and_container_type_errors_are_explicit() {
@@ -131,17 +136,16 @@ fn equality_distinguishes_pointer_kind_lengths_keys_and_contents() {
 #[test]
 fn bytes_length_and_total_weight_guards_precede_allocation() {
     for max_bytes in [2, 3] {
-        let db = Database::with_limits(Limits {
+        let allocator = Arc::new(TestAllocator::default());
+        let options = allocator.options().with_limits(Limits {
             max_bytes,
             max_value_bytes: 18,
             ..Default::default()
-        })
-        .unwrap();
+        });
+        let db = Database::with_options(options).unwrap();
         assert!(db.bytes(b"ab").is_ok());
-        #[cfg(feature = "fault-injection")]
-        db.fail_allocations_after(Some(0));
-        assert_eq!(db.bytes(b"abc"), Err(Error::Limit));
-        #[cfg(feature = "fault-injection")]
-        db.fail_allocations_after(None);
+        let (result, requests) = allocator.count_with_refusal(0, || db.bytes(b"abc"));
+        assert_eq!(result, Err(Error::Limit));
+        assert_eq!(requests, 0);
     }
 }

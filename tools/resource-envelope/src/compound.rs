@@ -1,4 +1,11 @@
 //! Compound finite workload; no production API or limit changes.
+#[cfg(not(legacy_allocation_hook))]
+#[path = "../../../tests/support/allocator.rs"]
+pub mod allocator;
+#[cfg(not(legacy_allocation_hook))]
+use allocator::TestAllocator;
+#[cfg(not(legacy_allocation_hook))]
+use std::sync::Arc;
 use std::{
     fs,
     io::Write,
@@ -7,6 +14,8 @@ use std::{
     thread,
     time::Instant,
 };
+#[cfg(not(legacy_allocation_hook))]
+use weekend_db as allocator_engine;
 use weekend_db::{
     Database, Error, Limits, Snapshot, TransactionState, Value,
     storage::{self, Crash, Fault, IoKind, SimulatedDisk},
@@ -791,6 +800,16 @@ fn faults(dir: &Path, source: &Path) {
     for (name, fault, crash, error, survives) in cases {
         let now = Instant::now();
         let disk = SimulatedDisk::from_image(&image).unwrap();
+        #[cfg(not(legacy_allocation_hook))]
+        let allocator = (name == "allocation").then(|| Arc::new(TestAllocator::default()));
+        #[cfg(not(legacy_allocation_hook))]
+        let options = allocator.as_ref().map_or_else(
+            || limits(CORE).into(),
+            |allocator| allocator.options().with_limits(limits(CORE)),
+        );
+        #[cfg(not(legacy_allocation_hook))]
+        let db = Database::open_on_with_options(disk.clone(), options).unwrap();
+        #[cfg(legacy_allocation_hook)]
         let db = Database::open_on(disk.clone(), limits(CORE)).unwrap();
         let mut tx = probe(&db);
         let pressure = thread::scope(|scope| {
@@ -827,14 +846,25 @@ fn faults(dir: &Path, source: &Path) {
             }
             let pressure = db.memory_usage().live_bytes;
             assert!(pressure > CORE * 89 / 100);
-            if name == "allocation" {
-                db.fail_allocations_after(Some(0));
-            }
             if let Some((step, fault)) = fault {
                 disk.arm(step, fault);
             }
-            assert_eq!(tx.commit(), error.map_or(Ok(FINAL + 1), Err));
-            db.fail_allocations_after(None);
+            #[cfg(not(legacy_allocation_hook))]
+            let result = if let Some(allocator) = &allocator {
+                allocator.with_refusal(0, || tx.commit())
+            } else {
+                tx.commit()
+            };
+            #[cfg(legacy_allocation_hook)]
+            let result = {
+                if name == "allocation" {
+                    db.fail_allocations_after(Some(0));
+                }
+                let result = tx.commit();
+                db.fail_allocations_after(None);
+                result
+            };
+            assert_eq!(result, error.map_or(Ok(FINAL + 1), Err));
             assert_eq!(
                 db.requires_recovery(),
                 error.is_some_and(|e| e != Error::OutOfMemory)
