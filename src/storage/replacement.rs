@@ -52,7 +52,7 @@ mod tests {
             assert_eq!(result, if fail < 6 { Err(Error::Io) } else { Ok(()) });
         }
     }
-    #[derive(Clone, Copy, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct Names {
         canonical: Option<usize>,
         scratch: Option<usize>,
@@ -100,11 +100,28 @@ mod tests {
             disk.durable_image().unwrap(),
             target.durable_image().unwrap(),
         ];
-        for fail in 0..=12 {
-            let initial = Names {
-                canonical: Some(0),
-                scratch: Some(1),
-            };
+        let initial = Names {
+            canonical: Some(0),
+            scratch: Some(1),
+        };
+        let exchanged = Names {
+            canonical: Some(1),
+            scratch: Some(0),
+        };
+        let cleaned = Names {
+            canonical: Some(1),
+            scratch: None,
+        };
+        let boundaries = [
+            [initial, initial, initial],
+            [initial, initial, exchanged],
+            [initial, exchanged, exchanged],
+            [exchanged, exchanged, exchanged],
+            [exchanged, exchanged, cleaned],
+            [exchanged, cleaned, cleaned],
+            [cleaned, cleaned, cleaned],
+        ];
+        for fail in 0_usize..=12 {
             let mut namespace = Namespace {
                 durable: initial,
                 flushed: initial,
@@ -122,10 +139,10 @@ mod tests {
                     Step::RemoveOld => s.volatile.scratch = None,
                 })
             });
-            for (policy, names) in [namespace.durable, namespace.flushed, namespace.volatile]
-                .into_iter()
-                .enumerate()
-            {
+            assert_eq!(result, if fail < 12 { Err(Error::Io) } else { Ok(()) });
+            let survivors = [namespace.durable, namespace.flushed, namespace.volatile];
+            assert_eq!(survivors, boundaries[fail.div_ceil(2)], "fail={fail}");
+            for (policy, names) in survivors.into_iter().enumerate() {
                 let index = names.canonical.expect("crash lost canonical entry");
                 let reopened = Database::open_on(
                     SimulatedDisk::from_image(&images[index]).unwrap(),
@@ -152,10 +169,6 @@ mod tests {
                         .as_u64(),
                     Ok(0)
                 );
-                if result.is_ok() {
-                    assert_eq!(names.canonical, Some(1));
-                    assert_eq!(names.scratch, None);
-                }
             }
         }
     }

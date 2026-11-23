@@ -588,6 +588,14 @@ mod files {
         #[cfg(target_os = "macos")]
         use std::process::Command;
         let dir = Directory::new();
+        assert_eq!(
+            Database::compact_file(Path::new(""), Limits::default()),
+            Err(Error::Invalid)
+        );
+        assert_eq!(
+            Database::compact_file(dir.path("missing.db"), Limits::default()),
+            Err(Error::NotFound)
+        );
         let path = dir.path("space λ.db");
         seed(&path);
         let db = Database::open_file(&path, Limits::default()).unwrap();
@@ -604,6 +612,7 @@ mod files {
             Err(Error::Invalid)
         );
         assert_eq!(fs::read(&path).unwrap(), before);
+        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 2);
         fs::remove_file(alias).unwrap();
         let link = dir.path("link");
         symlink(&path, &link).unwrap();
@@ -691,6 +700,7 @@ mod files {
     #[cfg(feature = "fault-injection")]
     #[test]
     fn file_errors_at_every_observation_preserve_a_whole_canonical_store() {
+        use std::os::unix::fs::MetadataExt;
         use weekend_db::storage::{CompactionEvent, CompactionStep as S, compact_file_with_hook};
         let dir = Directory::new();
         let base = dir.path("base");
@@ -718,15 +728,51 @@ mod files {
             Ok(())
         })
         .unwrap();
-        let events = events.lock().unwrap();
-        let first_exchange = events.iter().position(|e| e.step == S::Exchange).unwrap();
+        let compacted = fs::read(&trace).unwrap();
+        assert_ne!(compacted, image);
+        let events: Arc<[CompactionEvent]> = events.lock().unwrap().clone().into();
+        let position = |step, after| {
+            events
+                .iter()
+                .position(|event| *event == CompactionEvent { step, after })
+                .unwrap()
+        };
+        let scratch_created = events[..position(S::TargetLength, false)]
+            .iter()
+            .rposition(|event| event.step == S::SourceLength && !event.after)
+            .unwrap();
+        let metadata = position(S::CopyMetadata, false);
+        let first_exchange = position(S::Exchange, false);
+        let exchanged = position(S::Exchange, true);
+        let removed = position(S::RemoveOld, true);
+        assert_eq!(
+            events[first_exchange..],
+            [
+                S::Exchange,
+                S::SyncDirectory,
+                S::SyncReplacement,
+                S::RemoveOld,
+                S::SyncCleanupDirectory,
+                S::SyncCleanupFile,
+            ]
+            .into_iter()
+            .flat_map(|step| [false, true].map(|after| CompactionEvent { step, after }))
+            .collect::<Vec<_>>()
+        );
         for fail in 0..events.len() {
-            let path = dir.path(&format!("error-{fail}"));
+            let attempt = Directory::new();
+            let path = attempt.path("store.db");
+            let unrelated = attempt.path(".wdb-compact-00000000000000000000000000000000.tmp");
+            fs::write(&unrelated, b"unrelated").unwrap();
             fs::copy(&base, &path).unwrap();
+            let old_inode = fs::metadata(&path).unwrap().ino();
+            let expected = events.clone();
             let mut position = 0;
-            let result = compact_file_with_hook(&path, Limits::default(), move |_| {
+            let result = compact_file_with_hook(&path, Limits::default(), move |event| {
                 let here = position;
                 position += 1;
+                assert!(here <= fail, "continued after hook failure");
+                assert_eq!(event, expected[here]);
                 if here == fail { Err(Error::Io) } else { Ok(()) }
             });
             assert_eq!(
@@ -739,10 +785,92 @@ mod files {
                 "event={:?}",
                 events[fail]
             );
+            let canonical = fs::read(&path).unwrap();
+            assert_eq!(
+                &canonical,
+                if fail < exchanged { &image } else { &compacted }
+            );
+            assert_eq!(
+                fs::metadata(&path).unwrap().ino() == old_inode,
+                fail < exchanged
+            );
+            assert_eq!(fs::read(&unrelated).unwrap(), b"unrelated");
+            let mut extra = fs::read_dir(&attempt.0)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .filter(|entry| entry != &path && entry != &unrelated);
+            if (scratch_created..removed).contains(&fail) {
+                let scratch = extra.next().expect("preserve the operation's scratch file");
+                assert!(
+                    scratch
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .starts_with(".wdb-compact-")
+                );
+                assert_eq!(
+                    fs::metadata(&scratch).unwrap().ino() == old_inode,
+                    fail >= exchanged
+                );
+                if (metadata..exchanged).contains(&fail) {
+                    assert_eq!(fs::read(scratch).unwrap(), compacted);
+                } else if fail >= exchanged {
+                    assert_eq!(fs::read(scratch).unwrap(), image);
+                }
+            }
+            assert!(extra.next().is_none(), "event={:?}", events[fail]);
             check(
                 &Database::open_file(&path, Limits::default()).unwrap(),
                 &original,
             );
+        }
+    }
+
+    #[cfg(feature = "fault-injection")]
+    #[test]
+    fn recheck_rejects_replaced_canonical_or_scratch_inode_before_exchange() {
+        use std::os::unix::fs::MetadataExt;
+        use weekend_db::storage::{CompactionStep as S, compact_file_with_hook};
+
+        for replace_original in [true, false] {
+            let dir = Directory::new();
+            let path = dir.path("store.db");
+            seed(&path);
+            let observed_path = path.clone();
+            let held = dir.path("held.db");
+            let held_name = held.clone();
+            let result = compact_file_with_hook(&path, Limits::default(), move |event| {
+                assert_ne!(event.step, S::Exchange);
+                if event.step == S::CheckNames && !event.after {
+                    let affected = if replace_original {
+                        observed_path.clone()
+                    } else {
+                        fs::read_dir(observed_path.parent().unwrap())
+                            .unwrap()
+                            .map(|entry| entry.unwrap().path())
+                            .find(|entry| {
+                                entry
+                                    .file_name()
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .starts_with(".wdb-compact-")
+                            })
+                            .unwrap()
+                    };
+                    fs::rename(&affected, &held_name).unwrap();
+                    fs::copy(&held_name, &affected).unwrap();
+                    assert_ne!(
+                        fs::metadata(&affected).unwrap().ino(),
+                        fs::metadata(&held_name).unwrap().ino()
+                    );
+                }
+                Ok(())
+            });
+            assert_eq!(result, Err(Error::Invalid));
+            assert!(held.exists());
+            assert_eq!(fs::read(&path).unwrap(), fixture());
         }
     }
 }
