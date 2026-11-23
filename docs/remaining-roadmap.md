@@ -218,19 +218,22 @@ pass on macOS and Docker Linux in both profiles.
 The [Rust output slice](decisions/rust-output-allocation.md) exercises real
 Global refusal in map, scan, retained ID, simulator, inspection and logical
 export outputs. Observation, overlay and owned scans use selected-allocator
-refusals. Batch 2 continues with the remaining engine allocation hook users.
+refusals.
 
 The [public allocation hook retirement](decisions/public-allocation-hook-retirement.md)
 migrates the remaining integration callers and the compound resource driver.
-The library's synthetic counter is now confined to unit tests. The
-[codec allocation tests](decisions/codec-allocator-tests.md) now drive
+The [codec allocation tests](decisions/codec-allocator-tests.md) drive
 real provider refusal across encoding, recovery, cache reuse and fresh
-image creation. The two golden histories and named COMMIT controls pass.
-The [cold-open and Linux metadata tests](decisions/storage-allocator-tests.md)
-now exercise real refusals. The cold-open test preserves revision 4 and
-retained revision 2, and Linux compaction preserves metadata and ACLs.
-Tree, value and memory tests remain before the unit-only counter can
-be removed.
+image creation. The [cold-open and Linux metadata tests](decisions/storage-allocator-tests.md)
+exercise real refusals while checking current and retained roots,
+lease cleanup, and metadata and ACL preservation.
+
+The [unit allocator migration](decisions/unit-allocator-retirement.md)
+finishes batch 2 on the stack. Tree, value and memory tests use the
+provider and the synthetic counter has been removed. Both golden histories
+pass on macOS and Docker Linux, and 22 allocator and encoder controls
+pass in each macOS profile. Batch 3 tracks codec, cache and index
+decision coverage.
 
 All R1 and R2–R7 completion gates above remain open.
 

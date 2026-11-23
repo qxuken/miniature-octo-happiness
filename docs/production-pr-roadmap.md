@@ -58,6 +58,9 @@ the plain Rust output boundary, public hook retirement, and the remaining
 unit tests. The codec tests move first. Follow with cold-open and native
 adapter checks, then tree, value, and memory tests. Delete the unit-only
 counter once the remaining tests drive real allocation requests.
+[Batch 2 evidence](decisions/unit-allocator-retirement.md) records that
+transition. Batch 3 starts with VALUE hash probing and rehash, DATA
+lookup and insertion, and the borrowed-to-owned cache transition.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those
