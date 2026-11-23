@@ -27,8 +27,8 @@ ignores per profile on macOS arm64. Docker Linux arm64/ext4 passed 205
 library, allocation, public Rust output, retention and compaction tests
 per profile. Debug and release ran both golden histories. Strict Clippy
 passed on macOS and for Windows MSVC. The macOS run with all features
-disabled passed 136 library tests. Miri passed 21 memory tests and both
-the tree and nested-map regression tests.
+disabled passed 136 library tests. Miri passed 21 memory tests, both the
+tree and nested-map regressions, and all five allocator-routing tests.
 
 At `6bd2928`, all 22 selected mutation controls were detected in each
 macOS profile. The six reports bind that clean source and account for 186
