@@ -10695,6 +10695,182 @@
       "matches": 1,
       "package": "weekend-db-macros",
       "exact_test": "resolution_requires_a_selected_field"
+    },
+    {
+      "name": "r1-snapshot-ack-follower-older",
+      "file": "src/replication/follower.rs",
+      "old": "offer.revision < prior.offer.revision",
+      "new": "false",
+      "test": "replication::follower::tests::lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-follower-duplicate",
+      "file": "src/replication/follower.rs",
+      "old": "offer == prior.offer",
+      "new": "false",
+      "test": "replication::follower::tests::lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-follower-conflict",
+      "file": "src/replication/follower.rs",
+      "old": "if offer.revision == prior.offer.revision {",
+      "new": "if false {",
+      "test": "replication::follower::tests::lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-follower-ready-flush",
+      "file": "src/replication/follower.rs",
+      "old": "wire::reply(channel, Ok(wire::Reply::Ready))?;",
+      "new": "let _ = wire::reply(channel, Ok(wire::Reply::Ready));",
+      "test": "replication::follower::tests::ready_and_terminal_flush_failures_reopen_the_exact_selected_image",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-follower-terminal-flush",
+      "file": "src/replication/follower.rs",
+      "old": "result?;\n        sent",
+      "new": "result?;\n        let _ = sent;\n        Ok(())",
+      "test": "replication::follower::tests::ready_and_terminal_flush_failures_reopen_the_exact_selected_image",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-follower-image-sync",
+      "file": "src/replication/follower.rs",
+      "old": "image.0.sync()?;",
+      "new": "",
+      "test": "replication::follower::tests::interrupted_image_and_manifest_barriers_recover_exactly_one_image",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-follower-manifest-select",
+      "file": "src/replication/follower.rs",
+      "old": "self.select(Some(selected))?;",
+      "new": "let _ = self.select(Some(selected));",
+      "test": "replication::follower::tests::interrupted_image_and_manifest_barriers_recover_exactly_one_image",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-poll-empty",
+      "file": "src/replication/mod.rs",
+      "old": "wire::Reply::Empty if self.progress.is_none() =>",
+      "new": "wire::Reply::Empty =>",
+      "test": "replication::tests::primary_poll_rejects_invalid_progress_without_losing_its_last_ack",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-sender-stream",
+      "file": "src/replication/mod.rs",
+      "old": "ack.stream_id != self.enrollment.stream_id",
+      "new": "false",
+      "test": "replication::tests::primary_poll_rejects_invalid_progress_without_losing_its_last_ack",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-sender-ahead-of-head",
+      "file": "src/replication/mod.rs",
+      "old": "ack.revision > self.verified_revision",
+      "new": "false",
+      "test": "replication::tests::primary_poll_rejects_invalid_progress_without_losing_its_last_ack",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-sender-rollback",
+      "file": "src/replication/mod.rs",
+      "old": "prior.revision > ack.revision",
+      "new": "false",
+      "test": "replication::tests::primary_poll_rejects_invalid_progress_without_losing_its_last_ack",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-sender-matching-revision",
+      "file": "src/replication/mod.rs",
+      "old": "prior.revision == ack.revision",
+      "new": "true",
+      "test": "replication::tests::primary_poll_rejects_invalid_progress_without_losing_its_last_ack",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-sender-matching-digest",
+      "file": "src/replication/mod.rs",
+      "old": "prior != ack",
+      "new": "false",
+      "test": "replication::tests::primary_poll_rejects_invalid_progress_without_losing_its_last_ack",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-ship-immediate-newer",
+      "file": "src/replication/mod.rs",
+      "old": "ack.revision > expected.revision",
+      "new": "false",
+      "test": "replication::tests::primary_ship_accepts_newer_progress_only_before_uploading",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-ship-immediate-exact",
+      "file": "src/replication/mod.rs",
+      "old": "ack == expected",
+      "new": "false",
+      "test": "replication::tests::primary_ship_accepts_newer_progress_only_before_uploading",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 2,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-snapshot-ack-ship-post-upload-exact",
+      "file": "src/replication/mod.rs",
+      "old": "ack == expected",
+      "new": "true",
+      "test": "replication::tests::primary_ship_accepts_newer_progress_only_before_uploading",
+      "target": "--lib",
+      "occurrence": 2,
+      "matches": 2,
+      "package": "weekend-db"
     }
   ]
 }
