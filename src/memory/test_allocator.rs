@@ -7,6 +7,162 @@ use std::sync::Arc;
 mod allocator;
 pub(crate) use allocator::TestAllocator;
 
+#[derive(Default)]
+struct ForeignProbe {
+    allocator: TestAllocator,
+    frees: AtomicUsize,
+    retains: AtomicUsize,
+    releases: AtomicUsize,
+}
+
+impl ForeignProbe {
+    fn callbacks(&self) -> AllocatorCallbacks {
+        use std::ffi::c_void;
+
+        unsafe extern "C" fn allocate(
+            context: *mut c_void,
+            size: usize,
+            align: usize,
+        ) -> *mut c_void {
+            let probe = unsafe { &*context.cast::<ForeignProbe>() };
+            probe
+                .allocator
+                .allocate(Layout::from_size_align(size, align).unwrap())
+                .map_or(std::ptr::null_mut(), |block| {
+                    block.cast::<c_void>().as_ptr()
+                })
+        }
+
+        unsafe extern "C" fn deallocate(
+            context: *mut c_void,
+            address: *mut c_void,
+            size: usize,
+            align: usize,
+        ) {
+            let probe = unsafe { &*context.cast::<ForeignProbe>() };
+            probe.frees.fetch_add(1, Ordering::Relaxed);
+            // Also observe an unexpected zero-byte callback without freeing an
+            // address that this fixture did not allocate.
+            if size != 0 {
+                let layout = Layout::from_size_align(size, align).unwrap();
+                unsafe {
+                    probe
+                        .allocator
+                        .deallocate(NonNull::new(address.cast()).unwrap(), layout)
+                };
+            }
+        }
+
+        unsafe extern "C" fn retain(context: *mut c_void) {
+            let probe = unsafe { &*context.cast::<ForeignProbe>() };
+            probe.retains.fetch_add(1, Ordering::Relaxed);
+        }
+
+        unsafe extern "C" fn release(context: *mut c_void) {
+            let probe = unsafe { &*context.cast::<ForeignProbe>() };
+            assert_eq!(probe.allocator.live(), 0);
+            probe.releases.fetch_add(1, Ordering::Relaxed);
+        }
+
+        AllocatorCallbacks {
+            context: std::ptr::from_ref(self).cast_mut().cast(),
+            allocate: Some(allocate),
+            deallocate: Some(deallocate),
+            retain_context: Some(retain),
+            release_context: Some(release),
+        }
+    }
+
+    fn context_calls(&self) -> (usize, usize) {
+        (
+            self.retains.load(Ordering::Relaxed),
+            self.releases.load(Ordering::Relaxed),
+        )
+    }
+}
+
+#[test]
+fn foreign_descriptor_rejects_each_missing_callback_independently() {
+    let probe = ForeignProbe::default();
+    let callbacks = probe.callbacks();
+    let invalid = [
+        AllocatorCallbacks {
+            allocate: None,
+            ..callbacks
+        },
+        AllocatorCallbacks {
+            deallocate: None,
+            ..callbacks
+        },
+        AllocatorCallbacks {
+            retain_context: None,
+            ..callbacks
+        },
+        AllocatorCallbacks {
+            release_context: None,
+            ..callbacks
+        },
+    ];
+    for descriptor in invalid {
+        assert!(matches!(
+            unsafe { ForeignAllocator::new(descriptor) },
+            Err(Error::Invalid)
+        ));
+        assert_eq!(probe.context_calls(), (0, 0));
+        assert_eq!(probe.allocator.requests(), 0);
+    }
+
+    let borrowed = AllocatorCallbacks {
+        retain_context: None,
+        release_context: None,
+        ..callbacks
+    };
+    let borrowed = unsafe { ForeignAllocator::new(borrowed) }.unwrap();
+    drop(borrowed);
+    assert_eq!(probe.context_calls(), (0, 0));
+
+    let retained = unsafe { ForeignAllocator::new(callbacks) }.unwrap();
+    assert_eq!(probe.context_calls(), (1, 0));
+    drop(retained);
+    assert_eq!(probe.context_calls(), (1, 1));
+    assert_eq!(probe.allocator.requests(), 0);
+}
+
+#[test]
+fn foreign_zero_layout_skips_callbacks_and_nonzero_refusal_is_retryable() {
+    let probe = ForeignProbe::default();
+    let allocator = unsafe { ForeignAllocator::new(probe.callbacks()) }.unwrap();
+    let zero = Layout::from_size_align(0, 64).unwrap();
+    let payload = Layout::from_size_align(3, zero.align()).unwrap();
+    probe.allocator.fail_next();
+
+    let block = allocator.allocate(zero).unwrap();
+    assert_eq!(block.len(), 0);
+    assert!(block.cast::<u8>().addr().get().is_multiple_of(zero.align()));
+    unsafe { allocator.deallocate(block.cast(), zero) };
+    assert_eq!(probe.allocator.requests(), 0);
+    assert_eq!(probe.frees.load(Ordering::Relaxed), 0);
+
+    assert!(matches!(allocator.allocate(payload), Err(AllocError)));
+    assert_eq!(probe.allocator.live(), 0);
+    let block = allocator.allocate(payload).unwrap();
+    assert_eq!(block.len(), payload.size());
+    assert!(
+        block
+            .cast::<u8>()
+            .addr()
+            .get()
+            .is_multiple_of(payload.align())
+    );
+    unsafe { allocator.deallocate(block.cast(), payload) };
+    assert_eq!(probe.allocator.requests(), 2);
+    assert_eq!(probe.frees.load(Ordering::Relaxed), 1);
+    assert_eq!(probe.allocator.live(), 0);
+    assert_eq!(probe.context_calls(), (1, 0));
+    drop(allocator);
+    assert_eq!(probe.context_calls(), (1, 1));
+}
+
 impl TestAllocator {
     pub(crate) fn memory(self: &Arc<Self>, limits: Limits) -> Memory {
         Memory::with_allocator(limits, self.handle()).unwrap()

@@ -9893,6 +9893,94 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-foreign-allocator-require-allocate",
+      "file": "src/memory.rs",
+      "old": "callbacks.allocate.is_none()\n            || ",
+      "new": "",
+      "test": "memory::test_allocator::foreign_descriptor_rejects_each_missing_callback_independently",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-foreign-allocator-require-deallocate",
+      "file": "src/memory.rs",
+      "old": "|| callbacks.deallocate.is_none()\n            ",
+      "new": "",
+      "test": "memory::test_allocator::foreign_descriptor_rejects_each_missing_callback_independently",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-foreign-allocator-require-context-retain",
+      "file": "src/memory.rs",
+      "old": "callbacks.retain_context.is_some() != callbacks.release_context.is_some()",
+      "new": "callbacks.retain_context.is_some() && !callbacks.release_context.is_some()",
+      "test": "memory::test_allocator::foreign_descriptor_rejects_each_missing_callback_independently",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-foreign-allocator-require-context-release",
+      "file": "src/memory.rs",
+      "old": "callbacks.retain_context.is_some() != callbacks.release_context.is_some()",
+      "new": "!callbacks.retain_context.is_some() && callbacks.release_context.is_some()",
+      "test": "memory::test_allocator::foreign_descriptor_rejects_each_missing_callback_independently",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-foreign-allocator-retain-context",
+      "file": "src/memory.rs",
+      "old": "unsafe { retain(callbacks.context) };",
+      "new": "let _ = retain;",
+      "test": "memory::test_allocator::foreign_descriptor_rejects_each_missing_callback_independently",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-foreign-allocator-release-context",
+      "file": "src/memory.rs",
+      "old": "unsafe { release(self.0.context) };",
+      "new": "let _ = release;",
+      "test": "memory::test_allocator::foreign_descriptor_rejects_each_missing_callback_independently",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-foreign-allocator-zero-allocate",
+      "file": "src/memory.rs",
+      "old": "if layout.size() == 0 {\n            return Global.allocate(layout);",
+      "new": "if layout.size() == 0 && layout.align() == 1 {\n            return Global.allocate(layout);",
+      "test": "memory::test_allocator::foreign_zero_layout_skips_callbacks_and_nonzero_refusal_is_retryable",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-foreign-allocator-zero-deallocate",
+      "file": "src/memory.rs",
+      "old": "if layout.size() != 0 {\n            let deallocate",
+      "new": "if layout.size() != 0 || layout.align() != 1 {\n            let deallocate",
+      "test": "memory::test_allocator::foreign_zero_layout_skips_callbacks_and_nonzero_refusal_is_retryable",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
