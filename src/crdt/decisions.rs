@@ -89,10 +89,22 @@ fn policy_and_frame_independent_guards() {
         State::<GrowCounter>::read(&mut &valid[..8]),
         Err(Error::Io)
     ));
+    let mut invalid_payload = valid.clone();
+    invalid_payload[HEADER..HEADER + 8].copy_from_slice(&(MAX_COMPONENT + 1).to_le_bytes());
+    assert!(matches!(
+        State::<GrowCounter>::decode(&invalid_payload),
+        Err(Error::Corrupt)
+    ));
     let mut wrong = valid;
     wrong[0] = 0;
+    let mut unread = wrong.as_slice();
     assert!(matches!(
-        State::<GrowCounter>::read(&mut wrong.as_slice()),
+        State::<GrowCounter>::read(&mut unread),
+        Err(Error::UnsupportedFormat)
+    ));
+    assert_eq!(unread, &wrong[8..]);
+    assert!(matches!(
+        State::<GrowCounter>::read(&mut &wrong[..8]),
         Err(Error::UnsupportedFormat)
     ));
 }
@@ -238,6 +250,25 @@ fn replica_size_actor_enrollment_and_local_row_guards() {
         Replica::<GrowCounter>::open(&db, c, POLICY, [1; 16]),
         Err(Error::NotFound)
     ));
+    let revision = db.snapshot().revision();
+    assert!(matches!(
+        Replica::<GrowCounter>::open(&db, c, POLICY, [3; 16]),
+        Err(Error::ForeignStore)
+    ));
+    assert!(matches!(
+        Replica::<GrowCounter>::enroll(
+            &db,
+            c,
+            Policy {
+                generation: 0,
+                ..POLICY
+            },
+            POLICY.actors[0]
+        ),
+        Err(Error::Invalid)
+    ));
+    assert_eq!(db.snapshot().revision(), revision);
+    assert!(db.snapshot().get(c, GrowCounter::KEY).unwrap().is_none());
     let r = Replica::<GrowCounter>::enroll(&db, c, POLICY, [1; 16]).unwrap();
     assert!(matches!(
         Replica::<GrowCounter>::enroll(&db, c, POLICY, [1; 16]),
@@ -270,6 +301,171 @@ fn replica_size_actor_enrollment_and_local_row_guards() {
     let revision = db.snapshot().revision();
     assert_eq!(r.update(|_, _| Err(Error::Invalid)), Err(Error::Invalid));
     assert_eq!(db.snapshot().revision(), revision);
+}
+
+#[test]
+fn policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles() {
+    use crate::Limits;
+    use crate::storage::{Crash, SimulatedDisk};
+
+    let disk = SimulatedDisk::new().unwrap();
+    let limits = Limits::default();
+    let db = Database::create_on(disk.clone(), [3; 16], limits).unwrap();
+    let collection = db.create_collection().unwrap();
+    let replica =
+        Replica::<GrowCounter>::enroll(&db, collection, POLICY, POLICY.actors[1]).unwrap();
+    let retained = db.retain_snapshot(&db.snapshot()).unwrap();
+    assert_eq!(
+        replica.update(|state, actor| state.increment(actor, 2)),
+        Ok(4)
+    );
+    let original = disk.durable_image().unwrap();
+    let current_row = db
+        .snapshot()
+        .get(collection, GrowCounter::KEY)
+        .unwrap()
+        .unwrap();
+    let retained_row = db
+        .retained_snapshot(retained)
+        .unwrap()
+        .get(collection, GrowCounter::KEY)
+        .unwrap()
+        .unwrap();
+    let offer = State {
+        policy: POLICY,
+        actor: Actor(0),
+        payload: GrowCounter([5, 2]),
+    };
+    let frame = |state: State<GrowCounter>| state.encode(&mut [0; MAX_FRAME]).unwrap().to_vec();
+    for (state, error) in [
+        (
+            State {
+                policy: Policy {
+                    collection: [8; 16],
+                    ..POLICY
+                },
+                ..offer
+            },
+            Error::ForeignStore,
+        ),
+        (
+            State {
+                policy: Policy {
+                    generation: 2,
+                    ..POLICY
+                },
+                ..offer
+            },
+            Error::Conflict,
+        ),
+        (
+            State {
+                policy: Policy {
+                    actors: [[1; 16], [4; 16]],
+                    ..POLICY
+                },
+                ..offer
+            },
+            Error::Conflict,
+        ),
+        (
+            State {
+                actor: Actor(1),
+                ..offer
+            },
+            Error::ForeignStore,
+        ),
+        (
+            State {
+                payload: GrowCounter([5, 3]),
+                ..offer
+            },
+            Error::Conflict,
+        ),
+    ] {
+        let mut receive = Channel::new(frame(state));
+        assert_eq!(replica.serve_authenticated(&mut receive), Err(error));
+        assert!(receive.output.is_empty());
+        let mut sending = Channel::new(frame(state));
+        assert_eq!(replica.push_authenticated(&mut sending), Err(error));
+        assert_eq!(sending.output.as_slice(), current_row.as_bytes().unwrap());
+        assert_eq!(db.snapshot().revision(), 4);
+        assert_eq!(
+            db.snapshot()
+                .get(collection, GrowCounter::KEY)
+                .unwrap()
+                .as_ref(),
+            Some(&current_row)
+        );
+        assert_eq!(disk.durable_image().unwrap(), original);
+    }
+    let mut incomplete = Channel::new(frame(State {
+        payload: GrowCounter([5, 1]),
+        ..offer
+    }));
+    assert_eq!(
+        replica.push_authenticated(&mut incomplete),
+        Err(Error::Conflict)
+    );
+    assert_eq!(
+        incomplete.output.as_slice(),
+        current_row.as_bytes().unwrap()
+    );
+    assert!(matches!(
+        Replica::<GrowCounter>::open(
+            &db,
+            collection,
+            Policy {
+                generation: 2,
+                ..POLICY
+            },
+            POLICY.actors[1]
+        ),
+        Err(Error::Conflict)
+    ));
+    assert_eq!(db.snapshot().revision(), 4);
+    assert_eq!(disk.durable_image().unwrap(), original);
+    drop(db);
+    disk.crash(Crash::DropAll).unwrap();
+    let db = Database::open_on(disk, limits).unwrap();
+    let collection = db.collection_id(1);
+    let replica = Replica::<GrowCounter>::open(&db, collection, POLICY, POLICY.actors[1]).unwrap();
+    assert_eq!(db.snapshot().revision(), 4);
+    assert_eq!(replica.read(), Ok(GrowCounter([0, 2])));
+    let snapshot = db.retained_snapshot(retained).unwrap();
+    assert_eq!(snapshot.revision(), 2);
+    assert_eq!(
+        snapshot
+            .get(collection, GrowCounter::KEY)
+            .unwrap()
+            .unwrap()
+            .as_bytes()
+            .unwrap(),
+        retained_row.as_bytes().unwrap()
+    );
+    assert_eq!(replica.read_at(&snapshot), Ok(GrowCounter([0, 0])));
+
+    let mut sending = Channel::new(frame(offer));
+    assert_eq!(
+        replica.push_authenticated(&mut sending),
+        Ok(ReplicaAck {
+            policy: POLICY,
+            actor: POLICY.actors[0],
+            state: offer.payload
+        })
+    );
+    let reply = frame(State {
+        actor: Actor(1),
+        ..offer
+    });
+    for _ in 0..2 {
+        let mut receive = Channel::new(frame(offer));
+        assert_eq!(replica.serve_authenticated(&mut receive), Ok(()));
+        assert_eq!(receive.output, reply);
+        assert_eq!(db.snapshot().revision(), 5);
+        assert_eq!(replica.read(), Ok(GrowCounter([5, 2])));
+        assert_eq!(replica.read_at(&snapshot), Ok(GrowCounter([0, 0])));
+    }
 }
 
 #[test]
@@ -386,26 +582,35 @@ fn register_causal_event_oracle_accepts_bounded_honest_schedules() {
     assert_eq!(visited, 5461);
 }
 
+struct Channel {
+    input: std::io::Cursor<Vec<u8>>,
+    output: Vec<u8>,
+}
+impl Channel {
+    fn new(input: Vec<u8>) -> Self {
+        Self {
+            input: std::io::Cursor::new(input),
+            output: Vec::new(),
+        }
+    }
+}
+impl std::io::Read for Channel {
+    fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+        std::io::Read::read(&mut self.input, bytes)
+    }
+}
+impl std::io::Write for Channel {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.output.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 #[test]
 fn register_forged_retirement_frames_never_publish_or_acknowledge() {
-    struct Channel {
-        input: std::io::Cursor<Vec<u8>>,
-        output: Vec<u8>,
-    }
-    impl std::io::Read for Channel {
-        fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
-            std::io::Read::read(&mut self.input, bytes)
-        }
-    }
-    impl std::io::Write for Channel {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.output.extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
     for case in 0..5 {
         let db = Database::new().unwrap();
         let collection = db.create_collection().unwrap();
@@ -454,10 +659,7 @@ fn register_forged_retirement_frames_never_publish_or_acknowledge() {
             .snapshot()
             .get(collection, MultiValueRegister::KEY)
             .unwrap();
-        let mut channel = Channel {
-            input: std::io::Cursor::new(bytes),
-            output: Vec::new(),
-        };
+        let mut channel = Channel::new(bytes);
         let result = replica.serve_authenticated(&mut channel);
         if case == 4 {
             assert_eq!(result, Ok(()));
