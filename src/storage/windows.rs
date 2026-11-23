@@ -3,6 +3,7 @@ use super::ByteStore;
 use super::windows_admission::{
     GENERIC_READ, OPEN_EXISTING, check_directory, check_leaf, check_volume, leaf_open,
 };
+use super::windows_io::{Lease, os_error};
 use super::windows_path::{
     append_leaf, canonical_drive, parent_path, read_path, validate_leaf, validate_path,
 };
@@ -56,17 +57,6 @@ unsafe extern "system" {
 #[link(name = "bcrypt")]
 unsafe extern "system" {
     fn BCryptGenRandom(algorithm: *mut c_void, buffer: *mut u8, size: u32, flags: u32) -> i32;
-}
-
-fn os_error(operation: NativeIoOperation, error: io::Error) -> Error {
-    diagnostics::record(operation, &error);
-    match error.raw_os_error() {
-        Some(2 | 3) => Error::NotFound,
-        Some(32 | 33) => Error::Busy,
-        Some(80 | 183) => Error::AlreadyExists,
-        Some(123 | 267) => Error::Invalid,
-        _ => Error::Io,
-    }
 }
 
 pub(crate) fn identity() -> Result<[u8; 16]> {
@@ -165,8 +155,7 @@ fn check_native_volume(parent: &File, drive: u8) -> Result<()> {
 /// Windows file access holds an exclusive handle from create/open to unlock.
 /// Unlock closes the handle. Use `open` to obtain another lease.
 pub struct FileStore {
-    file: Option<File>,
-    claimed: bool,
+    lease: Lease<File>,
 }
 
 impl FileStore {
@@ -282,57 +271,39 @@ impl FileStore {
         let file_type = unsafe { GetFileType(file.as_raw_handle()) };
         check_leaf(file_type, metadata.is_file(), metadata.file_attributes())?;
         Ok(Self {
-            file: Some(file),
-            claimed: false,
+            lease: Lease::Open(file),
         })
-    }
-
-    fn file(&self) -> Result<&File> {
-        self.file.as_ref().filter(|_| self.claimed).ok_or(Error::Io)
     }
 }
 
 impl ByteStore for FileStore {
     fn lock(&mut self) -> Result<()> {
-        if self.claimed {
-            return Err(Error::Busy);
-        }
-        if self.file.is_none() {
-            return Err(Error::Closed);
-        }
-        self.claimed = true;
-        Ok(())
+        self.lease.claim()
     }
 
     fn unlock(&mut self) {
-        self.file = None;
-        self.claimed = false;
+        self.lease.release();
     }
 
     fn length(&mut self) -> Result<u64> {
-        Ok(self
-            .file()?
-            .metadata()
-            .map_err(|error| os_error(NativeIoOperation::Metadata, error))?
-            .len())
+        self.lease.execute(NativeIoOperation::Metadata, |file| {
+            file.metadata().map(|metadata| metadata.len())
+        })
     }
 
     fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
-        self.file()?
-            .seek_read(out, offset)
-            .map_err(|error| os_error(NativeIoOperation::Read, error))
+        self.lease
+            .execute(NativeIoOperation::Read, |file| file.seek_read(out, offset))
     }
 
     fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
-        self.file()?
-            .seek_write(bytes, offset)
-            .map_err(|error| os_error(NativeIoOperation::Write, error))
+        self.lease.execute(NativeIoOperation::Write, |file| {
+            file.seek_write(bytes, offset)
+        })
     }
 
     fn sync(&mut self) -> Result<()> {
-        self.file()?
-            .sync_all()
-            .map_err(|error| os_error(NativeIoOperation::Sync, error))
+        self.lease.execute(NativeIoOperation::Sync, File::sync_all)
     }
 }
 
@@ -427,40 +398,6 @@ mod decision_tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn native_error_mapping_preserves_raw_code_and_operation() {
-        for (code, expected) in [
-            (2, Error::NotFound),
-            (3, Error::NotFound),
-            (32, Error::Busy),
-            (33, Error::Busy),
-            (80, Error::AlreadyExists),
-            (183, Error::AlreadyExists),
-            (123, Error::Invalid),
-            (267, Error::Invalid),
-            (5, Error::Io),
-        ] {
-            let failure = diagnostics::capture::<()>(|| {
-                Err(os_error(
-                    NativeIoOperation::Open,
-                    io::Error::from_raw_os_error(code),
-                ))
-            })
-            .unwrap_err();
-            assert_eq!(failure.error, expected);
-            let native = failure.native.unwrap();
-            assert_eq!(native.raw_os_error, Some(code));
-            assert_eq!(native.operation, NativeIoOperation::Open);
-        }
-        assert_eq!(
-            os_error(
-                NativeIoOperation::Read,
-                io::Error::from(io::ErrorKind::Other)
-            ),
-            Error::Io
-        );
     }
 }
 

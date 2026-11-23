@@ -469,3 +469,52 @@ fn windows_rejects_streams_and_devices_and_unlock_closes_handle() {
     assert_eq!(file.length(), Err(Error::Io));
     drop(Database::open_file(&path, Limits::default()).unwrap());
 }
+
+#[cfg(windows)]
+#[test]
+fn windows_claim_guards_io_and_unlock_releases_the_read_only_handle() {
+    use weekend_db::storage::{ByteStore, FileStore, NativeIoOperation, with_storage_diagnostics};
+
+    fn check_guard(store: &mut FileStore) {
+        let mut out = [0x5a; 4];
+        for result in [
+            with_storage_diagnostics(|| store.length().map(|_| ())),
+            with_storage_diagnostics(|| store.read(0, &mut out).map(|_| ())),
+            with_storage_diagnostics(|| store.write(0, b"x").map(|_| ())),
+            with_storage_diagnostics(|| store.sync()),
+        ] {
+            let blocked = result.unwrap_err();
+            assert_eq!(blocked.error, Error::Io);
+            assert_eq!(blocked.native, None);
+        }
+        assert_eq!(out, [0x5a; 4]);
+    }
+
+    let dir = Directory::new();
+    let path = dir.file("lease.db");
+    seed(&path);
+    let before = fs::read(&path).unwrap();
+    let mut store = FileStore::open_read_only(&path).unwrap();
+    check_guard(&mut store);
+    assert_eq!(
+        FileStore::open_with_diagnostics(&path).err().unwrap().error,
+        Error::Busy
+    );
+    store.lock().unwrap();
+    assert_eq!(store.lock(), Err(Error::Busy));
+    assert_eq!(store.length(), Ok(before.len() as u64));
+    let mut out = [0; 4];
+    assert_eq!(store.read(0, &mut out), Ok(4));
+    assert_eq!(out, before[..4]);
+    let refused = with_storage_diagnostics(|| store.write(0, b"x")).unwrap_err();
+    assert_eq!(refused.error, Error::Io);
+    let native = refused.native.unwrap();
+    assert_eq!(native.operation, NativeIoOperation::Write);
+    assert!(native.raw_os_error.is_some());
+    store.unlock();
+    check_guard(&mut store);
+    store.unlock();
+    assert_eq!(store.lock(), Err(Error::Closed));
+    drop(FileStore::open(&path).unwrap());
+    assert_eq!(fs::read(&path).unwrap(), before);
+}

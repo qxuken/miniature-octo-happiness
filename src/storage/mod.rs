@@ -35,6 +35,8 @@ mod windows;
 #[cfg(any(windows, test))]
 mod windows_admission;
 #[cfg(any(windows, test))]
+mod windows_io;
+#[cfg(any(windows, test))]
 mod windows_path;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub use file::FileStore;
