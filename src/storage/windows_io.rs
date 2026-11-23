@@ -52,10 +52,63 @@ impl<T> Lease<T> {
     }
 }
 
+pub(super) fn own_open_handle<T>(
+    handle: *mut std::ffi::c_void,
+    operation: NativeIoOperation,
+    last_error: impl FnOnce() -> io::Error,
+    own: impl FnOnce(*mut std::ffi::c_void) -> T,
+) -> Result<T> {
+    if handle == (-1isize) as *mut std::ffi::c_void {
+        return Err(os_error(operation, last_error()));
+    }
+    Ok(own(handle))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn open_result_checks_only_the_invalid_handle_sentinel() {
+        let mut value = 42u32;
+        let handle = (&raw mut value).cast();
+        let opened = diagnostics::capture(|| {
+            own_open_handle(
+                handle,
+                NativeIoOperation::Open,
+                || panic!("a successful open consulted the last error"),
+                |opened| opened,
+            )
+        });
+        assert_eq!(opened.unwrap(), handle);
+
+        for (operation, code, expected) in [
+            (NativeIoOperation::OpenDirectory, 3, Error::NotFound),
+            (NativeIoOperation::Open, 32, Error::Busy),
+            (NativeIoOperation::Create, 80, Error::AlreadyExists),
+            (NativeIoOperation::Create, 5, Error::Io),
+        ] {
+            let reads = Cell::new(0);
+            let failure = diagnostics::capture(|| {
+                own_open_handle(
+                    (-1isize) as *mut std::ffi::c_void,
+                    operation,
+                    || {
+                        reads.set(reads.get() + 1);
+                        io::Error::from_raw_os_error(code)
+                    },
+                    |_| panic!("an invalid handle was adopted"),
+                )
+            })
+            .unwrap_err();
+            assert_eq!(reads.get(), 1);
+            assert_eq!(failure.error, expected);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, operation);
+            assert_eq!(native.raw_os_error, Some(code));
+        }
+    }
 
     #[test]
     fn error_mapping_preserves_the_raw_code_and_operation() {

@@ -472,6 +472,58 @@ fn windows_rejects_streams_and_devices_and_unlock_closes_handle() {
 
 #[cfg(windows)]
 #[test]
+fn windows_open_failures_report_the_native_stage_and_preserve_roots() {
+    use weekend_db::storage::{FileStore, NativeIoOperation, StorageFailure};
+
+    fn check(failure: StorageFailure, error: Error, operation: NativeIoOperation, codes: &[i32]) {
+        assert_eq!(failure.error, error);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, operation);
+        assert!(codes.contains(&native.raw_os_error.unwrap()), "{native:?}");
+    }
+
+    let dir = Directory::new();
+    let path = dir.file("store.db");
+    seed(&path);
+    let before = fs::read(&path).unwrap();
+    check(
+        FileStore::open_with_diagnostics(dir.file("missing-parent").join("store.db"))
+            .err()
+            .unwrap(),
+        Error::NotFound,
+        NativeIoOperation::OpenDirectory,
+        &[2, 3],
+    );
+    check(
+        FileStore::open_with_diagnostics(dir.file("missing.db"))
+            .err()
+            .unwrap(),
+        Error::NotFound,
+        NativeIoOperation::Open,
+        &[2, 3],
+    );
+    check(
+        FileStore::create_with_diagnostics(&path).err().unwrap(),
+        Error::AlreadyExists,
+        NativeIoOperation::Create,
+        &[80, 183],
+    );
+    let held = FileStore::open_read_only(&path).unwrap();
+    check(
+        FileStore::open_with_diagnostics(&path).err().unwrap(),
+        Error::Busy,
+        NativeIoOperation::Open,
+        &[32, 33],
+    );
+    drop(held);
+    assert_eq!(fs::read(&path).unwrap(), before);
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    assert_eq!(number(&db.snapshot(), &db, b"a"), 2);
+    assert_eq!(number(&db.retained_snapshot(1).unwrap(), &db, b"a"), 1);
+}
+
+#[cfg(windows)]
+#[test]
 fn windows_claim_guards_io_and_unlock_releases_the_read_only_handle() {
     use weekend_db::storage::{ByteStore, FileStore, NativeIoOperation, with_storage_diagnostics};
 

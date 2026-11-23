@@ -4,7 +4,7 @@ use super::NativeIoOperation;
 use super::windows_admission::{
     GENERIC_READ, OPEN_EXISTING, check_directory, check_leaf, check_volume, leaf_open,
 };
-use super::windows_io::{Lease, os_error};
+use super::windows_io::{Lease, os_error, own_open_handle};
 use super::windows_path::{
     append_leaf, canonical_drive, parent_path, read_path, validate_leaf, validate_path,
 };
@@ -98,11 +98,10 @@ fn open_native(
             ptr::null_mut(),
         )
     };
-    if handle == (-1isize) as *mut c_void {
-        return Err(os_error(operation, io::Error::last_os_error()));
-    }
-    // SAFETY: CreateFileW returned a new owned handle.
-    Ok(unsafe { File::from_raw_handle(handle) })
+    own_open_handle(handle, operation, io::Error::last_os_error, |handle| {
+        // SAFETY: CreateFileW returned a new owned handle.
+        unsafe { File::from_raw_handle(handle) }
+    })
 }
 
 fn path_error() -> Error {
