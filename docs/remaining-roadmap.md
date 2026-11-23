@@ -286,8 +286,16 @@ failures leave no usable image, and which stabilization failures reopen
 revision 3 or 4 with revision 2 still retained. Both profiles pass on
 macOS and Docker Linux. Both macOS profiles detect all 24 selected
 controls. The queue has 9,613 open records (2,243 runtime / 26 driver /
-7,344 tooling). Maintenance replacement and native adapter phases are
-next in batch 5. Follower durability has its own checks in batch 9.
+7,344 tooling).
+
+The [compact-copy and headroom ledger](decisions/compact-copy-current.md)
+adds 21 exact dispositions at `fa87e4b`. The sweep faults every destination
+callback and checks source bytes, lease release, and exact bytes and retained
+rows when a destination reopens. Debug and release pass on macOS and Docker
+Linux. Both macOS profiles detect all 22 selected controls. The queue has
+9,592 open records (2,222 runtime / 26 driver / 7,344 tooling). Native
+namespace replacement and adapter phases remain in batch 5. Follower
+durability has its own checks in batch 9.
 
 All R1 and R2–R7 completion gates above remain open.
 

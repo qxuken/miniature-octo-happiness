@@ -63,8 +63,9 @@ transition. Batch 3 starts with VALUE hash probing and rehash, DATA
 lookup and insertion, and the borrowed-to-owned cache transition.
 
 Batch 5 starts with [ByteStore transfers and local publication](decisions/bytestore-publication-current.md),
-then [creation, lease cleanup and reopen stabilization](decisions/storage-creation-reopen-current.md).
-Maintenance replacement and native adapter decisions follow. Batch 9 covers
+[creation and reopen stabilization](decisions/storage-creation-reopen-current.md),
+and [verified compact copies and headroom](decisions/compact-copy-current.md).
+Native namespace replacement and adapter decisions follow. Batch 9 covers
 the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets

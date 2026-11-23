@@ -96,7 +96,7 @@
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
-    "src/engine.rs": "ed344327189ce78336f42fdeb9e17b01d55267ea717248d3683d4b16dd6e7194",
+    "src/engine.rs": "c1a9f0d9f416442840397a04b3b5d1ac7b3332b5d6dec98495d346d1420dea6d",
     "src/ffi.rs": "70c70e645ab72016921beb2d80ee4bd3b2c373abc670a2de894c3e2828e64411",
     "src/lib.rs": "9ff143a41e86bd50fb5ec30486fe17a916eeae001f35349f88062bc3fa6c24b8",
     "src/memory.rs": "e6ebf06ad09de067f4ad341c7f517532cd9d8ca0c33fb41cc4575b092c8062cf",
@@ -111,7 +111,7 @@
     "src/storage/linux.rs": "66ecec433f1528399accaa63db7ef6fab850fff54a9d64dc4d2bd51acf2f6dcc",
     "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
     "src/storage/macos.rs": "9174dad52d843a2c453c95f5abdede0acce311b6c9b2a83acb448c4aab4649a3",
-    "src/storage/mod.rs": "a317cd6f24525b6a6b776457ff2c6eb7cb796b28b97e13e7d4991b0251a57dc3",
+    "src/storage/mod.rs": "68916e5c5a0e7003a5e77a047e40f6af8de5c8a569c384e254e26f2851d0b457",
     "src/storage/replacement.rs": "76e5098896ecc0ede681526cbb8ba75fbe40b833e528eef95d748715de84cd07",
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
     "src/storage/simulator.rs": "f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50",
@@ -177,7 +177,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "9a8e9897886984652c1cc683886b4e3103442568ce17f9645455f9b4c2a90415",
+    "xtask/src/mutations.rs": "db8b25261e58032f7f0119a427ede34798ad2ad290c6a8ff7a03bdca15bd8fe4",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -268,7 +268,7 @@
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
     "tests/allocation.rs": "51a2cef72eb588bfde632380569398692d6cd7dee182d4b5b0c6a63bc03418f4",
     "tests/allocator_routing.rs": "676dd268e0fac2108ec4a98558ecd1f6766f90d9b64125edc26c77298cbd038e",
-    "tests/compaction.rs": "96c43d3f216f8a1ee013f50d56548b1905e643907983fe11fec83d939cebc3d9",
+    "tests/compaction.rs": "744e2c43679e90e0262eabf7df25b1f40fd6069d01d2d15d8dcabad5e25ea961",
     "tests/concurrency.rs": "2455b3fc5fc857a26753d3182ebd2186f2322222a07dabcd09df8e1baffb8774",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
     "tests/durability.rs": "dfefb8f8abdc5c6613bd3b80947769f31a2cba5892046437748a7c2d2aa65f79",
@@ -291,7 +291,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "31562ce3ecc2f37b991c4ffd436549e2dab2767281f4b4dfb8d38d447fd7754d",
+    "xtask/tests/mutations.json": "b2732dc580fe6fd8d9efa1fa25b1a79b61f79536634a71fb4eda084412ace1d1",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -300,7 +300,7 @@
     "docs/r1-ci-shards.md": "626b7f7edebea4758b0420d760849f74d180960382ab2e0f8a4391caa0c70378",
     "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
     "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
-    "src/storage/mod.rs": "a317cd6f24525b6a6b776457ff2c6eb7cb796b28b97e13e7d4991b0251a57dc3",
+    "src/storage/mod.rs": "68916e5c5a0e7003a5e77a047e40f6af8de5c8a569c384e254e26f2851d0b457",
     "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
     "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
     "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
@@ -313,13 +313,15 @@
     "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
     "docs/decisions/rust-output-allocation.md": "d5da95d17be8fb22c7f6a4aefcf12d90779dc70685c7f9f02c33dcdb29f09623",
     "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa",
-    "docs/decisions/codec-cache-index-current.md": "084f8bd89d5636cc686ff5900c46530079d160a29453a7e577a083beca460d73",
-    "docs/decisions/transaction-observation-scan-current.md": "4516c8bd18c87a8c604e61c3fe06ecfeda4413b3647d293975e873f65d73179c",
-    "docs/decisions/transaction-assignment-commit-current.md": "72ad5afb26f87a44545bbb1c33b7be3aace2bdf2e102a6f4e6b71d21d74fbca8",
+    "docs/decisions/codec-cache-index-current.md": "c26744945a9749bff48d47e182d8dffee972d5b63205d155f42f438770ff3452",
+    "docs/decisions/transaction-observation-scan-current.md": "d036c9575fe20eb343c3f1a744cc9511fcb0675bec4f2207daca725493fc9ab2",
+    "docs/decisions/transaction-assignment-commit-current.md": "68704d00fc7bde2719ac5262beaa293d04481a28695851830ead5ddae2e9acc3",
     "docs/decisions/tree-current.md": "e9b5fe8e5b11c2863bbb4869ca424790c09c1563e42762cc2157ab23b5bf1129",
     "docs/decisions/value-current.md": "601ddff42e9fa6b955fada563c961cd40f3d88bd1d26b4e05971c9b51b5cce3b",
-    "docs/decisions/bytestore-publication-current.md": "d992bc00d69126377829421eff306d9dd693947fe74a8e224b989055584e3dd9",
-    "docs/decisions/storage-creation-reopen-current.md": "9248e1c9c9496e0dc0b1402a79d8ebc7118b9a76e11a91db3a496db82641ab9b"
+    "docs/decisions/bytestore-publication-current.md": "3070505ae68fdfd3f7bfc76a247e1f8aae870fd4e8e6ce32f07ffa59bf2b9daa",
+    "docs/decisions/storage-creation-reopen-current.md": "be65e90b2cf80d470fd3e06e4bd72eea3bdb81f07a961a1d3c99878cae9d49bb",
+    "tests/headroom.rs": "d9ea3f3559aabc199495fba51a8d4020bb7f472b8a3112155e1d8e920005606c",
+    "docs/decisions/compact-copy-current.md": "27435043efe4a51e8c1dc193986659e207fff80b7bab0b329563661886eb833d"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -408,7 +410,8 @@
         "tests/support/allocator.rs",
         "docs/decisions/public-allocation-hook-retirement.md",
         "docs/decisions/transaction-observation-scan-current.md",
-        "docs/decisions/transaction-assignment-commit-current.md"
+        "docs/decisions/transaction-assignment-commit-current.md",
+        "docs/decisions/compact-copy-current.md"
       ],
       "residual": "Native/callback error combinations and implicit/library branches retain their scoped dispositions."
     },
@@ -510,7 +513,8 @@
         "tests/support/allocator.rs",
         "docs/decisions/codec-cache-index-current.md",
         "docs/decisions/bytestore-publication-current.md",
-        "docs/decisions/storage-creation-reopen-current.md"
+        "docs/decisions/storage-creation-reopen-current.md",
+        "docs/decisions/compact-copy-current.md"
       ],
       "residual": "Native persistence assumptions and delegated calls remain separate from simulated pairs."
     },
@@ -11338,6 +11342,444 @@
         "r1-storage-admission-open-witness-error",
         "r1-storage-admission-open-witness-parity",
         "r1-storage-admission-open-witness-sync"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-WRITER-MUTEX",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "compact_copy",
+        "kind": "try_propagation",
+        "conditions": [
+          "self\n            .writer\n            .get_mut()\n            .map_err(|_| Error::RecoveryRequired)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "mutex_poison_preserves_reads_and_blocks_all_writer_gates"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-writer-mutex"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-BYTE-BACKED",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "compact_copy",
+        "kind": "try_propagation",
+        "conditions": [
+          "self\n            .writer\n            .get_mut()\n            .map_err(|_| Error::RecoveryRequired)?\n            .as_mut()\n            .ok_or(Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "compaction_rejects_nonempty_or_leased_destinations_and_native_sources"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-byte-backed"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-STATE-LOCK",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "compact_copy",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.state.get_mut().map_err(|_| Error::RecoveryRequired)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "compact_copy_rejects_poisoned_state_before_media_io"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-state-lock"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-ENCODE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "compact_copy",
+        "kind": "try_propagation",
+        "conditions": [
+          "storage.encode_compact_copy(\n            destination,\n            &self.mem,\n            &state.head,\n            state.next_collection,\n            &state.retention,\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-encode"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-VERIFY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "compact_copy",
+        "kind": "try_propagation",
+        "conditions": [
+          "copy.verify(&self.mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-verify"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-SPACE-GUARD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "space",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.guard()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "compact_copy_headroom_guard_rejects_poison_before_length"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-space-guard"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-SPACE-LENGTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "space",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.backend.length()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/headroom.rs",
+          "name": "headroom_counts_uncommitted_tail_and_uses_only_length"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-space-length"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-SPACE-LOWER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "space",
+        "kind": "if",
+        "conditions": [
+          "physical_bytes < self.end",
+          "physical_bytes > MAX_IMAGE_BYTES as u64"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/storage_decisions.rs",
+          "name": "source_length_guards_distinguish_short_over_cap_and_valid_images"
+        },
+        {
+          "file": "tests/headroom.rs",
+          "name": "impossible_lengths_block_publication"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-space-lower",
+        "r1-compact-copy-space-upper",
+        "r1-compact-copy-space-poison"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-SOURCE-GUARD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "encode_compact_copy",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.guard()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/headroom.rs",
+          "name": "impossible_lengths_block_publication"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-source-guard"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-SOURCE-LENGTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "encode_compact_copy",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.backend.length()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "compact_source_length_failure_stops_before_destination_and_allows_retry"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-source-length"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-SOURCE-LOWER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "encode_compact_copy",
+        "kind": "if",
+        "conditions": [
+          "before_bytes < self.end",
+          "before_bytes > MAX_IMAGE_BYTES as u64"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/storage_decisions.rs",
+          "name": "source_length_guards_distinguish_short_over_cap_and_valid_images"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-source-lower",
+        "r1-compact-copy-source-upper"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-DESTINATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "encode_compact_copy",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::create_compact(\n            destination,\n            mem,\n            head,\n            next_collection,\n            self.identity,\n            retention,\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-destination"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-CREATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "create_compact",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::create(destination, mem, head, next_collection, identity, retention)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-create"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-DECODE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "verify",
+        "kind": "try_propagation",
+        "conditions": [
+          "codec::recover(&mut *self.backend, mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/compaction.rs",
+          "name": "copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-decode"
+      ]
+    },
+    {
+      "name": "COMPACT-COPY-VERIFIED-IDENTITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/mod.rs",
+        "owner": "verify",
+        "kind": "if",
+        "conditions": [
+          "verified.identity != self.identity",
+          "verified.slot.revision != self.revision",
+          "verified.slot.end != self.end",
+          "!verified.witnessed"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "verification_envelope_predicates_have_independent_controls"
+        }
+      ],
+      "mutations": [
+        "r1-compact-copy-verified-identity",
+        "r1-compact-copy-verified-revision",
+        "r1-compact-copy-verified-end",
+        "r1-compact-copy-verified-witness"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
       ]
     }
   ],
