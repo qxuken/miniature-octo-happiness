@@ -234,7 +234,7 @@
     "apps/write-coordinator/tests/writers.rs": "ac142ebc689c4cb6257b9e483f21e10eb72a279a60f321f35911a5800fe2bb46",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/migration_allocator.rs": "970fba9fe1555a04d807a069cd56e6e3315f636361584042f60c3ccbe37eba0c",
-    "crates/weekend-db-typed/tests/models.rs": "3a252c36fdc13fd34122cd69c7b506b8c34dbacf48729290b52e35faf156e63b",
+    "crates/weekend-db-typed/tests/models.rs": "c09b1efafc6cb66503f37eb495e4d5d0d21799d918a0b8d42a6dd27277abb7a2",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
     "docs/coordinator-artifact-recovery.md": "89679ef0737929ae332126527d3532695f8e92c3716ccc33bea9d72fc1c6e60e",
     "docs/coordinator-operator-handoff.md": "b87f399fc29eb77a18fb1ea99fb62bfae6ae0f025ca50e06a6cc29dc85dc088a",
@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "cfb12e69935a255d5a5b85500f29e0dc0534a8be0952a91a4a9894cfb8749281",
-    "xtask/tests/mutations.json": "0d1bb1c37b0a52e241dbab32829270d842dd4d3097c0aa18e066bedfff6e6250",
+    "xtask/tests/mutations.json": "9fee43009f23dbc6d330988f08ec8c6eb2b56aa2577f70d14d04caa64aa96a53",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -359,7 +359,8 @@
     "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419",
     "docs/decisions/ffi-transaction-reads-current.md": "f53aa2b9a3476efa8dd308c9433209c395c915e154dc0e8fb269c752343fc5c9",
     "docs/decisions/typed-unique-claims-current.md": "524965db8c78e505a08ba4dfbcf617d0b7b1dc58323f19f7bc565e2474a141fc",
-    "docs/decisions/typed-index-allocator-current.md": "51c08786ef8337dc8c7b5a212ecbd5701d4eb35b95dcab42e28b9c2312e1789f"
+    "docs/decisions/typed-index-allocator-current.md": "51c08786ef8337dc8c7b5a212ecbd5701d4eb35b95dcab42e28b9c2312e1789f",
+    "docs/decisions/typed-migration-recovery-current.md": "2079c473658a94d7542796b2a2fd2d871d4652f7b020ab33dac6320bad7bd908"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -728,7 +729,8 @@
         "crates/weekend-db-typed/tests/migration_allocator.rs",
         "docs/decisions/public-allocation-hook-retirement.md",
         "docs/decisions/typed-unique-claims-current.md",
-        "docs/decisions/typed-index-allocator-current.md"
+        "docs/decisions/typed-index-allocator-current.md",
+        "docs/decisions/typed-migration-recovery-current.md"
       ],
       "residual": "Generic instantiations and primitive errors retain scoped E/D evidence; named admission pairs do not close all residuals."
     },
@@ -17683,6 +17685,342 @@
       ],
       "mutations": [
         "r1-typed-index-allocator-snapshot-scan-status"
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-BATCH-LIMITS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_ids",
+        "kind": "if",
+        "start_byte": 28555,
+        "conditions": [
+          "ids.len() > limits.max_writes",
+          "ids.len() > limits.max_observations"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "migration_batch_limits_independently_prevent_callbacks"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-writes-limit",
+        "r1-typed-migration-observations-limit"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-BATCH-IDS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_ids",
+        "kind": "if",
+        "start_byte": 28911,
+        "conditions": [
+          "sorted.first() == Some(&0)",
+          "sorted.windows(2).any(|pair| pair[0] == pair[1])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/models.rs",
+          "name": "migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-id-zero",
+        "r1-typed-migration-id-duplicate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-SORTED-SCRATCH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_ids",
+        "kind": "try_propagation",
+        "start_byte": 28817,
+        "conditions": [
+          "reserve(&mut sorted, ids.len())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/models.rs",
+          "name": "migration_id_scratch_refusal_discards_progress_before_conversion"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-id-allocation"
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-ALL-CATALOG",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate",
+        "kind": "if",
+        "start_byte": 27282,
+        "conditions": [
+          "entry.version != T::VERSION"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "assurance_old_model_migrations_reject_newer_catalog_before_callbacks"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-all-catalog"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-SELECTED-CATALOG",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_ids",
+        "kind": "if",
+        "start_byte": 29125,
+        "conditions": [
+          "entry.version != T::VERSION"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "assurance_old_model_migrations_reject_newer_catalog_before_callbacks"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-selected-catalog"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-FUTURE-ROW",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_record",
+        "kind": "if",
+        "start_byte": 30270,
+        "conditions": [
+          "doc.version() > T::VERSION"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "assurance_migration_rejects_forward_rows_before_conversion"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-future-row"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-CURRENT-ROW",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_record",
+        "kind": "if",
+        "start_byte": 30371,
+        "conditions": [
+          "doc.version() == T::VERSION"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "assurance_migration_rejects_forward_rows_before_conversion"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-current-row"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-MISSING-ID",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_ids",
+        "kind": "try_propagation",
+        "start_byte": 29627,
+        "conditions": [
+          "w.tx.get(table.records, &id_key(id)?)?\n                        .ok_or(Error::Engine(engine::Error::NotFound))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/models.rs",
+          "name": "migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-missing-id"
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-CALLBACK",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_record",
+        "kind": "try_propagation",
+        "start_byte": 30485,
+        "conditions": [
+          "convert(&doc.raw, &mut doc.value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/models.rs",
+          "name": "migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-callback-error"
+      ]
+    },
+    {
+      "name": "TYPED-MIGRATION-CLAIM",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "target": "weekend-db-typed::weekend_db_typed",
+        "owner": "migrate_record",
+        "kind": "try_propagation",
+        "start_byte": 30669,
+        "conditions": [
+          "self.put_raw(table, entry, doc.id, raw)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/models.rs",
+          "name": "migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress"
+        }
+      ],
+      "mutations": [
+        "r1-typed-migration-index-error"
       ]
     }
   ],

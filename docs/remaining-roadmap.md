@@ -505,6 +505,13 @@ the typed and selected core suites in debug and release and detect all seven
 controls. Miri passes the index allocator and snapshot iterator fixtures.
 Live-byte accounting includes the held scan keys. Native Windows remains open.
 
+The [typed migration recovery matrix](decisions/typed-migration-recovery-current.md)
+records 62 simulated failures at `7fcd992`. Reopen and retry preserve a complete
+old or new migration batch, including its progress row, unique claims and
+retained schema. Both local hosts pass debug and release and detect all thirteen
+controls. The queue has 9,352 open records (1,969 runtime / 26 driver / 7,357
+tooling). Native Windows execution and release-version qualification remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

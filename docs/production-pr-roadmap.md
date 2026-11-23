@@ -107,6 +107,9 @@ updates, and allocation rollback with retained roots. The
 [index allocator follow-up](decisions/typed-index-allocator-current.md) routes
 checking and repair scratch through the database allocator and charges held
 scan keys to the live-byte cap.
+The [migration recovery matrix](decisions/typed-migration-recovery-current.md)
+qualifies batch admission, rollback on ID scratch refusal and resumed
+conversion after interruption, with paired primary, index and progress rows.
 
 Batch 9 covers the follower's separate durability acknowledgment.
 
