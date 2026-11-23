@@ -2069,7 +2069,7 @@ mod tests {
         };
         let before = mem.usage().0;
         for allowance in 0..64 {
-            let result = allocator.with_refusal(allowance, || encode_candidate());
+            let result = allocator.with_refusal(allowance, encode_candidate);
             match result {
                 Ok(candidate) => {
                     assert!(allowance > 0);
