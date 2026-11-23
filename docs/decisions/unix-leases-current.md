@@ -37,7 +37,7 @@ native barrier error evidence remain on the roadmap.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `f981e5d525eee133ba9e5554491c724440e8bf4b57df2768b552af98894a7206` |
+| `src/storage/file.rs` | `5c00d486e37527ce3e3a0375f9eb53163338bd24f3828e439a4bcac908fea144` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -53,20 +53,20 @@ native barrier error evidence remain on the roadmap.
 | E | weekend-db::weekend_db | src/storage/file.rs:132:21– | 4256..4257 | try_propagation | read | An unclaimed read preserves the output byte. A claimed read returns the expected byte. |
 | E | weekend-db::weekend_db | src/storage/file.rs:136:21– | 4429..4430 | try_propagation | write | Claimed write succeeds and unclaimed write returns Io without modifying the file. |
 | E | weekend-db::weekend_db | src/storage/file.rs:142:21– | 4599..4600 | try_propagation | sync | Reject the unclaimed adapter and allow the claimed one to synchronize. |
-| P | weekend-db::weekend_db | src/storage/file.rs:144:9– | 4642..4644 | if | sync | Creation sync clears the pending parent barrier after success. Reopened files already have no pending parent barrier. |
-| P | weekend-db::weekend_db | src/storage/file.rs:229:22– | 7836..7838 | if | open_mode | Read-write and read-only adapters can both claim. Only read-write can write. |
-| P | weekend-db::weekend_db | src/storage/file.rs:230:58– | 7923..7925 | if | open_mode | Create a new file or reject an existing name. Open an existing file without creation. |
-| E | weekend-db::weekend_db | src/storage/file.rs:230:95– | 7960..7961 | try_propagation | open_mode | Open the requested file or preserve refusal, including AlreadyExists and Busy. |
-| E | weekend-db::weekend_db | src/storage/file.rs:251:22– | 8805..8810 | match | check_lease | Missing name maps to Busy. Existing names continue and other open errors preserve their type. |
-| E | weekend-db::weekend_db | src/storage/file.rs:253:27– | 8919..8920 | try_propagation | check_lease | A final symlink returns Invalid through this path. |
-| B | weekend-db::weekend_db | src/storage/file.rs:257:9– | 9101..9103 | if | check_lease | Accept the held regular file and reject a different same-device inode. Distinct device/type predicates remain coupled. |
-| B | weekend-db::weekend_db | src/storage/file.rs:257:12– | 9104..9154 | short_circuit_and | check_lease | Regular file versus directory is exercised. Device independence remains open. |
-| C | weekend-db::weekend_db | src/storage/file.rs:257:12– | 9104..9188 | short_circuit_and | check_lease | Overlaps the lease validation if. The per-predicate limits are the same. |
-| E | weekend-db::weekend_db | src/storage/file.rs:289:45– | 10146..10147 | try_propagation | matches | An absent path returns NotFound before inode comparison. |
-| B | weekend-db::weekend_db | src/storage/file.rs:292:9– | 10322..10324 | if | matches | Same-device inode and same-inode link count are independent. Type and device remain coupled. |
-| B | weekend-db::weekend_db | src/storage/file.rs:292:12– | 10325..10387 | short_circuit_and | matches | Regular file and directory use the native metadata path. Device independence remains open. |
-| C | weekend-db::weekend_db | src/storage/file.rs:292:12– | 10325..10433 | short_circuit_and | matches | Shares the first three predicates and their limits with the replacement comparison. |
-| C | weekend-db::weekend_db | src/storage/file.rs:292:12– | 10325..10468 | short_circuit_and | matches | Shares all four predicates and their limits with the replacement comparison. |
+| P | weekend-db::weekend_db | src/storage/file.rs:154:9– | 4892..4894 | if | sync_with | Creation sync clears the pending parent barrier after success. Reopened files already have no pending parent barrier. |
+| P | weekend-db::weekend_db | src/storage/file.rs:239:22– | 8093..8095 | if | open_mode | Read-write and read-only adapters can both claim. Only read-write can write. |
+| P | weekend-db::weekend_db | src/storage/file.rs:240:58– | 8180..8182 | if | open_mode | Create a new file or reject an existing name. Open an existing file without creation. |
+| E | weekend-db::weekend_db | src/storage/file.rs:240:95– | 8217..8218 | try_propagation | open_mode | Open the requested file or preserve refusal, including AlreadyExists and Busy. |
+| E | weekend-db::weekend_db | src/storage/file.rs:261:22– | 9062..9067 | match | check_lease | Missing name maps to Busy. Existing names continue and other open errors preserve their type. |
+| E | weekend-db::weekend_db | src/storage/file.rs:263:27– | 9176..9177 | try_propagation | check_lease | A final symlink returns Invalid through this path. |
+| B | weekend-db::weekend_db | src/storage/file.rs:267:9– | 9358..9360 | if | check_lease | Accept the held regular file and reject a different same-device inode. Distinct device/type predicates remain coupled. |
+| B | weekend-db::weekend_db | src/storage/file.rs:267:12– | 9361..9411 | short_circuit_and | check_lease | Regular file versus directory is exercised. Device independence remains open. |
+| C | weekend-db::weekend_db | src/storage/file.rs:267:12– | 9361..9445 | short_circuit_and | check_lease | Overlaps the lease validation if. The per-predicate limits are the same. |
+| E | weekend-db::weekend_db | src/storage/file.rs:299:45– | 10403..10404 | try_propagation | matches | An absent path returns NotFound before inode comparison. |
+| B | weekend-db::weekend_db | src/storage/file.rs:302:9– | 10579..10581 | if | matches | Same-device inode and same-inode link count are independent. Type and device remain coupled. |
+| B | weekend-db::weekend_db | src/storage/file.rs:302:12– | 10582..10644 | short_circuit_and | matches | Regular file and directory use the native metadata path. Device independence remains open. |
+| C | weekend-db::weekend_db | src/storage/file.rs:302:12– | 10582..10690 | short_circuit_and | matches | Shares the first three predicates and their limits with the replacement comparison. |
+| C | weekend-db::weekend_db | src/storage/file.rs:302:12– | 10582..10725 | short_circuit_and | matches | Shares all four predicates and their limits with the replacement comparison. |
 
 ## Verification at 15b2993
 

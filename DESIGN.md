@@ -708,8 +708,12 @@ there is no automatic unlink/repair that could discard a usable store.
 Every sync uses `fcntl(F_FULLFSYNC)`, with **no weaker fallback** if unsupported.
 The first creation sync performs full file sync, parent-directory `fsync`, then
 another full file sync to request device-cache ordering after directory metadata.
-This completes before root-slot publication; all subsequent barriers use full
-file sync. Close discards unpublished drafts and releases owned descriptors/locks;
+Each failure leaves the creation barriers pending at the adapter boundary.
+The next sync repeats the sequence from its first file flush. The
+[Unix sync ledger](docs/decisions/unix-sync-current.md) records these cases
+for the shared macOS and Linux adapter.
+The sequence completes before root-slot publication. Subsequent barriers use
+full file sync. Close discards unpublished drafts and releases owned descriptors/locks;
 it is not a late commit/durability barrier. Std file destruction does not report
 close errors; publication must already have completed its explicit syncs. Milestone 7 did not add replacement; milestone 10 specifies the offline
 compaction protocol in §7 below.

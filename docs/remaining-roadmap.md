@@ -316,8 +316,16 @@ The [Unix pathname ledger](decisions/unix-path-admission-current.md) maps
 sweep for parent and leaf allocation during create and reopen. Native failures
 preserve the operation and errno, and both macOS profiles detect all 20
 selected controls. The queue has 9,529 open records (2,159 runtime /
-26 driver / 7,344 tooling). Native I/O barriers and platform-specific adapter
-obligations remain.
+26 driver / 7,344 tooling).
+
+The [Unix sync ledger](decisions/unix-sync-current.md) maps nine additional
+records at `a1b2dd5`. A failure at any creation barrier preserves its error
+and makes the adapter repeat all three barriers on retry. The compaction
+trace distinguishes source and target length, read, write and sync. Both
+profiles pass on macOS and Docker Linux, and both macOS profiles detect
+all 13 selected controls. The queue has 9,520 open records (2,150 runtime /
+26 driver / 7,344 tooling). Platform-specific and raw kernel I/O decisions
+remain.
 
 All R1 and R2–R7 completion gates above remain open.
 
