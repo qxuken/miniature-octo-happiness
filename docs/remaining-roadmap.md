@@ -433,6 +433,15 @@ an existing file and a held lease, then reopens the current and retained
 roots. It cross-compiles for Windows and awaits native execution. The
 queue has 9,407 open records (2,038 runtime / 26 driver / 7,343 tooling).
 
+Batch 6 starts with [FFI handle accounting](decisions/ffi-handle-accounting-current.md)
+at `be140f5`. Debug and release Rust and shared-library C checks pass on
+macOS and Docker Linux. Miri verifies the real allocation-refusal path
+with strict provenance. Both hosts catch all three source controls and
+both Loom controls. Two runtime propagation gaps close and eight new
+tooling records remain open. The queue has 9,413 open records (2,036
+runtime / 26 driver / 7,351 tooling). Exact delivered consumers,
+additional export decisions and the remainder of batch 6 stay open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -84,6 +84,11 @@ Batch 5 starts with [ByteStore transfers and local publication](decisions/bytest
 and [Unix compaction file clone failures](decisions/unix-clone-failures-current.md).
 Kernel metadata errors, native Win32 decisions and deployed device
 qualification remain open.
+
+Batch 6 starts with [FFI handle accounting and allocation refusal](decisions/ffi-handle-accounting-current.md).
+Continue with the remaining ownership, panic containment and generated
+export decisions, and qualify the delivered consumers per ABI.
+
 Batch 9 covers the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets

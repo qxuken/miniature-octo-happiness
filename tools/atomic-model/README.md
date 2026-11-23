@@ -48,3 +48,23 @@ peak assertion. `cargo xtask atomic-model` replays both ownership and
 budget baselines, requires both controls to fail for those reasons, and saves
 model hashes and logs. Native Linux CI runs this alongside C ASan. Review the
 model when production atomics change; this remains a bounded copied model.
+
+## C handle accounting
+
+`cargo run --offline --locked --manifest-path tools/atomic-model/Cargo.toml -- --ffi-handles`
+models the count used by `make_handle`, `Handle::drop` and `wdb_close` in
+`src/ffi.rs`. Two workers contend for reservations. One simulates an
+allocation refusal and rolls back. The other keeps its reservation until
+after the parent has joined both workers. The model covers a live source
+handle and an initial count just below exhaustion.
+
+After joining, an Acquire load must count exactly the prior owners and any
+successful acquisition. The model also checks that releasing the successful
+reservation restores the initial count. Its bounds are three threads,
+two preemptions and 1,000 branches, with no duration or permutation cutoff.
+It assumes the C contract's external close quiescence. Rust tests check
+raw handle allocation, outputs and destruction through the exported functions.
+
+`cargo xtask atomic-model` runs this baseline and checks that
+`--broken-ffi-reservation` and `--broken-ffi-rollback` fail the post-join
+accounting assertion. Review the copied operations when the FFI count changes.
