@@ -116,7 +116,7 @@
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
     "src/storage/simulator.rs": "f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50",
     "src/storage/windows.rs": "dcff3de55079e0d4cb70d7c6c20589b29102fda0aa5a5f3aa48625c57e8d64fc",
-    "src/tree.rs": "e869d415667661e56dc63766af54e70b77dfd0f14627d1d310e26312d0183f6e",
+    "src/tree.rs": "f2b4099a101747b657f8990d223710cbd176f8ef9e251b5799fa4744ccd8c8b3",
     "src/value.rs": "4963ab87a2d9ec1e891b3723be9e62f20bd41615e61049b16715d9d2af1b65a7",
     "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
@@ -177,7 +177,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "573c2f887141b7842319a49773bed9ea3a250ef878f4f0cd4901b94bd6363ac1",
+    "xtask/src/mutations.rs": "3dcfdf08dc4dd3d857f6abd2d8efe2b9a7318c24d6017c7c319d96afc6c3bb92",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -252,7 +252,7 @@
     "docs/decisions/simulator.md": "33cffe2f6c97cddde019f32fa292b7815afe0e7424d5bedebd38585821c8858f",
     "docs/decisions/snapshot-cli.md": "6f3016cf826a3c06985ffb1be8d25ca032bb7c886e6027741aa91d6076be9634",
     "docs/decisions/storage-core.md": "f4903525352908d017e9ff6858fdc70a45e38dcaca11e98a8ae726f96a2f2ef2",
-    "docs/decisions/tree.md": "dab795f63e6a510209051f2021b809474909da24e6350272acdce3545a6b57fb",
+    "docs/decisions/tree.md": "284d9f918e6fc8d58e50af85e833c66dccf2f269f47e1efbce662354f3d457c1",
     "docs/decisions/typed-runtime.md": "fd53f0fdd169a7dcabab4362c88fcdffb96c338f5ddc6f25e8fe733d8f16a4a9",
     "docs/decisions/value.md": "3195aea32e2d0161bc9d09c36159b74310abfc7609de07fd5612bf940a667612",
     "docs/helper-controls.md": "637a97679335158f58d134bb883b3f10ddca975256c89feb521a7e3ee923246f",
@@ -291,7 +291,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "3a1143f083fb311be482a44ce8f2eda949c49cdbbfa9240442af3f328424ed93",
+    "xtask/tests/mutations.json": "fba2f48d496929bfb5d4d1c94da2d55b1c7de1cfd01d01551266c474b334dfae",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -311,11 +311,12 @@
     "src/memory/test_allocator.rs": "6e8b7e5ad1a708168c6fb16b67edcf9857d6c6beaa80b844c4e632a87f3e4caa",
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
-    "docs/decisions/rust-output-allocation.md": "69603e258aa0a28a24b407d22ceb289da8d870da60b77ff09bc3316b62bfabba",
+    "docs/decisions/rust-output-allocation.md": "d5da95d17be8fb22c7f6a4aefcf12d90779dc70685c7f9f02c33dcdb29f09623",
     "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa",
     "docs/decisions/codec-cache-index-current.md": "d4121864b51ce73616d7355c69bc2347872339cde917e0c33fa0476573e21da1",
     "docs/decisions/transaction-observation-scan-current.md": "372430094522618f7c9ec26a6320f6b18fa84a7b4918db2569059c3bff916e1f",
-    "docs/decisions/transaction-assignment-commit-current.md": "4e2e0dfaa7dd6ee2d4375c3f7f246496c72b7fee24927da7ee14446806c3b03e"
+    "docs/decisions/transaction-assignment-commit-current.md": "4e2e0dfaa7dd6ee2d4375c3f7f246496c72b7fee24927da7ee14446806c3b03e",
+    "docs/decisions/tree-current.md": "e9b5fe8e5b11c2863bbb4869ca424790c09c1563e42762cc2157ab23b5bf1129"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -469,7 +470,8 @@
         "docs/decisions/tree.md",
         "tests/value_decisions.rs",
         "tests/values.rs",
-        "docs/decisions/rust-output-allocation.md"
+        "docs/decisions/rust-output-allocation.md",
+        "docs/decisions/tree-current.md"
       ],
       "residual": "Invariant and delegated dispositions retain the exact valid-structure domain.",
       "single_source_ledgers": [
@@ -7848,6 +7850,1305 @@
       ],
       "mutations": [
         "r1-assign-commit-abort-closed"
+      ]
+    },
+    {
+      "name": "TREE-LOOKUP-HASH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "get_hashed",
+        "kind": "if",
+        "conditions": [
+          "*h == hash"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_capacity_and_collision_lookup_have_independent_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-lookup-hash"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-CAPACITY-EXISTS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "set_hashed",
+        "kind": "if",
+        "conditions": [
+          "!exists",
+          "self.len >= mem.limits().max_entries"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_capacity_and_collision_lookup_have_independent_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-capacity-exists",
+        "r1-tree-capacity-count"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "TREE-KEY-COPY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "set_hashed",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.copy(key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-key-copy"
+      ]
+    },
+    {
+      "name": "TREE-KEY-SHARE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "set_hashed",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(mem.copy(key)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-key-share"
+      ]
+    },
+    {
+      "name": "TREE-MAP-INSERT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "set_hashed",
+        "kind": "try_propagation",
+        "conditions": [
+          "insert(mem, self.root.as_ref(), key, value, hash, 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-map-insert"
+      ]
+    },
+    {
+      "name": "TREE-MISSING-REMOVE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "remove",
+        "kind": "if",
+        "conditions": [
+          "self.get(key).is_none()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_edit_refusals_keep_collision_and_removal_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-missing-remove"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-MAP-REMOVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "remove",
+        "kind": "try_propagation",
+        "conditions": [
+          "remove(mem, self.root.as_ref().unwrap(), key, hash(key), 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_edit_refusals_keep_collision_and_removal_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-map-remove"
+      ]
+    },
+    {
+      "name": "TREE-EXTERNAL-ROWS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "materialize",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.materialize_with(mem, project, |key| mem.copy_external(key))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-external-rows"
+      ]
+    },
+    {
+      "name": "TREE-BORROWED-BUDGET",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "borrowed_entries",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.check_row_budget::<V>(row_budget)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-borrowed-budget"
+      ]
+    },
+    {
+      "name": "TREE-OWNED-BUDGET",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "materialize_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.check_row_budget::<T>(mem.limits().max_transaction_bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-owned-budget"
+      ]
+    },
+    {
+      "name": "TREE-ROW-COPY-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "materialize_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "copy_key(key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-row-copy-key"
+      ]
+    },
+    {
+      "name": "TREE-ROW-HEADER-BUDGET",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "check_row_budget",
+        "kind": "if",
+        "conditions": [
+          "size > budget"
+        ],
+        "start_byte": 4323
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-row-header-budget"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-ROW-KEY-BUDGET",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "check_row_budget",
+        "kind": "if",
+        "conditions": [
+          "size > budget"
+        ],
+        "start_byte": 4506
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-row-key-budget"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-ROW-VECTOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "collect_ordered",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut out, self.len)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-row-vector"
+      ]
+    },
+    {
+      "name": "TREE-ROW-PROJECT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "collect_ordered",
+        "kind": "try_propagation",
+        "conditions": [
+          "row(key, value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-row-project"
+      ]
+    },
+    {
+      "name": "TREE-ROW-VISIT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "collect_ordered",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.visit(&mut |key, value| {\n            out.push(row(key, value)?);\n            Ok(())\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "ordered_row_budget_and_allocation_failures_preserve_tree"
+        }
+      ],
+      "mutations": [
+        "r1-tree-row-visit"
+      ]
+    },
+    {
+      "name": "TREE-VISIT-CALLBACK",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "visit::walk",
+        "kind": "try_propagation",
+        "conditions": [
+          "f(key, value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "visit_error_stops_before_later_items_and_empty_visit_never_calls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-visit-callback"
+      ]
+    },
+    {
+      "name": "TREE-VISIT-CHILD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "visit::walk",
+        "kind": "try_propagation",
+        "conditions": [
+          "walk(child, f)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "visit_error_stops_before_later_items_and_empty_visit_never_calls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-visit-child"
+      ]
+    },
+    {
+      "name": "TREE-VISIT-ROOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "visit",
+        "kind": "try_propagation",
+        "conditions": [
+          "walk(root, f)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "visit_error_stops_before_later_items_and_empty_visit_never_calls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-visit-root"
+      ]
+    },
+    {
+      "name": "TREE-LEAF-ENTRIES",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "leaf",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut entries, 1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-leaf-entries"
+      ]
+    },
+    {
+      "name": "TREE-INSERT-SAME-HASH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "insert",
+        "kind": "match_guard",
+        "conditions": [
+          "*old_hash == hash"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "full_hash_collisions_and_long_prefixes"
+        }
+      ],
+      "mutations": [
+        "r1-tree-insert-same-hash"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-COLLISION-GROWTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "insert",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut copy, entries.len() + usize::from(index.is_none()))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_edit_refusals_keep_collision_and_removal_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-collision-growth"
+      ]
+    },
+    {
+      "name": "TREE-COLLISION-REPLACE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "insert",
+        "kind": "pattern_test",
+        "conditions": [
+          "index"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_edit_refusals_keep_collision_and_removal_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-collision-replace"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-INSERT-SPLIT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "insert",
+        "kind": "try_propagation",
+        "conditions": [
+          "insert(\n                mem,\n                children[new].as_ref(),\n                key,\n                value,\n                hash,\n                level + 1,\n            )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-insert-split"
+      ]
+    },
+    {
+      "name": "TREE-INSERT-BRANCH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "insert",
+        "kind": "try_propagation",
+        "conditions": [
+          "insert(\n                mem,\n                children[index].as_ref(),\n                key,\n                value,\n                hash,\n                level + 1,\n            )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-insert-branch"
+      ]
+    },
+    {
+      "name": "TREE-REMOVE-SINGLETON",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "remove",
+        "kind": "if",
+        "conditions": [
+          "entries.len() == 1"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_capacity_and_collision_lookup_have_independent_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-remove-singleton"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-REMOVE-LEAF-COPY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "remove",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut copy, entries.len() - 1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_edit_refusals_keep_collision_and_removal_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-remove-leaf-copy"
+      ]
+    },
+    {
+      "name": "TREE-REMOVE-LEAF-SHARE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "remove",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(MapNode::Leaf {\n                hash,\n                entries: copy,\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_edit_refusals_keep_collision_and_removal_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-remove-leaf-share"
+      ]
+    },
+    {
+      "name": "TREE-REMOVE-CHILD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "remove",
+        "kind": "try_propagation",
+        "conditions": [
+          "remove(mem, children[index].as_ref().unwrap(), key, hash, level + 1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_edit_refusals_keep_collision_and_removal_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-remove-child"
+      ]
+    },
+    {
+      "name": "TREE-COLLAPSE-COUNT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "remove",
+        "kind": "if",
+        "conditions": [
+          "live.next().is_none()",
+          "matches!(&**first, MapNode::Leaf { .. })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "branch_collapse_distinguishes_one_child_and_leaf_independently"
+        }
+      ],
+      "mutations": [
+        "r1-tree-collapse-count",
+        "r1-tree-collapse-kind"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "TREE-REMOVE-BRANCH-SHARE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "remove",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(MapNode::Branch(children))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "map_edit_refusals_keep_collision_and_removal_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-remove-branch-share"
+      ]
+    },
+    {
+      "name": "TREE-LIST-GET-BOUND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "get",
+        "kind": "if",
+        "conditions": [
+          "index >= self.len"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-get-bound"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-SET-BOUND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "set",
+        "kind": "if",
+        "conditions": [
+          "index >= self.len"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-set-bound"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-SET",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "set",
+        "kind": "try_propagation",
+        "conditions": [
+          "list_set(\n                mem,\n                self.root.as_ref(),\n                self.height,\n                index,\n                value,\n            )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-set"
+      ]
+    },
+    {
+      "name": "TREE-LIST-PUSH-CAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "push",
+        "kind": "if",
+        "conditions": [
+          "self.len >= mem.limits().max_entries"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-push-cap"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-GROW-THRESHOLD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "push",
+        "kind": "if",
+        "conditions": [
+          "self.len == capacity"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-grow-threshold"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-GROW-ROOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "push",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(ListNode::Branch(children))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-grow-root"
+      ]
+    },
+    {
+      "name": "TREE-LIST-PUSH-PATH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "push",
+        "kind": "try_propagation",
+        "conditions": [
+          "list_set(mem, root.as_ref(), height, self.len, value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-push-path"
+      ]
+    },
+    {
+      "name": "TREE-LIST-POP-EMPTY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "pop",
+        "kind": "if",
+        "conditions": [
+          "self.len == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-pop-empty"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-POP-SINGLETON",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "pop",
+        "kind": "if",
+        "conditions": [
+          "self.len == 1"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-pop-singleton"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-POP-PATH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "pop",
+        "kind": "try_propagation",
+        "conditions": [
+          "list_clear(mem, self.root.as_ref().unwrap(), self.height, self.len - 1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-pop-path"
+      ]
+    },
+    {
+      "name": "TREE-LIST-SHRINK-HEIGHT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "pop",
+        "kind": "while",
+        "conditions": [
+          "height > 0",
+          "self.len - 1 <= 16usize.pow(height as u32)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-shrink-height",
+        "r1-tree-list-shrink-length"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-SET-LEAF",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "list_set",
+        "kind": "if",
+        "conditions": [
+          "height == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-set-leaf"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-SET-CHILD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "list_set",
+        "kind": "try_propagation",
+        "conditions": [
+          "list_set(\n            mem,\n            children[slot].as_ref(),\n            height - 1,\n            index,\n            value,\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-set-child"
+      ]
+    },
+    {
+      "name": "TREE-LIST-CLEAR-ALIGNED",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "list_clear",
+        "kind": "if",
+        "conditions": [
+          "index & ((1 << (height * 4)) - 1) == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "list_capacity_shrink_bounds_and_tail_clear_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-clear-aligned"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TREE-LIST-CLEAR-CHILD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/tree.rs",
+        "owner": "list_clear",
+        "kind": "try_propagation",
+        "conditions": [
+          "list_clear(\n                    mem,\n                    children[slot].as_ref().unwrap(),\n                    height - 1,\n                    index,\n                )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/tree.rs",
+          "name": "untouched_branches_are_shared_and_path_failures_preserve_roots"
+        }
+      ],
+      "mutations": [
+        "r1-tree-list-clear-child"
       ]
     }
   ],

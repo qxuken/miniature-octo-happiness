@@ -20,7 +20,7 @@ reuse and grow refusal to Vec. The engine checks count overflow separately.
 | Source | SHA-256 |
 |---|---|
 | `src/memory.rs` | `e6ebf06ad09de067f4ad341c7f517532cd9d8ca0c33fb41cc4575b092c8062cf` |
-| `src/tree.rs` | `e869d415667661e56dc63766af54e70b77dfd0f14627d1d310e26312d0183f6e` |
+| `src/tree.rs` | `f2b4099a101747b657f8990d223710cbd176f8ef9e251b5799fa4744ccd8c8b3` |
 | `src/storage/inspection.rs` | `f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6` |
 | `src/storage/simulator.rs` | `f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50` |
 

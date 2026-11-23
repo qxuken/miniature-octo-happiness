@@ -252,8 +252,14 @@ records 31 more source dispositions. The assignment sweep checks which
 observations survive refusal while the prior edit remains usable. The
 durable sweep includes replacement and deletion and preserves both roots
 before publication. Both macOS profiles detected 30 new controls and three
-existing controls. The write-charge caller residual and tree and value
-decision coverage remain in batch 4.
+existing controls.
+
+The [persistent tree ledger](decisions/tree-current.md) records all 72
+tree decisions, with 71 fewer open runtime records. The sweeps cover
+collision insertion and replacement, removal, binary row budgets, and
+list growth and clearing under provider refusal. Both macOS profiles
+detected all 49 named controls. The write-charge caller residual and
+value decision coverage remain in batch 4.
 
 All R1 and R2–R7 completion gates above remain open.
 
