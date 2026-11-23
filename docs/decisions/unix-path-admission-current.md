@@ -43,7 +43,7 @@ duplication failures and metadata syscall failures retain their own gates.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `5c00d486e37527ce3e3a0375f9eb53163338bd24f3828e439a4bcac908fea144` |
+| `src/storage/file.rs` | `0cfd7817b5af48fdcddc8d8b521cead6a4a47583c525aadb137c9c72f01264a2` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |

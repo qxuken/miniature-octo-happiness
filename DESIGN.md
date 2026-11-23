@@ -1436,9 +1436,10 @@ rename, unlink, hard-link creation or directory replacement is outside the contr
 1. Open the original with the normal nonblocking exclusive inode lock; reject
    `nlink != 1`. Fully verify/stabilize recovery and keep that descriptor locked.
 2. Create a random `.wdb-compact-<32 hex digits>.tmp` sibling with `O_EXCL`, mode
-   `0600`, and an atomic exclusive inode lock. Never truncate an existing name.
-   Build, sync and verify the complete compact image. Creation includes the
-   existing parent-directory fsync/full-file-sync barrier.
+   `0600`, and an atomic exclusive inode lock. The location allocator reserves
+   the complete terminated name once before requesting entropy. Existing names
+   return `AlreadyExists`. Build, sync and verify the complete compact image.
+   Creation includes the existing parent-directory fsync/full-file-sync barrier.
 3. Copy source metadata using `fcopyfile(COPYFILE_METADATA)` (POSIX information,
    ACLs and extended attributes, under macOS metadata policy), then full-sync
    the replacement, then run full-graph verification again so the final check

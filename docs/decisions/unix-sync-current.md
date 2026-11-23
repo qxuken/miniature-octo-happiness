@@ -37,7 +37,7 @@ four callbacks breaks that trace.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `5c00d486e37527ce3e3a0375f9eb53163338bd24f3828e439a4bcac908fea144` |
+| `src/storage/file.rs` | `0cfd7817b5af48fdcddc8d8b521cead6a4a47583c525aadb137c9c72f01264a2` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -46,10 +46,10 @@ four callbacks breaks that trace.
 | E | weekend-db::weekend_db | src/storage/file.rs:153:30– | 4881..4882 | try_propagation | sync_with | A first file barrier failure reaches the caller without a parent sync. |
 | E | weekend-db::weekend_db | src/storage/file.rs:155:40– | 4956..4957 | try_propagation | sync_with | A parent barrier failure stops before the final file sync. |
 | E | weekend-db::weekend_db | src/storage/file.rs:156:34– | 4992..4993 | try_propagation | sync_with | A final file barrier failure preserves the creation flag and error. |
-| P | weekend-db::weekend_db | src/storage/file.rs:413:13– | 13888..13890 | if | length | Length callbacks are labeled source during recovery/sizing and target through verification. |
-| P | weekend-db::weekend_db | src/storage/file.rs:423:13– | 14193..14195 | if | read | Source recovery and target verification record distinct read steps. |
-| P | weekend-db::weekend_db | src/storage/file.rs:433:13– | 14502..14504 | if | write | Writes that stabilize the source and create the candidate have distinct labels. |
-| P | weekend-db::weekend_db | src/storage/file.rs:443:13– | 14785..14787 | if | sync | Source stabilization and target publication have distinct sync labels. |
+| P | weekend-db::weekend_db | src/storage/file.rs:414:13– | 13870..13872 | if | length | Length callbacks are labeled source during recovery/sizing and target through verification. |
+| P | weekend-db::weekend_db | src/storage/file.rs:424:13– | 14175..14177 | if | read | Source recovery and target verification record distinct read steps. |
+| P | weekend-db::weekend_db | src/storage/file.rs:434:13– | 14484..14486 | if | write | Writes that stabilize the source and create the candidate have distinct labels. |
+| P | weekend-db::weekend_db | src/storage/file.rs:444:13– | 14767..14769 | if | sync | Source stabilization and target publication have distinct sync labels. |
 
 ## Verification at a1b2dd5
 

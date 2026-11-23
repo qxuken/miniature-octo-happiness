@@ -359,6 +359,14 @@ cross-target Clippy passes. Native Win32 execution and the intended NTFS
 deployment remain separate gates. The queue has 9,453 open records
 (2,084 runtime / 26 driver / 7,343 tooling).
 
+The [Unix scratch and positioned I/O ledger](decisions/unix-scratch-io-current.md)
+records five new dispositions at `d31aba8`. Scratch names use one selected
+allocation before entropy. Native fixtures check exclusive-create
+collision, unlink, short reads, EOF, offsets and read-only write refusal.
+Both profiles on macOS and Docker Linux pass storage, recovery and
+golden-image tests and detect all 12 named controls. The queue has 9,447
+open records (2,078 runtime / 26 driver / 7,343 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
