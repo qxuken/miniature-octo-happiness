@@ -1,5 +1,15 @@
-#![cfg(feature = "fault-injection")]
-use weekend_db::{Database, Error, Limits, TransactionState};
+#[path = "support/allocator.rs"]
+pub mod allocator;
+
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db::{AllocatorHandle, Database, DatabaseOptions, Error, Limits, TransactionState};
+
+fn selected_database() -> (Arc<TestAllocator>, Database) {
+    let allocator = Arc::new(TestAllocator::default());
+    let options = DatabaseOptions::default().with_allocator(allocator.handle());
+    (allocator, Database::with_options(options).unwrap())
+}
 
 #[test]
 fn allocation_limits_reject_each_independent_invalid_configuration() {
@@ -72,16 +82,16 @@ fn allocation_limits_reject_each_independent_invalid_configuration() {
 
 #[test]
 fn every_nested_edit_allocation_can_fail_without_changing_inputs() {
-    let db = Database::new().unwrap();
+    let (allocator, db) = selected_database();
     let item = db.bytes(b"original").unwrap();
     let list = db.list().unwrap().list_push(&item).unwrap();
     let map = db.map().unwrap().map_set(b"old", &list).unwrap();
+    let live = db.memory_usage().live_bytes;
     for operation in 0..7 {
         let mut success = false;
         let mut failures = 0;
         for budget in 0..160 {
-            db.fail_allocations_after(Some(budget));
-            let result = match operation {
+            let result = allocator.with_refusal(budget, || match operation {
                 0 => map.map_set(b"new", &item),
                 1 => map.map_remove(b"old"),
                 2 => list.list_set(0, &map),
@@ -89,8 +99,7 @@ fn every_nested_edit_allocation_can_fail_without_changing_inputs() {
                 4 => list.list_insert(0, &map),
                 5 => list.list_remove(0),
                 _ => db.bytes(b"copied"),
-            };
-            db.fail_allocations_after(None);
+            });
             assert_eq!(map.map_get(b"old").unwrap().unwrap(), list);
             assert!(map.map_get(b"new").unwrap().is_none());
             assert_eq!(list.list_get(0).unwrap(), item);
@@ -101,6 +110,7 @@ fn every_nested_edit_allocation_can_fail_without_changing_inputs() {
                 }
                 Err(e) => {
                     assert_eq!(e, Error::OutOfMemory);
+                    assert_eq!(db.memory_usage().live_bytes, live);
                     failures += 1;
                 }
             }
@@ -115,25 +125,27 @@ fn every_nested_edit_allocation_can_fail_without_changing_inputs() {
 fn every_candidate_allocation_failure_leaves_all_records_and_history_unchanged() {
     let mut success = false;
     for budget in 0..256 {
-        let db = Database::new().unwrap();
+        let (allocator, db) = selected_database();
         let a = db.create_collection().unwrap();
         let b = db.create_collection().unwrap();
         let mut seed = db.begin();
         seed.put(a, b"x", &db.integer(0).unwrap()).unwrap();
         seed.put(b, b"y", &db.integer(0).unwrap()).unwrap();
         seed.commit().unwrap();
+        drop(seed);
         let old = db.snapshot();
         let rev = old.revision();
+        let live = db.memory_usage().live_bytes;
+        let allocated = allocator.live_bytes();
         let mut tx = db.begin();
         tx.put(a, b"x", &db.integer(1).unwrap()).unwrap();
         tx.put(b, b"y", &db.integer(2).unwrap()).unwrap();
         tx.delete(a, b"absent").unwrap();
-        db.fail_allocations_after(Some(budget));
-        let result = tx.commit();
-        db.fail_allocations_after(None);
+        let result = allocator.with_refusal(budget, || tx.commit());
         assert_eq!(old.get(a, b"x").unwrap().unwrap().as_i64(), Ok(0));
         match result {
             Ok(_) => {
+                assert!(budget > 0);
                 assert_eq!(db.snapshot().get(a, b"x").unwrap().unwrap().as_i64(), Ok(1));
                 assert_eq!(db.snapshot().get(b, b"y").unwrap().unwrap().as_i64(), Ok(2));
                 success = true;
@@ -146,12 +158,16 @@ fn every_candidate_allocation_failure_leaves_all_records_and_history_unchanged()
                 assert_eq!(db.snapshot().get(a, b"x").unwrap().unwrap().as_i64(), Ok(0));
                 assert_eq!(db.snapshot().get(b, b"y").unwrap().unwrap().as_i64(), Ok(0));
                 assert_eq!(tx.commit(), Err(Error::Closed));
+                drop(tx);
+                assert_eq!(db.memory_usage().live_bytes, live);
+                assert_eq!(allocator.live_bytes(), allocated);
             }
         }
     }
     assert!(success);
 }
 
+#[cfg(feature = "fault-injection")]
 #[test]
 fn observation_overlay_and_scan_failures_never_publish() {
     for operation in 0..4 {
@@ -189,22 +205,27 @@ fn observation_overlay_and_scan_failures_never_publish() {
 
 #[test]
 fn failed_collection_publication_is_atomic_and_ids_are_not_reused() {
+    let mut failures = 0;
+    let mut successes = 0;
     for budget in 0..12 {
-        let db = Database::new().unwrap();
+        let (allocator, db) = selected_database();
         let c = db.create_collection().unwrap();
         let old = db.snapshot();
-        db.fail_allocations_after(Some(budget));
-        let result = db.drop_collection(c);
-        db.fail_allocations_after(None);
+        let live = db.memory_usage().live_bytes;
+        let result = allocator.with_refusal(budget, || db.drop_collection(c));
         if result.is_err() {
+            failures += 1;
             assert_eq!(result, Err(Error::OutOfMemory));
             assert_eq!(db.snapshot().revision(), old.revision());
             assert_eq!(db.snapshot().count(c), Ok(0));
+            assert_eq!(db.memory_usage().live_bytes, live);
         } else {
+            successes += 1;
             assert_eq!(db.snapshot().count(c), Err(Error::NotFound));
         }
         let next = db.create_collection().unwrap();
         assert!(next.as_u64() > c.as_u64());
         assert_eq!(old.count(c), Ok(0));
     }
+    assert!(failures > 0 && successes > 0);
 }

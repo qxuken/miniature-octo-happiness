@@ -62,7 +62,7 @@ eight-byte IDs; invalid-width conversion and its visit propagation are internal
 invariants. The record visitor contains no fallible operation.
 
 Encoding allocation rejection is reused from
-`tests/durability.rs::preparation_and_backend_allocation_failures_preserve_the_acknowledged_state`
+`tests/durability.rs::preparation_allocation_failures_preserve_current_and_retained_roots`
 and `tests/compaction.rs::allocation_failures_during_copy_and_verification_never_change_the_source`.
 These sweeps and public cap/headroom tests supply preparation rollback evidence;
 they do not promise every allocation is reached in every kind-specific fixture.

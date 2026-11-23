@@ -150,9 +150,14 @@ Existing fault sweeps supply successful and injected-failure controls:
 - `tests/live_budget_decisions.rs::initial_head_requires_exact_live_layout_budget`
   and `tests/allocation.rs::allocation_limits_reject_each_independent_invalid_configuration`:
   head admission and invalid configurations.
-- `tests/durability.rs::preparation_and_backend_allocation_failures_preserve_the_acknowledged_state`
-  and `publication_failures_reopen_the_revision_that_survived`: storage boundary
-  propagation and terminal outcomes.
+- `tests/durability.rs::preparation_allocation_failures_preserve_current_and_retained_roots`,
+  `backend_allocation_failures_preserve_the_acknowledged_state` and
+  `publication_failures_reopen_the_revision_that_survived` check storage
+  boundary propagation and terminal outcomes.
+
+The [selected-allocator follow-up](allocation-recovery-current.md) verifies
+that the migrated sweeps reach the allocator and recover the original live
+charge, file bytes, and retained roots.
 
 E means these referenced tests support the behavior, not that every callee error
 variant was instrumented at every `?`. Empty/nonempty collection/point loops are

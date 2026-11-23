@@ -2,122 +2,42 @@ use super::*;
 use crate::DatabaseOptions;
 use std::sync::Arc;
 
-#[derive(Default)]
-pub(crate) struct TestAllocator {
-    fail_at: AtomicUsize,
-    live: AtomicUsize,
-    bytes: AtomicUsize,
-    requests: AtomicUsize,
-    last_request_size: AtomicUsize,
-}
+#[path = "../../tests/support/allocator.rs"]
+mod allocator;
+pub(crate) use allocator::TestAllocator;
 
 impl TestAllocator {
-    pub(crate) fn fail_next(&self) {
-        self.fail_after(0);
-    }
-
-    pub(crate) fn fail_after(&self, allowed: usize) {
-        self.fail_at
-            .store(self.requests() + allowed + 1, Ordering::Relaxed);
-    }
-
-    pub(crate) fn live(&self) -> usize {
-        self.live.load(Ordering::Relaxed)
-    }
-
     pub(crate) fn memory(self: &Arc<Self>, limits: Limits) -> Memory {
         Memory::with_allocator(limits, self.handle()).unwrap()
     }
-
-    pub(crate) fn live_bytes(&self) -> usize {
-        self.bytes.load(Ordering::Relaxed)
-    }
-
-    fn requests(&self) -> usize {
-        self.requests.load(Ordering::Relaxed)
-    }
-
-    fn handle(self: &Arc<Self>) -> AllocatorHandle {
-        AllocatorHandle::try_new(TestProvider(self.clone())).unwrap()
-    }
-
-    fn check(&self, layout: Layout) -> std::result::Result<(), AllocError> {
-        let request = self.requests.fetch_add(1, Ordering::Relaxed) + 1;
-        self.last_request_size
-            .store(layout.size(), Ordering::Relaxed);
-        if self
-            .fail_at
-            .compare_exchange(request, 0, Ordering::Relaxed, Ordering::Relaxed)
-            .is_ok()
-        {
-            return Err(AllocError);
-        }
-        Ok(())
-    }
 }
 
-// SAFETY: delegates ownership and layouts to Global, with fallible injection
-// before allocation and growth.
-unsafe impl Allocator for TestAllocator {
-    fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        self.check(layout)?;
-        let block = Global.allocate(layout)?;
-        self.live.fetch_add(1, Ordering::Relaxed);
-        self.bytes.fetch_add(layout.size(), Ordering::Relaxed);
-        Ok(block)
-    }
-
-    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        unsafe { Global.deallocate(ptr, layout) };
-        self.live.fetch_sub(1, Ordering::Relaxed);
-        self.bytes.fetch_sub(layout.size(), Ordering::Relaxed);
-    }
-
-    unsafe fn grow(
-        &self,
-        ptr: NonNull<u8>,
-        old: Layout,
-        new: Layout,
-    ) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        self.check(new)?;
-        let block = unsafe { Global.grow(ptr, old, new)? };
-        self.bytes
-            .fetch_add(new.size() - old.size(), Ordering::Relaxed);
-        Ok(block)
-    }
-}
-
-// Tests retain an independent observer of allocator calls and drop timing.
-struct TestProvider(Arc<TestAllocator>);
-
-// SAFETY: forwarding preserves allocation ownership and the provider lifetime.
-unsafe impl Allocator for TestProvider {
-    fn allocate(&self, layout: Layout) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        self.0.allocate(layout)
-    }
-
-    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        unsafe { self.0.deallocate(ptr, layout) }
-    }
-
-    unsafe fn grow(
-        &self,
-        ptr: NonNull<u8>,
-        old: Layout,
-        new: Layout,
-    ) -> std::result::Result<NonNull<[u8]>, AllocError> {
-        unsafe { self.0.grow(ptr, old, new) }
-    }
+#[test]
+fn persistent_refusal_stays_in_one_provider_until_the_operation_returns() {
+    let allocator = Arc::new(TestAllocator::default());
+    let db = crate::Database::with_options(
+        DatabaseOptions::default().with_allocator(allocator.handle()),
+    )
+    .unwrap();
+    let independent = crate::Database::new().unwrap();
+    let baseline = allocator.live_bytes();
+    assert_eq!(
+        allocator.with_refusal(0, || {
+            assert_eq!(db.unsigned(1), Err(Error::OutOfMemory));
+            assert_eq!(independent.unsigned(1).unwrap().as_u64(), Ok(1));
+            db.unsigned(2)
+        }),
+        Err(Error::OutOfMemory)
+    );
+    assert_eq!(allocator.live_bytes(), baseline);
+    assert_eq!(db.unsigned(2).unwrap().as_u64(), Ok(2));
 }
 
 #[test]
 fn allocator_handle_owns_one_block_allocated_by_its_provider() {
     let allocator = Arc::new(TestAllocator::default());
     allocator.fail_next();
-    assert!(matches!(
-        AllocatorHandle::try_new(TestProvider(allocator.clone())),
-        Err(Error::OutOfMemory)
-    ));
+    assert!(matches!(allocator.try_handle(), Err(Error::OutOfMemory)));
     assert_eq!(Arc::strong_count(&allocator), 1);
     assert_eq!(allocator.requests(), 1);
     assert_eq!(allocator.live(), 0);
@@ -139,6 +59,10 @@ fn allocator_handle_owns_one_block_allocated_by_its_provider() {
     .join()
     .unwrap();
     assert_eq!(allocator.requests(), 3);
+    assert_eq!(
+        allocator.last_request_size(),
+        Layout::new::<[u64; 8]>().size()
+    );
     assert_eq!(allocator.live(), 0);
     assert_eq!(allocator.live_bytes(), 0);
     assert_eq!(Arc::strong_count(&allocator), 1);
@@ -344,7 +268,7 @@ fn native_path_allocations_are_fallible_and_preserve_the_file_lease() {
         allocator.fail_after(allowed);
         assert!(matches!(open(&path, options()), Err(Error::OutOfMemory)));
         assert_eq!(allocator.requests() - requests, allowed + 1);
-        assert_eq!(allocator.last_request_size.load(Ordering::Relaxed), size);
+        assert_eq!(allocator.last_request_size(), size);
         assert_eq!(allocator.live_bytes(), provider_bytes);
     };
     for (allowed, size) in path_requests.into_iter().enumerate() {
