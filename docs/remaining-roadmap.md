@@ -304,6 +304,14 @@ all 21 selected controls. The deeper native adapter decisions remain
 in batch 5, and follower durability has its own checks in batch 9.
 The queue has 9,574 open records (2,204 runtime / 26 driver / 7,344 tooling).
 
+The [Unix writer lease ledger](decisions/unix-leases-current.md) records a
+macOS bug reproduced by the Linux duplicate-descriptor fixture. The adapter
+now unlocks before closing, and the regression passes on both platforms.
+The stale-path check releases the rejected inode while the original adapter
+is still alive. Both macOS profiles detect all 22 controls at `15b2993`.
+The queue has 9,548 open records (2,178 runtime / 26 driver / 7,344 tooling).
+Native path admission, I/O barriers and platform-specific obligations remain.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

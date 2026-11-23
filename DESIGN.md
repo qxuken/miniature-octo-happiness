@@ -688,7 +688,8 @@ rejected with `O_NOFOLLOW`. Paths may contain spaces, Unicode, or native bytes.
 Opening uses `O_RDWR | O_EXLOCK | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC`.
 `O_EXLOCK` atomically acquires an advisory inode lock at open, including creation,
 avoiding an unlocked empty-file window. A logical `ByteStore` lease reasserts the
-flock; unlock releases it, with descriptor close as the final cleanup. Separate
+flock. Explicit unlock releases it, and a file adapter still holding the lease
+also unlocks on drop before closing the descriptor. Separate
 opens in the same process, hard-link aliases, and another process cannot become
 a second cooperating writer; contention returns `Busy`. These are exclusive
 read/write opens, not a multi-process reader/writer protocol. Locks are advisory:
@@ -1812,10 +1813,11 @@ manual reuse of an unlocked adapter after its inode has been replaced. The
 common check now protects both adapters. Cooperating opens, hard-link aliases
 and separate processes share inode exclusion; no sidecar lock is introduced.
 
-Dropping a Linux file adapter explicitly releases its lease if the kernel
-still holds it. This allows immediate reopen when a concurrently forked child
+On macOS and Linux, dropping a file adapter explicitly releases its lease if it
+still holds one. This allows immediate reopen when a concurrently forked child
 retains a descriptor until exec. An adapter that has already unlocked skips the
-drop-time unlock.
+drop-time unlock. The [Unix lease ledger](docs/decisions/unix-leases-current.md)
+records the duplicate-descriptor regression and the stale-path lease checks.
 
 Creation necessarily has an open-to-flock interval on Linux. A competing opener
 may briefly see an incomplete new file and receive a format/corruption error,
