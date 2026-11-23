@@ -106,7 +106,7 @@
     "src/schema.rs": "66bb396906513bf771b53627bbfeccc9da8a719bb3667df996677398f17170b8",
     "src/storage/codec.rs": "593b1dc249ceca770b436133c894b41aad0596c5f20be79abf96cd69644205ee",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
-    "src/storage/file.rs": "382d35e025b081438d4537adce10761767804e789185ff6cfb9ac5b1ea6f6a50",
+    "src/storage/file.rs": "f981e5d525eee133ba9e5554491c724440e8bf4b57df2768b552af98894a7206",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
     "src/storage/linux.rs": "66ecec433f1528399accaa63db7ef6fab850fff54a9d64dc4d2bd51acf2f6dcc",
     "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
@@ -177,7 +177,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "c14d9304df99e0360e631712d9ce8a7323db93b92edff3a12cf5476d9ff1b47e",
+    "xtask/src/mutations.rs": "0a8589dbafbb456e060a49dafa677b9b7e3eea19f9fac0bacd48cb45294b8bdc",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -291,7 +291,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "309562f798ad685a1ed49ea816dc10065bc1d93fac02ad97abe513c7c103e2c4",
+    "xtask/tests/mutations.json": "3dab7677378827fd9bf65e3e494cd040a4373548bcd066c944c5f70c0d81a4de",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -322,8 +322,9 @@
     "docs/decisions/storage-creation-reopen-current.md": "be65e90b2cf80d470fd3e06e4bd72eea3bdb81f07a961a1d3c99878cae9d49bb",
     "tests/headroom.rs": "d9ea3f3559aabc199495fba51a8d4020bb7f472b8a3112155e1d8e920005606c",
     "docs/decisions/compact-copy-current.md": "27435043efe4a51e8c1dc193986659e207fff80b7bab0b329563661886eb833d",
-    "docs/decisions/native-replacement-current.md": "26a3beef280a291a1c7a16c976169217eef79eb04de358ca4667dfac44790829",
-    "docs/decisions/unix-leases-current.md": "b2397c85828de6ef6d73ddaf674e06d435ef323b608b37061b85fd9f340c05c8"
+    "docs/decisions/native-replacement-current.md": "97e602979eb9d919a24a3e3d09fadb9a0d2b3719fa57aa42dfdf5847cfb99b04",
+    "docs/decisions/unix-leases-current.md": "15c712981d665e4cb371afa821e3c4526b73aba400a50954f7e63b8785a38d79",
+    "docs/decisions/unix-path-admission-current.md": "805fe853dbcf090d7225dfaa944dd390b07d122d4f4fc98cd4258e3395baa528"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -562,7 +563,8 @@
         "tests/files.rs",
         "tests/compaction.rs",
         "docs/decisions/native-replacement-current.md",
-        "docs/decisions/unix-leases-current.md"
+        "docs/decisions/unix-leases-current.md",
+        "docs/decisions/unix-path-admission-current.md"
       ],
       "residual": "Kernel outcomes, coupled pathname predicates, unsupported ABIs and physical power loss remain separate from callback controls."
     },
@@ -12601,6 +12603,409 @@
       ],
       "mutations": [
         "r1-unix-lease-matches-open"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-READ-ONLY-PREPARATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "open_read_only",
+        "kind": "try_propagation",
+        "conditions": [
+          "Location::new(path.as_ref())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "native_path_errors_report_the_failed_operation"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-read-only-preparation"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-WRITABLE-PREPARATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "open_in",
+        "kind": "try_propagation",
+        "conditions": [
+          "Location::new_in(path.as_ref(), allocator)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "parent_and_leaf_refusal_leave_create_and_open_retriable"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-writable-preparation"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-EMBEDDED-NUL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "new_in",
+        "kind": "if",
+        "conditions": [
+          "bytes.contains(&0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "invalid_names_stop_before_the_selected_allocator"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-embedded-nul"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "UNIX-PATH-LIMIT-EQUALITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "new_in",
+        "kind": "if",
+        "conditions": [
+          "bytes.len() > 1024 * 1024"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "invalid_names_stop_before_the_selected_allocator"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-limit-equality",
+        "r1-unix-path-limit-excess"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "UNIX-PATH-NAME-EMPTY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "new_in",
+        "kind": "if",
+        "conditions": [
+          "name.is_empty()",
+          "name == b\".\"",
+          "name == b\"..\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "invalid_names_stop_before_the_selected_allocator"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-name-empty",
+        "r1-unix-path-name-dot",
+        "r1-unix-path-name-parent"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "UNIX-PATH-PARENT-BUFFER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "new_in",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::terminated_path(allocator.clone(), parent.as_os_str().as_bytes())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "parent_and_leaf_refusal_leave_create_and_open_retriable"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-parent-buffer"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-PARENT-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "new_in",
+        "kind": "try_propagation",
+        "conditions": [
+          "retry(NativeIoOperation::OpenDirectory, || {\n                // SAFETY: parent is NUL-terminated. A read-only directory open needs no mode.\n                let fd =\n                    unsafe { open(parent.as_ptr().cast(), sys::OPEN_DIRECTORY | sys::O_CLOEXEC) };\n                if fd < 0 {\n                    Err(io::Error::last_os_error())\n                } else {\n                    // SAFETY: open returned a new owned descriptor.\n                    Ok(unsafe { File::from_raw_fd(fd) })\n                }\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "native_path_errors_report_the_failed_operation"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-parent-error"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-LEAF-BUFFER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "new_in",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::terminated_path(allocator, name)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "parent_and_leaf_refusal_leave_create_and_open_retriable"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-leaf-buffer"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-TERMINATED-BUFFER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "terminated_path",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::copy_path(allocator, bytes, 1)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "parent_and_leaf_refusal_leave_create_and_open_retriable"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-terminated-buffer"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-RESERVE-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "copy_path",
+        "kind": "try_propagation",
+        "conditions": [
+          "path.try_reserve_exact(bytes.len() + extra)\n            .map_err(|_| Error::OutOfMemory)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "parent_and_leaf_refusal_leave_create_and_open_retriable"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-reserve-error"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-DUPLICATE-LEAF",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "duplicate",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::copy_path(self.name.allocator().clone(), &self.name, 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "parent_and_leaf_refusal_leave_create_and_open_retriable"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-duplicate-leaf"
+      ]
+    },
+    {
+      "name": "UNIX-PATH-REGULAR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "open_mode",
+        "kind": "if",
+        "conditions": [
+          "!retry(NativeIoOperation::Metadata, || file.metadata())?.is_file()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "native_path_errors_report_the_failed_operation"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-regular"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "UNIX-PATH-LEAF-OPERATION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "open_flags",
+        "kind": "if",
+        "conditions": [
+          "flags & OPEN_CREATE != 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "native_path_errors_report_the_failed_operation"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-leaf-operation"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "UNIX-PATH-LEAF-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/file.rs",
+        "owner": "open_flags",
+        "kind": "try_propagation",
+        "conditions": [
+          "retry(\n            if flags & OPEN_CREATE != 0 {\n                NativeIoOperation::Create\n            } else {\n                NativeIoOperation::Open\n            },\n            || {\n                let fd = unsafe {\n                    openat(\n                        self.directory.as_raw_fd(),\n                        self.name.as_ptr().cast(),\n                        flags | OPEN_REQUIRED,\n                        0o600 as c_int,\n                    )\n                };\n                if fd < 0 {\n                    Err(io::Error::last_os_error())\n                } else {\n                    Ok(fd)\n                }\n            },\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "native_path_errors_report_the_failed_operation"
+        }
+      ],
+      "mutations": [
+        "r1-unix-path-leaf-error"
       ]
     }
   ],

@@ -310,7 +310,14 @@ now unlocks before closing, and the regression passes on both platforms.
 The stale-path check releases the rejected inode while the original adapter
 is still alive. Both macOS profiles detect all 22 controls at `15b2993`.
 The queue has 9,548 open records (2,178 runtime / 26 driver / 7,344 tooling).
-Native path admission, I/O barriers and platform-specific obligations remain.
+
+The [Unix pathname ledger](decisions/unix-path-admission-current.md) maps
+19 more source records at `c28cad3`. Both platforms pass the same refusal
+sweep for parent and leaf allocation during create and reopen. Native failures
+preserve the operation and errno, and both macOS profiles detect all 20
+selected controls. The queue has 9,529 open records (2,159 runtime /
+26 driver / 7,344 tooling). Native I/O barriers and platform-specific adapter
+obligations remain.
 
 All R1 and R2–R7 completion gates above remain open.
 

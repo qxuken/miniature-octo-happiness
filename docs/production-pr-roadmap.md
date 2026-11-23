@@ -65,10 +65,11 @@ lookup and insertion, and the borrowed-to-owned cache transition.
 Batch 5 starts with [ByteStore transfers and local publication](decisions/bytestore-publication-current.md),
 [creation and reopen stabilization](decisions/storage-creation-reopen-current.md),
 [verified compact copies and headroom](decisions/compact-copy-current.md),
-[native namespace replacement](decisions/native-replacement-current.md), and
-[Unix writer leases](decisions/unix-leases-current.md). Native path admission,
-I/O and platform-specific adapter decisions follow. Batch 9 covers the follower's
-separate durability acknowledgment.
+[native namespace replacement](decisions/native-replacement-current.md),
+[Unix writer leases](decisions/unix-leases-current.md), and
+[Unix pathname admission](decisions/unix-path-admission-current.md). Native I/O
+barriers and platform-specific adapter decisions follow. Batch 9 covers the
+follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those

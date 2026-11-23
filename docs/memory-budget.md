@@ -82,6 +82,10 @@ path lookup, and the assembled file path. The adapter releases them before
 returning the lease. Allocator refusal during path construction precedes the
 target-file open on all three platforms.
 
+The [Unix pathname ledger](decisions/unix-path-admission-current.md)
+records both selected allocation failures, their exact request sizes,
+and create and reopen outcomes.
+
 The selected allocator supplies each database's budget control block in a
 fallible allocation outside the live-byte cap. The block keeps its allocator
 alive until the last budget owner releases it. A custom provider allocates one

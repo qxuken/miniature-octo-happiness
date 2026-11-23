@@ -37,7 +37,7 @@ native barrier error evidence remain on the roadmap.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `382d35e025b081438d4537adce10761767804e789185ff6cfb9ac5b1ea6f6a50` |
+| `src/storage/file.rs` | `f981e5d525eee133ba9e5554491c724440e8bf4b57df2768b552af98894a7206` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
