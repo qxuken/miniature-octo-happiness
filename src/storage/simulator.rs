@@ -1,6 +1,6 @@
 use super::{ByteStore, MAX_IMAGE_BYTES};
 use crate::{
-    Error, Limits, Result,
+    AllocatorHandle, Error, Limits, Result,
     memory::{Memory, Shared},
 };
 use std::sync::Mutex;
@@ -43,15 +43,17 @@ pub enum Fault {
     /// A failed sync may still have persisted any selected pending writes.
     SyncError(Crash),
 }
+type Buffer<T> = Vec<T, AllocatorHandle>;
+
 struct Pending {
     offset: usize,
-    bytes: Vec<u8>,
+    bytes: Buffer<u8>,
 }
 struct Disk {
-    volatile: Vec<u8>,
-    durable: Vec<u8>,
-    pending: Vec<Pending>,
-    events: Vec<IoEvent>,
+    volatile: Buffer<u8>,
+    durable: Buffer<u8>,
+    pending: Buffer<Pending>,
+    events: Buffer<IoEvent>,
     fault: Option<(usize, Fault)>,
     steps: usize,
     epoch: u64,
@@ -80,15 +82,21 @@ impl SimulatedDisk {
         Self::from_image(&[])
     }
     pub fn from_image(image: &[u8]) -> Result<Self> {
+        Self::from_image_with_allocator(image, AllocatorHandle::default())
+    }
+    /// Construct a simulator with an allocator for its images, writes and trace.
+    /// Its allocator is independent of the database that opens it. Copies returned
+    /// by `trace` and `durable_image` use the process-global allocator.
+    pub fn from_image_with_allocator(image: &[u8], allocator: AllocatorHandle) -> Result<Self> {
         if image.len() > MAX_IMAGE_BYTES {
             return Err(Error::Limit);
         }
-        let mem = Memory::new(Limits::default())?;
+        let mem = Memory::with_allocator(Limits::default(), allocator.clone())?;
         let disk = mem.shared(Mutex::new(Disk {
-            volatile: mem.copy_external(image)?,
-            durable: mem.copy_external(image)?,
-            pending: Vec::new(),
-            events: Vec::new(),
+            volatile: copy(&mem, image)?,
+            durable: copy(&mem, image)?,
+            pending: Vec::new_in(allocator.clone()),
+            events: Vec::new_in(allocator),
             fault: None,
             steps: 0,
             epoch: 0,
@@ -125,7 +133,7 @@ impl SimulatedDisk {
         let mut disk = self.disk.lock().unwrap();
         let epoch = disk.epoch.checked_add(1).ok_or(Error::Exhausted)?;
         let durable = survive(&self.mem, &disk, policy)?;
-        let volatile = self.mem.copy_external(&durable)?;
+        let volatile = copy(&self.mem, &durable)?;
         disk.durable = durable;
         disk.volatile = volatile;
         disk.pending.clear();
@@ -173,7 +181,13 @@ fn range(offset: u64, len: usize) -> Result<(usize, usize)> {
         .ok_or(Error::Limit)?;
     Ok((start, end))
 }
-fn apply(mem: &Memory, image: &mut Vec<u8>, offset: usize, bytes: &[u8]) -> Result<()> {
+fn copy(mem: &Memory, bytes: &[u8]) -> Result<Buffer<u8>> {
+    let mut result = Vec::new_in(mem.allocator());
+    mem.reserve_external(&mut result, bytes.len())?;
+    result.extend_from_slice(bytes);
+    Ok(result)
+}
+fn apply(mem: &Memory, image: &mut Buffer<u8>, offset: usize, bytes: &[u8]) -> Result<()> {
     let (_, end) = range(offset as u64, bytes.len())?;
     if end > image.len() {
         mem.reserve_external(image, end - image.len())?;
@@ -182,8 +196,8 @@ fn apply(mem: &Memory, image: &mut Vec<u8>, offset: usize, bytes: &[u8]) -> Resu
     image[offset..end].copy_from_slice(bytes);
     Ok(())
 }
-fn survive(mem: &Memory, disk: &Disk, policy: Crash) -> Result<Vec<u8>> {
-    let mut image = mem.copy_external(&disk.durable)?;
+fn survive(mem: &Memory, disk: &Disk, policy: Crash) -> Result<Buffer<u8>> {
+    let mut image = copy(mem, &disk.durable)?;
     match policy {
         Crash::DropAll => {}
         Crash::PersistAll => {
@@ -290,7 +304,7 @@ impl ByteStore for SimulatedDisk {
             if disk.pending.len() >= 2 * MAX_IMAGE_BYTES / super::REGION {
                 return Err(Error::Limit);
             }
-            let copy = self.mem.copy_external(&bytes[..n])?;
+            let copy = copy(&self.mem, &bytes[..n])?;
             self.mem.reserve_external(&mut disk.pending, 1)?;
             let extra = end.saturating_sub(disk.volatile.len());
             self.mem.reserve_external(&mut disk.volatile, extra)?;
@@ -322,7 +336,7 @@ impl ByteStore for SimulatedDisk {
         )?;
         match fault {
             None => {
-                let durable = self.mem.copy_external(&disk.volatile)?;
+                let durable = copy(&self.mem, &disk.volatile)?;
                 disk.durable = durable;
                 disk.pending.clear();
                 Ok(())

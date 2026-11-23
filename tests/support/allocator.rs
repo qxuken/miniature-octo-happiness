@@ -35,18 +35,28 @@ impl TestAllocator {
         allowed: usize,
         operation: impl FnOnce() -> Result<T, Error>,
     ) -> Result<T, Error> {
-        let before = self.requests();
-        self.fail_from
-            .store(before + allowed + 1, Ordering::Relaxed);
-        let result = operation();
-        self.fail_from.store(0, Ordering::Relaxed);
-        let actual = self.requests() - before;
+        let (result, actual) = self.count_with_refusal(allowed, operation);
         assert_eq!(
             actual > allowed,
             matches!(&result, Err(Error::OutOfMemory)),
             "allowed {allowed} requests, observed {actual}"
         );
         result
+    }
+
+    /// Return the number of requests, including refusals, for callers that
+    /// translate allocation errors at a storage boundary.
+    pub fn count_with_refusal<T>(
+        &self,
+        allowed: usize,
+        operation: impl FnOnce() -> T,
+    ) -> (T, usize) {
+        let before = self.requests();
+        self.fail_from
+            .store(before + allowed + 1, Ordering::Relaxed);
+        let result = operation();
+        self.fail_from.store(0, Ordering::Relaxed);
+        (result, self.requests() - before)
     }
 
     pub fn live(&self) -> usize {

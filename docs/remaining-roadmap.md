@@ -210,6 +210,12 @@ existing live-budget controls. The R1 queue is 9,916 individual gaps
 output failure coverage are separate follow-ups before retiring the legacy
 allocation hook.
 
+The [simulator allocator slice](decisions/simulator-allocator-current.md)
+uses an independent selected allocator for simulator storage and backend
+failure sweeps. The constructor, trace, write, crash, sync and reopen checks
+pass on macOS and Docker Linux in both profiles. The first stack leaves
+plain Rust output refusal and the remaining legacy hook users for batch 2.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

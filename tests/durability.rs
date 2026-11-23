@@ -1201,18 +1201,17 @@ fn preparation_allocation_failures_preserve_current_and_retained_roots() {
     panic!("commit did not finish within the allocation sweep");
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn backend_allocation_failures_preserve_the_acknowledged_state() {
     let image = base_image();
     let old = state(&open(&SimulatedDisk::from_image(&image).unwrap()));
     for allowance in 0..512 {
-        let disk = SimulatedDisk::from_image(&image).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let disk = SimulatedDisk::from_image_with_allocator(&image, allocator.handle()).unwrap();
         let db = open(&disk);
         let mut tx = staged(&db);
-        disk.fail_allocations_after(Some(allowance));
-        let result = tx.commit();
-        disk.fail_allocations_after(None);
+        let (result, requests) = allocator.count_with_refusal(allowance, || tx.commit());
+        assert_eq!(result.is_err(), requests > allowance);
         match result {
             Ok(_) => {
                 assert!(allowance > 0);
@@ -1517,16 +1516,17 @@ fn sparse_append_survivors_do_not_publish_and_retries_skip_them() {
     );
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn backend_allocation_failure_during_recovery_returns_no_handle_or_partial_state() {
     let image = base_image();
     let mut succeeded = false;
     for budget in 0..256 {
-        let disk = SimulatedDisk::from_image(&image).unwrap();
-        disk.fail_allocations_after(Some(budget));
-        let result = Database::open_on(disk.clone(), Limits::default());
-        disk.fail_allocations_after(None);
+        let allocator = Arc::new(TestAllocator::default());
+        let disk = SimulatedDisk::from_image_with_allocator(&image, allocator.handle()).unwrap();
+        let (result, requests) = allocator.count_with_refusal(budget, || {
+            Database::open_on(disk.clone(), Limits::default())
+        });
+        assert_eq!(result.is_err(), requests > budget);
         match result {
             Ok(db) => {
                 drop(db);

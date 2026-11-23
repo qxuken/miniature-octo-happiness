@@ -114,7 +114,7 @@
     "src/storage/mod.rs": "7288ee09e76b6a0227deb4c050fc4a87c83b852b2c37cf6381aec5fd1cf834dd",
     "src/storage/replacement.rs": "76e5098896ecc0ede681526cbb8ba75fbe40b833e528eef95d748715de84cd07",
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
-    "src/storage/simulator.rs": "e6b1b3a724c6618173704717380d50e948ef8d4dced051bc675a160e0e582003",
+    "src/storage/simulator.rs": "af1a89b919143469a2f722695fefc1d9013e332e84803de2e216f6e9eaa29416",
     "src/storage/windows.rs": "dcff3de55079e0d4cb70d7c6c20589b29102fda0aa5a5f3aa48625c57e8d64fc",
     "src/tree.rs": "71e23e66d95a34d8919fd29e8361a1bf30d7e11198c077cf776385f88c7514b6",
     "src/value.rs": "d5c52024269fa18a0d7cd387692da1f9e845bccc75eab66207bbd193cb1df975",
@@ -269,7 +269,7 @@
     "tests/compaction.rs": "af18c2d925c554faa886b647b34729089111499225aad7b7cdf5116cd6b91fb8",
     "tests/concurrency.rs": "fb70c864401f65fac291b2054fef68544defc32e539f0982a7cfad914aa22463",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
-    "tests/durability.rs": "e71233965fccfce9fdd99e8607d6347857a4da6035c6675df431a89025e11f64",
+    "tests/durability.rs": "9527f575d91646524bf64440c238f4dacfabc8bc958839f01ef4755e17ec7208",
     "tests/engine_decisions.rs": "05c2f7e1a91c9af684e062f8b7d1838e7849dc9278ba2a0bbbf691a35cbc2219",
     "tests/files.rs": "a6f1b4d109cc5998160476e6d419769905214710414e3d8446f31aa18af47f3c",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
@@ -279,7 +279,7 @@
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
     "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
     "tests/schema.rs": "11f76f4abac949e644104b9be6a3805f059d607d9e33593cba69ddeb869a5314",
-    "tests/storage_decisions.rs": "d694115d3f6079eab548f383be032efc900a9ed57b93ab5af131bafa3f3440ab",
+    "tests/storage_decisions.rs": "d009c17e1388c4004b46067991414b0371d45bdec7b8784a37e2867a7b00b7d6",
     "tests/transactions.rs": "f4d6aec6b5f63cea148c64b9a31b89f755848b196fb0e38b542e5d4802cdf112",
     "tests/value_decisions.rs": "eda8394a8b1305e110ec99bb7d50ba78436c1a0843a0f472cdd6213fc6284574",
     "tests/values.rs": "adcb83f2d92ccae41fb25505d7e4e22334a77d03eec945ea711ff1616c3c1067",
@@ -307,7 +307,8 @@
     "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
     "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
     "src/memory/test_allocator.rs": "0dcf1c3e7056957d7489076d161b57f7f1b7996480ff5827ad7db2c0584d01e2",
-    "tests/support/allocator.rs": "837f4b1deb5e6b06754c966d331b196af2e90693b9937fee611ae494817bb0af"
+    "tests/support/allocator.rs": "f038645fa4a5181c2690dfc3f64c007af47847dfafc19ec9c1740dbb46cc8474",
+    "docs/decisions/simulator-allocator-current.md": "f7918c90765407be71ffad0759ef0a4ff86f46ae73a1212fbc92659e2f31d1c2"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -361,7 +362,7 @@
     "weekend-db::study_progress": 31,
     "weekend-db::typed": 186,
     "weekend-db::weekend-admin": 30,
-    "weekend-db::weekend_db": 1689,
+    "weekend-db::weekend_db": 1690,
     "weekend-decision-inventory::weekend-decision-inventory": 399,
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
@@ -542,7 +543,10 @@
       "references": [
         "docs/decisions/current.md",
         "docs/decisions/simulator.md",
-        "tests/durability.rs"
+        "tests/durability.rs",
+        "docs/decisions/simulator-allocator-current.md",
+        "tests/storage_decisions.rs",
+        "tests/support/allocator.rs"
       ],
       "residual": "Finite modeled schedules and allocation errors do not establish native device behavior."
     },

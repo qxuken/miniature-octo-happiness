@@ -1,11 +1,20 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
 use weekend_db::{
-    Database, Error, Limits, Result,
+    AllocatorHandle, Database, Error, Limits, Result,
     storage::{ByteStore, Crash, Fault, IoKind, MAX_IMAGE_BYTES, MemoryStore, SimulatedDisk},
 };
+
+fn selected_disk(image: &[u8]) -> (Arc<TestAllocator>, SimulatedDisk) {
+    let allocator = Arc::new(TestAllocator::default());
+    let disk = SimulatedDisk::from_image_with_allocator(image, allocator.handle()).unwrap();
+    (allocator, disk)
+}
 
 #[test]
 fn storage_identity_is_read_without_io_and_survives_compaction() {
@@ -235,17 +244,58 @@ fn simulator_image_cap_rejects_before_copying_the_input() {
 }
 
 #[test]
-#[cfg(feature = "fault-injection")]
+fn simulator_allocator_owns_both_image_copies_and_releases_partial_construction() {
+    let allocator = Arc::new(TestAllocator::default());
+    let handle = allocator.handle();
+    let live = allocator.live_bytes();
+    for allowance in 0..=4 {
+        let result = allocator.with_refusal(allowance, || {
+            SimulatedDisk::from_image_with_allocator(b"seed", handle.clone())
+        });
+        if allowance == 4 {
+            let mut disk = result.unwrap();
+            assert_eq!(disk.durable_image().unwrap(), b"seed");
+            disk.lock().unwrap();
+            let mut bytes = [0; 4];
+            assert_eq!(disk.read(0, &mut bytes), Ok(4));
+            assert_eq!(&bytes, b"seed");
+        } else {
+            assert_eq!(result.err(), Some(Error::OutOfMemory));
+        }
+        assert_eq!(allocator.live_bytes(), live);
+    }
+    drop(handle);
+    assert_eq!(allocator.live(), 0);
+}
+
+#[test]
+fn first_event_allocator_refusal_keeps_the_armed_fault() {
+    let (allocator, mut disk) = selected_disk(&[]);
+    disk.lock().unwrap();
+    disk.arm(0, Fault::Short(0));
+    assert_eq!(
+        allocator.with_refusal(0, || disk.write(0, b"x")),
+        Err(Error::OutOfMemory)
+    );
+    assert!(disk.trace().unwrap().is_empty());
+    assert_eq!(disk.write(0, b"x"), Ok(0));
+    assert_eq!(disk.length(), Ok(0));
+    assert_eq!(disk.write(0, b"x"), Ok(1));
+    disk.sync().unwrap();
+    assert_eq!(disk.durable_image().unwrap(), b"x");
+}
+
+#[test]
 fn crash_and_sync_allocation_failures_keep_prior_images_and_lease() {
     for budget in 0..=2 {
-        let mut disk = SimulatedDisk::from_image(&[0]).unwrap();
+        let (allocator, mut disk) = selected_disk(&[0]);
         disk.lock().unwrap();
         disk.write(0, &[1]).unwrap();
-        disk.fail_allocations_after(Some(budget));
-        let result = disk.crash(Crash::PersistAll);
-        disk.fail_allocations_after(None);
+        let live = allocator.live_bytes();
+        let result = allocator.with_refusal(budget, || disk.crash(Crash::PersistAll));
         if budget < 2 {
             assert_eq!(result, Err(Error::OutOfMemory));
+            assert_eq!(allocator.live_bytes(), live);
             assert_eq!(disk.length(), Ok(1));
             let mut byte = [0];
             disk.read(0, &mut byte).unwrap();
@@ -257,14 +307,17 @@ fn crash_and_sync_allocation_failures_keep_prior_images_and_lease() {
             assert_eq!(disk.length(), Err(Error::Io));
         }
         assert_eq!(disk.durable_image().unwrap(), [1]);
+        drop(disk);
+        assert_eq!(allocator.live(), 0);
     }
-    let mut disk = SimulatedDisk::from_image(&[0]).unwrap();
+    let (allocator, mut disk) = selected_disk(&[0]);
     disk.lock().unwrap();
     disk.write(0, &[1]).unwrap();
     disk.arm(usize::MAX, Fault::Error); // reuse trace capacity, isolate sync copy
-    disk.fail_allocations_after(Some(0));
-    assert_eq!(disk.sync(), Err(Error::OutOfMemory));
-    disk.fail_allocations_after(None);
+    assert_eq!(
+        allocator.with_refusal(0, || disk.sync()),
+        Err(Error::OutOfMemory)
+    );
     assert_eq!(disk.durable_image().unwrap(), [0]);
     assert_eq!(disk.length(), Ok(1));
     disk.sync().unwrap();
@@ -272,22 +325,22 @@ fn crash_and_sync_allocation_failures_keep_prior_images_and_lease() {
 }
 
 #[test]
-#[cfg(feature = "fault-injection")]
 fn durable_tear_growth_allocation_failure_leaves_both_images_and_pending_queue_unchanged() {
     for (durable, budget, expected_result) in [
         (false, 3, Err(Error::Io)),
+        (true, 0, Err(Error::OutOfMemory)),
+        (true, 1, Err(Error::OutOfMemory)),
+        (true, 2, Err(Error::OutOfMemory)),
         (true, 3, Err(Error::OutOfMemory)),
         (true, 4, Err(Error::Io)),
     ] {
-        let mut disk = SimulatedDisk::new().unwrap();
+        let (allocator, mut disk) = selected_disk(&[]);
         disk.lock().unwrap();
         disk.length().unwrap(); // Reserve trace capacity before installing the budget.
         disk.arm(0, Fault::Tear { prefix: 1, durable });
         // Copy, pending capacity and volatile capacity use three allocations.
         // An immediately durable sparse tear also needs durable-image capacity.
-        disk.fail_allocations_after(Some(budget));
-        let result = disk.write(32, &[9]);
-        disk.fail_allocations_after(None);
+        let result = allocator.with_refusal(budget, || disk.write(32, &[9]));
         assert_eq!(
             result, expected_result,
             "durable={durable}, budget={budget}"
