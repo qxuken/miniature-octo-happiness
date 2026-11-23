@@ -1,5 +1,8 @@
 //! Exclusive, write-through regular files on local NTFS.
 use super::ByteStore;
+use super::windows_admission::{
+    GENERIC_READ, OPEN_EXISTING, check_directory, check_leaf, check_volume, leaf_open,
+};
 use super::windows_path::{
     append_leaf, canonical_drive, parent_path, read_path, validate_leaf, validate_path,
 };
@@ -21,14 +24,8 @@ use std::{
 const BACKUP_SEMANTICS: u32 = 0x0200_0000;
 const OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 const WRITE_THROUGH: u32 = 0x8000_0000;
-const REPARSE_POINT: u32 = 0x400;
-const UNSUPPORTED_ATTRIBUTES: u32 = 0x200 | 0x800 | 0x4000; // sparse, compressed, encrypted
-const GENERIC_READ: u32 = 0x8000_0000;
-const GENERIC_WRITE: u32 = 0x4000_0000;
 const SHARE_READ_WRITE: u32 = 3;
 const SHARE_DELETE: u32 = 4;
-const CREATE_NEW: u32 = 1;
-const OPEN_EXISTING: u32 = 3;
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn CreateFileW(
@@ -139,37 +136,30 @@ fn path_error() -> Error {
     os_error(NativeIoOperation::OpenDirectory, io::Error::last_os_error())
 }
 
-fn check_volume(parent: &File, drive: u8) -> Result<()> {
+fn check_native_volume(parent: &File, drive: u8) -> Result<()> {
     let root = [u16::from(drive), u16::from(b':'), u16::from(b'\\'), 0];
-    // SAFETY: root is a NUL-terminated drive root. The directory stays open.
-    if unsafe { GetDriveTypeW(root.as_ptr()) } != 3 {
-        return Err(Error::UnsupportedPlatform); // DRIVE_FIXED
-    }
-    let mut name = [0u16; 16];
-    // SAFETY: name is writable for the specified length. All other outputs
-    // are optional and null, and the directory handle is valid for the call.
-    if unsafe {
-        GetVolumeInformationByHandleW(
-            parent.as_raw_handle(),
-            ptr::null_mut(),
-            0,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            name.as_mut_ptr(),
-            name.len() as u32,
-        )
-    } == 0
-    {
-        return Err(os_error(
-            NativeIoOperation::Volume,
-            io::Error::last_os_error(),
-        ));
-    }
-    if name[..5] != [b'N', b'T', b'F', b'S', 0].map(u16::from) {
-        return Err(Error::UnsupportedPlatform);
-    }
-    Ok(())
+    // SAFETY: root is a NUL-terminated drive root.
+    let drive_type = unsafe { GetDriveTypeW(root.as_ptr()) };
+    check_volume(
+        drive_type,
+        |name| {
+            // SAFETY: name is writable for its length and parent stays open.
+            // All other output parameters are optional.
+            unsafe {
+                GetVolumeInformationByHandleW(
+                    parent.as_raw_handle(),
+                    ptr::null_mut(),
+                    0,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    name.as_mut_ptr(),
+                    name.len() as u32,
+                )
+            }
+        },
+        || os_error(NativeIoOperation::Volume, io::Error::last_os_error()),
+    )
 }
 
 /// Windows file access holds an exclusive handle from create/open to unlock.
@@ -269,43 +259,28 @@ impl FileStore {
         let metadata = directory
             .metadata()
             .map_err(|error| os_error(NativeIoOperation::Metadata, error))?;
-        if !metadata.is_dir() {
-            return Err(Error::Invalid);
-        }
-        if metadata.file_attributes() & UNSUPPORTED_ATTRIBUTES != 0 {
-            return Err(Error::UnsupportedPlatform);
-        }
-        check_volume(&directory, letter)?;
+        check_directory(metadata.is_dir(), metadata.file_attributes())?;
+        check_native_volume(&directory, letter)?;
 
         // Canonicalizing the parent gives an extended-length path. The final
         // component is checked separately and opened without following a link.
         append_leaf(&mut path, name.encode_wide())?;
+        let mode = leaf_open(create, writable);
         let file = open_native(
             &path,
-            GENERIC_READ | if writable { GENERIC_WRITE } else { 0 },
+            mode.access,
             0,
-            if create { CREATE_NEW } else { OPEN_EXISTING },
+            mode.disposition,
             OPEN_REPARSE_POINT | WRITE_THROUGH,
-            if create {
-                NativeIoOperation::Create
-            } else {
-                NativeIoOperation::Open
-            },
+            mode.operation,
         )?;
         drop(path);
         let metadata = file
             .metadata()
             .map_err(|error| os_error(NativeIoOperation::Metadata, error))?;
         // SAFETY: the handle is open for the duration of GetFileType.
-        if unsafe { GetFileType(file.as_raw_handle()) } != 1
-            || !metadata.is_file()
-            || metadata.file_attributes() & REPARSE_POINT != 0
-        {
-            return Err(Error::Invalid);
-        }
-        if metadata.file_attributes() & UNSUPPORTED_ATTRIBUTES != 0 {
-            return Err(Error::UnsupportedPlatform);
-        }
+        let file_type = unsafe { GetFileType(file.as_raw_handle()) };
+        check_leaf(file_type, metadata.is_file(), metadata.file_attributes())?;
         Ok(Self {
             file: Some(file),
             claimed: false,
