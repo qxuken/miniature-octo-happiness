@@ -3,10 +3,11 @@
 Run `cargo run --offline --locked --manifest-path tools/atomic-model/Cargo.toml`.
 The isolated workspace pins Loom 0.7.2 and uses its own lockfile.
 
-The model copies the atomic operations from `Shared::clone` and
-`Shared::drop` in `src/memory.rs`. A source owner keeps the payload alive
-while clone increments with Relaxed ordering. Drop decrements with AcqRel
-ordering and the transition from one owner triggers destruction.
+The model copies `retain_ref` and `release_ref` from `src/memory.rs`.
+Both `Shared` and `AllocatorHandle` use those operations. A source owner
+keeps the payload alive while clone increments with Relaxed ordering. Drop
+decrements with AcqRel ordering and the transition from one owner triggers
+destruction.
 
 Three threads start with one owner each. Each of two worker threads clones
 its owner, writes a separate payload field, and drops both owners. The
@@ -19,9 +20,10 @@ is configured. These bounds limit the claim to this model and workload.
 Loom's Arc owns the model allocation. The custom counter independently
 controls the simulated destructor. Native ownership tests and Miri check
 raw allocation, pointer access and deallocation separately. The model must
-be reviewed when the production atomic operations change. Replacing the
-modeled AcqRel decrement with Relaxed caused the visibility assertion to
-fail in the recorded run.
+be reviewed when the production atomic operations change. `cargo xtask
+atomic-model` runs `--broken-shared-release`, which replaces the modeled
+AcqRel decrement with Relaxed and must fail the last owner's visibility
+assertion.
 
 
 ## Allocation admission and telemetry

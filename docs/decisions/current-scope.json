@@ -128,7 +128,7 @@
     "tools/admin.rs": "5bf45aecb59283e8d3f5c3192fcc01fdf0abe983219402f2b7daba31a40611fb",
     "tools/atomic-model/src/budget.rs": "ff9048fb065807c67190b52729e26c79980425c7eadd67b4354fa8befe58b6dc",
     "tools/atomic-model/src/ffi.rs": "c65d6a3a4c3e851d4e7feb4896ae430b4669310d14fe0dea55c50a6c3eab0192",
-    "tools/atomic-model/src/main.rs": "dc909ea7dbda1fede7a1ed97276627ba19961fd2f451a0a8d885a6612ff1e676",
+    "tools/atomic-model/src/main.rs": "c1f7d1dbc214e94b68c0b32b8953dded87711d13c42b1346e9fc100a903e1ad2",
     "tools/benchmark.rs": "a522795d6ad4346dad50b9e9d8b1e790838895649bda034e2d25cdcc44d107ac",
     "tools/decision-inventory/src/discovery.rs": "a429a53f3a115e3e9727a90d9f14016efe220502268f2a3d6a9c3a03f34a6ffb",
     "tools/decision-inventory/src/main.rs": "e256b9c16f3646d3ec1cff91ce13ffa4e4d61afe2145478971b1eb37df1a1058",
@@ -157,7 +157,7 @@
     "xtask/src/apfs_exhaustion.rs": "9f27265733bb1d83bbc4319ea5f349a59241af6e4d0a9af02067f84872f2c19e",
     "xtask/src/artifact_trace.rs": "899305af29cb96b63e6bc848afb8dccbe742c6ba6a18be8d11ae67d904f48006",
     "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
-    "xtask/src/atomic_model.rs": "f483ef83bbf5290a2fac0688b31daa6c3bdf801c2be70bf0dcc7eaac38a818f9",
+    "xtask/src/atomic_model.rs": "50448779f151c6fa1e422f2cb26b4c849d97bdaacfbfb0384af531fe33da7084",
     "xtask/src/benchmark.rs": "c3dfaf2482c1ba1395768580a580ab8604c36845777e493b58d8939e65726a04",
     "xtask/src/c_sanitizers.rs": "3382c0606e6bf6190b6f2899a9daee640f05ee981f08806644c6207f313bdb21",
     "xtask/src/check.rs": "3bb7eb71500eb443f0b2289608e3ae82eae5f196e97c7259629355c4d7cc445a",
@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "cfb12e69935a255d5a5b85500f29e0dc0534a8be0952a91a4a9894cfb8749281",
-    "xtask/tests/mutations.json": "06672dbaba0fa7d20af56e94b5853471b7579c223c8d57523e3ca3448b6ad851",
+    "xtask/tests/mutations.json": "69c881e5d9b809fb4f15c9d15a20ece4978585cb232bf6cdeeb83ef542c9ce97",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -313,7 +313,7 @@
     "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
     "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
     "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
-    "src/memory/test_allocator.rs": "3aa99cfd4830ed5b7fcef5f33cd93d90fd1c4813b6abbba7185ab845473fafee",
+    "src/memory/test_allocator.rs": "82ae341c680760f0d6980cf367e4c247f8cdd756635de7a399eb820d78924029",
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
     "docs/decisions/rust-output-allocation.md": "d5da95d17be8fb22c7f6a4aefcf12d90779dc70685c7f9f02c33dcdb29f09623",
@@ -354,7 +354,9 @@
     "examples/support/allocator_contract.h": "b86da5ca90ca078d9c9cca8f6c8425b33150477534af65c31cb8029bec070fc9",
     "docs/decisions/ffi-file-factories-current.md": "53f0d983a931631ea8204b5341336f296156db46c153fa86383553184afb07da",
     "examples/support/file_allocator_contract.h": "808ff3c0ac90512c74eb8f918ac4d419633364f8bfc2c50ee2cd51e204ab358b",
-    "docs/decisions/foreign-allocator-current.md": "4102fa64070f267104176245528c9e6156081a6c14db449f872dec5168ac4435"
+    "docs/decisions/foreign-allocator-current.md": "4102fa64070f267104176245528c9e6156081a6c14db449f872dec5168ac4435",
+    "docs/decisions/provider-ownership-current.md": "f92b393f49dec2717f17f5f87a5bb6f011ba169209ce7de2b9f0b50c9ae2351f",
+    "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -364,7 +366,7 @@
     "study-peer::study-peer": 295,
     "typed-renamed-consumer::typed-renamed-consumer": 3,
     "weekend-atomic-model::budget": 6,
-    "weekend-atomic-model::weekend-atomic-model": 10,
+    "weekend-atomic-model::weekend-atomic-model": 11,
     "weekend-db-fuzz::backup_restore": 0,
     "weekend-db-fuzz::bytestore_contract": 0,
     "weekend-db-fuzz::commit_crash": 0,
@@ -482,7 +484,9 @@
         "docs/decisions/rust-output-allocation.md",
         "docs/decisions/public-allocation-hook-retirement.md",
         "src/memory/test_allocator.rs",
-        "docs/decisions/foreign-allocator-current.md"
+        "docs/decisions/foreign-allocator-current.md",
+        "docs/decisions/provider-ownership-current.md",
+        "tools/atomic-model/README.md"
       ],
       "residual": "Allocator implementation and unsupported platform/resource combinations remain separate."
     },
@@ -17025,6 +17029,220 @@
       ],
       "mutations": [
         "r1-foreign-allocator-zero-deallocate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "PROVIDER-OWNERSHIP-BOOTSTRAP",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "try_new",
+        "kind": "try_propagation",
+        "conditions": [
+          "provider\n            .allocate(Layout::new::<OwnedAllocator<A>>())\n            .map_err(|_| Error::OutOfMemory)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "allocator_handle_owns_one_block_allocated_by_its_provider"
+        }
+      ],
+      "mutations": [
+        "r1-provider-ownership-bootstrap-error"
+      ]
+    },
+    {
+      "name": "PROVIDER-OWNERSHIP-CLONE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "clone",
+        "kind": "if",
+        "conditions": [
+          "let Some(owner) = self.0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "allocator_handle_owns_one_block_allocated_by_its_provider"
+        },
+        {
+          "file": "src/memory/test_allocator.rs",
+          "name": "allocator_refusal_does_not_affect_another_database"
+        }
+      ],
+      "mutations": [
+        "r1-provider-ownership-clone-count"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "PROVIDER-OWNERSHIP-BOX-ZERO",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "try_box_in",
+        "kind": "if",
+        "conditions": [
+          "layout.size() == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory.rs",
+          "name": "allocation_ownership_transfers_or_drops_exactly_once"
+        }
+      ],
+      "mutations": [
+        "r1-provider-ownership-box-zero-layout"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "PROVIDER-OWNERSHIP-BOX-PROPAGATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "try_box_in",
+        "kind": "try_propagation",
+        "conditions": [
+          "allocator\n        .allocate(layout)\n        .map_err(|_| Error::OutOfMemory)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory.rs",
+          "name": "null_system_allocation_drops_inputs_and_allows_retry"
+        }
+      ],
+      "mutations": [
+        "r1-provider-ownership-box-error"
+      ]
+    },
+    {
+      "name": "PROVIDER-OWNERSHIP-RETAIN-THRESHOLD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "retain_ref",
+        "kind": "if",
+        "conditions": [
+          "refs.fetch_add(1, Ordering::Relaxed) >= isize::MAX as usize"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory.rs",
+          "name": "shared_clone_aborts_at_the_refcount_threshold_in_a_subprocess"
+        }
+      ],
+      "mutations": [
+        "memory-abort-threshold"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "PROVIDER-OWNERSHIP-SHARED-PROPAGATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "allocate",
+        "kind": "try_propagation",
+        "conditions": [
+          "allocator\n            .as_allocator()\n            .allocate(layout)\n            .map_err(|_| Error::OutOfMemory)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory.rs",
+          "name": "null_system_allocation_drops_inputs_and_allows_retry"
+        }
+      ],
+      "mutations": [
+        "r1-provider-ownership-shared-error"
+      ]
+    },
+    {
+      "name": "PROVIDER-OWNERSHIP-SHARED-DROP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/memory.rs",
+        "owner": "drop",
+        "kind": "if",
+        "conditions": [
+          "!release_ref(unsafe { &self.ptr.as_ref().refs })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/memory.rs",
+          "name": "shared_clones_keep_one_charge_and_unwind_reclaims_allocation"
+        }
+      ],
+      "mutations": [
+        "r1-provider-ownership-shared-final-drop"
       ],
       "table": [
         {

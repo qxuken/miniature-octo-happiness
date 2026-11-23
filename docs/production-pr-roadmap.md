@@ -95,8 +95,9 @@ adds validation-mode controls, delivered allocator callback checks and the
 sweeps selected-allocator create and reopen failures against the exact
 packaged libraries. The [foreign allocator ledger](decisions/foreign-allocator-current.md)
 qualifies callback descriptor validation, context calls and zero-byte layout
-dispatch. Continue with the remaining provider ownership and generated paths,
-and delivered consumers per ABI.
+dispatch. The [provider ownership ledger](decisions/provider-ownership-current.md)
+qualifies allocation propagation and final release with concurrent owners.
+Continue with the remaining generated paths and delivered consumers per ABI.
 
 Batch 9 covers the follower's separate durability acknowledgment.
 

@@ -472,6 +472,15 @@ provenance. The queue has 9,387 open records (2,005 runtime / 26 driver /
 7,356 tooling). Native Windows execution and the remaining provider ownership
 decisions stay open.
 
+The [provider ownership ledger](decisions/provider-ownership-current.md)
+records the race to release the selected provider, its reference threshold
+and shared or boxed allocation refusal at `ab467f8`. Debug and release detect
+all nine selected controls on macOS and Docker Linux. The bounded Loom model
+verifies the final owner's memory visibility on both hosts and catches a
+Relaxed decrement. The queue has 9,376 open records (1,993 runtime /
+26 driver / 7,357 tooling). The new model dispatch and native Windows
+execution remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
