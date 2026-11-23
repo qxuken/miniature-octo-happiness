@@ -8860,6 +8860,32 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-linux-architecture-entropy",
+      "file": "src/storage/linux.rs",
+      "old": "if !SUPPORTED {",
+      "new": "if SUPPORTED {",
+      "test": "linux_architecture",
+      "exact_test": "database_create_checks_entropy_architecture_before_path_conversion",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "os": "linux"
+    },
+    {
+      "name": "r1-linux-architecture-pathname",
+      "file": "src/storage/file.rs",
+      "old": "if !sys::SUPPORTED {",
+      "new": "if sys::SUPPORTED {",
+      "test": "linux_architecture",
+      "exact_test": "file_adapter_checks_architecture_before_path_admission",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "os": "linux"
     }
   ]
 }
