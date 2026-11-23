@@ -574,6 +574,13 @@ mod tests {
                 Error::Invalid as i32
             );
             assert_eq!(required, 0);
+            // The version export reaches the shared guard directly.
+            let mut untouched = [0xa5; 3];
+            assert_eq!(
+                wdb_package_version(untouched.as_mut_ptr(), untouched.len(), ptr::null_mut()),
+                Error::Invalid as i32
+            );
+            assert_eq!(untouched, [0xa5; 3]);
             assert_eq!(wdb_close(database), 0);
         }
     }
