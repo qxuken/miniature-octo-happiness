@@ -97,6 +97,8 @@ packaged libraries. The [foreign allocator ledger](decisions/foreign-allocator-c
 qualifies callback descriptor validation, context calls and zero-byte layout
 dispatch. The [provider ownership ledger](decisions/provider-ownership-current.md)
 qualifies allocation propagation and final release with concurrent owners.
+The [C transaction and snapshot ledger](decisions/ffi-transaction-reads-current.md)
+qualifies error outputs, draft deletion, pinned reads and scan ownership.
 Continue with the remaining generated paths and delivered consumers per ABI.
 
 Batch 9 covers the follower's separate durability acknowledgment.

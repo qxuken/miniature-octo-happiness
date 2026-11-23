@@ -97,7 +97,7 @@
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
     "src/engine.rs": "c1a9f0d9f416442840397a04b3b5d1ac7b3332b5d6dec98495d346d1420dea6d",
-    "src/ffi.rs": "b3fb7b8e86ea91e4f9bccfeb825183a618220274cc499a28c4c1b0f62fe67588",
+    "src/ffi.rs": "badceb85abf4de706b52d6ee8d03836712055e8e5a3b93ca8b7cca2fbf963e29",
     "src/lib.rs": "9ff143a41e86bd50fb5ec30486fe17a916eeae001f35349f88062bc3fa6c24b8",
     "src/memory.rs": "e6ebf06ad09de067f4ad341c7f517532cd9d8ca0c33fb41cc4575b092c8062cf",
     "src/replication/follower.rs": "7b1566228ed57f5b41d15be8a583416a14f8dcefae1521a5ba1764413e37e035",
@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "cfb12e69935a255d5a5b85500f29e0dc0534a8be0952a91a4a9894cfb8749281",
-    "xtask/tests/mutations.json": "69c881e5d9b809fb4f15c9d15a20ece4978585cb232bf6cdeeb83ef542c9ce97",
+    "xtask/tests/mutations.json": "e61a9f7d36dab4c9dc6d562c3e1d1f8230378c545c7ccb228f1e8e716d535d22",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -350,13 +350,14 @@
     "docs/decisions/ffi-handle-accounting-current.md": "e3d8761a89b228d7412094d729920d181e80b109a5e44a03ebdc8203011fa11a",
     "docs/decisions/ffi-boundaries-current.md": "134bbe5cd6dd47a8d6de146aa5613ee180d6be2a4a82873bb24c07a7eab860c1",
     "docs/decisions/ffi-generated-exports-current.md": "0963872250e22d81476120a4376c941c32e4487f015493cbd597c28d877aaac5",
-    "examples/memory.c": "10754519f2798a3124f378afe8d7eb491a9090599ee59cd66b3b1f05411bef43",
+    "examples/memory.c": "b259fda793fcda3db83989f49e9b04e8017a2eaad87eaae32f2322b909fa6af4",
     "examples/support/allocator_contract.h": "b86da5ca90ca078d9c9cca8f6c8425b33150477534af65c31cb8029bec070fc9",
     "docs/decisions/ffi-file-factories-current.md": "53f0d983a931631ea8204b5341336f296156db46c153fa86383553184afb07da",
     "examples/support/file_allocator_contract.h": "808ff3c0ac90512c74eb8f918ac4d419633364f8bfc2c50ee2cd51e204ab358b",
     "docs/decisions/foreign-allocator-current.md": "4102fa64070f267104176245528c9e6156081a6c14db449f872dec5168ac4435",
     "docs/decisions/provider-ownership-current.md": "f92b393f49dec2717f17f5f87a5bb6f011ba169209ce7de2b9f0b50c9ae2351f",
-    "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419"
+    "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419",
+    "docs/decisions/ffi-transaction-reads-current.md": "f53aa2b9a3476efa8dd308c9433209c395c915e154dc0e8fb269c752343fc5c9"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -540,7 +541,8 @@
         "examples/memory.c",
         "examples/support/allocator_contract.h",
         "docs/decisions/ffi-file-factories-current.md",
-        "examples/support/file_allocator_contract.h"
+        "examples/support/file_allocator_contract.h",
+        "docs/decisions/ffi-transaction-reads-current.md"
       ],
       "residual": "Generated export templates, pointer/lifetime contracts and per-ABI outcomes retain supplemental scope."
     },

@@ -481,6 +481,14 @@ Relaxed decrement. The queue has 9,376 open records (1,993 runtime /
 26 driver / 7,357 tooling). The new model dispatch and native Windows
 execution remain open.
 
+The [C transaction and snapshot ledger](decisions/ffi-transaction-reads-current.md)
+records six generated exports at `e34a9c2`. A committed deletion advances to
+revision 3 while the captured revision 2 still returns the seeded row. An
+allocation refusal while acquiring a scan value clears the output and leaves
+the scan and its row usable. The C11 and C++17 consumers pass with the exact
+relocated packages on macOS and Docker Linux. Native Windows remains open.
+The six macro invocations retain their inventory boundaries.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
