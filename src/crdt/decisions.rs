@@ -709,7 +709,8 @@ fn register_causal_event_oracle_accepts_bounded_honest_schedules() {
             actual.sort_unstable();
             assert_eq!(actual, expected);
             let mut expected_bytes = [0; MultiValueRegister::SIZE];
-            for (author, entry) in expected_bytes.chunks_exact_mut(17).enumerate() {
+            let (entries, _) = expected_bytes.as_chunks_mut::<17>();
+            for (author, entry) in entries.iter_mut().enumerate() {
                 let mut assignments =
                     (0..depth).filter(|&i| known & (1 << i) != 0 && model.authors[i] == author);
                 let sequence = assignments.clone().count() as u64;
