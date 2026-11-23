@@ -95,6 +95,35 @@ fn sweep_global_refusal<T>(mut operation: impl FnMut() -> Result<T>) -> T {
 }
 
 #[test]
+fn snapshot_scan_iterator_owns_ordered_rows_without_global_allocations() -> Result<()> {
+    let options = DatabaseOptions::default().with_allocator(AllocatorHandle::try_new(System)?);
+    let db = Database::with_options(options)?;
+    let collection = db.create_collection()?;
+    let mut tx = db.begin();
+    tx.put(collection, b"z", &db.integer(9)?)?;
+    tx.put(collection, b"a\0", &db.integer(1)?)?;
+    tx.commit()?;
+    drop(tx);
+
+    let snapshot = db.snapshot();
+    let before = db.memory_usage().live_bytes;
+    let (rows, requests) = global_requests(0, || snapshot.scan_iter(collection));
+    assert_eq!(requests, 0);
+    let mut rows = rows?;
+    assert!(db.memory_usage().live_bytes > before);
+    drop(snapshot);
+    drop(db);
+
+    for (key, value) in [(b"a\0".as_slice(), 1), (b"z".as_slice(), 9)] {
+        let (actual_key, actual_value) = rows.next().unwrap();
+        assert_eq!(actual_key.as_ref(), key);
+        assert_eq!(actual_value.as_i64()?, value);
+    }
+    assert!(rows.next().is_none());
+    Ok(())
+}
+
+#[test]
 fn oversized_nested_map_scan_is_rejected_before_allocating_output() {
     let allocator = Arc::new(TestAllocator::default());
     let options = allocator.options().with_limits(Limits {

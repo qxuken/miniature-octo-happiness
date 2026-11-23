@@ -1030,6 +1030,17 @@ impl Transaction<'_> {
     }
 }
 
+impl Snapshot<'_> {
+    /// Materialize rows in binary-key order using this database's allocator
+    /// and budget. The iterator owns its rows and can outlive the snapshot.
+    pub fn scan_iter(
+        &self,
+        id: CollectionId,
+    ) -> Result<impl Iterator<Item = (impl AsRef<[u8]> + use<>, Value)> + use<>> {
+        Ok(self.scan_owned(id)?.into_iter())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

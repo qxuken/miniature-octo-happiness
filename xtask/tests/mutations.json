@@ -10311,6 +10311,90 @@
       "matches": 1,
       "package": "weekend-db-typed",
       "exact_test": "every_core_allocation_failure_aborts_primary_and_index_updates"
+    },
+    {
+      "name": "r1-typed-index-allocator-expected-vector",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "let mut expected = Vec::new_in(store.db.allocator());",
+      "new": "let mut expected = Vec::new_in(AllocatorHandle::default());",
+      "test": "migration_allocator",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "checking_and_rebuilding_indexes_use_the_selected_allocator"
+    },
+    {
+      "name": "r1-typed-index-allocator-stored-vector",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "let mut stored = Vec::new_in(store.db.allocator());",
+      "new": "let mut stored = Vec::new_in(AllocatorHandle::default());",
+      "test": "migration_allocator",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "checking_and_rebuilding_indexes_use_the_selected_allocator"
+    },
+    {
+      "name": "r1-typed-index-allocator-snapshot-route",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "self.scan_iter(c)\n    }",
+      "new": "self.scan(c).map(Vec::into_iter)\n    }",
+      "test": "migration_allocator",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 2,
+      "package": "weekend-db-typed",
+      "exact_test": "checking_and_rebuilding_indexes_use_the_selected_allocator"
+    },
+    {
+      "name": "r1-typed-index-allocator-draft-route",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "self.scan_iter(c)\n    }",
+      "new": "self.scan(c).map(Vec::into_iter)\n    }",
+      "test": "migration_allocator",
+      "target": "--test",
+      "occurrence": 2,
+      "matches": 2,
+      "package": "weekend-db-typed",
+      "exact_test": "checking_and_rebuilding_indexes_use_the_selected_allocator"
+    },
+    {
+      "name": "r1-typed-index-allocator-foreign-prefix",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "if key.as_ref().starts_with(&prefix) {",
+      "new": "if key.as_ref().starts_with(&prefix) || true {",
+      "test": "migration_allocator",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "checking_and_rebuilding_indexes_use_the_selected_allocator"
+    },
+    {
+      "name": "r1-typed-index-allocator-stored-reserve-status",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "stored\n                .try_reserve(1)\n                .map_err(|_| Error::Engine(engine::Error::OutOfMemory))?",
+      "new": "stored\n                .try_reserve(1)\n                .map_err(|_| Error::InvalidId)?",
+      "test": "models",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db-typed",
+      "exact_test": "failed_rebuild_allocations_preserve_every_index_and_primary_row"
+    },
+    {
+      "name": "r1-typed-index-allocator-snapshot-scan-status",
+      "file": "src/engine.rs",
+      "old": "Ok(self.scan_owned(id)?.into_iter())",
+      "new": "Ok(self.scan_owned(id).map_err(|_| Error::Invalid)?.into_iter())",
+      "test": "allocation",
+      "target": "--test",
+      "occurrence": 2,
+      "matches": 2,
+      "package": "weekend-db",
+      "exact_test": "observation_overlay_and_owned_scan_failures_never_publish"
     }
   ]
 }
