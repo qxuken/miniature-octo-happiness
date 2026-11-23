@@ -324,8 +324,15 @@ and makes the adapter repeat all three barriers on retry. The compaction
 trace distinguishes source and target length, read, write and sync. Both
 profiles pass on macOS and Docker Linux, and both macOS profiles detect
 all 13 selected controls. The queue has 9,520 open records (2,150 runtime /
-26 driver / 7,344 tooling). Platform-specific and raw kernel I/O decisions
-remain.
+26 driver / 7,344 tooling).
+
+The [macOS primitive ledger](decisions/macos-primitives-current.md) maps
+all six records at `67c91b2`. Actual file sync, exchange and metadata copy
+exercise success and native refusal. Both macOS profiles detect all 12
+native controls. The Unix controller selects host-specific cases before
+sharding. Its macOS and Linux lists agree on the 620 shared R1 names.
+The queue has 9,513 open records (2,144 runtime / 26 driver / 7,343 tooling).
+Linux and Windows adapter decisions and device persistence remain open.
 
 All R1 and R2–R7 completion gates above remain open.
 

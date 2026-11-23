@@ -67,10 +67,11 @@ Batch 5 starts with [ByteStore transfers and local publication](decisions/bytest
 [verified compact copies and headroom](decisions/compact-copy-current.md),
 [native namespace replacement](decisions/native-replacement-current.md),
 [Unix writer leases](decisions/unix-leases-current.md),
-[Unix pathname admission](decisions/unix-path-admission-current.md), and
-[Unix sync and I/O attribution](decisions/unix-sync-current.md).
-Platform-specific adapter and raw I/O decisions follow. Batch 9 covers
-the follower's separate durability acknowledgment.
+[Unix pathname admission](decisions/unix-path-admission-current.md),
+[Unix sync and I/O attribution](decisions/unix-sync-current.md), and
+[macOS native primitives](decisions/macos-primitives-current.md).
+Linux and Windows adapter decisions and raw I/O qualification follow.
+Batch 9 covers the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those
