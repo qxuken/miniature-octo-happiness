@@ -116,7 +116,9 @@ It qualifies generated schema and CRDT behavior alongside named controls for
 `Model`, `Record` and `Resolution` expansion. Remaining derive and generated
 target paths stay in the inventory.
 
-Batch 9 covers the follower's separate durability acknowledgment.
+Batch 9 starts with [snapshot acknowledgment boundaries](decisions/snapshot-ack-current.md).
+It verifies the selected image after Ready and terminal transport errors and
+qualifies the sender's receipt admission and follower's retry decisions.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those

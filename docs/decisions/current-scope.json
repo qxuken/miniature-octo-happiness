@@ -268,7 +268,7 @@
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
     "docs/tls-handshake-decisions.md": "8642a290a1922b2056270d750e6cbb32a54f966e54807f865f71b48757825a78",
     "include/weekend_db.h": "615e635bd99076fa2781a23ee04ca5083bf4c38332f45b6d37f2fb17774d524c",
-    "src/replication/follower/tests.rs": "b19a7271558fb0a46db3928b55c274d8d15665cd7f595caa0671be09506cd85a",
+    "src/replication/follower/tests.rs": "938f1be96350299f4aa60411639b11d3f25fdc3ddbcddea3eebe824572e1b620",
     "src/replication/tests.rs": "bf132cfa40f16f42665412d74603fb3e02be54596dd67ea5b3db6329c89f01b5",
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
     "tests/allocation.rs": "b2546afd7e746c8fefc5d12f0df66d27f84d2a9eaca19fb50a8286fe255dbc31",
@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/mutations.json": "1952de8187f823b4af8ea5f1fc48720e5d0be93dec7b58f047b9584529844d9d",
+    "xtask/tests/mutations.json": "a2557caa3890edc150c75eec17b21a8b589c742c3530c8e38885e3e479d2b482",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -364,7 +364,8 @@
     "crates/weekend-db-macros/tests/expansion_guards.rs": "9d7c328c45270f4526402e806231eb56cf04d1d42a8d97e4e92a2e3b82557e55",
     "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
-    "xtask/src/mutations.rs": "9a72b1ed112f56db1d27e67e351bd9559f15cfc6160fa385be986f4b759c7153"
+    "xtask/src/mutations.rs": "9a72b1ed112f56db1d27e67e351bd9559f15cfc6160fa385be986f4b759c7153",
+    "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -777,7 +778,8 @@
         "docs/decisions/current.md",
         "docs/decisions/replication.md",
         "src/replication/tests.rs",
-        "src/replication/follower/tests.rs"
+        "src/replication/follower/tests.rs",
+        "docs/decisions/snapshot-ack-current.md"
       ],
       "residual": "Exact local/follower acknowledgment contracts remain separate; broader transport/OS errors remain delegated."
     },
@@ -18393,6 +18395,439 @@
       ],
       "mutations": [
         "r1-derive-resolution-none-selected"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-FOLLOWER-OLDER-OR-DUPLICATE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/follower.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "handle",
+        "kind": "if",
+        "start_byte": 6228,
+        "conditions": [
+          "offer.revision < prior.offer.revision",
+          "offer == prior.offer"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/follower/tests.rs",
+          "name": "lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-follower-older",
+        "r1-snapshot-ack-follower-duplicate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-FOLLOWER-CONFLICT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/follower.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "handle",
+        "kind": "if",
+        "start_byte": 6406,
+        "conditions": [
+          "offer.revision == prior.offer.revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/follower/tests.rs",
+          "name": "lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-follower-conflict"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-FOLLOWER-READY-FLUSH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/follower.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 6941,
+        "conditions": [
+          "wire::reply(channel, Ok(wire::Reply::Ready))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/follower/tests.rs",
+          "name": "ready_and_terminal_flush_failures_reopen_the_exact_selected_image"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-follower-ready-flush"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-FOLLOWER-IMAGE-SYNC",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/follower.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 7330,
+        "conditions": [
+          "image.0.sync()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/follower/tests.rs",
+          "name": "interrupted_image_and_manifest_barriers_recover_exactly_one_image"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-follower-image-sync"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-FOLLOWER-MANIFEST-SELECT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/follower.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 7485,
+        "conditions": [
+          "self.select(Some(selected))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/follower/tests.rs",
+          "name": "interrupted_image_and_manifest_barriers_recover_exactly_one_image"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-follower-manifest-select"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-POLL-EMPTY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "poll",
+        "kind": "match_guard",
+        "start_byte": 10588,
+        "conditions": [
+          "self.progress.is_none()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "primary_poll_rejects_invalid_progress_without_losing_its_last_ack"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-poll-empty"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-OBSERVE-STREAM-AND-HEAD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "observe",
+        "kind": "if",
+        "start_byte": 12721,
+        "conditions": [
+          "ack.stream_id != self.enrollment.stream_id",
+          "ack.revision > self.verified_revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "primary_poll_rejects_invalid_progress_without_losing_its_last_ack"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-sender-stream",
+        "r1-snapshot-ack-sender-ahead-of-head"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-OBSERVE-ROLLBACK-OR-DIGEST",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "observe",
+        "kind": "short_circuit_or",
+        "start_byte": 12924,
+        "conditions": [
+          "prior.revision > ack.revision",
+          "prior.revision == ack.revision",
+          "prior != ack"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "primary_poll_rejects_invalid_progress_without_losing_its_last_ack"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-sender-rollback",
+        "r1-snapshot-ack-sender-matching-revision",
+        "r1-snapshot-ack-sender-matching-digest"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-OBSERVE-EQUAL-REVISION-DIGEST",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "observe",
+        "kind": "short_circuit_and",
+        "start_byte": 12958,
+        "conditions": [
+          "prior.revision == ack.revision",
+          "prior != ack"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "primary_poll_rejects_invalid_progress_without_losing_its_last_ack"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-sender-matching-revision",
+        "r1-snapshot-ack-sender-matching-digest"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-SHIP-IMMEDIATE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "ship",
+        "kind": "match_guard",
+        "start_byte": 11998,
+        "conditions": [
+          "ack.revision > expected.revision",
+          "ack == expected"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "primary_ship_accepts_newer_progress_only_before_uploading"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-ship-immediate-newer",
+        "r1-snapshot-ack-ship-immediate-exact"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ACK-SHIP-POST-UPLOAD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "ship",
+        "kind": "match_guard",
+        "start_byte": 12474,
+        "conditions": [
+          "ack == expected"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "primary_ship_accepts_newer_progress_only_before_uploading"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-ack-ship-post-upload-exact"
       ],
       "table": [
         {

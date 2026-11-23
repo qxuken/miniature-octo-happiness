@@ -525,6 +525,14 @@ The [hosted R1 shard ledger](r1-ci-shards.md) records Linux cancellations
 at the 20-minute deadline. Both hosted Unix platforms now have a 60-minute
 job deadline for the expanded controls. Hosted verification remains open.
 
+The [snapshot acknowledgment ledger](decisions/snapshot-ack-current.md)
+connects 16 controls to exact reopened receipts and sender admission at
+`1cf3014`. A failed Ready flush reopens revision 3 and a failed terminal
+flush reopens revision 4. Both preserve retained revision 2. Debug and release
+pass on macOS and Docker Linux, and Miri passes the flush fixture. The queue
+has 9,332 open records (1,949 runtime / 26 driver / 7,357 tooling). Native
+Windows and delivered transport fault qualification remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
