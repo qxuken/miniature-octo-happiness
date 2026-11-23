@@ -264,7 +264,14 @@ The [owned value ledger](decisions/value-current.md) covers all 81 value
 decisions. A copying model checks completed nested edits, and the refusal
 sweep preserves the source values and live charges. Both macOS profiles
 detected all 52 controls after the removal and error fixtures were
-strengthened. The write-charge caller residual remains in batch 4.
+strengthened.
+
+The [transaction write-charge bound](decisions/write-charge-current.md)
+removes the last recorded batch 4 residual. A saturated write subtotal
+exceeds every valid transaction cap and is rejected before allocating
+write storage. Both macOS profiles detected 32 controls, including the
+two sum boundaries and the upper cap guard. Batch 5 starts with ByteStore
+transfer progress and publication barriers.
 
 All R1 and R2–R7 completion gates above remain open.
 

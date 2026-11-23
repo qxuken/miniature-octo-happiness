@@ -57,46 +57,46 @@ separate slices of batch 4.
 
 | Source | SHA-256 |
 |---|---|
-| `src/engine.rs` | `17c2cb6848cb59efd25829a5bd228b01d8230863b0be83a2a05efad08bcd2008` |
+| `src/engine.rs` | `ed344327189ce78336f42fdeb9e17b01d55267ea717248d3683d4b16dd6e7194` |
 
 | Status | Target | Source span | Bytes | Kind | Owner | Evidence |
 |---|---|---|---|---|---|---|
-| P | weekend-db::weekend_db | src/engine.rs:734:9– | 25486..25488 | if | active | Active drafts operate. Committed, aborted and failed drafts reject reads and edits. |
-| P | weekend-db::weekend_db | src/engine.rs:742:9– | 25746..25748 | if | charge | A zero transaction budget rejects observations. A funded draft captures observations and edits. |
-| E | weekend-db::weekend_db | src/engine.rs:749:37– | 25988..25989 | try_propagation | observe_collection | A foreign collection returns ForeignStore through scan. |
-| E | weekend-db::weekend_db | src/engine.rs:750:46– | 26036..26037 | try_propagation | observe_collection | A missing collection returns NotFound through scan. |
-| P | weekend-db::weekend_db | src/engine.rs:751:9– | 26047..26049 | if | observe_collection | The same collection observation is reused. Another collection needs a slot. |
-| P | weekend-db::weekend_db | src/engine.rs:754:9– | 26144..26146 | if | observe_collection | One collection observation fits. An existing point or collection exhausts capacity. |
-| E | weekend-db::weekend_db | src/engine.rs:757:76– | 26352..26353 | try_propagation | observe_collection | Zero transaction bytes reject missing-point and scan observations. |
-| E | weekend-db::weekend_db | src/engine.rs:758:54– | 26408..26409 | try_propagation | observe_collection | The first request is refused. Retrying records the collection dependency. |
-| E | weekend-db::weekend_db | src/engine.rs:766:22– | 26764..26765 | try_propagation | observe | A terminal draft returns Closed through get before any observation. |
-| E | weekend-db::weekend_db | src/engine.rs:767:37– | 26803..26804 | try_propagation | observe | A foreign collection returns ForeignStore through get. |
-| E | weekend-db::weekend_db | src/engine.rs:768:24– | 26829..26830 | try_propagation | observe | A nonempty key is rejected while an empty key fits a zero key-byte cap. |
-| P | weekend-db::weekend_db | src/engine.rs:769:9– | 26840..26843 | let_else | observe | A present key captures a point. An absent one captures its collection. |
-| E | weekend-db::weekend_db | src/engine.rs:769:54– | 26885..26886 | try_propagation | observe | A missing collection returns NotFound through get. |
-| E | weekend-db::weekend_db | src/engine.rs:772:9– | 26976..26978 | if | observe | An empty observation list misses. An existing identical point is reused at capacity. |
-| P | weekend-db::weekend_db | src/engine.rs:775:22– | 27045..27088 | short_circuit_and | observe | The same identity reuses a point. Either independently differing component needs a slot. |
-| P | weekend-db::weekend_db | src/engine.rs:779:9– | 27145..27147 | if | observe | One point fits. An existing point or collection exhausts capacity. |
-| I | weekend-db::weekend_db | src/engine.rs:785:37– | 27426..27427 | try_propagation | observe | A valid Rust byte slice has at most isize::MAX bytes. Adding the fixed Point layout fits usize on supported ABIs. |
-| E | weekend-db::weekend_db | src/engine.rs:786:10– | 27438..27439 | try_propagation | observe | The reopened present-point fixture reaches transaction-byte refusal. |
-| E | weekend-db::weekend_db | src/engine.rs:788:36– | 27516..27517 | try_propagation | observe | Refusing the key copy records no dependency and reclaims scratch. |
-| E | weekend-db::weekend_db | src/engine.rs:789:49– | 27567..27568 | try_propagation | observe | Refusing the point vector drops the already copied key. |
-| E | weekend-db::weekend_db | src/engine.rs:799:28– | 27842..27843 | try_propagation | get | The observation error propagates through the public point read. |
-| C | weekend-db::weekend_db | src/engine.rs:800:9– | 27853..27855 | if | get | The enclosing if shares the overlay lookup pattern decision. |
-| P | weekend-db::weekend_db | src/engine.rs:800:12– | 27856..27859 | pattern_test | get | A matching overlay read returns the draft value. A miss returns the base value. |
-| P | weekend-db::weekend_db | src/engine.rs:803:23– | 27937..27980 | short_circuit_and | get | Both collection and key have independent miss controls. |
-| I | weekend-db::weekend_db | src/engine.rs:807:38– | 28079..28080 | try_propagation | get | A successful observation resolved the same immutable base collection. |
-| E | weekend-db::weekend_db | src/engine.rs:813:27– | 28270..28271 | try_propagation | contains | Contains propagates the key limit from the underlying read. |
-| E | weekend-db::weekend_db | src/engine.rs:861:45– | 30031..30032 | try_propagation | scan | Scan propagates refusal while recording the collection. |
-| E | weekend-db::weekend_db | src/engine.rs:870:31– | 30419..30420 | try_propagation | scan_iter | The public iterator propagates the selected allocator refusal. |
-| E | weekend-db::weekend_db | src/engine.rs:873:30– | 30550..30551 | try_propagation | scan_owned | The owned scan propagates all overlay preparation errors before yielding rows. |
-| E | weekend-db::weekend_db | src/engine.rs:877:22– | 30729..30730 | try_propagation | scan_records | A terminal draft returns Closed through scan before observing. |
-| E | weekend-db::weekend_db | src/engine.rs:878:36– | 30767..30768 | try_propagation | scan_records | The first scan refusal precedes the collection dependency. |
-| I | weekend-db::weekend_db | src/engine.rs:879:53– | 30822..30823 | try_propagation | scan_records | The preceding collection observation resolved the same immutable base. |
-| E | weekend-db::weekend_db | src/engine.rs:880:9– | 30849..30852 | for_iteration | scan_records | Empty and mixed overlays use the base and both write passes. The BTreeMap checks ordered results at capacity. |
-| P | weekend-db::weekend_db | src/engine.rs:883:25– | 30927..30966 | short_circuit_and | scan_records | Choose only deletions for the scanned collection. Wrong-collection edits and puts are independent controls. |
-| P | weekend-db::weekend_db | src/engine.rs:887:33– | 31076..31115 | short_circuit_and | scan_records | Choose only puts for the scanned collection. Wrong-collection edits and deletions are independent controls. |
-| E | weekend-db::weekend_db | src/engine.rs:890:23– | 31164..31169 | match | scan_records | Mixed overlays remove and insert. Deleting before inserting admits the full collection fixture. |
-| E | weekend-db::weekend_db | src/engine.rs:898:18– | 31439..31440 | try_propagation | scan_records | Refuse the path copy for the replacement. The earlier collection observation survives. |
-| E | weekend-db::weekend_db | src/engine.rs:899:61– | 31502..31503 | try_propagation | scan_records | Refuse the deletion path copy. The earlier collection observation survives. |
-| E | weekend-db::weekend_db | src/engine.rs:905:31– | 31651..31652 | try_propagation | count | Count propagates the closed-state error from the owned scan. |
+| P | weekend-db::weekend_db | src/engine.rs:733:9– | 25428..25430 | if | active | Active drafts operate. Committed, aborted and failed drafts reject reads and edits. |
+| P | weekend-db::weekend_db | src/engine.rs:741:9– | 25688..25690 | if | charge | A zero transaction budget rejects observations. A funded draft captures observations and edits. |
+| E | weekend-db::weekend_db | src/engine.rs:748:37– | 25930..25931 | try_propagation | observe_collection | A foreign collection returns ForeignStore through scan. |
+| E | weekend-db::weekend_db | src/engine.rs:749:46– | 25978..25979 | try_propagation | observe_collection | A missing collection returns NotFound through scan. |
+| P | weekend-db::weekend_db | src/engine.rs:750:9– | 25989..25991 | if | observe_collection | The same collection observation is reused. Another collection needs a slot. |
+| P | weekend-db::weekend_db | src/engine.rs:753:9– | 26086..26088 | if | observe_collection | One collection observation fits. An existing point or collection exhausts capacity. |
+| E | weekend-db::weekend_db | src/engine.rs:756:76– | 26294..26295 | try_propagation | observe_collection | Zero transaction bytes reject missing-point and scan observations. |
+| E | weekend-db::weekend_db | src/engine.rs:757:54– | 26350..26351 | try_propagation | observe_collection | The first request is refused. Retrying records the collection dependency. |
+| E | weekend-db::weekend_db | src/engine.rs:765:22– | 26706..26707 | try_propagation | observe | A terminal draft returns Closed through get before any observation. |
+| E | weekend-db::weekend_db | src/engine.rs:766:37– | 26745..26746 | try_propagation | observe | A foreign collection returns ForeignStore through get. |
+| E | weekend-db::weekend_db | src/engine.rs:767:24– | 26771..26772 | try_propagation | observe | A nonempty key is rejected while an empty key fits a zero key-byte cap. |
+| P | weekend-db::weekend_db | src/engine.rs:768:9– | 26782..26785 | let_else | observe | A present key captures a point. An absent one captures its collection. |
+| E | weekend-db::weekend_db | src/engine.rs:768:54– | 26827..26828 | try_propagation | observe | A missing collection returns NotFound through get. |
+| E | weekend-db::weekend_db | src/engine.rs:771:9– | 26918..26920 | if | observe | An empty observation list misses. An existing identical point is reused at capacity. |
+| P | weekend-db::weekend_db | src/engine.rs:774:22– | 26987..27030 | short_circuit_and | observe | The same identity reuses a point. Either independently differing component needs a slot. |
+| P | weekend-db::weekend_db | src/engine.rs:778:9– | 27087..27089 | if | observe | One point fits. An existing point or collection exhausts capacity. |
+| I | weekend-db::weekend_db | src/engine.rs:784:37– | 27368..27369 | try_propagation | observe | A valid Rust byte slice has at most isize::MAX bytes. Adding the fixed Point layout fits usize on supported ABIs. |
+| E | weekend-db::weekend_db | src/engine.rs:785:10– | 27380..27381 | try_propagation | observe | The reopened present-point fixture reaches transaction-byte refusal. |
+| E | weekend-db::weekend_db | src/engine.rs:787:36– | 27458..27459 | try_propagation | observe | Refusing the key copy records no dependency and reclaims scratch. |
+| E | weekend-db::weekend_db | src/engine.rs:788:49– | 27509..27510 | try_propagation | observe | Refusing the point vector drops the already copied key. |
+| E | weekend-db::weekend_db | src/engine.rs:798:28– | 27784..27785 | try_propagation | get | The observation error propagates through the public point read. |
+| C | weekend-db::weekend_db | src/engine.rs:799:9– | 27795..27797 | if | get | The enclosing if shares the overlay lookup pattern decision. |
+| P | weekend-db::weekend_db | src/engine.rs:799:12– | 27798..27801 | pattern_test | get | A matching overlay read returns the draft value. A miss returns the base value. |
+| P | weekend-db::weekend_db | src/engine.rs:802:23– | 27879..27922 | short_circuit_and | get | Both collection and key have independent miss controls. |
+| I | weekend-db::weekend_db | src/engine.rs:806:38– | 28021..28022 | try_propagation | get | A successful observation resolved the same immutable base collection. |
+| E | weekend-db::weekend_db | src/engine.rs:812:27– | 28212..28213 | try_propagation | contains | Contains propagates the key limit from the underlying read. |
+| E | weekend-db::weekend_db | src/engine.rs:860:45– | 29972..29973 | try_propagation | scan | Scan propagates refusal while recording the collection. |
+| E | weekend-db::weekend_db | src/engine.rs:869:31– | 30360..30361 | try_propagation | scan_iter | The public iterator propagates the selected allocator refusal. |
+| E | weekend-db::weekend_db | src/engine.rs:872:30– | 30491..30492 | try_propagation | scan_owned | The owned scan propagates all overlay preparation errors before yielding rows. |
+| E | weekend-db::weekend_db | src/engine.rs:876:22– | 30670..30671 | try_propagation | scan_records | A terminal draft returns Closed through scan before observing. |
+| E | weekend-db::weekend_db | src/engine.rs:877:36– | 30708..30709 | try_propagation | scan_records | The first scan refusal precedes the collection dependency. |
+| I | weekend-db::weekend_db | src/engine.rs:878:53– | 30763..30764 | try_propagation | scan_records | The preceding collection observation resolved the same immutable base. |
+| E | weekend-db::weekend_db | src/engine.rs:879:9– | 30790..30793 | for_iteration | scan_records | Empty and mixed overlays use the base and both write passes. The BTreeMap checks ordered results at capacity. |
+| P | weekend-db::weekend_db | src/engine.rs:882:25– | 30868..30907 | short_circuit_and | scan_records | Choose only deletions for the scanned collection. Wrong-collection edits and puts are independent controls. |
+| P | weekend-db::weekend_db | src/engine.rs:886:33– | 31017..31056 | short_circuit_and | scan_records | Choose only puts for the scanned collection. Wrong-collection edits and deletions are independent controls. |
+| E | weekend-db::weekend_db | src/engine.rs:889:23– | 31105..31110 | match | scan_records | Mixed overlays remove and insert. Deleting before inserting admits the full collection fixture. |
+| E | weekend-db::weekend_db | src/engine.rs:897:18– | 31380..31381 | try_propagation | scan_records | Refuse the path copy for the replacement. The earlier collection observation survives. |
+| E | weekend-db::weekend_db | src/engine.rs:898:61– | 31443..31444 | try_propagation | scan_records | Refuse the deletion path copy. The earlier collection observation survives. |
+| E | weekend-db::weekend_db | src/engine.rs:904:31– | 31592..31593 | try_propagation | count | Count propagates the closed-state error from the owned scan. |
