@@ -122,6 +122,9 @@ qualifies the sender's receipt admission and follower's retry decisions.
 The [capture and saved-image ledger](decisions/snapshot-capture-current.md)
 covers source and descriptor admission, destination sync and verification,
 and exact current and retained roots after retry.
+The [sender reply and capture ledger](decisions/snapshot-sender-current.md)
+qualifies poll and ship reply dispatch, error propagation, and native
+capture and saved-image factories.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those

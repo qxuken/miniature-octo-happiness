@@ -540,6 +540,13 @@ and preserves the sender's earlier verified bound and follower receipt on
 failure. The queue has 9,310 open records (1,927 runtime / 26 driver / 7,357
 tooling). Native Windows and deployed transport and device cases remain open.
 
+The [snapshot sender ledger](decisions/snapshot-sender-current.md) verifies
+poll, initial and terminal reply failures, progress preservation, quiescent
+capture and native saved-image reopen at `d5e06b2`. All explicit source
+records under `src/replication/` now have scoped dispositions. The inventory
+has 9,284 open records (1,901 runtime / 26 driver / 7,357 tooling). Native
+Windows and application transport and deployment evidence remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
