@@ -6659,12 +6659,11 @@
       "file": "src/storage/mod.rs",
       "old": "self.guard()?;\n        let physical_bytes",
       "new": "self.guard().map_err(|_| Error::Invalid)?;\n        let physical_bytes",
-      "test": "headroom",
-      "target": "--test",
+      "test": "storage::decision_tests::compact_copy_headroom_guard_rejects_poison_before_length",
+      "target": "--lib",
       "occurrence": 1,
       "matches": 1,
-      "package": "weekend-db",
-      "exact_test": "impossible_lengths_block_publication"
+      "package": "weekend-db"
     },
     {
       "name": "r1-compact-copy-space-length",

@@ -814,6 +814,22 @@ mod decision_tests {
     }
 
     #[test]
+    fn compact_copy_headroom_guard_rejects_poison_before_length() {
+        let (mut storage, _, _, _, disk) = fixture();
+        disk.arm(usize::MAX, Fault::Error);
+        assert_eq!(
+            storage.space().unwrap().physical_bytes,
+            disk.durable_image().unwrap().len() as u64
+        );
+        assert_eq!(disk.trace().unwrap()[0].kind, IoKind::Length);
+
+        storage.poisoned = true;
+        disk.arm(usize::MAX, Fault::Error);
+        assert_eq!(storage.space(), Err(Error::RecoveryRequired));
+        assert!(disk.trace().unwrap().is_empty());
+    }
+
+    #[test]
     fn verification_envelope_predicates_have_independent_controls() {
         for changed in ["none", "identity", "revision", "end", "witness"] {
             let (mut storage, mem, _, _, disk) = fixture();
