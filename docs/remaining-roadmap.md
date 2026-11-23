@@ -245,8 +245,15 @@ starts batch 4 on the stack. It binds 39 source decisions and detects
 all 35 named controls in both macOS profiles. The provider sweeps verify
 draft usability, released scratch, and the dependency that survives after
 successful observation. A separate BTreeMap checks ordered overlay rows
-at capacity. Assignment and commit preparation, followed by tree and value
-decision coverage, remain in this batch.
+at capacity.
+
+The [assignment and commit preparation ledger](decisions/transaction-assignment-commit-current.md)
+records 31 more source dispositions. The assignment sweep checks which
+observations survive refusal while the prior edit remains usable. The
+durable sweep includes replacement and deletion and preserves both roots
+before publication. Both macOS profiles detected 30 new controls and three
+existing controls. The write-charge caller residual and tree and value
+decision coverage remain in batch 4.
 
 All R1 and R2–R7 completion gates above remain open.
 
