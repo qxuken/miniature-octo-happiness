@@ -9244,6 +9244,149 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-missing",
+      "file": "src/storage/windows_io.rs",
+      "old": "Some(2 | 3) => Error::NotFound",
+      "new": "Some(2 | 3) => Error::Io",
+      "test": "storage::windows_io::tests::error_mapping_preserves_the_raw_code_and_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-contention",
+      "file": "src/storage/windows_io.rs",
+      "old": "Some(32 | 33) => Error::Busy",
+      "new": "Some(32 | 33) => Error::Io",
+      "test": "storage::windows_io::tests::error_mapping_preserves_the_raw_code_and_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-exists",
+      "file": "src/storage/windows_io.rs",
+      "old": "Some(80 | 183) => Error::AlreadyExists",
+      "new": "Some(80 | 183) => Error::Io",
+      "test": "storage::windows_io::tests::error_mapping_preserves_the_raw_code_and_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-invalid",
+      "file": "src/storage/windows_io.rs",
+      "old": "Some(123 | 267) => Error::Invalid",
+      "new": "Some(123 | 267) => Error::Io",
+      "test": "storage::windows_io::tests::error_mapping_preserves_the_raw_code_and_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-other",
+      "file": "src/storage/windows_io.rs",
+      "old": "_ => Error::Io",
+      "new": "_ => Error::Invalid",
+      "test": "storage::windows_io::tests::error_mapping_preserves_the_raw_code_and_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-diagnostic",
+      "file": "src/storage/windows_io.rs",
+      "old": "    diagnostics::record(operation, &error);\n",
+      "new": "",
+      "test": "storage::windows_io::tests::error_mapping_preserves_the_raw_code_and_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-claim",
+      "file": "src/storage/windows_io.rs",
+      "old": "Self::Open(handle) => {\n                *self = Self::Claimed(handle);",
+      "new": "Self::Open(handle) => {\n                *self = Self::Open(handle);",
+      "test": "storage::windows_io::tests::claim_and_release_preserve_exclusive_handle_lifetime",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-busy",
+      "file": "src/storage/windows_io.rs",
+      "old": "*self = Self::Claimed(handle);\n                Err(Error::Busy)",
+      "new": "*self = Self::Claimed(handle);\n                Err(Error::Closed)",
+      "test": "storage::windows_io::tests::claim_and_release_preserve_exclusive_handle_lifetime",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-closed",
+      "file": "src/storage/windows_io.rs",
+      "old": "Self::Closed => Err(Error::Closed)",
+      "new": "Self::Closed => Err(Error::Busy)",
+      "test": "storage::windows_io::tests::claim_and_release_preserve_exclusive_handle_lifetime",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-release",
+      "file": "src/storage/windows_io.rs",
+      "old": "pub(super) fn release(&mut self) {\n        *self = Self::Closed;",
+      "new": "pub(super) fn release(&mut self) {\n        let _ = self;",
+      "test": "storage::windows_io::tests::claim_and_release_preserve_exclusive_handle_lifetime",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-unclaimed-io",
+      "file": "src/storage/windows_io.rs",
+      "old": "Self::Claimed(handle) => action(handle).map_err(|error| os_error(operation, error)),\n            Self::Open(_) | Self::Closed => Err(Error::Io),",
+      "new": "Self::Claimed(handle) | Self::Open(handle) => action(handle).map_err(|error| os_error(operation, error)),\n            Self::Closed => Err(Error::Io),",
+      "test": "storage::windows_io::tests::claim_and_release_preserve_exclusive_handle_lifetime",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-released-io",
+      "file": "src/storage/windows_io.rs",
+      "old": "Self::Open(_) | Self::Closed => Err(Error::Io)",
+      "new": "Self::Open(_) => Err(Error::Io),\n            Self::Closed => Err(Error::Closed)",
+      "test": "storage::windows_io::tests::claim_and_release_preserve_exclusive_handle_lifetime",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-handle-operation",
+      "file": "src/storage/windows_io.rs",
+      "old": "action(handle).map_err(|error| os_error(operation, error))",
+      "new": "action(handle).map_err(|error| os_error(NativeIoOperation::Read, error))",
+      "test": "storage::windows_io::tests::claimed_io_preserves_return_values_and_diagnostics_for_each_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
