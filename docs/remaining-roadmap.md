@@ -238,8 +238,15 @@ The [codec cache and index ledger](decisions/codec-cache-index-current.md)
 records batch 3 on the stack. It binds 28 source decisions to directed
 pairs, propagation tests, scoped execution and coupling. Both profiles
 caught all 31 new controls on macOS. The 17 golden images match across
-both profiles on macOS and Docker Linux. Batch 4 starts with transaction
-observations, overlay scans and their failure boundaries.
+both profiles on macOS and Docker Linux.
+
+The [transaction observation and overlay scan ledger](decisions/transaction-observation-scan-current.md)
+starts batch 4 on the stack. It binds 39 source decisions and detects
+all 35 named controls in both macOS profiles. The provider sweeps verify
+draft usability, released scratch, and the dependency that survives after
+successful observation. A separate BTreeMap checks ordered overlay rows
+at capacity. Assignment and commit preparation, followed by tree and value
+decision coverage, remain in this batch.
 
 All R1 and R2–R7 completion gates above remain open.
 
