@@ -622,6 +622,23 @@ mod tests {
 mod decision_tests {
     use super::*;
 
+    struct PathFixture(std::path::PathBuf);
+
+    impl PathFixture {
+        fn new(case: &str) -> Self {
+            let dir =
+                std::env::temp_dir().join(format!("weekend-path-{case}-{}", std::process::id()));
+            std::fs::create_dir(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for PathFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn file_compaction_verifies_without_holding_copy_graphs_or_releasing_leases() {
         use std::{
@@ -739,6 +756,165 @@ mod decision_tests {
         std::fs::remove_file(&path).unwrap();
         assert_eq!(file.lock(), Err(Error::Busy));
         assert_eq!(file.length(), Err(Error::Io));
+    }
+
+    #[test]
+    fn invalid_names_stop_before_the_selected_allocator() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let allocator = Arc::new(TestAllocator::default());
+        let handle = allocator.handle();
+        let mut max = "x".repeat(1024 * 1024);
+        let (location, requests) =
+            allocator.count_with_refusal(2, || Location::new_in(Path::new(&max), handle.clone()));
+        let location = location.unwrap();
+        assert_eq!(requests, 2);
+        assert_eq!(location.name.len(), max.len() + 1);
+        assert_eq!(location.name.last(), Some(&0));
+        assert_eq!(allocator.last_request_size(), max.len() + 1);
+        let parent = location.directory.metadata().unwrap();
+        let cwd = std::fs::metadata(".").unwrap();
+        assert_eq!((parent.dev(), parent.ino()), (cwd.dev(), cwd.ino()));
+        drop(location);
+        max.push('x');
+
+        let live = allocator.live_bytes();
+        for (name, error) in [
+            ("", Error::Invalid),
+            ("a/", Error::Invalid),
+            (".", Error::Invalid),
+            ("..", Error::Invalid),
+            ("a\0b", Error::Invalid),
+            (max.as_str(), Error::Limit),
+        ] {
+            let (result, requests) = allocator
+                .count_with_refusal(0, || Location::new_in(Path::new(name), handle.clone()));
+            assert_eq!(result.err(), Some(error));
+            assert_eq!(requests, 0);
+            assert_eq!(allocator.live_bytes(), live);
+        }
+    }
+
+    #[test]
+    fn parent_and_leaf_refusal_leave_create_and_open_retriable() {
+        use super::super::diagnostics::capture;
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let fixture = PathFixture::new("allocation");
+        let path = fixture.0.join("store λ.db");
+        let leaf = "store λ.db\0".as_bytes();
+        let parent_bytes = fixture.0.as_os_str().as_bytes().len() + 1;
+        let allocator = Arc::new(TestAllocator::default());
+        let handle = allocator.handle();
+        let live = allocator.live_bytes();
+        for create in [true, false] {
+            for (allowed, size) in [(0, parent_bytes), (1, leaf.len())] {
+                let (result, requests) = allocator.count_with_refusal(allowed, || {
+                    capture(|| FileStore::open_in(&path, create, handle.clone()))
+                });
+                let failure = result.err().unwrap();
+                assert_eq!(failure.error, Error::OutOfMemory);
+                assert_eq!(failure.native, None);
+                assert_eq!(requests, allowed + 1);
+                assert_eq!(allocator.last_request_size(), size);
+                assert_eq!(allocator.live_bytes(), live);
+                if create {
+                    assert!(std::fs::read_dir(&fixture.0).unwrap().next().is_none());
+                } else {
+                    assert_eq!(std::fs::read(&path).unwrap(), b"kept");
+                }
+            }
+            let (store, requests) = allocator
+                .count_with_refusal(2, || FileStore::open_in(&path, create, handle.clone()));
+            let mut store = store.unwrap();
+            assert_eq!(requests, 2);
+            assert_eq!(store.location.name.as_slice(), leaf);
+            assert_eq!(allocator.live_bytes(), live + leaf.len());
+            store.lock().unwrap();
+            if create {
+                assert_eq!(store.write(0, b"kept"), Ok(4));
+                store.sync().unwrap();
+            } else {
+                let mut bytes = [0; 4];
+                assert_eq!(store.read(0, &mut bytes), Ok(4));
+                assert_eq!(&bytes, b"kept");
+            }
+            drop(store);
+            assert_eq!(allocator.live_bytes(), live);
+        }
+
+        let location = Location::new_in(&path, handle.clone()).unwrap();
+        let baseline = allocator.live_bytes();
+        let (duplicate, requests) = allocator.count_with_refusal(0, || location.duplicate());
+        assert_eq!(duplicate.err(), Some(Error::OutOfMemory));
+        assert_eq!(requests, 1);
+        assert_eq!(allocator.last_request_size(), leaf.len());
+        assert_eq!(allocator.live_bytes(), baseline);
+        let duplicate = allocator.with_refusal(1, || location.duplicate()).unwrap();
+        assert_eq!(duplicate.name.as_slice(), leaf);
+        assert_eq!(allocator.live_bytes(), baseline + leaf.len());
+        assert_eq!(std::fs::read(&path).unwrap(), b"kept");
+        drop(duplicate);
+        drop(location);
+        assert_eq!(allocator.live_bytes(), live);
+    }
+
+    #[test]
+    fn native_path_errors_report_the_failed_operation() {
+        let fixture = PathFixture::new("diagnostics");
+        let file = fixture.0.join("file");
+        std::fs::write(&file, b"kept").unwrap();
+        for (create, path, error, operation, raw) in [
+            (
+                false,
+                fixture.0.join("missing/leaf"),
+                Error::NotFound,
+                NativeIoOperation::OpenDirectory,
+                2,
+            ),
+            (
+                false,
+                file.join("leaf"),
+                Error::Invalid,
+                NativeIoOperation::OpenDirectory,
+                20,
+            ),
+            (
+                false,
+                fixture.0.join("missing"),
+                Error::NotFound,
+                NativeIoOperation::Open,
+                2,
+            ),
+            (
+                true,
+                file.clone(),
+                Error::AlreadyExists,
+                NativeIoOperation::Create,
+                17,
+            ),
+        ] {
+            let result = if create {
+                FileStore::create_with_diagnostics(&path)
+            } else {
+                FileStore::open_with_diagnostics(&path)
+            };
+            let failure = result.err().unwrap();
+            assert_eq!(failure.error, error);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, operation);
+            assert_eq!(native.raw_os_error, Some(raw));
+        }
+        for path in [Path::new(""), fixture.0.as_path()] {
+            let failure = FileStore::open_read_only_with_diagnostics(path)
+                .err()
+                .unwrap();
+            assert_eq!(failure.error, Error::Invalid);
+            assert_eq!(failure.native, None);
+        }
+        assert_eq!(std::fs::read(&file).unwrap(), b"kept");
     }
 
     #[test]

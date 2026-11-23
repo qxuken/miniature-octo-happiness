@@ -7333,6 +7333,226 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-read-only-preparation",
+      "file": "src/storage/file.rs",
+      "old": "Location::new(path.as_ref())?",
+      "new": "Location::new(path.as_ref()).map_err(|_| Error::Io)?",
+      "test": "storage::file::decision_tests::native_path_errors_report_the_failed_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-writable-preparation",
+      "file": "src/storage/file.rs",
+      "old": "Location::new_in(path.as_ref(), allocator)?",
+      "new": "Location::new_in(path.as_ref(), allocator).map_err(|_| Error::Invalid)?",
+      "test": "storage::file::decision_tests::parent_and_leaf_refusal_leave_create_and_open_retriable",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-embedded-nul",
+      "file": "src/storage/file.rs",
+      "old": "if bytes.contains(&0) {",
+      "new": "if bytes.last() == Some(&0) {",
+      "test": "storage::file::decision_tests::invalid_names_stop_before_the_selected_allocator",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-limit-equality",
+      "file": "src/storage/file.rs",
+      "old": "if bytes.len() > 1024 * 1024 {",
+      "new": "if bytes.len() >= 1024 * 1024 {",
+      "test": "storage::file::decision_tests::invalid_names_stop_before_the_selected_allocator",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-limit-excess",
+      "file": "src/storage/file.rs",
+      "old": "if bytes.len() > 1024 * 1024 {",
+      "new": "if bytes.len() > 1024 * 1024 + 1 {",
+      "test": "storage::file::decision_tests::invalid_names_stop_before_the_selected_allocator",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-name-empty",
+      "file": "src/storage/file.rs",
+      "old": "if name.is_empty() || name == b\".\" || name == b\"..\" {",
+      "new": "if false || name == b\".\" || name == b\"..\" {",
+      "test": "storage::file::decision_tests::invalid_names_stop_before_the_selected_allocator",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-name-dot",
+      "file": "src/storage/file.rs",
+      "old": "if name.is_empty() || name == b\".\" || name == b\"..\" {",
+      "new": "if name.is_empty() || false || name == b\"..\" {",
+      "test": "storage::file::decision_tests::invalid_names_stop_before_the_selected_allocator",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-name-parent",
+      "file": "src/storage/file.rs",
+      "old": "if name.is_empty() || name == b\".\" || name == b\"..\" {",
+      "new": "if name.is_empty() || name == b\".\" || false {",
+      "test": "storage::file::decision_tests::invalid_names_stop_before_the_selected_allocator",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-relative-parent",
+      "file": "src/storage/file.rs",
+      "old": ".unwrap_or(Path::new(\".\"));",
+      "new": ".unwrap_or(Path::new(\"..\"));",
+      "test": "storage::file::decision_tests::invalid_names_stop_before_the_selected_allocator",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-parent-buffer",
+      "file": "src/storage/file.rs",
+      "old": "Self::terminated_path(allocator.clone(), parent.as_os_str().as_bytes())?",
+      "new": "Self::terminated_path(allocator.clone(), parent.as_os_str().as_bytes()).map_err(|_| Error::Invalid)?",
+      "test": "storage::file::decision_tests::parent_and_leaf_refusal_leave_create_and_open_retriable",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-parent-native-error",
+      "file": "src/storage/file.rs",
+      "old": "retry(NativeIoOperation::OpenDirectory, || {\n                // SAFETY: parent is NUL-terminated. A read-only directory open needs no mode.\n                let fd =\n                    unsafe { open(parent.as_ptr().cast(), sys::OPEN_DIRECTORY | sys::O_CLOEXEC) };\n                if fd < 0 {\n                    Err(io::Error::last_os_error())\n                } else {\n                    // SAFETY: open returned a new owned descriptor.\n                    Ok(unsafe { File::from_raw_fd(fd) })\n                }\n            })",
+      "new": "retry(NativeIoOperation::OpenDirectory, || {\n                // SAFETY: parent is NUL-terminated. A read-only directory open needs no mode.\n                let fd =\n                    unsafe { open(parent.as_ptr().cast(), sys::OPEN_DIRECTORY | sys::O_CLOEXEC) };\n                if fd < 0 {\n                    Err(io::Error::from_raw_os_error(5))\n                } else {\n                    // SAFETY: open returned a new owned descriptor.\n                    Ok(unsafe { File::from_raw_fd(fd) })\n                }\n            })",
+      "test": "storage::file::decision_tests::native_path_errors_report_the_failed_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-parent-error",
+      "file": "src/storage/file.rs",
+      "old": "retry(NativeIoOperation::OpenDirectory, || {\n                // SAFETY: parent is NUL-terminated. A read-only directory open needs no mode.\n                let fd =\n                    unsafe { open(parent.as_ptr().cast(), sys::OPEN_DIRECTORY | sys::O_CLOEXEC) };\n                if fd < 0 {\n                    Err(io::Error::last_os_error())\n                } else {\n                    // SAFETY: open returned a new owned descriptor.\n                    Ok(unsafe { File::from_raw_fd(fd) })\n                }\n            })?",
+      "new": "retry(NativeIoOperation::OpenDirectory, || {\n                // SAFETY: parent is NUL-terminated. A read-only directory open needs no mode.\n                let fd =\n                    unsafe { open(parent.as_ptr().cast(), sys::OPEN_DIRECTORY | sys::O_CLOEXEC) };\n                if fd < 0 {\n                    Err(io::Error::last_os_error())\n                } else {\n                    // SAFETY: open returned a new owned descriptor.\n                    Ok(unsafe { File::from_raw_fd(fd) })\n                }\n            }).map_err(|_| Error::Io)?",
+      "test": "storage::file::decision_tests::native_path_errors_report_the_failed_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-leaf-buffer",
+      "file": "src/storage/file.rs",
+      "old": "Self::terminated_path(allocator, name)?",
+      "new": "Self::terminated_path(allocator, name).map_err(|_| Error::Invalid)?",
+      "test": "storage::file::decision_tests::parent_and_leaf_refusal_leave_create_and_open_retriable",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-terminated-buffer",
+      "file": "src/storage/file.rs",
+      "old": "Self::copy_path(allocator, bytes, 1)?",
+      "new": "Self::copy_path(allocator, bytes, 1).map_err(|_| Error::Invalid)?",
+      "test": "storage::file::decision_tests::parent_and_leaf_refusal_leave_create_and_open_retriable",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-reserve-error",
+      "file": "src/storage/file.rs",
+      "old": "path.try_reserve_exact(bytes.len() + extra)\n            .map_err(|_| Error::OutOfMemory)?;",
+      "new": "path.try_reserve_exact(bytes.len() + extra)\n            .map_err(|_| Error::Invalid)?;",
+      "test": "storage::file::decision_tests::parent_and_leaf_refusal_leave_create_and_open_retriable",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-duplicate-leaf",
+      "file": "src/storage/file.rs",
+      "old": "Self::copy_path(self.name.allocator().clone(), &self.name, 0)?",
+      "new": "Self::copy_path(self.name.allocator().clone(), &self.name, 0).map_err(|_| Error::Invalid)?",
+      "test": "storage::file::decision_tests::parent_and_leaf_refusal_leave_create_and_open_retriable",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-regular",
+      "file": "src/storage/file.rs",
+      "old": "if !retry(NativeIoOperation::Metadata, || file.metadata())?.is_file() {",
+      "new": "if false && !retry(NativeIoOperation::Metadata, || file.metadata())?.is_file() {",
+      "test": "storage::file::decision_tests::native_path_errors_report_the_failed_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-leaf-operation",
+      "file": "src/storage/file.rs",
+      "old": "if flags & OPEN_CREATE != 0 {",
+      "new": "if flags & OPEN_CREATE == 0 {",
+      "test": "storage::file::decision_tests::native_path_errors_report_the_failed_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-leaf-native-error",
+      "file": "src/storage/file.rs",
+      "old": "retry(\n            if flags & OPEN_CREATE != 0 {\n                NativeIoOperation::Create\n            } else {\n                NativeIoOperation::Open\n            },\n            || {\n                let fd = unsafe {\n                    openat(\n                        self.directory.as_raw_fd(),\n                        self.name.as_ptr().cast(),\n                        flags | OPEN_REQUIRED,\n                        0o600 as c_int,\n                    )\n                };\n                if fd < 0 {\n                    Err(io::Error::last_os_error())\n                } else {\n                    Ok(fd)\n                }\n            },\n        )",
+      "new": "retry(\n            if flags & OPEN_CREATE != 0 {\n                NativeIoOperation::Create\n            } else {\n                NativeIoOperation::Open\n            },\n            || {\n                let fd = unsafe {\n                    openat(\n                        self.directory.as_raw_fd(),\n                        self.name.as_ptr().cast(),\n                        flags | OPEN_REQUIRED,\n                        0o600 as c_int,\n                    )\n                };\n                if fd < 0 {\n                    Err(io::Error::from_raw_os_error(5))\n                } else {\n                    Ok(fd)\n                }\n            },\n        )",
+      "test": "storage::file::decision_tests::native_path_errors_report_the_failed_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-path-leaf-error",
+      "file": "src/storage/file.rs",
+      "old": "retry(\n            if flags & OPEN_CREATE != 0 {\n                NativeIoOperation::Create\n            } else {\n                NativeIoOperation::Open\n            },\n            || {\n                let fd = unsafe {\n                    openat(\n                        self.directory.as_raw_fd(),\n                        self.name.as_ptr().cast(),\n                        flags | OPEN_REQUIRED,\n                        0o600 as c_int,\n                    )\n                };\n                if fd < 0 {\n                    Err(io::Error::last_os_error())\n                } else {\n                    Ok(fd)\n                }\n            },\n        )?",
+      "new": "retry(\n            if flags & OPEN_CREATE != 0 {\n                NativeIoOperation::Create\n            } else {\n                NativeIoOperation::Open\n            },\n            || {\n                let fd = unsafe {\n                    openat(\n                        self.directory.as_raw_fd(),\n                        self.name.as_ptr().cast(),\n                        flags | OPEN_REQUIRED,\n                        0o600 as c_int,\n                    )\n                };\n                if fd < 0 {\n                    Err(io::Error::last_os_error())\n                } else {\n                    Ok(fd)\n                }\n            },\n        ).map_err(|_| Error::Io)?",
+      "test": "storage::file::decision_tests::native_path_errors_report_the_failed_operation",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
