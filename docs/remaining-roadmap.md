@@ -408,6 +408,16 @@ Clippy passes. The Win32 entry points and deployment still require native
 evidence. The queue has 9,419 open records
 (2,050 runtime / 26 driver / 7,343 tooling).
 
+The [Windows handle ledger](decisions/windows-handle-io-current.md) qualifies
+the shared lease transitions, I/O dispatch, and error mapping at
+`34cb30c`. Both profiles pass the selected engine and storage suites on
+macOS and Docker Linux. Both debug runs detect all 13 controls. Optimized
+mutation coverage remains pending. Miri on macOS verifies the isolated
+handle-lifetime fixture. The added
+read-only lease and reopen fixture cross-compiles for Windows and retains
+its native execution gate. The queue has 9,411 open records
+(2,042 runtime / 26 driver / 7,343 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

@@ -74,6 +74,7 @@ Batch 5 starts with [ByteStore transfers and local publication](decisions/bytest
 [Linux metadata validation](decisions/linux-metadata-current.md),
 [Windows pathname preparation](decisions/windows-paths-current.md),
 [Windows file and volume admission](decisions/windows-admission-current.md),
+[Windows handle ownership and error routing](decisions/windows-handle-io-current.md),
 [Unix scratch preparation and positioned I/O](decisions/unix-scratch-io-current.md),
 [Linux architecture admission](decisions/linux-architecture-current.md),
 [Unix compaction descriptor exhaustion](decisions/unix-descriptors-current.md),
