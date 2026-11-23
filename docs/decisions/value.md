@@ -1,5 +1,8 @@
 # Value source decision audit
 
+The [current value ledger](value-current.md) records the later source
+bindings and platform checks for this module.
+
 The production AST inventory contains **79 records** for `src/value.rs`: 32
 propagation operators, 14 ifs, ten let-else forms, nine matches, five match guards,
 five ORs, three loops and one AND. Exact source hashes and every span appear

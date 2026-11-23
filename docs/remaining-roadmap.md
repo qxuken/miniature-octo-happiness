@@ -258,8 +258,13 @@ The [persistent tree ledger](decisions/tree-current.md) records all 72
 tree decisions, with 71 fewer open runtime records. The sweeps cover
 collision insertion and replacement, removal, binary row budgets, and
 list growth and clearing under provider refusal. Both macOS profiles
-detected all 49 named controls. The write-charge caller residual and
-value decision coverage remain in batch 4.
+detected all 49 named controls.
+
+The [owned value ledger](decisions/value-current.md) covers all 81 value
+decisions. A copying model checks completed nested edits, and the refusal
+sweep preserves the source values and live charges. Both macOS profiles
+detected all 52 controls after the removal and error fixtures were
+strengthened. The write-charge caller residual remains in batch 4.
 
 All R1 and R2–R7 completion gates above remain open.
 
