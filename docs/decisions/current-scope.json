@@ -312,7 +312,7 @@
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
     "docs/decisions/rust-output-allocation.md": "4ba39745c0637f90bd30eb1b4445a2fffb6ef18f5c92de1f19135f310cd53701",
-    "docs/decisions/public-allocation-hook-retirement.md": "6a230f62e3685c21166bb0db15e916e7f3b0020b7b388f855addce292649386a"
+    "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
