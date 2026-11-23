@@ -285,6 +285,10 @@ fn live_capture_source_and_limits_are_checked_before_creating_destination() {
     assert_eq!(source.begin().commit(), Ok(1));
     let mut primary = Primary::new(&source, STREAM).unwrap();
     assert_eq!(source.begin().commit(), Ok(2));
+    // Vary only identity against the admitted source. The older fixture
+    // separately removes revision headroom while keeping identity equal.
+    assert_eq!(foreign.begin().commit(), Ok(1));
+    assert_eq!(foreign.begin().commit(), Ok(2));
     for (source, capture_limits, expected) in [
         (
             &source,
