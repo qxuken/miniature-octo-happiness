@@ -1,5 +1,17 @@
 #[path = "support/allocator.rs"]
 pub mod allocator;
+#[cfg(all(
+    feature = "fault-injection",
+    any(
+        target_os = "macos",
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    )
+))]
+#[path = "support/descriptor_limit.rs"]
+mod descriptor_limit;
 use allocator::TestAllocator;
 use std::sync::Arc;
 use weekend_db as allocator_engine;
@@ -858,7 +870,8 @@ mod files {
     #[cfg(feature = "fault-injection")]
     mod descriptors {
         use super::*;
-        use std::{fs::File, os::unix::fs::MetadataExt, process::Command};
+        use crate::descriptor_limit::{EMFILE, fill_table, run_worker};
+        use std::os::unix::fs::MetadataExt;
         use weekend_db::storage::{
             CompactionStep as Step, NativeIoOperation as Operation, compact_file_with_hook,
             with_storage_diagnostics,
@@ -867,7 +880,6 @@ mod files {
         const CHILD_CASE: &str = "WEEKEND_TEST_COMPACTION_DESCRIPTOR_CASE";
         const TEST: &str =
             "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots";
-        const EMFILE: i32 = 24;
 
         #[derive(Clone, Copy)]
         enum Scratch {
@@ -964,20 +976,6 @@ mod files {
             },
         ];
 
-        fn fill_descriptor_table() -> Vec<File> {
-            let mut descriptors = Vec::new();
-            for _ in 0..64 {
-                match File::open("/dev/null") {
-                    Ok(file) => descriptors.push(file),
-                    Err(error) => {
-                        assert_eq!(error.raw_os_error(), Some(EMFILE));
-                        return descriptors;
-                    }
-                }
-            }
-            panic!("descriptor limit was not enforced");
-        }
-
         fn run_child(case: &Case) {
             let limits = Limits::default();
             let source = Path::new("store.db");
@@ -990,7 +988,7 @@ mod files {
             original.compact_to(reference.clone()).unwrap();
             let compacted = reference.durable_image().unwrap();
 
-            let mut held = fill_descriptor_table();
+            let mut held = fill_table();
             assert!(held.len() > case.free);
             held.truncate(held.len() - case.free);
             let checkpoint = case.checkpoint;
@@ -1004,7 +1002,7 @@ mod files {
                         && !event.after
                         && !observed.swap(true, Ordering::Relaxed)
                     {
-                        checkpoint_fds.extend(fill_descriptor_table());
+                        checkpoint_fds.extend(fill_table());
                         assert!(!checkpoint_fds.is_empty());
                     }
                     Ok(())
@@ -1017,7 +1015,7 @@ mod files {
             assert_eq!(native.raw_os_error, Some(EMFILE), "{}", case.name);
             assert_eq!(reached.load(Ordering::Relaxed), checkpoint.is_some());
             assert_eq!(
-                fill_descriptor_table().len(),
+                fill_table().len(),
                 case.free,
                 "descriptor leak at {}",
                 case.name
@@ -1073,31 +1071,16 @@ mod files {
                 run_child(&CASES[case.parse::<usize>().unwrap()]);
                 return;
             }
-            let executable = std::env::current_exe().unwrap();
             for (index, case) in CASES.iter().enumerate() {
                 let dir = Directory::new();
                 seed(&dir.path("store.db"));
                 fs::write(dir.path(".wdb-compact-unrelated.tmp"), b"unrelated").unwrap();
-                let output = Command::new("/bin/sh")
-                    .args(["-c", "ulimit -Sn 64 && exec \"$@\"", "descriptor-worker"])
-                    .arg(&executable)
-                    .args(["--exact", TEST, "--nocapture"])
-                    .env(CHILD_CASE, index.to_string())
-                    .current_dir(&dir.0)
-                    .output()
-                    .unwrap();
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let receipt = format!("verified descriptor exhaustion at {}", case.name);
-                assert!(
-                    output.status.success()
-                        && stdout
-                            .contains(&format!("verified descriptor exhaustion at {}", case.name)),
-                    "{}: {}\n{}",
-                    case.name,
-                    stdout,
-                    String::from_utf8_lossy(&output.stderr)
+                run_worker(
+                    TEST,
+                    (CHILD_CASE, &index.to_string()),
+                    &dir.0,
+                    &format!("verified descriptor exhaustion at {}", case.name),
                 );
-                println!("{receipt}");
             }
         }
     }

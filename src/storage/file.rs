@@ -46,6 +46,13 @@ fn file_metadata(file: &File) -> Result<Metadata> {
         file.metadata()
     })
 }
+fn duplicate_file(file: &File) -> Result<File> {
+    retry(NativeIoOperation::DuplicateHandle, || {
+        #[cfg(test)]
+        let _pressure = clone_decisions::before_duplicate();
+        file.try_clone()
+    })
+}
 /// A regular-file writer lease on macOS or Linux. Final-component symlinks are
 /// rejected and hard-link aliases share the same inode lock. The held parent
 /// descriptor and a post-lock inode check reject open/replacement races.
@@ -236,9 +243,7 @@ impl Location {
     // Offline compaction keeps a location for the later exchange and cleanup.
     fn duplicate(&self) -> Result<Self> {
         Ok(Self {
-            directory: retry(NativeIoOperation::DuplicateHandle, || {
-                self.directory.try_clone()
-            })?,
+            directory: duplicate_file(&self.directory)?,
             name: Self::copy_path(self.name.allocator().clone(), &self.name, 0)?,
         })
     }
@@ -330,9 +335,7 @@ impl Location {
         }
         name.extend_from_slice(suffix);
         Ok(Self {
-            directory: retry(NativeIoOperation::DuplicateHandle, || {
-                self.directory.try_clone()
-            })?,
+            directory: duplicate_file(&self.directory)?,
             name,
         })
     }
@@ -476,9 +479,7 @@ pub fn compact_file_with_hook(
 fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
     let original = Location::new(path)?;
     let source = original.duplicate()?.open_mode(false, true)?;
-    let old_file = retry(NativeIoOperation::DuplicateHandle, || {
-        source.file.try_clone()
-    })?;
+    let old_file = duplicate_file(&source.file)?;
     // Replacing one name cannot preserve a hard-link alias's writer authority.
     if file_metadata(&old_file)?.nlink() != 1 {
         return Err(Error::Invalid);
@@ -494,9 +495,7 @@ fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<Co
     storage.release_serialization_caches();
     let scratch = original.scratch(identity)?;
     let target = scratch.duplicate()?.open_mode(true, true)?;
-    let new_file = retry(NativeIoOperation::DuplicateHandle, || {
-        target.file.try_clone()
-    })?;
+    let new_file = duplicate_file(&target.file)?;
     let prepared = storage.encode_compact_copy(
         Observed {
             file: target,
@@ -1416,5 +1415,139 @@ mod metadata_decisions {
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+#[path = "../../tests/support/descriptor_limit.rs"]
+mod descriptor_limit;
+
+#[cfg(test)]
+mod clone_decisions {
+    use super::{
+        descriptor_limit::{EMFILE, fill_table, run_worker},
+        *,
+    };
+    use crate::{Database, storage::SimulatedDisk};
+    use std::{cell::Cell, fs};
+
+    thread_local! {
+        static DUPLICATION: Cell<Option<(usize, usize)>> = const { Cell::new(None) };
+    }
+
+    pub(super) fn before_duplicate() -> Vec<File> {
+        DUPLICATION.with(|state| {
+            if let Some((fail, count)) = state.get() {
+                state.set(Some((fail, count + 1)));
+                if count == fail {
+                    return fill_table();
+                }
+            }
+            Vec::new()
+        })
+    }
+
+    const CASE: &str = "WEEKEND_TEST_COMPACTION_CLONE_CASE";
+    const TEST: &str =
+        "storage::file::clone_decisions::file_clone_exhaustion_preserves_roots_and_retry";
+
+    fn run_case(index: &str) {
+        let (duplicate, has_scratch) = match index {
+            "source" => (1, false),
+            "target" => (4, true),
+            _ => panic!("unknown clone case"),
+        };
+        let source = Path::new("canonical");
+        let limits = Limits::default();
+        let disk = SimulatedDisk::new().unwrap();
+        let mut original = Database::create_on(disk.clone(), *b"clone-pressure-1", limits).unwrap();
+        let collection = original.create_collection().unwrap();
+        for n in [17, 29] {
+            let mut tx = original.begin();
+            tx.put(collection, b"k", &original.integer(n).unwrap())
+                .unwrap();
+            tx.commit().unwrap();
+            if n == 17 {
+                original.retain_snapshot(&original.snapshot()).unwrap();
+            }
+        }
+        let revision = original.snapshot().revision();
+        let old_revision = original.retained_snapshot(1).unwrap().revision();
+        let image = disk.durable_image().unwrap();
+        let reference = SimulatedDisk::new().unwrap();
+        original.compact_to(reference.clone()).unwrap();
+        let compacted = reference.durable_image().unwrap();
+        fs::write(source, &image).unwrap();
+        let inode = fs::metadata(source).unwrap().ino();
+        let available = fill_table().len();
+
+        assert!(DUPLICATION.replace(Some((duplicate, 0))).is_none());
+        let failure = Database::compact_file_with_diagnostics(source, limits).unwrap_err();
+        assert_eq!(DUPLICATION.replace(None), Some((duplicate, duplicate + 1)));
+        assert_eq!(failure.error, Error::Io);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::DuplicateHandle);
+        assert_eq!(native.raw_os_error, Some(EMFILE));
+        assert_eq!(fill_table().len(), available);
+
+        assert_eq!(fs::metadata(source).unwrap().ino(), inode);
+        assert_eq!(fs::read(source).unwrap(), image);
+        let mut entries = fs::read_dir(".")
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .filter(|name| name != source.as_os_str());
+        let scratch = entries.next();
+        assert_eq!(scratch.is_some(), has_scratch);
+        assert!(entries.next().is_none());
+        drop(entries);
+        if let Some(path) = &scratch {
+            assert!(path.to_str().unwrap().starts_with(".wdb-compact-"));
+            assert_eq!(fs::metadata(path).unwrap().len(), 0);
+        }
+        for retry in [false, true] {
+            if retry {
+                Database::compact_file(source, limits).unwrap();
+                assert_eq!(fs::read(source).unwrap(), compacted);
+            }
+            let db = Database::open_file(source, limits).unwrap();
+            let collection = db.collection_id(collection.as_u64());
+            let current = db.snapshot();
+            let retained = db.retained_snapshot(1).unwrap();
+            assert_eq!(current.revision(), revision);
+            assert_eq!(retained.revision(), old_revision);
+            assert_eq!(
+                current.get(collection, b"k").unwrap().unwrap().as_i64(),
+                Ok(29)
+            );
+            assert_eq!(
+                retained.get(collection, b"k").unwrap().unwrap().as_i64(),
+                Ok(17)
+            );
+        }
+        assert_eq!(
+            fs::read_dir(".").unwrap().count(),
+            1 + usize::from(has_scratch)
+        );
+        if let Some(path) = scratch {
+            assert_eq!(fs::metadata(path).unwrap().len(), 0);
+        }
+        println!("verified compaction {index} clone EMFILE");
+    }
+
+    #[test]
+    fn file_clone_exhaustion_preserves_roots_and_retry() {
+        if let Ok(index) = std::env::var(CASE) {
+            run_case(&index);
+            return;
+        }
+        for index in ["source", "target"] {
+            let dir = super::decision_tests::PathFixture::new(index);
+            run_worker(
+                TEST,
+                (CASE, index),
+                &dir.0,
+                &format!("verified compaction {index} clone EMFILE"),
+            );
+        }
     }
 }
