@@ -512,6 +512,15 @@ retained schema. Both local hosts pass debug and release and detect all thirteen
 controls. The queue has 9,352 open records (1,969 runtime / 26 driver / 7,357
 tooling). Native Windows execution and release-version qualification remain open.
 
+The [derive admission ledger](decisions/derive-admission-current.md) binds the
+first `Model`, `Record` and `Resolution` expansion controls, golden generated
+schema and existing CRDT wire and sync oracles. Both local hosts pass debug and
+release and detect fourteen controls at `e40727b`, including two earlier scan
+controls. The portable command fixture also completes 1,040 release suites
+under concurrent Linux launch stress. The queue has 9,340 open records
+(1,957 runtime / 26 driver / 7,357 tooling). Native Windows execution and
+the other generated targets remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

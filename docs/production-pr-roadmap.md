@@ -111,6 +111,11 @@ The [migration recovery matrix](decisions/typed-migration-recovery-current.md)
 qualifies batch admission, rollback on ID scratch refusal and resumed
 conversion after interruption, with paired primary, index and progress rows.
 
+Batch 8 starts with [derive admission](decisions/derive-admission-current.md).
+It qualifies generated schema and CRDT behavior alongside named controls for
+`Model`, `Record` and `Resolution` expansion. Remaining derive and generated
+target paths stay in the inventory.
+
 Batch 9 covers the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets
