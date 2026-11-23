@@ -222,8 +222,12 @@ refusals. Batch 2 continues with the remaining engine allocation hook users.
 
 The [public allocation hook retirement](decisions/public-allocation-hook-retirement.md)
 migrates the remaining integration callers and the compound resource driver.
-The library's synthetic counter is now confined to unit tests. Completing
-batch 2 requires migrating those unit sweeps and removing the counter.
+The library's synthetic counter is now confined to unit tests. The
+[codec allocation tests](decisions/codec-allocator-tests.md) now drive
+real provider refusal across encoding, recovery, cache reuse and fresh
+image creation. The two golden histories and named COMMIT controls pass.
+Cold-open and native adapter checks, then tree, value and memory tests
+remain before the unit-only counter can be removed.
 
 All R1 and R2–R7 completion gates above remain open.
 

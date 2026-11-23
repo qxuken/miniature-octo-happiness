@@ -2,6 +2,8 @@
 
 The [execution status](roadmap-status.md) tracks the full scope including
 distributed features and remaining gates. Cargo packages stay private.
+The [PR roadmap](production-pr-roadmap.md) sequences 23 implementation and
+qualification batches for the private release.
 The [current PR checkpoint](candidate-qualification-e2d2268.md) consolidates the
 named four-platform packages, CI/sanitizer checks and benchmark/fuzz evidence.
 The [unfinished-work handoff](remaining-roadmap.md) lists the next implementation,
