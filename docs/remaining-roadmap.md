@@ -551,8 +551,15 @@ The [CRDT admission ledger](decisions/crdt-admission-current.md) verifies
 actor and policy rejections in both sync roles at `50086ab`. The current row
 at revision 4 and the retained row at revision 2 survive reopen. A valid peer
 advances to revision 5, and repeated sync returns the same receipt without a
-commit. Causal admission and resolver campaigns, native Windows and deployed
-peer qualification remain open.
+commit.
+
+The [register causality ledger](decisions/crdt-causality-current.md) checks
+exact wire bytes at 5,461 bounded event prefixes, distinguishes genuine
+retirements from unsupported histories, and verifies minimum and maximum
+resolution at sequence exhaustion. An edit by a resolver for the other actor
+emits no receipt and preserves the current and retained rows. The inventory
+still has 9,284 open records. Native Windows and deployed peer qualification
+remain open.
 
 All R1 and R2–R7 completion gates above remain open.
 

@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/mutations.json": "2c81962697232028f48cb1d35fa0e93e401030b6c62d16361b5eaec952dccd68",
+    "xtask/tests/mutations.json": "ed791ea3125c0b3309b68461722df09084422cbbc9f458fe0f2154309041af35",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -369,8 +369,9 @@
     "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
     "tests/replication.rs": "8a7ec4206552563e6758eb59fd98948f9820032b9972507ec346c7869882668c",
     "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
-    "src/crdt/decisions.rs": "3f494a59c6b7a500a68d103ae4e6fbc4f51e37f4a605d66f02544f79cf024482",
-    "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81"
+    "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
+    "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
+    "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -771,7 +772,8 @@
         "docs/decisions/crdt.md",
         "tests/crdt.rs",
         "docs/decisions/crdt-admission-current.md",
-        "src/crdt/decisions.rs"
+        "src/crdt/decisions.rs",
+        "docs/decisions/crdt-causality-current.md"
       ],
       "residual": "Lawful compatible histories and concrete Record instantiations do not prove arbitrary app algebra or all callback failures."
     },
@@ -20807,6 +20809,593 @@
       ],
       "mutations": [
         "r1-crdt-admission-serve-admission"
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-ASSIGNMENT-LIMIT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "assign",
+        "kind": "try_propagation",
+        "start_byte": 822,
+        "conditions": [
+          "self.0[actor.index()]\n            .sequence\n            .checked_add(1)\n            .ok_or(Error::Exhausted)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_decode_and_same_dot_predicate_controls"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-assignment-limit"
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-EMPTY-RESOLUTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "resolve_with",
+        "kind": "try_propagation",
+        "start_byte": 1689,
+        "conditions": [
+          "values.next()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_decode_and_same_dot_predicate_controls"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-resolve-empty"
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-ENCODE-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "encode",
+        "kind": "if",
+        "start_byte": 2875,
+        "conditions": [
+          "bytes.len() != Self::SIZE"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_decode_and_same_dot_predicate_controls"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-encode-length"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-DECODE-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "if",
+        "start_byte": 3385,
+        "conditions": [
+          "bytes.len() != Self::SIZE"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_decode_and_same_dot_predicate_controls"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-decode-length"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-ABSENT-TAG-VALUE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "match_guard",
+        "start_byte": 3849,
+        "conditions": [
+          "value == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_decode_and_same_dot_predicate_controls"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-absent-payload"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-LIVE-TAG-SEQUENCE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "match_guard",
+        "start_byte": 3890,
+        "conditions": [
+          "sequence != 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_decode_and_same_dot_predicate_controls"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-live-sequence"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-ALL-RETIRED",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "if",
+        "start_byte": 4287,
+        "conditions": [
+          "state.0.iter().all(|entry| entry.value.is_none())",
+          "state.0.iter().any(|entry| entry.sequence != 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_decode_and_same_dot_predicate_controls"
+        },
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_rejects_empty_history_and_unwitnessed_retirements"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-all-retired",
+        "r1-crdt-causal-noninitial"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-FUTURE-LOCAL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "check_peer",
+        "kind": "if",
+        "start_byte": 4685,
+        "conditions": [
+          "incoming.0[actor].sequence > self.0[actor].sequence"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_decode_and_same_dot_predicate_controls"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-future-local"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-NOVEL-RETIREMENT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "check_peer",
+        "kind": "short_circuit_and",
+        "start_byte": 5152,
+        "conditions": [
+          "remote.value.is_none()",
+          "remote.sequence > local.sequence",
+          "remote.sequence == local.sequence",
+          "local.value.is_some()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_rejects_empty_history_and_unwitnessed_retirements"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-retirement-absence",
+        "r1-crdt-causal-retirement-higher",
+        "r1-crdt-causal-retirement-equal",
+        "r1-crdt-causal-retirement-live"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true,
+            false,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-RETIREMENT-WITNESS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/multi_value_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "check_peer",
+        "kind": "if",
+        "start_byte": 5326,
+        "conditions": [
+          "new_retirement",
+          "incoming.0[1 - index].sequence <= self.0[1 - index].sequence"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "register_rejects_empty_history_and_unwitnessed_retirements"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-witness-only-retirement",
+        "r1-crdt-causal-witness-novel"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-DISTINCT-CHOICES",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt/policy_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "resolve",
+        "kind": "if",
+        "start_byte": 2387,
+        "conditions": [
+          "let (Some(first), Some(second)) = (choices.next(), choices.next())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "min_and_max_policies_assign_only_for_distinct_choices_and_respect_exhaustion"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-resolve-distinct"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-POLICY-EXHAUSTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt/policy_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "resolve",
+        "kind": "try_propagation",
+        "start_byte": 2515,
+        "conditions": [
+          "self.assign(actor, P::choose(first, second))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "min_and_max_policies_assign_only_for_distinct_choices_and_respect_exhaustion"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-resolve-exhausted"
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-POLICY-DECODE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt/policy_register.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "try_propagation",
+        "start_byte": 3060,
+        "conditions": [
+          "MultiValueRegister::decode(bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "min_and_max_policies_assign_only_for_distinct_choices_and_respect_exhaustion"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-policy-decode"
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-SERVE-CHANGE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "serve_authenticated",
+        "kind": "if",
+        "start_byte": 15757,
+        "conditions": [
+          "local.payload != previous"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "resolver_edit_for_the_other_actor_cannot_publish_or_acknowledge"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-serve-changed"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-SERVE-REVALIDATION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "serve_authenticated",
+        "kind": "if",
+        "start_byte": 15898,
+        "conditions": [
+          "local.payload != merged"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "resolver_edit_for_the_other_actor_cannot_publish_or_acknowledge"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-serve-revalidate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-CAUSAL-SERVE-VALIDATION-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "serve_authenticated",
+        "kind": "try_propagation",
+        "start_byte": 15987,
+        "conditions": [
+          "self.check_local_edit(merged, local.payload)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "resolver_edit_for_the_other_actor_cannot_publish_or_acknowledge"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-causal-serve-validation-result"
       ]
     }
   ],

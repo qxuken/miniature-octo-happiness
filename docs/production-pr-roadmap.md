@@ -128,8 +128,11 @@ capture and saved-image factories.
 
 Batch 10 starts with [CRDT actor and policy admission](decisions/crdt-admission-current.md).
 The durable fixture checks both sync roles, retained state after reopen, and
-receipt coverage before progress is reported. Causality, exhaustion and
-automatic resolution have further qualification work.
+receipt coverage before progress is reported. The
+[register causality and resolution ledger](decisions/crdt-causality-current.md)
+covers the two-actor event model, sequence and retirement admission, bounded
+minimum and maximum resolution, and rejection before publication or receipt.
+Native Windows and deployed peer qualification remain open.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those
