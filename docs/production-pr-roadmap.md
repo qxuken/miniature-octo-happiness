@@ -74,8 +74,10 @@ Batch 5 starts with [ByteStore transfers and local publication](decisions/bytest
 [Linux metadata validation](decisions/linux-metadata-current.md),
 [Windows pathname preparation](decisions/windows-paths-current.md),
 [Unix scratch preparation and positioned I/O](decisions/unix-scratch-io-current.md),
-and [Linux architecture admission](decisions/linux-architecture-current.md).
-Remaining descriptor and metadata failures and native Win32 decisions follow.
+[Linux architecture admission](decisions/linux-architecture-current.md),
+and [Unix compaction descriptor exhaustion](decisions/unix-descriptors-current.md).
+Remaining descriptor clone and metadata syscall failures and native Win32
+decisions follow.
 Batch 9 covers the follower's separate durability acknowledgment.
 
 Develop the support contract alongside the assurance work. The contract sets

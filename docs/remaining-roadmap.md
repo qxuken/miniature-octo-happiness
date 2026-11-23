@@ -374,6 +374,14 @@ and reopen through a portable ByteStore. Both profiles detect both guard
 mutations on both targets. The queue has 9,445 open records
 (2,076 runtime / 26 driver / 7,343 tooling).
 
+The [Unix descriptor ledger](decisions/unix-descriptors-current.md) qualifies
+eleven real EMFILE outcomes at `49c64fd` on macOS and Docker Linux. Each
+case preserves the canonical inode, current and retained images, and
+available descriptor count. A same-process retry matches the simulator
+reference bytes after freeing handles. Linux repeats both profiles as UID
+and GID 1000. Six propagation dispositions leave 9,439 open records
+(2,070 runtime / 26 driver / 7,343 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
