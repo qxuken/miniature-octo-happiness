@@ -497,7 +497,12 @@ mod transfer_tests {
 #[cfg(test)]
 mod decision_tests {
     use super::*;
-    use crate::{Limits, memory::ChargedVec, tree::Map};
+    use crate::{
+        Limits,
+        memory::{ChargedVec, test_allocator::TestAllocator},
+        tree::Map,
+    };
+    use std::sync::Arc;
 
     #[test]
     fn cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease() {
@@ -559,13 +564,13 @@ mod decision_tests {
         let mut unwitnessed = original.clone();
         unwitnessed[witness..witness + REGION].fill(0);
 
-        let box_claims = (0..4)
+        let allocator = Arc::new(TestAllocator::default());
+        let box_requests = (0..4)
             .find(|&allowance| {
                 let disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
-                let mem = Memory::new(Limits::default()).unwrap();
-                mem.fail_after(Some(allowance));
-                let result = Storage::locked(disk.clone(), &mem);
-                mem.fail_after(None);
+                let mem = allocator.memory(Limits::default());
+                let result =
+                    allocator.with_refusal(allowance, || Storage::locked(disk.clone(), &mem));
                 let success = result.is_ok();
                 if !success {
                     assert_eq!(result.as_ref().err(), Some(&Error::OutOfMemory));
@@ -577,17 +582,15 @@ mod decision_tests {
                 success
             })
             .expect("backend box calibration completes");
-        assert_eq!(box_claims, 1);
+        assert_eq!(box_requests, 1);
 
         let mut decode_trace = Vec::new();
-        let decode_claims = (0..256)
+        let decode_requests = (0..256)
             .find(|&allowance| {
                 let mut disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
                 disk.lock().unwrap();
-                let mem = Memory::new(Limits::default()).unwrap();
-                mem.fail_after(Some(allowance));
-                let result = codec::recover(&mut disk, &mem);
-                mem.fail_after(None);
+                let mem = allocator.memory(Limits::default());
+                let result = allocator.with_refusal(allowance, || codec::recover(&mut disk, &mem));
                 let success = result.is_ok();
                 if let Ok(recovered) = &result {
                     assert!(!recovered.witnessed);
@@ -607,17 +610,16 @@ mod decision_tests {
             .expect("raw decoder calibration completes");
 
         let phases = ["VALUE index", "VALUE header", "DATA index", "DATA header"];
-        // Identify each claim at the real constructors before applying its
+        // Identify each request at the constructors before applying its
         // calibrated offset to Storage::open; do not assume four failures are
         // later than the last decoder allocation merely from their read trace.
         for allowance in 0..=phases.len() {
             let mut disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
             disk.lock().unwrap();
-            let mem = Memory::new(Limits::default()).unwrap();
+            let mem = allocator.memory(Limits::default());
             let recovered = codec::recover(&mut disk, &mem).unwrap();
             let mut phase = phases[0];
-            mem.fail_after(Some(allowance));
-            let prepared = (|| -> Result<_> {
+            let prepared = allocator.with_refusal(allowance, || {
                 let values = ValueCache::from_entries(&mem, recovered.cache)?;
                 phase = phases[1];
                 let values = mem.shared(values)?;
@@ -625,10 +627,9 @@ mod decision_tests {
                 let data = DataCache::from_entries(&mem, recovered.data_cache)?;
                 phase = phases[3];
                 Ok((values, mem.shared(data)?))
-            })();
-            mem.fail_after(None);
+            });
             if allowance < phases.len() {
-                assert_eq!(phase, phases[allowance], "constructor claim calibration");
+                assert_eq!(phase, phases[allowance], "constructor request calibration");
                 assert_eq!(prepared.as_ref().err(), Some(&Error::OutOfMemory));
             } else {
                 assert!(prepared.is_ok());
@@ -643,10 +644,10 @@ mod decision_tests {
 
         for allowance in 0..=phases.len() {
             let disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
-            let mem = Memory::new(Limits::default()).unwrap();
-            mem.fail_after(Some(box_claims + decode_claims + allowance));
-            let result = Storage::open(disk.clone(), &mem);
-            mem.fail_after(None);
+            let mem = allocator.memory(Limits::default());
+            let result = allocator.with_refusal(box_requests + decode_requests + allowance, || {
+                Storage::open(disk.clone(), &mem)
+            });
             let trace = disk.trace().unwrap();
             if allowance < phases.len() {
                 assert_eq!(
@@ -706,7 +707,7 @@ mod decision_tests {
             );
         }
         eprintln!(
-            "cold-open calibration: box={box_claims}, decoder={decode_claims}, phases={phases:?}"
+            "cold-open calibration: box={box_requests}, decoder={decode_requests}, phases={phases:?}"
         );
     }
 

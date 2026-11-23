@@ -2,7 +2,7 @@
 //! weaker fallback, and requires renameat2(RENAME_EXCHANGE) for compaction.
 use super::file::retry;
 use super::{NativeIoOperation, diagnostics};
-use crate::{Error, Result, memory::Memory};
+use crate::{AllocatorHandle, Error, Result, memory::Memory};
 use std::{
     ffi::{c_char, c_int, c_void},
     fs::{File, Permissions},
@@ -149,7 +149,10 @@ fn status(code: c_int) -> io::Result<()> {
         Err(io::Error::last_os_error())
     }
 }
-fn blob(mem: &Memory, mut read: impl FnMut(*mut c_void, usize) -> isize) -> Result<Vec<u8>> {
+fn blob(
+    mem: &Memory,
+    mut read: impl FnMut(*mut c_void, usize) -> isize,
+) -> Result<Vec<u8, AllocatorHandle>> {
     let mut call = |buffer, size| {
         retry(NativeIoOperation::CopyMetadata, || {
             let n = read(buffer, size);
@@ -166,7 +169,7 @@ fn blob(mem: &Memory, mut read: impl FnMut(*mut c_void, usize) -> isize) -> Resu
     if size > 65536 {
         return Err(Error::Limit);
     }
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::new_in(mem.allocator());
     mem.reserve_external(&mut bytes, size)?;
     bytes.resize(size, 0);
     let n = call(bytes.as_mut_ptr().cast(), size)?;
@@ -175,7 +178,7 @@ fn blob(mem: &Memory, mut read: impl FnMut(*mut c_void, usize) -> isize) -> Resu
     }
     Ok(bytes)
 }
-fn names(file: &File, mem: &Memory) -> Result<Vec<u8>> {
+fn names(file: &File, mem: &Memory) -> Result<Vec<u8, AllocatorHandle>> {
     let bytes = blob(mem, |buffer, size| unsafe {
         flistxattr(file.as_raw_fd(), buffer.cast(), size)
     })?;
@@ -495,10 +498,18 @@ mod decision_tests {
 #[cfg(test)]
 mod blob_decisions {
     use super::*;
+    use crate::{Limits, memory::test_allocator::TestAllocator};
+    use std::sync::Arc;
     #[test]
     fn metadata_blob_bounds_exact_fill_and_short_callbacks() {
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(Limits {
+            max_live_bytes: 0,
+            ..Limits::default()
+        });
+        let control_bytes = allocator.live_bytes();
         for size in [0, 3, 65536] {
-            let mem = Memory::new(crate::Limits::default()).unwrap();
+            let requests = allocator.requests();
             let mut calls = 0;
             let bytes = blob(&mem, |buffer, length| {
                 calls += 1;
@@ -518,20 +529,32 @@ mod blob_decisions {
             .unwrap();
             assert_eq!(calls, 2);
             assert_eq!(bytes, vec![7; size]);
+            assert_eq!(allocator.requests() - requests, usize::from(size != 0));
+            assert_eq!(allocator.live_bytes(), control_bytes + size);
+            assert_eq!(mem.usage(), (0, 0));
+            drop(bytes);
+            assert_eq!(allocator.live_bytes(), control_bytes);
         }
-        let mem = Memory::new(crate::Limits::default()).unwrap();
-        mem.fail_after(Some(0));
         let mut calls = 0;
         assert_eq!(
-            blob(&mem, |_, _| {
+            allocator.with_refusal(0, || blob(&mem, |_, _| {
                 calls += 1;
                 65537
-            }),
+            })),
             Err(Error::Limit)
         );
         assert_eq!(calls, 1);
-        assert_eq!(blob(&mem, |_, _| 65536), Err(Error::OutOfMemory));
-        mem.fail_after(None);
+        calls = 0;
+        assert_eq!(
+            allocator.with_refusal(0, || blob(&mem, |_, _| {
+                calls += 1;
+                65536
+            })),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(calls, 1);
+        assert_eq!(allocator.last_request_size(), 65536);
+        assert_eq!(allocator.live_bytes(), control_bytes);
         for result in [2, 4] {
             let mut calls = 0;
             assert_eq!(
@@ -584,8 +607,9 @@ mod blob_decisions {
                 } else {
                     0
                 }
-            }),
-            Ok(vec![])
+            })
+            .map(|blob| blob.len()),
+            Ok(0)
         );
         assert_eq!(calls, 3);
         assert!(status(0).is_ok());
