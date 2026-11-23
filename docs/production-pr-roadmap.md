@@ -119,6 +119,9 @@ target paths stay in the inventory.
 Batch 9 starts with [snapshot acknowledgment boundaries](decisions/snapshot-ack-current.md).
 It verifies the selected image after Ready and terminal transport errors and
 qualifies the sender's receipt admission and follower's retry decisions.
+The [capture and saved-image ledger](decisions/snapshot-capture-current.md)
+covers source and descriptor admission, destination sync and verification,
+and exact current and retained roots after retry.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those

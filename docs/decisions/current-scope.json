@@ -269,7 +269,7 @@
     "docs/tls-handshake-decisions.md": "8642a290a1922b2056270d750e6cbb32a54f966e54807f865f71b48757825a78",
     "include/weekend_db.h": "615e635bd99076fa2781a23ee04ca5083bf4c38332f45b6d37f2fb17774d524c",
     "src/replication/follower/tests.rs": "938f1be96350299f4aa60411639b11d3f25fdc3ddbcddea3eebe824572e1b620",
-    "src/replication/tests.rs": "bf132cfa40f16f42665412d74603fb3e02be54596dd67ea5b3db6329c89f01b5",
+    "src/replication/tests.rs": "0382e0b86d768dbaabc1801fbbb63df88917d5da805812d1caffbd3e4cb3a23f",
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
     "tests/allocation.rs": "b2546afd7e746c8fefc5d12f0df66d27f84d2a9eaca19fb50a8286fe255dbc31",
     "tests/allocator_routing.rs": "eb9f78809734a6684708ddc06a9cf47f2589a3fa06006465758a30c44bc47f06",
@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/mutations.json": "a2557caa3890edc150c75eec17b21a8b589c742c3530c8e38885e3e479d2b482",
+    "xtask/tests/mutations.json": "08f0400154a09e480ab5ca15cfcb2b25dce940d09cca38d34085936ec6a3288f",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -365,7 +365,8 @@
     "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
     "xtask/src/mutations.rs": "9a72b1ed112f56db1d27e67e351bd9559f15cfc6160fa385be986f4b759c7153",
-    "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12"
+    "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
+    "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -779,7 +780,8 @@
         "docs/decisions/replication.md",
         "src/replication/tests.rs",
         "src/replication/follower/tests.rs",
-        "docs/decisions/snapshot-ack-current.md"
+        "docs/decisions/snapshot-ack-current.md",
+        "docs/decisions/snapshot-capture-current.md"
       ],
       "residual": "Exact local/follower acknowledgment contracts remain separate; broader transport/OS errors remain delegated."
     },
@@ -18842,6 +18844,546 @@
           ],
           "outcome": true
         }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-REOPEN-ADMISSION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reopen_export",
+        "kind": "if",
+        "start_byte": 7041,
+        "conditions": [
+          "descriptor.enrollment != self.enrollment",
+          "descriptor.revision > self.verified_revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "reopened_exports_require_the_saved_identity_and_keep_the_original_bytes"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-reopen-enrollment",
+        "r1-snapshot-capture-reopen-ahead"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-REOPEN-OFFER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reopen_export",
+        "kind": "try_propagation",
+        "start_byte": 7262,
+        "conditions": [
+          "offer.validate()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "reopened_exports_require_the_saved_identity_and_keep_the_original_bytes"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-reopen-offer"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-REOPEN-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reopen_export",
+        "kind": "try_propagation",
+        "start_byte": 7302,
+        "conditions": [
+          "Memory::new(limits)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "reopened_exports_require_the_saved_identity_and_keep_the_original_bytes"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-reopen-config"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-REOPEN-LEASE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reopen_export",
+        "kind": "try_propagation",
+        "start_byte": 7359,
+        "conditions": [
+          "Storage::locked(image, &mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "reopened_exports_require_the_saved_identity_and_keep_the_original_bytes"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-reopen-lease"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-REOPEN-DIGEST",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reopen_export",
+        "kind": "if",
+        "start_byte": 7415,
+        "conditions": [
+          "image_digest(backend, offer.length)? != offer.digest"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "reopened_exports_require_the_saved_identity_and_keep_the_original_bytes"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-reopen-digest"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-REOPEN-DIGEST-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reopen_export",
+        "kind": "try_propagation",
+        "start_byte": 7453,
+        "conditions": [
+          "image_digest(backend, offer.length)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "reopened_exports_require_the_saved_identity_and_keep_the_original_bytes"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-reopen-digest-io"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-REOPEN-VERIFY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reopen_export",
+        "kind": "try_propagation",
+        "start_byte": 7693,
+        "conditions": [
+          "recover_replica(\n            backend,\n            &mem,\n            self.enrollment.file_identity,\n            offer.revision,\n            offer.length,\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "reopened_exports_require_the_saved_identity_and_keep_the_original_bytes"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-reopen-verify"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-SOURCE-ADMISSION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "check_revision",
+        "kind": "if",
+        "start_byte": 8558,
+        "conditions": [
+          "identity != self.enrollment.file_identity",
+          "revision < self.verified_revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_capture_source_and_limits_are_checked_before_creating_destination"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-source-identity",
+        "r1-snapshot-capture-source-rollback"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-LIVE-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "capture_live",
+        "kind": "try_propagation",
+        "start_byte": 9251,
+        "conditions": [
+          "Memory::new(limits)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_capture_source_and_limits_are_checked_before_creating_destination"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-live-config"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-LIVE-SOURCE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "capture_live",
+        "kind": "try_propagation",
+        "start_byte": 9307,
+        "conditions": [
+          "source.replication_snapshot(&mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_capture_source_and_limits_are_checked_before_creating_destination"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-live-source"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-LIVE-ADMISSION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "capture_live",
+        "kind": "try_propagation",
+        "start_byte": 9389,
+        "conditions": [
+          "self.check_revision(state.identity, state.head.revision)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_capture_source_and_limits_are_checked_before_creating_destination"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-live-admission"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-LIVE-DESTINATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "capture_live",
+        "kind": "try_propagation",
+        "start_byte": 9453,
+        "conditions": [
+          "destination()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_capture_source_and_limits_are_checked_before_creating_destination"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-live-destination"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-LIVE-ENCODE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "capture_live",
+        "kind": "try_propagation",
+        "start_byte": 9461,
+        "conditions": [
+          "state.encode(destination()?, &mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-live-encode"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-LIVE-VERIFY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "capture_live",
+        "kind": "try_propagation",
+        "start_byte": 9492,
+        "conditions": [
+          "storage.verify(&mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-live-verify"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-FINISH-DIGEST",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "finish_capture",
+        "kind": "try_propagation",
+        "start_byte": 9761,
+        "conditions": [
+          "image_digest(storage.image_bytes(), length)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-finish-digest"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-SHIP-ADMISSION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "ship",
+        "kind": "if",
+        "start_byte": 11648,
+        "conditions": [
+          "export.enrollment != self.enrollment",
+          "offer.revision > self.verified_revision"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "source_and_export_identity_revision_guards_are_independent"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-ship-enrollment",
+        "r1-snapshot-capture-ship-ahead"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-VISIT-EXACT-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "visit_image",
+        "kind": "if",
+        "start_byte": 13266,
+        "conditions": [
+          "backend.length()? != length"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "visit_image_length_and_callback_errors_stop_before_more_chunks"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-visit-exact-length"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-VISIT-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "visit_image",
+        "kind": "try_propagation",
+        "start_byte": 13549,
+        "conditions": [
+          "read_all(backend, offset, chunk)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "live_copy_failures_leave_the_source_healthy_and_the_sender_bound_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-visit-read"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-CAPTURE-VISIT-CALLBACK",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/replication/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "visit_image",
+        "kind": "try_propagation",
+        "start_byte": 13572,
+        "conditions": [
+          "visit(chunk)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/tests.rs",
+          "name": "visit_image_length_and_callback_errors_stop_before_more_chunks"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-capture-visit-callback"
       ]
     }
   ],

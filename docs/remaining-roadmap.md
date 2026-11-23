@@ -533,6 +533,13 @@ pass on macOS and Docker Linux, and Miri passes the flush fixture. The queue
 has 9,332 open records (1,949 runtime / 26 driver / 7,357 tooling). Native
 Windows and delivered transport fault qualification remain open.
 
+The [snapshot capture ledger](decisions/snapshot-capture-current.md) checks
+43 destination faults during live capture and 18 read faults during reopen at
+`729d3ba`. It verifies exact bytes and current and retained roots after retry,
+and preserves the sender's earlier verified bound and follower receipt on
+failure. The queue has 9,310 open records (1,927 runtime / 26 driver / 7,357
+tooling). Native Windows and deployed transport and device cases remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
