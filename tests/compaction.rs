@@ -856,6 +856,253 @@ mod files {
     }
 
     #[cfg(feature = "fault-injection")]
+    mod descriptors {
+        use super::*;
+        use std::{fs::File, os::unix::fs::MetadataExt, process::Command};
+        use weekend_db::storage::{
+            CompactionStep as Step, NativeIoOperation as Operation, compact_file_with_hook,
+            with_storage_diagnostics,
+        };
+
+        const CHILD_CASE: &str = "WEEKEND_TEST_COMPACTION_DESCRIPTOR_CASE";
+        const TEST: &str =
+            "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots";
+        const EMFILE: i32 = 24;
+
+        #[derive(Clone, Copy)]
+        enum Scratch {
+            Absent,
+            Empty,
+            Complete,
+        }
+
+        struct Case {
+            name: &'static str,
+            free: usize,
+            checkpoint: Option<Step>,
+            operation: Operation,
+            scratch: Scratch,
+        }
+
+        const CASES: &[Case] = &[
+            Case {
+                name: "source parent",
+                free: 0,
+                checkpoint: None,
+                operation: Operation::OpenDirectory,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "source directory duplicate",
+                free: 1,
+                checkpoint: None,
+                operation: Operation::DuplicateHandle,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "source open",
+                free: 2,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "source lease check",
+                free: 3,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "source claim check",
+                free: 4,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "scratch directory duplicate",
+                free: 16,
+                checkpoint: Some(Step::SourceLength),
+                operation: Operation::DuplicateHandle,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "target directory duplicate",
+                free: 5,
+                checkpoint: None,
+                operation: Operation::DuplicateHandle,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "target create",
+                free: 6,
+                checkpoint: None,
+                operation: Operation::Create,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "target lease check",
+                free: 7,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Empty,
+            },
+            Case {
+                name: "target claim check",
+                free: 8,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Empty,
+            },
+            Case {
+                name: "pre-exchange name check",
+                free: 16,
+                checkpoint: Some(Step::CheckNames),
+                operation: Operation::Open,
+                scratch: Scratch::Complete,
+            },
+        ];
+
+        fn fill_descriptor_table() -> Vec<File> {
+            let mut descriptors = Vec::new();
+            for _ in 0..64 {
+                match File::open("/dev/null") {
+                    Ok(file) => descriptors.push(file),
+                    Err(error) => {
+                        assert_eq!(error.raw_os_error(), Some(EMFILE));
+                        return descriptors;
+                    }
+                }
+            }
+            panic!("descriptor limit was not enforced");
+        }
+
+        fn run_child(case: &Case) {
+            let limits = Limits::default();
+            let source = Path::new("store.db");
+            let unrelated = Path::new(".wdb-compact-unrelated.tmp");
+            let before = fs::read(source).unwrap();
+            let inode = fs::metadata(source).unwrap().ino();
+            let mut original =
+                Database::open_on(SimulatedDisk::from_image(&before).unwrap(), limits).unwrap();
+            let reference = SimulatedDisk::new().unwrap();
+            original.compact_to(reference.clone()).unwrap();
+            let compacted = reference.durable_image().unwrap();
+
+            let mut held = fill_descriptor_table();
+            assert!(held.len() > case.free);
+            held.truncate(held.len() - case.free);
+            let checkpoint = case.checkpoint;
+            let reached = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let observed = reached.clone();
+            let mut checkpoint_fds = Vec::new();
+            let failure = with_storage_diagnostics(|| {
+                compact_file_with_hook(source, limits, move |event| {
+                    assert_ne!(event.step, Step::Exchange, "failure passed the name check");
+                    if checkpoint == Some(event.step)
+                        && !event.after
+                        && !observed.swap(true, Ordering::Relaxed)
+                    {
+                        checkpoint_fds.extend(fill_descriptor_table());
+                        assert!(!checkpoint_fds.is_empty());
+                    }
+                    Ok(())
+                })
+            })
+            .unwrap_err();
+            assert_eq!(failure.error, Error::Io, "{}", case.name);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, case.operation, "{}", case.name);
+            assert_eq!(native.raw_os_error, Some(EMFILE), "{}", case.name);
+            assert_eq!(reached.load(Ordering::Relaxed), checkpoint.is_some());
+            assert_eq!(
+                fill_descriptor_table().len(),
+                case.free,
+                "descriptor leak at {}",
+                case.name
+            );
+            drop(held);
+
+            assert_eq!(fs::metadata(source).unwrap().ino(), inode);
+            assert_eq!(fs::read(source).unwrap(), before);
+            assert_eq!(fs::read(unrelated).unwrap(), b"unrelated");
+            check(&Database::open_file(source, limits).unwrap(), &original);
+
+            let mut scratch = fs::read_dir(".")
+                .unwrap()
+                .map(|entry| PathBuf::from(entry.unwrap().file_name()))
+                .filter(|entry| entry != source && entry != unrelated);
+            let saved = match case.scratch {
+                Scratch::Absent => None,
+                Scratch::Empty | Scratch::Complete => {
+                    let path = scratch.next().expect("operation's scratch file");
+                    assert!(
+                        path.as_os_str()
+                            .to_str()
+                            .unwrap()
+                            .starts_with(".wdb-compact-")
+                    );
+                    let bytes = fs::read(&path).unwrap();
+                    match case.scratch {
+                        Scratch::Empty => assert!(bytes.is_empty()),
+                        Scratch::Complete => assert_eq!(bytes, compacted),
+                        Scratch::Absent => unreachable!(),
+                    }
+                    Some((path, bytes))
+                }
+            };
+            assert!(scratch.next().is_none(), "{}", case.name);
+
+            Database::compact_file(source, limits).unwrap();
+            assert_ne!(fs::metadata(source).unwrap().ino(), inode);
+            assert_eq!(fs::read(source).unwrap(), compacted);
+            check(&Database::open_file(source, limits).unwrap(), &original);
+            assert_eq!(fs::read(unrelated).unwrap(), b"unrelated");
+            let expected_files = 2 + usize::from(saved.is_some());
+            if let Some((path, bytes)) = saved {
+                assert_eq!(fs::read(path).unwrap(), bytes);
+            }
+            assert_eq!(fs::read_dir(".").unwrap().count(), expected_files);
+            println!("verified descriptor exhaustion at {}", case.name);
+        }
+
+        #[test]
+        fn descriptor_exhaustion_preserves_current_and_retained_roots() {
+            if let Ok(case) = std::env::var(CHILD_CASE) {
+                run_child(&CASES[case.parse::<usize>().unwrap()]);
+                return;
+            }
+            let executable = std::env::current_exe().unwrap();
+            for (index, case) in CASES.iter().enumerate() {
+                let dir = Directory::new();
+                seed(&dir.path("store.db"));
+                fs::write(dir.path(".wdb-compact-unrelated.tmp"), b"unrelated").unwrap();
+                let output = Command::new("/bin/sh")
+                    .args(["-c", "ulimit -Sn 64 && exec \"$@\"", "descriptor-worker"])
+                    .arg(&executable)
+                    .args(["--exact", TEST, "--nocapture"])
+                    .env(CHILD_CASE, index.to_string())
+                    .current_dir(&dir.0)
+                    .output()
+                    .unwrap();
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let receipt = format!("verified descriptor exhaustion at {}", case.name);
+                assert!(
+                    output.status.success()
+                        && stdout
+                            .contains(&format!("verified descriptor exhaustion at {}", case.name)),
+                    "{}: {}\n{}",
+                    case.name,
+                    stdout,
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                println!("{receipt}");
+            }
+        }
+    }
+
+    #[cfg(feature = "fault-injection")]
     #[test]
     fn recheck_rejects_replaced_canonical_or_scratch_inode_before_exchange() {
         use std::os::unix::fs::MetadataExt;

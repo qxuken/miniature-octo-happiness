@@ -8886,6 +8886,78 @@
       "matches": 1,
       "package": "weekend-db",
       "os": "linux"
+    },
+    {
+      "name": "r1-unix-descriptor-duplicate-native",
+      "file": "src/storage/file.rs",
+      "old": "    fn duplicate(&self) -> Result<Self> {\n        Ok(Self {\n            directory: retry(NativeIoOperation::DuplicateHandle,",
+      "new": "    fn duplicate(&self) -> Result<Self> {\n        Ok(Self {\n            directory: retry(NativeIoOperation::Open,",
+      "test": "compaction",
+      "exact_test": "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-descriptor-source-duplicate",
+      "file": "src/storage/file.rs",
+      "old": "let source = original.duplicate()?.open_mode(false, true)?;",
+      "new": "let source = original.duplicate().map_err(|_| Error::Busy)?.open_mode(false, true)?;",
+      "test": "compaction",
+      "exact_test": "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-descriptor-scratch-native",
+      "file": "src/storage/file.rs",
+      "old": "        name.extend_from_slice(suffix);\n        Ok(Self {\n            directory: retry(NativeIoOperation::DuplicateHandle,",
+      "new": "        name.extend_from_slice(suffix);\n        Ok(Self {\n            directory: retry(NativeIoOperation::Open,",
+      "test": "compaction",
+      "exact_test": "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-descriptor-scratch-result",
+      "file": "src/storage/file.rs",
+      "old": "let scratch = original.scratch(identity)?;",
+      "new": "let scratch = original.scratch(identity).map_err(|_| Error::Busy)?;",
+      "test": "compaction",
+      "exact_test": "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-descriptor-target-duplicate",
+      "file": "src/storage/file.rs",
+      "old": "let target = scratch.duplicate()?.open_mode(true, true)?;",
+      "new": "let target = scratch.duplicate().map_err(|_| Error::Busy)?.open_mode(true, true)?;",
+      "test": "compaction",
+      "exact_test": "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-unix-descriptor-target-open",
+      "file": "src/storage/file.rs",
+      "old": "let target = scratch.duplicate()?.open_mode(true, true)?;",
+      "new": "let target = scratch.duplicate()?.open_mode(true, true).map_err(|_| Error::Busy)?;",
+      "test": "compaction",
+      "exact_test": "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
