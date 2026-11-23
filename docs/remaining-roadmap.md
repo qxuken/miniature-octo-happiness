@@ -547,6 +547,13 @@ records under `src/replication/` now have scoped dispositions. The inventory
 has 9,284 open records (1,901 runtime / 26 driver / 7,357 tooling). Native
 Windows and application transport and deployment evidence remain open.
 
+The [CRDT admission ledger](decisions/crdt-admission-current.md) verifies
+actor and policy rejections in both sync roles at `50086ab`. The current row
+at revision 4 and the retained row at revision 2 survive reopen. A valid peer
+advances to revision 5, and repeated sync returns the same receipt without a
+commit. Causal admission and resolver campaigns, native Windows and deployed
+peer qualification remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

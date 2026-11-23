@@ -126,6 +126,11 @@ The [sender reply and capture ledger](decisions/snapshot-sender-current.md)
 qualifies poll and ship reply dispatch, error propagation, and native
 capture and saved-image factories.
 
+Batch 10 starts with [CRDT actor and policy admission](decisions/crdt-admission-current.md).
+The durable fixture checks both sync roles, retained state after reopen, and
+receipt coverage before progress is reported. Causality, exhaustion and
+automatic resolution have further qualification work.
+
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those
 gates and the applicable assurance batches are complete.

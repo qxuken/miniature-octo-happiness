@@ -296,7 +296,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/mutations.json": "2241ffe59aaa1ae80056a60d3a41f7384bdfd87b2bb7a9a97d6f666eb4fb0af5",
+    "xtask/tests/mutations.json": "2c81962697232028f48cb1d35fa0e93e401030b6c62d16361b5eaec952dccd68",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -368,7 +368,9 @@
     "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
     "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
     "tests/replication.rs": "8a7ec4206552563e6758eb59fd98948f9820032b9972507ec346c7869882668c",
-    "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee"
+    "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
+    "src/crdt/decisions.rs": "3f494a59c6b7a500a68d103ae4e6fbc4f51e37f4a605d66f02544f79cf024482",
+    "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -767,7 +769,9 @@
       "references": [
         "docs/decisions/current.md",
         "docs/decisions/crdt.md",
-        "tests/crdt.rs"
+        "tests/crdt.rs",
+        "docs/decisions/crdt-admission-current.md",
+        "src/crdt/decisions.rs"
       ],
       "residual": "Lawful compatible histories and concrete Record instantiations do not prove arbitrary app algebra or all callback failures."
     },
@@ -19961,6 +19965,848 @@
       ],
       "mutations": [
         "r1-snapshot-sender-finish-offer"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-POLICY-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "validate",
+        "kind": "if",
+        "start_byte": 1461,
+        "conditions": [
+          "self.collection == [0; 16]",
+          "self.generation == 0",
+          "self.actors[0] == [0; 16]",
+          "self.actors[0] >= self.actors[1]"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-zero-collection",
+        "r1-crdt-admission-zero-generation",
+        "r1-crdt-admission-zero-actor",
+        "r1-crdt-admission-actor-order"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-COLLECTION-MISMATCH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "matches",
+        "kind": "if",
+        "start_byte": 1756,
+        "conditions": [
+          "other.collection != self.collection"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-collection-mismatch"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-POLICY-MISMATCH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "matches",
+        "kind": "if",
+        "start_byte": 1860,
+        "conditions": [
+          "other != self"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-policy-mismatch"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-OWNED-COMPONENT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "check_peer",
+        "kind": "if",
+        "start_byte": 3501,
+        "conditions": [
+          "incoming.0[local_actor.0] > self.0[local_actor.0]"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-owned-component"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-FRAME-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "if",
+        "start_byte": 8966,
+        "conditions": [
+          "bytes.len() != HEADER + P::SIZE"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-frame-length"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-DECODE-FORMAT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "if",
+        "start_byte": 9061,
+        "conditions": [
+          "&bytes[..8] != P::FORMAT"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-decode-format"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-DECODED-POLICY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "try_propagation",
+        "start_byte": 9521,
+        "conditions": [
+          "policy.validate().map_err(|_| Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-decoded-policy"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-ACTOR-INDEX",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "if",
+        "start_byte": 9576,
+        "conditions": [
+          "actor >= policy.actors.len()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-actor-index"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-DECODE-PAYLOAD",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode",
+        "kind": "try_propagation",
+        "start_byte": 9709,
+        "conditions": [
+          "P::decode(&bytes[HEADER..])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-decode-payload"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-READ-MARKER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "read",
+        "kind": "try_propagation",
+        "start_byte": 10037,
+        "conditions": [
+          "channel.read_exact(&mut bytes[..8]).map_err(|_| Error::Io)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-read-marker"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-READ-FORMAT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "read",
+        "kind": "if",
+        "start_byte": 10048,
+        "conditions": [
+          "&bytes[..8] != P::FORMAT"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-read-format"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-READ-BODY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "read",
+        "kind": "try_propagation",
+        "start_byte": 10204,
+        "conditions": [
+          "channel.read_exact(&mut bytes[8..]).map_err(|_| Error::Io)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_frame_independent_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-read-body"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-ENROLL-CONFIGURED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "enroll",
+        "kind": "try_propagation",
+        "start_byte": 11014,
+        "conditions": [
+          "Self::configured(db, collection, policy, actor)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "replica_size_actor_enrollment_and_local_row_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-enroll-configured"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-ENROLL-EXISTING",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "enroll",
+        "kind": "if",
+        "start_byte": 11058,
+        "conditions": [
+          "tx.get(collection, P::KEY)?.is_some()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "replica_size_actor_enrollment_and_local_row_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-enroll-existing"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-OPEN-CONFIGURED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open",
+        "kind": "try_propagation",
+        "start_byte": 11615,
+        "conditions": [
+          "Self::configured(db, collection, policy, actor)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "replica_size_actor_enrollment_and_local_row_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-open-configured"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-OPEN-ROW",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open",
+        "kind": "try_propagation",
+        "start_byte": 11640,
+        "conditions": [
+          "replica.read()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "replica_size_actor_enrollment_and_local_row_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-open-row"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-CONFIGURED-POLICY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "configured",
+        "kind": "try_propagation",
+        "start_byte": 11848,
+        "conditions": [
+          "policy.validate()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "replica_size_actor_enrollment_and_local_row_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-configured-policy"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-CONFIGURED-SIZE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "configured",
+        "kind": "if",
+        "start_byte": 11859,
+        "conditions": [
+          "P::SIZE > MAX_PAYLOAD"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "replica_size_actor_enrollment_and_local_row_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-configured-size"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-CONFIGURED-ACTOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "configured",
+        "kind": "try_propagation",
+        "start_byte": 12081,
+        "conditions": [
+          "policy\n            .actors\n            .iter()\n            .position(|&id| id == actor)\n            .ok_or(Error::ForeignStore)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "replica_size_actor_enrollment_and_local_row_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-configured-actor"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-LOCAL-POLICY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "local_state",
+        "kind": "try_propagation",
+        "start_byte": 12844,
+        "conditions": [
+          "self.policy.matches(state.policy)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-local-policy"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-LOCAL-ACTOR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "local_state",
+        "kind": "if",
+        "start_byte": 12855,
+        "conditions": [
+          "state.actor != self.actor"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "replica_size_actor_enrollment_and_local_row_guards"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-local-actor"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-PEER-POLICY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "check_peer",
+        "kind": "try_propagation",
+        "start_byte": 13201,
+        "conditions": [
+          "self.policy.matches(peer.policy)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-peer-policy"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-PEER-ACTOR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "check_peer",
+        "kind": "if",
+        "start_byte": 13212,
+        "conditions": [
+          "peer.actor == self.actor"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-peer-actor"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-OFFERED-COVERAGE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "check_covers",
+        "kind": "if",
+        "start_byte": 14463,
+        "conditions": [
+          "joined != current"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-offered-coverage"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-PUSH-ADMISSION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "push_authenticated",
+        "kind": "try_propagation",
+        "start_byte": 15044,
+        "conditions": [
+          "self.check_peer(peer, self.state_at(&self.db.snapshot())?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-push-admission"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-PUSH-COVERAGE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "push_authenticated",
+        "kind": "try_propagation",
+        "start_byte": 15104,
+        "conditions": [
+          "Self::check_covers(peer.payload, offered.payload)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-push-coverage"
+      ]
+    },
+    {
+      "name": "CRDT-ADMISSION-SERVE-ADMISSION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/crdt.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "serve_authenticated",
+        "kind": "try_propagation",
+        "start_byte": 15665,
+        "conditions": [
+          "self.check_peer(peer, local)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/crdt/decisions.rs",
+          "name": "policy_and_actor_mismatches_preserve_durable_state_in_both_sync_roles"
+        }
+      ],
+      "mutations": [
+        "r1-crdt-admission-serve-admission"
       ]
     }
   ],
