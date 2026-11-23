@@ -138,6 +138,7 @@ fn register_decode_and_same_dot_predicate_controls() {
         assert_eq!(MultiValueRegister::decode(&bytes).is_ok(), valid);
     }
     assert_eq!(base.encode(&mut bytes[..33]), Err(Error::Buffer));
+    base.encode(&mut bytes).unwrap();
     assert_eq!(
         MultiValueRegister::decode(&bytes[..33]),
         Err(Error::Corrupt)
