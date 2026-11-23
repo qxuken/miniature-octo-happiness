@@ -115,9 +115,9 @@
     "src/storage/replacement.rs": "758de2d4ff064a05b11d046097206602d2f2504f9748d2d0e99ec3693b12ebdf",
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
     "src/storage/simulator.rs": "f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50",
-    "src/storage/windows.rs": "82680592743fa3795295b3d205c303c7652c2bd8022fe5e77001d1cfaf360ddc",
+    "src/storage/windows.rs": "9510cee8de168b43102705c2d4fffd51948dd8f25d96f0509650abddc8a3dca5",
     "src/storage/windows_admission.rs": "6313b98e035f9b32d5f3c2c7dd9ef7dd657e47cb49123d23a65d931ff34052a7",
-    "src/storage/windows_io.rs": "565c123d253d04f062cd64ec72e513b56fc4b1bb0e17b3d06a61cbbc5a179060",
+    "src/storage/windows_io.rs": "93f7e139d6d8e9436e8b18edefe7cf887e23a8d83316a607d6631e54bd354fc3",
     "src/storage/windows_path.rs": "74eab9df1d4c9aa0314f79e75bd68986429d7863079af68df3795a5b2e35f9fe",
     "src/storage/windows_rng.rs": "80fe6d4649e03e6c54ca8e2049800a7733b87cbdcb560b4412a23cdeb8e883d6",
     "src/tree.rs": "f2b4099a101747b657f8990d223710cbd176f8ef9e251b5799fa4744ccd8c8b3",
@@ -181,7 +181,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "1aa4c182c2150eddbeb37807a755b4f53aef9b8048a21d964555cbc6901b1b69",
+    "xtask/src/mutations.rs": "9d7a18a1f40959fd57d1343cf5ad459b2b2f824d8df5563ea178eb19c4423e4d",
     "xtask/src/mutations_windows.rs": "206ce8f319bb74534854fe9a6f93b4a227fde55bbc0bde8c09f34013dfe81f20",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -277,7 +277,7 @@
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
     "tests/durability.rs": "dfefb8f8abdc5c6613bd3b80947769f31a2cba5892046437748a7c2d2aa65f79",
     "tests/engine_decisions.rs": "6d3c2113519a3cbb2fd86f01f9f624bee6ddf3d84dab05b85bfd21a908b5eb83",
-    "tests/files.rs": "4c3bb1515b9a6125476eaeab53083c656b33cf48006aa26a242eb8fd7d741375",
+    "tests/files.rs": "539b7ce0697059082c9240f49ab56c131a25891d3dff0bfa72b3201e51882769",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
@@ -295,7 +295,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "72352a12f638c34d7fa703fa56b33b4ee0ced44bb19d4349b985fcb6571883f8",
+    "xtask/tests/mutations.json": "989d569a3cfa002ac0984513fe1998c772595fb2b72b0841c7bb16daf492fc56",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -330,7 +330,7 @@
     "docs/decisions/unix-leases-current.md": "f5ac5e1ffb2fd9e20db12d310417e74c539e2c2f6bd40fcd426b0ea089c32a58",
     "docs/decisions/unix-path-admission-current.md": "8d91d7f48b4856fba8a09f3f3e3bafbd334fe39987d02655840c6ddb0180cd7c",
     "docs/decisions/unix-sync-current.md": "75017776f67659f67770a9bf187d253ee2da865bd3148e27d987f3d2a100033c",
-    "docs/decisions/macos-primitives-current.md": "00fd12722455cbe12a995fe9f8a96ba8e351984c7bacc3edc842f813af736b10",
+    "docs/decisions/macos-primitives-current.md": "d7b1ec0f78a199ccde2e51876ecdcd8e5851595fdbad5760aa907f5291753976",
     "docs/decisions/linux-primitives-current.md": "05d0e30b6bc23b0ad93116c44a941db70768b2e568797669085679c27c9ec1ed",
     "docs/decisions/linux-metadata-current.md": "9322111c3a33fd7c8b048a9874d150c550644dbd100b5a12a73ab4eda2cee12e",
     "docs/decisions/windows-paths-current.md": "09fc05b2d123e33c10006f65242359f7ea2002bf1774dfc3bfc16557b33f7a6f",
@@ -343,8 +343,9 @@
     "tests/support/descriptor_limit.rs": "cf140e2b111a872e6763ba067d2436c4cfa63085cef1138676d7e646bdaeaed1",
     "xtask/tests/mutations-windows.json": "6a2eb401d709f79bed86b435797a054729fedd60da8b6dffc0f9ce918de35862",
     "docs/decisions/windows-admission-current.md": "148245e024712e57cf43f02cdedb7d5f98a82509af6b8b389835569d6a3d4c93",
-    "docs/decisions/windows-handle-io-current.md": "40ae7f2af37d5aef3d29db03a75a2d196ded3ee5cb641ece201f9a30c41f03a3",
-    "docs/decisions/windows-rng-results-current.md": "cc3e39c76f21ce226d474403cb5a31c14de93e5b3916350abee4e1e045f42a8f"
+    "docs/decisions/windows-handle-io-current.md": "ed74f70a7f7ce018c3aac4c879da8b637f84500e22c1a375bc76fe8d1a9a995a",
+    "docs/decisions/windows-rng-results-current.md": "cc3e39c76f21ce226d474403cb5a31c14de93e5b3916350abee4e1e045f42a8f",
+    "docs/decisions/windows-open-results-current.md": "1469eb6cc3a288e990f504e12d9ccbeda2c7e6cb85e30dd94ae4f5c90da7ad19"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -604,7 +605,8 @@
         "docs/decisions/windows-admission-current.md",
         "xtask/tests/mutations-windows.json",
         "docs/decisions/windows-handle-io-current.md",
-        "docs/decisions/windows-rng-results-current.md"
+        "docs/decisions/windows-rng-results-current.md",
+        "docs/decisions/windows-open-results-current.md"
       ],
       "residual": "Kernel outcomes, coupled pathname predicates, unsupported ABIs and physical power loss remain separate from callback controls."
     },
@@ -15942,6 +15944,43 @@
       ],
       "mutations": [
         "r1-windows-rng-nonzero-draw"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "WINDOWS-OPEN-INVALID-HANDLE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/windows_io.rs",
+        "owner": "own_open_handle",
+        "kind": "if",
+        "conditions": [
+          "handle == (-1isize) as *mut std::ffi::c_void"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/windows_io.rs",
+          "name": "open_result_checks_only_the_invalid_handle_sentinel"
+        }
+      ],
+      "mutations": [
+        "r1-windows-open-invalid-handle",
+        "r1-windows-open-diagnostic-stage"
       ],
       "table": [
         {

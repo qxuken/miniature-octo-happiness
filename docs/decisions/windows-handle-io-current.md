@@ -26,7 +26,7 @@ byte preservation. Existing Windows CI includes this test executable.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/windows_io.rs` | `565c123d253d04f062cd64ec72e513b56fc4b1bb0e17b3d06a61cbbc5a179060` |
+| `src/storage/windows_io.rs` | `93f7e139d6d8e9436e8b18edefe7cf887e23a8d83316a607d6631e54bd354fc3` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |

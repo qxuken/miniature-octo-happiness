@@ -425,6 +425,14 @@ uses the same two controls and preserves their exact failure assertions.
 Native execution remains queued. The queue has 9,408 open records
 (2,039 runtime / 26 driver / 7,343 tooling).
 
+The [Windows file open ledger](decisions/windows-open-results-current.md)
+qualifies the invalid-handle decision and raw operation diagnostics at
+`9dc1e6a`. Both profiles pass the selected suites and detect both controls
+on macOS and Docker Linux. The native regression checks missing paths,
+an existing file and a held lease, then reopens the current and retained
+roots. It cross-compiles for Windows and awaits native execution. The
+queue has 9,407 open records (2,038 runtime / 26 driver / 7,343 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
