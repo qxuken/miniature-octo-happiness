@@ -69,10 +69,21 @@ int main(int argc, char **argv) {
     assert(wdb_scan_value(scan,1,&value) == WDB_OK && scalar(value) == 2);
     assert(wdb_value_release(value) == WDB_OK); assert(wdb_scan_release(scan) == WDB_OK);
     assert(wdb_tx_begin(db,WDB_RECORDS,&first) == WDB_OK);
+    assert(wdb_tx_delete(first,collection + 1,(const uint8_t *)"b",1) == WDB_NOT_FOUND);
     assert(wdb_tx_delete(first,collection,(const uint8_t *)"b",1) == WDB_OK);
+    value = zero;
+    assert(wdb_tx_get(first,collection,(const uint8_t *)"b",1,&value) == WDB_NOT_FOUND);
+    assert(value == NULL);
+    assert(wdb_snapshot_get(historical,collection,(const uint8_t *)"b",1,&value) == WDB_OK);
+    assert(scalar(value) == 0);
+    assert(wdb_value_release(value) == WDB_OK);
+    assert(wdb_tx_scan(first,collection + 1,&scan) == WDB_NOT_FOUND && scan == NULL);
+    assert(wdb_snapshot_scan(historical,collection + 1,&scan) == WDB_NOT_FOUND && scan == NULL);
     assert(wdb_tx_scan(first,collection,&scan) == WDB_OK);
     assert(wdb_scan_len(scan,&count) == WDB_OK && count == 1);
     assert(wdb_tx_abort(first) == WDB_OK); assert(wdb_tx_release(first) == WDB_OK);
+    value = zero;
+    assert(wdb_scan_value(scan,count,&value) == WDB_BOUNDS && value == NULL);
     assert(wdb_scan_value(scan,0,&value) == WDB_OK && scalar(value) == 2);
     assert(wdb_value_release(value) == WDB_OK); assert(wdb_scan_release(scan) == WDB_OK);
 

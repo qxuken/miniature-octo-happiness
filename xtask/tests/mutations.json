@@ -10069,6 +10069,116 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-tx-missing-row",
+      "file": "src/ffi.rs",
+      "old": "let value = tx.value.get(db(tx.owner)?.db.collection_id(id), input(tx.owner, key, len)?)?.ok_or(Error::NotFound)?",
+      "new": "let value = tx.value.get(db(tx.owner)?.db.collection_id(id), input(tx.owner, key, len)?)?.ok_or(Error::Bounds)?",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-tx-read-error",
+      "file": "src/ffi.rs",
+      "old": "let value = tx.value.get(db(tx.owner)?.db.collection_id(id), input(tx.owner, key, len)?)?",
+      "new": "let value = tx.value.get(db(tx.owner)?.db.collection_id(id), input(tx.owner, key, len)?).map_err(|_| Error::Invalid)?",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-snapshot-missing-row",
+      "file": "src/ffi.rs",
+      "old": "let value = snapshot.value.get(owner.db.collection_id(id), input(snapshot.owner, key, len)?)?.ok_or(Error::NotFound)?",
+      "new": "let value = snapshot.value.get(owner.db.collection_id(id), input(snapshot.owner, key, len)?)?.ok_or(Error::Bounds)?",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-snapshot-read-error",
+      "file": "src/ffi.rs",
+      "old": "let value = snapshot.value.get(owner.db.collection_id(id), input(snapshot.owner, key, len)?)?",
+      "new": "let value = snapshot.value.get(owner.db.collection_id(id), input(snapshot.owner, key, len)?).map_err(|_| Error::Invalid)?",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-delete-error",
+      "file": "src/ffi.rs",
+      "old": "tx.value.delete(db(tx.owner)?.db.collection_id(id), input(tx.owner, key, len)?)",
+      "new": "tx.value.delete(db(tx.owner)?.db.collection_id(id), input(tx.owner, key, len)?).map_err(|_| Error::Invalid)",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-delete-overlay",
+      "file": "src/ffi.rs",
+      "old": "tx.value.delete(db(tx.owner)?.db.collection_id(id), input(tx.owner, key, len)?)",
+      "new": "tx.value.get(db(tx.owner)?.db.collection_id(id), input(tx.owner, key, len)?).map(|_| ())",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-snapshot-scan-error",
+      "file": "src/ffi.rs",
+      "old": "snapshot.value.scan_owned(db(snapshot.owner)?.db.collection_id(id))?",
+      "new": "snapshot.value.scan_owned(db(snapshot.owner)?.db.collection_id(id)).map_err(|_| Error::Invalid)?",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-tx-scan-error",
+      "file": "src/ffi.rs",
+      "old": "let rows = tx.value.scan_owned(db(tx.owner)?.db.collection_id(id))?",
+      "new": "let rows = tx.value.scan_owned(db(tx.owner)?.db.collection_id(id)).map_err(|_| Error::Invalid)?",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-scan-value-bounds",
+      "file": "src/ffi.rs",
+      "old": "let (_, value) = scan.value.get(index).ok_or(Error::Bounds)?",
+      "new": "let (_, value) = scan.value.get(index).ok_or(Error::NotFound)?",
+      "test": "ffi::tests::scan_bounds_and_invalid_transaction_modes_reset_outputs",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-ffi-transaction-reads-scan-value-alloc-error",
+      "file": "src/ffi.rs",
+      "old": "make_handle(scan.owner, value.clone(), out)",
+      "new": "make_handle(scan.owner, value.clone(), out).map_err(|_| Error::Limit)",
+      "test": "ffi::decision_tests::exported_reads_and_scans_preserve_statuses_and_pinned_rows",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
