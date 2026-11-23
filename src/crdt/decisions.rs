@@ -163,6 +163,11 @@ fn register_decode_and_same_dot_predicate_controls() {
         vec![4]
     );
     assert_eq!(base.resolve_with(u64::min), Some(4));
+    let singleton = register([0, 1], [None, Some(8)]);
+    assert_eq!(
+        singleton.resolve_with(|_, _| panic!("single choice")),
+        Some(8)
+    );
 }
 #[test]
 fn container_bounds_and_exhaustion_preserve_state() {
@@ -506,15 +511,48 @@ fn register_rejects_empty_history_and_unwitnessed_retirements() {
         assert_eq!(MultiValueRegister::decode(&bytes), Err(Error::Corrupt));
     }
     let live = register([1, 1], [Some(4), Some(5)]);
-    for (incoming, expected) in [
-        (register([1, 1], [None, Some(5)]), Err(Error::Conflict)),
-        (register([1, 1], [Some(4), None]), Err(Error::Conflict)),
-        (register([1, 2], [Some(4), None]), Err(Error::Conflict)),
-        (register([1, 2], [None, Some(6)]), Ok(())),
-        (register([0, 1], [None, Some(5)]), Ok(())),
-        (live, Ok(())),
+    let retired = register([1, 1], [Some(4), None]);
+    for (label, local, incoming, expected) in [
+        (
+            "equal sequence without witness",
+            live,
+            register([1, 1], [None, Some(5)]),
+            Err(Error::Conflict),
+        ),
+        (
+            "new retirement of other actor",
+            live,
+            retired,
+            Err(Error::Conflict),
+        ),
+        (
+            "higher retired sequence without witness",
+            live,
+            register([1, 2], [Some(4), None]),
+            Err(Error::Conflict),
+        ),
+        (
+            "higher live sequence",
+            live,
+            register([1, 2], [Some(4), Some(6)]),
+            Ok(()),
+        ),
+        (
+            "retirement witnessed by the other actor",
+            live,
+            register([1, 2], [None, Some(6)]),
+            Ok(()),
+        ),
+        (
+            "older absence",
+            live,
+            register([1, 0], [Some(4), None]),
+            Ok(()),
+        ),
+        ("already retired", retired, retired, Ok(())),
+        ("same live values", live, live, Ok(())),
     ] {
-        assert_eq!(live.check_peer(incoming, Actor(0)), expected);
+        assert_eq!(local.check_peer(incoming, Actor(0)), expected, "{label}");
     }
     // Each history is individually valid, but each says its assignment followed
     // the other's. Such a causal cycle cannot belong to one enrolled history.
@@ -525,12 +563,129 @@ fn register_rejects_empty_history_and_unwitnessed_retirements() {
 }
 
 #[test]
+fn min_and_max_policies_assign_only_for_distinct_choices_and_respect_exhaustion() {
+    fn check_policy<P: ResolutionPolicy>(selected: u64) {
+        let mut bytes = [0; MultiValueRegister::SIZE];
+        for state in [
+            MultiValueRegister::default(),
+            register([0, 1], [None, Some(8)]),
+            register([u64::MAX, 1], [Some(8), Some(8)]),
+        ] {
+            state.encode(&mut bytes).unwrap();
+            let mut policy = PolicyRegister::<P>::decode(&bytes).unwrap();
+            let previous = policy;
+            assert_eq!(policy.resolve(Actor(0)), Ok(()));
+            assert!(policy == previous);
+        }
+        assert!(matches!(
+            PolicyRegister::<P>::decode(&bytes[..33]),
+            Err(Error::Corrupt)
+        ));
+
+        let before = register([u64::MAX - 1, 1], [Some(4), Some(9)]);
+        before.encode(&mut bytes).unwrap();
+        let mut policy = PolicyRegister::<P>::decode(&bytes).unwrap();
+        assert_eq!(policy.resolve(Actor(0)), Ok(()));
+        assert_eq!(policy.values().collect::<Vec<_>>(), [selected]);
+        let mut actual = [0; MultiValueRegister::SIZE];
+        policy.encode(&mut actual).unwrap();
+        let mut expected = [0; MultiValueRegister::SIZE];
+        expected[..8].copy_from_slice(&u64::MAX.to_le_bytes());
+        expected[8] = 1;
+        expected[9..17].copy_from_slice(&selected.to_le_bytes());
+        expected[17..25].copy_from_slice(&1u64.to_le_bytes());
+        assert_eq!(actual, expected);
+        assert_eq!(policy.resolve(Actor(0)), Ok(()));
+        assert_eq!(policy.assign(Actor(0), 11), Err(Error::Exhausted));
+        policy.encode(&mut actual).unwrap();
+        assert_eq!(actual, expected);
+
+        register([u64::MAX, 1], [Some(4), Some(9)])
+            .encode(&mut bytes)
+            .unwrap();
+        let mut saturated = PolicyRegister::<P>::decode(&bytes).unwrap();
+        assert_eq!(saturated.resolve(Actor(0)), Err(Error::Exhausted));
+        saturated.encode(&mut actual).unwrap();
+        assert_eq!(actual, bytes);
+    }
+    check_policy::<PreferLower>(4);
+    check_policy::<PreferHigher>(9);
+}
+
+#[test]
+fn resolver_edit_for_the_other_actor_cannot_publish_or_acknowledge() {
+    #[derive(Clone, Copy, Default, PartialEq, Eq)]
+    struct WrongActorResolution(GrowCounter);
+    impl Record for WrongActorResolution {
+        const KEY: &'static [u8] = b"resolver-check";
+        const FORMAT: &'static [u8; 8] = b"RESCHECK";
+        const SIZE: usize = GrowCounter::SIZE;
+
+        fn encode(self, bytes: &mut [u8]) -> Result<()> {
+            self.0.encode(bytes)
+        }
+        fn decode(bytes: &[u8]) -> Result<Self> {
+            GrowCounter::decode(bytes).map(Self)
+        }
+        fn merge(&mut self, other: Self) {
+            self.0.join(other.0);
+        }
+        fn check_peer(self, incoming: Self, actor: Actor) -> Result<()> {
+            self.0.check_peer(incoming.0, actor)
+        }
+        fn resolve_conflicts(&mut self, actor: Actor) -> Result<()> {
+            self.0.increment(actor.other(), 1)
+        }
+    }
+
+    let disk = crate::storage::SimulatedDisk::new().unwrap();
+    let db = Database::create_on(disk.clone(), [3; 16], crate::Limits::default()).unwrap();
+    let collection = db.create_collection().unwrap();
+    let replica =
+        Replica::<WrongActorResolution>::enroll(&db, collection, POLICY, POLICY.actors[0]).unwrap();
+    let retained = db.retain_snapshot(&db.snapshot()).unwrap();
+    let original = disk.durable_image().unwrap();
+    for (state, result) in [([0, 1], Err(Error::Conflict)), ([0, 0], Ok(()))] {
+        let mut channel = Channel::new(
+            State {
+                policy: POLICY,
+                actor: Actor(1),
+                payload: WrongActorResolution(GrowCounter(state)),
+            }
+            .encode(&mut [0; MAX_FRAME])
+            .unwrap()
+            .to_vec(),
+        );
+        assert_eq!(replica.serve_authenticated(&mut channel), result);
+        if result.is_ok() {
+            let reply = State::<WrongActorResolution>::decode(&channel.output).unwrap();
+            assert_eq!(reply.policy, POLICY);
+            assert_eq!(reply.actor, Actor(0));
+            assert_eq!(reply.payload.0, GrowCounter([0, 0]));
+        } else {
+            assert!(channel.output.is_empty());
+        }
+        assert_eq!(db.snapshot().revision(), 3);
+        assert_eq!(replica.read().unwrap().0, GrowCounter([0, 0]));
+        assert_eq!(
+            replica
+                .read_at(&db.retained_snapshot(retained).unwrap())
+                .unwrap()
+                .0,
+            GrowCounter([0, 0])
+        );
+        assert_eq!(disk.durable_image().unwrap(), original);
+    }
+}
+
+#[test]
 fn register_causal_event_oracle_accepts_bounded_honest_schedules() {
     #[derive(Clone, Copy, Default)]
     struct Model {
         peers: [MultiValueRegister; 2],
         knowledge: [u16; 2],
         observed: [u16; 6],
+        authors: [usize; 6],
     }
     fn walk(model: Model, depth: usize, visited: &mut usize) {
         *visited += 1;
@@ -552,8 +707,20 @@ fn register_causal_event_oracle_accepts_bounded_honest_schedules() {
             expected.sort_unstable();
             actual.sort_unstable();
             assert_eq!(actual, expected);
+            let mut expected_bytes = [0; MultiValueRegister::SIZE];
+            for (author, entry) in expected_bytes.chunks_exact_mut(17).enumerate() {
+                let mut assignments =
+                    (0..depth).filter(|&i| known & (1 << i) != 0 && model.authors[i] == author);
+                let sequence = assignments.clone().count() as u64;
+                entry[..8].copy_from_slice(&sequence.to_le_bytes());
+                if let Some(i) = assignments.next_back().filter(|i| retired & (1 << i) == 0) {
+                    entry[8] = 1;
+                    entry[9..].copy_from_slice(&(i as u64 + 1).to_le_bytes());
+                }
+            }
             let mut bytes = [0; MultiValueRegister::SIZE];
             state.encode(&mut bytes).unwrap();
+            assert_eq!(bytes, expected_bytes);
             assert_eq!(MultiValueRegister::decode(&bytes), Ok(state));
         }
         if depth == 6 {
@@ -562,6 +729,7 @@ fn register_causal_event_oracle_accepts_bounded_honest_schedules() {
         for actor in 0..2 {
             let mut next = model;
             next.observed[depth] = next.knowledge[actor];
+            next.authors[depth] = actor;
             next.knowledge[actor] |= 1 << depth;
             next.peers[actor]
                 .assign(Actor(actor), depth as u64 + 1)
