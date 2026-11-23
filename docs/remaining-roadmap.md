@@ -521,6 +521,10 @@ under concurrent Linux launch stress. The queue has 9,340 open records
 (1,957 runtime / 26 driver / 7,357 tooling). Native Windows execution and
 the other generated targets remain open.
 
+The [hosted R1 shard ledger](r1-ci-shards.md) records Linux cancellations
+at the 20-minute deadline. Both hosted Unix platforms now have a 60-minute
+job deadline for the expanded controls. Hosted verification remains open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

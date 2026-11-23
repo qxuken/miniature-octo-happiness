@@ -148,7 +148,7 @@ jobs:
           - os: windows-latest
             shard: 8
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'macos-latest' && 30 || 20 }}
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 60 }}
     defaults:
       run:
         shell: bash
