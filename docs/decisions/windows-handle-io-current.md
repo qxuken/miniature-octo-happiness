@@ -44,12 +44,18 @@ contract tests and strict Clippy passed on both hosts. Cross-target
 Clippy on `x86_64-pc-windows-msvc` passed with the Windows-only regression
 compiled. Its native execution remains pending.
 
-All 13 controls were detected in debug on both hosts. The optimized
-mutation campaigns remain pending after command supervision deadlines.
-Miri passed the isolated handle-lifetime fixture on macOS using nightly
-`708c94ef0`. Three shared match decisions receive scoped execution
-dispositions. The
-inventory has 10,584 source decisions and 9,411 open records
+All 13 controls were detected in debug and release on both hosts.
+The supervised runner completed both debug campaigns and the first
+Docker Linux release shard. After release build deadlines, isolated
+replays verified all 13 macOS controls and the six remaining Docker
+Linux controls. Each replay rebuilt the frozen source with one exact
+replacement, observed the named test fail, and restored the original
+bytes. The audit checks the source, mutant and log digests, passing
+baselines, exact failed test, and exit status 101. Miri passed the
+isolated handle-lifetime fixture on macOS using nightly `708c94ef0`.
+
+Three shared match decisions receive scoped execution dispositions.
+The inventory has 10,584 source decisions and 9,411 open records
 (2,042 runtime, 26 driver and 7,343 tooling). It rebinds 58 earlier
 storage-module rows. The Win32 adapter retains 22 open records. Its
 two existing native RNG controls have a refreshed source pin at
@@ -70,4 +76,16 @@ cargo +1.100.0 test --offline --locked -p weekend-db --all-features --test files
 ```
 
 Repeat both test commands and the mutation command with `--release`.
-Use a fresh output directory for the optimized mutation run.
+Use a fresh output directory for the optimized mutation run. In an
+isolated replay at the frozen revision, read the selected case from
+`xtask/tests/mutations.json`. Run its exact test against clean source,
+apply the one anchored replacement, and run the same command again:
+
+```sh
+CARGO_INCREMENTAL=0 cargo +1.100.0 test --offline --locked --release \
+  -p weekend-db --all-features --lib "$test_name" -- --exact
+```
+
+The baseline must execute one passing test. The rebuilt mutant must
+execute that test and report its assertion failure with exit status 101.
+Restore and verify the original source bytes before the next case.

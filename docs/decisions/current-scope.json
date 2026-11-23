@@ -342,7 +342,7 @@
     "tests/support/descriptor_limit.rs": "cf140e2b111a872e6763ba067d2436c4cfa63085cef1138676d7e646bdaeaed1",
     "xtask/tests/mutations-windows.json": "f9ea9d70f890c382ef0281f8ac66f99d9e618bb981c135bb988cb74041a15e63",
     "docs/decisions/windows-admission-current.md": "148245e024712e57cf43f02cdedb7d5f98a82509af6b8b389835569d6a3d4c93",
-    "docs/decisions/windows-handle-io-current.md": "c71b55788c901c1a1db9724b3abc4b127e9b3cd4105c849d619b0f738612e815"
+    "docs/decisions/windows-handle-io-current.md": "40ae7f2af37d5aef3d29db03a75a2d196ded3ee5cb641ece201f9a30c41f03a3"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

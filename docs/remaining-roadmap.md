@@ -411,9 +411,9 @@ evidence. The queue has 9,419 open records
 The [Windows handle ledger](decisions/windows-handle-io-current.md) qualifies
 the shared lease transitions, I/O dispatch, and error mapping at
 `34cb30c`. Both profiles pass the selected engine and storage suites on
-macOS and Docker Linux. Both debug runs detect all 13 controls. Optimized
-mutation coverage remains pending. Miri on macOS verifies the isolated
-handle-lifetime fixture. The added
+macOS and Docker Linux and detect all 13 controls. After release build
+deadlines, exact-source replays qualified the affected optimized cases.
+Miri on macOS verifies the isolated handle-lifetime fixture. The added
 read-only lease and reopen fixture cross-compiles for Windows and retains
 its native execution gate. The queue has 9,411 open records
 (2,042 runtime / 26 driver / 7,343 tooling).
