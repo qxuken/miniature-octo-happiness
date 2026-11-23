@@ -104,7 +104,7 @@
     "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
     "src/schema.rs": "66bb396906513bf771b53627bbfeccc9da8a719bb3667df996677398f17170b8",
-    "src/storage/codec.rs": "1a031048b4be3deea572313443ea7f6bfa9ba14e7ed2dbf48641ed5f492d1472",
+    "src/storage/codec.rs": "593b1dc249ceca770b436133c894b41aad0596c5f20be79abf96cd69644205ee",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
     "src/storage/file.rs": "52546689de08dfbd8f59444dc5cddc411c4e8703fa0ed634faa3668d66337f12",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
@@ -177,7 +177,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "883b409e7bc6daf5f4f025f1d57d9b0d1fbe06c24d0a7c91e3e48ab7f18cb34e",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "a376b3a4ca2f458b9ab29fdddc8d9086da13421d22f3ce6d7da839cbee26310d",
+    "xtask/src/mutations.rs": "f98086767090247e77eab4568b580360e32f75d78dedca882999890ccaf5e292",
     "xtask/src/mutations_windows.rs": "19ffa3aaf764f77fc01c1cb5504e2df9d7569f3f8c5e22ff693c23edf5c0a3a6",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -291,7 +291,7 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "7aacea4532f0239a1c4c7ca9f7b2f52bd235ad02077b4b2d65ddf3d8f10b4492",
-    "xtask/tests/mutations.json": "16dda1c852f37b3659ed12222bc0b2a3b08127009eaa19853e133b1c921f85b7",
+    "xtask/tests/mutations.json": "7d119693d7afbea19af5aeb17d409c9f84f96b10029542b76364a63b24865494",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -304,7 +304,7 @@
     "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
     "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
     "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
-    "docs/decisions/codec-encode-value-current.md": "bbb6a60caa641f7859e7f2d07610d3b65c274d411930e8aa4bd771c28f310d8a",
+    "docs/decisions/codec-encode-value-current.md": "57516e4c482d3e90dc3a0c41b889ccc9d43e9213334acb825a0465d73ea6dea8",
     "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
     "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
     "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
@@ -312,7 +312,8 @@
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
     "docs/decisions/rust-output-allocation.md": "69603e258aa0a28a24b407d22ceb289da8d870da60b77ff09bc3316b62bfabba",
-    "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa"
+    "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa",
+    "docs/decisions/codec-cache-index-current.md": "d367e855abfda9e8b978c7e7e6852886a9558b65cc5fa30ecdb583a5710f8994"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -496,7 +497,8 @@
         "tests/storage_decisions.rs",
         "tests/durability.rs",
         "docs/decisions/allocation-recovery-current.md",
-        "tests/support/allocator.rs"
+        "tests/support/allocator.rs",
+        "docs/decisions/codec-cache-index-current.md"
       ],
       "residual": "Native persistence assumptions and delegated calls remain separate from simulated pairs."
     },
@@ -521,6 +523,7 @@
         "docs/decisions/codec-encode-value-current.md",
         "docs/decisions/codec-encode-data-current.md",
         "docs/decisions/codec-encode-commit-current.md",
+        "docs/decisions/codec-cache-index-current.md",
         "tests/allocator_routing.rs"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
@@ -5658,6 +5661,654 @@
       ],
       "mutations": [
         "r1-alloc-reopen-data-index"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-PROBE-WRAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "position",
+        "kind": "while",
+        "conditions": [
+          "self.slots[slot] != 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "value_index_collisions_wrap_growth_and_first_identity_match"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-probe-wrap"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-PROBE-IDENTITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "position",
+        "kind": "if",
+        "conditions": [
+          "old.value.same_node(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "value_index_collisions_wrap_growth_and_first_identity_match"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-probe-identity"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-EMPTY-LOOKUP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "get",
+        "kind": "if",
+        "conditions": [
+          "self.slots.is_empty()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "value_index_collisions_wrap_growth_and_first_identity_match"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-empty-lookup"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-OBJECT-LIMIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reserve",
+        "kind": "if",
+        "conditions": [
+          "entries > MAX_OBJECTS"
+        ],
+        "start_byte": 7539
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_indexes_admit_object_limit_and_reject_next_entry"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-object-limit"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-RESERVE-EQUALITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reserve",
+        "kind": "if",
+        "conditions": [
+          "entries <= self.slots.len() / 2"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "value_index_collisions_wrap_growth_and_first_identity_match"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-reserve-equality"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-REHASH-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reserve",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut next.slots, size)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "value_index_collisions_wrap_growth_and_first_identity_match"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-rehash-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-REHASH-FIRST",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reserve",
+        "kind": "if",
+        "conditions": [
+          "next.slots[slot] == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "value_index_collisions_wrap_growth_and_first_identity_match"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-rehash-first"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-DATA-REBUILD-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "from_cache",
+        "kind": "try_propagation",
+        "conditions": [
+          "index.reserve(mem, cache.len())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_index_rebuild_insert_and_first_match_preserve_cache_order"
+        }
+      ],
+      "mutations": [
+        "r1-cache-data-rebuild-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-DATA-OBJECT-LIMIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reserve",
+        "kind": "if",
+        "conditions": [
+          "entries > MAX_OBJECTS"
+        ],
+        "start_byte": 9836
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_indexes_admit_object_limit_and_reject_next_entry"
+        }
+      ],
+      "mutations": [
+        "r1-cache-data-object-limit"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-DATA-RESERVE-GROWTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reserve",
+        "kind": "if",
+        "conditions": [
+          "entries > self.order.len()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_index_budget_and_object_bound_precede_allocation"
+        }
+      ],
+      "mutations": [
+        "r1-cache-data-reserve-growth"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-DATA-RESERVE-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "reserve",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut self.order, extra)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_index_rebuild_insert_and_first_match_preserve_cache_order"
+        }
+      ],
+      "mutations": [
+        "r1-cache-data-reserve-allocation"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-DATA-EQUAL-INSERT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "insert",
+        "kind": "if",
+        "conditions": [
+          "self\n            .order\n            .last()\n            .is_none_or(|i| Self::compare(cache[*i].revision, revision).is_lt())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "data_index_rebuild_insert_and_first_match_preserve_cache_order"
+        }
+      ],
+      "mutations": [
+        "r1-cache-data-equal-insert"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-OPEN-INDEX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "from_entries",
+        "kind": "try_propagation",
+        "conditions": [
+          "index.reserve(mem, &entries, entries.len())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-open-index"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-FORK-ENTRIES",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "fork",
+        "kind": "try_propagation",
+        "conditions": [
+          "fork_vec(mem, &self.entries, MAX_OBJECTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_forks_preserve_indexes_first_match_and_rollback_every_allocation"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-fork-entries"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-VALUE-FORK-SLOTS",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "fork",
+        "kind": "try_propagation",
+        "conditions": [
+          "fork_vec(mem, &self.index.slots, 2 * MAX_OBJECTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_forks_preserve_indexes_first_match_and_rollback_every_allocation"
+        }
+      ],
+      "mutations": [
+        "r1-cache-value-fork-slots"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-DATA-OPEN-INDEX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "from_entries",
+        "kind": "try_propagation",
+        "conditions": [
+          "DataIndex::from_cache(mem, &entries)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-cache-data-open-index"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-DATA-FORK-ENTRIES",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "fork",
+        "kind": "try_propagation",
+        "conditions": [
+          "fork_vec(mem, &self.entries, MAX_OBJECTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_forks_preserve_indexes_first_match_and_rollback_every_allocation"
+        }
+      ],
+      "mutations": [
+        "r1-cache-data-fork-entries"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-DATA-FORK-ORDER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "fork",
+        "kind": "try_propagation",
+        "conditions": [
+          "fork_vec(mem, &self.index.order, MAX_OBJECTS)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_forks_preserve_indexes_first_match_and_rollback_every_allocation"
+        }
+      ],
+      "mutations": [
+        "r1-cache-data-fork-order"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-FORK-RESERVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "fork_vec",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve_geometric(&mut next, old.len(), maximum)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_forks_preserve_indexes_first_match_and_rollback_every_allocation"
+        }
+      ],
+      "mutations": [
+        "r1-cache-fork-reserve"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-STATE-BORROWED-PATTERN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "make_mut",
+        "kind": "pattern_test",
+        "conditions": [
+          "self"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_state_retries_refused_fork_and_reuses_owned_state"
+        }
+      ],
+      "mutations": [
+        "r1-cache-state-borrowed-pattern"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-STATE-FORK-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/codec.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "make_mut",
+        "kind": "try_propagation",
+        "conditions": [
+          "fork(old)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/codec.rs",
+          "name": "cache_state_retries_refused_fork_and_reuses_owned_state"
+        }
+      ],
+      "mutations": [
+        "r1-cache-state-fork-error"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-OPEN-VALUE-HEADER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(ValueCache::from_entries(mem, recovered.cache)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-cache-open-value-header"
+      ]
+    },
+    {
+      "name": "CODEC-CACHE-OPEN-DATA-HEADER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/storage/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "open",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(DataCache::from_entries(mem, recovered.data_cache)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-cache-open-data-header"
       ]
     }
   ],

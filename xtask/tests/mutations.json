@@ -4111,6 +4111,28 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-cache-open-value-header",
+      "file": "src/storage/mod.rs",
+      "old": "mem.shared(ValueCache::from_entries(mem, recovered.cache)?)?",
+      "new": "mem.shared(ValueCache::from_entries(mem, recovered.cache)?).map_err(|_| Error::Invalid)?",
+      "test": "storage::decision_tests::cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-cache-open-data-header",
+      "file": "src/storage/mod.rs",
+      "old": "mem.shared(DataCache::from_entries(mem, recovered.data_cache)?)?",
+      "new": "mem.shared(DataCache::from_entries(mem, recovered.data_cache)?).map_err(|_| Error::Invalid)?",
+      "test": "storage::decision_tests::cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
