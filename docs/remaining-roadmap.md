@@ -455,8 +455,14 @@ records ten named mutants at `280754c` and the differing revisions for
 records and whole-database validation. The private C and C++ packages
 verify allocator context lifetime, four open refusals and snapshot retry
 through the exact shared libraries. The Rust, C and Odin 134-cell traces
-match on macOS and Docker Linux. Native Windows, file factories with
-custom allocators and the remaining generated paths stay open.
+match on macOS and Docker Linux.
+
+The [C file-factory ledger](decisions/ffi-file-factories-current.md)
+records four compiled export controls at `c4c0bd4`. Packaged C and C++
+consumers sweep 21 create and 43 reopen refusals on macOS and Docker
+Linux, preserving exact bytes and both roots through failed reopen.
+Native Windows and the remaining generated paths stay open. The queue
+has 9,396 open records (2,014 runtime / 26 driver / 7,356 tooling).
 
 All R1 and R2–R7 completion gates above remain open.
 

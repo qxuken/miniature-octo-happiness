@@ -118,6 +118,15 @@ keeps the context alive through the final free, including cleanup after failed
 open. Callbacks must be thread-safe and must avoid reentering the database.
 Allocator refusal reports `OutOfMemory` and releases provisional charges.
 
+The C file-create call returns a null handle on allocation refusal.
+Depending on when the refusal occurs, the path can be absent, remain
+empty, or contain a complete revision-0 database. The final C handle
+allocation occurs after durable initialization. When a complete database
+exists, retry its open with the requested options. A failed allocation
+during reopen leaves the image intact, and a subsequent open can read
+both roots. The exact behavior is exercised by the
+[C file-factory fixture](decisions/ffi-file-factories-current.md).
+
 Publication semantics are unchanged. A cap failure while preparing a candidate
 before backend I/O leaves the committed head unchanged and can be retried in a
 fresh transaction after releasing pinned allocations. I/O failures retain their
