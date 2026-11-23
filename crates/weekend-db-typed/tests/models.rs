@@ -4,7 +4,7 @@ use allocator::TestAllocator;
 use std::sync::Arc;
 use weekend_db_typed::engine as allocator_engine;
 use weekend_db_typed::{
-    Error, Model, Presence, Result, Store,
+    Error, Model, Presence, Result, Store, Table,
     engine::{self, storage::MemoryStore},
 };
 
@@ -1644,11 +1644,7 @@ struct MigrationProgress {
     completed: u64,
 }
 
-#[test]
-fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history() -> Result<()> {
-    use engine::storage::{Crash, SimulatedDisk};
-    let disk = SimulatedDisk::new()?;
-    let mut store = Store::create_on(disk.clone(), [93; 16], engine::Limits::default())?;
+fn seed_migration_progress(store: &mut Store) -> Result<(Table<MigrationProgress>, u64)> {
     let legacy = store.table::<OldTask>("tasks")?;
     let progress = store.table::<MigrationProgress>("progress")?;
     store.write(|w| {
@@ -1668,7 +1664,15 @@ fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history()
     tx.put(legacy.collection(), &1u64.to_le_bytes(), raw.as_value())?;
     tx.commit()?;
     drop(tx);
-    let checkpoint = store.checkpoint()?;
+    Ok((progress, store.checkpoint()?))
+}
+
+#[test]
+fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history() -> Result<()> {
+    use engine::storage::{Crash, SimulatedDisk};
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [93; 16], engine::Limits::default())?;
+    let (progress, checkpoint) = seed_migration_progress(&mut store)?;
     let tasks = store.table::<Task>("tasks")?;
     let mut called = Vec::new();
     assert_eq!(
@@ -1737,6 +1741,197 @@ fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history()
 }
 
 #[test]
+fn interrupted_migration_batches_reopen_records_claims_and_progress_together() -> Result<()> {
+    use engine::storage::{Crash, Fault, IoKind, SimulatedDisk};
+
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [94; 16], engine::Limits::default())?;
+    let (progress, retained) = seed_migration_progress(&mut store)?;
+    let tasks = store.table::<Task>("tasks")?;
+    let collections = [
+        1,
+        2,
+        3,
+        tasks.collection().as_u64(),
+        progress.collection().as_u64(),
+    ];
+    let rows =
+        |db: &engine::Database, snapshot: engine::Snapshot<'_>| -> Result<Vec<engine::Rows>> {
+            Ok(collections
+                .iter()
+                .map(|&id| snapshot.scan(db.collection_id(id)))
+                .collect::<engine::Result<_>>()?)
+        };
+    let revision = store.database().snapshot().revision();
+    let before = rows(store.database(), store.database().snapshot())?;
+    let history = rows(
+        store.database(),
+        store.database().retained_snapshot(retained)?,
+    )?;
+    let image = disk.durable_image()?;
+    let apply = |store: &Store, tasks: &Table<Task>, progress: &Table<MigrationProgress>| {
+        let mut converted = Vec::new();
+        let outcome = store.write(|w| {
+            let count = w.migrate_ids(tasks, &[2, 1], |id, _, task| {
+                converted.push(id);
+                task.slug = format!("migrated-{id}");
+                task.priority = id as u8;
+                Ok(())
+            })?;
+            if count != 0 {
+                w.update(progress, 1, |p| {
+                    p.completed = 2;
+                    Ok(())
+                })?;
+            }
+            Ok(count)
+        });
+        (outcome, converted)
+    };
+
+    disk.arm(usize::MAX, Fault::Error);
+    assert_eq!(apply(&store, &tasks, &progress), (Ok(2), vec![2, 1]));
+    let trace = disk.trace()?;
+    let barriers = trace
+        .iter()
+        .enumerate()
+        .filter_map(|(step, event)| (event.kind == IoKind::Sync).then_some(step))
+        .collect::<Vec<_>>();
+    let [append_sync, root_sync, witness_sync] = barriers.as_slice() else {
+        panic!("expected append, root and witness barriers: {trace:?}");
+    };
+    assert_eq!(*witness_sync, trace.len() - 1);
+    store.read(|r| {
+        for id in [1, 2] {
+            let row = r
+                .find(&tasks, Task::SLUG, &format!("migrated-{id}"))?
+                .unwrap();
+            assert_eq!((row.id(), row.version(), row.priority), (id, 2, id as u8));
+            assert!(r.find(&tasks, Task::SLUG, &format!("task-{id}"))?.is_none());
+        }
+        assert_eq!(r.get(&progress, 1)?.unwrap().completed, 2);
+        assert!(r.check_indexes(&tasks)?.is_consistent());
+        Ok(())
+    })?;
+    let after = rows(store.database(), store.database().snapshot())?;
+    assert_ne!(before, after);
+    drop(store);
+
+    for step in 0..trace.len() {
+        for (crash, pending_root_survives) in [(Crash::DropAll, false), (Crash::PersistAll, true)] {
+            let disk = SimulatedDisk::from_image(&image)?;
+            let mut store = Store::open_on(disk.clone(), engine::Limits::default())?;
+            let tasks = store.table::<Task>("tasks")?;
+            let progress = store.table::<MigrationProgress>("progress")?;
+            disk.arm(step, Fault::Error);
+            let expected_error = if step <= *append_sync {
+                engine::Error::Io
+            } else {
+                engine::Error::OutcomeUnknown
+            };
+            assert_eq!(
+                apply(&store, &tasks, &progress),
+                (Err(Error::Engine(expected_error)), vec![2, 1]),
+                "step={step} crash={crash:?}"
+            );
+            assert_eq!(disk.trace()?, trace[..=step]);
+            assert!(store.database().requires_recovery());
+            assert_eq!(rows(store.database(), store.database().snapshot())?, before);
+            drop(store);
+            disk.crash(crash)?;
+
+            let mut store = Store::open_on(disk, engine::Limits::default())?;
+            let tasks = store.table::<Task>("tasks")?;
+            let progress = store.table::<MigrationProgress>("progress")?;
+            let db = store.database();
+            let published = step > *root_sync || (step == *root_sync && pending_root_survives);
+            assert_eq!(db.snapshot().revision(), revision + u64::from(published));
+            assert_eq!(
+                rows(db, db.snapshot())?,
+                if published { &after } else { &before }[..]
+            );
+            assert_eq!(rows(db, db.retained_snapshot(retained)?)?, history);
+            store.read(|r| {
+                assert!(r.check_indexes(&tasks)?.is_consistent());
+                assert_eq!(
+                    r.get(&progress, 1)?.unwrap().completed,
+                    if published { 2 } else { 0 }
+                );
+                assert_eq!(r.get(&tasks, 3)?.unwrap().version(), 1);
+                assert_eq!(
+                    r.get(&tasks, 1)?
+                        .unwrap()
+                        .record()
+                        .field(99)?
+                        .unwrap()
+                        .as_bytes()?,
+                    b"future"
+                );
+                Ok(())
+            })?;
+            let (retried, converted) = apply(&store, &tasks, &progress);
+            assert_eq!(retried?, if published { 0 } else { 2 });
+            assert_eq!(converted, if published { &[][..] } else { &[2, 1][..] });
+            assert_eq!(rows(db, db.snapshot())?, after);
+            assert_eq!(rows(db, db.retained_snapshot(retained)?)?, history);
+        }
+    }
+    println!(
+        "Verified {} typed migration crash cases at revision {revision} with sync steps {barriers:?}",
+        trace.len() * 2
+    );
+    Ok(())
+}
+
+#[test]
+fn migration_id_scratch_refusal_discards_progress_before_conversion() -> Result<()> {
+    let allocator = Arc::new(TestAllocator::default());
+    let mut store = Store::initialize(engine::Database::with_options(allocator.options())?)?;
+    let (progress, retained) = seed_migration_progress(&mut store)?;
+    let tasks = store.table::<Task>("tasks")?;
+    let db = store.database();
+    let before = db.snapshot();
+    let mut calls = 0;
+    let result = store.write(|w| {
+        w.update(&progress, 1, |p| {
+            p.completed = 2;
+            Ok(())
+        })?;
+        let (migration, requests) = allocator.count_with_refusal(0, || {
+            w.migrate_ids(&tasks, &[2, 1], |_, _, _| {
+                calls += 1;
+                Ok(())
+            })
+        });
+        assert_eq!(requests, 1);
+        assert_eq!(migration, Err(Error::Engine(engine::Error::OutOfMemory)));
+        Ok(())
+    });
+    assert_eq!(calls, 0);
+    assert_eq!(result, Err(Error::Engine(engine::Error::Closed)));
+    let current = db.snapshot();
+    assert_eq!(current.revision(), before.revision());
+    for collection in [
+        tasks.collection(),
+        progress.collection(),
+        db.collection_id(3),
+    ] {
+        assert_eq!(current.scan(collection)?, before.scan(collection)?);
+    }
+    store.read_retained(retained, |r| {
+        assert_eq!(r.get(&progress, 1)?.unwrap().completed, 0);
+        assert_eq!(r.find(&tasks, Task::SLUG, "task-1")?.unwrap().version(), 1);
+        assert!(r.check_indexes(&tasks)?.is_consistent());
+        Ok(())
+    })?;
+    assert_eq!(
+        store.write(|w| w.migrate_ids(&tasks, &[2, 1], |_, _, _| Ok(())))?,
+        2
+    );
+    Ok(())
+}
+
+#[test]
 fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -> Result<()> {
     let mut store = Store::memory()?;
     let legacy = store.table::<OldTask>("tasks")?;
@@ -1750,6 +1945,7 @@ fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -
     for ids in [
         vec![1, 1],
         vec![0],
+        vec![1, 0],
         vec![1; store.database().limits().max_writes + 1],
     ] {
         let before = store.database().snapshot().revision();
