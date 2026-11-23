@@ -4,7 +4,7 @@ use super::file::retry;
 use super::{NativeIoOperation, diagnostics};
 use crate::{AllocatorHandle, Error, Result, memory::Memory};
 use std::{
-    ffi::{c_char, c_int, c_void},
+    ffi::{CStr, c_char, c_int, c_void},
     fs::{File, Permissions},
     io,
     os::{
@@ -178,65 +178,119 @@ fn blob(
     }
     Ok(bytes)
 }
-fn names(file: &File, mem: &Memory) -> Result<Vec<u8, AllocatorHandle>> {
+struct XattrNames(Vec<u8, AllocatorHandle>);
+
+impl XattrNames {
+    fn new(bytes: Vec<u8, AllocatorHandle>) -> Result<Self> {
+        if !bytes.is_empty() && bytes.last() != Some(&0) {
+            return Err(Error::Io);
+        }
+        if bytes
+            .split_inclusive(|b| *b == 0)
+            .any(|name| name.len() == 1)
+        {
+            return Err(Error::Io);
+        }
+        Ok(Self(bytes))
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &CStr> {
+        self.0.split_inclusive(|b| *b == 0).map(|name| {
+            // Each segment ends at the first zero. Construction checks the
+            // final terminator and rejects empty names before any native call.
+            unsafe { CStr::from_bytes_with_nul_unchecked(name) }
+        })
+    }
+}
+
+fn names(file: &File, mem: &Memory) -> Result<XattrNames> {
     let bytes = blob(mem, |buffer, size| unsafe {
         flistxattr(file.as_raw_fd(), buffer.cast(), size)
     })?;
-    if !bytes.is_empty() && bytes.last() != Some(&0) {
-        return Err(Error::Io);
-    }
-    Ok(bytes)
+    XattrNames::new(bytes)
 }
+
+#[derive(Clone, Copy)]
+struct FileAttributes {
+    uid: u32,
+    gid: u32,
+    mode: u32,
+}
+
+fn read_attributes(file: &File) -> io::Result<FileAttributes> {
+    file.metadata().map(|metadata| FileAttributes {
+        uid: metadata.uid(),
+        gid: metadata.gid(),
+        mode: metadata.mode() & 0o7777,
+    })
+}
+
+fn change_owner(file: &File, attributes: FileAttributes) -> Result<()> {
+    retry(NativeIoOperation::CopyMetadata, || {
+        status(unsafe { fchown(file.as_raw_fd(), attributes.uid, attributes.gid) })
+    })
+}
+
 pub(super) fn copy_metadata(from: &File, to: &File, mem: &Memory) -> Result<()> {
-    let metadata = retry(NativeIoOperation::CopyMetadata, || from.metadata())?;
-    let target = retry(NativeIoOperation::CopyMetadata, || to.metadata())?;
-    if metadata.uid() != target.uid() || metadata.gid() != target.gid() {
-        retry(NativeIoOperation::CopyMetadata, || {
-            status(unsafe { fchown(to.as_raw_fd(), metadata.uid(), metadata.gid()) })
-        })?;
+    copy_metadata_with(from, to, mem, read_attributes, change_owner)
+}
+
+fn copy_metadata_with(
+    from: &File,
+    to: &File,
+    mem: &Memory,
+    mut read: impl FnMut(&File) -> io::Result<FileAttributes>,
+    set_owner: impl FnOnce(&File, FileAttributes) -> Result<()>,
+) -> Result<()> {
+    let metadata = retry(NativeIoOperation::CopyMetadata, || read(from))?;
+    let target = retry(NativeIoOperation::CopyMetadata, || read(to))?;
+    if metadata.uid != target.uid || metadata.gid != target.gid {
+        set_owner(to, metadata)?;
     }
     // chown may clear set-id bits/capabilities. Set ownership, mode, then exact
     // accessible xattrs (including POSIX ACLs) before syncing and re-verifying.
     retry(NativeIoOperation::CopyMetadata, || {
-        to.set_permissions(Permissions::from_mode(metadata.mode() & 0o7777))
+        to.set_permissions(Permissions::from_mode(metadata.mode))
     })?;
     let source_names = names(from, mem)?;
     let target_names = names(to, mem)?;
-    for name in target_names.split_inclusive(|b| *b == 0) {
-        if !source_names
-            .split_inclusive(|b| *b == 0)
-            .any(|other| other == name)
-        {
+    copy_xattrs(from, to, mem, &source_names, &target_names)?;
+    let copied = retry(NativeIoOperation::CopyMetadata, || read(to))?;
+    if copied.uid != metadata.uid || copied.gid != metadata.gid || copied.mode != metadata.mode {
+        return Err(Error::Io);
+    }
+    Ok(())
+}
+
+fn copy_xattrs(
+    from: &File,
+    to: &File,
+    mem: &Memory,
+    source_names: &XattrNames,
+    target_names: &XattrNames,
+) -> Result<()> {
+    for name in target_names.iter() {
+        if !source_names.iter().any(|other| other == name) {
             retry(NativeIoOperation::CopyMetadata, || {
-                status(unsafe { fremovexattr(to.as_raw_fd(), name.as_ptr().cast()) })
+                status(unsafe { fremovexattr(to.as_raw_fd(), name.as_ptr()) })
             })?;
         }
     }
-    for name in source_names.split_inclusive(|b| *b == 0) {
-        if name.len() <= 1 {
-            return Err(Error::Io);
-        }
+    for name in source_names.iter() {
         let value = blob(mem, |buffer, size| unsafe {
-            fgetxattr(from.as_raw_fd(), name.as_ptr().cast(), buffer, size)
+            fgetxattr(from.as_raw_fd(), name.as_ptr(), buffer, size)
         })?;
         retry(NativeIoOperation::CopyMetadata, || {
             status(unsafe {
                 fsetxattr(
                     to.as_raw_fd(),
-                    name.as_ptr().cast(),
+                    name.as_ptr(),
                     value.as_ptr().cast(),
                     value.len(),
                     0,
                 )
             })
         })?;
-    }
-    let copied = retry(NativeIoOperation::CopyMetadata, || to.metadata())?;
-    if copied.uid() != metadata.uid()
-        || copied.gid() != metadata.gid()
-        || copied.mode() & 0o7777 != metadata.mode() & 0o7777
-    {
-        return Err(Error::Io);
     }
     Ok(())
 }
@@ -493,6 +547,214 @@ mod decision_tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn attribute_lists_require_a_final_zero_and_nonempty_names() {
+        for (input, valid) in [
+            (&b""[..], true),
+            (&b"user.a\0user.b\0"[..], true),
+            (&b"user.a"[..], false),
+            (&b"\0user.a\0"[..], false),
+            (&b"user.a\0\0user.b\0"[..], false),
+        ] {
+            let mut bytes = Vec::new_in(AllocatorHandle::default());
+            bytes.extend_from_slice(input);
+            let result = XattrNames::new(bytes);
+            assert_eq!(result.is_ok(), valid);
+            if let Ok(names) = result {
+                let original: Vec<_> = names
+                    .iter()
+                    .flat_map(|name| name.to_bytes_with_nul().iter().copied())
+                    .collect();
+                assert_eq!(original, input);
+            } else {
+                assert_eq!(result.err(), Some(Error::Io));
+            }
+        }
+    }
+
+    #[test]
+    fn metadata_reads_preserve_first_failure_and_its_operation() {
+        let directory = NativeDirectory::new("read-errors");
+        let source = directory.0.join("source");
+        fs::write(&source, b"source").unwrap();
+        fs::set_permissions(&source, Permissions::from_mode(0o640)).unwrap();
+        let from = File::open(&source).unwrap();
+        let memory = Memory::new(Limits::default()).unwrap();
+        for fail_at in 0..3 {
+            let target = directory.0.join(format!("target-{fail_at}"));
+            fs::write(&target, b"candidate").unwrap();
+            fs::set_permissions(&target, Permissions::from_mode(0o600)).unwrap();
+            let to = File::open(&target).unwrap();
+            let mut reads = 0;
+            let failure = diagnostics::capture(|| {
+                copy_metadata_with(
+                    &from,
+                    &to,
+                    &memory,
+                    |file| {
+                        let index = reads;
+                        reads += 1;
+                        assert_eq!(
+                            file.as_raw_fd(),
+                            if index == 0 {
+                                from.as_raw_fd()
+                            } else {
+                                to.as_raw_fd()
+                            }
+                        );
+                        if index == fail_at {
+                            Err(io::Error::from_raw_os_error(5))
+                        } else {
+                            read_attributes(file)
+                        }
+                    },
+                    |_, _| panic!("ownership differs in the same-owner fixture"),
+                )
+            })
+            .unwrap_err();
+            assert_eq!(reads, fail_at + 1);
+            assert_eq!(failure.error, Error::Io);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, NativeIoOperation::CopyMetadata);
+            assert_eq!(native.raw_os_error, Some(5));
+            assert_eq!(
+                fs::metadata(&target).unwrap().mode() & 0o7777,
+                if fail_at == 2 { 0o640 } else { 0o600 }
+            );
+            assert_eq!(fs::read(target).unwrap(), b"candidate");
+        }
+    }
+
+    #[test]
+    fn ownership_change_and_copied_attributes_have_independent_controls() {
+        let directory = NativeDirectory::new("ownership");
+        let source = directory.0.join("source");
+        let target = directory.0.join("target");
+        fs::write(&source, b"source").unwrap();
+        fs::write(&target, b"candidate").unwrap();
+        let from = File::open(&source).unwrap();
+        let to = File::open(&target).unwrap();
+        let expected = read_attributes(&from).unwrap();
+        let memory = Memory::new(Limits::default()).unwrap();
+
+        for (uid, gid) in [(false, false), (true, false), (false, true)] {
+            let mut reads = 0;
+            let mut changes = 0;
+            let result = copy_metadata_with(
+                &from,
+                &to,
+                &memory,
+                |_| {
+                    let mut reported = expected;
+                    if reads == 1 {
+                        reported.uid ^= u32::from(uid);
+                        reported.gid ^= u32::from(gid);
+                    }
+                    reads += 1;
+                    Ok(reported)
+                },
+                |file, requested| {
+                    changes += 1;
+                    assert_eq!(file.as_raw_fd(), to.as_raw_fd());
+                    assert_eq!((requested.uid, requested.gid), (expected.uid, expected.gid));
+                    Err(Error::Busy)
+                },
+            );
+            assert_eq!(result, if uid || gid { Err(Error::Busy) } else { Ok(()) });
+            assert_eq!(changes, usize::from(uid || gid));
+            assert_eq!(reads, if uid || gid { 2 } else { 3 });
+        }
+
+        for (uid, gid, mode) in [
+            (false, false, false),
+            (true, false, false),
+            (false, true, false),
+            (false, false, true),
+        ] {
+            let mut reads = 0;
+            let result = copy_metadata_with(
+                &from,
+                &to,
+                &memory,
+                |_| {
+                    let mut reported = expected;
+                    if reads == 2 {
+                        reported.uid ^= u32::from(uid);
+                        reported.gid ^= u32::from(gid);
+                        reported.mode ^= u32::from(mode);
+                    }
+                    reads += 1;
+                    Ok(reported)
+                },
+                |_, _| panic!("the fixture starts with matching owners"),
+            );
+            assert_eq!(reads, 3);
+            assert_eq!(
+                result,
+                if uid || gid || mode {
+                    Err(Error::Io)
+                } else {
+                    Ok(())
+                }
+            );
+            assert_eq!(fs::read(&target).unwrap(), b"candidate");
+        }
+    }
+
+    #[test]
+    fn metadata_mutation_syscalls_report_rejection_of_a_path_only_descriptor() {
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let directory = NativeDirectory::new("mutation-errors");
+        let source = directory.0.join("source");
+        let target = directory.0.join("target");
+        fs::write(&source, b"source").unwrap();
+        fs::write(&target, b"candidate").unwrap();
+        let from = File::open(&source).unwrap();
+        let to = File::options()
+            .read(true)
+            .custom_flags(0x200000)
+            .open(&target)
+            .unwrap(); // O_PATH
+        let memory = Memory::new(Limits::default()).unwrap();
+        let validate = |result: std::result::Result<(), super::super::StorageFailure>| {
+            let failure = result.unwrap_err();
+            assert_eq!(failure.error, Error::Io);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, NativeIoOperation::CopyMetadata);
+            assert_eq!(native.raw_os_error, Some(9));
+        };
+        let owner = read_attributes(&from).unwrap();
+        assert_eq!(diagnostics::capture(|| change_owner(&from, owner)), Ok(()));
+        validate(diagnostics::capture(|| change_owner(&to, owner)));
+        validate(diagnostics::capture(|| copy_metadata(&from, &to, &memory)));
+
+        let name = c"user.weekend-copy";
+        let value = b"wanted";
+        // The real source file is owned and writable by the test process.
+        assert_eq!(
+            unsafe {
+                fsetxattr(
+                    from.as_raw_fd(),
+                    name.as_ptr(),
+                    value.as_ptr().cast(),
+                    value.len(),
+                    0,
+                )
+            },
+            0
+        );
+        let present = names(&from, &memory).unwrap();
+        let empty = XattrNames::new(Vec::new_in(memory.allocator())).unwrap();
+        validate(diagnostics::capture(|| {
+            copy_xattrs(&from, &to, &memory, &empty, &present)
+        }));
+        validate(diagnostics::capture(|| {
+            copy_xattrs(&from, &to, &memory, &present, &empty)
+        }));
+        assert_eq!(fs::read(target).unwrap(), b"candidate");
     }
 
     #[test]
