@@ -103,7 +103,10 @@ Continue with the remaining generated paths and delivered consumers per ABI.
 
 Batch 7 starts with [typed unique-claim replacement](decisions/typed-unique-claims-current.md).
 It covers stale, malformed and competing owners, paired primary and index
-updates, and allocation rollback with retained roots.
+updates, and allocation rollback with retained roots. The
+[index allocator follow-up](decisions/typed-index-allocator-current.md) routes
+checking and repair scratch through the database allocator and charges held
+scan keys to the live-byte cap.
 
 Batch 9 covers the follower's separate durability acknowledgment.
 

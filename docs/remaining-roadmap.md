@@ -497,6 +497,14 @@ of six guards within named model instantiations. The queue has 9,365 open
 records (1,982 runtime / 26 driver / 7,357 tooling). Other typed paths and
 native Windows execution remain open.
 
+The [typed index allocator follow-up](decisions/typed-index-allocator-current.md)
+fixes eight observed Global requests in a consistency check with a selected
+allocator. Check and repair pass with zero Global requests at `2ea387d`, and
+the retained view preserves the earlier index state. Both local hosts pass
+the typed and selected core suites in debug and release and detect all seven
+controls. Miri passes the index allocator and snapshot iterator fixtures.
+Live-byte accounting includes the held scan keys. Native Windows remains open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

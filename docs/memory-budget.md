@@ -110,6 +110,14 @@ live-byte cap. The typed crate uses `Database::allocator()` for its ID and
 index vectors, which sit outside that cap. Model decoding and migration
 callbacks can allocate their own Rust fields and buffers.
 
+Typed index checks and repairs use the same allocator for their row scans
+and scratch vectors. They keep the scan keys charged while the keys are in
+use, so a tight live-byte limit can reject index maintenance. The scratch
+vectors themselves use the selected allocator outside the live-byte cap.
+`Snapshot::scan_iter` and `Transaction::scan_iter` both return owned rows in
+binary-key order, with charges held as long as the iterator or a row owns
+the corresponding buffer.
+
 The database owns a reference to its allocator. Retained roots, live snapshots
 and cloned Rust values keep the allocation owner alive. A value can outlive the
 database that created it. C close returns `WDB_BUSY` while opaque handles are
