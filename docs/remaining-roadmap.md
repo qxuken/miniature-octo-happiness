@@ -339,8 +339,17 @@ sync and exchange outcomes, bounded entropy and metadata reads, and
 successful ext4 metadata retry after all three selected allocation refusals.
 Both Linux profiles detect all 31 selected controls. The native fixtures
 also pass under UID 1000 on ext4. The queue has 9,489 open records
-(2,120 runtime / 26 driver / 7,343 tooling). The remaining Linux and Windows
-decisions and deployed-device persistence remain open.
+(2,120 runtime / 26 driver / 7,343 tooling).
+
+The [Linux metadata ledger](decisions/linux-metadata-current.md) adds
+16 dispositions and rebinds the earlier 24 on `6d3d308`. The adapter
+rejects malformed attribute lists before issuing native attribute
+mutations. The fixtures exercise metadata read refusal, independent
+ownership and mode checks, and native EBADF for each mutating syscall.
+Both Linux profiles detect all 24 selected controls. The queue has
+9,474 open records (2,105 runtime / 26 driver / 7,343 tooling).
+The Linux architecture guard, Windows adapter decisions and deployed-device
+persistence remain open.
 
 All R1 and R2–R7 completion gates above remain open.
 

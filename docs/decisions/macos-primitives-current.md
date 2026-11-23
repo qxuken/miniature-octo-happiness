@@ -34,7 +34,7 @@ set from which each shard was selected.
 | Source | SHA-256 |
 | --- | --- |
 | `src/storage/macos.rs` | `da5c860e2e339f78e53b9d63e993c96c89aeee62f40e22c4c06c15952c6700e2` |
-| `xtask/src/mutations.rs` | `ad6a891d0bdafeda82e528f2be08a7362d8b49ac99fbaea741cacdc4df06c51b` |
+| `xtask/src/mutations.rs` | `48d2b888c0056ed738b8456a46277c37d7b55ccb1708802ad5a17056246f989f` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
