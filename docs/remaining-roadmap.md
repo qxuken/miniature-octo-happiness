@@ -1,5 +1,8 @@
 # Work remaining after the first review checkpoints
 
+The [private production PR roadmap](production-pr-roadmap.md) turns the
+remaining release gates into reviewable batches and defines their stack order.
+
 PRs #1, #2, #3 and #4 are review checkpoints. The production-readiness goal remains open.
 The [e2d2268 qualification](candidate-qualification-e2d2268.md) records the
 completed checks. This list is the handoff for subsequent work; the full
