@@ -50,7 +50,7 @@ alone rejects, and all four case pairs preserve the medium.
 | Source | SHA-256 |
 | --- | --- |
 | `src/engine.rs` | `c1a9f0d9f416442840397a04b3b5d1ac7b3332b5d6dec98495d346d1420dea6d` |
-| `src/storage/mod.rs` | `c17efef88ce5c714751c9e394cf5f8e7a80eedcd25ad8a52da8f38fe9210ef03` |
+| `src/storage/mod.rs` | `d0bd8f6272900611bfdf845205fbaa9c7d72fc36088dfdaef93d9c693ad5a1cd` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -59,22 +59,22 @@ alone rejects, and all four case pairs preserve the medium.
 | E | weekend-db::weekend_db | src/engine.rs:290:78– | 8924..8925 | try_propagation | compact_copy | State lock poison stops the copy before either medium is touched. |
 | E | weekend-db::weekend_db | src/engine.rs:297:10– | 9135..9136 | try_propagation | compact_copy | Preserve destination errors before verification. |
 | E | weekend-db::weekend_db | src/engine.rs:298:31– | 9168..9169 | try_propagation | compact_copy | A complete publication with a refused verification read still reports its error. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:127:21– | 4472..4473 | try_propagation | space | A poisoned store rejects before querying physical length. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:128:51– | 4525..4526 | try_propagation | space | Report a length refusal and preserve usability for retry. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:129:9– | 4536..4538 | if | space | The lower and upper bounds reject independently and poison. A valid length reports headroom. |
-| C | weekend-db::weekend_db | src/storage/mod.rs:129:12– | 4539..4607 | short_circuit_or | space | Same predicates and source range as the preceding pair. |
-| I | weekend-db::weekend_db | src/storage/mod.rs:133:62– | 4755..4756 | try_propagation | space | The admitted length is within a region-aligned cap, so rounding cannot fail. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:158:21– | 5553..5554 | try_propagation | encode_compact_copy | A poisoned store stops before the first source or destination callback. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:159:49– | 5604..5605 | try_propagation | encode_compact_copy | A refused source length avoids destination I/O and allows retry. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:160:9– | 5615..5617 | if | encode_compact_copy | Short or over-cap source length independently rejects. A valid source can be copied. |
-| C | weekend-db::weekend_db | src/storage/mod.rs:160:12– | 5618..5682 | short_circuit_or | encode_compact_copy | Same predicates and source range as the preceding pair. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:170:10– | 5939..5940 | try_propagation | encode_compact_copy | A failed destination publication propagates before independent verification. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:187:98– | 6552..6553 | try_propagation | create_compact | A failed fresh-image creation stops the copy. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:197:63– | 6904..6905 | try_propagation | verify | The destination recovery error propagates after completed publication. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:198:9– | 6915..6917 | if | verify | Independently vary the identity, revision, committed end and witness of the selected root. |
-| C | weekend-db::weekend_db | src/storage/mod.rs:198:12– | 6918..7007 | short_circuit_or | verify | The identity and revision prefix is exercised by the envelope pairs. |
-| C | weekend-db::weekend_db | src/storage/mod.rs:198:12– | 6918..7052 | short_circuit_or | verify | The identity, revision and end prefix is exercised by the envelope pairs. |
-| C | weekend-db::weekend_db | src/storage/mod.rs:198:12– | 6918..7087 | short_circuit_or | verify | Same predicates and source range as the envelope pair. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:129:21– | 4516..4517 | try_propagation | space | A poisoned store rejects before querying physical length. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:130:51– | 4569..4570 | try_propagation | space | Report a length refusal and preserve usability for retry. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:131:9– | 4580..4582 | if | space | The lower and upper bounds reject independently and poison. A valid length reports headroom. |
+| C | weekend-db::weekend_db | src/storage/mod.rs:131:12– | 4583..4651 | short_circuit_or | space | Same predicates and source range as the preceding pair. |
+| I | weekend-db::weekend_db | src/storage/mod.rs:135:62– | 4799..4800 | try_propagation | space | The admitted length is within a region-aligned cap, so rounding cannot fail. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:160:21– | 5597..5598 | try_propagation | encode_compact_copy | A poisoned store stops before the first source or destination callback. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:161:49– | 5648..5649 | try_propagation | encode_compact_copy | A refused source length avoids destination I/O and allows retry. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:162:9– | 5659..5661 | if | encode_compact_copy | Short or over-cap source length independently rejects. A valid source can be copied. |
+| C | weekend-db::weekend_db | src/storage/mod.rs:162:12– | 5662..5726 | short_circuit_or | encode_compact_copy | Same predicates and source range as the preceding pair. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:172:10– | 5983..5984 | try_propagation | encode_compact_copy | A failed destination publication propagates before independent verification. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:189:98– | 6596..6597 | try_propagation | create_compact | A failed fresh-image creation stops the copy. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:199:63– | 6948..6949 | try_propagation | verify | The destination recovery error propagates after completed publication. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:200:9– | 6959..6961 | if | verify | Independently vary the identity, revision, committed end and witness of the selected root. |
+| C | weekend-db::weekend_db | src/storage/mod.rs:200:12– | 6962..7051 | short_circuit_or | verify | The identity and revision prefix is exercised by the envelope pairs. |
+| C | weekend-db::weekend_db | src/storage/mod.rs:200:12– | 6962..7096 | short_circuit_or | verify | The identity, revision and end prefix is exercised by the envelope pairs. |
+| C | weekend-db::weekend_db | src/storage/mod.rs:200:12– | 6962..7131 | short_circuit_or | verify | Same predicates and source range as the envelope pair. |
 
 ## Verification at fa87e4b
 

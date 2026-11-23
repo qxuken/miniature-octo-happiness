@@ -51,31 +51,31 @@ gate. Follower durability acknowledgment remains a separate roadmap item.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/mod.rs` | `c17efef88ce5c714751c9e394cf5f8e7a80eedcd25ad8a52da8f38fe9210ef03` |
+| `src/storage/mod.rs` | `d0bd8f6272900611bfdf845205fbaa9c7d72fc36088dfdaef93d9c693ad5a1cd` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| P | weekend-db::weekend_db | src/storage/mod.rs:284:9– | 10254..10256 | if | guard | Clear and poisoned store, before any backend callback. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:297:21– | 10558..10559 | try_propagation | persist | Poison refusal propagates without advancing to revision validation or length. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:298:9– | 10569..10571 | if | persist | Consecutive revision succeeds; mismatch and exhaustion stop before I/O. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:301:22– | 10697..10702 | match | persist | Length success continues; refusal poisons with Io before append. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:308:9– | 10885..10887 | if | persist | Each length boundary rejects independently; valid length prepares the append. |
-| C | weekend-db::weekend_db | src/storage/mod.rs:308:12– | 10888..10940 | short_circuit_or | persist | The same two conditions are covered by the preceding if pair. |
-| I | weekend-db::weekend_db | src/storage/mod.rs:312:41– | 11067..11068 | try_propagation | persist | An admitted length rounds up within the aligned cap and cannot overflow. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:322:10– | 11322..11323 | try_propagation | persist | ALLOC-COMMIT-PREPARATION rejects provider refusal before append and preserves both roots. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:339:51– | 11999..12000 | try_propagation | publish | Append and append flush must finish before the first root write. A refusal returns Io and poisons. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:350:47– | 12563..12564 | try_propagation | publish | The parity root must complete its flush before the witness; late refusal poisons with OutcomeUnknown. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:359:38– | 12880..12881 | try_propagation | write_synced | A short-write failure prevents sync; complete transfer permits sync and propagates its result. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:367:5– | 13028..13033 | while | read_all | An empty read skips I/O; a nonempty read visits, progresses and terminates. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:369:55– | 13148..13149 | try_propagation | read_all | Preserve Busy and the already read prefix when the next read fails. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:370:9– | 13159..13161 | if | read_all | Zero and oversized progress independently reject; positive valid progress continues. |
-| C | weekend-db::weekend_db | src/storage/mod.rs:370:12– | 13162..13180 | short_circuit_or | read_all | The same two conditions are covered by the preceding read if pair. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:373:68– | 13295..13296 | try_propagation | read_all | An ordinary next read offset succeeds; overflow returns Corrupt. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:383:5– | 13469..13474 | while | write_all | An empty write skips I/O; nonempty input crosses a region edge correctly. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:385:54– | 13628..13629 | try_propagation | write_all | Preserve Busy and the already written prefix when the next write fails. |
-| P | weekend-db::weekend_db | src/storage/mod.rs:386:9– | 13639..13641 | if | write_all | Zero and oversized progress independently reject; a positive partial write continues. |
-| C | weekend-db::weekend_db | src/storage/mod.rs:386:12– | 13642..13660 | short_circuit_or | write_all | The same two conditions are covered by the preceding write if pair. |
-| E | weekend-db::weekend_db | src/storage/mod.rs:389:66– | 13773..13774 | try_propagation | write_all | An ordinary next write offset succeeds; overflow returns Limit. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:286:9– | 10298..10300 | if | guard | Clear and poisoned store, before any backend callback. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:299:21– | 10602..10603 | try_propagation | persist | Poison refusal propagates without advancing to revision validation or length. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:300:9– | 10613..10615 | if | persist | Consecutive revision succeeds; mismatch and exhaustion stop before I/O. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:303:22– | 10741..10746 | match | persist | Length success continues; refusal poisons with Io before append. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:310:9– | 10929..10931 | if | persist | Each length boundary rejects independently; valid length prepares the append. |
+| C | weekend-db::weekend_db | src/storage/mod.rs:310:12– | 10932..10984 | short_circuit_or | persist | The same two conditions are covered by the preceding if pair. |
+| I | weekend-db::weekend_db | src/storage/mod.rs:314:41– | 11111..11112 | try_propagation | persist | An admitted length rounds up within the aligned cap and cannot overflow. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:324:10– | 11366..11367 | try_propagation | persist | ALLOC-COMMIT-PREPARATION rejects provider refusal before append and preserves both roots. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:341:51– | 12043..12044 | try_propagation | publish | Append and append flush must finish before the first root write. A refusal returns Io and poisons. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:352:47– | 12607..12608 | try_propagation | publish | The parity root must complete its flush before the witness; late refusal poisons with OutcomeUnknown. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:361:38– | 12924..12925 | try_propagation | write_synced | A short-write failure prevents sync; complete transfer permits sync and propagates its result. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:369:5– | 13072..13077 | while | read_all | An empty read skips I/O; a nonempty read visits, progresses and terminates. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:371:55– | 13192..13193 | try_propagation | read_all | Preserve Busy and the already read prefix when the next read fails. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:372:9– | 13203..13205 | if | read_all | Zero and oversized progress independently reject; positive valid progress continues. |
+| C | weekend-db::weekend_db | src/storage/mod.rs:372:12– | 13206..13224 | short_circuit_or | read_all | The same two conditions are covered by the preceding read if pair. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:375:68– | 13339..13340 | try_propagation | read_all | An ordinary next read offset succeeds; overflow returns Corrupt. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:385:5– | 13513..13518 | while | write_all | An empty write skips I/O; nonempty input crosses a region edge correctly. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:387:54– | 13672..13673 | try_propagation | write_all | Preserve Busy and the already written prefix when the next write fails. |
+| P | weekend-db::weekend_db | src/storage/mod.rs:388:9– | 13683..13685 | if | write_all | Zero and oversized progress independently reject; a positive partial write continues. |
+| C | weekend-db::weekend_db | src/storage/mod.rs:388:12– | 13686..13704 | short_circuit_or | write_all | The same two conditions are covered by the preceding write if pair. |
+| E | weekend-db::weekend_db | src/storage/mod.rs:391:66– | 13817..13818 | try_propagation | write_all | An ordinary next write offset succeeds; overflow returns Limit. |
 
 ## Verification at e8d76f1
 

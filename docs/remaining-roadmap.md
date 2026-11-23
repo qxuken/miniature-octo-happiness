@@ -418,6 +418,13 @@ read-only lease and reopen fixture cross-compiles for Windows and retains
 its native execution gate. The queue has 9,411 open records
 (2,042 runtime / 26 driver / 7,343 tooling).
 
+The [Windows file identity ledger](decisions/windows-rng-results-current.md)
+qualifies the shared RNG return handling at `a1e36bf`. Both profiles detect
+all four controls on macOS and Docker Linux. The native Windows runner
+uses the same two controls and preserves their exact failure assertions.
+Native execution remains queued. The queue has 9,408 open records
+(2,039 runtime / 26 driver / 7,343 tooling).
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
