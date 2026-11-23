@@ -88,8 +88,11 @@ qualification remain open.
 Batch 6 starts with [FFI handle accounting and allocation refusal](decisions/ffi-handle-accounting-current.md).
 The [FFI boundary ledger](decisions/ffi-boundaries-current.md) adds portable
 source controls for buffers, options, path admission and panic status, plus
-the relocated macOS and Linux C/C++/Odin packages. Continue with generated
-export decisions, remaining ownership paths and delivered consumers per ABI.
+the relocated macOS and Linux C/C++/Odin packages. The
+[generated C export ledger](decisions/ffi-generated-exports-current.md)
+adds validation-mode controls, delivered allocator callback checks and the
+134-cell trace. Continue with the remaining ownership paths, generated
+file factories and delivered consumers per ABI.
 
 Batch 9 covers the follower's separate durability acknowledgment.
 

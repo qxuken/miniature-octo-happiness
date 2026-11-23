@@ -450,6 +450,14 @@ and after relocation on both hosts. Native Windows UTF-8
 propagation, generated export decisions and remaining delivered profiles stay open.
 The queue has 9,391 open records (2,014 runtime / 26 driver / 7,351 tooling).
 
+The [generated C export ledger](decisions/ffi-generated-exports-current.md)
+records ten named mutants at `280754c` and the differing revisions for
+records and whole-database validation. The private C and C++ packages
+verify allocator context lifetime, four open refusals and snapshot retry
+through the exact shared libraries. The Rust, C and Odin 134-cell traces
+match on macOS and Docker Linux. Native Windows, file factories with
+custom allocators and the remaining generated paths stay open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
