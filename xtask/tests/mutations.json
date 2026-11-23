@@ -9387,6 +9387,50 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "file": "src/storage/windows_rng.rs",
+      "test": "storage::windows_rng::tests::identity_rejects_every_nonzero_status_before_accepting_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "name": "r1-windows-rng-status-negative",
+      "old": "if status != 0 {",
+      "new": "if status < 0 {"
+    },
+    {
+      "file": "src/storage/windows_rng.rs",
+      "test": "storage::windows_rng::tests::identity_rejects_every_nonzero_status_before_accepting_bytes",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "name": "r1-windows-rng-diagnostic-omission",
+      "old": "            diagnostics::record(\n                NativeIoOperation::Random,\n                &io::Error::from_raw_os_error(status),\n            );\n",
+      "new": ""
+    },
+    {
+      "name": "r1-windows-rng-three-attempts",
+      "file": "src/storage/windows_rng.rs",
+      "old": "for _ in 0..3 {",
+      "new": "for _ in 0..2 {",
+      "test": "storage::windows_rng::tests::identity_accepts_any_of_three_complete_nonzero_attempts",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-windows-rng-nonzero-draw",
+      "file": "src/storage/windows_rng.rs",
+      "old": "if id != [0; 16] {",
+      "new": "if id == [0; 16] {",
+      "test": "storage::windows_rng::tests::identity_rejects_exactly_three_complete_zero_attempts",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
