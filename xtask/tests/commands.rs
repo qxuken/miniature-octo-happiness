@@ -3,8 +3,8 @@
 use std::{
     collections::BTreeSet,
     fs,
-    os::unix::fs::PermissionsExt,
-    path::PathBuf,
+    os::unix::fs::symlink,
+    path::{Path, PathBuf},
     process::{Command, Output},
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
@@ -36,6 +36,11 @@ fn real_mutation_cli_shards_cover_the_prefix_without_outputs_or_case_loss() {
         .as_array()
         .unwrap()
         .iter()
+        .filter(|case| {
+            case["os"]
+                .as_str()
+                .is_none_or(|os| os == std::env::consts::OS)
+        })
         .filter_map(|case| case["name"].as_str().filter(|name| name.starts_with("r1-")))
         .map(str::to_owned)
         .collect::<Vec<_>>();
@@ -103,19 +108,22 @@ fn failed_cargo(args: &[&str]) -> (Output, String) {
     let dir = Fixture(directory);
     let fake = dir.0.join("cargo");
     let trace = dir.0.join("trace");
-    fs::write(
-        &fake,
-        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$TRACE\"\nexit 29\n",
-    )
-    .unwrap();
-    fs::set_permissions(&fake, fs::Permissions::from_mode(0o700)).unwrap();
+    // A sibling fork can inherit a temporary executable's writable file
+    // descriptor. Link to the checked-in script instead of writing it here.
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/failing-cargo.sh");
+    symlink(script, &fake).unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_xtask"))
         .args(args)
         .env("PATH", &dir.0)
         .env("TRACE", &trace)
         .output()
         .unwrap();
-    let calls = fs::read_to_string(trace).unwrap();
+    let calls = fs::read_to_string(trace).unwrap_or_else(|error| {
+        panic!(
+            "fake Cargo did not record its calls: {error}\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        )
+    });
     (out, calls)
 }
 

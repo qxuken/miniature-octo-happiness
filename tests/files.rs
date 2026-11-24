@@ -469,3 +469,104 @@ fn windows_rejects_streams_and_devices_and_unlock_closes_handle() {
     assert_eq!(file.length(), Err(Error::Io));
     drop(Database::open_file(&path, Limits::default()).unwrap());
 }
+
+#[cfg(windows)]
+#[test]
+fn windows_open_failures_report_the_native_stage_and_preserve_roots() {
+    use weekend_db::storage::{FileStore, NativeIoOperation, StorageFailure};
+
+    fn check(failure: StorageFailure, error: Error, operation: NativeIoOperation, codes: &[i32]) {
+        assert_eq!(failure.error, error);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, operation);
+        assert!(codes.contains(&native.raw_os_error.unwrap()), "{native:?}");
+    }
+
+    let dir = Directory::new();
+    let path = dir.file("store.db");
+    seed(&path);
+    let before = fs::read(&path).unwrap();
+    check(
+        FileStore::open_with_diagnostics(dir.file("missing-parent").join("store.db"))
+            .err()
+            .unwrap(),
+        Error::NotFound,
+        NativeIoOperation::OpenDirectory,
+        &[2, 3],
+    );
+    check(
+        FileStore::open_with_diagnostics(dir.file("missing.db"))
+            .err()
+            .unwrap(),
+        Error::NotFound,
+        NativeIoOperation::Open,
+        &[2, 3],
+    );
+    check(
+        FileStore::create_with_diagnostics(&path).err().unwrap(),
+        Error::AlreadyExists,
+        NativeIoOperation::Create,
+        &[80, 183],
+    );
+    let held = FileStore::open_read_only(&path).unwrap();
+    check(
+        FileStore::open_with_diagnostics(&path).err().unwrap(),
+        Error::Busy,
+        NativeIoOperation::Open,
+        &[32, 33],
+    );
+    drop(held);
+    assert_eq!(fs::read(&path).unwrap(), before);
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    assert_eq!(number(&db.snapshot(), &db, b"a"), 2);
+    assert_eq!(number(&db.retained_snapshot(1).unwrap(), &db, b"a"), 1);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_claim_guards_io_and_unlock_releases_the_read_only_handle() {
+    use weekend_db::storage::{ByteStore, FileStore, NativeIoOperation, with_storage_diagnostics};
+
+    fn check_guard(store: &mut FileStore) {
+        let mut out = [0x5a; 4];
+        for result in [
+            with_storage_diagnostics(|| store.length().map(|_| ())),
+            with_storage_diagnostics(|| store.read(0, &mut out).map(|_| ())),
+            with_storage_diagnostics(|| store.write(0, b"x").map(|_| ())),
+            with_storage_diagnostics(|| store.sync()),
+        ] {
+            let blocked = result.unwrap_err();
+            assert_eq!(blocked.error, Error::Io);
+            assert_eq!(blocked.native, None);
+        }
+        assert_eq!(out, [0x5a; 4]);
+    }
+
+    let dir = Directory::new();
+    let path = dir.file("lease.db");
+    seed(&path);
+    let before = fs::read(&path).unwrap();
+    let mut store = FileStore::open_read_only(&path).unwrap();
+    check_guard(&mut store);
+    assert_eq!(
+        FileStore::open_with_diagnostics(&path).err().unwrap().error,
+        Error::Busy
+    );
+    store.lock().unwrap();
+    assert_eq!(store.lock(), Err(Error::Busy));
+    assert_eq!(store.length(), Ok(before.len() as u64));
+    let mut out = [0; 4];
+    assert_eq!(store.read(0, &mut out), Ok(4));
+    assert_eq!(out, before[..4]);
+    let refused = with_storage_diagnostics(|| store.write(0, b"x")).unwrap_err();
+    assert_eq!(refused.error, Error::Io);
+    let native = refused.native.unwrap();
+    assert_eq!(native.operation, NativeIoOperation::Write);
+    assert!(native.raw_os_error.is_some());
+    store.unlock();
+    check_guard(&mut store);
+    store.unlock();
+    assert_eq!(store.lock(), Err(Error::Closed));
+    drop(FileStore::open(&path).unwrap());
+    assert_eq!(fs::read(&path).unwrap(), before);
+}

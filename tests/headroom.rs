@@ -56,7 +56,7 @@ fn impossible_lengths_block_publication() {
     for invalid in [0, MAX_IMAGE_BYTES as u64 + 1] {
         let disk = SimulatedDisk::from_image(&image(false)).unwrap();
         let length = Arc::new(AtomicU64::new(u64::MAX));
-        let db = Database::open_on(
+        let mut db = Database::open_on(
             ReportedLength {
                 disk: disk.clone(),
                 length: length.clone(),
@@ -73,6 +73,10 @@ fn impossible_lengths_block_publication() {
         length.store(u64::MAX, Ordering::Relaxed);
         assert_eq!(db.storage_space(), Err(Error::RecoveryRequired));
         assert_eq!(db.begin().commit(), Err(Error::RecoveryRequired));
+        let target = SimulatedDisk::new().unwrap();
+        assert_eq!(db.compact_to(target.clone()), Err(Error::RecoveryRequired));
+        assert!(target.trace().unwrap().is_empty());
+        assert!(target.durable_image().unwrap().is_empty());
         assert!(disk.trace().unwrap().is_empty());
         assert_eq!(disk.durable_image().unwrap(), before);
     }

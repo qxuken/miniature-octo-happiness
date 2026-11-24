@@ -1,5 +1,8 @@
 # Persistent tree source decision audit
 
+The [current tree ledger](tree-current.md) records the later source bindings
+and platform checks for the same module.
+
 The production AST inventory contains **69 records** for `src/tree.rs`: 32
 propagation operators, 17 ifs, eight matches, three ANDs, three let-else forms,
 two loops, two pattern tests, one while and one match guard. The exact source

@@ -422,6 +422,12 @@ bytes survive modeled power loss. No write is assumed atomic. These are declared
 requirements, not established hardware guarantees. The milestone-7 adapter
 implements the macOS locking/sync/lifecycle policy described below.
 
+A successful `ByteStore::lock` hands the writer lease to the engine, which
+calls `unlock` when the storage owner drops. On a lock error, the engine
+drops the backend without calling `unlock`. By the time it is dropped,
+the backend must release any resources it acquired for the failed attempt
+and preserve any other owner's lease.
+
 Integers, lengths, and offsets are little-endian; unspecified/reserved bytes
 must be zero. Lengths/references are checked `u64` byte counts/offsets. A protected
 region is **4,096 bytes**. Images are capped at **64 MiB**, graph traversal at
@@ -682,7 +688,8 @@ rejected with `O_NOFOLLOW`. Paths may contain spaces, Unicode, or native bytes.
 Opening uses `O_RDWR | O_EXLOCK | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC`.
 `O_EXLOCK` atomically acquires an advisory inode lock at open, including creation,
 avoiding an unlocked empty-file window. A logical `ByteStore` lease reasserts the
-flock; unlock releases it, with descriptor close as the final cleanup. Separate
+flock. Explicit unlock releases it, and a file adapter still holding the lease
+also unlocks on drop before closing the descriptor. Separate
 opens in the same process, hard-link aliases, and another process cannot become
 a second cooperating writer; contention returns `Busy`. These are exclusive
 read/write opens, not a multi-process reader/writer protocol. Locks are advisory:
@@ -701,8 +708,12 @@ there is no automatic unlink/repair that could discard a usable store.
 Every sync uses `fcntl(F_FULLFSYNC)`, with **no weaker fallback** if unsupported.
 The first creation sync performs full file sync, parent-directory `fsync`, then
 another full file sync to request device-cache ordering after directory metadata.
-This completes before root-slot publication; all subsequent barriers use full
-file sync. Close discards unpublished drafts and releases owned descriptors/locks;
+Each failure leaves the creation barriers pending at the adapter boundary.
+The next sync repeats the sequence from its first file flush. The
+[Unix sync ledger](docs/decisions/unix-sync-current.md) records these cases
+for the shared macOS and Linux adapter.
+The sequence completes before root-slot publication. Subsequent barriers use
+full file sync. Close discards unpublished drafts and releases owned descriptors/locks;
 it is not a late commit/durability barrier. Std file destruction does not report
 close errors; publication must already have completed its explicit syncs. Milestone 7 did not add replacement; milestone 10 specifies the offline
 compaction protocol in §7 below.
@@ -1425,9 +1436,10 @@ rename, unlink, hard-link creation or directory replacement is outside the contr
 1. Open the original with the normal nonblocking exclusive inode lock; reject
    `nlink != 1`. Fully verify/stabilize recovery and keep that descriptor locked.
 2. Create a random `.wdb-compact-<32 hex digits>.tmp` sibling with `O_EXCL`, mode
-   `0600`, and an atomic exclusive inode lock. Never truncate an existing name.
-   Build, sync and verify the complete compact image. Creation includes the
-   existing parent-directory fsync/full-file-sync barrier.
+   `0600`, and an atomic exclusive inode lock. The location allocator reserves
+   the complete terminated name once before requesting entropy. Existing names
+   return `AlreadyExists`. Build, sync and verify the complete compact image.
+   Creation includes the existing parent-directory fsync/full-file-sync barrier.
 3. Copy source metadata using `fcopyfile(COPYFILE_METADATA)` (POSIX information,
    ACLs and extended attributes, under macOS metadata policy), then full-sync
    the replacement, then run full-graph verification again so the final check
@@ -1466,6 +1478,11 @@ copies until that succeeds and any required backup is secured. Successful
 compaction removes only its own old scratch name. Unrelated siblings are never
 selected or removed. Cleanup failures can leave the old file consuming space
 while the canonical compact file is already usable.
+
+The [native replacement ledger](docs/decisions/native-replacement-current.md)
+records canonical and scratch inode outcomes at each before and after hook.
+It separately records which names survive under the namespace model's durable,
+flushed and volatile persistence choices.
 
 **Durability scope and tests.** The namespace model assumes exchange is atomic
 under recovery (old or swapped mappings), directory fsync submits namespace
@@ -1801,10 +1818,11 @@ manual reuse of an unlocked adapter after its inode has been replaced. The
 common check now protects both adapters. Cooperating opens, hard-link aliases
 and separate processes share inode exclusion; no sidecar lock is introduced.
 
-Dropping a Linux file adapter explicitly releases its lease if the kernel
-still holds it. This allows immediate reopen when a concurrently forked child
+On macOS and Linux, dropping a file adapter explicitly releases its lease if it
+still holds one. This allows immediate reopen when a concurrently forked child
 retains a descriptor until exec. An adapter that has already unlocked skips the
-drop-time unlock.
+drop-time unlock. The [Unix lease ledger](docs/decisions/unix-leases-current.md)
+records the duplicate-descriptor regression and the stale-path lease checks.
 
 Creation necessarily has an open-to-flock interval on Linux. A competing opener
 may briefly see an incomplete new file and receive a format/corruption error,
@@ -2738,6 +2756,9 @@ state associated with the expected revision.
 This pass covers local publication, witness agreement, and writable
 recovery stabilization. The format parser, graph verifier, root-slot
 adjacency check, and follower acknowledgment have separate decisions.
+The [current creation and reopen ledger](docs/decisions/storage-creation-reopen-current.md)
+extends these checks with exact traces, lease reacquisition before a crash,
+and a byte-for-byte comparison against an independent successful commit.
 
 On arm64 macOS, 60 library, durability, compaction, file, replication,
 and retention tests passed in both debug and release with all features.

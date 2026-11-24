@@ -1,5 +1,8 @@
 # Work remaining after the first review checkpoints
 
+The [private production PR roadmap](production-pr-roadmap.md) turns the
+remaining release gates into reviewable batches and defines their stack order.
+
 PRs #1, #2, #3 and #4 are review checkpoints. The production-readiness goal remains open.
 The [e2d2268 qualification](candidate-qualification-e2d2268.md) records the
 completed checks. This list is the handoff for subsequent work; the full
@@ -206,6 +209,358 @@ existing live-budget controls. The R1 queue is 9,916 individual gaps
 (2,556 runtime / 26 driver / 7,334 tooling). The simulator and raw Rust
 output failure coverage are separate follow-ups before retiring the legacy
 allocation hook.
+
+The [simulator allocator slice](decisions/simulator-allocator-current.md)
+uses an independent selected allocator for simulator storage and backend
+failure sweeps. The constructor, trace, write, crash, sync and reopen checks
+pass on macOS and Docker Linux in both profiles.
+
+The [Rust output slice](decisions/rust-output-allocation.md) exercises real
+Global refusal in map, scan, retained ID, simulator, inspection and logical
+export outputs. Observation, overlay and owned scans use selected-allocator
+refusals.
+
+The [public allocation hook retirement](decisions/public-allocation-hook-retirement.md)
+migrates the remaining integration callers and the compound resource driver.
+The [codec allocation tests](decisions/codec-allocator-tests.md) drive
+real provider refusal across encoding, recovery, cache reuse and fresh
+image creation. The [cold-open and Linux metadata tests](decisions/storage-allocator-tests.md)
+exercise real refusals while checking current and retained roots,
+lease cleanup, and metadata and ACL preservation.
+
+The [unit allocator migration](decisions/unit-allocator-retirement.md)
+finishes batch 2 on the stack. Tree, value and memory tests use the
+provider and the synthetic counter has been removed. Both golden histories
+pass on macOS and Docker Linux, and 22 allocator and encoder controls
+pass in each macOS profile.
+
+The [codec cache and index ledger](decisions/codec-cache-index-current.md)
+records batch 3 on the stack. It binds 28 source decisions to directed
+pairs, propagation tests, scoped execution and coupling. Both profiles
+caught all 31 new controls on macOS. The 17 golden images match across
+both profiles on macOS and Docker Linux.
+
+The [transaction observation and overlay scan ledger](decisions/transaction-observation-scan-current.md)
+starts batch 4 on the stack. It binds 39 source decisions and detects
+all 35 named controls in both macOS profiles. The provider sweeps verify
+draft usability, released scratch, and the dependency that survives after
+successful observation. A separate BTreeMap checks ordered overlay rows
+at capacity.
+
+The [assignment and commit preparation ledger](decisions/transaction-assignment-commit-current.md)
+records 31 more source dispositions. The assignment sweep checks which
+observations survive refusal while the prior edit remains usable. The
+durable sweep includes replacement and deletion and preserves both roots
+before publication. Both macOS profiles detected 30 new controls and three
+existing controls.
+
+The [persistent tree ledger](decisions/tree-current.md) records all 72
+tree decisions, with 71 fewer open runtime records. The sweeps cover
+collision insertion and replacement, removal, binary row budgets, and
+list growth and clearing under provider refusal. Both macOS profiles
+detected all 49 named controls.
+
+The [owned value ledger](decisions/value-current.md) covers all 81 value
+decisions. A copying model checks completed nested edits, and the refusal
+sweep preserves the source values and live charges. Both macOS profiles
+detected all 52 controls after the removal and error fixtures were
+strengthened.
+
+The [transaction write-charge bound](decisions/write-charge-current.md)
+removes the last recorded batch 4 residual. A saturated write subtotal
+exceeds every valid transaction cap and is rejected before allocating
+write storage. Both macOS profiles detected 32 controls, including the
+two sum boundaries and the upper cap guard. Batch 5 starts with ByteStore
+transfer progress and publication barriers.
+
+The [ByteStore and publication ledger](decisions/bytestore-publication-current.md)
+starts batch 5 with 20 more exact source dispositions. It records which
+revision reopens at each simulated publication failure and checks the
+retained rows throughout. Debug and release pass on macOS and Docker Linux
+at `e8d76f1`. Both macOS profiles detect all 27 selected controls.
+The queue has 9,628 open records (2,258 runtime / 26 driver / 7,344 tooling).
+
+The [creation and reopen ledger](decisions/storage-creation-reopen-current.md)
+maps 15 more source records at `de38aac`. It checks which initialization
+failures leave no usable image, and which stabilization failures reopen
+revision 3 or 4 with revision 2 still retained. Both profiles pass on
+macOS and Docker Linux. Both macOS profiles detect all 24 selected
+controls. The queue has 9,613 open records (2,243 runtime / 26 driver /
+7,344 tooling).
+
+The [compact-copy and headroom ledger](decisions/compact-copy-current.md)
+adds 21 exact dispositions at `fa87e4b`. The sweep faults every destination
+callback and checks source bytes, lease release, and exact bytes and retained
+rows when a destination reopens. Debug and release pass on macOS and Docker
+Linux. Both macOS profiles detect all 22 selected controls. The queue has
+9,592 open records (2,222 runtime / 26 driver / 7,344 tooling).
+
+The [native replacement ledger](decisions/native-replacement-current.md)
+maps 18 more runtime records at `23eb940`. It checks which inode remains
+canonical at each before/after failure, when the old scratch file is
+removed, and which names survive each simulated persistence choice.
+Both profiles pass on macOS and Docker Linux. Both macOS profiles detect
+all 21 selected controls. The deeper native adapter decisions remain
+in batch 5, and follower durability has its own checks in batch 9.
+The queue has 9,574 open records (2,204 runtime / 26 driver / 7,344 tooling).
+
+The [Unix writer lease ledger](decisions/unix-leases-current.md) records a
+macOS bug reproduced by the Linux duplicate-descriptor fixture. The adapter
+now unlocks before closing, and the regression passes on both platforms.
+The stale-path check releases the rejected inode while the original adapter
+is still alive. Both macOS profiles detect all 22 controls at `15b2993`.
+The queue has 9,548 open records (2,178 runtime / 26 driver / 7,344 tooling).
+
+The [Unix pathname ledger](decisions/unix-path-admission-current.md) maps
+19 more source records at `c28cad3`. Both platforms pass the same refusal
+sweep for parent and leaf allocation during create and reopen. Native failures
+preserve the operation and errno, and both macOS profiles detect all 20
+selected controls. The queue has 9,529 open records (2,159 runtime /
+26 driver / 7,344 tooling).
+
+The [Unix sync ledger](decisions/unix-sync-current.md) maps nine additional
+records at `a1b2dd5`. A failure at any creation barrier preserves its error
+and makes the adapter repeat all three barriers on retry. The compaction
+trace distinguishes source and target length, read, write and sync. Both
+profiles pass on macOS and Docker Linux, and both macOS profiles detect
+all 13 selected controls. The queue has 9,520 open records (2,150 runtime /
+26 driver / 7,344 tooling).
+
+The [macOS primitive ledger](decisions/macos-primitives-current.md) maps
+all six records at `67c91b2`. Actual file sync, exchange and metadata copy
+exercise success and native refusal. Both macOS profiles detect all 12
+native controls. The Unix controller selects host-specific cases before
+sharding. Its macOS and Linux lists agree on the 620 shared R1 names.
+The queue has 9,513 open records (2,144 runtime / 26 driver / 7,343 tooling).
+
+The [Linux primitive ledger](decisions/linux-primitives-current.md) maps
+24 of the 40 Linux adapter records at `355447a`. It records real flock,
+sync and exchange outcomes, bounded entropy and metadata reads, and
+successful ext4 metadata retry after all three selected allocation refusals.
+Both Linux profiles detect all 31 selected controls. The native fixtures
+also pass under UID 1000 on ext4. The queue has 9,489 open records
+(2,120 runtime / 26 driver / 7,343 tooling).
+
+The [Linux metadata ledger](decisions/linux-metadata-current.md) adds
+16 dispositions and rebinds the earlier 24 on `6d3d308`. The adapter
+rejects malformed attribute lists before issuing native attribute
+mutations. The fixtures exercise metadata read refusal, independent
+ownership and mode checks, and native EBADF for each mutating syscall.
+Both Linux profiles detect all 24 selected controls. The queue has
+9,474 open records (2,105 runtime / 26 driver / 7,343 tooling).
+Deployed-device persistence remains open.
+
+The [Windows pathname ledger](decisions/windows-paths-current.md) records
+27 helper dispositions at `a28cca6`, including three partial let-chain
+records. The adapter rejects over-cap normalized and assembled UTF-16
+paths before growth. The shared path tests pass on macOS and Docker Linux
+in both profiles, and macOS detects all 30 controls per profile. Windows
+cross-target Clippy passes. Native Win32 execution and the intended NTFS
+deployment remain separate gates. The queue has 9,453 open records
+(2,084 runtime / 26 driver / 7,343 tooling).
+
+The [Unix scratch and positioned I/O ledger](decisions/unix-scratch-io-current.md)
+records five new dispositions at `d31aba8`. Scratch names use one selected
+allocation before entropy. Native fixtures check exclusive-create
+collision, unlink, short reads, EOF, offsets and read-only write refusal.
+Both profiles on macOS and Docker Linux pass storage, recovery and
+golden-image tests and detect all 12 named controls. The queue has 9,447
+open records (2,078 runtime / 26 driver / 7,343 tooling).
+
+The [Linux architecture admission ledger](decisions/linux-architecture-current.md)
+records both file adapter guards at `dbf19a5`. Native AArch64 admits file
+operations. Emulated RISC-V rejects them before path admission and can commit
+and reopen through a portable ByteStore. Both profiles detect both guard
+mutations on both targets. The queue has 9,445 open records
+(2,076 runtime / 26 driver / 7,343 tooling).
+
+The [Unix descriptor ledger](decisions/unix-descriptors-current.md) qualifies
+eleven real EMFILE outcomes at `49c64fd` on macOS and Docker Linux. Each
+case preserves the canonical inode, current and retained images, and
+available descriptor count. A same-process retry matches the simulator
+reference bytes after freeing handles. Linux repeats both profiles as UID
+and GID 1000. Six propagation dispositions leave 9,439 open records
+(2,070 runtime / 26 driver / 7,343 tooling).
+
+The [Unix metadata ledger](decisions/unix-metadata-reads-current.md) binds
+eight new propagation dispositions at `0e22413`. A shared metadata query
+preserves retry and diagnostics. Scripted read failures exercise open and
+claim lease release, source link-count validation, and each of the four
+final name checks. Complete scratch custody, exact current and retained
+reopen, and retry to reference bytes pass in both profiles on macOS and
+Docker Linux. Kernel metadata errors remain a deployment evidence gate.
+The queue has 9,431 open records (2,062 runtime / 26 driver / 7,343 tooling).
+
+The [Unix file clone ledger](decisions/unix-clone-failures-current.md) records
+real EMFILE at both compaction file clones at `309ceae`. Both profiles on
+macOS and Docker Linux preserve the canonical inode, bytes and exact
+current and retained roots, then retry to the simulator reference image.
+Linux repeats both profiles as UID and GID 1000. The nine named controls
+cover the new clone paths and the earlier descriptor fixtures. Two new
+propagation dispositions leave 9,429 open records
+(2,060 runtime / 26 driver / 7,343 tooling).
+
+The [Windows admission ledger](decisions/windows-admission-current.md)
+qualifies the shared fixed-drive and NTFS checks, directory and leaf
+attributes, and create/write mode selection at `438b6cb`. Both profiles
+on macOS and Docker Linux detect all 14 controls. Windows cross-target
+Clippy passes. The Win32 entry points and deployment still require native
+evidence. The queue has 9,419 open records
+(2,050 runtime / 26 driver / 7,343 tooling).
+
+The [Windows handle ledger](decisions/windows-handle-io-current.md) qualifies
+the shared lease transitions, I/O dispatch, and error mapping at
+`34cb30c`. Both profiles pass the selected engine and storage suites on
+macOS and Docker Linux and detect all 13 controls. After release build
+deadlines, exact-source replays qualified the affected optimized cases.
+Miri on macOS verifies the isolated handle-lifetime fixture. The added
+read-only lease and reopen fixture cross-compiles for Windows and retains
+its native execution gate. The queue has 9,411 open records
+(2,042 runtime / 26 driver / 7,343 tooling).
+
+The [Windows file identity ledger](decisions/windows-rng-results-current.md)
+qualifies the shared RNG return handling at `a1e36bf`. Both profiles detect
+all four controls on macOS and Docker Linux. The native Windows runner
+uses the same two controls and preserves their exact failure assertions.
+Native execution remains queued. The queue has 9,408 open records
+(2,039 runtime / 26 driver / 7,343 tooling).
+
+The [Windows file open ledger](decisions/windows-open-results-current.md)
+qualifies the invalid-handle decision and raw operation diagnostics at
+`9dc1e6a`. Both profiles pass the selected suites and detect both controls
+on macOS and Docker Linux. The native regression checks missing paths,
+an existing file and a held lease, then reopens the current and retained
+roots. It cross-compiles for Windows and awaits native execution. The
+queue has 9,407 open records (2,038 runtime / 26 driver / 7,343 tooling).
+
+Batch 6 starts with [FFI handle accounting](decisions/ffi-handle-accounting-current.md)
+at `be140f5`. Debug and release Rust and shared-library C checks pass on
+macOS and Docker Linux. Miri verifies the real allocation-refusal path
+with strict provenance. Both hosts catch all three source controls and
+both Loom controls. Two runtime propagation gaps close and eight new
+tooling records remain open. The queue has 9,413 open records (2,036
+runtime / 26 driver / 7,351 tooling). Exact delivered consumers,
+additional export decisions and the remainder of batch 6 stay open.
+
+The [FFI boundary ledger](decisions/ffi-boundaries-current.md) adds explicit
+controls for input, output, options, path bytes and panic status at
+`9f5d81f`. Both profiles on macOS and Docker Linux catch all 23 controls.
+The packaged C/C++/Odin consumers and dynamic ABI smoke pass before
+and after relocation on both hosts. Native Windows UTF-8
+propagation, generated export decisions and remaining delivered profiles stay open.
+The queue has 9,391 open records (2,014 runtime / 26 driver / 7,351 tooling).
+
+The [generated C export ledger](decisions/ffi-generated-exports-current.md)
+records ten named mutants at `280754c` and the differing revisions for
+records and whole-database validation. The private C and C++ packages
+verify allocator context lifetime, four open refusals and snapshot retry
+through the exact shared libraries. The Rust, C and Odin 134-cell traces
+match on macOS and Docker Linux.
+
+The [C file-factory ledger](decisions/ffi-file-factories-current.md)
+records four compiled export controls at `c4c0bd4`. Packaged C and C++
+consumers sweep 21 create and 43 reopen refusals on macOS and Docker
+Linux, preserving exact bytes and both roots through failed reopen.
+Native Windows and the remaining generated paths stay open. The queue
+has 9,396 open records (2,014 runtime / 26 driver / 7,356 tooling).
+
+The [foreign allocator ledger](decisions/foreign-allocator-current.md) records
+callback descriptor and context pairs, plus zero-byte layout dispatch at
+`9822b4c`. Debug and release detect all eight controls on macOS and Docker
+Linux. Miri passes the eight portable allocator fixtures with strict
+provenance. The queue has 9,387 open records (2,005 runtime / 26 driver /
+7,356 tooling). Native Windows execution and the remaining provider ownership
+decisions stay open.
+
+The [provider ownership ledger](decisions/provider-ownership-current.md)
+records the race to release the selected provider, its reference threshold
+and shared or boxed allocation refusal at `ab467f8`. Debug and release detect
+all nine selected controls on macOS and Docker Linux. The bounded Loom model
+verifies the final owner's memory visibility on both hosts and catches a
+Relaxed decrement. The queue has 9,376 open records (1,993 runtime /
+26 driver / 7,357 tooling). The new model dispatch and native Windows
+execution remain open.
+
+The [C transaction and snapshot ledger](decisions/ffi-transaction-reads-current.md)
+records six generated exports at `e34a9c2`. A committed deletion advances to
+revision 3 while the captured revision 2 still returns the seeded row. An
+allocation refusal while acquiring a scan value clears the output and leaves
+the scan and its row usable. The C11 and C++17 consumers pass with the exact
+relocated packages on macOS and Docker Linux. Native Windows remains open.
+The six macro invocations retain their inventory boundaries.
+
+The [typed unique-claim ledger](decisions/typed-unique-claims-current.md)
+records eleven controls at `29f4f54` and verifies the current and retained
+indexes through replacement, allocation refusal and reopen. macOS and Docker
+Linux pass in debug and release. Compiler condition counts record both outcomes
+of six guards within named model instantiations. The queue has 9,365 open
+records (1,982 runtime / 26 driver / 7,357 tooling). Other typed paths and
+native Windows execution remain open.
+
+The [typed index allocator follow-up](decisions/typed-index-allocator-current.md)
+fixes eight observed Global requests in a consistency check with a selected
+allocator. Check and repair pass with zero Global requests at `2ea387d`, and
+the retained view preserves the earlier index state. Both local hosts pass
+the typed and selected core suites in debug and release and detect all seven
+controls. Miri passes the index allocator and snapshot iterator fixtures.
+Live-byte accounting includes the held scan keys. Native Windows remains open.
+
+The [typed migration recovery matrix](decisions/typed-migration-recovery-current.md)
+records 62 simulated failures at `7fcd992`. Reopen and retry preserve a complete
+old or new migration batch, including its progress row, unique claims and
+retained schema. Both local hosts pass debug and release and detect all thirteen
+controls. The queue has 9,352 open records (1,969 runtime / 26 driver / 7,357
+tooling). Native Windows execution and release-version qualification remain open.
+
+The [derive admission ledger](decisions/derive-admission-current.md) binds the
+first `Model`, `Record` and `Resolution` expansion controls, golden generated
+schema and existing CRDT wire and sync oracles. Both local hosts pass debug and
+release and detect fourteen controls at `e40727b`, including two earlier scan
+controls. The portable command fixture also completes 1,040 release suites
+under concurrent Linux launch stress. The queue has 9,340 open records
+(1,957 runtime / 26 driver / 7,357 tooling). Native Windows execution and
+the other generated targets remain open.
+
+The [hosted R1 shard ledger](r1-ci-shards.md) records Linux cancellations
+at 20 minutes and the integration shard that reached 60 minutes with passing
+mutation reports in both profiles. Unix jobs now have 90 minutes to run the
+expanded controls and upload evidence. Hosted verification remains open.
+
+The [snapshot acknowledgment ledger](decisions/snapshot-ack-current.md)
+connects 16 controls to exact reopened receipts and sender admission at
+`1cf3014`. A failed Ready flush reopens revision 3 and a failed terminal
+flush reopens revision 4. Both preserve retained revision 2. Debug and release
+pass on macOS and Docker Linux, and Miri passes the flush fixture. The queue
+has 9,332 open records (1,949 runtime / 26 driver / 7,357 tooling). Native
+Windows and delivered transport fault qualification remain open.
+
+The [snapshot capture ledger](decisions/snapshot-capture-current.md) checks
+43 destination faults during live capture and 18 read faults during reopen at
+`729d3ba`. It verifies exact bytes and current and retained roots after retry,
+and preserves the sender's earlier verified bound and follower receipt on
+failure. The queue has 9,310 open records (1,927 runtime / 26 driver / 7,357
+tooling). Native Windows and deployed transport and device cases remain open.
+
+The [snapshot sender ledger](decisions/snapshot-sender-current.md) verifies
+poll, initial and terminal reply failures, progress preservation, quiescent
+capture and native saved-image reopen at `d5e06b2`. All explicit source
+records under `src/replication/` now have scoped dispositions. The inventory
+has 9,284 open records (1,901 runtime / 26 driver / 7,357 tooling). Native
+Windows and application transport and deployment evidence remain open.
+
+The [CRDT admission ledger](decisions/crdt-admission-current.md) verifies
+actor and policy rejections in both sync roles at `50086ab`. The current row
+at revision 4 and the retained row at revision 2 survive reopen. A valid peer
+advances to revision 5, and repeated sync returns the same receipt without a
+commit.
+
+The [register causality ledger](decisions/crdt-causality-current.md) checks
+exact wire bytes at 5,461 bounded event prefixes, distinguishes genuine
+retirements from unsupported histories, and verifies minimum and maximum
+resolution at sequence exhaustion. An edit by a resolver for the other actor
+emits no receipt and preserves the current and retained rows. The inventory
+still has 9,284 open records. Native Windows and deployed peer qualification
+remain open.
 
 All R1 and R2–R7 completion gates above remain open.
 

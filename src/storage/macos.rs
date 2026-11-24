@@ -101,6 +101,114 @@ pub(super) fn copy_metadata(from: &File, to: &File, _mem: &Memory) -> Result<()>
 #[cfg(test)]
 mod decision_tests {
     use super::*;
+    use crate::Limits;
+    use std::{
+        fs,
+        os::{
+            fd::OwnedFd,
+            unix::{
+                fs::{MetadataExt, PermissionsExt},
+                net::UnixStream,
+            },
+        },
+        path::PathBuf,
+    };
+
+    struct NativeDirectory(PathBuf);
+
+    impl NativeDirectory {
+        fn new(case: &str) -> Self {
+            let directory = std::env::temp_dir().join(format!(
+                "weekend-macos-primitive-{case}-{}",
+                std::process::id()
+            ));
+            fs::create_dir(&directory).unwrap();
+            Self(directory)
+        }
+    }
+
+    impl Drop for NativeDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn full_sync_reports_real_success_and_rejection() {
+        let directory = NativeDirectory::new("sync");
+        let path = directory.0.join("file");
+        fs::write(&path, b"synced").unwrap();
+        let regular = File::options().write(true).open(&path).unwrap();
+        assert_eq!(diagnostics::capture(|| full_sync(&regular)), Ok(()));
+
+        let (socket, _peer) = UnixStream::pair().unwrap();
+        let socket = File::from(OwnedFd::from(socket));
+        let failure = diagnostics::capture(|| full_sync(&socket)).unwrap_err();
+        assert_eq!(failure.error, Error::Io);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Sync);
+        assert!(native.raw_os_error.is_some());
+        assert_eq!(fs::read(path).unwrap(), b"synced");
+    }
+
+    #[test]
+    fn exchange_swaps_only_the_named_inodes_and_reports_a_missing_name() {
+        let directory = NativeDirectory::new("exchange");
+        let left = directory.0.join("left");
+        let right = directory.0.join("right");
+        let sibling = directory.0.join("untouched");
+        fs::write(&left, b"old").unwrap();
+        fs::write(&sibling, b"keep").unwrap();
+        let parent = File::open(&directory.0).unwrap();
+        let swap = || exchange(&parent, b"left\0", &parent, b"right\0");
+        let old_inode = fs::metadata(&left).unwrap().ino();
+        let failure = diagnostics::capture(swap).unwrap_err();
+        assert_eq!(failure.error, Error::NotFound);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Exchange);
+        assert_eq!(native.raw_os_error, Some(2));
+        assert_eq!(fs::metadata(&left).unwrap().ino(), old_inode);
+        assert!(!right.exists());
+
+        fs::write(&right, b"replacement").unwrap();
+        let new_inode = fs::metadata(&right).unwrap().ino();
+        assert_eq!(diagnostics::capture(swap), Ok(()));
+        assert_eq!(fs::metadata(&left).unwrap().ino(), new_inode);
+        assert_eq!(fs::metadata(&right).unwrap().ino(), old_inode);
+        assert_eq!(fs::read(left).unwrap(), b"replacement");
+        assert_eq!(fs::read(right).unwrap(), b"old");
+        assert_eq!(fs::read(sibling).unwrap(), b"keep");
+    }
+
+    #[test]
+    fn metadata_copy_preserves_data_and_reports_native_rejection() {
+        let directory = NativeDirectory::new("metadata");
+        let source = directory.0.join("source");
+        let target = directory.0.join("target");
+        fs::write(&source, b"source contents").unwrap();
+        fs::write(&target, b"target contents").unwrap();
+        fs::set_permissions(&source, fs::Permissions::from_mode(0o640)).unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+        let from = File::open(&source).unwrap();
+        let to = File::options().write(true).open(&target).unwrap();
+        let memory = Memory::new(Limits::default()).unwrap();
+        assert_eq!(
+            diagnostics::capture(|| copy_metadata(&from, &to, &memory)),
+            Ok(())
+        );
+        assert_eq!(fs::metadata(&target).unwrap().mode() & 0o777, 0o640);
+        assert_eq!(fs::read(&target).unwrap(), b"target contents");
+
+        let (socket, _peer) = UnixStream::pair().unwrap();
+        let socket = File::from(OwnedFd::from(socket));
+        let failure = diagnostics::capture(|| copy_metadata(&from, &socket, &memory)).unwrap_err();
+        assert_eq!(failure.error, Error::Io);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::CopyMetadata);
+        assert!(native.raw_os_error.is_some());
+        assert_eq!(fs::read(source).unwrap(), b"source contents");
+    }
+
     #[test]
     fn identity_accepts_first_or_third_complete_nonzero_attempt() {
         for success in [1, 3] {
@@ -160,12 +268,16 @@ mod decision_tests {
             assert_eq!(native.raw_os_error, Some(code));
             assert_eq!(native.operation, NativeIoOperation::Open);
         }
-        assert_eq!(
-            os_error(
+        let failure = diagnostics::capture::<()>(|| {
+            Err(os_error(
                 NativeIoOperation::Read,
-                io::Error::from(io::ErrorKind::Other)
-            ),
-            Error::Io
-        );
+                io::Error::from(io::ErrorKind::Other),
+            ))
+        })
+        .unwrap_err();
+        assert_eq!(failure.error, Error::Io);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Read);
+        assert_eq!(native.raw_os_error, None);
     }
 }

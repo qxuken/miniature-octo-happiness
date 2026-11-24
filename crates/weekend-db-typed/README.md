@@ -271,6 +271,10 @@ inspection. The scans and edits must fit the engine's existing
 collection, observation, and transaction limits. A consistent rebuild
 still participates in the write closure's ordinary commit.
 
+Index checking and repair allocate their scans and scratch through the
+database allocator. Scan buffers and keys count toward the live-byte cap
+while held. The typed scratch vectors use the allocator outside that cap.
+
 ## Compile-time contracts
 
 Every field needs an explicit ID:

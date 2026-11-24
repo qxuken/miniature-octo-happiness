@@ -1,10 +1,10 @@
 {
-  "source_commit": "32372b30324ee595014a07be0e2dee55838a4e78",
-  "source_sha256": "dcff3de55079e0d4cb70d7c6c20589b29102fda0aa5a5f3aa48625c57e8d64fc",
+  "source_commit": "983bf98baa7af7f0d111c00993df5e0231db6677",
+  "source_sha256": "80fe6d4649e03e6c54ca8e2049800a7733b87cbdcb560b4412a23cdeb8e883d6",
   "cases": [
     {
-      "file": "src/storage/windows.rs",
-      "test": "storage::windows::decision_tests::identity_rejects_every_nonzero_status_before_accepting_bytes",
+      "file": "src/storage/windows_rng.rs",
+      "test": "storage::windows_rng::tests::identity_rejects_every_nonzero_status_before_accepting_bytes",
       "target": "--lib",
       "occurrence": 1,
       "matches": 1,
@@ -14,8 +14,8 @@
       "new": "if status < 0 {"
     },
     {
-      "file": "src/storage/windows.rs",
-      "test": "storage::windows::decision_tests::identity_rejects_every_nonzero_status_before_accepting_bytes",
+      "file": "src/storage/windows_rng.rs",
+      "test": "storage::windows_rng::tests::identity_rejects_every_nonzero_status_before_accepting_bytes",
       "target": "--lib",
       "occurrence": 1,
       "matches": 1,

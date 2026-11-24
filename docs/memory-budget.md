@@ -82,6 +82,10 @@ path lookup, and the assembled file path. The adapter releases them before
 returning the lease. Allocator refusal during path construction precedes the
 target-file open on all three platforms.
 
+The [Unix pathname ledger](decisions/unix-path-admission-current.md)
+records both selected allocation failures, their exact request sizes,
+and create and reopen outcomes.
+
 The selected allocator supplies each database's budget control block in a
 fallible allocation outside the live-byte cap. The block keeps its allocator
 alive until the last budget owner releases it. A custom provider allocates one
@@ -106,6 +110,14 @@ live-byte cap. The typed crate uses `Database::allocator()` for its ID and
 index vectors, which sit outside that cap. Model decoding and migration
 callbacks can allocate their own Rust fields and buffers.
 
+Typed index checks and repairs use the same allocator for their row scans
+and scratch vectors. They keep the scan keys charged while the keys are in
+use, so a tight live-byte limit can reject index maintenance. The scratch
+vectors themselves use the selected allocator outside the live-byte cap.
+`Snapshot::scan_iter` and `Transaction::scan_iter` both return owned rows in
+binary-key order, with charges held as long as the iterator or a row owns
+the corresponding buffer.
+
 The database owns a reference to its allocator. Retained roots, live snapshots
 and cloned Rust values keep the allocation owner alive. A value can outlive the
 database that created it. C close returns `WDB_BUSY` while opaque handles are
@@ -113,6 +125,15 @@ live. The C descriptor is copied at open. A supplied context retain/release pair
 keeps the context alive through the final free, including cleanup after failed
 open. Callbacks must be thread-safe and must avoid reentering the database.
 Allocator refusal reports `OutOfMemory` and releases provisional charges.
+
+The C file-create call returns a null handle on allocation refusal.
+Depending on when the refusal occurs, the path can be absent, remain
+empty, or contain a complete revision-0 database. The final C handle
+allocation occurs after durable initialization. When a complete database
+exists, retry its open with the requested options. A failed allocation
+during reopen leaves the image intact, and a subsequent open can read
+both roots. The exact behavior is exercised by the
+[C file-factory fixture](decisions/ffi-file-factories-current.md).
 
 Publication semantics are unchanged. A cap failure while preparing a candidate
 before backend I/O leaves the committed head unchanged and can be retried in a

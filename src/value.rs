@@ -408,6 +408,8 @@ impl std::fmt::Debug for Value {
 #[cfg(test)]
 mod decision_tests {
     use super::*;
+    use crate::memory::test_allocator::TestAllocator;
+    use std::sync::Arc;
 
     #[test]
     fn encoding_map_entries_keep_row_limits_and_charge_the_encoder() {
@@ -429,35 +431,40 @@ mod decision_tests {
         };
         let fits = make_map(row_budget);
         let too_large = make_map(row_budget - 1);
+        let allocator = Arc::new(TestAllocator::default());
         let encoder = |max_live_bytes| {
-            Memory::new(crate::Limits {
+            allocator.memory(crate::Limits {
                 max_live_bytes,
                 max_transaction_bytes: 0,
                 ..Default::default()
             })
-            .unwrap()
         };
         let bounded = encoder(scratch_bytes - 1);
         assert!(matches!(
-            fits.map_entries_for_encoding(&bounded),
+            allocator.with_refusal(0, || fits.map_entries_for_encoding(&bounded)),
             Err(Error::Limit)
         ));
 
         let scratch = encoder(scratch_bytes);
-        scratch.fail_after(Some(0));
         assert!(matches!(
-            too_large.map_entries_for_encoding(&scratch),
+            allocator.with_refusal(0, || too_large.map_entries_for_encoding(&scratch)),
             Err(Error::Limit)
         ));
         assert!(matches!(
-            fits.map_entries_for_encoding(&scratch),
+            allocator.with_refusal(0, || fits.map_entries_for_encoding(&scratch)),
             Err(Error::OutOfMemory)
         ));
         assert_eq!(scratch.public_usage().live_bytes, 0);
-        scratch.fail_after(None);
 
+        assert_eq!(fits.map_entries_owned().unwrap().len(), 2);
         let source_usage = fits.memory_usage();
         let entries = fits.map_entries_for_encoding(&scratch).unwrap();
+        let scalar = entries[0].1;
+        assert!(matches!(scalar.map_entries_owned(), Err(Error::Type)));
+        assert!(matches!(
+            scalar.map_entries_for_encoding(&scratch),
+            Err(Error::Type)
+        ));
         assert_eq!(entries[0].0, b"\0");
         assert_eq!(entries[1].0, b"\xff\0");
         assert!(entries[0].1.same_node(entries[1].1));
@@ -465,6 +472,52 @@ mod decision_tests {
         assert_eq!(fits.memory_usage(), source_usage);
         drop(entries);
         assert_eq!(scratch.public_usage().live_bytes, 0);
+    }
+
+    #[test]
+    fn nested_edits_recompute_weight_and_depth_and_missing_remove_reuses_node() {
+        let allocator = Arc::new(TestAllocator::default());
+        let mem = allocator.memory(crate::Limits {
+            max_depth: 3,
+            max_value_bytes: 80,
+            ..Default::default()
+        });
+        let leaf = Value::bytes_new(&mem, b"abc").unwrap();
+        let nested = Value::from_list(&mem, List::new().push(&mem, leaf.clone()).unwrap()).unwrap();
+        assert_eq!((nested.weight(), nested.node.depth), (35, 2));
+        let map = Map::new()
+            .set(&mem, b"deep", nested.clone())
+            .unwrap()
+            .set(&mem, b"short", leaf.clone())
+            .unwrap();
+        let map = Value::from_map(&mem, map).unwrap();
+        assert_eq!((map.weight(), map.node.depth), (79, 3));
+        let replaced = map.map_set(b"deep", &leaf).unwrap();
+        assert_eq!((replaced.weight(), replaced.node.depth), (63, 2));
+        let shorter = map.map_remove(b"deep").unwrap();
+        assert_eq!((shorter.weight(), shorter.node.depth), (40, 2));
+        let empty = shorter.map_remove(b"short").unwrap();
+        assert_eq!((empty.weight(), empty.node.depth), (16, 1));
+        let unchanged = allocator
+            .with_refusal(0, || map.map_remove(b"missing"))
+            .unwrap();
+        assert!(unchanged.same_node(&map));
+        assert!(map.map_get(b"deep").unwrap().unwrap().same_node(&nested));
+
+        let list = List::new()
+            .push(&mem, leaf.clone())
+            .unwrap()
+            .push(&mem, nested.clone())
+            .unwrap();
+        let list = Value::from_list(&mem, list).unwrap();
+        assert_eq!((list.weight(), list.node.depth), (70, 3));
+        let replaced = list.list_set(1, &leaf).unwrap();
+        assert_eq!((replaced.weight(), replaced.node.depth), (54, 2));
+        let shorter = list.list_remove(1).unwrap();
+        assert_eq!((shorter.weight(), shorter.node.depth), (35, 2));
+        let empty = shorter.list_remove(0).unwrap();
+        assert_eq!((empty.weight(), empty.node.depth), (16, 1));
+        assert!(list.list_get(1).unwrap().same_node(&nested));
     }
 
     #[test]

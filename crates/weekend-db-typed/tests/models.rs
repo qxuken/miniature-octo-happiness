@@ -1,5 +1,10 @@
+#[path = "../../../tests/support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db_typed::engine as allocator_engine;
 use weekend_db_typed::{
-    Error, Model, Presence, Result, Store,
+    Error, Model, Presence, Result, Store, Table,
     engine::{self, storage::MemoryStore},
 };
 
@@ -527,30 +532,115 @@ fn generated_field_constants_never_shadow_model_identity_in_expansions() -> Resu
     Ok(())
 }
 
-#[cfg(feature = "fault-injection")]
+#[derive(Model)]
+#[weekend(type_id = 435, version = 1, reserved(9, 4))]
+struct DescriptorGolden {
+    #[weekend(id = 3, unique, name = "code-v1")]
+    code: u64,
+    #[weekend(id = 7)]
+    comment: Option<String>,
+    #[weekend(id = 1, default = 7)]
+    priority: u8,
+}
+
+#[test]
+fn emitted_model_schema_matches_the_golden_descriptor_after_reopen() -> Result<()> {
+    use engine::storage::SimulatedDisk;
+
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [43; 16], engine::Limits::default())?;
+    store.table::<DescriptorGolden>("descriptor")?;
+    let db = store.database();
+    let mut fields = db.map()?;
+    for (id, name, kind, required, nullable, default) in [
+        (1u64, "priority", 3, true, false, Some(7)),
+        (3, "code-v1", 3, true, false, None),
+        (7, "comment", 5, false, true, None),
+    ] {
+        let mut field = db
+            .map()?
+            .map_set(b"name", &db.bytes(name.as_bytes())?)?
+            .map_set(b"kind", &db.unsigned(kind)?)?
+            .map_set(b"required", &db.boolean(required)?)?
+            .map_set(b"nullable", &db.boolean(nullable)?)?;
+        if let Some(default) = default {
+            field = field.map_set(b"default", &db.unsigned(default)?)?;
+        }
+        fields = fields.map_set(&id.to_le_bytes(), &field)?;
+    }
+    let reserved = db
+        .list()?
+        .list_push(&db.unsigned(9)?)?
+        .list_push(&db.unsigned(4)?)?;
+    let expected = db
+        .map()?
+        .map_set(b"type", &db.unsigned(435)?)?
+        .map_set(b"version", &db.unsigned(1)?)?
+        .map_set(b"fields", &fields)?
+        .map_set(b"reserved", &reserved)?;
+    assert_eq!(DescriptorGolden::schema(db)?.as_value(), &expected);
+    assert_eq!(DescriptorGolden::UNIQUE_FIELDS, &[3]);
+    assert_eq!(DescriptorGolden::CODE.id(), 3);
+    assert_eq!(DescriptorGolden::COMMENT, 7);
+    assert_eq!(DescriptorGolden::PRIORITY, 1);
+    let mut key = [0; 16];
+    key[..8].copy_from_slice(&435u64.to_le_bytes());
+    key[8..].copy_from_slice(&1u64.to_le_bytes());
+    drop(store);
+
+    let reopened = Store::open_on(disk, engine::Limits::default())?;
+    let db = reopened.database();
+    assert_eq!(
+        db.snapshot().get(db.collection_id(2), &key)?,
+        Some(expected)
+    );
+    Ok(())
+}
+
 #[test]
 fn every_core_allocation_failure_aborts_primary_and_index_updates() -> Result<()> {
     let mut succeeded = false;
     for budget in 0..1024 {
-        let mut store = Store::memory()?;
+        let allocator = Arc::new(TestAllocator::default());
+        let mut store = Store::initialize(engine::Database::with_options(allocator.options())?)?;
         let table = store.table::<OldTask>("tasks")?;
         store.write(|w| {
             w.insert(&table, 1, &old("a"))?;
             w.insert(&table, 2, &old("b"))
         })?;
-        store.database().fail_allocations_after(Some(budget));
-        let result = store.write(|w| {
-            w.update(&table, 1, |t| {
-                t.title = "new title".into();
-                Ok(())
-            })?;
-            w.update(&table, 2, |t| {
-                t.slug = "new-slug".into();
-                Ok(())
+        let retained = store.checkpoint()?;
+        let db = store.database();
+        let indexes = db.collection_id(3);
+        let before = db.snapshot();
+        let primary_before = before.scan(table.collection())?;
+        let indexes_before = before.scan(indexes)?;
+        let (result, actual) = allocator.count_with_refusal(budget, || {
+            store.write(|w| {
+                w.update(&table, 1, |t| {
+                    t.title = "new title".into();
+                    Ok(())
+                })?;
+                w.update(&table, 2, |t| {
+                    t.slug = "new-slug".into();
+                    Ok(())
+                })
             })
         });
-        store.database().fail_allocations_after(None);
+        assert_eq!(result.is_err(), actual > budget);
+        let pinned = db.retained_snapshot(retained)?;
+        assert_eq!(pinned.scan(table.collection())?, primary_before);
+        assert_eq!(pinned.scan(indexes)?, indexes_before);
+        let current = db.snapshot();
         if result.is_ok() {
+            assert!(budget > 0);
+            assert_eq!(current.revision(), before.revision() + 1);
+            store.read(|r| {
+                assert_eq!(r.get(&table, 1)?.unwrap().title, "new title");
+                assert_eq!(r.find(&table, OldTask::SLUG, "new-slug")?.unwrap().id(), 2);
+                assert!(r.find(&table, OldTask::SLUG, "b")?.is_none());
+                assert!(r.check_indexes(&table)?.is_consistent());
+                Ok(())
+            })?;
             succeeded = true;
             break;
         }
@@ -559,6 +649,9 @@ fn every_core_allocation_failure_aborts_primary_and_index_updates() -> Result<()
             Err(Error::Engine(engine::Error::OutOfMemory)),
             "budget={budget}"
         );
+        assert_eq!(current.revision(), before.revision());
+        assert_eq!(current.scan(table.collection())?, primary_before);
+        assert_eq!(current.scan(indexes)?, indexes_before);
         store.read(|r| {
             assert_eq!(r.get(&table, 1)?.unwrap().title, "Read docs");
             assert!(r.find(&table, OldTask::SLUG, "b")?.is_some());
@@ -1198,6 +1291,127 @@ fn corrupt_index_key(records: u64, slug: &[u8]) -> Vec<u8> {
 }
 
 #[test]
+fn replacing_unique_claim_rejects_conflicting_malformed_and_stale_owners() -> Result<()> {
+    for (candidate, injected, expected) in [
+        ("taken", None, Error::UniqueViolation(1)),
+        ("next", Some(false), Error::IndexInconsistent),
+        ("next", Some(true), Error::IndexInconsistent),
+    ] {
+        let mut store = Store::memory()?;
+        let table = store.table::<OldTask>("tasks")?;
+        store.write(|w| {
+            w.insert(&table, 1, &old("original"))?;
+            w.insert(&table, 2, &old("taken"))
+        })?;
+        let retained = store.checkpoint()?;
+        let db = store.database();
+        let indexes = db.collection_id(3);
+        if let Some(same_owner) = injected {
+            let key = corrupt_index_key(table.collection().as_u64(), candidate.as_bytes());
+            let owner = if same_owner {
+                db.unsigned(1)?
+            } else {
+                db.boolean(true)?
+            };
+            let mut tx = db.begin();
+            tx.put(indexes, &key, &owner)?;
+            tx.commit()?;
+        }
+        let before = db.snapshot();
+        let revision = before.revision();
+        let primary_before = before.scan(table.collection())?;
+        let indexes_before = before.scan(indexes)?;
+        let result = store.write(|w| {
+            w.insert(&table, 3, &old("draft"))?;
+            let change = w.update(&table, 1, |row| {
+                row.slug = candidate.into();
+                Ok(())
+            });
+            assert_eq!(change, Err(expected));
+            Ok(())
+        });
+        assert_eq!(result, Err(Error::Engine(engine::Error::Closed)));
+        let current = db.snapshot();
+        assert_eq!(current.revision(), revision);
+        assert_eq!(current.scan(table.collection())?, primary_before);
+        assert_eq!(current.scan(indexes)?, indexes_before);
+        store.read_retained(retained, |r| {
+            assert_eq!(r.find(&table, OldTask::SLUG, "original")?.unwrap().id(), 1);
+            assert_eq!(r.find(&table, OldTask::SLUG, "taken")?.unwrap().id(), 2);
+            assert!(r.find(&table, OldTask::SLUG, "next")?.is_none());
+            assert!(r.find(&table, OldTask::SLUG, "draft")?.is_none());
+            assert!(r.check_indexes(&table)?.is_consistent());
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+#[derive(Model)]
+#[weekend(type_id = 434, version = 1)]
+struct ClaimPair {
+    #[weekend(id = 1, unique)]
+    name: String,
+    #[weekend(id = 2, unique)]
+    code: u64,
+}
+
+#[test]
+fn replacing_one_unique_claim_keeps_the_other_claim_and_reopens_both_roots() -> Result<()> {
+    use engine::storage::SimulatedDisk;
+
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [21; 16], engine::Limits::default())?;
+    let table = store.table::<ClaimPair>("pairs")?;
+    store.write(|w| {
+        w.insert(
+            &table,
+            1,
+            &ClaimPair {
+                name: "before".into(),
+                code: 7,
+            },
+        )
+    })?;
+    let retained = store.checkpoint()?;
+    let before = store.database().snapshot().revision();
+    store.write(|w| {
+        w.update(&table, 1, |pair| {
+            pair.name = "after".into();
+            Ok(())
+        })?;
+        assert!(w.find(&table, ClaimPair::NAME, "before")?.is_none());
+        assert_eq!(w.find(&table, ClaimPair::NAME, "after")?.unwrap().id(), 1);
+        assert_eq!(w.find(&table, ClaimPair::CODE, &7)?.unwrap().name, "after");
+        assert!(w.check_indexes(&table)?.is_consistent());
+        Ok(())
+    })?;
+    assert_eq!(store.database().snapshot().revision(), before + 1);
+    drop(store);
+
+    let mut store = Store::open_on(disk, engine::Limits::default())?;
+    let table = store.table::<ClaimPair>("pairs")?;
+    store.read(|r| {
+        assert!(r.find(&table, ClaimPair::NAME, "before")?.is_none());
+        assert_eq!(r.find(&table, ClaimPair::NAME, "after")?.unwrap().id(), 1);
+        assert_eq!(r.find(&table, ClaimPair::CODE, &7)?.unwrap().name, "after");
+        let indexes = r.check_indexes(&table)?;
+        assert_eq!(indexes.expected_entries, 2);
+        assert_eq!(indexes.stored_entries, 2);
+        assert!(indexes.is_consistent());
+        Ok(())
+    })?;
+    store.read_retained(retained, |r| {
+        assert!(r.find(&table, ClaimPair::NAME, "after")?.is_none());
+        assert_eq!(r.find(&table, ClaimPair::NAME, "before")?.unwrap().id(), 1);
+        assert_eq!(r.find(&table, ClaimPair::CODE, &7)?.unwrap().name, "before");
+        assert!(r.check_indexes(&table)?.is_consistent());
+        Ok(())
+    })?;
+    Ok(())
+}
+
+#[test]
 fn index_check_and_rebuild_preserve_primary_unknown_fields_and_retained_state() -> Result<()> {
     let bytes = MemoryStore::new()?;
     let mut store = Store::create_on(bytes.clone(), [91; 16], engine::Limits::default())?;
@@ -1375,12 +1589,12 @@ fn rebuilding_conflicts_with_primary_or_index_changes_and_aborts_caught_errors()
     Ok(())
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn failed_rebuild_allocations_preserve_every_index_and_primary_row() -> Result<()> {
     let mut succeeded = false;
     for budget in 0..1024 {
-        let mut store = Store::memory()?;
+        let allocator = Arc::new(TestAllocator::default());
+        let mut store = Store::initialize(engine::Database::with_options(allocator.options())?)?;
         let table = store.table::<OldTask>("tasks")?;
         store.write(|w| {
             w.insert(&table, 1, &old("one"))?;
@@ -1401,14 +1615,15 @@ fn failed_rebuild_allocations_preserve_every_index_and_primary_row() -> Result<(
         tx.commit()?;
         drop(tx);
         let before = db.snapshot();
-        db.fail_allocations_after(Some(budget));
-        let result = store.write(|w| w.rebuild_indexes(&table));
-        db.fail_allocations_after(None);
+        let (result, actual) =
+            allocator.count_with_refusal(budget, || store.write(|w| w.rebuild_indexes(&table)));
+        assert_eq!(result.is_err(), actual > budget);
         assert_eq!(
             db.snapshot().scan(table.collection())?,
             before.scan(table.collection())?
         );
         if result.is_ok() {
+            assert!(budget > 0);
             assert!(store.read(|r| r.check_indexes(&table))?.is_consistent());
             succeeded = true;
             break;
@@ -1494,11 +1709,7 @@ struct MigrationProgress {
     completed: u64,
 }
 
-#[test]
-fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history() -> Result<()> {
-    use engine::storage::{Crash, SimulatedDisk};
-    let disk = SimulatedDisk::new()?;
-    let mut store = Store::create_on(disk.clone(), [93; 16], engine::Limits::default())?;
+fn seed_migration_progress(store: &mut Store) -> Result<(Table<MigrationProgress>, u64)> {
     let legacy = store.table::<OldTask>("tasks")?;
     let progress = store.table::<MigrationProgress>("progress")?;
     store.write(|w| {
@@ -1518,7 +1729,15 @@ fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history()
     tx.put(legacy.collection(), &1u64.to_le_bytes(), raw.as_value())?;
     tx.commit()?;
     drop(tx);
-    let checkpoint = store.checkpoint()?;
+    Ok((progress, store.checkpoint()?))
+}
+
+#[test]
+fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history() -> Result<()> {
+    use engine::storage::{Crash, SimulatedDisk};
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [93; 16], engine::Limits::default())?;
+    let (progress, checkpoint) = seed_migration_progress(&mut store)?;
     let tasks = store.table::<Task>("tasks")?;
     let mut called = Vec::new();
     assert_eq!(
@@ -1587,6 +1806,197 @@ fn explicit_migration_batches_resume_with_atomic_progress_and_preserve_history()
 }
 
 #[test]
+fn interrupted_migration_batches_reopen_records_claims_and_progress_together() -> Result<()> {
+    use engine::storage::{Crash, Fault, IoKind, SimulatedDisk};
+
+    let disk = SimulatedDisk::new()?;
+    let mut store = Store::create_on(disk.clone(), [94; 16], engine::Limits::default())?;
+    let (progress, retained) = seed_migration_progress(&mut store)?;
+    let tasks = store.table::<Task>("tasks")?;
+    let collections = [
+        1,
+        2,
+        3,
+        tasks.collection().as_u64(),
+        progress.collection().as_u64(),
+    ];
+    let rows =
+        |db: &engine::Database, snapshot: engine::Snapshot<'_>| -> Result<Vec<engine::Rows>> {
+            Ok(collections
+                .iter()
+                .map(|&id| snapshot.scan(db.collection_id(id)))
+                .collect::<engine::Result<_>>()?)
+        };
+    let revision = store.database().snapshot().revision();
+    let before = rows(store.database(), store.database().snapshot())?;
+    let history = rows(
+        store.database(),
+        store.database().retained_snapshot(retained)?,
+    )?;
+    let image = disk.durable_image()?;
+    let apply = |store: &Store, tasks: &Table<Task>, progress: &Table<MigrationProgress>| {
+        let mut converted = Vec::new();
+        let outcome = store.write(|w| {
+            let count = w.migrate_ids(tasks, &[2, 1], |id, _, task| {
+                converted.push(id);
+                task.slug = format!("migrated-{id}");
+                task.priority = id as u8;
+                Ok(())
+            })?;
+            if count != 0 {
+                w.update(progress, 1, |p| {
+                    p.completed = 2;
+                    Ok(())
+                })?;
+            }
+            Ok(count)
+        });
+        (outcome, converted)
+    };
+
+    disk.arm(usize::MAX, Fault::Error);
+    assert_eq!(apply(&store, &tasks, &progress), (Ok(2), vec![2, 1]));
+    let trace = disk.trace()?;
+    let barriers = trace
+        .iter()
+        .enumerate()
+        .filter_map(|(step, event)| (event.kind == IoKind::Sync).then_some(step))
+        .collect::<Vec<_>>();
+    let [append_sync, root_sync, witness_sync] = barriers.as_slice() else {
+        panic!("expected append, root and witness barriers: {trace:?}");
+    };
+    assert_eq!(*witness_sync, trace.len() - 1);
+    store.read(|r| {
+        for id in [1, 2] {
+            let row = r
+                .find(&tasks, Task::SLUG, &format!("migrated-{id}"))?
+                .unwrap();
+            assert_eq!((row.id(), row.version(), row.priority), (id, 2, id as u8));
+            assert!(r.find(&tasks, Task::SLUG, &format!("task-{id}"))?.is_none());
+        }
+        assert_eq!(r.get(&progress, 1)?.unwrap().completed, 2);
+        assert!(r.check_indexes(&tasks)?.is_consistent());
+        Ok(())
+    })?;
+    let after = rows(store.database(), store.database().snapshot())?;
+    assert_ne!(before, after);
+    drop(store);
+
+    for step in 0..trace.len() {
+        for (crash, pending_root_survives) in [(Crash::DropAll, false), (Crash::PersistAll, true)] {
+            let disk = SimulatedDisk::from_image(&image)?;
+            let mut store = Store::open_on(disk.clone(), engine::Limits::default())?;
+            let tasks = store.table::<Task>("tasks")?;
+            let progress = store.table::<MigrationProgress>("progress")?;
+            disk.arm(step, Fault::Error);
+            let expected_error = if step <= *append_sync {
+                engine::Error::Io
+            } else {
+                engine::Error::OutcomeUnknown
+            };
+            assert_eq!(
+                apply(&store, &tasks, &progress),
+                (Err(Error::Engine(expected_error)), vec![2, 1]),
+                "step={step} crash={crash:?}"
+            );
+            assert_eq!(disk.trace()?, trace[..=step]);
+            assert!(store.database().requires_recovery());
+            assert_eq!(rows(store.database(), store.database().snapshot())?, before);
+            drop(store);
+            disk.crash(crash)?;
+
+            let mut store = Store::open_on(disk, engine::Limits::default())?;
+            let tasks = store.table::<Task>("tasks")?;
+            let progress = store.table::<MigrationProgress>("progress")?;
+            let db = store.database();
+            let published = step > *root_sync || (step == *root_sync && pending_root_survives);
+            assert_eq!(db.snapshot().revision(), revision + u64::from(published));
+            assert_eq!(
+                rows(db, db.snapshot())?,
+                if published { &after } else { &before }[..]
+            );
+            assert_eq!(rows(db, db.retained_snapshot(retained)?)?, history);
+            store.read(|r| {
+                assert!(r.check_indexes(&tasks)?.is_consistent());
+                assert_eq!(
+                    r.get(&progress, 1)?.unwrap().completed,
+                    if published { 2 } else { 0 }
+                );
+                assert_eq!(r.get(&tasks, 3)?.unwrap().version(), 1);
+                assert_eq!(
+                    r.get(&tasks, 1)?
+                        .unwrap()
+                        .record()
+                        .field(99)?
+                        .unwrap()
+                        .as_bytes()?,
+                    b"future"
+                );
+                Ok(())
+            })?;
+            let (retried, converted) = apply(&store, &tasks, &progress);
+            assert_eq!(retried?, if published { 0 } else { 2 });
+            assert_eq!(converted, if published { &[][..] } else { &[2, 1][..] });
+            assert_eq!(rows(db, db.snapshot())?, after);
+            assert_eq!(rows(db, db.retained_snapshot(retained)?)?, history);
+        }
+    }
+    println!(
+        "Verified {} typed migration crash cases at revision {revision} with sync steps {barriers:?}",
+        trace.len() * 2
+    );
+    Ok(())
+}
+
+#[test]
+fn migration_id_scratch_refusal_discards_progress_before_conversion() -> Result<()> {
+    let allocator = Arc::new(TestAllocator::default());
+    let mut store = Store::initialize(engine::Database::with_options(allocator.options())?)?;
+    let (progress, retained) = seed_migration_progress(&mut store)?;
+    let tasks = store.table::<Task>("tasks")?;
+    let db = store.database();
+    let before = db.snapshot();
+    let mut calls = 0;
+    let result = store.write(|w| {
+        w.update(&progress, 1, |p| {
+            p.completed = 2;
+            Ok(())
+        })?;
+        let (migration, requests) = allocator.count_with_refusal(0, || {
+            w.migrate_ids(&tasks, &[2, 1], |_, _, _| {
+                calls += 1;
+                Ok(())
+            })
+        });
+        assert_eq!(requests, 1);
+        assert_eq!(migration, Err(Error::Engine(engine::Error::OutOfMemory)));
+        Ok(())
+    });
+    assert_eq!(calls, 0);
+    assert_eq!(result, Err(Error::Engine(engine::Error::Closed)));
+    let current = db.snapshot();
+    assert_eq!(current.revision(), before.revision());
+    for collection in [
+        tasks.collection(),
+        progress.collection(),
+        db.collection_id(3),
+    ] {
+        assert_eq!(current.scan(collection)?, before.scan(collection)?);
+    }
+    store.read_retained(retained, |r| {
+        assert_eq!(r.get(&progress, 1)?.unwrap().completed, 0);
+        assert_eq!(r.find(&tasks, Task::SLUG, "task-1")?.unwrap().version(), 1);
+        assert!(r.check_indexes(&tasks)?.is_consistent());
+        Ok(())
+    })?;
+    assert_eq!(
+        store.write(|w| w.migrate_ids(&tasks, &[2, 1], |_, _, _| Ok(())))?,
+        2
+    );
+    Ok(())
+}
+
+#[test]
 fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -> Result<()> {
     let mut store = Store::memory()?;
     let legacy = store.table::<OldTask>("tasks")?;
@@ -1597,27 +2007,28 @@ fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -
         w.insert(&progress, 1, &MigrationProgress { completed: 0 })
     })?;
     let tasks = store.table::<Task>("tasks")?;
-    for ids in [
-        vec![1, 1],
-        vec![0],
-        vec![1; store.database().limits().max_writes + 1],
+    for (ids, expected) in [
+        (vec![1, 1], Err(Error::InvalidId)),
+        (vec![0], Err(Error::InvalidId)),
+        (vec![1, 0], Err(Error::InvalidId)),
+        (
+            vec![1; store.database().limits().max_writes + 1],
+            Err(Error::Engine(engine::Error::Limit)),
+        ),
+        (vec![], Ok(0)),
     ] {
         let before = store.database().snapshot().revision();
-        let expected = if ids.len() > store.database().limits().max_writes {
-            Error::Engine(engine::Error::Limit)
-        } else {
-            Error::InvalidId
-        };
+        let advanced = u64::from(expected.is_ok());
         let mut calls = 0;
         assert_eq!(
             store.write(|w| w.migrate_ids(&tasks, &ids, |_, _, _| {
                 calls += 1;
                 Ok(())
             })),
-            Err(expected)
+            expected
         );
         assert_eq!(calls, 0);
-        assert_eq!(store.database().snapshot().revision(), before);
+        assert_eq!(store.database().snapshot().revision(), before + advanced);
     }
     for (ids, fail_callback, collide, error) in [
         (vec![1, 2], true, false, Error::InvalidId),
@@ -1662,10 +2073,6 @@ fn migration_batches_reject_invalid_ids_and_roll_back_callbacks_and_progress() -
             Ok(())
         })?;
     }
-    assert_eq!(
-        store.write(|w| w.migrate_ids(&tasks, &[], |_, _, _| panic!("empty batch")))?,
-        0
-    );
     Ok(())
 }
 

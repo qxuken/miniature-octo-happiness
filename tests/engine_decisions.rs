@@ -1,4 +1,9 @@
-use weekend_db::{Database, Error, Limits, TransactionState, Validation};
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::{collections::BTreeMap, sync::Arc};
+use weekend_db as allocator_engine;
+use weekend_db::{Database, Error, Limits, Transaction, TransactionState, Validation};
 
 fn seed(db: &Database, c: weekend_db::CollectionId) {
     let mut tx = db.begin();
@@ -23,6 +28,7 @@ fn point_observation_matches_collection_and_key_independently() {
     assert!(tx.get(c, b"a").is_ok()); // same collection, same key: reuse
     assert_eq!(tx.get(other, b"a"), Err(Error::Limit)); // collection differs
     assert_eq!(tx.get(c, b"b"), Err(Error::Limit)); // key differs
+    assert_eq!(tx.scan(c), Err(Error::Limit)); // the point consumes the only slot
     assert_eq!(tx.state(), TransactionState::Active);
     tx.commit().unwrap();
 
@@ -30,15 +36,17 @@ fn point_observation_matches_collection_and_key_independently() {
     assert_eq!(absent.get(c, b"missing"), Ok(None));
     assert_eq!(absent.get(c, b"also-missing"), Ok(None)); // same collection reuse
     assert_eq!(absent.get(other, b"missing"), Err(Error::Limit));
+    assert_eq!(absent.get(c, b"a"), Err(Error::Limit)); // the collection consumes the slot
     absent.abort().unwrap();
 }
 
 #[test]
 fn overlay_lookup_and_replacement_match_both_identity_components() {
-    let db = Database::with_limits(Limits {
+    let allocator = Arc::new(TestAllocator::default());
+    let db = Database::with_options(allocator.options().with_limits(Limits {
         max_writes: 1,
         ..Limits::default()
-    })
+    }))
     .unwrap();
     let c = db.create_collection().unwrap();
     let other = db.create_collection().unwrap();
@@ -61,7 +69,10 @@ fn overlay_lookup_and_replacement_match_both_identity_components() {
         Err(Error::Limit)
     );
     assert_eq!(tx.put(c, b"b", &db.integer(20).unwrap()), Err(Error::Limit));
-    tx.put(c, b"a", &db.integer(30).unwrap()).unwrap();
+    let replacement = db.integer(30).unwrap();
+    allocator
+        .with_refusal(0, || tx.put(c, b"a", &replacement))
+        .unwrap();
     tx.commit().unwrap();
     assert_eq!(
         db.snapshot().get(c, b"a").unwrap().unwrap().as_i64(),
@@ -75,27 +86,143 @@ fn overlay_lookup_and_replacement_match_both_identity_components() {
 
 #[test]
 fn scan_filters_collection_and_value_presence_independently() {
-    let db = Database::new().unwrap();
+    let db = Database::with_limits(Limits {
+        max_entries: 2,
+        ..Limits::default()
+    })
+    .unwrap();
     let c = db.create_collection().unwrap();
     let other = db.create_collection().unwrap();
     seed(&db, c);
     seed(&db, other);
     let mut tx = db.begin();
+    // Stage insertions first. The overlay can only fit if deletions are
+    // applied before additions, and writes to the other collection stay out.
+    tx.put(c, b"\xff", &db.integer(5).unwrap()).unwrap();
     tx.delete(c, b"a").unwrap();
     tx.put(c, b"b", &db.integer(3).unwrap()).unwrap();
     tx.delete(other, b"b").unwrap();
-    tx.put(other, b"a", &db.integer(4).unwrap()).unwrap();
-    let rows = tx.scan(c).unwrap();
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].0, b"b");
-    assert_eq!(rows[0].1.as_i64(), Ok(3));
-    let rows = tx.scan(other).unwrap();
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].0, b"a");
-    assert_eq!(rows[0].1.as_i64(), Ok(4));
+    tx.put(other, b"z", &db.integer(4).unwrap()).unwrap();
+
+    for (id, deleted, edits) in [
+        (c, b"a".as_slice(), &[(b"b", 3), (b"\xff", 5)][..]),
+        (other, b"b".as_slice(), &[(b"z", 4)][..]),
+    ] {
+        let mut model = BTreeMap::from([(b"a".to_vec(), 1), (b"b".to_vec(), 2)]);
+        model.remove(deleted);
+        model.extend(edits.iter().map(|(k, v)| (k.to_vec(), *v)));
+        let rows = tx.scan(id).unwrap();
+        assert!(
+            rows.iter()
+                .map(|(k, v)| (k, v.as_i64().unwrap()))
+                .eq(model.iter().map(|(k, v)| (k, *v)))
+        );
+        assert_eq!(tx.count(id), Ok(model.len()));
+    }
     tx.commit().unwrap();
-    assert_eq!(db.snapshot().count(c), Ok(1));
-    assert_eq!(db.snapshot().count(other), Ok(1));
+    assert_eq!(db.snapshot().count(c), Ok(2));
+    assert_eq!(db.snapshot().count(other), Ok(2));
+}
+
+#[test]
+fn refused_observation_releases_scratch_and_retry_captures_dependency() {
+    let allocator = Arc::new(TestAllocator::default());
+    let db = Database::with_options(allocator.options()).unwrap();
+    let c = db.create_collection().unwrap();
+    seed(&db, c);
+
+    for (key, allowed) in [
+        (Some(b"a".as_slice()), 0),      // point key
+        (Some(b"a".as_slice()), 1),      // point vector after copying the key
+        (Some(b"absent".as_slice()), 0), // collection observation
+        (None, 0),                       // collection observation via scan
+    ] {
+        let read = |tx: &mut Transaction<'_>| match key {
+            Some(key) => tx.get(c, key).map(drop),
+            None => tx.scan(c).map(drop),
+        };
+        let mut refused = db.begin();
+        let mut retried = db.begin();
+        let baseline = (db.memory_usage().live_bytes, allocator.live_bytes());
+        for tx in [&mut refused, &mut retried] {
+            assert_eq!(
+                allocator.with_refusal(allowed, || read(tx)),
+                Err(Error::OutOfMemory)
+            );
+            assert_eq!(tx.state(), TransactionState::Active);
+            assert_eq!(
+                (db.memory_usage().live_bytes, allocator.live_bytes()),
+                baseline
+            );
+        }
+        read(&mut retried).unwrap();
+        let mut writer = db.begin();
+        writer.put(c, b"a", &db.integer(7).unwrap()).unwrap();
+        writer.commit().unwrap();
+        assert!(refused.commit().is_ok());
+        assert_eq!(retried.commit(), Err(Error::Conflict));
+        assert_eq!(retried.state(), TransactionState::Aborted);
+    }
+}
+
+#[test]
+fn overlay_scan_refusals_keep_only_the_dependencies_already_recorded() {
+    for allowed in 0..128 {
+        let allocator = Arc::new(TestAllocator::default());
+        let db = Database::with_options(allocator.options()).unwrap();
+        let c = db.create_collection().unwrap();
+        seed(&db, c);
+        let untouched = db.integer(3).unwrap();
+        let replacement = db.integer(7).unwrap();
+        let mut writer = db.begin();
+        writer.put(c, b"untouched", &untouched).unwrap();
+        writer.commit().unwrap();
+        drop(writer);
+        let old = db.snapshot();
+        let mut draft = db.begin();
+        draft.delete(c, b"a").unwrap();
+        draft.put(c, b"b", &replacement).unwrap();
+        let before = (db.memory_usage().live_bytes, allocator.live_bytes());
+        let result = allocator.with_refusal(allowed, || draft.scan_iter(c));
+        assert_eq!(draft.state(), TransactionState::Active);
+        assert_eq!(draft.get(c, b"a"), Ok(None));
+        assert_eq!(draft.get(c, b"b"), Ok(Some(replacement.clone())));
+        assert_eq!(db.snapshot().revision(), old.revision());
+        assert_eq!(db.snapshot().get(c, b"a").unwrap().unwrap().as_i64(), Ok(1));
+        assert_eq!(db.snapshot().get(c, b"b").unwrap().unwrap().as_i64(), Ok(2));
+        match result {
+            Ok(rows) => {
+                assert!(allowed > 1);
+                let observed: Vec<_> = rows
+                    .map(|(key, value)| (key.as_ref().to_vec(), value.as_i64().unwrap()))
+                    .collect();
+                assert_eq!(observed, [(b"b".to_vec(), 7), (b"untouched".to_vec(), 3)]);
+                return;
+            }
+            Err(e) => assert_eq!(e, Error::OutOfMemory, "allowance {allowed}"),
+        }
+        let recorded = if allowed == 0 {
+            0
+        } else {
+            std::mem::size_of::<(weekend_db::CollectionId, u64)>()
+        };
+        assert_eq!(
+            (db.memory_usage().live_bytes, allocator.live_bytes()),
+            (before.0 + recorded, before.1 + recorded)
+        );
+        let mut writer = db.begin();
+        writer.put(c, b"untouched", &untouched).unwrap();
+        writer.commit().unwrap();
+        // This edit leaves both originally observed points alone. Only a
+        // successfully recorded scan observation can make the draft conflict.
+        if allowed == 0 {
+            assert!(draft.commit().is_ok());
+        } else {
+            assert_eq!(draft.commit(), Err(Error::Conflict));
+            assert_eq!(draft.state(), TransactionState::Aborted);
+        }
+    }
+    panic!("scan allocation sweep never reached success");
 }
 
 #[test]
@@ -227,6 +354,8 @@ fn snapshot_collection_and_key_errors_have_valid_controls() {
     let s = db.snapshot();
     assert_eq!(s.get(c, b""), Ok(None));
     assert_eq!(s.get(c, b"x"), Err(Error::Limit));
+    assert_eq!(db.begin().get(c, b"x"), Err(Error::Limit));
+    assert_eq!(db.begin().contains(c, b"x"), Err(Error::Limit));
     assert_eq!(s.scan(c), Ok(vec![]));
     assert_eq!(s.count(c), Ok(0));
     for (id, expected) in [
@@ -304,15 +433,16 @@ fn abort_and_failed_commit_clear_owned_payloads_before_draft_drop() {
     }
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn retained_id_output_allocation_failure_does_not_change_catalog() {
-    let db = Database::new().unwrap();
+    let allocator = Arc::new(TestAllocator::default());
+    let db = Database::with_options(allocator.options()).unwrap();
     let retained = db.retain_snapshot(&db.snapshot()).unwrap();
     let revision = db.snapshot().revision();
-    db.fail_allocations_after(Some(0));
-    assert_eq!(db.retained_ids(), Err(Error::OutOfMemory));
-    db.fail_allocations_after(None);
+    assert_eq!(
+        allocator.with_refusal(0, || db.retained_ids()),
+        Err(Error::OutOfMemory)
+    );
     assert_eq!(db.retained_ids(), Ok(vec![retained]));
     assert_eq!(db.snapshot().revision(), revision);
 }

@@ -22,6 +22,8 @@ struct Exchange {
     input: Cursor<Vec<u8>>,
     output: Vec<u8>,
     lose_ack: bool,
+    fail_flush: Option<usize>,
+    flushes: usize,
 }
 impl Exchange {
     fn request(enrollment: Enrollment, offer: Option<Offer>) -> Self {
@@ -31,6 +33,8 @@ impl Exchange {
             input: Cursor::new(bytes),
             output: Vec::new(),
             lose_ack: false,
+            fail_flush: None,
+            flushes: 0,
         }
     }
     fn offer(export: &mut Export) -> Self {
@@ -73,6 +77,10 @@ impl Write for Exchange {
         self.output.write(bytes)
     }
     fn flush(&mut self) -> std::io::Result<()> {
+        self.flushes += 1;
+        if self.fail_flush == Some(self.flushes) {
+            return Err(std::io::ErrorKind::BrokenPipe.into());
+        }
         Ok(())
     }
 }
@@ -646,7 +654,7 @@ fn image_verification_failures_preserve_the_reported_revision() {
 
 #[test]
 fn lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress() {
-    let mut fixture = Fixture::new();
+    let mut fixture = Fixture::with_exports(true);
     let (mut receiver, manifest, slots, candidate) = fixture.start();
     let mut lost = Exchange::offer(&mut fixture.next);
     lost.lose_ack = true;
@@ -674,15 +682,64 @@ fn lost_ack_is_recovered_and_a_delayed_offer_never_rolls_back_progress() {
         assert_eq!(transfer.serve(&mut receiver), expected, "{case}");
         assert_eq!(transfer.terminal_reply(), expected, "{case}");
         assert_eq!(transfer.input.position(), 89, "{case}");
-        check(&receiver, ack, 2);
+        check_retained(&receiver, ack, 2);
     }
     assert_eq!(manifest.durable_image().unwrap(), before);
     drop(receiver);
     let mut reopened = fixture.reopen(&manifest, &slots);
+    check_retained(&reopened, ack, 2);
     assert_eq!(
         Exchange::request(fixture.enrollment, None).serve(&mut reopened),
         Ok(Some(ack))
     );
+}
+
+#[test]
+fn ready_and_terminal_flush_failures_reopen_the_exact_selected_image() {
+    let mut fixture = Fixture::with_exports(true);
+    let next_ack = fixture.next.offer.ack(fixture.enrollment);
+    for failed in [None, Some(1), Some(2)] {
+        let (mut receiver, manifest, slots, candidate) = fixture.start();
+        let mut transfer = Exchange::offer(&mut fixture.next);
+        transfer.fail_flush = failed;
+        assert_eq!(
+            transfer.serve(&mut receiver),
+            failed.map_or(Ok(Some(next_ack)), |_| Err(Error::Io)),
+            "failed flush {failed:?}"
+        );
+        assert_eq!(transfer.flushes, 2);
+        let (selected, value) = if failed == Some(1) {
+            // Ready's write succeeds before its flush fails. Serve can send
+            // the terminal I/O error, but must leave the upload unread.
+            assert_eq!(transfer.input.position(), 89);
+            assert_eq!(transfer.output, [1, 10]);
+            assert!(candidate.durable_image().unwrap().is_empty());
+            assert!(manifest.trace().unwrap().is_empty());
+            (fixture.first_ack, 1)
+        } else {
+            assert_eq!(
+                transfer.input.position(),
+                transfer.input.get_ref().len() as u64
+            );
+            assert_eq!(transfer.terminal_reply(), Ok(Some(next_ack)));
+            (next_ack, 2)
+        };
+        check_retained(&receiver, selected, value);
+
+        drop(receiver);
+        manifest.crash(Crash::DropAll).unwrap();
+        candidate.crash(Crash::DropAll).unwrap();
+        let mut reopened = fixture.reopen(&manifest, &slots);
+        check_retained(&reopened, selected, value);
+        assert_eq!(
+            Exchange::request(fixture.enrollment, None).serve(&mut reopened),
+            Ok(Some(selected))
+        );
+        let mut retry = Exchange::offer(&mut fixture.next);
+        assert_eq!(retry.serve(&mut reopened), Ok(Some(next_ack)));
+        assert_eq!(retry.output[0], if failed == Some(1) { 1 } else { 2 });
+        check_retained(&reopened, next_ack, 2);
+    }
 }
 
 #[test]

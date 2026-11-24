@@ -9,7 +9,7 @@ use super::{ByteStore, CompactionStats, Storage};
 use crate::{AllocatorHandle, Error, Limits, Result, memory::Memory};
 use std::{
     ffi::{c_char, c_int},
-    fs::File,
+    fs::{File, Metadata},
     io,
     os::{
         fd::{AsRawFd, FromRawFd},
@@ -38,6 +38,20 @@ pub(super) fn retry<T>(
             result => return result.map_err(|error| os_error(operation, error)),
         }
     }
+}
+fn file_metadata(file: &File) -> Result<Metadata> {
+    retry(NativeIoOperation::Metadata, || {
+        #[cfg(test)]
+        metadata_decisions::before_read()?;
+        file.metadata()
+    })
+}
+fn duplicate_file(file: &File) -> Result<File> {
+    retry(NativeIoOperation::DuplicateHandle, || {
+        #[cfg(test)]
+        let _pressure = clone_decisions::before_duplicate();
+        file.try_clone()
+    })
 }
 /// A regular-file writer lease on macOS or Linux. Final-component symlinks are
 /// rejected and hard-link aliases share the same inode lock. The held parent
@@ -81,7 +95,6 @@ impl FileStore {
         }
     }
 }
-#[cfg(target_os = "linux")]
 impl Drop for FileStore {
     fn drop(&mut self) {
         // A concurrent fork can keep the open description alive until exec.
@@ -127,7 +140,7 @@ impl ByteStore for FileStore {
     }
     fn length(&mut self) -> Result<u64> {
         self.check()?;
-        Ok(retry(NativeIoOperation::Metadata, || self.file.metadata())?.len())
+        Ok(file_metadata(&self.file)?.len())
     }
     fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
         self.check()?;
@@ -141,10 +154,20 @@ impl ByteStore for FileStore {
     }
     fn sync(&mut self) -> Result<()> {
         self.check()?;
-        full_sync(&self.file)?;
+        self.sync_with(full_sync, Location::sync)
+    }
+}
+
+impl FileStore {
+    fn sync_with(
+        &mut self,
+        mut sync_file: impl FnMut(&File) -> Result<()>,
+        sync_parent: impl FnOnce(&Location) -> Result<()>,
+    ) -> Result<()> {
+        sync_file(&self.file)?;
         if self.parent_pending {
-            self.location.sync()?;
-            full_sync(&self.file)?;
+            sync_parent(&self.location)?;
+            sync_file(&self.file)?;
             self.parent_pending = false;
         }
         Ok(())
@@ -220,16 +243,14 @@ impl Location {
     // Offline compaction keeps a location for the later exchange and cleanup.
     fn duplicate(&self) -> Result<Self> {
         Ok(Self {
-            directory: retry(NativeIoOperation::DuplicateHandle, || {
-                self.directory.try_clone()
-            })?,
+            directory: duplicate_file(&self.directory)?,
             name: Self::copy_path(self.name.allocator().clone(), &self.name, 0)?,
         })
     }
     fn open_mode(self, create: bool, writable: bool) -> Result<FileStore> {
         let access = if writable { 2 } else { 0 };
         let file = self.open_flags(access | OPEN_LEASE | if create { OPEN_CREATE } else { 0 })?;
-        if !retry(NativeIoOperation::Metadata, || file.metadata())?.is_file() {
+        if !file_metadata(&file)?.is_file() {
             return Err(Error::Invalid);
         }
         self.acquire_open_lease(&file)?;
@@ -253,8 +274,8 @@ impl Location {
             Err(Error::NotFound) => return Err(Error::Busy),
             other => other?,
         };
-        let actual = retry(NativeIoOperation::Metadata, || actual.metadata())?;
-        let expected = retry(NativeIoOperation::Metadata, || file.metadata())?;
+        let actual = file_metadata(&actual)?;
+        let expected = file_metadata(file)?;
         if actual.is_file() && actual.dev() == expected.dev() && actual.ino() == expected.ino() {
             Ok(())
         } else {
@@ -288,8 +309,8 @@ impl Location {
     }
     fn matches(&self, file: &File) -> Result<()> {
         let actual_file = self.open_flags(0)?;
-        let actual = retry(NativeIoOperation::Metadata, || actual_file.metadata())?;
-        let expected = retry(NativeIoOperation::Metadata, || file.metadata())?;
+        let actual = file_metadata(&actual_file)?;
+        let expected = file_metadata(file)?;
         if actual.is_file()
             && actual.dev() == expected.dev()
             && actual.ino() == expected.ino()
@@ -300,22 +321,21 @@ impl Location {
             Err(Error::Invalid)
         }
     }
-    fn scratch(&self, mem: &Memory) -> Result<Self> {
-        let prefix = b".wdb-compact-";
-        let mut name = Vec::new_in(self.name.allocator().clone());
-        mem.reserve_external(&mut name, prefix.len())?;
-        name.extend_from_slice(prefix);
-        mem.reserve_external(&mut name, 37)?;
-        for byte in identity()? {
+    fn scratch(&self, make_identity: impl FnOnce() -> Result<[u8; 16]>) -> Result<Self> {
+        let suffix = b".tmp\0";
+        let mut name = Self::copy_path(
+            self.name.allocator().clone(),
+            b".wdb-compact-",
+            2 * 16 + suffix.len(),
+        )?;
+        for byte in make_identity()? {
             for n in [byte >> 4, byte & 15] {
                 name.push(b"0123456789abcdef"[n as usize]);
             }
         }
-        name.extend_from_slice(b".tmp\0");
+        name.extend_from_slice(suffix);
         Ok(Self {
-            directory: retry(NativeIoOperation::DuplicateHandle, || {
-                self.directory.try_clone()
-            })?,
+            directory: duplicate_file(&self.directory)?,
             name,
         })
     }
@@ -459,11 +479,9 @@ pub fn compact_file_with_hook(
 fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
     let original = Location::new(path)?;
     let source = original.duplicate()?.open_mode(false, true)?;
-    let old_file = retry(NativeIoOperation::DuplicateHandle, || {
-        source.file.try_clone()
-    })?;
+    let old_file = duplicate_file(&source.file)?;
     // Replacing one name cannot preserve a hard-link alias's writer authority.
-    if retry(NativeIoOperation::Metadata, || old_file.metadata())?.nlink() != 1 {
+    if file_metadata(&old_file)?.nlink() != 1 {
         return Err(Error::Invalid);
     }
     let (mut storage, head, next_collection, retention) = Storage::open(
@@ -475,11 +493,9 @@ fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<Co
         mem,
     )?;
     storage.release_serialization_caches();
-    let scratch = original.scratch(mem)?;
+    let scratch = original.scratch(identity)?;
     let target = scratch.duplicate()?.open_mode(true, true)?;
-    let new_file = retry(NativeIoOperation::DuplicateHandle, || {
-        target.file.try_clone()
-    })?;
+    let new_file = duplicate_file(&target.file)?;
     let prepared = storage.encode_compact_copy(
         Observed {
             file: target,
@@ -560,8 +576,13 @@ impl FileStore {
 
 #[cfg(all(
     test,
-    target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+    any(
+        target_os = "macos",
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    )
 ))]
 mod tests {
     use super::*;
@@ -588,6 +609,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     fn opener_paused_before_flock_rejects_the_replaced_inode() {
         let path =
             std::env::temp_dir().join(format!("weekend-open-race-{}.db", std::process::id()));
@@ -613,6 +638,23 @@ mod tests {
 #[cfg(test)]
 mod decision_tests {
     use super::*;
+
+    pub(super) struct PathFixture(pub(super) std::path::PathBuf);
+
+    impl PathFixture {
+        pub(super) fn new(case: &str) -> Self {
+            let dir =
+                std::env::temp_dir().join(format!("weekend-path-{case}-{}", std::process::id()));
+            std::fs::create_dir(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for PathFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
 
     #[test]
     fn file_compaction_verifies_without_holding_copy_graphs_or_releasing_leases() {
@@ -732,6 +774,403 @@ mod decision_tests {
         assert_eq!(file.lock(), Err(Error::Busy));
         assert_eq!(file.length(), Err(Error::Io));
     }
+
+    #[test]
+    fn invalid_names_stop_before_the_selected_allocator() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let allocator = Arc::new(TestAllocator::default());
+        let handle = allocator.handle();
+        let mut max = "x".repeat(1024 * 1024);
+        let (location, requests) =
+            allocator.count_with_refusal(2, || Location::new_in(Path::new(&max), handle.clone()));
+        let location = location.unwrap();
+        assert_eq!(requests, 2);
+        assert_eq!(location.name.len(), max.len() + 1);
+        assert_eq!(location.name.last(), Some(&0));
+        assert_eq!(allocator.last_request_size(), max.len() + 1);
+        let parent = location.directory.metadata().unwrap();
+        let cwd = std::fs::metadata(".").unwrap();
+        assert_eq!((parent.dev(), parent.ino()), (cwd.dev(), cwd.ino()));
+        drop(location);
+        max.push('x');
+
+        let live = allocator.live_bytes();
+        for (name, error) in [
+            ("", Error::Invalid),
+            ("a/", Error::Invalid),
+            (".", Error::Invalid),
+            ("..", Error::Invalid),
+            ("a\0b", Error::Invalid),
+            (max.as_str(), Error::Limit),
+        ] {
+            let (result, requests) = allocator
+                .count_with_refusal(0, || Location::new_in(Path::new(name), handle.clone()));
+            assert_eq!(result.err(), Some(error));
+            assert_eq!(requests, 0);
+            assert_eq!(allocator.live_bytes(), live);
+        }
+    }
+
+    #[test]
+    fn parent_and_leaf_refusal_leave_create_and_open_retriable() {
+        use super::super::diagnostics::capture;
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let fixture = PathFixture::new("allocation");
+        let path = fixture.0.join("store λ.db");
+        let leaf = "store λ.db\0".as_bytes();
+        let parent_bytes = fixture.0.as_os_str().as_bytes().len() + 1;
+        let allocator = Arc::new(TestAllocator::default());
+        let handle = allocator.handle();
+        let live = allocator.live_bytes();
+        for create in [true, false] {
+            for (allowed, size) in [(0, parent_bytes), (1, leaf.len())] {
+                let (result, requests) = allocator.count_with_refusal(allowed, || {
+                    capture(|| FileStore::open_in(&path, create, handle.clone()))
+                });
+                let failure = result.err().unwrap();
+                assert_eq!(failure.error, Error::OutOfMemory);
+                assert_eq!(failure.native, None);
+                assert_eq!(requests, allowed + 1);
+                assert_eq!(allocator.last_request_size(), size);
+                assert_eq!(allocator.live_bytes(), live);
+                if create {
+                    assert!(std::fs::read_dir(&fixture.0).unwrap().next().is_none());
+                } else {
+                    assert_eq!(std::fs::read(&path).unwrap(), b"kept");
+                }
+            }
+            let (store, requests) = allocator
+                .count_with_refusal(2, || FileStore::open_in(&path, create, handle.clone()));
+            let mut store = store.unwrap();
+            assert_eq!(requests, 2);
+            assert_eq!(store.location.name.as_slice(), leaf);
+            assert_eq!(allocator.live_bytes(), live + leaf.len());
+            store.lock().unwrap();
+            if create {
+                assert_eq!(store.write(0, b"kept"), Ok(4));
+                store.sync().unwrap();
+            } else {
+                let mut bytes = [0; 4];
+                assert_eq!(store.read(0, &mut bytes), Ok(4));
+                assert_eq!(&bytes, b"kept");
+            }
+            drop(store);
+            assert_eq!(allocator.live_bytes(), live);
+        }
+
+        let location = Location::new_in(&path, handle.clone()).unwrap();
+        let baseline = allocator.live_bytes();
+        let (duplicate, requests) = allocator.count_with_refusal(0, || location.duplicate());
+        assert_eq!(duplicate.err(), Some(Error::OutOfMemory));
+        assert_eq!(requests, 1);
+        assert_eq!(allocator.last_request_size(), leaf.len());
+        assert_eq!(allocator.live_bytes(), baseline);
+        let duplicate = allocator.with_refusal(1, || location.duplicate()).unwrap();
+        assert_eq!(duplicate.name.as_slice(), leaf);
+        assert_eq!(allocator.live_bytes(), baseline + leaf.len());
+        assert_eq!(std::fs::read(&path).unwrap(), b"kept");
+        drop(duplicate);
+        drop(location);
+        assert_eq!(allocator.live_bytes(), live);
+    }
+
+    #[test]
+    fn scratch_uses_one_selected_reservation_and_stops_on_entropy_failure() {
+        use super::super::diagnostics::capture;
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let fixture = PathFixture::new("scratch-allocation");
+        let allocator = Arc::new(TestAllocator::default());
+        let location = Location::new_in(&fixture.0.join("source"), allocator.handle()).unwrap();
+        let live = allocator.live_bytes();
+        let expected = b".wdb-compact-0102030405060708090a0b0c0d0e0f10.tmp\0";
+
+        let (result, requests) = allocator.count_with_refusal(0, || {
+            capture(|| location.scratch(|| panic!("entropy queried after refused allocation")))
+        });
+        let failure = result.err().unwrap();
+        assert_eq!(failure.error, Error::OutOfMemory);
+        assert_eq!(failure.native, None);
+        assert_eq!(requests, 1);
+        assert_eq!(allocator.last_request_size(), expected.len());
+        assert_eq!(allocator.live_bytes(), live);
+
+        let (result, requests) =
+            allocator.count_with_refusal(1, || location.scratch(|| Err(Error::Io)));
+        assert_eq!(result.err(), Some(Error::Io));
+        assert_eq!(requests, 1);
+        assert_eq!(allocator.live_bytes(), live);
+        assert!(std::fs::read_dir(&fixture.0).unwrap().next().is_none());
+
+        let (result, requests) = allocator.count_with_refusal(1, || {
+            location.scratch(|| Ok(std::array::from_fn(|index| index as u8 + 1)))
+        });
+        let scratch = result.unwrap();
+        assert_eq!(requests, 1);
+        assert_eq!(allocator.last_request_size(), expected.len());
+        assert_eq!(scratch.name.as_slice(), expected);
+        assert_eq!(allocator.live_bytes(), live + expected.len());
+        let parent = scratch.directory.metadata().unwrap();
+        let actual = location.directory.metadata().unwrap();
+        assert_eq!((parent.dev(), parent.ino()), (actual.dev(), actual.ino()));
+        drop(scratch);
+        assert_eq!(allocator.live_bytes(), live);
+    }
+
+    #[test]
+    fn scratch_collision_and_unlink_preserve_native_operation_and_siblings() {
+        use super::super::diagnostics::capture;
+        use std::ffi::OsStr;
+
+        let fixture = PathFixture::new("scratch-remove");
+        let original = fixture.0.join("source");
+        std::fs::write(&original, b"canonical").unwrap();
+        let location = Location::new(&original).unwrap();
+        let scratch = location.scratch(|| Ok([0xa5; 16])).unwrap();
+        let scratch_path = fixture
+            .0
+            .join(OsStr::from_bytes(scratch.name.strip_suffix(&[0]).unwrap()));
+        let mut target = scratch.duplicate().unwrap().open_mode(true, true).unwrap();
+        target.lock().unwrap();
+        assert_eq!(target.write(0, b"candidate"), Ok(9));
+        target.sync().unwrap();
+        drop(target);
+
+        let collision = capture(|| scratch.duplicate()?.open_mode(true, true))
+            .err()
+            .unwrap();
+        assert_eq!(collision.error, Error::AlreadyExists);
+        let native = collision.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Create);
+        assert_eq!(native.raw_os_error, Some(17)); // EEXIST
+        assert_eq!(std::fs::read(&scratch_path).unwrap(), b"candidate");
+
+        capture(|| scratch.remove()).unwrap();
+        assert!(!scratch_path.exists());
+        let missing = capture(|| scratch.remove()).unwrap_err();
+        assert_eq!(missing.error, Error::NotFound);
+        let native = missing.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Remove);
+        assert_eq!(native.raw_os_error, Some(2)); // ENOENT
+        assert_eq!(std::fs::read(&original).unwrap(), b"canonical");
+    }
+
+    #[test]
+    fn native_positioned_io_distinguishes_progress_eof_and_refusal() {
+        use super::super::diagnostics::capture;
+
+        let fixture = PathFixture::new("positioned-io");
+        let path = fixture.0.join("store");
+        let mut writer = FileStore::create(&path).unwrap();
+        writer.lock().unwrap();
+        assert_eq!(writer.write(0, b"abcd"), Ok(4));
+        assert_eq!(writer.write(1, b"XY"), Ok(2));
+        writer.sync().unwrap();
+        assert_eq!(writer.length(), Ok(4));
+        drop(writer);
+
+        let mut reader = FileStore::open_read_only(&path).unwrap();
+        reader.lock().unwrap();
+        let mut out = *b"????";
+        assert_eq!(reader.read(1, &mut out), Ok(3));
+        assert_eq!(&out, b"XYd?");
+        assert_eq!(reader.read(4, &mut out), Ok(0));
+        assert_eq!(&out, b"XYd?");
+
+        let read = capture(|| reader.read(u64::MAX, &mut out)).unwrap_err();
+        assert_eq!(read.error, Error::Io);
+        let native = read.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Read);
+        assert_eq!(native.raw_os_error, Some(22)); // EINVAL
+        assert_eq!(&out, b"XYd?");
+
+        let write = capture(|| reader.write(1, b"!")).unwrap_err();
+        assert_eq!(write.error, Error::Io);
+        let native = write.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Write);
+        assert_eq!(native.raw_os_error, Some(9)); // EBADF
+        assert_eq!(reader.length(), Ok(4));
+        assert_eq!(std::fs::read(&path).unwrap(), b"aXYd");
+    }
+
+    #[test]
+    fn native_path_errors_report_the_failed_operation() {
+        let fixture = PathFixture::new("diagnostics");
+        let file = fixture.0.join("file");
+        std::fs::write(&file, b"kept").unwrap();
+        for (create, path, error, operation, raw) in [
+            (
+                false,
+                fixture.0.join("missing/leaf"),
+                Error::NotFound,
+                NativeIoOperation::OpenDirectory,
+                2,
+            ),
+            (
+                false,
+                file.join("leaf"),
+                Error::Invalid,
+                NativeIoOperation::OpenDirectory,
+                20,
+            ),
+            (
+                false,
+                fixture.0.join("missing"),
+                Error::NotFound,
+                NativeIoOperation::Open,
+                2,
+            ),
+            (
+                true,
+                file.clone(),
+                Error::AlreadyExists,
+                NativeIoOperation::Create,
+                17,
+            ),
+        ] {
+            let result = if create {
+                FileStore::create_with_diagnostics(&path)
+            } else {
+                FileStore::open_with_diagnostics(&path)
+            };
+            let failure = result.err().unwrap();
+            assert_eq!(failure.error, error);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, operation);
+            assert_eq!(native.raw_os_error, Some(raw));
+        }
+        for path in [Path::new(""), fixture.0.as_path()] {
+            let failure = FileStore::open_read_only_with_diagnostics(path)
+                .err()
+                .unwrap();
+            assert_eq!(failure.error, Error::Invalid);
+            assert_eq!(failure.native, None);
+        }
+        assert_eq!(std::fs::read(&file).unwrap(), b"kept");
+    }
+
+    #[test]
+    fn all_io_requires_a_claim_and_failed_reacquisition_releases_the_inode() {
+        let dir =
+            std::env::temp_dir().join(format!("weekend-claim-decisions-{}", std::process::id()));
+        struct Cleanup(std::path::PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        std::fs::create_dir(&dir).unwrap();
+        let dir = Cleanup(dir);
+        let path = dir.0.join("data");
+        let moved = dir.0.join("moved");
+        let reject_io = |file: &mut FileStore| {
+            let mut byte = *b"?";
+            assert_eq!(file.length(), Err(Error::Io));
+            assert_eq!(file.read(0, &mut byte), Err(Error::Io));
+            assert_eq!(byte, *b"?");
+            assert_eq!(file.write(0, b"x"), Err(Error::Io));
+            assert_eq!(file.sync(), Err(Error::Io));
+        };
+        let mut first = FileStore::create(&path).unwrap();
+        reject_io(&mut first);
+        first.lock().unwrap();
+        assert_eq!(first.lock(), Err(Error::Busy));
+        assert_eq!(first.write(0, b"a"), Ok(1));
+        first.sync().unwrap();
+        assert!(!first.parent_pending);
+        first.unlock();
+        assert!(matches!(first.lease, Lease::Released));
+        reject_io(&mut first);
+        let competing = FileStore::open_read_only(&path).unwrap();
+        assert_eq!(first.lock(), Err(Error::Busy));
+        reject_io(&mut first);
+        assert!(matches!(FileStore::open(&path), Err(Error::Busy)));
+        drop(competing);
+        first.lock().unwrap();
+        assert_eq!(first.length(), Ok(1));
+        let mut byte = [0];
+        assert_eq!(first.read(0, &mut byte), Ok(1));
+        assert_eq!(byte, [b'a']);
+        first.unlock();
+
+        std::fs::rename(&path, &moved).unwrap();
+        std::fs::write(&path, b"replacement").unwrap();
+        assert_eq!(first.lock(), Err(Error::Busy));
+        reject_io(&mut first);
+        assert!(matches!(first.lease, Lease::Released));
+        // The stale adapter stays alive across this open of its old inode.
+        let old = FileStore::open(&moved).unwrap();
+        assert_eq!(std::fs::read(&moved).unwrap(), b"a");
+        assert_eq!(std::fs::read(&path).unwrap(), b"replacement");
+        drop(old);
+        drop(first);
+    }
+
+    #[test]
+    fn creation_sync_retries_every_barrier_after_each_possible_failure() {
+        use std::cell::RefCell;
+
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        enum Barrier {
+            File,
+            Parent,
+        }
+
+        let fixture = PathFixture::new("creation-sync");
+        let sequence = [Barrier::File, Barrier::Parent, Barrier::File];
+        let sync = |store: &mut FileStore, failure: Option<usize>, expected: &[Barrier]| {
+            let calls = RefCell::new(Vec::new());
+            let record = |barrier| {
+                let mut calls = calls.borrow_mut();
+                let index = calls.len();
+                calls.push(barrier);
+                if failure == Some(index) {
+                    Err(Error::Busy)
+                } else {
+                    Ok(())
+                }
+            };
+            let file_fd = store.file.as_raw_fd();
+            let parent_fd = store.location.directory.as_raw_fd();
+            let result = store.sync_with(
+                |file| {
+                    assert_eq!(file.as_raw_fd(), file_fd);
+                    record(Barrier::File)
+                },
+                |location| {
+                    assert_eq!(location.directory.as_raw_fd(), parent_fd);
+                    record(Barrier::Parent)
+                },
+            );
+            assert_eq!(calls.into_inner(), expected);
+            assert_eq!(result, failure.map_or(Ok(()), |_| Err(Error::Busy)));
+        };
+
+        for failure in 0..sequence.len() {
+            let path = fixture.0.join(format!("created-{failure}"));
+            let mut store = FileStore::create(&path).unwrap();
+            store.lock().unwrap();
+            sync(&mut store, Some(failure), &sequence[..=failure]);
+            assert!(store.parent_pending);
+            sync(&mut store, None, &sequence);
+            assert!(!store.parent_pending);
+            sync(&mut store, Some(0), &[Barrier::File]);
+            assert!(!store.parent_pending);
+            sync(&mut store, None, &[Barrier::File]);
+            drop(store);
+
+            let mut reopened = FileStore::open(&path).unwrap();
+            reopened.lock().unwrap();
+            sync(&mut reopened, None, &[Barrier::File]);
+            assert!(!reopened.parent_pending);
+        }
+    }
+
     #[test]
     fn namespace_rechecks_distinguish_aliases_replacement_and_removal() {
         let path =
@@ -756,6 +1195,14 @@ mod decision_tests {
         assert_eq!(location.check_lease(&store.file), Err(Error::Busy));
         assert_eq!(location.matches(&store.file), Err(Error::Invalid));
         std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert_eq!(location.check_lease(&store.file), Err(Error::Busy));
+        assert_eq!(location.matches(&store.file), Err(Error::Invalid));
+        std::fs::remove_dir(&path).unwrap();
+        std::os::unix::fs::symlink(&alias, &path).unwrap();
+        assert_eq!(location.check_lease(&store.file), Err(Error::Invalid));
+        assert_eq!(location.matches(&store.file), Err(Error::Invalid));
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]
@@ -773,5 +1220,334 @@ mod decision_tests {
         });
         assert_eq!(result, Ok(9));
         assert_eq!(calls, 3);
+    }
+}
+
+#[cfg(test)]
+mod metadata_decisions {
+    use super::decision_tests::PathFixture;
+    use super::*;
+    use crate::{Database, storage::with_storage_diagnostics};
+    use std::{cell::Cell, fs};
+
+    #[derive(Clone, Copy)]
+    struct Probe {
+        fail: Option<(usize, i32)>,
+        calls: usize,
+    }
+
+    thread_local! {
+        static STAT: Cell<Option<Probe>> = const { Cell::new(None) };
+    }
+
+    pub(super) fn before_read() -> io::Result<()> {
+        STAT.with(|slot| {
+            if let Some(mut probe) = slot.get() {
+                let call = probe.calls;
+                probe.calls += 1;
+                slot.set(Some(probe));
+                if let Some((index, code)) = probe.fail
+                    && call == index
+                {
+                    return Err(io::Error::from_raw_os_error(code));
+                }
+            }
+            Ok(())
+        })
+    }
+
+    fn probing<T>(fail: Option<(usize, i32)>, action: impl FnOnce() -> T) -> (T, usize) {
+        struct Reset(Option<Probe>);
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                STAT.set(self.0);
+            }
+        }
+
+        let _reset = Reset(STAT.replace(Some(Probe { fail, calls: 0 })));
+        let result = action();
+        (result, STAT.get().unwrap().calls)
+    }
+
+    fn require_metadata_error<T>(result: std::result::Result<T, super::super::StorageFailure>) {
+        let failure = result.err().expect("metadata read must fail");
+        assert_eq!(failure.error, Error::Io);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::Metadata);
+        assert_eq!(native.raw_os_error, Some(5)); // EIO
+    }
+
+    fn on_test_directory(case: &str, test: impl FnOnce(&Path)) {
+        let dir = PathFixture::new(case);
+        test(&dir.0);
+    }
+
+    #[test]
+    fn claimed_length_retries_interruption_and_preserves_terminal_metadata_error() {
+        on_test_directory("length", |dir| {
+            let path = dir.join("source");
+            fs::write(&path, b"kept").unwrap();
+            let mut store = FileStore::open_read_only(&path).unwrap();
+            store.lock().unwrap();
+            let (error, calls) =
+                probing(Some((0, 5)), || with_storage_diagnostics(|| store.length()));
+            require_metadata_error(error);
+            assert_eq!(calls, 1);
+            let (length, calls) = probing(Some((0, 4)), || store.length()); // EINTR
+            assert_eq!(length, Ok(4));
+            assert_eq!(calls, 2);
+            assert_eq!(store.length(), Ok(4));
+        });
+    }
+
+    #[test]
+    fn metadata_failure_at_open_or_claim_does_not_leave_a_lease() {
+        on_test_directory("lease", |dir| {
+            let path = dir.join("source");
+            fs::write(&path, b"unchanged").unwrap();
+
+            // A regular-file check, the reopened name, then the held file.
+            let (store, calls) = probing(None, || FileStore::open(&path));
+            drop(store.unwrap());
+            assert_eq!(calls, 3);
+            for fail in 0..3 {
+                let (result, calls) =
+                    probing(Some((fail, 5)), || FileStore::open_with_diagnostics(&path));
+                require_metadata_error(result);
+                assert_eq!(calls, fail + 1);
+                drop(FileStore::open(&path).unwrap());
+            }
+
+            for fail in 0..2 {
+                let mut store = FileStore::open(&path).unwrap();
+                let (result, calls) = probing(Some((fail, 5)), || {
+                    with_storage_diagnostics(|| store.lock())
+                });
+                require_metadata_error(result);
+                assert_eq!(calls, fail + 1);
+                assert_eq!(store.length(), Err(Error::Io));
+                // The failed adapter is still alive. Its lock must be gone.
+                drop(FileStore::open(&path).unwrap());
+            }
+            assert_eq!(fs::read(&path).unwrap(), b"unchanged");
+        });
+    }
+
+    #[test]
+    fn compaction_metadata_read_refusals_preserve_canonical_and_retained_images() {
+        on_test_directory("compaction", |dir| {
+            let limits = Limits::default();
+            let source = dir.join("source");
+            let db = Database::create_file(&source, limits).unwrap();
+            let c = db.create_collection().unwrap();
+            for n in [10, 20] {
+                let mut tx = db.begin();
+                tx.put(c, b"key", &db.integer(n).unwrap()).unwrap();
+                tx.commit().unwrap();
+                if n == 10 {
+                    db.retain_snapshot(&db.snapshot()).unwrap();
+                }
+            }
+            let revision = db.snapshot().revision();
+            let retained_revision = db.retained_snapshot(1).unwrap().revision();
+            drop(db);
+            let before = fs::read(&source).unwrap();
+            let reference = dir.join("reference");
+            fs::write(&reference, &before).unwrap();
+            let (stats, metadata_calls) =
+                probing(None, || Database::compact_file(&reference, limits));
+            stats.unwrap();
+            let compacted = fs::read(&reference).unwrap();
+            assert_ne!(compacted, before);
+            assert!(metadata_calls > 8);
+
+            // The source link count follows the three source-open reads.
+            // The final four reads check the two name/held-file pairs.
+            for fail in [
+                3,
+                metadata_calls - 4,
+                metadata_calls - 3,
+                metadata_calls - 2,
+                metadata_calls - 1,
+            ] {
+                let attempt = dir.join(format!("attempt-{fail}"));
+                fs::create_dir(&attempt).unwrap();
+                let path = attempt.join("canonical");
+                fs::write(&path, &before).unwrap();
+                let inode = fs::metadata(&path).unwrap().ino();
+                let (result, calls) = probing(Some((fail, 5)), || {
+                    Database::compact_file_with_diagnostics(&path, limits)
+                });
+                require_metadata_error(result);
+                assert_eq!(calls, fail + 1);
+                assert_eq!(fs::metadata(&path).unwrap().ino(), inode);
+                assert_eq!(fs::read(&path).unwrap(), before);
+
+                let mut names = fs::read_dir(&attempt)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .filter(|name| name != &path);
+                let scratch = if fail == 3 {
+                    None
+                } else {
+                    let name = names.next().unwrap();
+                    assert_eq!(fs::read(&name).unwrap(), compacted);
+                    Some(name)
+                };
+                assert!(names.next().is_none());
+
+                for retry in [false, true] {
+                    if retry {
+                        Database::compact_file(&path, limits).unwrap();
+                        assert_eq!(fs::read(&path).unwrap(), compacted);
+                        if let Some(name) = &scratch {
+                            assert_eq!(fs::read(name).unwrap(), compacted);
+                        }
+                    }
+                    let db = Database::open_file(&path, limits).unwrap();
+                    let c = db.collection_id(1);
+                    let current = db.snapshot();
+                    let retained = db.retained_snapshot(1).unwrap();
+                    assert_eq!(current.revision(), revision);
+                    assert_eq!(retained.revision(), retained_revision);
+                    assert_eq!(current.get(c, b"key").unwrap().unwrap().as_i64(), Ok(20));
+                    assert_eq!(retained.get(c, b"key").unwrap().unwrap().as_i64(), Ok(10));
+                }
+            }
+        });
+    }
+}
+
+#[cfg(test)]
+#[path = "../../tests/support/descriptor_limit.rs"]
+mod descriptor_limit;
+
+#[cfg(test)]
+mod clone_decisions {
+    use super::{
+        descriptor_limit::{EMFILE, fill_table, run_worker},
+        *,
+    };
+    use crate::{Database, storage::SimulatedDisk};
+    use std::{cell::Cell, fs};
+
+    thread_local! {
+        static DUPLICATION: Cell<Option<(usize, usize)>> = const { Cell::new(None) };
+    }
+
+    pub(super) fn before_duplicate() -> Vec<File> {
+        DUPLICATION.with(|state| {
+            if let Some((fail, count)) = state.get() {
+                state.set(Some((fail, count + 1)));
+                if count == fail {
+                    return fill_table();
+                }
+            }
+            Vec::new()
+        })
+    }
+
+    const CASE: &str = "WEEKEND_TEST_COMPACTION_CLONE_CASE";
+    const TEST: &str =
+        "storage::file::clone_decisions::file_clone_exhaustion_preserves_roots_and_retry";
+
+    fn run_case(index: &str) {
+        let (duplicate, has_scratch) = match index {
+            "source" => (1, false),
+            "target" => (4, true),
+            _ => panic!("unknown clone case"),
+        };
+        let source = Path::new("canonical");
+        let limits = Limits::default();
+        let disk = SimulatedDisk::new().unwrap();
+        let mut original = Database::create_on(disk.clone(), *b"clone-pressure-1", limits).unwrap();
+        let collection = original.create_collection().unwrap();
+        for n in [17, 29] {
+            let mut tx = original.begin();
+            tx.put(collection, b"k", &original.integer(n).unwrap())
+                .unwrap();
+            tx.commit().unwrap();
+            if n == 17 {
+                original.retain_snapshot(&original.snapshot()).unwrap();
+            }
+        }
+        let revision = original.snapshot().revision();
+        let old_revision = original.retained_snapshot(1).unwrap().revision();
+        let image = disk.durable_image().unwrap();
+        let reference = SimulatedDisk::new().unwrap();
+        original.compact_to(reference.clone()).unwrap();
+        let compacted = reference.durable_image().unwrap();
+        fs::write(source, &image).unwrap();
+        let inode = fs::metadata(source).unwrap().ino();
+        let available = fill_table().len();
+
+        assert!(DUPLICATION.replace(Some((duplicate, 0))).is_none());
+        let failure = Database::compact_file_with_diagnostics(source, limits).unwrap_err();
+        assert_eq!(DUPLICATION.replace(None), Some((duplicate, duplicate + 1)));
+        assert_eq!(failure.error, Error::Io);
+        let native = failure.native.unwrap();
+        assert_eq!(native.operation, NativeIoOperation::DuplicateHandle);
+        assert_eq!(native.raw_os_error, Some(EMFILE));
+        assert_eq!(fill_table().len(), available);
+
+        assert_eq!(fs::metadata(source).unwrap().ino(), inode);
+        assert_eq!(fs::read(source).unwrap(), image);
+        let mut entries = fs::read_dir(".")
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .filter(|name| name != source.as_os_str());
+        let scratch = entries.next();
+        assert_eq!(scratch.is_some(), has_scratch);
+        assert!(entries.next().is_none());
+        drop(entries);
+        if let Some(path) = &scratch {
+            assert!(path.to_str().unwrap().starts_with(".wdb-compact-"));
+            assert_eq!(fs::metadata(path).unwrap().len(), 0);
+        }
+        for retry in [false, true] {
+            if retry {
+                Database::compact_file(source, limits).unwrap();
+                assert_eq!(fs::read(source).unwrap(), compacted);
+            }
+            let db = Database::open_file(source, limits).unwrap();
+            let collection = db.collection_id(collection.as_u64());
+            let current = db.snapshot();
+            let retained = db.retained_snapshot(1).unwrap();
+            assert_eq!(current.revision(), revision);
+            assert_eq!(retained.revision(), old_revision);
+            assert_eq!(
+                current.get(collection, b"k").unwrap().unwrap().as_i64(),
+                Ok(29)
+            );
+            assert_eq!(
+                retained.get(collection, b"k").unwrap().unwrap().as_i64(),
+                Ok(17)
+            );
+        }
+        assert_eq!(
+            fs::read_dir(".").unwrap().count(),
+            1 + usize::from(has_scratch)
+        );
+        if let Some(path) = scratch {
+            assert_eq!(fs::metadata(path).unwrap().len(), 0);
+        }
+        println!("verified compaction {index} clone EMFILE");
+    }
+
+    #[test]
+    fn file_clone_exhaustion_preserves_roots_and_retry() {
+        if let Ok(index) = std::env::var(CASE) {
+            run_case(&index);
+            return;
+        }
+        for index in ["source", "target"] {
+            let dir = super::decision_tests::PathFixture::new(index);
+            run_worker(
+                TEST,
+                (CASE, index),
+                &dir.0,
+                &format!("verified compaction {index} clone EMFILE"),
+            );
+        }
     }
 }

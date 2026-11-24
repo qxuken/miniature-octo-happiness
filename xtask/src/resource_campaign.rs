@@ -19,7 +19,7 @@ use std::{
     time::Instant,
 };
 const DRIVER: &str = "tools/resource-envelope";
-const BASE: &[&str] = &["Cargo.toml", "Cargo.lock", "src/main.rs"];
+const BASE: &[&str] = &["Cargo.toml", "Cargo.lock", "build.rs", "src/main.rs"];
 const COMPOUND: &[&str] = &[
     "src/compound.rs",
     "src/breadth.rs",
@@ -544,8 +544,11 @@ pub(crate) fn worker(
 fn archive(c: &mut Campaign<'_>, reference: &str) -> Result<(String, PathBuf)> {
     let (revision, source) = assurance::archive_source(c, reference)?;
     let mut overlay = BTreeMap::new();
-    for file in BASE.iter().chain(COMPOUND) {
-        let name = PathBuf::from(DRIVER).join(file);
+    let driver_files = BASE
+        .iter()
+        .chain(COMPOUND)
+        .map(|file| Path::new(DRIVER).join(file));
+    for name in driver_files.chain([PathBuf::from("tests/support/allocator.rs")]) {
         let dest = source.join(&name);
         fs::create_dir_all(dest.parent().unwrap())?;
         fs::copy(c.run.root.join(&name), &dest)?;

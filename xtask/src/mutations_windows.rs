@@ -2,7 +2,8 @@
 use super::*;
 use crate::trace_process::Report;
 use sha2::Digest;
-const TEST: &str = "storage::windows::decision_tests::identity_rejects_every_nonzero_status_before_accepting_bytes";
+const TEST: &str =
+    "storage::windows_rng::tests::identity_rejects_every_nonzero_status_before_accepting_bytes";
 fn assertion(case: &Case) -> Result<&'static str> {
     match case.name.as_str() {
         "windows-rng-status-negative" => Ok(
@@ -71,7 +72,7 @@ fn windows_cases() -> Result<Inventory> {
     for case in &data.cases {
         assertion(case)?;
         ensure!(
-            case.file == Path::new("src/storage/windows.rs")
+            case.file == Path::new("src/storage/windows_rng.rs")
                 && case.package == "weekend-db"
                 && case.target == "--lib"
                 && case.test == TEST

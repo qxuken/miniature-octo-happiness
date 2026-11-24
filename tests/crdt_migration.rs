@@ -1,4 +1,9 @@
 #![cfg(feature = "crdt")]
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db as allocator_engine;
 #[allow(dead_code)]
 #[path = "../examples/crdt_policy_migration.rs"]
 mod migration;
@@ -310,7 +315,6 @@ fn migration_rejects_identity_reuse_and_unrepresentable_values_before_staging() 
     assert_eq!(before, revisions(&x, &y));
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn failed_staging_leaves_old_pair_usable_and_requires_discarding_partial_targets() {
     let a = Database::new().unwrap();
@@ -324,10 +328,10 @@ fn failed_staging_leaves_old_pair_usable_and_requires_discarding_partial_targets
     let reviewed = review(payload, old_b.read().unwrap()).unwrap();
     let old_revisions = revisions(&a, &b);
     let x = Database::new().unwrap();
-    let y = Database::new().unwrap();
-    y.fail_allocations_after(Some(0));
+    let allocator = Arc::new(TestAllocator::default());
+    let y = Database::with_options(allocator.options()).unwrap();
     assert!(matches!(
-        stage_pair(&x, &y, OLD, NEW, reviewed),
+        allocator.with_refusal(0, || stage_pair(&x, &y, OLD, NEW, reviewed)),
         Err(Error::OutOfMemory)
     ));
     assert!(x.snapshot().revision() > 0); // cross-file staging is not atomic
@@ -335,6 +339,7 @@ fn failed_staging_leaves_old_pair_usable_and_requires_discarding_partial_targets
     assert_eq!(old_a.read().unwrap(), payload);
     drop(x);
     drop(y);
+    assert_eq!(allocator.live(), 0);
     let x = Database::new().unwrap();
     let y = Database::new().unwrap();
     let retry_policy = Policy {

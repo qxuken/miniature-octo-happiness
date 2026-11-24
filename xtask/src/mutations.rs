@@ -24,6 +24,14 @@ const FIXTURE: &str = include_str!("../tests/mutations-windows.json");
 #[cfg(any(windows, test))]
 #[path = "mutations_windows.rs"]
 mod windows;
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum CaseOs {
+    Linux,
+    Macos,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Case {
@@ -39,6 +47,8 @@ struct Case {
     matches: Option<usize>,
     package: String,
     manifest: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    os: Option<CaseOs>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -98,7 +108,10 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 && c.matches.is_none_or(|n| n > 0)
                 && matches!(c.target.as_str(), "--lib" | "--test" | "--bin" | "--bins")
                 && match (&c.manifest, c.package.as_str()) {
-                    (None, "weekend-db" | "weekend-db-typed" | "study-peer") => true,
+                    (
+                        None,
+                        "weekend-db" | "weekend-db-typed" | "weekend-db-macros" | "study-peer",
+                    ) => true,
                     (Some(manifest), "weekend-decision-inventory") =>
                         manifest == Path::new("tools/decision-inventory/Cargo.toml"),
                     _ => false,
@@ -281,16 +294,25 @@ fn shard(cases: &[Case], index: usize, count: usize) -> Result<Vec<Case>> {
         .collect())
 }
 #[cfg(unix)]
+fn select_cases(cases: &[Case], prefixes: &[String], host: &str) -> Vec<Case> {
+    let platform = match host {
+        "linux" => Some(CaseOs::Linux),
+        "macos" => Some(CaseOs::Macos),
+        _ => None,
+    };
+    cases
+        .iter()
+        .filter(|c| c.os.is_none_or(|os| Some(os) == platform))
+        .filter(|c| prefixes.is_empty() || prefixes.iter().any(|p| c.name.starts_with(p)))
+        .cloned()
+        .collect()
+}
+
+#[cfg(unix)]
 pub fn run(run: &Run, options: Options) -> Result<()> {
     let inventory = inventory()?;
-    let matching = inventory
-        .cases
-        .iter()
-        .filter(|c| {
-            options.prefixes.is_empty() || options.prefixes.iter().any(|p| c.name.starts_with(p))
-        })
-        .cloned()
-        .collect::<Vec<_>>();
+    let host = std::env::consts::OS;
+    let matching = select_cases(&inventory.cases, &options.prefixes, host);
     ensure!(!matching.is_empty(), "no mutation cases selected");
     let selected = shard(&matching, options.shard_index, options.shard_count)?;
     if options.list {
@@ -320,6 +342,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         "Safe guard mutants in an isolated source copy; successful nonempty baselines and genuine test failures required",
     )?;
     c.evidence["selection"] = json!({
+        "host_os": host,
         "prefixes":options.prefixes,
         "shard_index":options.shard_index,
         "shard_count":options.shard_count,
@@ -565,10 +588,62 @@ mod tests {
     }
     #[cfg(unix)]
     #[test]
+    fn os_filter_precedes_prefix_sharding() {
+        let inventory = inventory().unwrap();
+        let mut cases = inventory.cases;
+        let mut linux_only = cases[0].clone();
+        linux_only.name = "r1-linux-fixture".to_owned();
+        linux_only.os = Some(CaseOs::Linux);
+        cases.push(linux_only);
+        let r1 = vec!["r1-".to_owned()];
+        let mac = select_cases(&cases, &r1, "macos");
+        let linux = select_cases(&cases, &r1, "linux");
+        let opt_in = vec!["r1-macos-primitive-".to_owned()];
+        let mac_only = select_cases(&cases, &opt_in, "macos");
+        assert_eq!(mac_only.len(), 12);
+        assert!(mac_only.iter().all(|c| c.os == Some(CaseOs::Macos)));
+        assert!(select_cases(&cases, &opt_in, "linux").is_empty());
+        assert!(select_cases(&cases, &opt_in, "freebsd").is_empty());
+        assert!(
+            mac_only
+                .iter()
+                .all(|c| mac.iter().any(|m| m.name == c.name))
+        );
+        assert!(!mac.iter().any(|c| c.name == "r1-linux-fixture"));
+        assert!(linux.iter().any(|c| c.name == "r1-linux-fixture"));
+        assert_eq!(
+            mac.iter()
+                .filter(|c| c.os.is_none())
+                .map(|c| &c.name)
+                .collect::<Vec<_>>(),
+            linux
+                .iter()
+                .filter(|c| c.os.is_none())
+                .map(|c| &c.name)
+                .collect::<Vec<_>>()
+        );
+        for (host, selected) in [("macos", mac), ("linux", linux)] {
+            assert!(select_cases(&cases, &[], host).len() > selected.len());
+            let names: BTreeSet<_> = selected.iter().map(|c| c.name.clone()).collect();
+            let mut union = BTreeSet::new();
+            for index in 0..9 {
+                for c in shard(&selected, index, 9).unwrap() {
+                    assert!(union.insert(c.name));
+                }
+            }
+            assert_eq!(union, names);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn fixture_preserves_test_commands_and_selects_release_explicitly() {
         let data = inventory().unwrap();
-        assert_eq!(data.cases.len(), 338);
-        let c = &data.cases[0];
+        let c = data
+            .cases
+            .iter()
+            .find(|case| case.name == "memory-depth-zero")
+            .unwrap();
         assert_eq!(
             command(c, None, false),
             [
@@ -587,6 +662,36 @@ mod tests {
         let mut optimized = command(c, None, false);
         optimized.push("--release".into());
         assert_eq!(command(c, None, true), optimized);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn macro_mutations_run_the_named_expansion_test_in_the_workspace() {
+        let fixture = inventory().unwrap();
+        let case = fixture
+            .cases
+            .iter()
+            .find(|c| c.name == "r1-derive-model-parameters")
+            .unwrap();
+        assert_eq!(
+            command(case, Some("1.100.0"), true),
+            [
+                "cargo",
+                "+1.100.0",
+                "test",
+                "--offline",
+                "--locked",
+                "-p",
+                "weekend-db-macros",
+                "--all-features",
+                "--test",
+                "expansion_guards",
+                "--release",
+                "model_parameters_and_where_clause_reject_independently",
+                "--",
+                "--exact",
+            ]
+        );
     }
     #[cfg(unix)]
     #[test]

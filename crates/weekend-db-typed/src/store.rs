@@ -110,15 +110,31 @@ impl IndexReport {
 }
 trait View: ReadView {
     fn scan_records(&mut self, c: CollectionId) -> engine::Result<engine::Rows>;
+    fn scan_index_rows(
+        &mut self,
+        c: CollectionId,
+    ) -> engine::Result<impl Iterator<Item = (impl AsRef<[u8]> + 'static, Value)> + 'static>;
 }
 impl View for Snapshot<'_> {
     fn scan_records(&mut self, c: CollectionId) -> engine::Result<engine::Rows> {
         self.scan(c)
     }
+    fn scan_index_rows(
+        &mut self,
+        c: CollectionId,
+    ) -> engine::Result<impl Iterator<Item = (impl AsRef<[u8]> + 'static, Value)> + 'static> {
+        self.scan_iter(c)
+    }
 }
 impl View for Transaction<'_> {
     fn scan_records(&mut self, c: CollectionId) -> engine::Result<engine::Rows> {
         self.scan(c)
+    }
+    fn scan_index_rows(
+        &mut self,
+        c: CollectionId,
+    ) -> engine::Result<impl Iterator<Item = (impl AsRef<[u8]> + 'static, Value)> + 'static> {
+        self.scan_iter(c)
     }
 }
 
@@ -522,22 +538,23 @@ fn record_keys<T: Model>(
     }
     Ok(keys)
 }
-struct IndexState {
+struct IndexState<K> {
     report: IndexReport,
-    expected: Vec<(IndexKey, u64)>,
-    stored: engine::Rows,
+    expected: Vec<(IndexKey, u64), AllocatorHandle>,
+    stored: Vec<(K, Value), AllocatorHandle>,
 }
 fn index_state<T: Model>(
     store: &Store,
     view: &mut impl View,
     table: &Table<T>,
-) -> Result<IndexState> {
+) -> Result<IndexState<impl AsRef<[u8]> + 'static>> {
     let entry = info(store, view, table)?;
-    let records = view.scan_records(table.records)?;
-    let mut expected = Vec::new();
-    for (key, value) in &records {
-        let id = row_id(key)?;
-        let raw = Record::from_value(value.clone())?;
+    let mut records = 0;
+    let mut expected = Vec::new_in(store.db.allocator());
+    for (key, value) in view.scan_index_rows(table.records)? {
+        records += 1;
+        let id = row_id(key.as_ref())?;
+        let raw = Record::from_value(value)?;
         for (_, key) in record_keys::<T>(store, view, &entry, &raw)? {
             expected
                 .try_reserve(1)
@@ -553,17 +570,26 @@ fn index_state<T: Model>(
             return Err(Error::UniqueViolation(field));
         }
     }
-    let mut stored = view.scan_records(store.db.collection_id(3))?;
-    stored.retain(|(key, _)| key.starts_with(&entry.records.to_le_bytes()));
-    stored.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    // The scan is already in binary-key order. Keep that order and move only
+    // this table's keys into the repair state without copying their bytes.
+    let prefix = entry.records.to_le_bytes();
+    let mut stored = Vec::new_in(store.db.allocator());
+    for (key, value) in view.scan_index_rows(store.db.collection_id(3))? {
+        if key.as_ref().starts_with(&prefix) {
+            stored
+                .try_reserve(1)
+                .map_err(|_| Error::Engine(engine::Error::OutOfMemory))?;
+            stored.push((key, value));
+        }
+    }
     let mut report = IndexReport {
-        records: records.len(),
+        records,
         expected_entries: expected.len(),
         stored_entries: stored.len(),
         ..IndexReport::default()
     };
     for (key, id) in &expected {
-        match stored.binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_slice())) {
+        match stored.binary_search_by(|(candidate, _)| candidate.as_ref().cmp(key.as_slice())) {
             Err(_) => report.missing += 1,
             Ok(index) if stored[index].1.as_u64().ok() != Some(*id) => report.mismatched += 1,
             Ok(_) => {}
@@ -573,7 +599,7 @@ fn index_state<T: Model>(
         .iter()
         .filter(|(key, _)| {
             expected
-                .binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_slice()))
+                .binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_ref()))
                 .is_err()
         })
         .count();
@@ -678,16 +704,16 @@ impl Write<'_> {
             for (key, _) in &state.stored {
                 if state
                     .expected
-                    .binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_slice()))
+                    .binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_ref()))
                     .is_err()
                 {
-                    w.tx.delete(indexes, key)?;
+                    w.tx.delete(indexes, key.as_ref())?;
                 }
             }
             for (key, id) in &state.expected {
                 let existing = state
                     .stored
-                    .binary_search_by(|(candidate, _)| candidate.as_slice().cmp(key.as_slice()))
+                    .binary_search_by(|(candidate, _)| candidate.as_ref().cmp(key.as_slice()))
                     .ok()
                     .and_then(|index| state.stored[index].1.as_u64().ok());
                 if existing != Some(*id) {

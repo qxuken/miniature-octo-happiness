@@ -1,3 +1,8 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db as allocator_engine;
 mod support;
 #[path = "../examples/support/users.rs"]
 mod users;
@@ -679,7 +684,6 @@ fn storage_faults_never_publish_a_partial_schema_primary_index_batch() {
     }
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
 fn wrapper_allocation_failures_abort_drafts_before_primary_index_or_migration_can_diverge() {
     let (image, ids) = fixture();
@@ -687,19 +691,20 @@ fn wrapper_allocation_failures_abort_drafts_before_primary_index_or_migration_ca
         let mut succeeded = false;
         for budget in 0..1024 {
             let disk = SimulatedDisk::from_image(&image).unwrap();
-            let db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+            let allocator = Arc::new(TestAllocator::default());
+            let db = Database::open_on_with_options(disk.clone(), allocator.options()).unwrap();
             let users = Users::from_ids(&db, ids);
             let old = state(&db.snapshot(), users);
             let mut tx = db.begin();
-            db.fail_allocations_after(Some(budget));
-            let result = match operation {
+            let (result, actual) = allocator.count_with_refusal(budget, || match operation {
                 0 => users.set_email(&db, &mut tx, 42, "new@example.test"),
                 1 => users.delete(&mut tx, 42),
                 _ => users.migrate_to_v3(&db, &mut tx).map(|_| ()),
-            };
-            db.fail_allocations_after(None);
+            });
+            assert_eq!(result.is_err(), actual > budget);
             match result {
                 Ok(()) => {
+                    assert!(budget > 0);
                     tx.commit().unwrap();
                     succeeded = true;
                     break;

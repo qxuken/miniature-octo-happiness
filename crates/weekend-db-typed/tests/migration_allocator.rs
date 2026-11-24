@@ -113,3 +113,63 @@ fn indexed_migrations_use_the_selected_allocator_for_internal_scratch() -> Resul
     }
     Ok(())
 }
+
+#[test]
+fn checking_and_rebuilding_indexes_use_the_selected_allocator() -> Result<()> {
+    let options = DatabaseOptions::default().with_allocator(AllocatorHandle::try_new(System)?);
+    let mut store = Store::initialize(Database::with_options(options)?)?;
+    let jobs = store.table::<Old>("jobs")?;
+    let other = store.table::<Old>("other")?;
+    store.write(|w| {
+        w.insert(&jobs, 1, &Old { code: 5 })?;
+        w.insert(&jobs, 2, &Old { code: 6 })?;
+        w.insert(&other, 1, &Old { code: 5 })
+    })?;
+
+    let db = store.database();
+    let indexes = db.collection_id(3);
+    let key = |code: u64| {
+        let mut bytes = [0; 25];
+        bytes[..8].copy_from_slice(&jobs.collection().as_u64().to_le_bytes());
+        bytes[8..16].copy_from_slice(&1u64.to_le_bytes());
+        bytes[16] = 3; // Unsigned index tag.
+        bytes[17..].copy_from_slice(&code.to_le_bytes());
+        bytes
+    };
+    let mut raw = db.begin();
+    raw.delete(indexes, &key(5))?;
+    raw.put(indexes, &key(7), &db.unsigned(1)?)?;
+    raw.commit()?;
+    drop(raw);
+    let retained = store.checkpoint()?;
+    let records = db.snapshot().scan(jobs.collection())?;
+
+    let (before, requests) = global_requests(|| store.read(|r| r.check_indexes(&jobs)));
+    let before = before?;
+    assert_eq!((before.records, before.missing, before.orphaned), (2, 1, 1));
+    assert_eq!(requests, 0, "index check allocated through Global");
+
+    let (repair, requests) = global_requests(|| {
+        store.write(|w| {
+            assert_eq!(w.rebuild_indexes(&jobs)?, before);
+            assert!(w.check_indexes(&jobs)?.is_consistent());
+            Ok(())
+        })
+    });
+    repair?;
+    assert_eq!(requests, 0, "index repair allocated through Global");
+    assert_eq!(db.snapshot().scan(jobs.collection())?, records);
+    store.read(|r| {
+        assert!(r.check_indexes(&jobs)?.is_consistent());
+        assert_eq!(r.find(&jobs, Old::CODE, &5)?.unwrap().id(), 1);
+        assert!(r.find(&jobs, Old::CODE, &7)?.is_none());
+        assert_eq!(r.find(&other, Old::CODE, &5)?.unwrap().id(), 1);
+        Ok(())
+    })?;
+    store.read_retained(retained, |r| {
+        assert_eq!(r.check_indexes(&jobs)?, before);
+        assert!(r.find(&jobs, Old::CODE, &5)?.is_none());
+        Ok(())
+    })?;
+    Ok(())
+}

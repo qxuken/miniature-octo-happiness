@@ -1,3 +1,6 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+use allocator::TestAllocator;
 use std::{
     sync::{
         Arc, Barrier,
@@ -7,6 +10,7 @@ use std::{
     thread,
     time::Duration,
 };
+use weekend_db as allocator_engine;
 use weekend_db::{
     CollectionId, Database, Error, Limits, Snapshot, Transaction, Validation, Value,
     storage::{ByteStore, MemoryStore, SimulatedDisk},
@@ -467,33 +471,36 @@ fn fresh_readers_proceed_during_io_and_adapter_panic_fails_closed() {
     }
 }
 
-#[cfg(feature = "fault-injection")]
 #[test]
-fn shared_allocation_failure_budget_is_atomic() {
-    let db = Database::new().unwrap();
-    db.fail_allocations_after(Some(100));
+fn shared_allocator_request_limit_is_atomic() {
+    let allocator = Arc::new(TestAllocator::default());
+    let db = Database::with_options(allocator.options()).unwrap();
+    let live = allocator.live_bytes();
     let start = Barrier::new(8);
-    let successes = thread::scope(|s| {
-        let workers: Vec<_> = (0..8)
-            .map(|_| {
-                s.spawn(|| {
-                    start.wait();
-                    (0..100)
-                        .filter(|_| match db.unsigned(1) {
-                            Ok(_) => true,
-                            Err(Error::OutOfMemory) => false,
-                            other => panic!("{other:?}"),
-                        })
-                        .count()
+    let (successes, requests) = allocator.count_with_refusal(100, || {
+        thread::scope(|s| {
+            let workers: Vec<_> = (0..8)
+                .map(|_| {
+                    s.spawn(|| {
+                        start.wait();
+                        (0..100)
+                            .filter(|_| match db.unsigned(1) {
+                                Ok(_) => true,
+                                Err(Error::OutOfMemory) => false,
+                                other => panic!("{other:?}"),
+                            })
+                            .count()
+                    })
                 })
-            })
-            .collect();
-        workers
-            .into_iter()
-            .map(|w| w.join().unwrap())
-            .sum::<usize>()
+                .collect();
+            workers
+                .into_iter()
+                .map(|w| w.join().unwrap())
+                .sum::<usize>()
+        })
     });
+    assert_eq!(requests, 800);
     assert_eq!(successes, 100);
-    db.fail_allocations_after(None);
+    assert_eq!(allocator.live_bytes(), live);
     assert!(db.unsigned(1).is_ok());
 }

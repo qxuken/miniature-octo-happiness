@@ -418,7 +418,6 @@ impl<T> ChargedVec<T> {
         }
         let layout = Layout::array::<T>(needed).map_err(|_| Error::Limit)?;
         let charge = mem.admit(layout.size())?;
-        mem.claim()?;
         if self.vec.capacity() == 0 {
             self.vec = Vec::new_in(mem.allocator());
         }
@@ -496,8 +495,6 @@ impl<T> ChargedVec<T> {
                 return Ok(Vec::new());
             }
             let mut output = Vec::new();
-            let charge = self.charge.as_ref().expect("allocated custom buffer");
-            charge.owner.claim()?;
             output
                 .try_reserve_exact(self.vec.len())
                 .map_err(|_| Error::OutOfMemory)?;
@@ -560,8 +557,6 @@ struct BudgetState {
     limits: Limits,
     used: AtomicUsize,
     peak: AtomicUsize,
-    #[cfg(any(test, feature = "fault-injection"))]
-    remaining: AtomicUsize,
 }
 
 #[derive(Clone)]
@@ -573,32 +568,10 @@ impl Budget {
                 limits: limits.validate()?,
                 used: AtomicUsize::new(0),
                 peak: AtomicUsize::new(0),
-                #[cfg(any(test, feature = "fault-injection"))]
-                remaining: AtomicUsize::new(usize::MAX),
             },
             allocator.clone(),
             None,
         )?))
-    }
-    pub(crate) fn claim(&self) -> Result<()> {
-        #[cfg(any(test, feature = "fault-injection"))]
-        self.0
-            .remaining
-            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
-                match n {
-                    usize::MAX => Some(n), // unlimited
-                    0 => None,
-                    _ => Some(n - 1),
-                }
-            })
-            .map_err(|_| Error::OutOfMemory)?;
-        Ok(())
-    }
-    #[cfg(any(test, feature = "fault-injection"))]
-    pub(crate) fn fail_after(&self, n: Option<usize>) {
-        self.0
-            .remaining
-            .store(n.unwrap_or(usize::MAX), Ordering::Relaxed);
     }
     fn admit(&self, bytes: usize) -> Result<Charge> {
         let previous = self
@@ -660,13 +633,6 @@ impl Memory {
     pub(crate) fn same(&self, other: &Self) -> bool {
         self.budget.0.ptr_eq(&other.budget.0)
     }
-    pub(crate) fn claim(&self) -> Result<()> {
-        self.budget.claim()
-    }
-    #[cfg(any(test, feature = "fault-injection"))]
-    pub(crate) fn fail_after(&self, n: Option<usize>) {
-        self.budget.fail_after(n);
-    }
     fn admit(&self, bytes: usize) -> Result<Charge> {
         self.budget.admit(bytes)
     }
@@ -678,7 +644,6 @@ impl Memory {
         self.budget.usage()
     }
     pub(crate) fn shared<T>(&self, value: T) -> Result<Shared<T>> {
-        self.claim()?;
         let charge = self.admit(Layout::new::<SharedBox<T>>().size())?;
         Shared::allocate(value, self.allocator(), Some(charge))
     }
@@ -687,13 +652,8 @@ impl Memory {
         vec: &mut Vec<T, A>,
         extra: usize,
     ) -> Result<()> {
-        let needed = vec.len().checked_add(extra).ok_or(Error::Limit)?;
-        if needed > vec.capacity() {
-            self.claim()?;
-            vec.try_reserve_exact(extra)
-                .map_err(|_| Error::OutOfMemory)?;
-        }
-        Ok(())
+        vec.len().checked_add(extra).ok_or(Error::Limit)?;
+        vec.try_reserve_exact(extra).map_err(|_| Error::OutOfMemory)
     }
     pub(crate) fn copy_external(&self, bytes: &[u8]) -> Result<Vec<u8>> {
         if bytes.len() > isize::MAX as usize {
@@ -721,11 +681,8 @@ impl Memory {
         vec.extend_from_slice(bytes);
         Ok(vec)
     }
-    /// Allocate ownership fallibly. Zero-sized boxes require no claim.
+    /// Allocate ownership fallibly. Zero-sized boxes require no provider request.
     pub(crate) fn boxed<T>(&self, value: T) -> Result<Box<T, AllocatorHandle>> {
-        if std::mem::size_of::<T>() != 0 {
-            self.claim()?;
-        }
         try_box_in(value, self.allocator())
     }
     pub(crate) fn raw<T>(&self, value: T) -> Result<*mut T> {
@@ -830,31 +787,41 @@ mod tests {
     }
     #[test]
     fn reservation_checks_capacity_overflow_and_budget_independently() {
-        let mem = Memory::new(Limits::default()).unwrap();
-        let mut bytes = Vec::<u8>::with_capacity(4);
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits {
+            max_live_bytes: 0,
+            ..Limits::default()
+        });
+        let mut bytes = Vec::<u8, _>::with_capacity_in(4, mem.allocator());
         bytes.push(7);
-        mem.fail_after(Some(0));
-        assert_eq!(mem.reserve_external(&mut bytes, 3), Ok(()));
-        assert_eq!(mem.reserve_external(&mut bytes, 4), Err(Error::OutOfMemory));
         assert_eq!(
-            mem.reserve_external(&mut bytes, usize::MAX),
+            allocator.with_refusal(0, || mem.reserve_external(&mut bytes, 3)),
+            Ok(())
+        );
+        assert_eq!(
+            allocator.with_refusal(0, || mem.reserve_external(&mut bytes, 4)),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(
+            allocator.with_refusal(0, || mem.reserve_external(&mut bytes, usize::MAX)),
             Err(Error::Limit)
         );
         assert_eq!(bytes, [7]);
-        mem.fail_after(Some(1));
-        assert_eq!(mem.reserve_external(&mut bytes, 4), Ok(()));
-        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+        assert_eq!(bytes.capacity(), 4);
+        let (result, requests) =
+            allocator.count_with_refusal(1, || mem.reserve_external(&mut bytes, 4));
+        assert_eq!(result, Ok(()));
+        assert_eq!(requests, 1);
         assert_eq!(bytes, [7]);
-        mem.fail_after(None);
-        assert_eq!(mem.claim(), Ok(()));
-        assert_eq!(mem.claim(), Ok(()));
+
         // A representable element count can still exceed Vec's byte limit.
-        let mut words = Vec::<u64>::new();
-        assert_eq!(
-            mem.reserve_external(&mut words, isize::MAX as usize),
-            Err(Error::OutOfMemory)
-        );
+        let mut words = Vec::<u64, _>::new_in(mem.allocator());
+        let (result, requests) = allocator
+            .count_with_refusal(0, || mem.reserve_external(&mut words, isize::MAX as usize));
+        assert_eq!(result, Err(Error::OutOfMemory));
+        assert_eq!(requests, 0);
         assert!(words.is_empty());
+        assert_eq!(mem.usage(), (0, 0));
     }
 
     #[test]
@@ -865,38 +832,30 @@ mod tests {
                 self.0.fetch_add(1, Ordering::Relaxed);
             }
         }
-        let mem = Memory::new(Limits::default()).unwrap();
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits::default());
+        let bootstrap_bytes = allocator.live_bytes();
         let drops = Arc::new(AtomicUsize::new(0));
-        for allocation in 0..3 {
-            mem.fail_after(Some(0));
-            let probe = Probe(drops.clone());
-            let result = match allocation {
-                0 => mem.shared(probe).map(drop),
-                1 => mem.boxed(probe).map(drop),
-                _ => mem.raw(probe).map(|ptr| unsafe { mem.free_raw(ptr) }),
-            };
-            assert_eq!(result, Err(Error::OutOfMemory));
-            assert_eq!(drops.load(Ordering::Relaxed), allocation + 1);
-        }
-        // A zero-sized box has no allocation and consumes no budget.
-        assert_eq!(mem.boxed(()).map(|value| *value), Ok(()));
+
+        assert_eq!(
+            allocator.with_refusal(0, || mem.boxed(()).map(|value| *value)),
+            Ok(())
+        );
         assert_eq!(mem.copy_external(b""), Ok(Vec::new()));
-        assert_eq!(mem.copy_external(b"x"), Err(Error::OutOfMemory));
-        mem.fail_after(Some(1));
+
         let shared = mem.shared(Probe(drops.clone())).unwrap();
         let cloned = shared.clone();
         assert!(shared.ptr_eq(&cloned));
         drop(shared);
-        assert_eq!(drops.load(Ordering::Relaxed), 3);
-        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+        assert_eq!(drops.load(Ordering::Relaxed), 0);
         drop(cloned);
-        assert_eq!(drops.load(Ordering::Relaxed), 4);
-        mem.fail_after(Some(2));
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
+
         drop(mem.boxed(Probe(drops.clone())).unwrap());
         let raw = mem.raw(Probe(drops.clone())).unwrap();
         unsafe { mem.free_raw(raw) };
-        assert_eq!(drops.load(Ordering::Relaxed), 6);
-        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+        assert_eq!(drops.load(Ordering::Relaxed), 3);
+        assert_eq!(allocator.live_bytes(), bootstrap_bytes);
     }
 
     #[test]
@@ -949,16 +908,21 @@ mod live_budget_tests {
         .unwrap()
     }
     #[test]
-    fn geometric_growth_is_bounded_and_uses_logarithmic_allocation_claims() {
-        let mem = memory(16384);
+    fn geometric_growth_is_bounded_and_uses_logarithmic_allocation_requests() {
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits {
+            max_live_bytes: 16384,
+            ..Limits::default()
+        });
         let mut bytes = ChargedVec::new();
-        // Capacities 1,2,4,..4096 need thirteen claims, rather than 4096.
-        mem.fail_after(Some(13));
-        for i in 0..4096 {
-            mem.reserve_geometric(&mut bytes, 1, 4096).unwrap();
-            bytes.push((i % 251) as u8);
-        }
-        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
+        // Capacities 1, 2, 4, ..., 4096 require thirteen requests.
+        let ((), requests) = allocator.count_with_refusal(13, || {
+            for i in 0..4096 {
+                mem.reserve_geometric(&mut bytes, 1, 4096).unwrap();
+                bytes.push((i % 251) as u8);
+            }
+        });
+        assert_eq!(requests, 13);
         assert_eq!(bytes.vec.capacity(), 4096);
         assert_eq!(mem.usage(), (4096, 6144));
         for (i, b) in bytes.iter().enumerate() {
@@ -974,27 +938,28 @@ mod live_budget_tests {
         );
         drop(bytes);
         assert_eq!(mem.usage().0, 0);
-        mem.fail_after(None);
         let mut bytes = mem.copy(&[1, 2, 3]).unwrap();
         mem.reserve_geometric(&mut bytes, 3, 6).unwrap();
         assert_eq!(bytes.vec.capacity(), 6); // clamp a non-power-of-two maximum
         assert_eq!(&*bytes, &[1, 2, 3]);
-        mem.fail_after(Some(0));
-        mem.reserve_geometric(&mut bytes, 3, 6).unwrap(); // spare capacity, no claim
-        assert_eq!(mem.reserve_geometric(&mut bytes, 4, 6), Err(Error::Limit));
-        let mut zst = ChargedVec::<()>::new();
-        mem.reserve_geometric(&mut zst, 8, 8).unwrap();
-        zst.resize(8, ());
-        assert_eq!(mem.reserve_geometric(&mut zst, 1, 8), Err(Error::Limit));
-        let mut empty = ChargedVec::<u8>::new();
-        mem.reserve_geometric(&mut empty, 0, 0).unwrap();
-        assert_eq!(mem.reserve_geometric(&mut empty, 1, 0), Err(Error::Limit));
-        // Generic overflow/layout guards precede allocation, even though codec
-        // callers' 64 MiB/16,384-entry bounds cannot approach these sizes.
-        assert_eq!(
-            mem.reserve_geometric(&mut empty, usize::MAX / 2 + 2, usize::MAX),
-            Err(Error::Limit)
-        );
+        let ((), requests) = allocator.count_with_refusal(0, || {
+            mem.reserve_geometric(&mut bytes, 3, 6).unwrap(); // spare capacity
+            assert_eq!(mem.reserve_geometric(&mut bytes, 4, 6), Err(Error::Limit));
+            let mut zst = ChargedVec::<()>::new();
+            mem.reserve_geometric(&mut zst, 8, 8).unwrap();
+            zst.resize(8, ());
+            assert_eq!(mem.reserve_geometric(&mut zst, 1, 8), Err(Error::Limit));
+            let mut empty = ChargedVec::<u8>::new();
+            mem.reserve_geometric(&mut empty, 0, 0).unwrap();
+            assert_eq!(mem.reserve_geometric(&mut empty, 1, 0), Err(Error::Limit));
+            // Generic overflow/layout guards precede allocation, even though codec
+            // callers' 64 MiB/16,384-entry bounds cannot approach these sizes.
+            assert_eq!(
+                mem.reserve_geometric(&mut empty, usize::MAX / 2 + 2, usize::MAX),
+                Err(Error::Limit)
+            );
+        });
+        assert_eq!(requests, 0);
     }
 
     #[test]
@@ -1028,31 +993,33 @@ mod live_budget_tests {
             assert_eq!(mem.usage().0, 0);
         }
         // Hold Error::Limit fixed while toggling capacity != needed: with
-        // needed=8, rounding is already exact, so no fallback/claim is allowed.
-        // Compare cap=9 below at needed=5: rounded Limit falls back to exact 5.
-        let mem = memory(9);
+        // needed=8, rounding is already exact, so there is no fallback.
+        // At needed=5, rounded Limit falls back to exact 5.
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits {
+            max_live_bytes: 9,
+            ..Limits::default()
+        });
         let mut bytes = mem.copy(&[1, 2, 3, 4]).unwrap();
-        mem.fail_after(Some(0));
-        assert_eq!(mem.reserve_geometric(&mut bytes, 4, 16), Err(Error::Limit));
+        assert_eq!(
+            allocator.with_refusal(0, || mem.reserve_geometric(&mut bytes, 4, 16)),
+            Err(Error::Limit)
+        );
         assert_eq!(&*bytes, &[1, 2, 3, 4]);
         assert_eq!(bytes.vec.capacity(), 4);
         assert_eq!(mem.usage(), (4, 4));
-        // Admission failed before allocation; the disabled claim is intact.
-        assert_eq!(mem.claim(), Err(Error::OutOfMemory));
         drop(bytes);
         assert_eq!(mem.usage().0, 0);
         // Rounding fails admission, exact admission succeeds, then its injected
         // allocation failure must propagate without changing the original Vec.
-        let mem = memory(9);
         let mut bytes = mem.copy(&[1, 2, 3, 4]).unwrap();
-        mem.fail_after(Some(0));
         assert_eq!(
-            mem.reserve_geometric(&mut bytes, 1, 16),
+            allocator.with_refusal(0, || mem.reserve_geometric(&mut bytes, 1, 16)),
             Err(Error::OutOfMemory)
         );
+        assert_eq!(allocator.last_request_size(), 5);
         assert_eq!(&*bytes, &[1, 2, 3, 4]);
         assert_eq!(mem.usage(), (4, 9));
-        mem.fail_after(None);
         mem.reserve_geometric(&mut bytes, 1, 16).unwrap();
         assert_eq!(bytes.vec.capacity(), 5);
         // A real allocator-null result on the rounded request must not be
@@ -1098,10 +1065,6 @@ mod live_budget_tests {
             ..Limits::default()
         });
         let mut bytes = mem.copy(&[1; 8]).unwrap();
-        mem.fail_after(Some(0));
-        assert_eq!(mem.reserve(&mut bytes, 8), Err(Error::OutOfMemory));
-        assert_eq!(mem.usage().0, 8);
-        mem.fail_after(None);
         allocator.fail_next();
         assert_eq!(mem.reserve(&mut bytes, 8), Err(Error::OutOfMemory));
         assert_eq!(mem.usage().0, 8);
@@ -1203,18 +1166,33 @@ mod live_budget_tests {
     }
     #[test]
     fn charged_reserve_capacity_count_and_layout_decision_pairs() {
-        let mem = memory(usize::MAX);
+        let allocator = Arc::new(test_allocator::TestAllocator::default());
+        let mem = allocator.memory(Limits {
+            max_live_bytes: usize::MAX,
+            ..Limits::default()
+        });
         let mut bytes = mem.copy(&[1]).unwrap();
-        mem.fail_after(Some(0));
-        assert_eq!(mem.reserve(&mut bytes, 0), Ok(()));
-        assert_eq!(mem.reserve(&mut bytes, 1), Err(Error::OutOfMemory));
-        assert_eq!(mem.reserve(&mut bytes, usize::MAX), Err(Error::Limit));
+        assert_eq!(
+            allocator.with_refusal(0, || mem.reserve(&mut bytes, 0)),
+            Ok(())
+        );
+        assert_eq!(
+            allocator.with_refusal(0, || mem.reserve(&mut bytes, 1)),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(
+            allocator.with_refusal(0, || mem.reserve(&mut bytes, usize::MAX)),
+            Err(Error::Limit)
+        );
         assert_eq!(bytes.as_slice(), &[1]);
         let mut words = ChargedVec::<u64>::new();
-        assert_eq!(mem.reserve(&mut words, 1), Err(Error::OutOfMemory));
-        // Addition is representable; array byte size/layout is not.
         assert_eq!(
-            mem.reserve(&mut words, isize::MAX as usize),
+            allocator.with_refusal(0, || mem.reserve(&mut words, 1)),
+            Err(Error::OutOfMemory)
+        );
+        // The element count fits, while its byte layout exceeds the limit.
+        assert_eq!(
+            allocator.with_refusal(0, || mem.reserve(&mut words, isize::MAX as usize)),
             Err(Error::Limit)
         );
         assert_eq!(mem.usage().0, 1);

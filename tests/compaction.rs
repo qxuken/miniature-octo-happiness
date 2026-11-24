@@ -1,10 +1,27 @@
+#[path = "support/allocator.rs"]
+pub mod allocator;
+#[cfg(all(
+    feature = "fault-injection",
+    any(
+        target_os = "macos",
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    )
+))]
+#[path = "support/descriptor_limit.rs"]
+mod descriptor_limit;
+use allocator::TestAllocator;
+use std::sync::Arc;
+use weekend_db as allocator_engine;
 mod support;
 #[path = "../examples/support/users.rs"]
 mod users;
 use support::Model;
 use weekend_db::{
     Database, Error, Limits,
-    storage::{ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk},
+    storage::{APPEND_START, ByteStore, Crash, Fault, IoKind, MemoryStore, REGION, SimulatedDisk},
 };
 const ID: [u8; 16] = *b"compaction-test1";
 fn fixture() -> Vec<u8> {
@@ -100,6 +117,10 @@ fn compact_copy_preserves_roots_counters_and_owned_values() {
     let before = disk.durable_image().unwrap();
     let stats = source.compact_to(target.clone()).unwrap();
     assert_eq!(stats.before_bytes as usize, before.len());
+    assert_eq!(
+        stats.after_bytes as usize,
+        target.durable_image().unwrap().len()
+    );
     assert!(stats.after_bytes < stats.before_bytes / 2);
     assert_eq!(disk.durable_image().unwrap(), before);
     target.crash(Crash::DropAll).unwrap();
@@ -257,6 +278,20 @@ fn copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover(
     let target = SimulatedDisk::new().unwrap();
     source.compact_to(target.clone()).unwrap();
     let trace = target.trace().unwrap();
+    let compacted = target.durable_image().unwrap();
+    let [append_sync, root_sync, witness_sync]: [usize; 3] = trace
+        .iter()
+        .enumerate()
+        .filter_map(|(i, event)| (event.kind == IoKind::Sync).then_some(i))
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    assert_eq!(trace[witness_sync + 1].kind, IoKind::Length);
+    assert!(
+        trace[witness_sync + 2..]
+            .iter()
+            .all(|event| event.kind == IoKind::Read)
+    );
     for (step, event) in trace.iter().enumerate() {
         let faults = match event.kind {
             IoKind::Write => vec![
@@ -275,47 +310,118 @@ fn copy_faults_at_every_io_leave_source_unchanged_and_only_whole_copies_recover(
             _ => vec![Fault::Error, Fault::Short(1)],
         };
         for fault in faults {
-            let disk = SimulatedDisk::from_image(&image).unwrap();
-            let mut source = Database::open_on(disk.clone(), Limits::default()).unwrap();
-            let before = disk.durable_image().unwrap();
-            let target = SimulatedDisk::new().unwrap();
-            target.arm(step, fault);
-            let result = source.compact_to(target.clone());
-            assert_eq!(
-                disk.durable_image().unwrap(),
-                before,
-                "step={step}, fault={fault:?}"
-            );
-            target.clear_fault();
-            target.crash(Crash::PersistAll).unwrap();
-            match Database::open_on(target, Limits::default()) {
-                Ok(copy) => check(&copy, &source),
-                Err(e) => {
-                    assert!(result.is_err());
-                    assert!(
-                        matches!(e, Error::Corrupt | Error::UnsupportedFormat),
-                        "step={step}, {e:?}"
+            for crash in [Crash::DropAll, Crash::PersistAll] {
+                let disk = SimulatedDisk::from_image(&image).unwrap();
+                let mut source = Database::open_on(disk.clone(), Limits::default()).unwrap();
+                disk.arm(usize::MAX, Fault::Error);
+                let target = SimulatedDisk::new().unwrap();
+                target.arm(step, fault);
+                let result = source.compact_to(target.clone());
+                let expected = if matches!(fault, Fault::Short(1))
+                    && matches!(event.kind, IoKind::Read | IoKind::Write)
+                {
+                    None
+                } else if step <= append_sync || step > witness_sync {
+                    Some(Error::Io)
+                } else {
+                    Some(Error::OutcomeUnknown)
+                };
+                assert_eq!(result.err(), expected, "step={step}, fault={fault:?}");
+                if expected.is_some() {
+                    assert_eq!(target.trace().unwrap(), trace[..=step]);
+                }
+                assert_eq!(disk.durable_image().unwrap(), image);
+                assert_eq!(
+                    disk.trace()
+                        .unwrap()
+                        .iter()
+                        .map(|e| e.kind)
+                        .collect::<Vec<_>>(),
+                    [IoKind::Length]
+                );
+                assert!(!source.requires_recovery());
+                let mut probe = target.clone();
+                probe.lock().expect("copy released the destination lease");
+                probe.unlock();
+                target.clear_fault();
+                target.crash(crash).unwrap();
+
+                let reopened = Database::open_on(target.clone(), Limits::default());
+                let root_survives = expected.is_none()
+                    || step > root_sync
+                    || step == root_sync
+                        && matches!(
+                            (crash, fault),
+                            (Crash::PersistAll, _) | (_, Fault::SyncError(Crash::PersistAll))
+                        );
+                if root_survives {
+                    check(&reopened.unwrap(), &source);
+                    assert_eq!(target.durable_image().unwrap(), compacted);
+                } else {
+                    // A durable append prefix can extend the sparse image past
+                    // the minimum length while the header is still volatile.
+                    let error = if step < append_sync
+                        && event.offset >= APPEND_START as u64
+                        && matches!((fault, crash), (Fault::Tear { .. }, Crash::DropAll))
+                    {
+                        Error::UnsupportedFormat
+                    } else {
+                        Error::Corrupt
+                    };
+                    assert_eq!(
+                        reopened.err(),
+                        Some(error),
+                        "step={step}, fault={fault:?}, crash={crash:?}"
                     );
                 }
             }
         }
     }
 }
-#[cfg(feature = "fault-injection")]
+
+#[test]
+fn compact_source_length_failure_stops_before_destination_and_allows_retry() {
+    let image = fixture();
+    let disk = SimulatedDisk::from_image(&image).unwrap();
+    let mut source = Database::open_on(disk.clone(), Limits::default()).unwrap();
+    let target = SimulatedDisk::new().unwrap();
+    disk.arm(0, Fault::Error);
+    target.arm(usize::MAX, Fault::Error);
+    assert_eq!(source.compact_to(target.clone()), Err(Error::Io));
+    assert_eq!(
+        disk.trace()
+            .unwrap()
+            .iter()
+            .map(|e| e.kind)
+            .collect::<Vec<_>>(),
+        [IoKind::Length]
+    );
+    assert!(target.trace().unwrap().is_empty());
+    assert!(target.durable_image().unwrap().is_empty());
+    assert_eq!(disk.durable_image().unwrap(), image);
+    assert!(!source.requires_recovery());
+    disk.clear_fault();
+    source.compact_to(target.clone()).unwrap();
+    check(
+        &Database::open_on(target, Limits::default()).unwrap(),
+        &source,
+    );
+}
 #[test]
 fn allocation_failures_during_copy_and_verification_never_change_the_source() {
     let image = fixture();
     let mut success = false;
     for budget in 0..1024 {
         let disk = SimulatedDisk::from_image(&image).unwrap();
-        let mut source = Database::open_on(disk.clone(), Limits::default()).unwrap();
+        let allocator = Arc::new(TestAllocator::default());
+        let mut source = Database::open_on_with_options(disk.clone(), allocator.options()).unwrap();
         let before = disk.durable_image().unwrap();
         let target = SimulatedDisk::new().unwrap();
-        source.fail_allocations_after(Some(budget));
-        let result = source.compact_to(target.clone());
-        source.fail_allocations_after(None);
+        let live = allocator.live_bytes();
+        let result = allocator.with_refusal(budget, || source.compact_to(target.clone()));
         assert_eq!(disk.durable_image().unwrap(), before);
         if result.is_ok() {
+            assert!(budget > 0);
             check(
                 &Database::open_on(target, Limits::default()).unwrap(),
                 &source,
@@ -324,6 +430,7 @@ fn allocation_failures_during_copy_and_verification_never_change_the_source() {
             break;
         }
         assert_eq!(result, Err(Error::OutOfMemory), "budget={budget}");
+        assert_eq!(allocator.live_bytes(), live);
     }
     assert!(success);
 }
@@ -493,6 +600,14 @@ mod files {
         #[cfg(target_os = "macos")]
         use std::process::Command;
         let dir = Directory::new();
+        assert_eq!(
+            Database::compact_file(Path::new(""), Limits::default()),
+            Err(Error::Invalid)
+        );
+        assert_eq!(
+            Database::compact_file(dir.path("missing.db"), Limits::default()),
+            Err(Error::NotFound)
+        );
         let path = dir.path("space λ.db");
         seed(&path);
         let db = Database::open_file(&path, Limits::default()).unwrap();
@@ -509,6 +624,7 @@ mod files {
             Err(Error::Invalid)
         );
         assert_eq!(fs::read(&path).unwrap(), before);
+        assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 2);
         fs::remove_file(alias).unwrap();
         let link = dir.path("link");
         symlink(&path, &link).unwrap();
@@ -596,6 +712,7 @@ mod files {
     #[cfg(feature = "fault-injection")]
     #[test]
     fn file_errors_at_every_observation_preserve_a_whole_canonical_store() {
+        use std::os::unix::fs::MetadataExt;
         use weekend_db::storage::{CompactionEvent, CompactionStep as S, compact_file_with_hook};
         let dir = Directory::new();
         let base = dir.path("base");
@@ -623,15 +740,79 @@ mod files {
             Ok(())
         })
         .unwrap();
-        let events = events.lock().unwrap();
-        let first_exchange = events.iter().position(|e| e.step == S::Exchange).unwrap();
+        let compacted = fs::read(&trace).unwrap();
+        assert_ne!(compacted, image);
+        let events: Arc<[CompactionEvent]> = events.lock().unwrap().clone().into();
+        let position = |step, after| {
+            events
+                .iter()
+                .position(|event| *event == CompactionEvent { step, after })
+                .unwrap()
+        };
+        let scratch_created = events[..position(S::TargetLength, false)]
+            .iter()
+            .rposition(|event| event.step == S::SourceLength && !event.after)
+            .unwrap();
+        let metadata = position(S::CopyMetadata, false);
+        for (range, operations) in [
+            (
+                0..scratch_created + 2,
+                [
+                    S::SourceLength,
+                    S::SourceRead,
+                    S::SourceWrite,
+                    S::SourceSync,
+                ],
+            ),
+            (
+                scratch_created + 2..metadata,
+                [
+                    S::TargetLength,
+                    S::TargetRead,
+                    S::TargetWrite,
+                    S::TargetSync,
+                ],
+            ),
+        ] {
+            let phase = &events[range];
+            assert!(phase.iter().all(|e| operations.contains(&e.step)));
+            assert!(
+                operations
+                    .iter()
+                    .all(|step| phase.iter().any(|e| e.step == *step))
+            );
+        }
+        let first_exchange = position(S::Exchange, false);
+        let exchanged = position(S::Exchange, true);
+        let removed = position(S::RemoveOld, true);
+        assert_eq!(
+            events[first_exchange..],
+            [
+                S::Exchange,
+                S::SyncDirectory,
+                S::SyncReplacement,
+                S::RemoveOld,
+                S::SyncCleanupDirectory,
+                S::SyncCleanupFile,
+            ]
+            .into_iter()
+            .flat_map(|step| [false, true].map(|after| CompactionEvent { step, after }))
+            .collect::<Vec<_>>()
+        );
         for fail in 0..events.len() {
-            let path = dir.path(&format!("error-{fail}"));
+            let attempt = Directory::new();
+            let path = attempt.path("store.db");
+            let unrelated = attempt.path(".wdb-compact-00000000000000000000000000000000.tmp");
+            fs::write(&unrelated, b"unrelated").unwrap();
             fs::copy(&base, &path).unwrap();
+            let old_inode = fs::metadata(&path).unwrap().ino();
+            let expected = events.clone();
             let mut position = 0;
-            let result = compact_file_with_hook(&path, Limits::default(), move |_| {
+            let result = compact_file_with_hook(&path, Limits::default(), move |event| {
                 let here = position;
                 position += 1;
+                assert!(here <= fail, "continued after hook failure");
+                assert_eq!(event, expected[here]);
                 if here == fail { Err(Error::Io) } else { Ok(()) }
             });
             assert_eq!(
@@ -644,10 +825,310 @@ mod files {
                 "event={:?}",
                 events[fail]
             );
+            let canonical = fs::read(&path).unwrap();
+            assert_eq!(
+                &canonical,
+                if fail < exchanged { &image } else { &compacted }
+            );
+            assert_eq!(
+                fs::metadata(&path).unwrap().ino() == old_inode,
+                fail < exchanged
+            );
+            assert_eq!(fs::read(&unrelated).unwrap(), b"unrelated");
+            let mut extra = fs::read_dir(&attempt.0)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .filter(|entry| entry != &path && entry != &unrelated);
+            if (scratch_created..removed).contains(&fail) {
+                let scratch = extra.next().expect("preserve the operation's scratch file");
+                assert!(
+                    scratch
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .starts_with(".wdb-compact-")
+                );
+                assert_eq!(
+                    fs::metadata(&scratch).unwrap().ino() == old_inode,
+                    fail >= exchanged
+                );
+                if (metadata..exchanged).contains(&fail) {
+                    assert_eq!(fs::read(scratch).unwrap(), compacted);
+                } else if fail >= exchanged {
+                    assert_eq!(fs::read(scratch).unwrap(), image);
+                }
+            }
+            assert!(extra.next().is_none(), "event={:?}", events[fail]);
             check(
                 &Database::open_file(&path, Limits::default()).unwrap(),
                 &original,
             );
+        }
+    }
+
+    #[cfg(feature = "fault-injection")]
+    mod descriptors {
+        use super::*;
+        use crate::descriptor_limit::{EMFILE, fill_table, run_worker};
+        use std::os::unix::fs::MetadataExt;
+        use weekend_db::storage::{
+            CompactionStep as Step, NativeIoOperation as Operation, compact_file_with_hook,
+            with_storage_diagnostics,
+        };
+
+        const CHILD_CASE: &str = "WEEKEND_TEST_COMPACTION_DESCRIPTOR_CASE";
+        const TEST: &str =
+            "files::descriptors::descriptor_exhaustion_preserves_current_and_retained_roots";
+
+        #[derive(Clone, Copy)]
+        enum Scratch {
+            Absent,
+            Empty,
+            Complete,
+        }
+
+        struct Case {
+            name: &'static str,
+            free: usize,
+            checkpoint: Option<Step>,
+            operation: Operation,
+            scratch: Scratch,
+        }
+
+        const CASES: &[Case] = &[
+            Case {
+                name: "source parent",
+                free: 0,
+                checkpoint: None,
+                operation: Operation::OpenDirectory,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "source directory duplicate",
+                free: 1,
+                checkpoint: None,
+                operation: Operation::DuplicateHandle,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "source open",
+                free: 2,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "source lease check",
+                free: 3,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "source claim check",
+                free: 4,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "scratch directory duplicate",
+                free: 16,
+                checkpoint: Some(Step::SourceLength),
+                operation: Operation::DuplicateHandle,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "target directory duplicate",
+                free: 5,
+                checkpoint: None,
+                operation: Operation::DuplicateHandle,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "target create",
+                free: 6,
+                checkpoint: None,
+                operation: Operation::Create,
+                scratch: Scratch::Absent,
+            },
+            Case {
+                name: "target lease check",
+                free: 7,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Empty,
+            },
+            Case {
+                name: "target claim check",
+                free: 8,
+                checkpoint: None,
+                operation: Operation::Open,
+                scratch: Scratch::Empty,
+            },
+            Case {
+                name: "pre-exchange name check",
+                free: 16,
+                checkpoint: Some(Step::CheckNames),
+                operation: Operation::Open,
+                scratch: Scratch::Complete,
+            },
+        ];
+
+        fn run_child(case: &Case) {
+            let limits = Limits::default();
+            let source = Path::new("store.db");
+            let unrelated = Path::new(".wdb-compact-unrelated.tmp");
+            let before = fs::read(source).unwrap();
+            let inode = fs::metadata(source).unwrap().ino();
+            let mut original =
+                Database::open_on(SimulatedDisk::from_image(&before).unwrap(), limits).unwrap();
+            let reference = SimulatedDisk::new().unwrap();
+            original.compact_to(reference.clone()).unwrap();
+            let compacted = reference.durable_image().unwrap();
+
+            let mut held = fill_table();
+            assert!(held.len() > case.free);
+            held.truncate(held.len() - case.free);
+            let checkpoint = case.checkpoint;
+            let reached = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let observed = reached.clone();
+            let mut checkpoint_fds = Vec::new();
+            let failure = with_storage_diagnostics(|| {
+                compact_file_with_hook(source, limits, move |event| {
+                    assert_ne!(event.step, Step::Exchange, "failure passed the name check");
+                    if checkpoint == Some(event.step)
+                        && !event.after
+                        && !observed.swap(true, Ordering::Relaxed)
+                    {
+                        checkpoint_fds.extend(fill_table());
+                        assert!(!checkpoint_fds.is_empty());
+                    }
+                    Ok(())
+                })
+            })
+            .unwrap_err();
+            assert_eq!(failure.error, Error::Io, "{}", case.name);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, case.operation, "{}", case.name);
+            assert_eq!(native.raw_os_error, Some(EMFILE), "{}", case.name);
+            assert_eq!(reached.load(Ordering::Relaxed), checkpoint.is_some());
+            assert_eq!(
+                fill_table().len(),
+                case.free,
+                "descriptor leak at {}",
+                case.name
+            );
+            drop(held);
+
+            assert_eq!(fs::metadata(source).unwrap().ino(), inode);
+            assert_eq!(fs::read(source).unwrap(), before);
+            assert_eq!(fs::read(unrelated).unwrap(), b"unrelated");
+            check(&Database::open_file(source, limits).unwrap(), &original);
+
+            let mut scratch = fs::read_dir(".")
+                .unwrap()
+                .map(|entry| PathBuf::from(entry.unwrap().file_name()))
+                .filter(|entry| entry != source && entry != unrelated);
+            let saved = match case.scratch {
+                Scratch::Absent => None,
+                Scratch::Empty | Scratch::Complete => {
+                    let path = scratch.next().expect("operation's scratch file");
+                    assert!(
+                        path.as_os_str()
+                            .to_str()
+                            .unwrap()
+                            .starts_with(".wdb-compact-")
+                    );
+                    let bytes = fs::read(&path).unwrap();
+                    match case.scratch {
+                        Scratch::Empty => assert!(bytes.is_empty()),
+                        Scratch::Complete => assert_eq!(bytes, compacted),
+                        Scratch::Absent => unreachable!(),
+                    }
+                    Some((path, bytes))
+                }
+            };
+            assert!(scratch.next().is_none(), "{}", case.name);
+
+            Database::compact_file(source, limits).unwrap();
+            assert_ne!(fs::metadata(source).unwrap().ino(), inode);
+            assert_eq!(fs::read(source).unwrap(), compacted);
+            check(&Database::open_file(source, limits).unwrap(), &original);
+            assert_eq!(fs::read(unrelated).unwrap(), b"unrelated");
+            let expected_files = 2 + usize::from(saved.is_some());
+            if let Some((path, bytes)) = saved {
+                assert_eq!(fs::read(path).unwrap(), bytes);
+            }
+            assert_eq!(fs::read_dir(".").unwrap().count(), expected_files);
+            println!("verified descriptor exhaustion at {}", case.name);
+        }
+
+        #[test]
+        fn descriptor_exhaustion_preserves_current_and_retained_roots() {
+            if let Ok(case) = std::env::var(CHILD_CASE) {
+                run_child(&CASES[case.parse::<usize>().unwrap()]);
+                return;
+            }
+            for (index, case) in CASES.iter().enumerate() {
+                let dir = Directory::new();
+                seed(&dir.path("store.db"));
+                fs::write(dir.path(".wdb-compact-unrelated.tmp"), b"unrelated").unwrap();
+                run_worker(
+                    TEST,
+                    (CHILD_CASE, &index.to_string()),
+                    &dir.0,
+                    &format!("verified descriptor exhaustion at {}", case.name),
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "fault-injection")]
+    #[test]
+    fn recheck_rejects_replaced_canonical_or_scratch_inode_before_exchange() {
+        use std::os::unix::fs::MetadataExt;
+        use weekend_db::storage::{CompactionStep as S, compact_file_with_hook};
+
+        for replace_original in [true, false] {
+            let dir = Directory::new();
+            let path = dir.path("store.db");
+            seed(&path);
+            let observed_path = path.clone();
+            let held = dir.path("held.db");
+            let held_name = held.clone();
+            let result = compact_file_with_hook(&path, Limits::default(), move |event| {
+                assert_ne!(event.step, S::Exchange);
+                if event.step == S::CheckNames && !event.after {
+                    let affected = if replace_original {
+                        observed_path.clone()
+                    } else {
+                        fs::read_dir(observed_path.parent().unwrap())
+                            .unwrap()
+                            .map(|entry| entry.unwrap().path())
+                            .find(|entry| {
+                                entry
+                                    .file_name()
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .starts_with(".wdb-compact-")
+                            })
+                            .unwrap()
+                    };
+                    fs::rename(&affected, &held_name).unwrap();
+                    fs::copy(&held_name, &affected).unwrap();
+                    assert_ne!(
+                        fs::metadata(&affected).unwrap().ino(),
+                        fs::metadata(&held_name).unwrap().ino()
+                    );
+                }
+                Ok(())
+            });
+            assert_eq!(result, Err(Error::Invalid));
+            assert!(held.exists());
+            assert_eq!(fs::read(&path).unwrap(), fixture());
         }
     }
 }

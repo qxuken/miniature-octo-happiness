@@ -124,7 +124,15 @@ impl Run {
         Ok(())
     }
     pub fn status(&mut self, args: &[OsString]) -> Result<()> {
+        let c = self.command(args)?;
+        self.run_status(c, &args[0])
+    }
+    pub fn status_in(&mut self, args: &[OsString], directory: &Path) -> Result<()> {
         let mut c = self.command(args)?;
+        c.current_dir(directory);
+        self.run_status(c, &args[0])
+    }
+    fn run_status(&self, mut c: Command, program: &OsStr) -> Result<()> {
         if let Some(d) = &self.log_dir {
             let f = OpenOptions::new()
                 .append(true)
@@ -132,8 +140,8 @@ impl Run {
                 .open(d.join("checks.log"))?;
             c.stdout(f.try_clone()?).stderr(f);
         }
-        let status = c.status().with_context(|| format!("start {:?}", args[0]))?;
-        ensure!(status.success(), "command {:?} failed: {status}", args[0]);
+        let status = c.status().with_context(|| format!("start {program:?}"))?;
+        ensure!(status.success(), "command {program:?} failed: {status}");
         Ok(())
     }
     pub fn capture(&mut self, args: &[OsString]) -> Result<String> {

@@ -32,6 +32,14 @@ pub use salvage::salvage_file;
 pub use salvage::{SalvageReport, salvage_on};
 #[cfg(windows)]
 mod windows;
+#[cfg(any(windows, test))]
+mod windows_admission;
+#[cfg(any(windows, test))]
+mod windows_io;
+#[cfg(any(windows, test))]
+mod windows_path;
+#[cfg(any(windows, test))]
+mod windows_rng;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub use file::FileStore;
 #[cfg(target_os = "macos")]
@@ -414,7 +422,35 @@ mod transfer_tests {
     struct Progress {
         answer: Result<usize>,
         calls: Vec<(u64, usize)>,
+        written: Vec<u8>,
+        fail_at: Option<usize>,
+        sync_answer: Result<()>,
+        syncs: usize,
     }
+
+    impl Progress {
+        fn new(answer: Result<usize>) -> Self {
+            Self {
+                answer,
+                calls: Vec::new(),
+                written: Vec::new(),
+                fail_at: None,
+                sync_answer: Ok(()),
+                syncs: 0,
+            }
+        }
+
+        fn attempt(&mut self, offset: u64, size: usize) -> Result<usize> {
+            let index = self.calls.len();
+            self.calls.push((offset, size));
+            if self.fail_at == Some(index) {
+                Err(Error::Busy)
+            } else {
+                self.answer
+            }
+        }
+    }
+
     impl ByteStore for Progress {
         fn lock(&mut self) -> Result<()> {
             Ok(())
@@ -424,15 +460,20 @@ mod transfer_tests {
             Ok(0)
         }
         fn sync(&mut self) -> Result<()> {
-            Ok(())
+            self.syncs += 1;
+            self.sync_answer
         }
         fn read(&mut self, offset: u64, out: &mut [u8]) -> Result<usize> {
-            self.calls.push((offset, out.len()));
-            self.answer
+            let n = self.attempt(offset, out.len())?;
+            for (index, byte) in out.iter_mut().take(n).enumerate() {
+                *byte = (offset as u8).wrapping_add(index as u8);
+            }
+            Ok(n)
         }
         fn write(&mut self, offset: u64, bytes: &[u8]) -> Result<usize> {
-            self.calls.push((offset, bytes.len()));
-            self.answer
+            let n = self.attempt(offset, bytes.len())?;
+            self.written.extend_from_slice(&bytes[..n.min(bytes.len())]);
+            Ok(n)
         }
     }
 
@@ -440,10 +481,7 @@ mod transfer_tests {
     fn exact_transfers_reject_zero_oversized_and_failed_progress() {
         for writing in [false, true] {
             for answer in [Ok(0), Ok(1), Ok(3), Err(Error::Io)] {
-                let mut store = Progress {
-                    answer,
-                    calls: Vec::new(),
-                };
+                let mut store = Progress::new(answer);
                 let result = if writing {
                     write_all(&mut store, 0, &[0; 2])
                 } else {
@@ -464,11 +502,48 @@ mod transfer_tests {
     }
 
     #[test]
+    fn short_reads_fill_only_the_progressed_prefix_and_preserve_the_error() {
+        let start = REGION as u64 - 1;
+        let expected = [start as u8, (start + 1) as u8, (start + 2) as u8];
+        let calls = [(start, 3), (start + 1, 2), (start + 2, 1)];
+        let mut complete = Progress::new(Ok(1));
+        let mut output = [9; 3];
+        assert_eq!(read_all(&mut complete, start, &mut output), Ok(()));
+        assert_eq!(output, expected);
+        assert_eq!(complete.calls, calls);
+
+        let mut refused = Progress::new(Ok(1));
+        refused.fail_at = Some(1);
+        let mut output = [9; 3];
+        assert_eq!(read_all(&mut refused, start, &mut output), Err(Error::Busy));
+        assert_eq!(output, [expected[0], 9, 9]);
+        assert_eq!(refused.calls, calls[..2]);
+    }
+
+    #[test]
+    fn write_synced_flushes_only_a_complete_transfer() {
+        let start = REGION as u64 - 1;
+        let input = [1, 7, 9];
+        let calls = [(start, 1), (start + 1, 2), (start + 2, 1)];
+        for sync_answer in [Ok(()), Err(Error::Busy)] {
+            let mut store = Progress::new(Ok(1));
+            store.sync_answer = sync_answer;
+            assert_eq!(write_synced(&mut store, start, &input), sync_answer);
+            assert_eq!(store.calls, calls);
+            assert_eq!(store.written, input);
+            assert_eq!(store.syncs, 1);
+        }
+        let mut refused = Progress::new(Ok(1));
+        refused.fail_at = Some(1);
+        assert_eq!(write_synced(&mut refused, start, &input), Err(Error::Busy));
+        assert_eq!(refused.calls, calls[..2]);
+        assert_eq!(refused.written, input[..1]);
+        assert_eq!(refused.syncs, 0);
+    }
+
+    #[test]
     fn transfers_skip_empty_buffers_and_bound_offsets_and_regions() {
-        let mut store = Progress {
-            answer: Ok(1),
-            calls: Vec::new(),
-        };
+        let mut store = Progress::new(Ok(1));
         assert_eq!(read_all(&mut store, u64::MAX, &mut []), Ok(()));
         assert_eq!(write_all(&mut store, u64::MAX, &[]), Ok(()));
         assert!(store.calls.is_empty());
@@ -497,7 +572,12 @@ mod transfer_tests {
 #[cfg(test)]
 mod decision_tests {
     use super::*;
-    use crate::{Limits, memory::ChargedVec, tree::Map};
+    use crate::{
+        Limits,
+        memory::{ChargedVec, test_allocator::TestAllocator},
+        tree::Map,
+    };
+    use std::sync::Arc;
 
     #[test]
     fn cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease() {
@@ -559,13 +639,13 @@ mod decision_tests {
         let mut unwitnessed = original.clone();
         unwitnessed[witness..witness + REGION].fill(0);
 
-        let box_claims = (0..4)
+        let allocator = Arc::new(TestAllocator::default());
+        let box_requests = (0..4)
             .find(|&allowance| {
                 let disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
-                let mem = Memory::new(Limits::default()).unwrap();
-                mem.fail_after(Some(allowance));
-                let result = Storage::locked(disk.clone(), &mem);
-                mem.fail_after(None);
+                let mem = allocator.memory(Limits::default());
+                let result =
+                    allocator.with_refusal(allowance, || Storage::locked(disk.clone(), &mem));
                 let success = result.is_ok();
                 if !success {
                     assert_eq!(result.as_ref().err(), Some(&Error::OutOfMemory));
@@ -577,17 +657,15 @@ mod decision_tests {
                 success
             })
             .expect("backend box calibration completes");
-        assert_eq!(box_claims, 1);
+        assert_eq!(box_requests, 1);
 
         let mut decode_trace = Vec::new();
-        let decode_claims = (0..256)
+        let decode_requests = (0..256)
             .find(|&allowance| {
                 let mut disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
                 disk.lock().unwrap();
-                let mem = Memory::new(Limits::default()).unwrap();
-                mem.fail_after(Some(allowance));
-                let result = codec::recover(&mut disk, &mem);
-                mem.fail_after(None);
+                let mem = allocator.memory(Limits::default());
+                let result = allocator.with_refusal(allowance, || codec::recover(&mut disk, &mem));
                 let success = result.is_ok();
                 if let Ok(recovered) = &result {
                     assert!(!recovered.witnessed);
@@ -607,17 +685,16 @@ mod decision_tests {
             .expect("raw decoder calibration completes");
 
         let phases = ["VALUE index", "VALUE header", "DATA index", "DATA header"];
-        // Identify each claim at the real constructors before applying its
+        // Identify each request at the constructors before applying its
         // calibrated offset to Storage::open; do not assume four failures are
         // later than the last decoder allocation merely from their read trace.
         for allowance in 0..=phases.len() {
             let mut disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
             disk.lock().unwrap();
-            let mem = Memory::new(Limits::default()).unwrap();
+            let mem = allocator.memory(Limits::default());
             let recovered = codec::recover(&mut disk, &mem).unwrap();
             let mut phase = phases[0];
-            mem.fail_after(Some(allowance));
-            let prepared = (|| -> Result<_> {
+            let prepared = allocator.with_refusal(allowance, || {
                 let values = ValueCache::from_entries(&mem, recovered.cache)?;
                 phase = phases[1];
                 let values = mem.shared(values)?;
@@ -625,10 +702,9 @@ mod decision_tests {
                 let data = DataCache::from_entries(&mem, recovered.data_cache)?;
                 phase = phases[3];
                 Ok((values, mem.shared(data)?))
-            })();
-            mem.fail_after(None);
+            });
             if allowance < phases.len() {
-                assert_eq!(phase, phases[allowance], "constructor claim calibration");
+                assert_eq!(phase, phases[allowance], "constructor request calibration");
                 assert_eq!(prepared.as_ref().err(), Some(&Error::OutOfMemory));
             } else {
                 assert!(prepared.is_ok());
@@ -643,10 +719,10 @@ mod decision_tests {
 
         for allowance in 0..=phases.len() {
             let disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
-            let mem = Memory::new(Limits::default()).unwrap();
-            mem.fail_after(Some(box_claims + decode_claims + allowance));
-            let result = Storage::open(disk.clone(), &mem);
-            mem.fail_after(None);
+            let mem = allocator.memory(Limits::default());
+            let result = allocator.with_refusal(box_requests + decode_requests + allowance, || {
+                Storage::open(disk.clone(), &mem)
+            });
             let trace = disk.trace().unwrap();
             if allowance < phases.len() {
                 assert_eq!(
@@ -706,7 +782,7 @@ mod decision_tests {
             );
         }
         eprintln!(
-            "cold-open calibration: box={box_claims}, decoder={decode_claims}, phases={phases:?}"
+            "cold-open calibration: box={box_requests}, decoder={decode_requests}, phases={phases:?}"
         );
     }
 
@@ -726,6 +802,39 @@ mod decision_tests {
         let disk = SimulatedDisk::new().unwrap();
         let storage = Storage::create(disk.clone(), &mem, &head, 1, [1; 16], &retention).unwrap();
         (storage, mem, head, retention, disk)
+    }
+
+    #[test]
+    fn compact_copy_releases_serialization_caches_before_verification() {
+        let (source, mem, head, retention, original) = fixture();
+        assert!(source.cache.is_some() && source.data_cache.is_some());
+        let disk = SimulatedDisk::new().unwrap();
+        let (mut copy, size) =
+            Storage::create_compact(disk.clone(), &mem, &head, 1, source.identity, &retention)
+                .unwrap();
+        assert!(copy.cache.is_none() && copy.data_cache.is_none());
+        assert_eq!(size as usize, disk.durable_image().unwrap().len());
+        assert_eq!(
+            disk.durable_image().unwrap(),
+            original.durable_image().unwrap()
+        );
+        assert_eq!(copy.verify(&mem), Ok(()));
+    }
+
+    #[test]
+    fn compact_copy_headroom_guard_rejects_poison_before_length() {
+        let (mut storage, _, _, _, disk) = fixture();
+        disk.arm(usize::MAX, Fault::Error);
+        assert_eq!(
+            storage.space().unwrap().physical_bytes,
+            disk.durable_image().unwrap().len() as u64
+        );
+        assert_eq!(disk.trace().unwrap()[0].kind, IoKind::Length);
+
+        storage.poisoned = true;
+        disk.arm(usize::MAX, Fault::Error);
+        assert_eq!(storage.space(), Err(Error::RecoveryRequired));
+        assert!(disk.trace().unwrap().is_empty());
     }
 
     #[test]
@@ -778,14 +887,17 @@ mod decision_tests {
 
     #[test]
     fn persist_revision_mismatch_and_exhaustion_reject_before_io() {
-        for (current, proposed, expected) in [
-            (0, 0, Err(Error::Invalid)),
-            (0, 2, Err(Error::Invalid)),
-            (u64::MAX, 0, Err(Error::Invalid)),
-            (0, 1, Ok(())),
+        for (poisoned, current, proposed, expected) in [
+            (false, 0, 0, Err(Error::Invalid)),
+            (false, 0, 2, Err(Error::Invalid)),
+            (false, u64::MAX, 0, Err(Error::Invalid)),
+            (true, 0, 1, Err(Error::RecoveryRequired)),
+            (false, 0, 1, Ok(())),
         ] {
             let (mut storage, mem, _, retention, disk) = fixture();
-            storage.revision = current; // model only the private precondition boundary
+            // Model the private persist preconditions independently.
+            storage.revision = current;
+            storage.poisoned = poisoned;
             let head = mem
                 .shared(Head {
                     revision: proposed,
@@ -799,7 +911,7 @@ mod decision_tests {
             if expected.is_err() {
                 assert!(disk.trace().unwrap().is_empty());
                 assert_eq!(disk.durable_image().unwrap(), before);
-                assert!(!storage.requires_recovery());
+                assert_eq!(storage.requires_recovery(), poisoned);
             } else {
                 assert_eq!(storage.revision, 1);
                 assert!(storage.verify(&mem).is_ok());

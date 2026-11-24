@@ -3,10 +3,11 @@
 Run `cargo run --offline --locked --manifest-path tools/atomic-model/Cargo.toml`.
 The isolated workspace pins Loom 0.7.2 and uses its own lockfile.
 
-The model copies the atomic operations from `Shared::clone` and
-`Shared::drop` in `src/memory.rs`. A source owner keeps the payload alive
-while clone increments with Relaxed ordering. Drop decrements with AcqRel
-ordering and the transition from one owner triggers destruction.
+The model copies `retain_ref` and `release_ref` from `src/memory.rs`.
+Both `Shared` and `AllocatorHandle` use those operations. A source owner
+keeps the payload alive while clone increments with Relaxed ordering. Drop
+decrements with AcqRel ordering and the transition from one owner triggers
+destruction.
 
 Three threads start with one owner each. Each of two worker threads clones
 its owner, writes a separate payload field, and drops both owners. The
@@ -19,9 +20,10 @@ is configured. These bounds limit the claim to this model and workload.
 Loom's Arc owns the model allocation. The custom counter independently
 controls the simulated destructor. Native ownership tests and Miri check
 raw allocation, pointer access and deallocation separately. The model must
-be reviewed when the production atomic operations change. Replacing the
-modeled AcqRel decrement with Relaxed caused the visibility assertion to
-fail in the recorded run.
+be reviewed when the production atomic operations change. `cargo xtask
+atomic-model` runs `--broken-shared-release`, which replaces the modeled
+AcqRel decrement with Relaxed and must fail the last owner's visibility
+assertion.
 
 
 ## Allocation admission and telemetry
@@ -48,3 +50,23 @@ peak assertion. `cargo xtask atomic-model` replays both ownership and
 budget baselines, requires both controls to fail for those reasons, and saves
 model hashes and logs. Native Linux CI runs this alongside C ASan. Review the
 model when production atomics change; this remains a bounded copied model.
+
+## C handle accounting
+
+`cargo run --offline --locked --manifest-path tools/atomic-model/Cargo.toml -- --ffi-handles`
+models the count used by `make_handle`, `Handle::drop` and `wdb_close` in
+`src/ffi.rs`. Two workers contend for reservations. One simulates an
+allocation refusal and rolls back. The other keeps its reservation until
+after the parent has joined both workers. The model covers a live source
+handle and an initial count just below exhaustion.
+
+After joining, an Acquire load must count exactly the prior owners and any
+successful acquisition. The model also checks that releasing the successful
+reservation restores the initial count. Its bounds are three threads,
+two preemptions and 1,000 branches, with no duration or permutation cutoff.
+It assumes the C contract's external close quiescence. Rust tests check
+raw handle allocation, outputs and destruction through the exported functions.
+
+`cargo xtask atomic-model` runs this baseline and checks that
+`--broken-ffi-reservation` and `--broken-ffi-rollback` fail the post-join
+accounting assertion. Review the copied operations when the FFI count changes.

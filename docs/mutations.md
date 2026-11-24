@@ -11,6 +11,12 @@ cargo xtask mutations --case r1-inventory- --toolchain 1.99.1 --output target/r1
 cargo xtask mutations --output target/all-mutations-new
 ```
 
+Unix listing and execution select the same cases for the running host.
+A case with an `os` tag of `macos` or `linux` runs on that host. Untagged
+cases run on both. The runner applies the host filter before prefix filtering
+and sharding. Compare each host's shard union against its own `--list`
+output. Evidence records `host_os` and the host's matching case names.
+
 On Unix, the 56 historical guard mutations retain their original expressions,
 occurrence counts, package/test selection and replacement text in
 `xtask/tests/mutations.json`. Its provenance binds the retired Python controller.

@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "support/allocator_contract.h"
+#include "support/file_allocator_contract.h"
 
 static wdb_value *integer(wdb_database *db, uint64_t n) {
     wdb_value *out = NULL;
@@ -14,7 +16,8 @@ static uint64_t scalar(wdb_value *value) {
     assert(wdb_value_scalar(value, &out) == WDB_OK);
     return out;
 }
-int main(void) {
+int main(int argc, char **argv) {
+    assert(argc == 1 || (argc == 2 && strcmp(argv[1], "--file-allocator") == 0));
     wdb_database *db;
     uint64_t collection, revision;
     wdb_tx *seed, *first, *second;
@@ -66,10 +69,21 @@ int main(void) {
     assert(wdb_scan_value(scan,1,&value) == WDB_OK && scalar(value) == 2);
     assert(wdb_value_release(value) == WDB_OK); assert(wdb_scan_release(scan) == WDB_OK);
     assert(wdb_tx_begin(db,WDB_RECORDS,&first) == WDB_OK);
+    assert(wdb_tx_delete(first,collection + 1,(const uint8_t *)"b",1) == WDB_NOT_FOUND);
     assert(wdb_tx_delete(first,collection,(const uint8_t *)"b",1) == WDB_OK);
+    value = zero;
+    assert(wdb_tx_get(first,collection,(const uint8_t *)"b",1,&value) == WDB_NOT_FOUND);
+    assert(value == NULL);
+    assert(wdb_snapshot_get(historical,collection,(const uint8_t *)"b",1,&value) == WDB_OK);
+    assert(scalar(value) == 0);
+    assert(wdb_value_release(value) == WDB_OK);
+    assert(wdb_tx_scan(first,collection + 1,&scan) == WDB_NOT_FOUND && scan == NULL);
+    assert(wdb_snapshot_scan(historical,collection + 1,&scan) == WDB_NOT_FOUND && scan == NULL);
     assert(wdb_tx_scan(first,collection,&scan) == WDB_OK);
     assert(wdb_scan_len(scan,&count) == WDB_OK && count == 1);
     assert(wdb_tx_abort(first) == WDB_OK); assert(wdb_tx_release(first) == WDB_OK);
+    value = zero;
+    assert(wdb_scan_value(scan,count,&value) == WDB_BOUNDS && value == NULL);
     assert(wdb_scan_value(scan,0,&value) == WDB_OK && scalar(value) == 2);
     assert(wdb_value_release(value) == WDB_OK); assert(wdb_scan_release(scan) == WDB_OK);
 
@@ -125,6 +139,8 @@ int main(void) {
     assert(wdb_snapshot_release(historical) == WDB_OK);
     assert(wdb_value_release(NULL) == WDB_OK);
     assert(wdb_close(db) == WDB_OK);
+    verify_allocator_contract();
+    if (argc == 2) verify_file_allocator_contract();
     puts("C shared-library engine: snapshots, merges, conflicts, values and cleanup passed.");
     return 0;
 }

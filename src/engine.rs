@@ -209,13 +209,12 @@ struct Write {
     key: ChargedVec<u8>,
     value: Option<Value>,
 }
-// Logical draft charge, separate from physical allocation admission. Callers
-// validate keys/values before this point; both checked sums retain their guards.
-fn write_charge(key_bytes: usize, value_weight: usize) -> Result<usize> {
+// A saturated sum exceeds the validated transaction-byte cap. The caller
+// applies that cap after including the bytes already staged in the draft.
+fn write_charge(key_bytes: usize, value_weight: usize) -> usize {
     key_bytes
-        .checked_add(value_weight)
-        .and_then(|n| n.checked_add(std::mem::size_of::<Write>()))
-        .ok_or(Error::Limit)
+        .saturating_add(value_weight)
+        .saturating_add(std::mem::size_of::<Write>())
 }
 
 /// An exclusively owned draft: movable between threads, but not shareable.
@@ -677,11 +676,6 @@ impl Database {
     pub fn list(&self) -> Result<Value> {
         Value::scalar(&self.mem, Kind::List, 0)
     }
-    /// Deterministic allocation-failure hook, available only in testing builds.
-    #[cfg(any(test, feature = "fault-injection"))]
-    pub fn fail_allocations_after(&self, remaining: Option<usize>) {
-        self.mem.fail_after(remaining);
-    }
 }
 fn collection(head: &Head, id: CollectionId) -> Result<&Collection> {
     head.collections
@@ -850,7 +844,7 @@ impl Transaction<'_> {
         if self.writes.len() >= self.db.limits().max_writes {
             return Err(Error::Limit);
         }
-        let extra = write_charge(k.len(), weight)?;
+        let extra = write_charge(k.len(), weight);
         let bytes = self.charge(extra)?;
         let k = self.db.mem.copy(k)?;
         self.db.mem.reserve(&mut self.writes, 1)?;
@@ -1033,6 +1027,17 @@ impl Transaction<'_> {
         &mut self,
     ) -> std::result::Result<u64, crate::storage::StorageFailure> {
         crate::storage::diagnostics::capture(|| self.commit())
+    }
+}
+
+impl Snapshot<'_> {
+    /// Materialize rows in binary-key order using this database's allocator
+    /// and budget. The iterator owns its rows and can outlive the snapshot.
+    pub fn scan_iter(
+        &self,
+        id: CollectionId,
+    ) -> Result<impl Iterator<Item = (impl AsRef<[u8]> + use<>, Value)> + use<>> {
+        Ok(self.scan_owned(id)?.into_iter())
     }
 }
 
@@ -1265,6 +1270,29 @@ mod tests {
         #[cfg(feature = "replication")]
         assert_eq!(db.replication_head(), Err(Error::RecoveryRequired));
     }
+
+    #[test]
+    fn compact_copy_rejects_poisoned_state_before_media_io() {
+        use crate::storage::{Fault, SimulatedDisk};
+
+        let source = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(source.clone(), [1; 16], Limits::default()).unwrap();
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _guard = db.state.write().unwrap();
+                panic!("intentional state-lock poison");
+            }))
+            .is_err()
+        );
+        let target = SimulatedDisk::new().unwrap();
+        source.arm(usize::MAX, Fault::Error);
+        target.arm(usize::MAX, Fault::Error);
+        assert_eq!(db.compact_to(target.clone()), Err(Error::RecoveryRequired));
+        assert!(source.trace().unwrap().is_empty());
+        assert!(target.trace().unwrap().is_empty());
+        assert_eq!(db.snapshot().revision(), 0);
+    }
+
     // Balanced shared children represent enormous logical values with O(bits)
     // distinct nodes. No enormous slice or forged Value is constructed.
     fn shared_weight(
@@ -1318,7 +1346,7 @@ mod tests {
         assert_eq!(tx.charge(0), Ok(before));
         assert_eq!(tx.charge(limit - before), Ok(limit));
         assert_eq!(tx.charge(limit - before + 1), Err(Error::Limit));
-        let extra = write_charge(1, largest.weight()).unwrap();
+        let extra = write_charge(1, largest.weight());
         assert!(before.checked_add(extra).is_none());
         assert_eq!(tx.put(c, b"b", &largest), Err(Error::Limit));
         assert_eq!(tx.bytes, before);
@@ -1339,17 +1367,115 @@ mod tests {
     }
 
     #[test]
+    fn assignment_refusals_preserve_the_overlay_and_record_only_completed_observations() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::sync::Arc;
+
+        for allowance in 0..=4 {
+            let allocator = Arc::new(TestAllocator::default());
+            let db = Database::with_options(allocator.options()).unwrap();
+            let c = db.create_collection().unwrap();
+            let old = db.integer(1).unwrap();
+            let staged = db.integer(2).unwrap();
+            let incoming = db.integer(3).unwrap();
+            let changed = db.integer(4).unwrap();
+            {
+                let mut seed = db.begin();
+                seed.put(c, b"a", &old).unwrap();
+                seed.put(c, b"b", &old).unwrap();
+                seed.commit().unwrap();
+            }
+            let base = db.snapshot();
+            let mut tx = db.begin();
+            tx.put(c, b"a", &staged).unwrap();
+            let before = (
+                db.memory_usage().live_bytes,
+                allocator.live_bytes(),
+                tx.bytes,
+            );
+
+            let result = allocator.with_refusal(allowance, || tx.put(c, b"b", &incoming));
+            assert_eq!(tx.state(), TransactionState::Active);
+            assert_eq!(db.snapshot().revision(), base.revision());
+            assert_eq!(db.snapshot().get(c, b"a").unwrap(), Some(old.clone()));
+            assert_eq!(db.snapshot().get(c, b"b").unwrap(), Some(old.clone()));
+            assert_eq!(tx.get(c, b"a").unwrap(), Some(staged.clone()));
+            if allowance == 4 {
+                assert_eq!(result, Ok(()));
+                tx.commit().unwrap();
+                assert_eq!(db.snapshot().get(c, b"a").unwrap(), Some(staged));
+                assert_eq!(db.snapshot().get(c, b"b").unwrap(), Some(incoming));
+                continue;
+            }
+
+            // The first two requests record b. The last two stage its write.
+            assert_eq!(result, Err(Error::OutOfMemory));
+            assert_eq!(tx.writes.len(), 1);
+            assert!(tx.collections.is_empty());
+            let recorded = allowance >= 2;
+            assert_eq!(tx.points.len(), if recorded { 2 } else { 1 });
+            let charge = if recorded {
+                1 + std::mem::size_of::<Point>()
+            } else {
+                0
+            };
+            assert_eq!(
+                (
+                    db.memory_usage().live_bytes,
+                    allocator.live_bytes(),
+                    tx.bytes
+                ),
+                (before.0 + charge, before.1 + charge, before.2 + charge)
+            );
+
+            let mut writer = db.begin();
+            writer.put(c, b"b", &changed).unwrap();
+            writer.commit().unwrap();
+            if recorded {
+                assert_eq!(tx.commit(), Err(Error::Conflict));
+                assert_eq!(tx.state(), TransactionState::Aborted);
+                assert_eq!(db.snapshot().get(c, b"a").unwrap(), Some(old.clone()));
+            } else {
+                tx.commit().unwrap();
+                assert_eq!(db.snapshot().get(c, b"a").unwrap(), Some(staged));
+            }
+            assert_eq!(db.snapshot().get(c, b"b").unwrap(), Some(changed));
+            assert_eq!(base.get(c, b"a").unwrap(), Some(old.clone()));
+            assert_eq!(base.get(c, b"b").unwrap(), Some(old));
+        }
+    }
+
+    #[test]
     fn new_write_charge_checks_each_sum_without_allocating_giant_keys() {
         let overhead = std::mem::size_of::<Write>();
         let half = isize::MAX as usize;
-        // Both conceptual inputs satisfy the public individual size bounds.
-        // Only the final fixed-overhead sum changes from MAX to overflow.
+        let db = Database::with_limits(Limits {
+            max_transaction_bytes: half,
+            ..Limits::default()
+        })
+        .unwrap();
+        let tx = db.begin();
         let key = half - overhead + 1;
-        assert_eq!(write_charge(key, half), Ok(usize::MAX));
-        assert_eq!(write_charge(key + 1, half), Err(Error::Limit));
-        // The first sum cannot overflow under the two <=isize::MAX bounds.
-        // This defensive helper-only pair intentionally goes outside that domain.
-        assert_eq!(write_charge(usize::MAX, 1), Err(Error::Limit));
-        assert_eq!(write_charge(0, 0), Ok(overhead));
+        for (key_bytes, weight, expected) in [
+            (0, 0, overhead),
+            (0, half - overhead, half),
+            (0, half - overhead + 1, half + 1),
+            (key - 1, half, usize::MAX - 1),
+            (key, half, usize::MAX),
+            (key + 1, half, usize::MAX),
+            // Exercise the first addition outside the public key-length domain.
+            (usize::MAX, 1, usize::MAX),
+        ] {
+            let extra = write_charge(key_bytes, weight);
+            assert_eq!(extra, expected);
+            assert_eq!(
+                tx.charge(extra),
+                if expected <= half {
+                    Ok(expected)
+                } else {
+                    Err(Error::Limit)
+                }
+            );
+        }
     }
 }
