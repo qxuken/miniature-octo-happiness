@@ -2,6 +2,7 @@ name: Engine checks
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -12,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '["macos-latest","ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     env:
@@ -58,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '["macos-latest","ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -124,12 +125,14 @@ jobs:
             target/coordinator-package-roundtrip/**
             !target/coordinator-package-roundtrip/cargo-target/**
   decision-inventory:
-    name: Source decision reconciliation and R1 controls (${{ matrix.os }}, shard ${{ matrix.shard }})
+    name: Source decision reconciliation and R1 controls (${{ matrix.os }}, ${{ matrix.mode == 'darwin' && 'Darwin controls' || format('shard {0}', matrix.shard) }})
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '["macos-latest","ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest"]') }}
         shard: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        mode: [full]
+        include: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '[]' || '[{"os":"macos-latest","shard":0,"mode":"darwin"}]') }}
         exclude:
           - os: windows-latest
             shard: 1
@@ -148,7 +151,7 @@ jobs:
           - os: windows-latest
             shard: 8
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 90 }}
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || matrix.mode == 'darwin' && 120 || 90 }}
     defaults:
       run:
         shell: bash
@@ -169,18 +172,41 @@ jobs:
       - name: Reject stale source, reference, decision and control bindings
         run: cargo +1.100.0 run --offline --locked --manifest-path tools/decision-inventory/Cargo.toml -- . target/r1/review --review docs/decisions/current-scope.json
       - name: Detect the R1 controls in debug and release
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.mode == 'full'
         run: |
           cargo +1.100.0 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --toolchain 1.100.0 --output target/r1/mutations-debug
           cargo +1.100.0 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --release --toolchain 1.100.0 --output target/r1/mutations-release
+      - name: Detect Darwin-specific R1 controls in debug and release
+        if: matrix.mode == 'darwin'
+        run: |
+          jq -er '
+            .cases[]
+            | select(.name | startswith("r1-"))
+            | select(.os == "macos" or (.os == null and (
+                .file == "src/storage/file.rs"
+                or .file == "src/storage/replacement.rs"
+                or (.test | startswith("storage::file::"))
+                or .test == "ffi::tests::file_factories_forward_options_and_preserve_stage_errors"
+                or .test == "ffi::decision_tests::native_path_length_boundary_and_encoding_contract"
+                or ((.exact_test // "") | startswith("native_"))
+              )))
+            | .name
+          ' xtask/tests/mutations.json > target/r1/darwin-cases.txt
+          cases=()
+          while IFS= read -r name; do cases+=(--case "$name"); done < target/r1/darwin-cases.txt
+          cargo +1.100.0 xtask mutations --list "${cases[@]}" > target/r1/darwin-selected.txt
+          cmp target/r1/darwin-cases.txt target/r1/darwin-selected.txt
+          cargo +1.100.0 xtask mutations "${cases[@]}" --toolchain 1.100.0 --output target/r1/mutations-debug
+          cargo +1.100.0 xtask mutations "${cases[@]}" --release --toolchain 1.100.0 --output target/r1/mutations-release
       - name: Retain the source-bound reconciliation and mutation evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: source-decisions-r1-${{ runner.os }}-${{ runner.arch }}-shard-${{ matrix.shard }}
+          name: source-decisions-r1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.mode == 'darwin' && 'darwin' || format('shard-{0}', matrix.shard) }}
           if-no-files-found: warn
           path: |
             target/r1/review/**
+            target/r1/darwin-*.txt
             target/r1/mutations-*/**
             !target/r1/mutations-*/build/**
             !target/r1/mutations-*/source/**
@@ -711,7 +737,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '["macos-latest","ubuntu-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -875,12 +901,17 @@ jobs:
             target/maintenance-quota-build/release/weekend-compound-resource
             target/quota-build/release/examples/native_quota
   sanitizers:
-    runs-on: macos-latest
+    name: sanitizers (${{ matrix.kind }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.kind == 'thread' && 40 || 20 }}
     strategy:
       fail-fast: false
       matrix:
-        kind: [address, thread]
+        include:
+          - kind: address
+            os: ${{ (github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && 'macos-latest' || 'ubuntu-latest' }}
+          - kind: thread
+            os: macos-latest
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install 1.100.0 --profile minimal
@@ -941,7 +972,7 @@ jobs:
             target/atomic-model-evidence/*.log
   coverage:
     name: Engine library coverage
-    runs-on: macos-latest
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && 'macos-latest' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
