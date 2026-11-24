@@ -86,8 +86,18 @@ static void check_file_roots(wdb_database *db, uint64_t collection, uint64_t ret
     assert(wdb_snapshot_release(view) == WDB_OK);
 }
 
+static FILE *open_file_image(const char *path) {
+#if defined(_MSC_VER)
+    FILE *file = NULL;
+    if (fopen_s(&file, path, "rb") != 0) return NULL;
+    return file;
+#else
+    return fopen(path, "rb");
+#endif
+}
+
 static uint8_t *read_file_image(const char *path, size_t *size) {
-    FILE *file = fopen(path, "rb");
+    FILE *file = open_file_image(path);
     assert(file != NULL && fseek(file, 0, SEEK_END) == 0);
     long length = ftell(file);
     assert(length > 0 && length <= 1024L * 1024L);
@@ -102,7 +112,7 @@ static uint8_t *read_file_image(const char *path, size_t *size) {
 enum create_refusal_state { NO_FILE, EMPTY_FILE, PUBLISHED_FILE };
 
 static enum create_refusal_state check_refused_creation(const char *path) {
-    FILE *file = fopen(path, "rb");
+    FILE *file = open_file_image(path);
     if (file == NULL) {
         assert(errno == ENOENT);
         return NO_FILE;
@@ -135,8 +145,8 @@ static void verify_file_allocator_contract(void) {
     const char path[] = "allocator-roots.wdb";
     const char trial[] = "allocator-refusal.wdb";
     /* Standalone runs must also start with unused fixture paths. */
-    assert(fopen(path, "rb") == NULL && errno == ENOENT);
-    assert(fopen(trial, "rb") == NULL && errno == ENOENT);
+    assert(open_file_image(path) == NULL && errno == ENOENT);
+    assert(open_file_image(trial) == NULL && errno == ENOENT);
     check_file_factory_rejection(wdb_file_create_with_options, path);
     check_file_factory_rejection(wdb_file_open_with_options, path);
 

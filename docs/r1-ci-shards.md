@@ -178,9 +178,15 @@ At PR #48 head `6b0d335`, all nine hosted Linux shards were cancelled at the
 [Linux shard 0](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45210022904/job/137816047993)
 
 The expanded derive registry selects 872 Linux and 834 macOS R1 controls.
-The nine shards select 96 or 97 Linux controls and 92 or 93 macOS controls in
-each profile. Both Unix hosts receive a 60-minute job deadline to run both
-profiles and retain evidence. Individual mutations retain their 120-second
-deadline, all control selections are preserved, and the Windows
-reconciliation job still has 20 minutes. Hosted completion at the new job
-deadline remains pending.
+The nine shards selected 96 or 97 Linux controls and 92 or 93 macOS controls
+in each profile at that point. Both Unix hosts received a 60-minute job deadline
+to run both profiles and retain evidence.
+
+At integration PR #78 head `922e191`, Linux shard 1 reached that deadline.
+The uploaded debug and release reports each record all 111 controls caught,
+but the hosted job concluded `cancelled`. The Unix job deadline is now
+90 minutes to leave time for the expanded registry and evidence upload.
+Individual commands retain their 120-second deadline. Both profiles, all
+control selections and the Windows reconciliation limit of 20 minutes remain
+in place. Hosted completion under the new deadline is pending.
+[Linux shard 1](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45277738443/job/138053801390)

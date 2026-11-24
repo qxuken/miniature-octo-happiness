@@ -522,8 +522,9 @@ under concurrent Linux launch stress. The queue has 9,340 open records
 the other generated targets remain open.
 
 The [hosted R1 shard ledger](r1-ci-shards.md) records Linux cancellations
-at the 20-minute deadline. Both hosted Unix platforms now have a 60-minute
-job deadline for the expanded controls. Hosted verification remains open.
+at 20 minutes and the integration shard that reached 60 minutes with passing
+mutation reports in both profiles. Unix jobs now have 90 minutes to run the
+expanded controls and upload evidence. Hosted verification remains open.
 
 The [snapshot acknowledgment ledger](decisions/snapshot-ack-current.md)
 connects 16 controls to exact reopened receipts and sender admission at
