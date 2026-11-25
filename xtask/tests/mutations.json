@@ -16737,6 +16737,90 @@
       "matches": 1,
       "package": "study-peer",
       "exact_test": "native::tests::service_startup_preserves_native_errors_and_releases_resources"
+    },
+    {
+      "name": "r1-study-peer-status-run-loop-ignore-stop",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "!stop.load(Relaxed)",
+      "new": "true",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::peer_reports_connect_failure_then_acknowledges_retry"
+    },
+    {
+      "name": "r1-study-peer-status-always-paused",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "!pushing.load(Relaxed)",
+      "new": "true",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::peer_reports_connect_failure_then_acknowledges_retry"
+    },
+    {
+      "name": "r1-study-peer-status-count-failure",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "result.is_ok()",
+      "new": "true",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::peer_reports_connect_failure_then_acknowledges_retry"
+    },
+    {
+      "name": "r1-study-peer-status-omit-success",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "result.is_ok()",
+      "new": "false",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::peer_reports_connect_failure_then_acknowledges_retry"
+    },
+    {
+      "name": "r1-study-peer-status-always-structured",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "settings.enabled",
+      "new": "true",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 4,
+      "package": "study-peer",
+      "exact_test": "native::tests::peer_reports_connect_failure_then_acknowledges_retry"
+    },
+    {
+      "name": "r1-study-peer-status-connect-error",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::at(Phase::Connect, || tls.connect(peer))?",
+      "new": "diagnostics::at(Phase::Connect, || tls.connect(peer)).map_err(|_| Error::Invalid)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::peer_reports_connect_failure_then_acknowledges_retry"
+    },
+    {
+      "name": "r1-study-peer-status-lost-ack-error",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::storage(Phase::Replication, || {\n                        replica.push_authenticated(stream)\n                    })?",
+      "new": "diagnostics::storage(Phase::Replication, || {\n                        replica.push_authenticated(stream)\n                    }).map_err(|_| Error::Invalid)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::two_writers_recover_a_lost_ack"
     }
   ]
 }

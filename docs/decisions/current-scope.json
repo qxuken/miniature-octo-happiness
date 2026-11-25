@@ -227,7 +227,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "a6ae95be93d68a4239fa8c38ff241acc1b8f2d390e2535701a0854f50d23d7af",
+    "apps/study-peer/src/native/tests.rs": "88da106a115a327ae4ba7a7b549cc1d6936e12d4044c6478bbf491c83bf745cd",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
     "apps/weekend-replicate/tests/cli.rs": "7c5058e3bc08b609ed5ce52e1d88ad7ae5c7d0e16afec25b25ced819742dff99",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "c3e48162c4e50b8ac49b665338d9c1c99b800a73a9c0e261045d2e891e97c7da",
+    "xtask/tests/mutations.json": "af383ae617dd989a04db580f726c0b38b45d5af956432b92569ffb6253ba30fb",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -413,7 +413,8 @@
     "docs/decisions/study-seed-pair-current.md": "0a78ae4c18d91c23a8361dce28ea35b41fea270802987b94f4b9bf6f7951d4d6",
     "docs/decisions/study-cli-admission-current.md": "ce52224f8a52a09cf0c353c04c21207c3bc5be3ce6ce599a83520337bfd49d15",
     "docs/decisions/study-interactive-io-current.md": "033cf798c68c87fe2f4ec560d5adf70d1d16cfa95daa18b3dc46ccbbda3d6627",
-    "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3"
+    "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
+    "docs/decisions/study-peer-status-current.md": "3fe1ea47fd706eed2bed2e47886fcb24134ec45fc4f36f58d173e9d56b050024"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -887,7 +888,8 @@
         "docs/decisions/study-seed-pair-current.md",
         "docs/decisions/study-cli-admission-current.md",
         "docs/decisions/study-interactive-io-current.md",
-        "docs/decisions/study-service-startup-current.md"
+        "docs/decisions/study-service-startup-current.md",
+        "docs/decisions/study-peer-status-current.md"
       ],
       "residual": "Fixed-roster deployment, raw reserved rows and native stream errors remain explicit application obligations."
     },
@@ -31318,6 +31320,201 @@
       ],
       "mutations": [
         "r1-study-startup-replica-open"
+      ]
+    },
+    {
+      "name": "STUDY-PEER-STATUS-RUN-LOOP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_io",
+        "kind": "while",
+        "start_byte": 9740,
+        "conditions": [
+          "!stop.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "peer_reports_connect_failure_then_acknowledges_retry"
+        }
+      ],
+      "mutations": [
+        "r1-study-peer-status-run-loop-ignore-stop"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-PEER-STATUS-PAUSED",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_io",
+        "kind": "if",
+        "start_byte": 9784,
+        "conditions": [
+          "!pushing.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "peer_reports_connect_failure_then_acknowledges_retry"
+        }
+      ],
+      "mutations": [
+        "r1-study-peer-status-always-paused"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-PEER-STATUS-SUCCESSFUL-ACK",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_io",
+        "kind": "if",
+        "start_byte": 10418,
+        "conditions": [
+          "result.is_ok()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "peer_reports_connect_failure_then_acknowledges_retry"
+        }
+      ],
+      "mutations": [
+        "r1-study-peer-status-count-failure",
+        "r1-study-peer-status-omit-success"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-PEER-STATUS-STRUCTURED-ERROR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_io",
+        "kind": "match_guard",
+        "start_byte": 11909,
+        "conditions": [
+          "settings.enabled"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "peer_reports_connect_failure_then_acknowledges_retry"
+        }
+      ],
+      "mutations": [
+        "r1-study-peer-status-always-structured"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-PEER-STATUS-CONNECT-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_io",
+        "kind": "try_propagation",
+        "start_byte": 10077,
+        "conditions": [
+          "diagnostics::at(Phase::Connect, || tls.connect(peer))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "peer_reports_connect_failure_then_acknowledges_retry"
+        }
+      ],
+      "mutations": [
+        "r1-study-peer-status-connect-error"
+      ]
+    },
+    {
+      "name": "STUDY-PEER-STATUS-LOST-ACK-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_io",
+        "kind": "try_propagation",
+        "start_byte": 10237,
+        "conditions": [
+          "diagnostics::storage(Phase::Replication, || {\n                        replica.push_authenticated(stream)\n                    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "two_writers_recover_a_lost_ack"
+        }
+      ],
+      "mutations": [
+        "r1-study-peer-status-lost-ack-error"
       ]
     }
   ],

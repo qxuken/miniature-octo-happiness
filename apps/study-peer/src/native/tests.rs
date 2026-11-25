@@ -988,6 +988,7 @@ impl Worker {
         listen: SocketAddr,
         peer: SocketAddr,
         pause_reply: bool,
+        structured: bool,
     ) -> Self {
         let mut child = Command::new(std::env::current_exe().unwrap())
             .args([
@@ -1003,6 +1004,10 @@ impl Worker {
             .env(
                 "STUDY_PEER_TEST_PAUSE",
                 if pause_reply { "yes" } else { "no" },
+            )
+            .env(
+                "STUDY_PEER_TEST_JSON",
+                if structured { "yes" } else { "no" },
             )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -1071,6 +1076,20 @@ impl Worker {
     fn kill(&mut self) {
         self.child.kill().unwrap();
         assert!(!self.child.wait().unwrap().success());
+    }
+
+    fn quit(&mut self) {
+        writeln!(self.input, "quit").unwrap();
+        self.input.flush().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(6);
+        loop {
+            if let Some(status) = self.child.try_wait().unwrap() {
+                assert!(status.success());
+                break;
+            }
+            assert!(Instant::now() < deadline, "worker failed to stop");
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 }
 impl Drop for Worker {
@@ -1148,10 +1167,18 @@ fn two_writers_recover_a_lost_ack() {
             pushing: false,
             sync_only: false,
         };
-        run(&db, enrollment, network, options, |stream| PauseReply {
-            stream,
-            enabled,
+        let mut arguments = vec!["run".into()];
+        if std::env::var("STUDY_PEER_TEST_JSON").unwrap() == "yes" {
+            arguments.insert(0, "--diagnostics=json".into());
+        }
+        let settings = diagnostics::settings_from_args(diagnostics::App::Study, &mut arguments);
+        diagnostics::capture(settings, Phase::Arguments, || {
+            run(&db, enrollment, network, options, |stream| PauseReply {
+                stream,
+                enabled,
+            })
         })
+        .0
         .unwrap();
         return;
     }
@@ -1165,10 +1192,10 @@ fn two_writers_recover_a_lost_ack() {
     let dynamic = "127.0.0.1:0".parse().unwrap();
     let reserved = TcpListener::bind(dynamic).unwrap();
     let b_address = reserved.local_addr().unwrap();
-    let mut a = Worker::start(&dir.0, "a", dynamic, b_address, false);
+    let mut a = Worker::start(&dir.0, "a", dynamic, b_address, false, false);
     let a_address = a.ready();
     drop(reserved);
-    let mut b = Worker::start(&dir.0, "b", b_address, a_address, true);
+    let mut b = Worker::start(&dir.0, "b", b_address, a_address, true, false);
     assert_eq!(b.ready(), b_address);
 
     assert_eq!(a.command("edit 1 20 60 20"), "local 3");
@@ -1181,8 +1208,9 @@ fn two_writers_recover_a_lost_ack() {
     assert_eq!(b.command("practice 5"), "local 5");
     b.kill();
 
-    a.wait_for("peer", |line| line.starts_with("peer 0 error "));
-    let mut b = Worker::start(&dir.0, "b", b_address, a_address, false);
+    let failure = a.wait_for("peer", |line| line.starts_with("peer 0 error "));
+    assert_eq!(failure, "peer 0 error Io");
+    let mut b = Worker::start(&dir.0, "b", b_address, a_address, false, false);
     assert_eq!(b.ready(), b_address);
     a.wait_for("peer", |line| ack_count(line, 40) > 0);
     assert_eq!(a.command("show"), "state 3 20 [60] [20] [1]");
@@ -1207,23 +1235,82 @@ fn paused_peer_reports_idle_errors_and_quits_cleanly() {
     Credentials::generate().unwrap().write_fixture(&other);
     initialize(&path, enrollment).unwrap();
     let dynamic = "127.0.0.1:0".parse().unwrap();
-    let mut worker = Worker::start(&dir.0, "a", dynamic, dynamic, false);
+    let mut worker = Worker::start(&dir.0, "a", dynamic, dynamic, false, false);
     worker.ready();
     assert_eq!(worker.command("peer"), "peer 0 idle");
     assert!(worker.command("unknown").starts_with("error "));
     assert_eq!(worker.command("push off"), "push off");
-    worker.input.write_all(b"\nquit\n").unwrap();
-    worker.input.flush().unwrap();
-    let deadline = Instant::now() + Duration::from_secs(6);
-    loop {
-        if let Some(status) = worker.child.try_wait().unwrap() {
-            assert!(status.success());
-            break;
+    writeln!(worker.input).unwrap();
+    worker.quit();
+}
+
+#[test]
+fn peer_reports_connect_failure_then_acknowledges_retry() {
+    for structured in [false, true] {
+        let dir = Directory::new();
+        for actor in ["a", "b"] {
+            let (path, identity, _, enrollment) = config(&dir.0, actor);
+            Credentials::generate().unwrap().write_fixture(&identity);
+            initialize(&path, enrollment).unwrap();
         }
-        if Instant::now() > deadline {
-            worker.kill();
-            panic!("paused peer failed to stop");
+        let (follower, _, _, _) = config(&dir.0, "b");
+        let before = fs::read(&follower).unwrap();
+        let dynamic = "127.0.0.1:0".parse().unwrap();
+        let reserved = TcpListener::bind(dynamic).unwrap();
+        let b_address = reserved.local_addr().unwrap();
+        let mut a = Worker::start(&dir.0, "a", dynamic, b_address, false, structured);
+        let a_address = a.ready();
+        assert_eq!(a.command("practice 7"), "local 3");
+        assert_eq!(a.command("peer"), "peer 0 idle");
+        drop(reserved);
+        let refused =
+            std::net::TcpStream::connect_timeout(&b_address, Duration::from_secs(2)).unwrap_err();
+        assert_eq!(refused.kind(), io::ErrorKind::ConnectionRefused);
+        assert_eq!(a.command("push on"), "push on");
+
+        let failure = a.wait_for("peer", |line| line != "peer 0 idle");
+        if structured {
+            assert!(
+                failure.contains(
+                    "\"phase\":\"connect\",\"category\":\"io\",\"code\":\"connection_refused\""
+                ),
+                "unexpected structured connection result: {failure}"
+            );
+        } else {
+            assert_eq!(failure, format!("peer 0 error {refused}"));
         }
-        thread::sleep(Duration::from_millis(10));
+        assert_eq!(a.command("push off"), "push off");
+        assert_eq!(fs::read(&follower).unwrap(), before);
+
+        let mut b = Worker::start(&dir.0, "b", b_address, a_address, false, structured);
+        assert_eq!(b.ready(), b_address);
+        assert_eq!(b.command("show"), "state 2 0 [] [] []");
+        assert_eq!(a.command("push on"), "push on");
+        let ack = a.wait_for("peer", |line| line.contains(" ack "));
+        let first = ack_count(&ack, 7);
+        assert!(
+            first > 0,
+            "successful retry did not advance acknowledgments"
+        );
+        assert_eq!(b.command("show"), "state 3 7 [] [] []");
+        a.wait_for("peer", |line| {
+            line.contains(" ack ") && ack_count(line, 7) > first
+        });
+        assert_eq!(b.command("show"), "state 3 7 [] [] []");
+        assert_eq!(a.command("push off"), "push off");
+        a.quit();
+        b.quit();
+
+        let (_, _, _, enrollment) = config(&dir.0, "b");
+        let db = Database::open_file(&follower, Limits::default()).unwrap();
+        assert_eq!(db.snapshot().revision(), 3);
+        let replica = StudyReplica::open(
+            &db,
+            db.collection_id(COLLECTION_ROW),
+            enrollment.policy,
+            enrollment.actor,
+        )
+        .unwrap();
+        assert_eq!(replica.read().unwrap().practice_minutes.total(), 7);
     }
 }
