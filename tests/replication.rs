@@ -1022,7 +1022,7 @@ fn primary_enrollment_requires_a_healthy_durable_writer() {
 
 #[test]
 fn live_capture_rejects_unusable_sources_before_writing_the_destination() {
-    use weekend_db::storage::{Fault, SimulatedDisk};
+    use weekend_db::storage::{Fault, IoKind, SimulatedDisk};
 
     let disk = SimulatedDisk::new().unwrap();
     let source = Database::create_on(disk.clone(), [1; 16], Limits::default()).unwrap();
@@ -1030,6 +1030,7 @@ fn live_capture_rejects_unusable_sources_before_writing_the_destination() {
     let retained = source.retain_snapshot(&source.snapshot()).unwrap();
     let revision = source.snapshot().revision();
     let destination = SimulatedDisk::new().unwrap();
+    destination.arm(usize::MAX, Fault::Error);
     let memory = Database::new().unwrap();
     assert_eq!(
         primary
@@ -1050,22 +1051,32 @@ fn live_capture_rejects_unusable_sources_before_writing_the_destination() {
             .err(),
         Some(Error::Limit)
     );
+    assert!(destination.trace().unwrap().is_empty());
     assert!(destination.durable_image().unwrap().is_empty());
     assert_eq!(source.retained_ids().unwrap(), [retained]);
     let export = primary
-        .export_live_to(&source, destination, Limits::default())
+        .export_live_to(&source, destination.clone(), Limits::default())
         .unwrap();
     assert_eq!(export.revision(), revision);
+    assert!(
+        destination
+            .trace()
+            .unwrap()
+            .iter()
+            .any(|event| event.kind == IoKind::Write)
+    );
 
     disk.arm(0, Fault::Error);
     assert_eq!(source.create_collection(), Err(Error::Io));
     let untouched = SimulatedDisk::new().unwrap();
+    untouched.arm(usize::MAX, Fault::Error);
     assert_eq!(
         primary
             .export_live_to(&source, untouched.clone(), Limits::default())
             .err(),
         Some(Error::RecoveryRequired)
     );
+    assert!(untouched.trace().unwrap().is_empty());
     assert!(untouched.durable_image().unwrap().is_empty());
     assert_eq!(source.snapshot().revision(), revision);
     assert_eq!(source.retained_ids().unwrap(), [retained]);
