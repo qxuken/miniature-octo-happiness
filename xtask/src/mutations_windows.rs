@@ -18,22 +18,11 @@ fn qualifies(report: &Report, log: &str, case: &Case, mutant: bool) -> bool {
     if report.stopped || report.timed_out || report.output_exceeded {
         return false;
     }
-    let (exit, outcome, passed, failed) = if mutant {
-        (101, "FAILED", "0", "1")
-    } else {
-        (0, "ok", "1", "0")
-    };
+    let (exit, outcome) = if mutant { (101, "FAILED") } else { (0, "ok") };
     if report.exit != Some(exit) || !report.qualifies(mutant) || log.contains("running 0 tests") {
         return false;
     }
-    let mut results = Vec::new();
-    let mut summaries = Vec::new();
     for line in log.lines() {
-        if line.starts_with("test result:") {
-            summaries.push(line);
-        } else if line.starts_with("test ") {
-            results.push(line);
-        }
         if (line.starts_with("error:") && !line.starts_with("error: test failed, to rerun pass "))
             || line.starts_with("error[")
         {
@@ -46,16 +35,7 @@ fn qualifies(report: &Report, log: &str, case: &Case, mutant: bool) -> bool {
             return false;
         }
     }
-    if results != [format!("test {} ... {outcome}", case.test).as_str()] || summaries.len() != 1 {
-        return false;
-    }
-    let footer = regex::Regex::new(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; 0 ignored; 0 measured; \d+ filtered out; finished in \d+(?:\.\d+)?s$").unwrap();
-    let Some(counts) = footer.captures(summaries[0]) else {
-        return false;
-    };
-    counts.get(1).unwrap().as_str() == outcome
-        && &counts[2] == passed
-        && &counts[3] == failed
+    exact_test_result(log, &case.test, outcome)
         && (!mutant
             || assertion(case)
                 .is_ok_and(|needle| log.lines().filter(|line| *line == needle).count() == 1))
@@ -500,11 +480,11 @@ mod tests {
     fn windows_outcomes_require_exact_nonempty_test_failure_and_retirement() {
         for case in windows_cases().unwrap().cases {
             let good = format!(
-                "test {} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s",
+                "running 1 test\ntest {} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s",
                 case.test
             );
             let failed = format!(
-                "test {} ... FAILED\n{}\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s",
+                "running 1 test\ntest {} ... FAILED\n{}\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s",
                 case.test,
                 assertion(&case).unwrap()
             );

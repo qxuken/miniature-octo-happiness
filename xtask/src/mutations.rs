@@ -208,14 +208,36 @@ fn command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
     }
     args
 }
+fn exact_test_result(log: &str, test: &str, outcome: &str) -> bool {
+    let mut results = log
+        .lines()
+        .filter(|line| line.starts_with("running ") || line.starts_with("test "));
+    let expected = format!("test {test} ... {outcome}");
+    if results.next() != Some("running 1 test") || results.next() != Some(expected.as_str()) {
+        return false;
+    }
+    let Some(summary) = results.next() else {
+        return false;
+    };
+    let prefix = match outcome {
+        "ok" => "test result: ok. 1 passed; 0 failed; ",
+        "FAILED" => "test result: FAILED. 0 passed; 1 failed; ",
+        _ => return false,
+    };
+    let suffix = regex::Regex::new(
+        r"^0 ignored; 0 measured; [0-9]+ filtered out; finished in [0-9]+(?:\.[0-9]+)?s$",
+    )
+    .unwrap();
+    results.next().is_none()
+        && summary
+            .strip_prefix(prefix)
+            .is_some_and(|s| suffix.is_match(s))
+}
 #[cfg(unix)]
 fn expected_test_outcome(case: &Case, stdout: &[u8], outcome: &str) -> bool {
-    case.exact_test.as_ref().is_none_or(|test| {
-        let expected = format!("test {test} ... {outcome}");
-        String::from_utf8_lossy(stdout)
-            .lines()
-            .any(|line| line == expected)
-    })
+    case.exact_test
+        .as_ref()
+        .is_none_or(|test| exact_test_result(&String::from_utf8_lossy(stdout), test, outcome))
 }
 #[cfg(unix)]
 fn baseline(report: &crate::supervise::Report, log: &str) -> bool {
@@ -738,23 +760,30 @@ mod tests {
             &args[args.len() - 4..],
             ["--release", "module::expected", "--", "--exact"]
         );
-        assert!(expected_test_outcome(
-            &case,
-            b"running 1 test\r\ntest module::expected ... ok\r\n",
-            "ok"
-        ));
-        assert!(expected_test_outcome(
-            &case,
-            b"test module::expected ... FAILED\n",
-            "FAILED"
-        ));
+        let pass = "running 1 test\r\ntest module::expected ... ok\r\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.01s\r\n";
+        let fail = pass
+            .replace("ok", "FAILED")
+            .replace("1 passed; 0 failed", "0 passed; 1 failed");
+        assert!(expected_test_outcome(&case, pass.as_bytes(), "ok"));
+        assert!(expected_test_outcome(&case, fail.as_bytes(), "FAILED"));
         for log in [
-            b"test module::expected_suffix ... FAILED\n".as_slice(),
-            b"test module::other ... FAILED\n",
-            b"panic: test module::expected ... FAILED\n",
-            b"test module::expected ... ok\n",
+            fail.replace("module::expected", "module::expected_suffix"),
+            fail.replace("test module", "panic: test module"),
+            fail.replace("0 passed; 1 failed", "0 passed; 2 failed"),
+            fail.replace("0 ignored", "1 ignored"),
+            fail.replace("running 1 test", "running 2 tests"),
+            fail.replace(
+                "test result:",
+                "test module::other ... FAILED\ntest result:",
+            ),
+            format!("{fail}{pass}"),
+            format!(
+                "{}running 1 test",
+                fail.trim_start_matches("running 1 test\r\n")
+            ),
+            "test module::expected ... FAILED\n".into(),
         ] {
-            assert!(!expected_test_outcome(&case, log, "FAILED"));
+            assert!(!expected_test_outcome(&case, log.as_bytes(), "FAILED"));
         }
 
         let mut data: Value = serde_json::from_str(FIXTURE).unwrap();
