@@ -1535,3 +1535,21 @@ and preserved its input. The tested merge commit `afcdb16` has the same
 Git tree as PR head `c8beb0e`. The [job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45635931513/job/139281231969)
 and [archive manifest](decisions/windows-admin-c8beb0e.sha256) identify the
 runner logs and checkout metadata for both outcomes.
+
+### Shared service diagnostics
+
+At `8c3c76a`, both the study peer and snapshot CLI exercised the shared
+diagnostic formatter at every available buffer size through exact fit for
+four layouts. They preserved the reserved terminator byte and reported
+insufficient capacity. Tests also checked the operator-visible command and
+error names, maximum counters, TLS errors passed directly or wrapped in I/O
+errors, and diagnostic propagation for successful and failed operations with
+capture enabled or disabled. Shipping failures retained the unconfirmed
+follower outcome.
+
+In each profile on macOS arm64 and Docker Linux arm64, 27 study-peer unit
+tests, 37 snapshot CLI unit tests and two diagnostic process tests per CLI
+passed (68 per run). The [source ledger](decisions/service-diagnostics-current.md)
+reconciles 50 records per binary. The [local archive manifest](decisions/service-diagnostics-8c3c76a.sha256)
+covers all four runs and source. There are 758 unclassified runtime decisions
+and 7,398 tooling decisions. Generated code and compiler MC/DC remain open.
