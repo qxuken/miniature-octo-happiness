@@ -230,3 +230,13 @@ the production CRDT modules. The candidate added unit tests in
 release binary dependency file and checks that it lists the CRDT root and
 multi-value register and excludes the test module. The evidence-copy check
 repeats this check on the saved files.
+
+The dependency check at `855573c` matches complete source filenames.
+Replaying both genuine NTFS binary dependency reports reproduced two errors
+in the earlier substring check. Renaming the required register source to
+`multi_value_register.rs.old` still passed, while adding a separate file
+named `decisions.rs.old` caused rejection. The revised check rejects the
+missing required module, accepts the unrelated filename and still rejects
+a binary that includes `decisions.rs`. All three regression tests and
+Windows-target Clippy passed. Native macOS and Docker Linux also ran the
+complete Study upgrade from `fb80989` to `2e9f717` with this controller.

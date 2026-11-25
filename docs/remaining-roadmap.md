@@ -1043,3 +1043,34 @@ strict Clippy for the affected integration test passed. The
 campaign archives and the tested source. Reconciliation recorded 10,639
 decisions, zero binding failures, and 1,836 runtime, 26 driver and 7,396
 tooling gaps.
+
+### Native Windows fixed-endpoint upgrades at PR #82
+
+The Windows x64/NTFS job on test merge `1029d2c` passed its five historical
+profiles. The engine endpoints differed by profile.
+
+| Profile | Historical | Successor |
+|---|---|---|
+| Embedded storage | `a7dc343` | `21e5d26` |
+| Snapshot wire | `dcd2402` | `315068f` |
+| Typed migration | `1ca5e5a` | `6cc8ef3` |
+| Snapshot CLI | `315068f` | `365daf6` |
+| Study CLI | `fb80989` | `365daf6` |
+
+The four downloaded archives matched GitHub's digests. Review verified
+416 artifact hashes and the stdout, stderr and cleanup receipts for all
+176 commands. The five explicitly stopped snapshot listeners retired
+with the expected supervised status. Snapshot exports matched the durable
+receipts at revisions 3, 4 and 5. An incorrect pin preserved follower
+revision 3 while local capture reached 4. Study peers rejected the mixed
+protocol and converged after both upgraded, with stable repeat sync and
+restart. Typed recovery preserved the precommit state, unknown fields and
+indexes. The Windows gate using the selected *candidate* successor still
+requires a release run.
+
+A subsequent [Study dependency check](study-cli-upgrade.md) replayed both
+saved Windows dependency files and three altered controls per file.
+macOS and Docker Linux both passed the full Study upgrade to PR head
+`2e9f717` with controller `855573c`. Freshly extracted evidence matched
+all 45 worker artifact hashes on each platform. The [checksum manifest](windows-compat-1029d2c.sha256)
+pins all four Windows downloads and both follow-up archives.
