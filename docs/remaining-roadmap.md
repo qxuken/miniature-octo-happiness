@@ -985,3 +985,29 @@ It contains 231 of the 233 inventoried artifacts. The two synthetic private
 keys were hash-checked in the private working directory and omitted from
 the archive. Intended-device operation and owner-approved latency budgets
 remain open.
+
+### Hosted R1 controls and operator recovery at 4a37229
+
+All 28 checks on PR #82 head `54e1891` passed. Its tested merge revision
+was `4a37229`. All eleven R1 archives matched GitHub's published digests.
+Their inventory and review JSON files were byte-identical across platforms.
+The nine Linux shards caught exactly the 1,029 eligible named controls in
+each profile. The Darwin job caught the selected 126 in each profile.
+The post-download audit matched all 8,860 Unix process reports to their
+transcript lengths, cleanups and exit codes. Every expected baseline ran a
+nonempty passing test selection, and every mutant returned 101 with its
+recorded failure diagnostic. The separate Windows coordinator result
+covers 32 controls in both profiles. This CI run predates the local
+retention and snapshot-read control additions.
+
+Native macOS/APFS and Docker Linux/ext4 also ran operator recovery against
+debug and release builds of the administrative and coordinator CLIs at
+this revision. Each of the four profiles completed all 85 commands.
+Recovery preserved the current value 21 at revision 4 and retained value
+11 at revision 2. With both coordinator journals restored, the two
+resumed writes received revisions 6 and 7 and finished at value 111.
+Mixed journals, a stale server and the previous credential were rejected.
+Fresh extraction checked the four pairs of CLI binaries and all 286
+declared artifact hashes per profile. The [checkpoint manifest](delivery-checkpoint-4a37229.sha256)
+pins the raw archives and binaries. Intended deployment fencing and
+operator acceptance remain open.
