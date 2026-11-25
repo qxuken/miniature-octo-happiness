@@ -1011,3 +1011,10 @@ Fresh extraction checked the four pairs of CLI binaries and all 286
 declared artifact hashes per profile. The [checkpoint manifest](delivery-checkpoint-4a37229.sha256)
 pins the raw archives and binaries. Intended deployment fencing and
 operator acceptance remain open.
+
+The [extended campaign at 4a37229](fuzz-qualification-4a37229.md) passed
+1,399,569 ASan executions across all 22 targets. Independent macOS and
+Docker Linux restoration bound the results to the checkpoint's 16 packages
+and three benchmark runs. The candidate operator workflow now also
+[rehearses debug and optimized recovery](r2-qualification.md#candidate-operator-recovery)
+on manual and tagged runs.
