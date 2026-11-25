@@ -21,8 +21,8 @@ The decision manifest binds the named source pairs. Additional controls cover
 the credential comparison, exact predecessor equality and the stale-conflict
 boundary. The delivered-artifact and operator checks keep their earlier source
 and deployment scope. Local commit and follower durability remain separate.
-Native Windows execution, deployed operator acceptance and the remaining R1
-source and compiler gaps are still open for this batch.
+Deployed operator acceptance, the Windows mutation campaign and the remaining
+R1 source and compiler gaps are still open for this batch.
 
 ## Verification
 
@@ -42,6 +42,34 @@ The reconciliation binds 19 direct controls and five enclosed decisions.
 R1 retains 9,262 open records (1,877 runtime / 26 driver / 7,359 tooling).
 The exact-test support for a single binary adds two unresolved tooling
 records to the inventory. These counts describe source records.
+
+## Hosted Windows and packaged recovery
+
+The native Windows x64 job ran Rust 1.100.0 on the GitHub test merge
+`215646848618dc2861fb12e5232e5bcd7b36c596`. Its Git tree
+`922c9d34edccb6e8ac83c63fd43427debb2787cc` matches PR head `e40e0d9`.
+Debug and release each passed 22 coordinator unit and 12 integration tests.
+The two extended maintenance tests were ignored in both runs.
+[Native job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45585317834/job/139105302370)
+
+For hosted Linux x64 and Windows x64/fixed NTFS, the private coordinator
+package ran the four pending-restore schedules in debug and release and
+repeated them after artifact download. Both forwarding outcomes reopened
+revision 5, value 42, receipt sequence 1 for prefix 0 and revision 6, value
+99, receipt sequence 2 for prefix 1. All 32 schedule records confirmed the
+second lost reply, stable local replay, two retained roots and preserved
+originals. The Windows runner used its hosted administrator account.
+Ordinary-account deployment and the 32 Windows mutation controls remain open.
+
+| Platform | Original package campaign | Download and rerun | Listed output hashes rechecked per archive |
+| --- | --- | --- | ---: |
+| Linux x64 | [Original](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45585317834/artifacts/15007518335) | [Rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45585317834/artifacts/15008671441) | 34 |
+| Windows x64 | [Original](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45585317834/artifacts/15009545236) | [Rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45585317834/artifacts/15009605255) | 24 |
+
+Independent review reproduced GitHub's four ZIP digests, checked the debug
+and release recovery logs, and matched the package manifest digest between
+each original campaign and its rerun. Each run retired the Cargo build paths
+before invoking the saved CLI and driver.
 
 ## Reproduce
 

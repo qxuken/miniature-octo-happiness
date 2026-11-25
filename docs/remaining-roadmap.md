@@ -567,8 +567,10 @@ groups admission, dispatch, receipt replay and journal recovery in one PR.
 The replay case preserves current revision 6, retained revision 4 and the
 durable image. All 32 named controls pass in debug and release on macOS and
 Docker Linux. The R1 queue is 9,262 records (1,877 runtime / 26 driver /
-7,359 tooling). Native Windows execution for this source and deployed
-operator qualification remain open. Subsequent work follows the
+7,359 tooling). Hosted Windows passed the debug and release suites, and
+Windows and Linux both passed the packaged pending-restore replay after
+download. Native Windows mutation controls and deployed operator
+qualification remain open. Subsequent work follows the
 [grouped roadmap](production-pr-roadmap.md#stack-order) through candidate freeze.
 
 The [compound recovery batch](decisions/compound-recovery-current.md) exercises
