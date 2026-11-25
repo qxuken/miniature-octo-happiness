@@ -53,3 +53,28 @@ cargo +1.100.0 xtask verify-delivery \
 The development host holds the source bundle, platform archives, fuzz and
 benchmark inputs, and the combined JSON report. Off-machine restore,
 qualification on deployment devices and release sign-off remain open.
+
+## Offline Linux restore
+
+A fresh Linux arm64 container with networking disabled restored all six
+input archives into an empty directory. It cloned the saved Git bundle,
+compiled the verifier with the cached Rust 1.100.0 toolchain and dependencies,
+and reproduced the macOS report for the packages, traces, benchmark, fuzz,
+and Git archive. The two reports differ only in the verifier executable's
+SHA-256. Both original reports and the six portable input files are listed
+in the [checksum manifest](delivery-checkpoint-49ddab5.sha256).
+
+The first Linux extraction exposed 4,882 extra AppleDouble entries from
+the original macOS evidence tar. The verifier rejected the changed inventory.
+Repacking the macOS lane and source/benchmark archives from the original
+files with the following bsdtar options produced the portable inputs.
+Keep the strict inventory check on restore.
+
+```sh
+COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs --no-acls --no-fflags \
+  -C "$MACOS_LANE" --exclude './build' --exclude './trace/cargo-target' \
+  -czf msrv-macos-arm64-49ddab5-portable.tar.gz .
+```
+
+The Linux restore used the same development host. The designated NAS was
+unmounted, so off-machine custody remains open.
