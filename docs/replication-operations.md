@@ -77,6 +77,12 @@ a lease competitor or I/O error can interrupt maintenance. After any error, keep
 serving stopped, reopen with `status`, verify the authoritative receipt and retry
 maintenance only after recovery succeeds. Never select another image as fallback.
 
+These commands can report an I/O error while writing their output. If
+initialization, cleanup or compaction reached its storage operation, an
+output failure can leave the operation complete. Reopen with `status` to
+verify the selected receipt before retrying. Structured output errors
+use the `local_command` phase.
+
 The [capped ext4 fault drill](follower-installation-profile.md#ext4-writeback-errors-during-follower-maintenance)
 verified that either recovered canonical manifest reports the exact
 selected receipt. It also reproduced an inactive file returning after

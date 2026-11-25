@@ -67,6 +67,14 @@ fn ack_line(ack: Option<DurableAck>) -> String {
         None => "follower empty".into(),
     }
 }
+fn print_report(args: std::fmt::Arguments<'_>) -> AppResult<()> {
+    diagnostics::at(Phase::LocalCommand, || {
+        let mut output = io::stdout().lock();
+        writeln!(output, "{args}")?;
+        output.flush()?;
+        Ok(())
+    })
+}
 fn transport(dir: &OsStr, pin: &OsStr) -> AppResult<Tls> {
     let credentials =
         diagnostics::at(Phase::CredentialsLoad, || Credentials::load(Path::new(dir)))?;
@@ -126,8 +134,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let f = diagnostics::storage(Phase::StorageCreate, || {
                 Follower::create(dir, e, Limits::default())
             })?;
-            println!("{}", ack_line(f.progress()?));
-            Ok(())
+            print_report(format_args!("{}", ack_line(f.progress()?)))
         }
         [c, dir, stream, file] if c == "status" => {
             let e = enrollment(stream, file)?;
@@ -135,12 +142,14 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 Follower::open(dir, e, Limits::default())
             })?;
             let s = f.status()?;
-            println!("{}", ack_line(s.durable_ack));
-            println!(
-                "status requires_recovery={} manifest_bytes={} maintenance_required={} selected_slot={:?}",
-                s.requires_recovery, s.manifest_bytes, s.maintenance_required, s.selected_slot
-            );
-            Ok(())
+            print_report(format_args!(
+                "{}\nstatus requires_recovery={} manifest_bytes={} maintenance_required={} selected_slot={:?}",
+                ack_line(s.durable_ack),
+                s.requires_recovery,
+                s.manifest_bytes,
+                s.maintenance_required,
+                s.selected_slot
+            ))
         }
         [c, dir, stream, file] if c == "cleanup-inactive" => {
             let e = enrollment(stream, file)?;
@@ -148,9 +157,10 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 Follower::open(dir, e, Limits::default())
             })?;
             let removed = diagnostics::storage(Phase::Maintenance, || f.cleanup_inactive())?;
-            println!("maintenance removed_inactive={removed}");
-            println!("{}", ack_line(f.progress()?));
-            Ok(())
+            print_report(format_args!(
+                "maintenance removed_inactive={removed}\n{}",
+                ack_line(f.progress()?)
+            ))
         }
         [c, dir, stream, file] if c == "compact-manifest" => {
             #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -162,12 +172,12 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 let before = f.status()?.manifest_bytes;
                 let f = diagnostics::storage(Phase::Maintenance, || f.compact_manifest())?;
                 let after = f.status()?;
-                println!(
-                    "maintenance manifest_before={before} manifest_after={} maintenance_required={}",
-                    after.manifest_bytes, after.maintenance_required
-                );
-                println!("{}", ack_line(after.durable_ack));
-                Ok(())
+                print_report(format_args!(
+                    "maintenance manifest_before={before} manifest_after={} maintenance_required={}\n{}",
+                    after.manifest_bytes,
+                    after.maintenance_required,
+                    ack_line(after.durable_ack)
+                ))
             }
             #[cfg(windows)]
             {

@@ -37,6 +37,18 @@ fn run(args: &[&str]) -> String {
     );
     String::from_utf8(output.stdout).unwrap()
 }
+fn run_with_closed_stdout(mut command: Command) {
+    let (reader, writer) = std::io::pipe().unwrap();
+    drop(reader);
+    let failed_output = command.stdout(writer).output().unwrap();
+    assert!(!failed_output.status.success());
+    let error = String::from_utf8(failed_output.stderr).unwrap();
+    assert_eq!(error.lines().count(), 1, "{error}");
+    assert!(
+        error.contains(r#""phase":"local_command","category":"io""#),
+        "{error}"
+    );
+}
 struct Server(Child);
 impl Drop for Server {
     fn drop(&mut self) {
@@ -137,6 +149,19 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         run(&["follower-init", follower, stream, identity]),
         "follower empty\n"
     );
+    let silent_follower = dir.0.join("follower-with-closed-stdout");
+    fs::create_dir(&silent_follower).unwrap();
+    let silent_follower = silent_follower.to_str().unwrap();
+    let mut init = Command::new(BIN);
+    init.args([
+        "--diagnostics=json",
+        "follower-init",
+        silent_follower,
+        stream,
+        identity,
+    ]);
+    run_with_closed_stdout(init);
+    assert!(run(&["status", silent_follower, stream, identity]).starts_with("follower empty\n"));
     let a = dir.0.join("a");
     let b = dir.0.join("b");
     credentials(&a);
@@ -261,6 +286,43 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         assert_eq!(fs::read(&inactive).unwrap(), b"abandoned incomplete image");
         assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
     }
+    let maintenance_with_closed_stdout = |verb| {
+        let mut command = Command::new(BIN);
+        command.args(["--diagnostics=json", verb, follower, stream, identity]);
+        run_with_closed_stdout(command);
+    };
+    fs::remove_file(&inactive).unwrap();
+    fs::create_dir(&inactive).unwrap();
+    let rejected = Command::new(BIN)
+        .args([
+            "--diagnostics=json",
+            "cleanup-inactive",
+            follower,
+            stream,
+            identity,
+        ])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(rejected.stdout.is_empty());
+    let detail = String::from_utf8(rejected.stderr).unwrap();
+    assert!(
+        detail.contains(r#""phase":"storage_maintenance","category":"engine","code":"Invalid""#),
+        "{detail}"
+    );
+    assert!(inactive.is_dir());
+    assert_eq!(fs::read(&manifest).unwrap(), before);
+    assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    fs::remove_dir(&inactive).unwrap();
+    fs::write(&inactive, b"abandoned incomplete image").unwrap();
+    maintenance_with_closed_stdout("status");
+    assert_eq!(fs::read(&manifest).unwrap(), before);
+    assert_eq!(fs::read(&inactive).unwrap(), b"abandoned incomplete image");
+    maintenance_with_closed_stdout("cleanup-inactive");
+    assert!(!inactive.exists());
+    assert_eq!(fs::read(&manifest).unwrap(), before);
+    assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    fs::write(&inactive, b"abandoned incomplete image").unwrap();
     let cleaned = run(&["cleanup-inactive", follower, stream, identity]);
     assert!(cleaned.contains("maintenance removed_inactive=1"));
     assert!(cleaned.lines().any(|line| line == ack));
@@ -284,6 +346,14 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         let compacted = run(&["compact-manifest", follower, stream, identity]);
         assert!(compacted.contains("maintenance_required=false"));
         assert!(compacted.lines().any(|line| line == ack));
+        assert!(fs::metadata(&manifest).unwrap().len() < MANIFEST_LIMIT_BYTES);
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&manifest)
+            .unwrap()
+            .set_len(MANIFEST_LIMIT_BYTES)
+            .unwrap();
+        maintenance_with_closed_stdout("compact-manifest");
         assert!(fs::metadata(&manifest).unwrap().len() < MANIFEST_LIMIT_BYTES);
     }
     #[cfg(windows)]
@@ -392,18 +462,6 @@ fn native_captured_export_survives_sender_kill_and_primary_advancement() {
     let stalled = TcpListener::bind("127.0.0.1:0").unwrap();
     stalled.set_nonblocking(true).unwrap();
     let stalled_address = stalled.local_addr().unwrap().to_string();
-    let run_with_closed_stdout = |mut command: Command| {
-        let (reader, writer) = std::io::pipe().unwrap();
-        drop(reader);
-        let failed_output = command.stdout(writer).output().unwrap();
-        assert!(!failed_output.status.success());
-        let error = String::from_utf8(failed_output.stderr).unwrap();
-        assert_eq!(error.lines().count(), 1, "{error}");
-        assert!(
-            error.contains(r#""phase":"local_command","category":"io""#),
-            "{error}"
-        );
-    };
     let mut closed_ship = Command::new(BIN);
     closed_ship
         .arg("--diagnostics=json")
