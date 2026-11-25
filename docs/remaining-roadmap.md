@@ -601,3 +601,7 @@ includes passive snapshots, fixed two-actor CRDT peers and the coordinator.
 
 All 21 Cargo manifests remain `publish = false`. Crates.io publication is not
 authorized. Project naming and publication can be decided independently later.
+
+The [accelerated month at 5f49a59](monthly-workload.md#recovery-checkpoint-at-5f49a59)
+adds three same-source workload runs to R3, including Docker Linux/ext4 with
+a macOS client. The supported deployment and its sustained soak remain open.

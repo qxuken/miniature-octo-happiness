@@ -196,3 +196,24 @@ peaked at 32,129,024 bytes, excluding remote descendants. These are recorded
 samples with concurrent development activity, not latency guarantees or a
 controlled before/after benchmark. The full state/retention/restore oracle and
 repeat-sync no-commit checks passed.
+
+## Recovery checkpoint at 5f49a59
+
+Three accelerated 30-day runs used engine commit
+`5f49a590bd7048e5ba6dea79c5544eb7e7264b70`. The cross-platform run used a
+Docker Linux server with an ext4 data volume, two CPUs and a 2 GiB container
+limit, and a native macOS client on the same development host. The live-byte
+cap applies to engine-accounted allocations on each peer.
+
+| Server and client | Core cap per peer | Wall time | Successful transaction p95 | Slowest of two restores |
+| --- | ---: | ---: | ---: | ---: |
+| macOS / macOS | Default | 37.95 s | 9.976 ms | 28.403 ms |
+| macOS / macOS | 16 MiB | 38.92 s | 9.972 ms | 29.291 ms |
+| Docker Linux / macOS | 16 MiB | 44.33 s | 9.079 ms | 29.033 ms |
+
+Each run sampled 112 successful transaction timings. Both capped runs
+reported a maximum core allocation of 1,554,547 bytes. All three verified
+the same final state and 30 retained roots per peer after 60 conflicts,
+60 retries, eight process interruptions and 120 sync sessions.
+Each row represents one run. Production hardware, a sustained soak and
+owner-approved latency and resource budgets remain open under R3.
