@@ -12622,6 +12622,42 @@
       "occurrence": 2,
       "matches": 5,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-catalog-read-retained-snapshot-lookup",
+      "file": "src/engine.rs",
+      "old": "state\n            .retention\n            .entries\n            .iter()\n            .find(|r| r.id == id)\n            .ok_or(Error::NotFound)?",
+      "new": "state\n            .retention\n            .entries\n            .iter()\n            .find(|r| r.id == id)\n            .ok_or(Error::NotFound).map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "retained_catalog_reads_preserve_state_when_listing_allocation_fails"
+    },
+    {
+      "name": "r1-catalog-read-retained-ids-listing",
+      "file": "src/engine.rs",
+      "old": "self.retained_ids_owned()?",
+      "new": "self.retained_ids_owned().map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "retained_catalog_reads_preserve_state_when_listing_allocation_fails"
+    },
+    {
+      "name": "r1-catalog-read-retained-ids-owned-reserve",
+      "file": "src/engine.rs",
+      "old": "self.mem.reserve(&mut ids, state.retention.entries.len())?",
+      "new": "self.mem.reserve(&mut ids, state.retention.entries.len()).map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "retained_catalog_reads_preserve_state_when_listing_allocation_fails"
     }
   ]
 }

@@ -70,6 +70,36 @@ fn historical_retain_release_and_live_lifetimes_survive_reopening() {
 }
 
 #[test]
+fn retained_catalog_reads_preserve_state_when_listing_allocation_fails() {
+    let image = fixture();
+    let disk = SimulatedDisk::from_image(&image).unwrap();
+    let allocator = Arc::new(TestAllocator::default());
+    let options = DatabaseOptions::default().with_allocator(allocator.handle());
+    let db = Database::open_on_with_options(disk.clone(), options).unwrap();
+    let live = allocator.live_bytes();
+    let revision = db.snapshot().revision();
+    let operations = disk.trace().unwrap().len();
+    let (result, requests) = allocator.count_with_refusal(0, || {
+        assert_eq!(db.retained_snapshot(2).err(), Some(Error::NotFound));
+        let historical = db.retained_snapshot(1).unwrap();
+        assert_eq!(bytes(&historical, &db), b"historical-only");
+        db.retained_ids()
+    });
+    assert_eq!(requests, 1);
+    assert_eq!(result, Err(Error::OutOfMemory));
+    assert_eq!(db.retained_ids().unwrap(), [1]);
+    assert_eq!(allocator.live_bytes(), live);
+    assert_eq!(db.snapshot().revision(), revision);
+    assert_eq!(disk.trace().unwrap().len(), operations);
+    assert_eq!(disk.durable_image().unwrap(), image);
+    drop(db);
+    assert_eq!(allocator.live(), 0);
+    let db = open(&disk);
+    assert_eq!(db.retained_ids().unwrap(), [1]);
+    assert_eq!(bytes(&db.snapshot(), &db), b"current");
+}
+
+#[test]
 fn allocation_failure_during_retain_leaves_the_acknowledged_image() {
     let image = fixture();
     let disk = SimulatedDisk::from_image(&image).unwrap();
