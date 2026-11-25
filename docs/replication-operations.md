@@ -349,6 +349,10 @@ Per-peer fairness and deployment capacity require separate qualification.
 
 ### Unconfirmed transfer, restart and retry
 
+Retry notices are best-effort. When stderr is unavailable, the sender
+continues with the same export and attempt limit.
+[Snapshot retry qualification](decisions/snapshot-retry-current.md)
+
 The default is at most three attempts (`--attempts 1..3`) with 250 ms between
 attempts. They all retain the **same** in-memory Export and file lease, use
 fresh authenticated connections, and let the core reject inconsistent receipts.

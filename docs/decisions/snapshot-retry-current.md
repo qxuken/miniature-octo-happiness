@@ -71,3 +71,34 @@ current positions.
 | E | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:212:49– | 8623..8624 | try_propagation | main | Closing stdout prevents the first capture line and reports an I/O diagnostic. A normal capture prints both exact lines. |
 | C | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:232:14– | 9109..9120 | match_guard | main | The exact verb reaches its phase. Changing only the verb returns usage and preserves the directory. |
 | C | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:257:14– | 9907..9927 | match_guard | main | The exact verb reaches its phase. Changing only the verb returns usage and preserves the directory. |
+
+## Verification
+
+Frozen source `10151aaabc5d8b3c379cc85559da5c46c268c53c` passed with
+Rust 1.100.0 on arm64 macOS and arm64 Docker Linux/ext4. Each debug
+and release profile passed 53 snapshot CLI tests on macOS, 54 on
+Linux and 11 core replication tests on both. The separately qualified
+long manifest and Linux exhaustion cases remained opt-in. Strict
+Clippy passed on both hosts. Five Windows x64 MSVC debug targets
+cross-linked.
+
+All 15 selected controls reached their expected assertions in every
+campaign. Removing either retry condition changed the stopped result.
+Restoring a panicking retry notice reproduced the broken-pipe failure.
+Fresh extraction verified 216 command reports and all 981 copied
+source files per campaign. [Archive checksums](snapshot-retry-10151aa.sha256)
+
+The inventory has five newly qualified retry records and retains the
+earlier snapshot command evidence. It leaves 414 runtime and 7,514
+tooling gaps.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p weekend-replicate
+cargo test --offline --locked --all-features -p weekend-db --test replication
+cargo xtask mutations --toolchain 1.100.0 --case r1-snapshot-retry- \
+  --case r1-snapshot-command-output- --case r1-snapshot-startup- \
+  --case r1-snapshot-dispatch- --output "$OUTPUT/debug"
+```
+
+Repeat with `--release` and a fresh mutation output path.

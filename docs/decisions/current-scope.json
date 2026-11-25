@@ -426,7 +426,7 @@
     "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403",
     "docs/decisions/snapshot-readiness-current.md": "4cf929aaac0c358c0e2188b9b64f06718e981d7a89b606ea35f6faac1fb2027a",
     "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719",
-    "docs/decisions/snapshot-retry-current.md": "607d07e8805c2157dbd2cec7c2fa05478b1ec7acb007ff0bcfd756d5e4523128"
+    "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

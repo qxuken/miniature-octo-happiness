@@ -2193,3 +2193,16 @@ Both profiles passed on macOS and Docker Linux/ext4 with twelve controls,
 and the Windows debug targets cross-linked. The ledger has 419 runtime
 and 7,514 tooling gaps.
 [Command output ledger](decisions/snapshot-command-output-current.md)
+
+### Snapshot retry and notice output
+
+At `10151aa`, a failed retry notice leaves the authenticated transfer
+and its attempt limit intact. The retry predicate has independent
+permanent-error and exhausted-attempt controls. An interrupted
+authenticated exchange reconnects with the same export, and the
+receiver reopens with the exact durable receipt and retained root.
+
+Both profiles passed on macOS and Docker Linux/ext4, including 15
+selected controls. Five Windows debug targets cross-linked.
+Reconciliation leaves 414 runtime and 7,514 tooling gaps.
+[Retry ledger](decisions/snapshot-retry-current.md)
