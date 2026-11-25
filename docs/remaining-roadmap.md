@@ -1659,3 +1659,25 @@ was detected in debug and release on both platforms. The
 detections, 72 supervised commands and the test and reconciliation logs.
 The [decision ledger](decisions/snapshot-dispatch-current.md) reduces the
 runtime gap count to 717. There are 7,428 tooling gaps.
+
+### Follower maintenance output and full-storage reopen
+
+At `b433500`, follower initialization, status, inactive-file cleanup and
+manifest compaction report a closed stdout pipe as a structured I/O error.
+The native test reproduced a panic before the change. With the fix, a new
+process reopened the initialized follower and reported it empty. On an
+installed follower, cleanup removed only the inactive file and compaction
+reduced the manifest. Reopen recovered the same durable receipt and verified
+current and retained data. An inactive directory produced a maintenance-phase
+error and stayed in place.
+
+All 48 ordinary tests passed per macOS arm64 profile and 49 per Docker Linux
+arm64 profile in debug and release. Both Linux profiles also passed the
+separate 8 MiB tmpfs exhaustion test. Staging and selection failures in
+plain and structured CLI modes reopened revision 4 while the device was
+full. Freeing space allowed the exact captured image to install at revision
+5. Replaying returned the same receipt. The
+[archive manifest](decisions/maintenance-output-b433500.sha256) covers the
+before and after logs, source bundle and reconciliation. The
+[decision ledger](decisions/snapshot-maintenance-output-current.md) leaves
+715 unclassified runtime records and 7,428 tooling records.
