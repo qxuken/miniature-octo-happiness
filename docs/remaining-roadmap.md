@@ -2206,3 +2206,10 @@ Both profiles passed on macOS and Docker Linux/ext4, including 15
 selected controls. Five Windows debug targets cross-linked.
 Reconciliation leaves 414 runtime and 7,514 tooling gaps.
 [Retry ledger](decisions/snapshot-retry-current.md)
+
+### Native Windows receive and readiness confirmation
+
+PR #82 head `06fb27c` passed the minimum-Rust Windows job. Artifact
+logs confirm the revised Study receive and listener-retirement tests
+and the snapshot readiness regression in debug and release at the
+exact tested merge. [Windows proof checksums](decisions/windows-msrv-06fb27c.sha256)

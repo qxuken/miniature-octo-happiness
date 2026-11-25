@@ -72,3 +72,12 @@ command reports and all 977 copied files per campaign. Nine Windows
 x64 MSVC test targets cross-linked in each profile. The next hosted
 run will exercise the corrected regression on Windows.
 [Archive checksums](study-receive-lease-bbe1fcd.sha256)
+
+## Native Windows confirmation
+
+PR #82 at `06fb27c` passed the native Windows Rust 1.100.0 job at test
+merge `f9d6feb54bdadb4e0a8e29a972219cad838f55c0`. The Windows artifact
+contains the passing corrected disconnect/retry test and queued-listener
+test in both debug and release. The packaged source matches the exact
+fixture bytes in the tested merge and PR head.
+[Native minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45706498857/job/139529935557), [Archive checksums](windows-msrv-06fb27c.sha256)

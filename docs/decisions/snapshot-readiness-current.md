@@ -109,3 +109,12 @@ cargo xtask mutations --toolchain 1.100.0 --case r1-snapshot-startup- \
 ```
 
 Repeat with `--release` and a fresh mutation output path.
+
+## Native Windows confirmation
+
+The native Rust 1.100.0 Windows job at PR #82 head `06fb27c` passed the
+snapshot CLI enrollment, bounded server, restart and polling regression
+in both profiles. The closed readiness pipe and native bind error checks
+were part of that regression. The downloaded artifact matches the exact
+snapshot CLI source and test bytes at the test merge and PR head.
+[Native minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45706498857/job/139529935557), [Archive checksums](windows-msrv-06fb27c.sha256)

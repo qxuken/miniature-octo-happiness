@@ -420,11 +420,11 @@
     "docs/decisions/study-service-launch-current.md": "d271a3fcbcfeefc1ec3871c3f3b6b5e7c0bc60b8cf028a47a19bafb147874ca7",
     "docs/decisions/study-service-shutdown-current.md": "f30d9f7b68de9ffe6037ed386e8779adbee16b2af41661ba9812cb6b83588330",
     "docs/decisions/study-windows-fixtures-current.md": "97531770ea0ada7b26b432ceec1f4d13f894329ea40557c989eb6a6760339493",
-    "docs/decisions/study-receive-current.md": "5de3dfc7f1614944b5a3c6a184c49a3625e54de52142036eb73f5827d7653e09",
+    "docs/decisions/study-receive-current.md": "e301b078a8ee73cf68f5397a27b7b91a3b7b78cb1ace39cab241e2054d42901f",
     "docs/decisions/coordinator-connection-handoff-current.md": "c82b333c26f1e9f1cf0369127eadcb6f1206dfc7d891e5f8b81a08cc686cefa5",
     "docs/decisions/credential-file-admission-current.md": "b53ddc975a9d003124345dd1f8aadb4a268d2c4024ba1290d51009ab0c119962",
     "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403",
-    "docs/decisions/snapshot-readiness-current.md": "4cf929aaac0c358c0e2188b9b64f06718e981d7a89b606ea35f6faac1fb2027a",
+    "docs/decisions/snapshot-readiness-current.md": "9251f7f597712c3e86073a96df9e584384cabe3cf2991fd57f4eb87dfe395b3d",
     "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719",
     "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679"
   },
