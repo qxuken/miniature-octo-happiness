@@ -820,3 +820,29 @@ runs. The exact workflow shell step passed all three profiles in a fresh
 shallow macOS checkout, including retrieval of the historical objects.
 Actionlint 1.7.12 passed. The new hosted release job still needs its first
 execution, including native Windows.
+
+### Distributed CLI upgrades at 4a37229
+
+Native macOS arm64 and Docker Linux arm64 on ext4 passed both CLI upgrade
+profiles against candidate `4a37229`.
+
+- Snapshot replication from `315068f` produced durable follower receipts for
+  revisions 3, 4 and 5 and preserved retained revision 2. With an incorrect
+  certificate pin, local capture reached 4 while the follower stayed at 3
+  with identical files. Repeat polling also left its files unchanged.
+- Study peers from `fb80989` converged before upgrade. During a mixed-version
+  sync, protocol negotiation failed with zero acknowledgments and preserved
+  local commits. After both peers upgraded, they converged on total 36, goal
+  80, limit 20 and lessons 1–4. Both retained roots survived. Repeating sync
+  and restarting added no commit. Controller `9554b4c` qualified the
+  test-only module addition using actual release build dependencies. The
+  earlier controller stopped before launching the peers.
+- Fresh extraction verified 205 snapshot artifact hashes and 45 Study
+  artifact hashes per platform, the three exported snapshot digests, both
+  Study dependency files and the absence of private key files. The
+  [checksum manifest](delivery-checkpoint-4a37229.sha256) identifies both
+  archives and the controller source bundle.
+
+The five-profile release workflow shell step also passed in a fresh shallow
+macOS checkout at `9554b4c`. Hosted release execution and native Windows
+results for the selected endpoints remain open.

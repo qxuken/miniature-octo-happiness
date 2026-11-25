@@ -223,3 +223,10 @@ requires no live descendant; an already-dead reparented zombie is permitted
 because only its OS parent can reap it. Corrupted copied bytes and a mismatched
 worker source inventory each reject, alongside a valid-copy acceptance control.
 Earlier results are not relabeled under the corrected helper.
+
+The controller at `9554b4c` inventories both source archives and compares
+the production CRDT modules. The candidate added unit tests in
+`src/crdt/decisions.rs`. For each endpoint the controller saves the Cargo
+release binary dependency file and checks that it lists the CRDT root and
+multi-value register and excludes the test module. The evidence-copy check
+repeats this check on the saved files.

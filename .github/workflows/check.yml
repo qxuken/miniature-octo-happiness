@@ -595,7 +595,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install the qualification compiler
-        run: rustup toolchain install 1.100.0 --profile minimal
+        run: rustup toolchain install 1.100.0 --profile minimal --component clippy
       - name: Check historical consumers against the selected candidate
         shell: bash
         run: |
@@ -604,17 +604,24 @@ jobs:
           candidate=$(git rev-parse HEAD)
           test "$candidate" = "$(git rev-parse "$GITHUB_SHA^{commit}")"
           result=0
-          for profile in storage snapshot typed; do
+          for profile in storage snapshot typed snapshot-cli study-cli; do
             case "$profile" in
               storage) historical=a7dc34309a8841ab3ee72fd88b9cae9281507b7c ;;
               snapshot) historical=dcd2402adeb034f15a5293c52238524ace9c4070 ;;
               typed) historical=1ca5e5ab63a2772f679c7186e2d84fba3ac0a534 ;;
+              snapshot-cli) historical=315068fc38b99d8ec616fdb5a8ee81107b471534 ;;
+              study-cli) historical=fb80989d98bd977743168ee10418a434a67a0261 ;;
             esac
             git fetch --no-tags --depth=1 origin "$historical"
             inputs=$(mktemp -d)
             git archive "$historical" | tar -x -C "$inputs"
             cargo +1.100.0 fetch --locked --manifest-path "$inputs/Cargo.toml"
-            cargo xtask compatibility --profile "$profile" --historical "$historical" --current "$candidate" --output "target/candidate-compatibility/$profile" || result=1
+            case "$profile" in
+              snapshot-cli) args=(snapshot-cli-upgrade --historical "$historical" --current "$candidate") ;;
+              study-cli) args=(study-cli-upgrade --new "$candidate") ;;
+              *) args=(compatibility --profile "$profile" --historical "$historical" --current "$candidate") ;;
+            esac
+            cargo xtask "${args[@]}" --output "target/candidate-compatibility/$profile" || result=1
           done
           exit "$result"
       - name: Retain compatibility evidence
@@ -627,6 +634,8 @@ jobs:
             target/candidate-compatibility/**
             !target/candidate-compatibility/*/source/**
             !target/candidate-compatibility/*/build/**
+            !target/candidate-compatibility/study-cli/work/**
+            !target/candidate-compatibility/**/key.der
   windows-maintenance-quota:
     name: Native Windows maintenance owner quota
     runs-on: windows-latest

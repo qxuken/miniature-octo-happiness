@@ -123,8 +123,8 @@ for the pinned pairs and artifact hashes.
 
 ## Release qualification
 
-A manual Engine checks run or a `v*` tag runs the three compatibility
-profiles on macOS, Linux and Windows. Each job checks the GitHub event
+A manual Engine checks run or a `v*` tag runs five compatibility
+profiles (storage, snapshot, typed, snapshot CLI and Study peer CLI) on macOS, Linux and Windows. Each job checks the GitHub event
 revision against its checkout, fetches the historical locks' dependencies
 and passes the checked-out commit to each offline qualification. The
 `candidate-compatibility` artifacts retain the endpoint identities, locks,
