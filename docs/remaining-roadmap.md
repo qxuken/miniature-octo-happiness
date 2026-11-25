@@ -1244,3 +1244,28 @@ execution evidence, 34 have invariant proofs, 16 share enclosing decisions
 and 37 delegate propagation to the engine. The current ledger has 1,631
 runtime, 26 driver and 7,397 tooling gaps. These counts describe source
 reconciliation; compiler-measured MC/DC remains open.
+
+### Logical export and restore decisions
+
+The [logical storage ledger](decisions/logical-storage-current.md) now
+accounts for all 152 source records. Four changed propagation sites have
+named controls. The other 148 retain their historical classifications.
+A separate mutation billed map iteration to the value's allocator. The
+new regression caught it by refusing allocation on the writer while the
+value's allocator remained available. Its success control checked the
+exact wire bytes of a nested map constructed in reverse key order.
+
+The physical-size preflight returned the expected error for a shared graph
+whose logical expansion exceeded the restore limits. The committed logical
+fixture also round-tripped byte for byte with its current and retained values.
+A separate exploratory mutation at the final output transfer survived.
+Source inspection confirmed that logical export's Global buffer is returned
+without a copy or allocation there. The earlier Global refusal path passed
+its dedicated test in both profiles on both hosts.
+
+On `bb9d47b`, macOS and Docker Linux each passed all five mutations in
+debug and release. Review of the [archived evidence](decisions/logical-storage-bb9d47b.sha256)
+checked 20 catches and 84 supervised commands. Each profile passed all
+12 integration tests and the output-refusal test. The selected storage
+unit suite passed 122 tests on macOS and 132 on Linux. Reconciliation
+leaves 1,479 runtime, 26 driver and 7,397 tooling gaps.
