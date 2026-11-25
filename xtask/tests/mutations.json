@@ -16989,6 +16989,66 @@
       "matches": 1,
       "package": "study-peer",
       "exact_test": "native::tests::service_launch_failure_stops_and_joins_an_already_started_receiver"
+    },
+    {
+      "name": "r1-study-service-shutdown-receiving-join",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::at(Phase::Shutdown, || {\n        received.map_err(|_| Error::Panic.into())\n    })?",
+      "new": "diagnostics::at(Phase::Shutdown, || {\n        received.map_err(|_| Error::Panic.into())\n    }).map_err(|_| Error::Invalid)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::shutdown_joins_both_service_workers_before_reporting_errors"
+    },
+    {
+      "name": "r1-study-service-shutdown-late-join-after-receiving-join",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "    let sent = outgoing.join();\n    let (received, diagnostic) = diagnostics::at(Phase::Shutdown, || {\n        received.map_err(|_| Error::Panic.into())\n    })?;\n",
+      "new": "    let (received, diagnostic) = diagnostics::at(Phase::Shutdown, || {\n        received.map_err(|_| Error::Panic.into())\n    })?;\n    let sent = outgoing.join();\n",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::shutdown_joins_both_service_workers_before_reporting_errors"
+    },
+    {
+      "name": "r1-study-service-shutdown-receiving-error",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::propagate(received, diagnostic)?",
+      "new": "diagnostics::propagate(received, diagnostic).map_err(|_| Error::Invalid)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::shutdown_joins_both_service_workers_before_reporting_errors"
+    },
+    {
+      "name": "r1-study-service-shutdown-late-join-after-receiving-error",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "    let sent = outgoing.join();\n    let (received, diagnostic) = diagnostics::at(Phase::Shutdown, || {\n        received.map_err(|_| Error::Panic.into())\n    })?;\n    diagnostics::propagate(received, diagnostic)?;\n",
+      "new": "    let (received, diagnostic) = diagnostics::at(Phase::Shutdown, || {\n        received.map_err(|_| Error::Panic.into())\n    })?;\n    diagnostics::propagate(received, diagnostic)?;\n    let sent = outgoing.join();\n",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::shutdown_joins_both_service_workers_before_reporting_errors"
+    },
+    {
+      "name": "r1-study-service-shutdown-outgoing-join",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::at(Phase::Shutdown, || sent.map_err(|_| Error::Panic.into()))?",
+      "new": "diagnostics::at(Phase::Shutdown, || sent.map_err(|_| Error::Panic.into())).map_err(|_| Error::Invalid)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::shutdown_joins_both_service_workers_before_reporting_errors"
     }
   ]
 }

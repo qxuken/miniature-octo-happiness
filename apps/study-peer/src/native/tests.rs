@@ -951,6 +951,92 @@ fn service_launch_failure_stops_and_joins_an_already_started_receiver() {
 }
 
 #[test]
+fn shutdown_joins_both_service_workers_before_reporting_errors() {
+    #[derive(Clone, Copy)]
+    enum Receive {
+        Complete,
+        Error,
+        Panic,
+    }
+
+    with_interactive_deadline(|| {
+        let mut arguments = vec!["--diagnostics=json".into(), "run".into()];
+        let settings = diagnostics::settings_from_args(diagnostics::App::Study, &mut arguments);
+        let local = ("local_command", "io", "broken_pipe", "local reply failed");
+        let receiving = ("incoming", "io", "connection_aborted", "receiver failed");
+        let panic = ("shutdown", "engine", "Panic", "Panic");
+        for (receive, panic_outgoing, fail_local, expected) in [
+            (Receive::Complete, false, false, None),
+            (Receive::Complete, false, true, Some(local)),
+            (Receive::Complete, true, true, Some(panic)),
+            (Receive::Panic, false, false, Some(panic)),
+            (Receive::Error, true, true, Some(receiving)),
+            (Receive::Panic, true, true, Some(panic)),
+        ] {
+            let stop = AtomicBool::new(false);
+            let receive_finished = AtomicBool::new(false);
+            let outgoing_finished = AtomicBool::new(false);
+            let wait_for_stop = || {
+                let deadline = Instant::now() + Duration::from_secs(4);
+                while !stop.load(Relaxed) {
+                    assert!(Instant::now() < deadline, "service worker did not stop");
+                    thread::park_timeout(Duration::from_millis(25));
+                }
+            };
+            let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+                thread::scope(|scope| {
+                    let receiver = scope.spawn(|| {
+                        wait_for_stop();
+                        receive_finished.store(true, Relaxed);
+                        diagnostics::capture(settings, Phase::Incoming, || match receive {
+                            Receive::Complete => Ok(()),
+                            Receive::Error => Err(io::Error::new(
+                                io::ErrorKind::ConnectionAborted,
+                                "receiver failed",
+                            )
+                            .into()),
+                            Receive::Panic => panic!("controlled receiver panic"),
+                        })
+                    });
+                    let outgoing = scope.spawn(|| {
+                        wait_for_stop();
+                        outgoing_finished.store(true, Relaxed);
+                        assert!(!panic_outgoing, "controlled outgoing worker panic");
+                    });
+                    let local = diagnostics::capture(settings, Phase::LocalCommand, || {
+                        if fail_local {
+                            return Err(io::Error::new(
+                                io::ErrorKind::BrokenPipe,
+                                "local reply failed",
+                            )
+                            .into());
+                        }
+                        Ok(())
+                    });
+                    finish_workers(&stop, receiver, outgoing, local)
+                })
+            });
+            assert!(receive_finished.load(Relaxed) && outgoing_finished.load(Relaxed));
+            if let Some((phase, category, code, text)) = expected {
+                assert_eq!(result.unwrap_err().to_string(), text);
+                assert!(
+                    diagnostic
+                        .unwrap()
+                        .json(settings)
+                        .to_string()
+                        .contains(&format!(
+                            "\"phase\":\"{phase}\",\"category\":\"{category}\",\"code\":\"{code}\""
+                        ))
+                );
+            } else {
+                result.unwrap();
+                assert!(diagnostic.is_none());
+            }
+        }
+    });
+}
+
+#[test]
 fn interactive_io_errors_stop_workers_and_preserve_commits() {
     with_interactive_deadline(|| {
         let invalid = interactive_case(b"peer\n\xff\n", false, true, false);

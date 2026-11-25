@@ -373,19 +373,30 @@ fn run_with_io<S: io::Read + Write>(
                 }
                 Ok(())
             });
-        stop.store(true, Relaxed);
-        receiving.thread().unpark();
-        outgoing.thread().unpark();
-        let (received, diagnostic) = diagnostics::at(Phase::Shutdown, || {
-            Ok(receiving.join().map_err(|_| Error::Panic)?)
-        })?;
-        diagnostics::propagate(received, diagnostic)?;
-        diagnostics::at(Phase::Shutdown, || {
-            outgoing.join().map_err(|_| Error::Panic)?;
-            Ok(())
-        })?;
-        diagnostics::propagate(result, local_diagnostic)
+        finish_workers(&stop, receiving, outgoing, (result, local_diagnostic))
     })
+}
+
+type ServiceOutcome = (AppResult<()>, Option<diagnostics::Diagnostic>);
+
+fn finish_workers(
+    stop: &AtomicBool,
+    receiving: thread::ScopedJoinHandle<'_, ServiceOutcome>,
+    outgoing: thread::ScopedJoinHandle<'_, ()>,
+    (result, local_diagnostic): ServiceOutcome,
+) -> AppResult<()> {
+    stop.store(true, Relaxed);
+    receiving.thread().unpark();
+    outgoing.thread().unpark();
+    // Join both workers before returning either error.
+    let received = receiving.join();
+    let sent = outgoing.join();
+    let (received, diagnostic) = diagnostics::at(Phase::Shutdown, || {
+        received.map_err(|_| Error::Panic.into())
+    })?;
+    diagnostics::propagate(received, diagnostic)?;
+    diagnostics::at(Phase::Shutdown, || sent.map_err(|_| Error::Panic.into()))?;
+    diagnostics::propagate(result, local_diagnostic)
 }
 
 fn launch_workers<'scope, 'env, T: Send + 'scope>(
