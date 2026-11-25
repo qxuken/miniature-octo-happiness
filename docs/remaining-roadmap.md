@@ -926,3 +926,25 @@ saved process reports and output lengths and verified process cleanup.
 The [checkpoint manifest](delivery-checkpoint-4a37229.sha256) pins the three
 downloaded archives. These results cover instrumented builds. The exact
 delivered libraries have their separate consumer traces.
+
+### R1 snapshot get, scan and count at 61a154a
+
+The existing `snapshot_collection_and_key_errors_have_valid_controls`
+test supplies the following pairs using one database and one snapshot.
+
+| Decision or propagation | Successful input | Rejected input |
+|---|---|---|
+| Shared key length guard and snapshot get propagation | Empty key at the configured zero-byte limit returns absence | One byte exceeds the limit and returns `Limit` |
+| Collection ownership for get, scan and count | Local collection passes ownership validation | The same numeric ID from another database returns `ForeignStore` |
+| Collection lookup for get, scan and count | Existing empty collection returns absence, empty rows or zero | Missing ID in the same database returns `NotFound` |
+
+Eight named mutations change the key boundary or substitute an incorrect
+error at one of the seven propagation sites. The named test caught all eight
+in debug and release on native macOS arm64 and Docker Linux arm64. Fresh
+extraction verified the source bindings, test diagnostics and process
+cleanup for 116 command receipts. The macOS archive SHA-256 is
+`f7be44f868693b1bbacb6c11989153c3172dda9eb0a870d6a4349be220a2668c`
+and the Linux archive SHA-256 is
+`fe401ab8c6c647eca464abcba75fbdd073b43ce1245b266557986c71f267a7d6`.
+Reconciliation found 10,639 decisions, zero binding failures and 1,850
+runtime, 26 driver and 7,396 tooling gaps. Compiler MC/DC remains open.
