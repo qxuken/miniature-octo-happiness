@@ -13554,6 +13554,78 @@
       "target": "--test",
       "test": "compaction",
       "exact_test": "files::admin_compaction_respects_the_lease_and_publishes_the_same_bytes_as_the_api"
+    },
+    {
+      "name": "r1-typed-key-collection-order",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "key.extend_from_slice(&records.to_le_bytes());",
+      "new": "key.extend_from_slice(&records.to_be_bytes());",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "models",
+      "exact_test": "scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip"
+    },
+    {
+      "name": "r1-typed-key-field-order",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "key.extend_from_slice(&field.to_le_bytes());",
+      "new": "key.extend_from_slice(&field.to_be_bytes());",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "models",
+      "exact_test": "scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip"
+    },
+    {
+      "name": "r1-typed-key-tag",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "key.push(value.kind() as u8);",
+      "new": "key.push(0);",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "models",
+      "exact_test": "scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip"
+    },
+    {
+      "name": "r1-typed-key-bool-width",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "&scalar[..1]",
+      "new": "&scalar[..2]",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "models",
+      "exact_test": "scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip"
+    },
+    {
+      "name": "r1-typed-key-float-order",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "scalar = value.as_f64()?.to_bits().to_le_bytes();",
+      "new": "scalar = value.as_f64()?.to_bits().to_be_bytes();",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "models",
+      "exact_test": "scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip"
+    },
+    {
+      "name": "r1-typed-key-reserve",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "reserve(&mut key, 17 + bytes.len())?",
+      "new": "reserve(&mut key, 17 + bytes.len()).map_err(|_| Error::NotIndexed(field))?",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "models",
+      "exact_test": "every_core_allocation_failure_aborts_primary_and_index_updates"
     }
   ]
 }
