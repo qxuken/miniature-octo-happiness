@@ -1569,3 +1569,26 @@ distinguished a clean rejection of the requested flag from an unrelated
 compiler failure with the same exit code. Both real compiler rejections and
 the synthetic failure were exercised through xtask; the condition fixture
 passed. Reconciliation leaves 758 runtime and 7,415 tooling gaps.
+
+### Local capture descriptor and Windows coordinator controls
+
+The [capture-record ledger](decisions/capture-record-current.md) binds the
+88-byte golden record, independent length and magic checks, and six cases
+that change one field of a valid saved descriptor. The genuine descriptor
+reopened the exact local export. At `4fda1a4` the 39 snapshot binary tests
+and three ordinary CLI tests passed in debug and release on macOS arm64.
+Docker Linux arm64 passed those and its additional ordinary process test in
+both profiles. The opt-in Linux exhaustion case was outside these runs.
+All three descriptor mutations failed their intended regression on both
+platforms in both profiles.
+
+PR CI on `c7b3271` exposed an obsolete whole-file hash in the Windows
+coordinator oracle. The four journal functions exercised by its eleven
+journal mutations were unchanged from the reviewed fixture. The oracle now
+pins the updated file and still checks all 32 coordinator controls. The eleven
+journal mutations failed with their exact expected assertion messages in
+both macOS profiles; native Windows verification belongs to the new PR run.
+Twenty mutation-runner regressions passed on macOS and Docker Linux. The
+[archive manifest](decisions/capture-record-4fda1a4.sha256) identifies the
+suites, mutation evidence and reconciliation. There are 746 unclassified
+runtime decisions and 7,415 tooling decisions.
