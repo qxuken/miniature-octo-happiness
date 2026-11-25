@@ -1717,3 +1717,21 @@ tree of `0940c22`. The FFI source matches the current revision. The
 mutation catches, 84 command receipts, the shared libraries, Windows logs
 and both reconciliations. There are 708 unclassified runtime decisions
 and 7,447 tooling decisions.
+
+### Native compaction setup and observer failure
+
+At `dfa1618`, four indexed allocation failures rejected compaction setup
+before calling the observer or touching the file. Each returned the
+allocator to baseline and preserved the exact source image. Valid setup
+compacted the file and reopened the original revision. The poisoned-hook
+test returned Panic before its operation could run. The held-file test
+reported Busy at Lock on Linux and at Open on macOS.
+
+All 41 native and integration tests passed per macOS arm64 profile and
+43 per Docker Linux arm64 profile. All six named mutations failed the
+intended tests in both profiles on both platforms. The
+[archive manifest](decisions/native-setup-dfa1618.sha256) covers 24
+mutation detections, 96 process receipts and reconciliation. That
+reconciliation leaves 699 runtime gaps and 7,447 tooling gaps. Linux also
+replayed the nine-round macOS soak proof and returned the same verified
+summary.
