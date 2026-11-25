@@ -414,6 +414,7 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
         references.contains_key("xtask/tests/mutations.json"),
         "mutation fixture must be pinned",
     )?;
+    coordinator_source_pins(root, &mutations, &sources, &references)?;
     let decisions = report["decisions"].as_array().ok_or("decisions required")?;
     let mut ids = BTreeSet::new();
     let source_bytes = sources
@@ -587,6 +588,55 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
     }
     Ok(result)
 }
+const COORDINATOR_ORACLE: &str = "xtask/tests/coordinator-windows-oracle.json";
+
+fn coordinator_source_pins(
+    root: &Path,
+    mutations: &Value,
+    sources: &BTreeMap<String, String>,
+    references: &BTreeMap<String, String>,
+) -> Result<()> {
+    let files = mutations["cases"]
+        .as_array()
+        .ok_or("mutation cases required")?
+        .iter()
+        .filter(|case| {
+            case["name"]
+                .as_str()
+                .is_some_and(|name| name.starts_with("r1-coordinator-"))
+        })
+        .map(|case| {
+            case["file"]
+                .as_str()
+                .ok_or("coordinator source path required")
+        })
+        .collect::<std::result::Result<BTreeSet<_>, _>>()?;
+    if files.is_empty() && !references.contains_key(COORDINATOR_ORACLE) {
+        return Ok(());
+    }
+    ensure(
+        references.contains_key(COORDINATOR_ORACLE),
+        "Windows coordinator oracle must be pinned",
+    )?;
+    let oracle: Value = serde_json::from_slice(&read(root, COORDINATOR_ORACLE)?)?;
+    let pins = oracle["source_sha256"]
+        .as_object()
+        .ok_or("Windows coordinator source pins required")?;
+    for file in &files {
+        let current = sources
+            .get(*file)
+            .ok_or_else(|| format!("Windows coordinator source outside inventory: {file}"))?;
+        ensure(
+            pins.get(*file).and_then(Value::as_str) == Some(current.as_str()),
+            format!("stale Windows coordinator source pin: {file}"),
+        )?;
+    }
+    ensure(
+        !files.is_empty() && files.len() == pins.len(),
+        "Windows coordinator oracle source set differs from mutation inventory",
+    )
+}
+
 pub(super) fn markdown(review: &Value) -> String {
     let mut out = format!(
         "# Current source reconciliation\n\nBaseline `{}`. References preserve their original scope; source matching does not establish test execution or compiler MC/DC.\n\n| Scope | Source records |\n|---|---:|\n",
@@ -729,6 +779,52 @@ mod tests {
             fs::remove_dir_all(&self.root).unwrap();
         }
     }
+    #[test]
+    fn windows_coordinator_oracle_must_match_the_current_reviewed_source() {
+        let mut fixture = Fixture::new();
+        let mutation_path = "xtask/tests/mutations.json";
+        let mut mutations: Value =
+            serde_json::from_slice(&read(&fixture.root, mutation_path).unwrap()).unwrap();
+        mutations["cases"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"name":"r1-coordinator-fixture","file":"lib.rs"}));
+        let bytes = serde_json::to_vec(&mutations).unwrap();
+        fs::write(fixture.root.join(mutation_path), &bytes).unwrap();
+        fixture.manifest["reference_files"][mutation_path] = json!(hash(&bytes));
+        assert!(
+            fixture
+                .review()
+                .unwrap_err()
+                .to_string()
+                .contains("oracle must be pinned")
+        );
+
+        let source = fixture.manifest["source_files"]["lib.rs"].clone();
+        for (pins, expected_error) in [
+            (json!({"lib.rs":source}), None),
+            (
+                json!({"lib.rs":"0".repeat(64)}),
+                Some("stale Windows coordinator source pin: lib.rs"),
+            ),
+            (
+                json!({"lib.rs":source, "unused.rs":"0".repeat(64)}),
+                Some("source set differs"),
+            ),
+        ] {
+            let bytes = serde_json::to_vec(&json!({"source_sha256":pins})).unwrap();
+            fs::write(fixture.root.join(COORDINATOR_ORACLE), &bytes).unwrap();
+            // Even a current outer pin must not authorize an obsolete inner pin.
+            fixture.manifest["reference_files"][COORDINATOR_ORACLE] = json!(hash(&bytes));
+            let result = fixture.review();
+            if let Some(expected_error) = expected_error {
+                assert!(result.unwrap_err().to_string().contains(expected_error));
+            } else {
+                result.unwrap();
+            }
+        }
+    }
+
     #[test]
     fn historical_rows_require_exact_positions_owners_and_target_profiles() {
         let f = Fixture::new();
