@@ -930,12 +930,20 @@ fn main() {
     assert!((2..=7).contains(&args.len()));
     let dir = Path::new(&args[1]);
     #[cfg(unix)]
-    if args.len() == 4 && args[2] == "--" {
-        match args[3].to_str().unwrap() {
-            "breadth" => return breadth::run(dir),
-            "breadth-sustained" => return breadth::sustained::run(dir, false),
-            "breadth-arrivals" => return breadth::sustained::run(dir, true),
-            _ => {}
+    if args.get(2).is_some_and(|arg| arg == "--") {
+        match &args[3..] {
+            [mode] if mode == "breadth" => return breadth::run(dir),
+            [mode] if mode == "breadth-sustained" => return breadth::sustained::run(dir, None),
+            [mode] if mode == "breadth-arrivals" => {
+                return breadth::sustained::run(dir, Some(500));
+            }
+            [mode, period] if mode == "breadth-arrivals" => {
+                return breadth::sustained::run(
+                    dir,
+                    Some(period.to_str().unwrap().parse().unwrap()),
+                );
+            }
+            _ => panic!("invalid breadth workload arguments"),
         }
     }
     if args.len() >= 4 {

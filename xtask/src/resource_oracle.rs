@@ -342,13 +342,23 @@ pub(crate) fn latency_samples(mut samples: Vec<u64>) -> Value {
 }
 
 #[cfg(unix)]
-const ARRIVALS_PER_LANE: usize = 1536;
+const ARRIVAL_WINDOW_US: u64 = 768_000;
 #[cfg(unix)]
-const PERIOD_NS: u64 = 500_000;
+pub(crate) const DEFAULT_ARRIVAL_PERIOD_US: u64 = 500;
+
+#[cfg(unix)]
+pub(crate) fn arrivals_per_lane(period_us: u64) -> Result<usize> {
+    ensure!(
+        (250..=1_000).contains(&period_us) && ARRIVAL_WINDOW_US.is_multiple_of(period_us),
+        "arrival period must divide 768000 us and be between 250 and 1000 us"
+    );
+    Ok((ARRIVAL_WINDOW_US / period_us) as usize)
+}
 
 #[cfg(unix)]
 #[derive(Default)]
 struct ArrivalTimings {
+    period_ns: u64,
     queue: Vec<u64>,
     dispatch: Vec<u64>,
     service: Vec<u64>,
@@ -367,7 +377,7 @@ impl ArrivalTimings {
         done: u64,
         wall: u64,
     ) -> Result<()> {
-        let due = index as u64 * PERIOD_NS;
+        let due = index as u64 * self.period_ns;
         let ready = due.max(prior_done);
         ensure!(
             ready <= began && began <= done && done <= wall,
@@ -382,7 +392,7 @@ impl ArrivalTimings {
         self.dispatch.push(began - ready);
         self.service.push(service);
         self.response.push(done - due);
-        self.drained += usize::from(done >= ARRIVALS_PER_LANE as u64 * PERIOD_NS);
+        self.drained += usize::from(done >= ARRIVAL_WINDOW_US * 1_000);
         Ok(())
     }
 
@@ -414,7 +424,8 @@ fn sustained_readers(row: &Value, arrivals: bool) -> Result<Vec<Vec<[u64; 7]>>> 
 }
 
 #[cfg(unix)]
-pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result<Value> {
+pub fn sustained_breadth(rows: &[Value], source: &str, period_us: Option<u64>) -> Result<Value> {
+    let arrivals = period_us.is_some();
     let profile = if arrivals {
         "breadth-arrivals"
     } else {
@@ -425,10 +436,15 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
         "incomplete sustained breadth cycles or wrong build identity"
     );
     let mut start_bytes = 58_523_648;
+    let mut expected_seed = json!({"phase":"sustained_seed","revision":133,"digest":breadth_digest(133),"file_bytes":start_bytes});
+    let requests = period_us.map(arrivals_per_lane).transpose()?;
+    if let Some(period_us) = period_us {
+        expected_seed["arrival_period_us"] = json!(period_us);
+        expected_seed["arrivals_per_lane"] = json!(requests.unwrap());
+    }
     ensure!(
-        rows[0]
-            == json!({"phase":"sustained_seed","revision":133,"digest":breadth_digest(133),"file_bytes":start_bytes}),
-        "invalid sustained breadth seed"
+        rows[0] == expected_seed,
+        "invalid sustained breadth seed or arrival schedule"
     );
     let mut commits = Vec::new();
     let mut acquisitions = Vec::new();
@@ -436,7 +452,10 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
     let mut compactions = Vec::new();
     let mut reopens = Vec::new();
     let mut intermediate_revisions = 0;
-    let mut schedule = ArrivalTimings::default();
+    let mut schedule = period_us.map(|period| ArrivalTimings {
+        period_ns: period * 1_000,
+        ..Default::default()
+    });
     for (index, row) in rows[1..9].iter().enumerate() {
         let cycle = index as u64 + 1;
         let start = 133 + 48 * (cycle - 1);
@@ -493,9 +512,9 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
         }
         let mut seen = std::collections::BTreeSet::new();
         for samples in readers {
-            if arrivals {
+            if let Some(requests) = requests {
                 ensure!(
-                    samples.len() == ARRIVALS_PER_LANE,
+                    samples.len() == requests,
                     "scheduled requests missing or duplicated"
                 );
             } else {
@@ -519,7 +538,7 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
                     states[(revision - start) as usize] == [a, b, c],
                     "reader observed a state inconsistent with the acknowledged order"
                 );
-                if arrivals {
+                if let Some(schedule) = &mut schedule {
                     schedule.record(i, prior_done, ns, began, done, wall)?;
                     prior_done = done;
                 }
@@ -549,7 +568,7 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
         "reopen":latency_samples(reopens),
         "intermediate_revisions":intermediate_revisions
     });
-    if arrivals {
+    if let Some(schedule) = schedule {
         summary["arrivals"] = schedule.summary();
     }
     Ok(summary)
@@ -1199,26 +1218,26 @@ mod tests {
             }));
         }
         rows.push(completion("breadth-sustained", "sample"));
-        let summary = sustained_breadth(&rows, "sample", false).unwrap();
+        let summary = sustained_breadth(&rows, "sample", None).unwrap();
         assert_eq!(summary["commits"]["count"], 384);
         assert_eq!(summary["snapshot_acquisition"]["count"], 96);
         assert_eq!(summary["snapshot_acquisition"]["zero_ticks"], 32);
         assert_eq!(summary["snapshot_acquisition"]["p99_ns"], 9);
         assert_eq!(summary["revision_transition_acquisition"]["count"], 64);
         assert_eq!(summary["revision_transition_acquisition"]["p99_ns"], 8);
-        assert!(sustained_breadth(&rows[..9], "sample", false).is_err());
+        assert!(sustained_breadth(&rows[..9], "sample", None).is_err());
 
         let mut bad = rows.clone();
         bad[1]["readers"][0][1][2] = json!(0);
-        assert!(sustained_breadth(&bad, "sample", false).is_err());
+        assert!(sustained_breadth(&bad, "sample", None).is_err());
         bad = rows.clone();
         bad[8]["writers"][0][0][0] = bad[8]["writers"][1][0][0].clone();
-        assert!(sustained_breadth(&bad, "sample", false).is_err());
+        assert!(sustained_breadth(&bad, "sample", None).is_err());
         bad = rows.clone();
         for reader in bad[1]["readers"].as_array_mut().unwrap() {
             reader.as_array_mut().unwrap().drain(1..3);
         }
-        assert!(sustained_breadth(&bad, "sample", false).is_err());
+        assert!(sustained_breadth(&bad, "sample", None).is_err());
 
         let mut incomplete = rows;
         for lane in incomplete[1]["readers"].as_array_mut().unwrap() {
@@ -1227,16 +1246,67 @@ mod tests {
             }
         }
         incomplete[9] = completion("breadth-arrivals", "sample");
-        let error = sustained_breadth(&incomplete, "sample", true).unwrap_err();
+        incomplete[0]["arrival_period_us"] = json!(500);
+        incomplete[0]["arrivals_per_lane"] = json!(1536);
+        let error = sustained_breadth(&incomplete, "sample", Some(500)).unwrap_err();
         assert_eq!(
             error.to_string(),
             "scheduled requests missing or duplicated"
         );
+        let wrong_rate = sustained_breadth(&incomplete, "sample", Some(250)).unwrap_err();
+        assert_eq!(
+            wrong_rate.to_string(),
+            "invalid sustained breadth seed or arrival schedule"
+        );
+        incomplete[0]["arrival_period_us"] = json!(250);
+        let wrong_count = sustained_breadth(&incomplete, "sample", Some(250)).unwrap_err();
+        assert_eq!(
+            wrong_count.to_string(),
+            "invalid sustained breadth seed or arrival schedule"
+        );
+    }
+
+    #[test]
+    fn arrival_periods_change_counts_and_keep_the_offered_window() {
+        for (period_us, count) in [(250, 3072), (500, 1536), (1_000, 768)] {
+            assert_eq!(arrivals_per_lane(period_us).unwrap(), count);
+            let period_ns = period_us * 1_000;
+            let mut timings = ArrivalTimings {
+                period_ns,
+                ..Default::default()
+            };
+            let prior = period_ns + 7;
+            timings.record(0, 0, 1, 0, prior, 768_000_000).unwrap();
+            timings
+                .record(1, prior, 1, prior + 3, prior + 20, 768_000_000)
+                .unwrap();
+            assert_eq!(timings.queue, [0, 7]);
+            assert_eq!(timings.dispatch, [0, 3]);
+            assert_eq!(timings.response, [prior, 27]);
+            timings
+                .record(
+                    count - 1,
+                    prior + 20,
+                    1,
+                    768_000_000 - period_ns,
+                    768_000_000,
+                    768_000_000,
+                )
+                .unwrap();
+            assert_eq!(timings.drained, 1);
+        }
+        for invalid in [0, 249, 251, 1_001, u64::MAX] {
+            assert!(arrivals_per_lane(invalid).is_err(), "{invalid}");
+        }
     }
 
     #[test]
     fn fixed_arrival_clock_charges_queueing_and_dispatch_to_original_deadline() {
-        let mut timings = ArrivalTimings::default();
+        let period_ns = DEFAULT_ARRIVAL_PERIOD_US * 1_000;
+        let mut timings = ArrivalTimings {
+            period_ns,
+            ..Default::default()
+        };
         timings.record(0, 0, 0, 5, 1_000_000, 1_000_100).unwrap();
         timings
             .record(1, 1_000_000, 2, 1_000_010, 1_000_030, 1_000_100)
@@ -1271,13 +1341,13 @@ mod tests {
                 .is_err()
         );
         assert_eq!(timings.response.len(), 2);
-        let offered = ARRIVALS_PER_LANE as u64 * PERIOD_NS;
+        let offered = ARRIVAL_WINDOW_US * 1_000;
         timings
             .record(
-                ARRIVALS_PER_LANE - 1,
+                arrivals_per_lane(DEFAULT_ARRIVAL_PERIOD_US).unwrap() - 1,
                 0,
                 1,
-                offered - PERIOD_NS,
+                offered - period_ns,
                 offered,
                 offered,
             )

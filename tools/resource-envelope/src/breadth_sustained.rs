@@ -20,8 +20,8 @@ const READERS: usize = 4;
 const ROUNDS: u64 = 16;
 const CYCLES: u64 = 8;
 const SAMPLES: usize = 4096;
-const ARRIVALS: usize = 1536;
-const PERIOD: Duration = Duration::from_micros(500);
+const ARRIVAL_WINDOW_US: u64 = 768_000;
+const PACED_DELAY: Duration = Duration::from_micros(500);
 const IDENTITY: [u8; 16] = *b"breadth-load-001";
 const TAG: u64 = 0x5355_0000_0000_0000;
 
@@ -194,7 +194,7 @@ fn completion_paced(
         assert!(sample[0] >= previous);
         samples.push(sample);
         if sample[0] < last {
-            thread::sleep(PERIOD);
+            thread::sleep(PACED_DELAY);
         }
     }
     assert_eq!(samples.last().unwrap()[0], last);
@@ -205,15 +205,16 @@ fn fixed_arrivals(
     db: &Database,
     collection: CollectionId,
     start: &Start,
-    _first: u64,
-    _last: u64,
+    period_us: u64,
 ) -> Vec<[u64; 7]> {
     let epoch = start.wait();
-    (0..ARRIVALS)
+    let period = Duration::from_micros(period_us);
+    let arrivals = (ARRIVAL_WINDOW_US / period_us) as u32;
+    (0..arrivals)
         .map(|index| {
             // Requests are scheduled by their ordinal. An overdue request
             // keeps its original deadline and is serviced in lane order.
-            let due = PERIOD * index as u32;
+            let due = period * index;
             let began = loop {
                 let elapsed = epoch.elapsed();
                 if elapsed >= due {
@@ -229,17 +230,27 @@ fn fixed_arrivals(
         .collect()
 }
 
-pub(crate) fn run(dir: &Path, arrivals: bool) {
-    if arrivals {
-        run_profile(dir, "breadth-arrivals", fixed_arrivals);
+pub(crate) fn run(dir: &Path, period_us: Option<u64>) {
+    if let Some(period_us) = period_us {
+        assert!(
+            (250..=1_000).contains(&period_us) && ARRIVAL_WINDOW_US.is_multiple_of(period_us),
+            "arrival period must divide 768000 us and be between 250 and 1000 us"
+        );
+        run_profile(
+            dir,
+            "breadth-arrivals",
+            Some(period_us),
+            |db, collection, start, _, _| fixed_arrivals(db, collection, start, period_us),
+        );
     } else {
-        run_profile(dir, "breadth-sustained", completion_paced);
+        run_profile(dir, "breadth-sustained", None, completion_paced);
     }
 }
 
 fn run_profile<const N: usize>(
     dir: &Path,
     profile: &str,
+    period_us: Option<u64>,
     reader: impl Fn(&Database, CollectionId, &Start, u64, u64) -> Vec<[u64; N]> + Sync,
 ) {
     fs::create_dir(dir).unwrap();
@@ -258,10 +269,15 @@ fn run_profile<const N: usize>(
     let initial = Database::open_file(&active, limits(CORE)).unwrap();
     let digest = verify(&initial, 0);
     let space = initial.storage_space().unwrap();
-    println!(
-        "{{\"phase\":\"sustained_seed\",\"revision\":{FINAL},\"digest\":{digest},\"file_bytes\":{}}}",
-        space.physical_bytes
+    let size = space.physical_bytes;
+    print!(
+        "{{\"phase\":\"sustained_seed\",\"revision\":{FINAL},\"digest\":{digest},\"file_bytes\":{size}"
     );
+    if let Some(period_us) = period_us {
+        let arrivals = ARRIVAL_WINDOW_US / period_us;
+        print!(",\"arrival_period_us\":{period_us},\"arrivals_per_lane\":{arrivals}");
+    }
+    println!("}}");
     drop(initial);
     for cycle in 1..=CYCLES {
         let db = Database::open_file(&active, limits(CORE)).unwrap();
