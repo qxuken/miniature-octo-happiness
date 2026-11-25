@@ -220,3 +220,10 @@ Release qualification runs all nine macOS R1 shards and both profiles, plus
 native macOS coverage, AddressSanitizer, recovery, and helper jobs. Its Unix
 shards keep the 90-minute ceiling. A tag or a manual run collects CI evidence
 for that candidate. Crate publication has a separate release decision.
+
+A new PR head supersedes earlier engine-check and fuzz runs for the same PR.
+Each workflow groups PR runs by PR number. Main, tag, scheduled and manual
+runs have independent run IDs. Bounded fuzzing runs on every PR, relevant
+pushes to main and tag pushes. An ordinary topic-branch push gets its
+automatic fuzz run when a PR is open. Manual runs remain available before
+opening a PR.

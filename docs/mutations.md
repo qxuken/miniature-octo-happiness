@@ -176,3 +176,23 @@ failure, excluding disposable build caches and the full copied source tree.
 Unix keeps its existing inventory and controller behavior. Cross-compilation
 and classifier unit tests do not establish native mutant detection; the
 [identity report](native-identity-assurance.md) tracks that execution gate.
+
+## Exact test transcript qualification
+
+For named Unix controls and Windows RNG controls the verifier now requires
+one libtest start, the designated test's result, and one matching summary,
+in order. The summary must count exactly one executed test and zero ignored
+tests. The named Unix result must appear on stdout. Windows retains its
+additional assertion-text, compiler-artifact and Job cleanup checks.
+
+At `7d8cf216eadf2d6e925d10429eb02cde04e2203d`, native arm64 macOS passed
+all 32 coordinator mutations in debug and release. Each run checked seven
+distinct baselines and retained 107 command reports. Replaying the final
+parser against four earlier coordinator campaigns accepted all 156 exact
+test transcripts. All eight original native Windows RNG transcripts also
+passed. The x64 Windows MSVC test targets compiled. Running the 32
+coordinator mutations on native Windows remains open.
+
+The local archive of both new campaigns' reports and logs,
+`exact-coordinator-7d8cf21.tar.gz`, has SHA-256
+`3378c2eb24c4125b6cc4113d12d7f4529fe06fe3d55f8daad983cd48125b6987`.

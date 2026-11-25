@@ -1,6 +1,8 @@
 name: Bounded fuzzing
 on:
   push:
+    branches: [main]
+    tags: ['**']
     paths:
       - 'src/**'
       - 'crates/**'
@@ -17,6 +19,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '23 2 * * 1'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
