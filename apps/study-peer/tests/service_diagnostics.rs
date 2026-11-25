@@ -4,7 +4,7 @@ mod diagnostics;
 use diagnostics::{BUDGET, CREDENTIAL_CANARY, ID, PATH_CANARY, Process, RECORD_CANARY, Root, safe};
 use std::{
     fs,
-    io::Write,
+    io::{self, Write},
     net::{Shutdown, TcpStream},
     path::Path,
     process::Command,
@@ -39,6 +39,94 @@ fn operational_errors_do_not_echo_private_inputs() {
 fn structured_errors_keep_categories_without_echoing_private_inputs() {
     scenario(true);
 }
+
+#[test]
+fn roster_stdout_refusal_reports_io_and_preserves_the_staged_pair() {
+    let root = Root::new("study-cutover");
+    let [a, b, new_a, new_b, old, new, expected] = [
+        "a",
+        "b",
+        "new-a",
+        "new-b",
+        "old.policy",
+        "new.policy",
+        "old.checkpoint",
+    ]
+    .map(|name| root.0.join(name));
+    for (name, path) in ["a", "b"].into_iter().zip([&a, &b]) {
+        let out = command(true)
+            .arg("init")
+            .arg(path)
+            .args([name, ID])
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+    }
+    fs::write(
+        &old,
+        format!(
+            "study-policy-v1 {ID} 7 {} {}\n",
+            "01".repeat(16),
+            "02".repeat(16)
+        ),
+    )
+    .unwrap();
+    fs::write(
+        &new,
+        format!(
+            "study-policy-v1 {} 8 {} {}\n",
+            "0a".repeat(16),
+            "03".repeat(16),
+            "04".repeat(16)
+        ),
+    )
+    .unwrap();
+    let sources = [&a, &b];
+    let original = sources.map(|path| fs::read(path).unwrap());
+    let checkpoint = || {
+        let mut c = command(true);
+        c.arg("checkpoint-roster").args(sources).arg(&old);
+        c
+    };
+    let refuse_stdout = |mut c: Command| {
+        let (read, write) = io::pipe().unwrap();
+        drop(read);
+        let out = c.stdout(write).output().unwrap();
+        assert_eq!(out.status.code(), Some(1));
+        let text = String::from_utf8(out.stderr).unwrap();
+        diagnostic(&text, "local_command", "io", "broken_pipe");
+    };
+    refuse_stdout(checkpoint());
+    assert!(!new_a.exists() && !new_b.exists());
+    let receipt = checkpoint().output().unwrap();
+    assert!(receipt.status.success() && receipt.stderr.is_empty());
+    assert!(receipt.stdout.starts_with(b"study-roster-checkpoint-v1 "));
+    fs::write(&expected, receipt.stdout).unwrap();
+
+    let mut stage = command(true);
+    stage
+        .arg("stage-roster")
+        .args(sources)
+        .arg(&old)
+        .args([&new_a, &new_b, &new])
+        .arg("--expect-old")
+        .arg(&expected);
+    refuse_stdout(stage);
+    let destination = [&new_a, &new_b];
+    let staged = destination.map(|path| fs::read(path).unwrap());
+    let verify = || {
+        let mut c = command(true);
+        c.arg("verify-roster").args(destination).arg(&new);
+        c
+    };
+    refuse_stdout(verify());
+    let recovered = verify().output().unwrap();
+    assert!(recovered.status.success() && recovered.stderr.is_empty());
+    assert!(recovered.stdout.starts_with(b"verified generation=8 "));
+    assert_eq!(sources.map(|path| fs::read(path).unwrap()), original);
+    assert_eq!(destination.map(|path| fs::read(path).unwrap()), staged);
+}
+
 fn scenario(json: bool) {
     let root = Root::new("study-peer");
     let database = root.0.join("study.wdb");

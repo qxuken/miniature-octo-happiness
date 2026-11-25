@@ -3,10 +3,10 @@
   "baseline": "c57c12362b58655fca0ce536617ed76528ea1e91",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
-    "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
+    "apps/study-peer/src/native.rs": "ac6f656dab385a3e7884710d65d6bbd00988d50e8a1c3947d2e5648adccd6462",
     "apps/study-peer/src/native/admission.rs": "0d01bb5355a7b420f9cad80a7fa5fea02d09adaf7a92cce91cf6029750469dab",
     "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
-    "apps/study-peer/src/native/roster.rs": "017694a49c4dd0c753052a38204f090906544644283a71a89c28eed5b7cf9aaf",
+    "apps/study-peer/src/native/roster.rs": "5c0352f941d57f0a26cc8b73648ea0bb542a3d5210027be3b4f2a0361691d0fd",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
     "apps/support/pinned_tls.rs": "3772645837b8f2f4e8ba8b1c743902538a2541f781999724a59de98395706b53",
@@ -226,7 +226,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "5a959cbbcb84d96cc45e722c7103425613e5004b92d58b760a86311d2703fb20",
+    "apps/study-peer/src/native/tests.rs": "6f2cf83200453b4d39e70230858003033eb1b9555598d3ff90b60c0e38c79a92",
     "apps/study-peer/tests/cli.rs": "6e3ad714e6102cb4545fcaa16e30e57734a2eb1bcc0e38c6c1388a3dca6d9f8d",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
     "apps/weekend-replicate/tests/cli.rs": "7c5058e3bc08b609ed5ce52e1d88ad7ae5c7d0e16afec25b25ced819742dff99",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "3c0357a844d6a71f6f0e5c4089545adf00cb29b2ea8a94e233bb85a4d720d940",
+    "xtask/tests/mutations.json": "7f38680edef5777ee7613eed5fae7a5d60ed415a2116ab319a66b274695663eb",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -403,14 +403,15 @@
     "docs/decisions/replica-envelope-current.md": "b324cbf3360151880dd016c42733c2acdff027f31ade2cad51677ecb1c38c641",
     "docs/decisions/runtime-identity-current.md": "1fa85fa316980a6ab55f2bd73f7890d879d1bc62cfc0d6f74d8a471c849ca00c",
     "docs/decisions/native-compaction-setup-current.md": "3d69b238c78fceeb39b20798a0b31b62e988b25f1313df2fc7108506d986384f",
-    "src/storage/file.rs": "a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f"
+    "src/storage/file.rs": "a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f",
+    "apps/study-peer/tests/service_diagnostics.rs": "f50407f139602cf13316b8390ae5284f0381c6ac3089bd655c0d18eefe1fa8c1"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
     "monthly-workload::monthly-workload": 25,
     "private-rust-consumer::private-rust-consumer": 34,
     "replica-progress-fixture::replica-progress-fixture": 2,
-    "study-peer::study-peer": 295,
+    "study-peer::study-peer": 302,
     "typed-renamed-consumer::typed-renamed-consumer": 3,
     "weekend-atomic-model::budget": 6,
     "weekend-atomic-model::weekend-atomic-model": 11,
@@ -25455,7 +25456,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "parse_id",
         "kind": "if",
-        "start_byte": 388,
+        "start_byte": 416,
         "conditions": [
           "id.len() != 32",
           "!id.bytes().all(|b| b.is_ascii_hexdigit())"
@@ -25503,7 +25504,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "parse_id",
         "kind": "short_circuit_or",
-        "start_byte": 391,
+        "start_byte": 419,
         "conditions": [
           "id.len() != 32",
           "!id.bytes().all(|b| b.is_ascii_hexdigit())"
@@ -25551,7 +25552,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "if",
-        "start_byte": 1513,
+        "start_byte": 1541,
         "conditions": [
           "policy.collection == [0; 16]",
           "policy.generation == 0",
@@ -25627,7 +25628,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "short_circuit_or",
-        "start_byte": 1516,
+        "start_byte": 1544,
         "conditions": [
           "policy.collection == [0; 16]",
           "policy.generation == 0"
@@ -25675,7 +25676,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "short_circuit_or",
-        "start_byte": 1516,
+        "start_byte": 1544,
         "conditions": [
           "policy.collection == [0; 16]",
           "policy.generation == 0",
@@ -25736,7 +25737,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "short_circuit_or",
-        "start_byte": 1516,
+        "start_byte": 1544,
         "conditions": [
           "policy.collection == [0; 16]",
           "policy.generation == 0",
@@ -25812,7 +25813,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "if",
-        "start_byte": 5558,
+        "start_byte": 6017,
         "conditions": [
           "new.collection == old.collection",
           "new.generation <= old.generation",
@@ -25873,7 +25874,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "short_circuit_or",
-        "start_byte": 5561,
+        "start_byte": 6020,
         "conditions": [
           "new.collection == old.collection",
           "new.generation <= old.generation"
@@ -25921,7 +25922,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "short_circuit_or",
-        "start_byte": 5561,
+        "start_byte": 6020,
         "conditions": [
           "new.collection == old.collection",
           "new.generation <= old.generation",
@@ -25982,7 +25983,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "let_else",
-        "start_byte": 1047,
+        "start_byte": 1075,
         "conditions": [
           "(\n        words.next(),\n        words.next(),\n        words.next(),\n        words.next(),\n        words.next(),\n        words.next(),\n    )"
         ]
@@ -26020,7 +26021,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "try_propagation",
-        "start_byte": 965,
+        "start_byte": 993,
         "conditions": [
           "bounded_file(path, 256)"
         ]
@@ -26043,7 +26044,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "try_propagation",
-        "start_byte": 1015,
+        "start_byte": 1043,
         "conditions": [
           "std::str::from_utf8(&bytes)"
         ]
@@ -26066,7 +26067,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "try_propagation",
-        "start_byte": 1412,
+        "start_byte": 1440,
         "conditions": [
           "parse_id(collection)"
         ]
@@ -26089,7 +26090,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "try_propagation",
-        "start_byte": 1453,
+        "start_byte": 1481,
         "conditions": [
           "generation.parse()"
         ]
@@ -26112,7 +26113,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "try_propagation",
-        "start_byte": 1484,
+        "start_byte": 1512,
         "conditions": [
           "parse_id(a)"
         ]
@@ -26135,7 +26136,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "policy_file",
         "kind": "try_propagation",
-        "start_byte": 1498,
+        "start_byte": 1526,
         "conditions": [
           "parse_id(b)"
         ]
@@ -26161,7 +26162,7 @@
         "conditions": [
           "self"
         ],
-        "start_byte": 3803
+        "start_byte": 3892
       },
       "tests": [
         {
@@ -26198,7 +26199,7 @@
         "conditions": [
           "matches!(self, Self::Checkpoint)"
         ],
-        "start_byte": 4265
+        "start_byte": 4354
       },
       "tests": [
         {
@@ -26235,7 +26236,7 @@
         "conditions": [
           "db.storage_identity()"
         ],
-        "start_byte": 4249
+        "start_byte": 4338
       },
       "tests": [
         {
@@ -26258,7 +26259,7 @@
         "conditions": [
           "self.line(pair, policy, state)?.as_bytes() != expected"
         ],
-        "start_byte": 4804
+        "start_byte": 4893
       },
       "tests": [
         {
@@ -26295,7 +26296,7 @@
         "conditions": [
           "self.line(pair, policy, state)"
         ],
-        "start_byte": 4837
+        "start_byte": 4926
       },
       "tests": [
         {
@@ -26318,7 +26319,7 @@
         "conditions": [
           "StudyReplica::open(db, db.collection_id(COLLECTION_ROW), policy, actor)"
         ],
-        "start_byte": 3441
+        "start_byte": 3530
       },
       "tests": [
         {
@@ -26341,7 +26342,7 @@
         "conditions": [
           "read(a, policy.actors[0])"
         ],
-        "start_byte": 3497
+        "start_byte": 3586
       },
       "tests": [
         {
@@ -26364,7 +26365,7 @@
         "conditions": [
           "read(b, policy.actors[1])"
         ],
-        "start_byte": 3540
+        "start_byte": 3629
       },
       "tests": [
         {
@@ -26387,7 +26388,7 @@
         "conditions": [
           "left != read(b, policy.actors[1])?"
         ],
-        "start_byte": 3504
+        "start_byte": 3593
       },
       "tests": [
         {
@@ -26424,7 +26425,7 @@
         "conditions": [
           "let Some(expected) = expected_old"
         ],
-        "start_byte": 6060
+        "start_byte": 6519
       },
       "tests": [
         {
@@ -26461,7 +26462,7 @@
         "conditions": [
           "expected_old"
         ],
-        "start_byte": 6063
+        "start_byte": 6522
       },
       "tests": [
         {
@@ -26498,7 +26499,7 @@
         "conditions": [
           "Receipt::Checkpoint.require(expected, [&a, &b], old, state)"
         ],
-        "start_byte": 6166
+        "start_byte": 6625
       },
       "tests": [
         {
@@ -26521,7 +26522,7 @@
         "conditions": [
           "let Some(expected) = expected_staged"
         ],
-        "start_byte": 7746
+        "start_byte": 8366
       },
       "tests": [
         {
@@ -26558,7 +26559,7 @@
         "conditions": [
           "expected_staged"
         ],
-        "start_byte": 7749
+        "start_byte": 8369
       },
       "tests": [
         {
@@ -26595,7 +26596,7 @@
         "conditions": [
           "Receipt::Staged.require(expected, [&a, &b], policy, state)"
         ],
-        "start_byte": 7854
+        "start_byte": 8474
       },
       "tests": [
         {
@@ -26615,7 +26616,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "checkpoint",
         "kind": "try_propagation",
-        "start_byte": 5139,
+        "start_byte": 5509,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[0], Limits::default())\n    })"
         ]
@@ -26638,7 +26639,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "checkpoint",
         "kind": "try_propagation",
-        "start_byte": 5263,
+        "start_byte": 5633,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[1], Limits::default())\n    })"
         ]
@@ -26661,7 +26662,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "checkpoint",
         "kind": "try_propagation",
-        "start_byte": 5304,
+        "start_byte": 5674,
         "conditions": [
           "agreed(&a, &b, policy)"
         ]
@@ -26684,7 +26685,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "try_propagation",
-        "start_byte": 5887,
+        "start_byte": 6346,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(old_files[0], Limits::default())\n    })"
         ]
@@ -26707,7 +26708,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "try_propagation",
-        "start_byte": 6015,
+        "start_byte": 6474,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(old_files[1], Limits::default())\n    })"
         ]
@@ -26730,7 +26731,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "try_propagation",
-        "start_byte": 6053,
+        "start_byte": 6512,
         "conditions": [
           "agreed(&a, &b, old)"
         ]
@@ -26753,7 +26754,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "verify",
         "kind": "try_propagation",
-        "start_byte": 7574,
+        "start_byte": 8194,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[0], Limits::default())\n    })"
         ]
@@ -26776,7 +26777,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "verify",
         "kind": "try_propagation",
-        "start_byte": 7698,
+        "start_byte": 8318,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[1], Limits::default())\n    })"
         ]
@@ -26799,7 +26800,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "verify",
         "kind": "try_propagation",
-        "start_byte": 7739,
+        "start_byte": 8359,
         "conditions": [
           "agreed(&a, &b, policy)"
         ]
@@ -26822,7 +26823,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "try_propagation",
-        "start_byte": 6435,
+        "start_byte": 6894,
         "conditions": [
           "diagnostics::storage(Phase::StorageCreate, || {\n        Database::create_file(new_files[0], Limits::default())\n    })"
         ]
@@ -26845,7 +26846,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "try_propagation",
-        "start_byte": 6571,
+        "start_byte": 7030,
         "conditions": [
           "diagnostics::storage(Phase::StorageCreate, || {\n        Database::create_file(new_files[1], Limits::default())\n    })"
         ]
@@ -26868,7 +26869,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "read",
         "kind": "for_iteration",
-        "start_byte": 2023,
+        "start_byte": 2051,
         "conditions": [
           "state.planned.iter()"
         ]
@@ -26909,7 +26910,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "seed",
         "kind": "for_iteration",
-        "start_byte": 2488,
+        "start_byte": 2516,
         "conditions": [
           "self.planned.iter()"
         ]
@@ -26950,7 +26951,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "seed",
         "kind": "if",
-        "start_byte": 2584,
+        "start_byte": 2612,
         "conditions": [
           "self.minutes != 0"
         ]
@@ -26987,7 +26988,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "seed",
         "kind": "try_propagation",
-        "start_byte": 2672,
+        "start_byte": 2700,
         "conditions": [
           "state.practice_minutes.increment(actor, self.minutes)"
         ]
@@ -27010,7 +27011,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "seed",
         "kind": "if",
-        "start_byte": 2693,
+        "start_byte": 2721,
         "conditions": [
           "let Some(goal) = self.goal"
         ]
@@ -27047,7 +27048,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "seed",
         "kind": "pattern_test",
-        "start_byte": 2696,
+        "start_byte": 2724,
         "conditions": [
           "self.goal"
         ]
@@ -27084,7 +27085,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "seed",
         "kind": "if",
-        "start_byte": 2795,
+        "start_byte": 2823,
         "conditions": [
           "let Some(limit) = self.limit"
         ]
@@ -27121,7 +27122,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "seed",
         "kind": "pattern_test",
-        "start_byte": 2798,
+        "start_byte": 2826,
         "conditions": [
           "self.limit"
         ]
@@ -27158,7 +27159,7 @@
         "file": "apps/study-peer/src/native/roster.rs",
         "owner": "stage",
         "kind": "if",
-        "start_byte": 6220,
+        "start_byte": 6679,
         "conditions": [
           "visible.minutes > u64::MAX / 2"
         ]
@@ -27172,6 +27173,222 @@
       "mutations": [
         "r1-study-seeding-stage-cap-equality",
         "r1-study-seeding-stage-cap-omitted"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-OUTPUT-EMIT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "write_report",
+        "kind": "try_propagation",
+        "start_byte": 5217,
+        "conditions": [
+          "emit(output)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "cutover_reports_stop_at_the_first_write_error_and_report_flush_failure"
+        },
+        {
+          "file": "apps/study-peer/tests/service_diagnostics.rs",
+          "name": "roster_stdout_refusal_reports_io_and_preserves_the_staged_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-output-emit"
+      ]
+    },
+    {
+      "name": "STUDY-OUTPUT-FLUSH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "write_report",
+        "kind": "try_propagation",
+        "start_byte": 5242,
+        "conditions": [
+          "output.flush()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "cutover_reports_stop_at_the_first_write_error_and_report_flush_failure"
+        }
+      ],
+      "mutations": [
+        "r1-study-output-flush"
+      ]
+    },
+    {
+      "name": "STUDY-OUTPUT-STAGE-HEADER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "start_byte": 7760,
+        "conditions": [
+          "writeln!(\n            output,\n            \"staged generation={} old_revisions={} {}\",\n            new.generation,\n            a.snapshot().revision(),\n            b.snapshot().revision()\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "cutover_reports_stop_at_the_first_write_error_and_report_flush_failure"
+        }
+      ],
+      "mutations": [
+        "r1-study-output-stage-header"
+      ]
+    },
+    {
+      "name": "STUDY-OUTPUT-STAGE-STATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "start_byte": 7793,
+        "conditions": [
+          "visible.report(output)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "cutover_reports_stop_at_the_first_write_error_and_report_flush_failure"
+        }
+      ],
+      "mutations": [
+        "r1-study-output-stage-state"
+      ]
+    },
+    {
+      "name": "STUDY-OUTPUT-STAGE-RECEIPT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "start_byte": 7885,
+        "conditions": [
+          "output.write_all(receipt.as_bytes())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "cutover_reports_stop_at_the_first_write_error_and_report_flush_failure"
+        }
+      ],
+      "mutations": [
+        "r1-study-output-stage-receipt"
+      ]
+    },
+    {
+      "name": "STUDY-OUTPUT-VERIFY-HEADER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "verify",
+        "kind": "try_propagation",
+        "start_byte": 8765,
+        "conditions": [
+          "writeln!(\n            output,\n            \"verified generation={} revisions={} {}\",\n            policy.generation,\n            a.snapshot().revision(),\n            b.snapshot().revision()\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "cutover_reports_stop_at_the_first_write_error_and_report_flush_failure"
+        }
+      ],
+      "mutations": [
+        "r1-study-output-verify-header"
+      ]
+    },
+    {
+      "name": "STUDY-OUTPUT-RECEIPT-BRANCH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "if",
+        "start_byte": 7804,
+        "conditions": [
+          "let Some(receipt) = receipt"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_and_verify_check_receipts_before_admitting_the_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-output-receipt-presence"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-OUTPUT-RECEIPT-PATTERN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "pattern_test",
+        "start_byte": 7807,
+        "conditions": [
+          "receipt"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_and_verify_check_receipts_before_admitting_the_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-output-receipt-presence"
       ],
       "table": [
         {

@@ -6,6 +6,7 @@ use super::{
 };
 use crate::diagnostics::{self, Phase};
 use sha2::{Digest, Sha256};
+use std::io::{self, Write};
 use std::path::Path;
 use weekend_db::{
     Database, Error, Limits, Result,
@@ -97,15 +98,16 @@ impl Visible {
         Ok(())
     }
 
-    fn report(&self) {
-        println!(
+    fn report(&self, output: &mut dyn Write) -> io::Result<()> {
+        writeln!(
+            output,
             "visible minutes={} completed={:?} planned={:?} goal={:?} limit={:?}",
             self.minutes,
             self.completed.iter().collect::<Vec<_>>(),
             self.planned.iter().collect::<Vec<_>>(),
             self.goal,
             self.limit,
-        );
+        )
     }
 }
 
@@ -166,7 +168,22 @@ impl Receipt {
     }
 }
 
-pub(super) fn checkpoint(files: [&Path; 2], policy: Policy) -> AppResult<()> {
+fn write_report(
+    output: &mut dyn Write,
+    emit: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+) -> AppResult<()> {
+    diagnostics::at(Phase::LocalCommand, || {
+        emit(output)?;
+        output.flush()?;
+        Ok(())
+    })
+}
+
+pub(super) fn checkpoint(
+    files: [&Path; 2],
+    policy: Policy,
+    output: &mut dyn Write,
+) -> AppResult<()> {
     let a = diagnostics::storage(Phase::StorageOpen, || {
         Database::open_file(files[0], Limits::default())
     })?;
@@ -174,8 +191,8 @@ pub(super) fn checkpoint(files: [&Path; 2], policy: Policy) -> AppResult<()> {
         Database::open_file(files[1], Limits::default())
     })?;
     let state = agreed(&a, &b, policy)?;
-    print!("{}", Receipt::Checkpoint.line([&a, &b], policy, state)?);
-    Ok(())
+    let receipt = Receipt::Checkpoint.line([&a, &b], policy, state)?;
+    write_report(output, |output| output.write_all(receipt.as_bytes()))
 }
 
 pub(super) fn stage(
@@ -184,6 +201,7 @@ pub(super) fn stage(
     new_files: [&Path; 2],
     new: Policy,
     expected_old: Option<&[u8]>,
+    output: &mut dyn Write,
 ) -> AppResult<()> {
     if new.collection == old.collection
         || new.generation <= old.generation
@@ -222,23 +240,27 @@ pub(super) fn stage(
     let receipt = expected_old
         .map(|_| Receipt::Staged.line([&left, &right], new, seed))
         .transpose()?;
-    println!(
-        "staged generation={} old_revisions={} {}",
-        new.generation,
-        a.snapshot().revision(),
-        b.snapshot().revision()
-    );
-    visible.report();
-    if let Some(receipt) = receipt {
-        print!("{receipt}");
-    }
-    Ok(())
+    write_report(output, |output| {
+        writeln!(
+            output,
+            "staged generation={} old_revisions={} {}",
+            new.generation,
+            a.snapshot().revision(),
+            b.snapshot().revision()
+        )?;
+        visible.report(output)?;
+        if let Some(receipt) = receipt {
+            output.write_all(receipt.as_bytes())?;
+        }
+        Ok(())
+    })
 }
 
 pub(super) fn verify(
     files: [&Path; 2],
     policy: Policy,
     expected_staged: Option<&[u8]>,
+    output: &mut dyn Write,
 ) -> AppResult<()> {
     let a = diagnostics::storage(Phase::StorageOpen, || {
         Database::open_file(files[0], Limits::default())
@@ -251,14 +273,16 @@ pub(super) fn verify(
         Receipt::Staged.require(expected, [&a, &b], policy, state)?;
     }
     let visible = Visible::read(state)?;
-    println!(
-        "verified generation={} revisions={} {}",
-        policy.generation,
-        a.snapshot().revision(),
-        b.snapshot().revision()
-    );
-    visible.report();
-    Ok(())
+    write_report(output, |output| {
+        writeln!(
+            output,
+            "verified generation={} revisions={} {}",
+            policy.generation,
+            a.snapshot().revision(),
+            b.snapshot().revision()
+        )?;
+        visible.report(output)
+    })
 }
 
 #[cfg(test)]
@@ -400,20 +424,49 @@ mod tests {
         assert_ne!(stale, current);
         drop((a, b));
         let original = from.map(|path| fs::read(path).unwrap());
-        let error = stage(from, POLICY, to, NEW_POLICY, Some(stale.as_bytes())).unwrap_err();
+        let error = stage(
+            from,
+            POLICY,
+            to,
+            NEW_POLICY,
+            Some(stale.as_bytes()),
+            &mut io::sink(),
+        )
+        .unwrap_err();
         assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Conflict));
         assert!(to.iter().all(|path| !path.exists()));
-        let error = verify(from, POLICY, Some(current.as_bytes())).unwrap_err();
+        let error = verify(from, POLICY, Some(current.as_bytes()), &mut io::sink()).unwrap_err();
         assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Conflict));
-        verify(from, POLICY, Some(staged.as_bytes())).unwrap();
-        verify(from, POLICY, None).unwrap();
-        stage(from, POLICY, to, NEW_POLICY, None).unwrap();
-        verify(to, NEW_POLICY, None).unwrap();
+        verify(from, POLICY, Some(staged.as_bytes()), &mut io::sink()).unwrap();
+        verify(from, POLICY, None, &mut io::sink()).unwrap();
+        let mut unguarded = Vec::new();
+        stage(from, POLICY, to, NEW_POLICY, None, &mut unguarded).unwrap();
+        assert_eq!(String::from_utf8_lossy(&unguarded).lines().count(), 2);
+        verify(to, NEW_POLICY, None, &mut io::sink()).unwrap();
         for path in to {
             fs::remove_file(path).unwrap();
         }
-        stage(from, POLICY, to, NEW_POLICY, Some(current.as_bytes())).unwrap();
-        verify(to, NEW_POLICY, None).unwrap();
+        let mut guarded = Vec::new();
+        stage(
+            from,
+            POLICY,
+            to,
+            NEW_POLICY,
+            Some(current.as_bytes()),
+            &mut guarded,
+        )
+        .unwrap();
+        let line = guarded.strip_prefix(unguarded.as_slice()).unwrap();
+        let [a, b] = to.map(|path| Database::open_file(path, Limits::default()).unwrap());
+        assert_eq!(
+            line,
+            Receipt::Staged
+                .line([&a, &b], NEW_POLICY, state)
+                .unwrap()
+                .as_bytes()
+        );
+        drop((a, b));
+        verify(to, NEW_POLICY, None, &mut io::sink()).unwrap();
         assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
     }
 
@@ -445,18 +498,18 @@ mod tests {
             ([a.as_path(), different.as_path()], Error::Conflict),
         ] {
             for result in [
-                checkpoint(pair, POLICY),
-                verify(pair, POLICY, None),
-                stage(pair, POLICY, to, NEW_POLICY, None),
+                checkpoint(pair, POLICY, &mut io::sink()),
+                verify(pair, POLICY, None, &mut io::sink()),
+                stage(pair, POLICY, to, NEW_POLICY, None, &mut io::sink()),
             ] {
                 assert_eq!(result.unwrap_err().downcast_ref::<Error>(), Some(&expected));
             }
             assert!(to.iter().all(|path| !path.exists()));
         }
-        checkpoint(from, POLICY).unwrap();
-        verify(from, POLICY, None).unwrap();
-        stage(from, POLICY, to, NEW_POLICY, None).unwrap();
-        verify(to, NEW_POLICY, None).unwrap();
+        checkpoint(from, POLICY, &mut io::sink()).unwrap();
+        verify(from, POLICY, None, &mut io::sink()).unwrap();
+        stage(from, POLICY, to, NEW_POLICY, None, &mut io::sink()).unwrap();
+        verify(to, NEW_POLICY, None, &mut io::sink()).unwrap();
         assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
     }
 
@@ -477,7 +530,7 @@ mod tests {
         let sentinel = b"existing destination";
         fs::write(&occupied, sentinel).unwrap();
         for pair in [[occupied.as_path(), to[1]], [to[0], occupied.as_path()]] {
-            let error = stage(from, POLICY, pair, NEW_POLICY, None).unwrap_err();
+            let error = stage(from, POLICY, pair, NEW_POLICY, None, &mut io::sink()).unwrap_err();
             assert_eq!(error.downcast_ref::<Error>(), Some(&Error::AlreadyExists));
             assert_eq!(fs::read(&occupied).unwrap(), sentinel);
             assert!(!to[1].exists());
@@ -488,8 +541,8 @@ mod tests {
         drop(partial);
         assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
         fs::remove_file(to[0]).unwrap();
-        stage(from, POLICY, to, NEW_POLICY, None).unwrap();
-        verify(to, NEW_POLICY, None).unwrap();
+        stage(from, POLICY, to, NEW_POLICY, None, &mut io::sink()).unwrap();
+        verify(to, NEW_POLICY, None, &mut io::sink()).unwrap();
         assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
     }
 
@@ -540,7 +593,7 @@ mod tests {
             }
         }
         let bytes = from.map(|path| fs::read(path).unwrap());
-        stage(from, POLICY, to, NEW_POLICY, None).unwrap();
+        stage(from, POLICY, to, NEW_POLICY, None, &mut io::sink()).unwrap();
         assert_eq!(from.map(|path| fs::read(path).unwrap()), bytes);
         {
             let [db_a, db_b] = to.map(|path| Database::open_file(path, Limits::default()).unwrap());
@@ -561,7 +614,7 @@ mod tests {
             exchange(&a, &b);
             assert_eq!(b.read().unwrap(), seed);
         }
-        verify(to, NEW_POLICY, None).unwrap();
+        verify(to, NEW_POLICY, None, &mut io::sink()).unwrap();
         {
             let [db_a, db_b] =
                 from.map(|path| Database::open_file(path, Limits::default()).unwrap());
@@ -588,7 +641,7 @@ mod tests {
         }
         let over_bytes = from.map(|path| fs::read(path).unwrap());
         let refused = [&refused_a as &Path, &refused_b as &Path];
-        let error = stage(from, POLICY, refused, NEW_POLICY, None).unwrap_err();
+        let error = stage(from, POLICY, refused, NEW_POLICY, None, &mut io::sink()).unwrap_err();
         assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Limit));
         assert!(refused.iter().all(|path| !path.exists()));
         assert_eq!(from.map(|path| fs::read(path).unwrap()), over_bytes);
@@ -641,5 +694,116 @@ mod tests {
                 Ok(())
             })
             .unwrap();
+    }
+
+    #[derive(Default)]
+    struct ReportSink {
+        bytes: Vec<u8>,
+        fail_at: Option<usize>,
+        fail_flush: bool,
+        flushes: usize,
+    }
+
+    impl Write for ReportSink {
+        fn write(&mut self, input: &[u8]) -> io::Result<usize> {
+            let count = if let Some(limit) = self.fail_at {
+                if self.bytes.len() == limit {
+                    self.fail_at = None;
+                    return Err(io::ErrorKind::BrokenPipe.into());
+                }
+                input.len().min(limit - self.bytes.len())
+            } else {
+                input.len()
+            };
+            self.bytes.extend_from_slice(&input[..count]);
+            Ok(count)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.flushes += 1;
+            if self.fail_flush {
+                return Err(io::ErrorKind::WriteZero.into());
+            }
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn cutover_reports_stop_at_the_first_write_error_and_report_flush_failure() {
+        let root = Directory::new();
+        let old = ["a", "b"].map(|name| root.0.join(name));
+        let from = old.each_ref().map(|path| path.as_path());
+        let [a, b] = from.map(|path| Database::create_file(path, Limits::default()).unwrap());
+        enroll(&a, enrollment("a", POLICY).unwrap()).unwrap();
+        enroll(&b, enrollment("b", POLICY).unwrap()).unwrap();
+        let receipt = Receipt::Checkpoint
+            .line([&a, &b], POLICY, StudyProgress::default())
+            .unwrap();
+        let header = format!(
+            "staged generation={} old_revisions={} {}\n",
+            NEW_POLICY.generation,
+            a.snapshot().revision(),
+            b.snapshot().revision()
+        );
+        let summary =
+            format!("{header}visible minutes=0 completed=[] planned=[] goal=None limit=None\n");
+        drop((a, b));
+        let before = from.map(|path| fs::read(path).unwrap());
+        for (ordinal, error_at) in [Some(0), Some(header.len()), Some(summary.len()), None]
+            .into_iter()
+            .enumerate()
+        {
+            let paths = ["a", "b"].map(|slot| root.0.join(format!("{ordinal}-{slot}")));
+            let to = paths.each_ref().map(|path| path.as_path());
+            let mut out = ReportSink {
+                fail_at: error_at,
+                fail_flush: error_at.is_none(),
+                ..ReportSink::default()
+            };
+            let error = stage(
+                from,
+                POLICY,
+                to,
+                NEW_POLICY,
+                Some(receipt.as_bytes()),
+                &mut out,
+            )
+            .unwrap_err();
+            let [a, b] = to.map(|path| Database::open_file(path, Limits::default()).unwrap());
+            let state = agreed(&a, &b, NEW_POLICY).unwrap();
+            let written =
+                summary.clone() + &Receipt::Staged.line([&a, &b], NEW_POLICY, state).unwrap();
+            drop((a, b));
+            match error_at {
+                Some(end) => {
+                    assert_eq!(
+                        error.downcast_ref::<io::Error>().unwrap().kind(),
+                        io::ErrorKind::BrokenPipe
+                    );
+                    assert_eq!(out.bytes, written.as_bytes()[..end]);
+                    assert_eq!(out.flushes, 0);
+                }
+                None => {
+                    assert_eq!(
+                        error.downcast_ref::<io::Error>().unwrap().kind(),
+                        io::ErrorKind::WriteZero
+                    );
+                    assert_eq!(out.bytes, written.as_bytes());
+                    assert_eq!(out.flushes, 1);
+                }
+            }
+            let mut out = ReportSink {
+                fail_at: Some(0),
+                ..ReportSink::default()
+            };
+            let error = verify(to, NEW_POLICY, None, &mut out).unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<io::Error>().unwrap().kind(),
+                io::ErrorKind::BrokenPipe
+            );
+            assert!(out.bytes.is_empty());
+            assert_eq!(out.flushes, 0);
+        }
+        assert_eq!(from.map(|path| fs::read(path).unwrap()), before);
     }
 }

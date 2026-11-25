@@ -99,6 +99,7 @@ pub fn main(args: Vec<OsString>) -> AppResult<()> {
             diagnostics::at(Phase::ConfigurationLoad, || {
                 roster::policy_file(Path::new(policy))
             })?,
+            &mut io::stdout().lock(),
         ),
         [command, a, b, old, target_a, target_b, new, options @ ..]
             if command == "stage-roster" =>
@@ -113,6 +114,7 @@ pub fn main(args: Vec<OsString>) -> AppResult<()> {
                     roster::policy_file(Path::new(new))
                 })?,
                 expected_receipt(options, "--expect-old")?.as_deref(),
+                &mut io::stdout().lock(),
             )
         }
         [command, a, b, policy, options @ ..] if command == "verify-roster" => roster::verify(
@@ -121,6 +123,7 @@ pub fn main(args: Vec<OsString>) -> AppResult<()> {
                 roster::policy_file(Path::new(policy))
             })?,
             expected_receipt(options, "--expect-staged")?.as_deref(),
+            &mut io::stdout().lock(),
         ),
         [
             command,

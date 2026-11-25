@@ -14973,6 +14973,102 @@
       "exact_test": "native::roster::tests::stage_seeds_the_exact_component_limit_and_rejects_the_next_total",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-study-output-emit",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "emit(output)?;",
+      "new": "let _ = emit(output);",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::cutover_reports_stop_at_the_first_write_error_and_report_flush_failure",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-output-flush",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "output.flush()?;",
+      "new": "let _ = output.flush();",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::cutover_reports_stop_at_the_first_write_error_and_report_flush_failure",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-output-stage-header",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "writeln!(\n            output,\n            \"staged generation={} old_revisions={} {}\",\n            new.generation,\n            a.snapshot().revision(),\n            b.snapshot().revision()\n        )?;",
+      "new": "let _ = writeln!(\n            output,\n            \"staged generation={} old_revisions={} {}\",\n            new.generation,\n            a.snapshot().revision(),\n            b.snapshot().revision()\n        );",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::cutover_reports_stop_at_the_first_write_error_and_report_flush_failure",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-output-stage-state",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "visible.report(output)?;",
+      "new": "let _ = visible.report(output);",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::cutover_reports_stop_at_the_first_write_error_and_report_flush_failure",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-output-stage-receipt",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "output.write_all(receipt.as_bytes())?;",
+      "new": "let _ = output.write_all(receipt.as_bytes());",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::cutover_reports_stop_at_the_first_write_error_and_report_flush_failure",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-output-verify-header",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "writeln!(\n            output,\n            \"verified generation={} revisions={} {}\",\n            policy.generation,\n            a.snapshot().revision(),\n            b.snapshot().revision()\n        )?;",
+      "new": "let _ = writeln!(\n            output,\n            \"verified generation={} revisions={} {}\",\n            policy.generation,\n            a.snapshot().revision(),\n            b.snapshot().revision()\n        );",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::cutover_reports_stop_at_the_first_write_error_and_report_flush_failure",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-output-receipt-presence",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "if let Some(receipt) = receipt {",
+      "new": "if let Some(receipt) = receipt.filter(|_| false) {",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::stage_and_verify_check_receipts_before_admitting_the_pair",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-output-diagnostic-phase",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::at(Phase::LocalCommand, || {",
+      "new": "diagnostics::at(Phase::StorageOpen, || {",
+      "target": "--test",
+      "package": "study-peer",
+      "test": "service_diagnostics",
+      "exact_test": "roster_stdout_refusal_reports_io_and_preserves_the_staged_pair",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

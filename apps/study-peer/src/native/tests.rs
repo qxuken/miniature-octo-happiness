@@ -173,6 +173,7 @@ fn roster_stage_requires_fresh_collection_generation_and_actors() {
             new_files.each_ref().map(|file| file.as_path()),
             policy,
             None,
+            &mut io::sink(),
         )
     };
     for invalid in [
