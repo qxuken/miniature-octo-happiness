@@ -98,6 +98,13 @@ impl Visible {
         Ok(())
     }
 
+    fn verify_seed(&self, seed: StudyProgress) -> Result<StudyProgress> {
+        if Self::read(seed)? != *self {
+            return Err(Error::Corrupt);
+        }
+        Ok(seed)
+    }
+
     fn report(&self, output: &mut dyn Write) -> io::Result<()> {
         writeln!(
             output,
@@ -229,14 +236,7 @@ pub(super) fn stage(
     let right = diagnostics::storage(Phase::StorageCreate, || {
         Database::create_file(new_files[1], Limits::default())
     })?;
-    let seeded = enroll(&left, enrollment("a", new)?)?;
-    enroll(&right, enrollment("b", new)?)?;
-    // Seed A only. Authenticated staging sync brings the same causal state to B.
-    seeded.update(|state, actor| visible.seed(state, actor))?;
-    let seed = seeded.read()?;
-    if Visible::read(seed)? != visible {
-        return Err(Error::Corrupt.into());
-    }
+    let seed = seed_pair([&left, &right], new, &visible)?;
     let receipt = expected_old
         .map(|_| Receipt::Staged.line([&left, &right], new, seed))
         .transpose()?;
@@ -254,6 +254,16 @@ pub(super) fn stage(
         }
         Ok(())
     })
+}
+
+fn seed_pair(pair: [&Database; 2], policy: Policy, visible: &Visible) -> Result<StudyProgress> {
+    let [left, right] = pair;
+    let [a, b] = policy.actors.map(|actor| Enrollment { policy, actor });
+    let seeded = enroll(left, a)?;
+    enroll(right, b)?;
+    // Seed A only. Authenticated staging sync brings the same causal state to B.
+    seeded.update(|state, actor| visible.seed(state, actor))?;
+    visible.verify_seed(seeded.read()?)
 }
 
 pub(super) fn verify(
@@ -294,7 +304,10 @@ mod tests {
         net::{TcpListener, TcpStream},
         time::Duration,
     };
-    use weekend_db::storage::MemoryStore;
+    use weekend_db::{
+        crdt::{AddWinsSet, MaxRegister, MinRegister, MultiValueRegister},
+        storage::{Crash, Fault, IoKind, MemoryStore, SimulatedDisk},
+    };
 
     const POLICY: Policy = Policy {
         collection: [9; 16],
@@ -694,6 +707,158 @@ mod tests {
                 Ok(())
             })
             .unwrap();
+    }
+
+    #[test]
+    fn exhausted_components_stop_seeding_at_the_affected_field() {
+        let db = Database::new().unwrap();
+        let replica = enroll(&db, enrollment("a", POLICY).unwrap()).unwrap();
+        replica
+            .update(|_, actor| {
+                let mut planned = [0; AddWinsSet::SIZE];
+                planned[..8].copy_from_slice(&u64::MAX.to_le_bytes());
+                let mut register = [0; MultiValueRegister::SIZE];
+                register[..8].copy_from_slice(&u64::MAX.to_le_bytes());
+                register[8] = 1;
+                let mut lesson = GrowSet::default();
+                lesson.insert(0).unwrap();
+                for (before, planned, goal, limit) in [
+                    (
+                        StudyProgress {
+                            planned: AddWinsSet::decode(&planned).unwrap(),
+                            ..StudyProgress::default()
+                        },
+                        lesson,
+                        None,
+                        None,
+                    ),
+                    (
+                        StudyProgress {
+                            weekly_goal: MaxRegister::decode(&register).unwrap(),
+                            ..StudyProgress::default()
+                        },
+                        GrowSet::default(),
+                        Some(30),
+                        None,
+                    ),
+                    (
+                        StudyProgress {
+                            session_limit: MinRegister::decode(&register).unwrap(),
+                            ..StudyProgress::default()
+                        },
+                        GrowSet::default(),
+                        None,
+                        Some(15),
+                    ),
+                ] {
+                    let visible = Visible {
+                        minutes: 0,
+                        completed: GrowSet::default(),
+                        planned,
+                        goal,
+                        limit,
+                    };
+                    let mut pristine = StudyProgress::default();
+                    visible.seed(&mut pristine, actor).unwrap();
+                    assert_eq!(visible.verify_seed(pristine), Ok(pristine));
+                    let mut stalled = before;
+                    assert_eq!(visible.seed(&mut stalled, actor), Err(Error::Exhausted));
+                    assert_eq!(stalled, before);
+                }
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn seed_verification_rejects_a_different_visible_projection() {
+        let empty: StudyProgress = StudyProgress::default();
+        let visible = Visible::read(empty).unwrap();
+        assert_eq!(visible.verify_seed(empty), Ok(empty));
+        let mut different = empty;
+        different.completed.insert(7).unwrap();
+        assert_eq!(visible.verify_seed(different), Err(Error::Corrupt));
+    }
+
+    #[test]
+    fn seed_pair_preserves_enrollment_and_publication_failure_outcomes() {
+        let visible = Visible {
+            minutes: 8,
+            completed: GrowSet::default(),
+            planned: GrowSet::default(),
+            goal: Some(30),
+            limit: Some(15),
+        };
+        let fresh = || {
+            let disks = std::array::from_fn::<_, 2, _>(|_| SimulatedDisk::new().unwrap());
+            let dbs = std::array::from_fn(|side| {
+                let db = Database::create_on(
+                    disks[side].clone(),
+                    [0x41 + side as u8; 16],
+                    Limits::default(),
+                )
+                .unwrap();
+                disks[side].arm(usize::MAX, Fault::Error);
+                db
+            });
+            (disks, dbs)
+        };
+
+        let (calibration, [a, b]) = fresh();
+        let enrolled = enroll(&a, enrollment("a", NEW_POLICY).unwrap()).unwrap();
+        let first_seed_io = calibration[0].trace().unwrap().len();
+        enroll(&b, enrollment("b", NEW_POLICY).unwrap()).unwrap();
+        enrolled
+            .update(|state, actor| visible.seed(state, actor))
+            .unwrap();
+        let trace = calibration[0].trace().unwrap();
+        let seed_sync = trace
+            .iter()
+            .rposition(|event| event.kind == IoKind::Sync)
+            .unwrap();
+        assert!(first_seed_io < seed_sync);
+        let expected = visible.verify_seed(enrolled.read().unwrap()).unwrap();
+        let (_, [a, b]) = fresh();
+        assert_eq!(seed_pair([&a, &b], NEW_POLICY, &visible), Ok(expected));
+
+        for (idx, step, fault, error, revisions) in [
+            (0, 0, Fault::Error, Error::Io, [0, 0]),
+            (1, 0, Fault::Error, Error::Io, [2, 0]),
+            (0, first_seed_io, Fault::Error, Error::Io, [2, 2]),
+            (
+                0,
+                seed_sync,
+                Fault::SyncError(Crash::PersistAll),
+                Error::OutcomeUnknown,
+                [3, 2],
+            ),
+        ] {
+            let (disks, [a, b]) = fresh();
+            disks[idx].arm(step, fault);
+            assert_eq!(seed_pair([&a, &b], NEW_POLICY, &visible), Err(error));
+            drop((a, b));
+            for ((disk, revision), actor) in disks.into_iter().zip(revisions).zip(NEW_POLICY.actors)
+            {
+                disk.crash(Crash::DropAll).unwrap();
+                let db = Database::open_on(disk, Limits::default()).unwrap();
+                assert_eq!(db.snapshot().revision(), revision);
+                assert!(db.retained_ids().unwrap().is_empty());
+                let replica =
+                    StudyReplica::open(&db, db.collection_id(COLLECTION_ROW), NEW_POLICY, actor);
+                if revision == 0 {
+                    assert!(matches!(replica, Err(Error::NotFound)));
+                } else {
+                    assert_eq!(
+                        replica.unwrap().read().unwrap(),
+                        if revision == 3 {
+                            expected
+                        } else {
+                            StudyProgress::default()
+                        },
+                    );
+                }
+            }
+        }
     }
 
     #[derive(Default)]

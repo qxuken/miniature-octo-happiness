@@ -15981,6 +15981,90 @@
       "exact_test": "roster_stdout_refusal_reports_io_and_preserves_the_staged_pair",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-study-seed-pair-plan-sequence",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "state.planned.insert(id, actor)?",
+      "new": "state.planned.insert(id, actor).map_err(|_| Error::Limit)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::roster::tests::exhausted_components_stop_seeding_at_the_affected_field"
+    },
+    {
+      "name": "r1-study-seed-pair-goal-sequence",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "state.weekly_goal.assign(actor, goal)?",
+      "new": "state.weekly_goal.assign(actor, goal).map_err(|_| Error::Limit)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::roster::tests::exhausted_components_stop_seeding_at_the_affected_field"
+    },
+    {
+      "name": "r1-study-seed-pair-limit-sequence",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "state.session_limit.assign(actor, limit)?",
+      "new": "state.session_limit.assign(actor, limit).map_err(|_| Error::Limit)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::roster::tests::exhausted_components_stop_seeding_at_the_affected_field"
+    },
+    {
+      "name": "r1-study-seed-pair-visible-mismatch",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "if Self::read(seed)? != *self {",
+      "new": "if Self::read(seed)? != *self && false {",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::roster::tests::seed_verification_rejects_a_different_visible_projection"
+    },
+    {
+      "name": "r1-study-seed-pair-left-enrollment",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "enroll(left, a)?",
+      "new": "enroll(left, a).map_err(|_| Error::Limit)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::roster::tests::seed_pair_preserves_enrollment_and_publication_failure_outcomes"
+    },
+    {
+      "name": "r1-study-seed-pair-right-enrollment",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "enroll(right, b)?",
+      "new": "enroll(right, b).map_err(|_| Error::Limit)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::roster::tests::seed_pair_preserves_enrollment_and_publication_failure_outcomes"
+    },
+    {
+      "name": "r1-study-seed-pair-publication",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "seeded.update(|state, actor| visible.seed(state, actor))?",
+      "new": "seeded.update(|state, actor| visible.seed(state, actor)).map_err(|_| Error::Limit)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::roster::tests::seed_pair_preserves_enrollment_and_publication_failure_outcomes"
     }
   ]
 }
