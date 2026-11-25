@@ -1057,7 +1057,7 @@ mod tests {
         impl AsRef<Path> for ProbePath {
             fn as_ref(&self) -> &Path {
                 match self {
-                    Self::Forbidden => panic!("pathname touched after failed identity"),
+                    Self::Forbidden => panic!("pathname touched before admission"),
                     Self::Owned(path) => path.as_path(),
                 }
             }
@@ -1087,6 +1087,11 @@ mod tests {
                 Some(expected)
             );
         }
+
+        assert_eq!(
+            Database::open_file(ProbePath::Forbidden, invalid).err(),
+            Some(Error::Invalid)
+        );
 
         struct OwnedDirectory(PathBuf);
         impl Drop for OwnedDirectory {

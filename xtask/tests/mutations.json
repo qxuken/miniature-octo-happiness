@@ -13047,6 +13047,63 @@
       "target": "--test",
       "test": "retention",
       "exact_test": "reopen_allocator_refusal_releases_the_lease_and_partial_graph"
+    },
+    {
+      "name": "r1-native-ctor-create-limits",
+      "file": "src/engine.rs",
+      "old": "options.limits.validate()?;\n        let identity = make_identity()?;",
+      "new": "options.limits.validate().map_err(|_| Error::Io)?;\n        let identity = make_identity()?;",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "engine::tests::file_creation_orders_validation_entropy_and_path_access"
+    },
+    {
+      "name": "r1-native-ctor-create-identity",
+      "file": "src/engine.rs",
+      "old": "make_identity()?",
+      "new": "make_identity().map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "engine::tests::file_creation_orders_validation_entropy_and_path_access"
+    },
+    {
+      "name": "r1-native-ctor-create-backend",
+      "file": "src/engine.rs",
+      "old": "crate::storage::FileStore::open_in(path, true, options.allocator.clone())?",
+      "new": "crate::storage::FileStore::open_in(path, true, options.allocator.clone()).map_err(|_| Error::Io)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "files",
+      "exact_test": "creation_is_exclusive_and_aliases_cannot_bypass_locking"
+    },
+    {
+      "name": "r1-native-ctor-open-limits",
+      "file": "src/engine.rs",
+      "old": "options.limits.validate()?;\n        let backend = crate::storage::FileStore::open_in(path, false, options.allocator.clone())?;",
+      "new": "options.limits.validate().map_err(|_| Error::Io)?;\n        let backend = crate::storage::FileStore::open_in(path, false, options.allocator.clone())?;",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "engine::tests::file_creation_orders_validation_entropy_and_path_access"
+    },
+    {
+      "name": "r1-native-ctor-open-backend",
+      "file": "src/engine.rs",
+      "old": "crate::storage::FileStore::open_in(path, false, options.allocator.clone())?",
+      "new": "crate::storage::FileStore::open_in(path, false, options.allocator.clone()).map_err(|_| Error::Io)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "files",
+      "exact_test": "creation_is_exclusive_and_aliases_cannot_bypass_locking"
     }
   ]
 }

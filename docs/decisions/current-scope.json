@@ -96,7 +96,7 @@
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
-    "src/engine.rs": "86e0bdcb4b93dc718f305bbc6085325f712927eeb99e9c2108f621f14c351258",
+    "src/engine.rs": "105601d113f1cc7ec74299d33f0c2aecc5edb46bcb86c4982da145593efc1266",
     "src/ffi.rs": "badceb85abf4de706b52d6ee8d03836712055e8e5a3b93ca8b7cca2fbf963e29",
     "src/lib.rs": "9ff143a41e86bd50fb5ec30486fe17a916eeae001f35349f88062bc3fa6c24b8",
     "src/memory.rs": "e6ebf06ad09de067f4ad341c7f517532cd9d8ca0c33fb41cc4575b092c8062cf",
@@ -297,7 +297,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "22ef65dc1712fcbe143dac0d76615b8000d2b1e1835a1cff17bbfbf7c37e5aae",
+    "xtask/tests/mutations.json": "224356650da127fcc493cb56b0e51203f27ab31970392a7c452ef79ecf570c76",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -23477,6 +23477,116 @@
       ],
       "mutations": [
         "r1-engine-constructor-open-image"
+      ]
+    },
+    {
+      "name": "NATIVE-CTOR-CREATE-LIMITS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "create_file_using",
+        "kind": "try_propagation",
+        "conditions": [
+          "options.limits.validate()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "file_creation_orders_validation_entropy_and_path_access"
+        }
+      ],
+      "mutations": [
+        "r1-native-ctor-create-limits"
+      ]
+    },
+    {
+      "name": "NATIVE-CTOR-CREATE-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "create_file_using",
+        "kind": "try_propagation",
+        "conditions": [
+          "make_identity()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "file_creation_orders_validation_entropy_and_path_access"
+        }
+      ],
+      "mutations": [
+        "r1-native-ctor-create-identity"
+      ]
+    },
+    {
+      "name": "NATIVE-CTOR-CREATE-BACKEND",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "create_file_using",
+        "kind": "try_propagation",
+        "conditions": [
+          "crate::storage::FileStore::open_in(path, true, options.allocator.clone())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/files.rs",
+          "name": "creation_is_exclusive_and_aliases_cannot_bypass_locking"
+        }
+      ],
+      "mutations": [
+        "r1-native-ctor-create-backend"
+      ]
+    },
+    {
+      "name": "NATIVE-CTOR-OPEN-LIMITS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "open_file_with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "options.limits.validate()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "file_creation_orders_validation_entropy_and_path_access"
+        }
+      ],
+      "mutations": [
+        "r1-native-ctor-open-limits"
+      ]
+    },
+    {
+      "name": "NATIVE-CTOR-OPEN-BACKEND",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "open_file_with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "crate::storage::FileStore::open_in(path, false, options.allocator.clone())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/files.rs",
+          "name": "creation_is_exclusive_and_aliases_cannot_bypass_locking"
+        }
+      ],
+      "mutations": [
+        "r1-native-ctor-open-backend"
       ]
     }
   ],
