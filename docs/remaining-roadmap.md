@@ -1396,3 +1396,20 @@ operands and physical-device checks retain their earlier qualifications.
 There are 1,124 runtime and 7,398 tooling gaps. The [archive manifest](decisions/sim-survival-dd19a6c.sha256)
 identifies the source bundle, reviewed inventory and 80 supervised command
 receipts. Off-machine custody remains outstanding.
+
+### Codec checksums and recovery decisions
+
+All 46 codec tests passed on `e045521` in debug and release on macOS arm64
+and Docker Linux arm64. They include both byte-for-byte golden histories,
+the ECMA known vector, incremental checksums and recovery rejection of a
+corrupt newest graph. Five changes to the CRC tables and streaming update
+each failed the independent bit-recurrence test in all four runs. The
+[archive checksums](decisions/codec-crc-e045521.sha256) cover all 20 mutation
+detections, 80 command receipts, the source bundle and final reconciliation.
+
+The [CRC and recovery audit](decisions/codec-crc-current.md) accounts for
+49 records. The [remaining codec audit](decisions/codec-recovery-offsets-current.md)
+accounts for 57 more, including existing partial metadata-layout pairs and
+platform-specific arithmetic constraints. Reconciliation at `94c5145` leaves
+zero unclassified codec records, 1,018 runtime gaps and 7,398 tooling gaps.
+Compiler MC/DC and off-machine proof custody remain separate gates.
