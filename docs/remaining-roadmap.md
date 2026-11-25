@@ -1413,3 +1413,20 @@ accounts for 57 more, including existing partial metadata-layout pairs and
 platform-specific arithmetic constraints. Reconciliation at `94c5145` leaves
 zero unclassified codec records, 1,018 runtime gaps and 7,398 tooling gaps.
 Compiler MC/DC and off-machine proof custody remain separate gates.
+
+### Allocator growth and storage diagnostics
+
+On `0f9b506`, all eight independent invalid limit configurations and four
+growth mutations failed their intended tests on macOS arm64 and Docker Linux
+arm64 in debug and release. The four growth controls distinguish the exact
+maximum, the exact-size retry, a provider refusal and the requested fallback
+size. Each profile passed the same 26 memory, five allocation, six allocator
+routing and nine storage diagnostics tests. The [archive checksums](decisions/memory-growth-0f9b506.sha256)
+identify 48 mutation detections, 172 command receipts and the source bundle.
+
+The [growth ledger](decisions/memory-growth-current.md) reconciles the final
+30 allocator records. The [diagnostics audit](decisions/diagnostics.md) binds
+20 existing dispositions to their original immutable source, including the
+two dependent context guards. Reconciliation at `9313bcb` leaves zero gaps
+in either module, 968 runtime gaps overall and 7,398 tooling gaps. Compiler
+MC/DC and off-machine custody remain outstanding.
