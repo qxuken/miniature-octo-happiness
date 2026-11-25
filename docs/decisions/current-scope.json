@@ -141,8 +141,8 @@
     "tools/replica-progress-fixture/src/main.rs": "35cabc9d12739c2ba6b4bb6fdd193b7eef867c7d5bf3540388d4080d967830f3",
     "tools/resource-envelope/build.rs": "8819bf5996316686d9dbe99757bc0859c90d37a383815d8771deb6a680947282",
     "tools/resource-envelope/src/breadth.rs": "c8f75762ab0be822b23f2d5ad1de2eda11f8f0aede3e4dc34da9e84ea47c92d0",
-    "tools/resource-envelope/src/breadth_sustained.rs": "b370d36ba32af0dfb50ce9cd8122b9f7316d11569c3d09b2652359137502c7c7",
-    "tools/resource-envelope/src/compound.rs": "f63ad60fab62389119b0c3ebe690800bc21a342666c1eb589b8eb69f30bace12",
+    "tools/resource-envelope/src/breadth_sustained.rs": "eb2aa331acc5d212c24ec6cd89f564c0e429715daad3ac207b77e05ac4516555",
+    "tools/resource-envelope/src/compound.rs": "086f3ba6dc7b04786e57c904e061f2f8e1168aede67bc38ed7c516a6441dc2c3",
     "tools/resource-envelope/src/main.rs": "075cfb94d5e37877aa9c460a5970d83da8df2818b1b981d64230efbbe7450ffb",
     "tools/resource-envelope/src/quota_token.rs": "011249b28caeecd91e3fa785960539f2859dc98c0b68a70cc8fe323779bc2ffe",
     "tools/resource-envelope/src/resilience.rs": "9968790397356be1f0c0f79136abf65de9bbd89983eb57165605372cbfc28b50",
@@ -197,9 +197,9 @@
     "xtask/src/quota_writeback.rs": "946fba589218567fc275f45e648b8fed8cb87a91ef1dcc3a3bbf071b0fe2d4b4",
     "xtask/src/replica_progress.rs": "212a59707841e163ffab534b29e8dffbc524484f058606ef9e3dcfe79abe0ddf",
     "xtask/src/replica_progress/monitor.rs": "53081b155fe4a54391d4cee507f711013dcbac79cfb2c181963f05b26066061c",
-    "xtask/src/resource_campaign.rs": "3ada50797b7911c994ce6391a94ceb6d8e87884002956cdf428e725e7ddeadee",
-    "xtask/src/resource_oracle.rs": "57cae37a92578653f73685f1546c02458de332008c7229481c2ed3e278d1cae3",
-    "xtask/src/resource_probe.rs": "865550f88ebaa55b7756762935959317d2a37c9317a7ee212def354d9e835d93",
+    "xtask/src/resource_campaign.rs": "c5a10452ed825f620d45b1cf75babfb0e3c12d2ec7ed72ea1de0e28e6f8a244e",
+    "xtask/src/resource_oracle.rs": "628c27b5c3edca15bb2697ea152a9b5091e8f0a63e436b5dee559e5923f0af5a",
+    "xtask/src/resource_probe.rs": "85040d79a78a9f92027b8f46d5cc62f98f41d31eba3d286ec7814c0eccbfaaf1",
     "xtask/src/rust_source.rs": "5b2e70c6ca96494204ea94d1adf8be2205135815724c321aa9739a2100434e17",
     "xtask/src/sanitizers.rs": "bc3f2dd6816c776d4345d0873c7a0b2dc8430e1852a67dd514992a271c85c2aa",
     "xtask/src/serialization_scale.rs": "396f0888a76395d2878c189d3a5a922206b0d055fa3b673cdaa84b88e36a78be",
@@ -465,7 +465,7 @@
     "weekend-replicate::live_month": 128,
     "weekend-replicate::weekend-replicate": 253,
     "weekend-resource-envelope::build-script-build": 1,
-    "weekend-resource-envelope::weekend-compound-resource": 222,
+    "weekend-resource-envelope::weekend-compound-resource": 227,
     "weekend-resource-envelope::weekend-resource-envelope": 30,
     "weekend-serialization-scale::weekend-serialization-scale": 9,
     "weekend-sqlite-baseline::sqlite-comparator": 114,
@@ -473,7 +473,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 342,
-    "xtask::xtask": 5301
+    "xtask::xtask": 5317
   },
   "groups": [
     {

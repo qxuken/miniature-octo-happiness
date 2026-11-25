@@ -2,7 +2,9 @@
 use crate::{
     artifact_trace::{docker_retire, inventory, nonce},
     assurance::{self, Campaign},
-    delivery, faults, resource_oracle, serialization_scale,
+    delivery, faults,
+    resource_oracle::{self, BreadthSchedule},
+    serialization_scale,
     supervise::{self, GroupRssSample, Report, Request},
     support::{Run, cmd, path, sha},
     toolchain,
@@ -106,6 +108,9 @@ pub struct Options {
     /// Fixed-arrival reader interval in microseconds. Defaults to 500.
     #[arg(long)]
     pub arrival_period_us: Option<u64>,
+    /// Optional writer arrival interval in microseconds for the same profile.
+    #[arg(long)]
+    pub writer_period_us: Option<u64>,
     #[arg(long, hide = true)]
     pub worker: Option<PathBuf>,
 }
@@ -290,7 +295,7 @@ pub(crate) fn worker(
     output: &Path,
     revision: &str,
     profile: Profile,
-    period_us: Option<u64>,
+    schedule: BreadthSchedule,
 ) -> Result<()> {
     let source = dunce::canonicalize(source)?;
     let output = assurance::fresh_output(&run.root, output)?;
@@ -309,7 +314,8 @@ pub(crate) fn worker(
     c.evidence["revision"] = json!(revision);
     c.evidence["runs"] = json!({});
     c.evidence["profile"] = json!(profile.name());
-    c.evidence["arrival_period_us"] = json!(period_us);
+    c.evidence["arrival_period_us"] = json!(schedule.reader_period_us);
+    c.evidence["writer_period_us"] = json!(schedule.writer_period_us);
     c.save()?;
     let result = (|| -> Result<()> {
         let source_hashes = inventory(&source, &[])?;
@@ -371,7 +377,10 @@ pub(crate) fn worker(
         } else if let Some(mode) = profile.breadth_mode() {
             let sustained = mode != "breadth";
             let mut args = vec!["--".into(), mode.into()];
-            if let Some(period_us) = period_us {
+            if let Some(period_us) = schedule.reader_period_us {
+                args.push(period_us.to_string().into());
+            }
+            if let Some(period_us) = schedule.writer_period_us {
                 args.push(period_us.to_string().into());
             }
             let mut value = observe(
@@ -386,7 +395,7 @@ pub(crate) fn worker(
                 },
                 |rows| {
                     if sustained {
-                        resource_oracle::sustained_breadth(rows, revision, period_us).map(drop)
+                        resource_oracle::sustained_breadth(rows, revision, schedule).map(drop)
                     } else {
                         resource_oracle::compound_breadth(rows, revision)
                     }
@@ -396,7 +405,7 @@ pub(crate) fn worker(
                 value.as_object_mut().unwrap().remove("rows");
                 value["sample_log_sha256"] = json!(sha(&output.join("run.jsonl"))?);
                 c.evidence["summary"] =
-                    check_sustained_breadth(&value, &output, revision, period_us)?;
+                    check_sustained_breadth(&value, &output, revision, schedule)?;
                 write_json(&output.join("run.json"), &value)?;
             } else {
                 check_breadth(&value, &output.join("data"), revision)?;
@@ -571,7 +580,7 @@ fn docker(
     revision: &str,
     image: &str,
     profile: Profile,
-    period_us: Option<u64>,
+    schedule: BreadthSchedule,
 ) -> Result<()> {
     let image = c.command(
         cmd(["docker", "image", "inspect", "--format={{.Id}}", image]),
@@ -653,8 +662,13 @@ fn docker(
             revision.into(),
             worker_output.into(),
         ]);
-        if let Some(period_us) = period_us {
-            args.extend(["--arrival-period-us".into(), period_us.to_string().into()]);
+        for (flag, period) in [
+            ("--arrival-period-us", schedule.reader_period_us),
+            ("--writer-period-us", schedule.writer_period_us),
+        ] {
+            if let Some(period) = period {
+                args.extend([flag.into(), period.to_string().into()]);
+            }
         }
         let executed = c.command(
             args,
@@ -748,7 +762,7 @@ fn check_sustained_breadth(
     run: &Value,
     output: &Path,
     revision: &str,
-    period_us: Option<u64>,
+    schedule: BreadthSchedule,
 ) -> Result<Value> {
     ensure!(
         run["passed"] == true && run["owned_live_processes_absent"] == true,
@@ -760,7 +774,7 @@ fn check_sustained_breadth(
         "sustained sample log changed"
     );
     let rows = rows(&raw)?;
-    let summary = resource_oracle::sustained_breadth(&rows, revision, period_us)?;
+    let summary = resource_oracle::sustained_breadth(&rows, revision, schedule)?;
     let data = output.join("data");
     ensure!(
         fs::read_dir(&data)?.count() == 2
@@ -778,7 +792,7 @@ fn check_proof(
     source: &BTreeMap<String, String>,
     revision: &str,
     profile: Profile,
-    period_us: Option<u64>,
+    schedule: BreadthSchedule,
     macos: bool,
 ) -> Result<Value> {
     let proof = delivery::read_json(&output.join("evidence.json"))?;
@@ -787,7 +801,8 @@ fn check_proof(
             && proof["passed"] == true
             && proof["revision"] == revision
             && proof["profile"] == profile.name()
-            && proof["arrival_period_us"] == json!(period_us),
+            && proof["arrival_period_us"] == json!(schedule.reader_period_us)
+            && proof["writer_period_us"] == json!(schedule.writer_period_us),
         "resource worker did not qualify"
     );
     ensure!(
@@ -813,8 +828,7 @@ fn check_proof(
         check_breadth(&proof["run"], &output.join("data"), revision)?;
     } else if profile.breadth_mode().is_some() {
         ensure!(
-            proof["summary"]
-                == check_sustained_breadth(&proof["run"], output, revision, period_us)?,
+            proof["summary"] == check_sustained_breadth(&proof["run"], output, revision, schedule)?,
             "sustained breadth summary differs from raw samples"
         );
     } else {
@@ -917,19 +931,23 @@ fn check_proof(
     Ok(proof)
 }
 pub fn run(run: &Run, options: Options) -> Result<()> {
-    let period_us = if options.profile == Profile::CompoundBreadthArrivals {
-        let period_us = options
-            .arrival_period_us
-            .unwrap_or(resource_oracle::DEFAULT_ARRIVAL_PERIOD_US);
-        resource_oracle::arrivals_per_lane(period_us)?;
-        Some(period_us)
+    let schedule = if options.profile == Profile::CompoundBreadthArrivals {
+        BreadthSchedule {
+            reader_period_us: Some(
+                options
+                    .arrival_period_us
+                    .unwrap_or(resource_oracle::DEFAULT_ARRIVAL_PERIOD_US),
+            ),
+            writer_period_us: options.writer_period_us,
+        }
     } else {
         ensure!(
-            options.arrival_period_us.is_none(),
+            options.arrival_period_us.is_none() && options.writer_period_us.is_none(),
             "arrival period requires compound-breadth-arrivals"
         );
-        None
+        BreadthSchedule::default()
     };
+    schedule.validate()?;
     if let Some(source) = options.worker {
         return worker(
             run,
@@ -937,13 +955,14 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
             &options.output,
             &options.revision,
             options.profile,
-            period_us,
+            schedule,
         );
     }
     let output = assurance::fresh_output(&run.root, &options.output)?;
     let mut c = Campaign::new(run, &output, "frozen resource qualification")?;
     c.evidence["verified"] = json!(false);
-    c.evidence["arrival_period_us"] = json!(period_us);
+    c.evidence["arrival_period_us"] = json!(schedule.reader_period_us);
+    c.evidence["writer_period_us"] = json!(schedule.writer_period_us);
     c.save()?;
     let result = (|| -> Result<()> {
         let (revision, source) = archive(&mut c, &options.revision)?;
@@ -951,14 +970,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         c.evidence["source_sha256"] = json!(hashes);
         let run_path = output.join("run");
         if let Some(image) = options.docker_image.as_deref() {
-            docker(
-                &mut c,
-                &source,
-                &revision,
-                image,
-                options.profile,
-                period_us,
-            )?;
+            docker(&mut c, &source, &revision, image, options.profile, schedule)?;
         } else {
             worker(
                 run,
@@ -966,7 +978,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                 &run_path,
                 &revision,
                 options.profile,
-                period_us,
+                schedule,
             )?;
         }
         let proof = check_proof(
@@ -974,7 +986,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
             &hashes,
             &revision,
             options.profile,
-            period_us,
+            schedule,
             options.docker_image.is_none() && cfg!(target_os = "macos"),
         )?;
         ensure!(
@@ -1000,16 +1012,30 @@ mod tests {
         let scratch = Scratch::new(&std::env::temp_dir(), "resource-arrivals").unwrap();
         let runtime = Run::new(scratch.path().to_owned());
         let output = scratch.path().join("output");
-        for (profile, period_us, detail) in [
+        for (profile, reader, writer, detail) in [
             (
                 Profile::Envelope,
-                500,
+                Some(500),
+                None,
                 "arrival period requires compound-breadth-arrivals",
             ),
             (
                 Profile::CompoundBreadthArrivals,
-                251,
+                Some(251),
+                None,
                 "arrival period must divide 768000 us",
+            ),
+            (
+                Profile::CompoundBreadthSustained,
+                None,
+                Some(8_000),
+                "arrival period requires compound-breadth-arrivals",
+            ),
+            (
+                Profile::CompoundBreadthArrivals,
+                None,
+                Some(48_001),
+                "writer period requires fixed reader arrivals",
             ),
         ] {
             let error = run(
@@ -1019,7 +1045,8 @@ mod tests {
                     revision: "unused".into(),
                     output: output.clone(),
                     docker_image: None,
-                    arrival_period_us: Some(period_us),
+                    arrival_period_us: reader,
+                    writer_period_us: writer,
                     worker: None,
                 },
             )
