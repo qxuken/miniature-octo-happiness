@@ -1222,3 +1222,25 @@ on both platforms in debug and release. All 150 inventory records in
 their historical scoped classification and one shares an enclosing
 decision. Across the project, 1,807 runtime, 26 driver and 7,397 tooling
 gaps remain. Compiler MC/DC remains open.
+
+### Schema decisions after allocator routing
+
+The schema source has 176 decisions. The [current audit](decisions/schema-allocator-current.md)
+maps the original rows to the current byte ranges. Five map enumerations
+switched to allocator-owned scratch. An allocation sweep now checks every
+request observed during descriptor decoding, successor validation, record
+validation and record decoding. Each refusal returns the engine's
+`OutOfMemory`, releases its scratch and permits a successful retry.
+
+Five mutations individually changed the error at the five enumeration
+sites. All five triggered the named regression in debug and release on
+macOS and Docker Linux. The same 25 schema tests passed on all four runs.
+The [archive manifest](decisions/schema-scratch-7f7a2b6.sha256) identifies
+the source bundle and both archived campaigns. Review verified 20 catches
+and 80 supervised commands.
+
+Of the 171 historical rows, 35 retain predicate evidence, 49 retain
+execution evidence, 34 have invariant proofs, 16 share enclosing decisions
+and 37 delegate propagation to the engine. The current ledger has 1,631
+runtime, 26 driver and 7,397 tooling gaps. These counts describe source
+reconciliation; compiler-measured MC/DC remains open.
