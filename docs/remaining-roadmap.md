@@ -655,3 +655,27 @@ The [64-root matched SQLite workload](sqlite-baseline.md#sixty-four-retained-roo
 passed all current and retained byte checks across three rounds per engine
 on both macOS/APFS and Docker Linux/ext4 at `49ddab5`. R3 still needs
 deployment-device measurements, concurrency and agreed service budgets.
+
+### Retain admission and counter exhaustion
+
+Four R1 controls at `0697196` reuse three existing tests of
+`Database::retain_snapshot`.
+
+| Decision | Admitted input | Rejected input | Named mutation |
+| --- | --- | --- | --- |
+| Snapshot belongs to this database | A local snapshot receives ID 1 | A snapshot from another database returns `ForeignStore` before ID 1 is assigned | Invert pointer equality |
+| Retained catalog has space | Entry 64 receives ID 64 | Attempting entry 65 returns `Limit` and leaves the revision unchanged. Reopen sees 64 entries. Releasing one allows ID 65. | Reject when 63 slots are occupied |
+| Publication revision can advance | Revision advances from `u64::MAX - 1` to `u64::MAX` | The next retain returns `Exhausted` and preserves revision, IDs and live-byte usage | Substitute `Limit` on revision overflow |
+| Next retention ID has a successor | The final assignable ID is `u64::MAX - 1` | The next retain returns `Exhausted` and preserves the revision and last assigned ID | Substitute `Limit` on ID overflow |
+
+The owner and capacity pairs use the simulated durable store. The two
+overflow pairs use in-memory state initialized immediately below each
+boundary. The latter exercise error propagation at the retain caller.
+
+All four original controls passed and all four mutations failed the designated
+test in debug and release on arm64 macOS and Docker Linux. The four campaigns
+retain 76 command reports in `retain-admission-0697196.tar.gz`, SHA-256
+`87d5e11d55b4312dcf68fdeaab6d77178a02cc6243c25130ff8db677de0d8093`.
+Reconcile with `cargo xtask mutations --case r1-retain-admission- --toolchain
+1.100.0 --output "$OUTPUT"` and repeat with `--release` and a fresh output.
+The inventory now has 1,871 runtime, 26 driver and 7,388 tooling gaps.
