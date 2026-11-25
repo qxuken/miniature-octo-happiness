@@ -14157,6 +14157,61 @@
       "exact_test": "native_dispatch_checks_command_names_and_options_before_creating_files",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-recover-replica-identity",
+      "file": "src/storage/mod.rs",
+      "old": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
+      "new": "if false\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "storage::decision_tests::verification_envelope_predicates_have_independent_controls",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-recover-replica-revision",
+      "file": "src/storage/mod.rs",
+      "old": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
+      "new": "if recovered.identity != identity\n        || false\n        || recovered.slot.end != length\n        || !recovered.witnessed",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "storage::decision_tests::verification_envelope_predicates_have_independent_controls",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-recover-replica-length",
+      "file": "src/storage/mod.rs",
+      "old": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
+      "new": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || false\n        || !recovered.witnessed",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "storage::decision_tests::verification_envelope_predicates_have_independent_controls",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-recover-replica-witness",
+      "file": "src/storage/mod.rs",
+      "old": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || !recovered.witnessed",
+      "new": "if recovered.identity != identity\n        || recovered.slot.revision != revision\n        || recovered.slot.end != length\n        || false",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "storage::decision_tests::verification_envelope_predicates_have_independent_controls",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-recover-replica-decode",
+      "file": "src/storage/mod.rs",
+      "old": "let recovered = codec::recover(backend, mem)?;",
+      "new": "let recovered = codec::recover(backend, mem).map_err(|_| Error::Invalid)?;",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "f95879be4c8ddaa420bb2308628fffa10a689f555148787328fd44b3ff4d199f",
+    "xtask/tests/mutations.json": "535dadbf804a4538e8c91d800b7a0a08f894037e72a4ccad9e25e89037a53f4c",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -399,7 +399,8 @@
     "docs/decisions/snapshot-dispatch-current.md": "ac3be20b5980d8888b679004c40e949ebc6b7bf4105648358b5e91ffded625c1",
     "apps/weekend-replicate/tests/audit_cli.rs": "273b5711541e219ca03885c66cca8addc8cd60eb0bd9031cbe90d1e7a7c5d056",
     "apps/weekend-replicate/src/native/pin_tests.rs": "76b408cae4f5a780ecbedf28352d118893d22f60ec1c7f6cf9ba39bbd11f748c",
-    "docs/decisions/snapshot-maintenance-output-current.md": "a1e0d8119f0a4784f7ef6f0b09718da3bbf5bfed12d37da16b1ee01b3ecce5d6"
+    "docs/decisions/snapshot-maintenance-output-current.md": "a1e0d8119f0a4784f7ef6f0b09718da3bbf5bfed12d37da16b1ee01b3ecce5d6",
+    "docs/decisions/replica-envelope-current.md": "b324cbf3360151880dd016c42733c2acdff027f31ade2cad51677ecb1c38c641"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -609,7 +610,8 @@
         "docs/decisions/bytestore-publication-current.md",
         "docs/decisions/storage-creation-reopen-current.md",
         "docs/decisions/compact-copy-current.md",
-        "docs/decisions/compound-recovery-current.md"
+        "docs/decisions/compound-recovery-current.md",
+        "docs/decisions/replica-envelope-current.md"
       ],
       "residual": "Native persistence assumptions and delegated calls remain separate from simulated pairs."
     },
@@ -25282,6 +25284,82 @@
         },
         {
           "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "RECOVER-REPLICA-ENVELOPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/mod.rs",
+        "target": "weekend-db::weekend_db",
+        "kind": "if",
+        "owner": "recover_replica",
+        "start_byte": 14277,
+        "conditions": [
+          "recovered.identity != identity",
+          "recovered.slot.revision != revision",
+          "recovered.slot.end != length",
+          "!recovered.witnessed"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/mod.rs",
+          "name": "verification_envelope_predicates_have_independent_controls"
+        }
+      ],
+      "mutations": [
+        "r1-recover-replica-identity",
+        "r1-recover-replica-revision",
+        "r1-recover-replica-length",
+        "r1-recover-replica-witness"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
             false,
             true
           ],
