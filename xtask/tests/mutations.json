@@ -13698,6 +13698,90 @@
       "target": "--test",
       "test": "runtime_decisions",
       "exact_test": "catalog_identity_unique_and_name_guards_have_independent_controls"
+    },
+    {
+      "name": "r1-typed-lookup-admission",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "!entry.unique.contains(&index.id)",
+      "new": "false",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "lookup_admission_precedes_encoding_and_encoder_errors_abort_the_draft"
+    },
+    {
+      "name": "r1-typed-lookup-encoder",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "value.encode_lookup(&store.db)?",
+      "new": "value.encode_lookup(&store.db).map_err(|_| Error::IndexInconsistent)?",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "lookup_admission_precedes_encoding_and_encoder_errors_abort_the_draft"
+    },
+    {
+      "name": "r1-typed-lookup-declared-kind",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "field.kind != V::KIND || (encoded.kind() != Kind::None && encoded.kind() != field.kind)",
+      "new": "encoded.kind() != Kind::None && encoded.kind() != field.kind",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "lookup_declared_kind_encoded_kind_and_null_exemption_have_pairs"
+    },
+    {
+      "name": "r1-typed-lookup-null",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "encoded.kind() != Kind::None && encoded.kind() != field.kind",
+      "new": "encoded.kind() != field.kind",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "lookup_declared_kind_encoded_kind_and_null_exemption_have_pairs"
+    },
+    {
+      "name": "r1-typed-lookup-payload-kind",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "encoded.kind() != Kind::None && encoded.kind() != field.kind",
+      "new": "false",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "lookup_declared_kind_encoded_kind_and_null_exemption_have_pairs"
+    },
+    {
+      "name": "r1-typed-lookup-physical-field",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "doc.record().field(index.id)?.is_none()",
+      "new": "false",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "models",
+      "exact_test": "stale_default_index_cannot_resolve_a_physically_missing_field"
+    },
+    {
+      "name": "r1-typed-lookup-owner-key",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "index_key(entry.records, index.id, &actual, store.db.allocator())? != Some(key)",
+      "new": "false",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "index_corruption_rejects_without_modifying_retained_roots_or_staged_writes"
     }
   ]
 }
