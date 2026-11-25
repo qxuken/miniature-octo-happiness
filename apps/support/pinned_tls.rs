@@ -590,24 +590,48 @@ mod audit_admission_tests {
         let path =
             std::env::temp_dir().join(format!("snapshot-credential-audit-{}", std::process::id()));
         fs::create_dir(&path).unwrap();
-        assert!(bounded_file(&path, 64).is_err());
+        let _cleanup = Cleanup(&path);
         let file = path.join("value");
-        fs::write(&file, []).unwrap();
+        let missing = bounded_file(&file, 64).unwrap_err();
         assert_eq!(
-            bounded_file(&file, 64).err().unwrap().to_string(),
-            "credential size outside bounds"
+            missing.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::NotFound
         );
+        assert_eq!(
+            bounded_file(&path, 64).unwrap_err().to_string(),
+            "credential must be a regular file"
+        );
+        for bytes in [&[][..], &[42; 65]] {
+            fs::write(&file, bytes).unwrap();
+            assert_eq!(
+                bounded_file(&file, 64).unwrap_err().to_string(),
+                "credential size outside bounds"
+            );
+        }
+        fs::write(&file, [42; 64]).unwrap();
+        assert_eq!(bounded_file(&file, 64).unwrap(), [42; 64]);
         fs::write(&file, b"public").unwrap();
+        assert_eq!(bounded_file(&file, 64).unwrap(), b"public");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
             assert_eq!(bounded(&file, 64, false).unwrap(), b"public");
-            assert!(bounded(&file, 64, true).is_err());
+            assert_eq!(
+                bounded(&file, 64, true).unwrap_err().to_string(),
+                "private key must have owner-only permissions"
+            );
             fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
             assert_eq!(bounded(&file, 64, true).unwrap(), b"public");
         }
-        fs::remove_dir_all(path).unwrap();
+    }
+
+    struct Cleanup<'a>(&'a Path);
+
+    impl Drop for Cleanup<'_> {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(self.0);
+        }
     }
 }
 
