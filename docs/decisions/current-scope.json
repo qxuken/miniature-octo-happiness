@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "2fe69937680d48772ee0ed7242ca3f4cd850c9058aecd35f2373129eb8ac5bcc",
+    "xtask/tests/mutations.json": "0db9aec759036bfe551da205250f2641d16d6b8041b992271aac13b559cec478",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -24050,7 +24050,8 @@
         }
       ],
       "mutations": [
-        "r1-logical-current-map-scratch"
+        "r1-logical-current-map-scratch",
+        "r1-logical-map-scratch-provider"
       ]
     },
     {
