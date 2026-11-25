@@ -17073,6 +17073,54 @@
       "matches": 1,
       "package": "study-peer",
       "exact_test": "native::tests::incoming_peer_disconnect_preserves_the_error_and_allows_a_retry"
+    },
+    {
+      "name": "r1-connection-handoff-admission-timeout",
+      "file": "apps/write-coordinator/src/native/service.rs",
+      "old": "mpsc::RecvTimeoutError::Timeout => io::ErrorKind::TimedOut",
+      "new": "mpsc::RecvTimeoutError::Timeout => io::ErrorKind::Other",
+      "test": "write-coordinator",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "write-coordinator",
+      "exact_test": "native::service::tests::connection_handoff_preserves_failure_and_reply_boundaries"
+    },
+    {
+      "name": "r1-connection-handoff-admission-disconnected",
+      "file": "apps/write-coordinator/src/native/service.rs",
+      "old": "mpsc::RecvTimeoutError::Disconnected => io::ErrorKind::ConnectionAborted",
+      "new": "mpsc::RecvTimeoutError::Disconnected => io::ErrorKind::Other",
+      "test": "write-coordinator",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "write-coordinator",
+      "exact_test": "native::service::tests::connection_handoff_preserves_failure_and_reply_boundaries"
+    },
+    {
+      "name": "r1-connection-handoff-reply-disconnected",
+      "file": "apps/write-coordinator/src/native/service.rs",
+      "old": "response\n        .recv()\n        .map_err(|_| io::ErrorKind::ConnectionAborted)?",
+      "new": "response\n        .recv()\n        .map_err(|_| io::ErrorKind::Other)?",
+      "test": "write-coordinator",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "write-coordinator",
+      "exact_test": "native::service::tests::connection_handoff_preserves_failure_and_reply_boundaries"
+    },
+    {
+      "name": "r1-connection-handoff-queue-disconnected",
+      "file": "apps/write-coordinator/src/native/service.rs",
+      "old": "Err(TrySendError::Disconnected(_)) => return Err(io::ErrorKind::BrokenPipe.into()),",
+      "new": "Err(TrySendError::Disconnected(_)) => return Err(io::ErrorKind::Other.into()),",
+      "test": "write-coordinator",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "write-coordinator",
+      "exact_test": "native::service::tests::connection_handoff_preserves_failure_and_reply_boundaries"
     }
   ]
 }

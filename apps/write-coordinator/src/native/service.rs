@@ -195,7 +195,7 @@ fn serve_connection(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{BufRead, BufReader};
+    use std::io::{BufRead, BufReader, Read};
     use std::sync::mpsc::TryRecvError;
     use std::time::Duration;
 
@@ -241,6 +241,82 @@ mod tests {
             pending.try_iter().filter(|r| r.command == "queued").count(),
             MAX_QUEUED_COMMANDS
         );
+    }
+
+    #[test]
+    fn connection_handoff_preserves_failure_and_reply_boundaries() {
+        enum Handoff {
+            QueueClosed,
+            AdmissionClosed,
+            AdmissionExpired,
+            ReplyClosed,
+            Reply,
+        }
+
+        for (handoff, expected) in [
+            (Handoff::QueueClosed, Some(io::ErrorKind::BrokenPipe)),
+            (
+                Handoff::AdmissionClosed,
+                Some(io::ErrorKind::ConnectionAborted),
+            ),
+            (Handoff::AdmissionExpired, Some(io::ErrorKind::TimedOut)),
+            (Handoff::ReplyClosed, Some(io::ErrorKind::ConnectionAborted)),
+            (Handoff::Reply, None),
+        ] {
+            let (requests, pending) = mpsc::sync_channel(1);
+            let pending = (!matches!(handoff, Handoff::QueueClosed)).then_some(pending);
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let mut peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+            peer.set_read_timeout(Some(TIMEOUT)).unwrap();
+            peer.write_all(b"get\n").unwrap();
+            let (connection, _) = listener.accept().unwrap();
+
+            let result = thread::scope(|scope| {
+                let worker = scope.spawn(|| {
+                    serve_connection(connection, Instant::now() + TIMEOUT, None, &requests)
+                });
+                let held_admission = pending.and_then(|pending| {
+                    let request = pending.recv_timeout(TIMEOUT).unwrap();
+                    assert_eq!(request.command, "get");
+                    match handoff {
+                        Handoff::QueueClosed => unreachable!(),
+                        Handoff::AdmissionClosed => None,
+                        Handoff::AdmissionExpired => Some(request.admitted),
+                        Handoff::ReplyClosed | Handoff::Reply => {
+                            let (respond, response) = mpsc::sync_channel(1);
+                            request.admitted.send(response).unwrap();
+                            if matches!(handoff, Handoff::Reply) {
+                                respond.send("value 2 0".into()).unwrap();
+                            }
+                            None
+                        }
+                    }
+                });
+                let result = worker.join().unwrap();
+                drop(held_admission);
+                result
+            });
+
+            let mut peer = BufReader::new(peer);
+            let mut reply = String::new();
+            if let Some(kind) = expected {
+                assert_eq!(result.unwrap_err().kind(), kind);
+                match peer.read_line(&mut reply) {
+                    Ok(0) => {}
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                        ) => {}
+                    result => panic!("failed handoff returned a reply: {result:?}"),
+                }
+                assert!(reply.is_empty());
+            } else {
+                result.unwrap();
+                peer.read_to_string(&mut reply).unwrap();
+                assert_eq!(reply, "value 2 0\n");
+            }
+        }
     }
 
     #[test]
