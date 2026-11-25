@@ -49,6 +49,9 @@ pub struct Options {
     reopens: u64,
     #[arg(long, default_value_t = 3)]
     rounds: usize,
+    /// Sample the resident memory of each workload process during its round.
+    #[arg(long)]
+    sample_rss: bool,
 }
 
 fn admit(run: &Run, opts: &Options) -> Result<(PathBuf, Work)> {
@@ -218,6 +221,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         };
         inspect.push(path(sqlite_binary));
         c.evidence["sqlite_linkage"] = json!(c.command(inspect, "sqlite-linkage", None, 30.)?);
+        c.sample_rss = opts.sample_rss;
         let mut identity = None;
         for index in 0..opts.rounds {
             let order = if index % 2 == 0 {
@@ -297,6 +301,7 @@ mod tests {
             retain_every: 3,
             reopens: 2,
             rounds: 1,
+            sample_rss: false,
         }
     }
 

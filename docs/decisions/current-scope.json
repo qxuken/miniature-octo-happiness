@@ -210,7 +210,7 @@
     "xtask/src/soak.rs": "d7d0ecaf8bdf5346773bb8d416d54c405fc02e40ecaa483ae000649154b5b388",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
     "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
-    "xtask/src/sqlite_baseline.rs": "1e50f199f66323eb9f6886395d3ca4f99f93931c778da71cf32a570874fb596d",
+    "xtask/src/sqlite_baseline.rs": "2edb8f5f19c8bfd7917c90fd0da10fde1e1937748c05dbe43c502e7bc0d5b247",
     "xtask/src/study_soak.rs": "430b55111e7145ab89fe9ce1ec5cfe94280dbb18b11087c4164a78e818cf650b",
     "xtask/src/study_upgrade.rs": "632fcd52e908404ec09158a3ccc1e36fae9c06a87585bdd558ab173d66710f48",
     "xtask/src/supervise.rs": "d066164f1cf2d9e9efc473c539199af501acd37c7e455b9410708c70bd33e6be",
