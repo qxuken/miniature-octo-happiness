@@ -1608,3 +1608,36 @@ decision dispositions. The [archive manifest](decisions/windows-oracle-ccfd5d5.s
 includes the rejected input diff and the accepted reports. The 746 runtime
 gaps remain open. The new validation adds 13 tooling records, bringing
 the tooling gap count to 7,428.
+
+### Snapshot output and follower recovery
+
+At `ce977b3`, capture and send report a closed stdout as an I/O error.
+The sender writes and flushes the local capture announcement before
+contacting the follower. A failed capture announcement left the saved
+export and descriptor readable in a new process. After a successful
+install, failure to print or flush the follower receipt preserved its
+durable revision, digest and retained data. Authenticated polling returned
+the original receipt. Replaying the same export kept the manifest size
+unchanged. The [decision ledger](decisions/snapshot-output-current.md)
+and [operator instructions](replication-operations.md#restartable-captures)
+record the two output boundaries.
+
+The new closed-pipe process case reproduced a panic before the fix.
+Afterward all 45 tests per profile on macOS arm64 and 46 per profile on
+Docker Linux arm64 passed in debug and release. The opt-in Linux
+exhaustion test remained outside these runs. Strict macOS Clippy passed.
+The [archive manifest](decisions/snapshot-output-ce977b3.sha256) binds the
+baseline, four test runs and reconciliation. The inventory now has 745
+unclassified runtime decisions and 7,428 tooling decisions.
+
+### Native Windows coordinator oracle rerun
+
+Native Windows x64 ran all 32 coordinator mutations against the Git tree
+of PR head `0940c22` using Rust 1.100.0. Both debug and release passed their
+64 combined baselines and detected all 64 mutant runs at their expected
+test assertion. Independent inspection matched the input and mutated
+source bytes, all 128 saved executable hashes and the retirement evidence
+for 265 commands. The [Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45645362115/job/139315064362)
+and [local archive manifest](decisions/windows-coordinator-0940c22.sha256)
+identify the artifacts. This run confirms the refreshed oracle pin on the
+native platform.
