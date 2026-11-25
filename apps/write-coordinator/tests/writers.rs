@@ -1567,6 +1567,70 @@ fn journal_cli_rejects_invalid_arguments_and_claimed_slots_without_writing() {
     assert!(written.status.success(), "{written:?}");
     let image = fs::read(&journal).unwrap();
 
+    // The primary is already leased by the server. Each command that opens
+    // a journal must return Busy before inspecting its connection settings.
+    for (action, tail) in [
+        ("status", &[][..]),
+        ("check", &["bad", "--secret-file", key][..]),
+        ("resume", &["bad", "--secret-file", key][..]),
+        ("set", &["bad", "4", "43", "--secret-file", key][..]),
+    ] {
+        rejected(action, &primary, tail, "Busy");
+    }
+    let directory = dir.0.to_str().unwrap();
+    for (action, tail) in [
+        ("check", &[port.as_str(), "--secret-file", directory][..]),
+        ("resume", &[port.as_str(), "--secret-file", directory][..]),
+        (
+            "set",
+            &[port.as_str(), "4", "43", "--secret-file", directory][..],
+        ),
+        (
+            "init",
+            &[port.as_str(), "7", "--secret-file", directory][..],
+        ),
+    ] {
+        rejected(action, &journal, tail, "secret must be a regular file");
+    }
+    rejected(
+        "init",
+        &second,
+        &["bad", "7", "--secret-file", key],
+        "invalid digit",
+    );
+    rejected(
+        "init",
+        &second,
+        &[&port, "bad", "--secret-file", key],
+        "invalid digit",
+    );
+    assert!(!second.exists());
+    rejected(
+        "init",
+        &journal,
+        &[&port, "7", "--secret-file", key],
+        "AlreadyExists",
+    );
+    #[cfg(unix)]
+    let invalid_slot =
+        <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(vec![0xff]);
+    #[cfg(windows)]
+    let invalid_slot =
+        <std::ffi::OsString as std::os::windows::ffi::OsStringExt>::from_wide(&[0xd800]);
+    let output = Command::new(BIN)
+        .args(["journal", "init"])
+        .arg(&second)
+        .arg(&port)
+        .arg(invalid_slot)
+        .args(["--secret-file", key])
+        .output()
+        .unwrap();
+    assert!(!output.status.success() && output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().trim_end(),
+        "expected a decimal number"
+    );
+    assert!(!second.exists());
     let usage = "write-coordinator journal status <file>";
     for (action, tail) in [
         ("init", &[port.as_str(), "1023", "--wrong", key][..]),
@@ -1686,4 +1750,61 @@ fn journal_init_creates_a_file_only_after_identity_and_empty_receipt() {
             );
         }
     }
+}
+
+#[test]
+fn journal_receipt_survives_failure_to_print_commit_acknowledgment() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let database = dir.0.join("primary.db");
+    let journal = dir.0.join("writer.db");
+    let key = dir.0.join("secret");
+    let token = "4".repeat(64);
+    write_secret(&key, &token);
+    assert!(
+        Command::new(BIN)
+            .arg("init-sequenced")
+            .arg(&database)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let key = key.to_str().unwrap();
+    let (_service, client) =
+        configured_service("serve-sequenced", database.to_str().unwrap(), key, &token);
+    let port = client.address.port().to_string();
+    let command = |action: &str, tail: &[&str]| {
+        let mut cmd = Command::new(BIN);
+        cmd.args(["journal", action]).arg(&journal).args(tail);
+        cmd
+    };
+    let fail_output = |mut cmd: Command| {
+        let (reader, mut writer) = std::io::pipe().unwrap();
+        drop(reader);
+        let expected = writer.write_all(b"probe").unwrap_err();
+        let out = cmd.stdout(writer).output().unwrap();
+        assert!(!out.status.success(), "{out:?}");
+        assert_eq!(
+            String::from_utf8(out.stderr).unwrap().trim_end(),
+            expected.to_string()
+        );
+    };
+    fail_output(command("init", &[&port, "7", "--secret-file", key]));
+    // Even the first failed status line follows durable creation.
+    assert!(command("status", &[]).output().unwrap().status.success());
+
+    fail_output(command("set", &[&port, "3", "42", "--secret-file", key]));
+    let image = fs::read(&journal).unwrap();
+    assert_eq!(client.request("receipt 7"), "receipt 1 3 42 4");
+    for action in ["check", "resume"] {
+        fail_output(command(action, &[&port, "--secret-file", key]));
+    }
+    let replay = command("resume", &[&port, "--secret-file", key])
+        .output()
+        .unwrap();
+    assert!(replay.status.success(), "{replay:?}");
+    assert_eq!(replay.stdout, b"committed 4\n");
+    assert_eq!(fs::read(&journal).unwrap(), image);
+    assert_eq!(client.request("get"), "value 4 42");
+    assert_eq!(client.request("receipt 7"), "receipt 1 3 42 4");
 }

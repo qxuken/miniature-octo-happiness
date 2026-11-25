@@ -231,7 +231,7 @@
     "apps/weekend-replicate/src/native/tests.rs": "8ff9f70dcc1d0eac115a62ee6a39459c6ed402bd0cb5e12665d84575ba515cee",
     "apps/weekend-replicate/tests/cli.rs": "5bc1f316b556d389e376d3918b1e7544e32871f61f63d974802e3765917c0528",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
-    "apps/write-coordinator/tests/writers.rs": "b44cd6fa1462adfaa562a8fb18a67f04ee8a78f2599d6a443adbfa235023e26b",
+    "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/migration_allocator.rs": "970fba9fe1555a04d807a069cd56e6e3315f636361584042f60c3ccbe37eba0c",
     "crates/weekend-db-typed/tests/models.rs": "f080864d86f8e5fc63a18c282d3910bd706f23a191b9ee870fcb6647bcefc703",
@@ -392,7 +392,7 @@
     "docs/decisions/journal-replay-current.md": "c4faf55506857dc06af10af742beacd3218b84bcf37a44775b7d18e9cd5cf3ad",
     "docs/decisions/journal-admission-current.md": "52e5fc46922de2304baa8cf4489eef13107022203245a6458ec655211c710110",
     "docs/decisions/journal-state-current.md": "fe718ebe3a42da300efe0863e039e2f646cceead1e77c98c4365e5dad4cf46c2",
-    "docs/decisions/journal-cli-current.md": "ff5a6ce85fea802aea89cf71619dddac5d874c3a45509504a7744b994c6ca5d4"
+    "docs/decisions/journal-cli-current.md": "cc45df33500524d06130b533d6fbc78ce353b0b7692cbc59421435d18dfeaeb1"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
