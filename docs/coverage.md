@@ -115,3 +115,20 @@ matched all 34 files to their Git blobs and confirmed the exact integer
 counts and warning-free LLVM commands. The [archive manifest](decisions/compiler-coverage-36c065d.sha256)
 identifies the test objects, profiles, report, compiler probe, runner logs and
 source bundle.
+
+### Distinguishing an unavailable mode from a failed probe
+
+An unsupported result requires rustc's diagnostic for the requested flag and
+a supervised, normally retired child that exited with code 1. An unrelated
+compiler error also returns 1, so the exit code alone cannot establish the
+compiler's capability. Missing process evidence, a cancelled probe or an
+unrecognized diagnostic leaves the measurement rejected.
+
+At `df5edc2`, the real stable 1.100.0 compiler rejected the nightly flag and
+the November 25 nightly rejected the MC/DC value. A controlled compiler
+that reported the same version and failed the probe with exit 1 and an
+unrelated diagnostic produced `rejected`. The nightly condition fixture
+still calibrated successfully. Twelve coverage tests and the exact-exit
+supervision regression passed in debug and release on macOS arm64 and
+Docker Linux arm64. The [archive manifest](decisions/compiler-probe-df5edc2.sha256)
+covers the commands, process receipts, compiler output and negative control.

@@ -1563,3 +1563,9 @@ coverage report paths now reject missing, unbound and duplicate files.
 The [measurement and scope](coverage.md#core-library-measurement-on-november-25-2026)
 record the toolchain, source checks and denominators. Compiler MC/DC remains
 open. Reconciliation lists 758 runtime gaps and 7,400 tooling gaps.
+
+At `df5edc2`, the [compiler capability check](coverage.md#distinguishing-an-unavailable-mode-from-a-failed-probe)
+distinguished a clean rejection of the requested flag from an unrelated
+compiler failure with the same exit code. Both real compiler rejections and
+the synthetic failure were exercised through xtask; the condition fixture
+passed. Reconciliation leaves 758 runtime and 7,415 tooling gaps.
