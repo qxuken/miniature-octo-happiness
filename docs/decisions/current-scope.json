@@ -24456,6 +24456,115 @@
       "mutations": [
         "r1-typed-catalog-id-type"
       ]
+    },
+    {
+      "name": "TYPED-CATALOG-UNIQUE-IDS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db-typed::weekend_db_typed",
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "owner": "parse",
+        "kind": "if",
+        "start_byte": 4841,
+        "conditions": [
+          "id == 0",
+          "unique.contains(&id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "catalog_identity_unique_and_name_guards_have_independent_controls"
+        }
+      ],
+      "mutations": [
+        "r1-typed-catalog-zero-id",
+        "r1-typed-catalog-duplicate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TYPED-CATALOG-IDENTITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db-typed::weekend_db_typed",
+        "file": "crates/weekend-db-typed/src/store.rs",
+        "owner": "parse",
+        "kind": "if",
+        "start_byte": 5189,
+        "conditions": [
+          "entry.records <= 3",
+          "entry.type_id == 0",
+          "entry.version == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-typed/tests/runtime_decisions.rs",
+          "name": "catalog_identity_unique_and_name_guards_have_independent_controls"
+        }
+      ],
+      "mutations": [
+        "r1-typed-catalog-collection-range",
+        "r1-typed-catalog-type-zero",
+        "r1-typed-catalog-version-zero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
     }
   ],
   "cargo_scope": {
