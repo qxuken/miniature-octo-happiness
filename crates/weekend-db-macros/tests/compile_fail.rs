@@ -123,6 +123,26 @@ fn malformed_attributes_fail_in_downstream_compilation() {
             "field",
         ),
         (
+            "Record",
+            "#[record(key=b\"r\",format=b\"12345678\",fields())] enum Bad { Item }",
+            "supports structs only",
+        ),
+        (
+            "Record",
+            "#[record(key=b\"r\",format=b\"12345678\",fields(a))] union Bad { a:u64 }",
+            "supports structs only",
+        ),
+        (
+            "Record",
+            "#[record(key=b\"r\",format=b\"12345678\",fields())] struct Bad(u64);",
+            "requires named fields",
+        ),
+        (
+            "Record",
+            "#[record(key=b\"r\",format=b\"12345678\",fields())] struct Bad;",
+            "requires named fields",
+        ),
+        (
             "Resolution",
             "#[resolve] struct Bad { a:u64 }",
             "put #[resolve] on a field",

@@ -251,3 +251,172 @@ fn resolution_attribute_requires_parentheses() {
         "expected parentheses: #[resolution(...)]",
     );
 }
+
+const RECORD_OPTIONS: &str = "key=b\"key\",format=b\"FORMAT01\",fields(a)";
+
+fn record_source(options: &str) -> String {
+    format!("#[record({options})] struct A {{ a:u64 }}")
+}
+
+#[test]
+fn record_options_emit_the_requested_constants_crate_and_resolution_hook() {
+    use quote::ToTokens;
+    use syn::ImplItem;
+
+    for (extra, path, hook) in [
+        ("", ":: weekend_db :: crdt :: Record", false),
+        (
+            ",crate=\"crate::api\"",
+            "crate :: api :: crdt :: Record",
+            false,
+        ),
+        (",resolve=FLAG", ":: weekend_db :: crdt :: Record", true),
+    ] {
+        let source = format!(
+            "#[allow(dead_code)] {}",
+            record_source(&format!("{RECORD_OPTIONS}{extra}"))
+        );
+        let output = record::expand(syn::parse_str(&source).unwrap()).unwrap();
+        let implementation: syn::ItemImpl = syn::parse2(output).unwrap();
+        assert_eq!(
+            implementation
+                .trait_
+                .unwrap()
+                .1
+                .to_token_stream()
+                .to_string(),
+            path,
+        );
+        let constants = implementation.items.iter().filter_map(|item| {
+            let ImplItem::Const(item) = item else {
+                return None;
+            };
+            Some((
+                item.ident.to_string(),
+                item.expr.to_token_stream().to_string(),
+            ))
+        });
+        assert_eq!(
+            constants.take(2).collect::<Vec<_>>(),
+            [
+                ("KEY".into(), "b\"key\"".into()),
+                ("FORMAT".into(), "b\"FORMAT01\"".into()),
+            ],
+        );
+        assert_eq!(
+            implementation.items.iter().any(|item| {
+                matches!(item, ImplItem::Fn(method) if method.sig.ident == "resolve_conflicts")
+            }),
+            hook,
+        );
+    }
+    rejected(
+        record::expand,
+        &record_source(&format!("{RECORD_OPTIONS},unknown=true")),
+        "expected key, format, fields(...), resolve, or crate",
+    );
+}
+
+#[test]
+fn record_rejects_each_duplicate_option() {
+    valid(record::expand, &record_source(RECORD_OPTIONS));
+    valid(
+        record::expand,
+        &record_source(&format!(
+            "{RECORD_OPTIONS},crate=\"crate::api\",resolve=true"
+        )),
+    );
+    for (extra, message) in [
+        ("fields(a)", "duplicate fields list"),
+        (
+            "crate=\"crate::api\",crate=\"crate::api\"",
+            "duplicate crate path",
+        ),
+        ("key=b\"key\"", "duplicate record option"),
+        ("format=b\"FORMAT01\"", "duplicate record option"),
+        ("resolve=true,resolve=true", "duplicate record option"),
+    ] {
+        rejected(
+            record::expand,
+            &record_source(&format!("{RECORD_OPTIONS},{extra}")),
+            message,
+        );
+    }
+    valid(
+        record::expand,
+        "#[record(key=b\"key\")] #[record(format=b\"FORMAT01\",fields(a))] struct A { a:u64 }",
+    );
+    rejected(
+        record::expand,
+        &format!("#[record(key=b\"key\")] {}", record_source(RECORD_OPTIONS)),
+        "duplicate record option",
+    );
+}
+
+#[test]
+fn record_requires_each_wire_option() {
+    valid(record::expand, &record_source(RECORD_OPTIONS));
+    for (options, message) in [
+        ("format=b\"FORMAT01\",fields(a)", "specify record key"),
+        ("key=b\"key\",fields(a)", "specify record format"),
+        (
+            "key=b\"key\",format=b\"FORMAT01\"",
+            "list fields in wire order with fields(...)",
+        ),
+    ] {
+        rejected(record::expand, &record_source(options), message);
+    }
+    rejected(record::expand, "struct A { a:u64 }", "specify record key");
+}
+
+#[test]
+fn record_propagates_each_option_parser_error() {
+    valid(
+        record::expand,
+        &record_source(&format!("{RECORD_OPTIONS},crate=\"crate::api\"")),
+    );
+    for (options, message) in [
+        (
+            "key=b\"key\",format=b\"FORMAT01\",fields(3)",
+            "expected identifier",
+        ),
+        (
+            "key=b\"key\",format=b\"FORMAT01\",fields",
+            "unexpected end of input, expected parentheses",
+        ),
+        ("key,format=b\"FORMAT01\",fields(a)", "expected `=`"),
+        (
+            "format=b\"FORMAT01\",fields(a),key=",
+            "unexpected end of input, expected an expression",
+        ),
+    ] {
+        rejected(record::expand, &record_source(options), message);
+    }
+    for (extra, message) in [
+        ("crate", "expected `=`"),
+        ("crate=true", "expected string literal"),
+        ("crate=\"crate::api!\"", "unexpected token"),
+    ] {
+        rejected(
+            record::expand,
+            &record_source(&format!("{RECORD_OPTIONS},{extra}")),
+            message,
+        );
+    }
+    rejected(
+        record::expand,
+        "#[record=\"invalid\"] struct A { a:u64 }",
+        "expected parentheses: #[record(...)]",
+    );
+}
+
+#[test]
+fn record_attribute_on_a_field_rejects_with_unrelated_attribute_control() {
+    let source = |field| format!("#[record({RECORD_OPTIONS})] struct A {{ {field} a:u64 }}");
+    valid(record::expand, &source("#[allow(dead_code)]"));
+    rejected(
+        record::expand,
+        &source("#[record(key=b\"key\")]"),
+        "put #[record(...)] on the struct",
+    );
+}
