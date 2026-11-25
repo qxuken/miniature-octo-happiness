@@ -1,5 +1,6 @@
 use super::*;
 use std::{
+    ffi::OsStr,
     fs,
     io::{BufReader, Read},
     path::PathBuf,
@@ -55,6 +56,272 @@ fn write_roster_policy(file: &Path, policy: Policy) {
         ),
     )
     .unwrap();
+}
+
+fn invoke(command: &str, arguments: &[&OsStr]) -> AppResult<()> {
+    super::main(
+        std::iter::once(OsString::from(command))
+            .chain(arguments.iter().map(|argument| argument.to_os_string()))
+            .collect(),
+    )
+}
+
+#[test]
+fn run_options_accept_each_flag_once() {
+    let parse = |flags: &[&str]| {
+        let arguments = flags
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        RunOptions::parse(&arguments)
+    };
+    for (flags, pushing, sync_only) in [
+        (&[][..], true, false),
+        (&["--no-push"][..], false, false),
+        (&["--sync-only"][..], true, true),
+        (&["--no-push", "--sync-only"][..], false, true),
+        (&["--sync-only", "--no-push"][..], false, true),
+    ] {
+        let options = parse(flags).unwrap();
+        assert_eq!((options.pushing, options.sync_only), (pushing, sync_only));
+    }
+    for invalid in [
+        &["--extra"][..],
+        &["--no-push", "--no-push"][..],
+        &["--sync-only", "--sync-only"][..],
+        &["--no-push", "--sync-only", "--no-push"][..],
+        &["--sync-only", "--no-push", "--sync-only"][..],
+    ] {
+        assert_eq!(parse(invalid).err().unwrap().to_string(), USAGE);
+    }
+}
+
+#[test]
+fn receipt_argument_reads_only_the_selected_file_and_preserves_errors() {
+    let directory = Directory::new();
+    let path = directory.0.join("receipt");
+    let path_arg = path.as_os_str().to_owned();
+    let flags = ["--expect-old", "--expect-staged"];
+    for (flag, other) in flags.into_iter().zip(flags.into_iter().rev()) {
+        assert_eq!(expected_receipt(&[], flag).unwrap(), None);
+        for wrong in [
+            vec![flag.into()],
+            vec![other.into(), path_arg.clone()],
+            vec![flag.into(), path_arg.clone(), "extra".into()],
+        ] {
+            assert_eq!(
+                expected_receipt(&wrong, flag).unwrap_err().to_string(),
+                USAGE
+            );
+        }
+    }
+    let arguments = ["--expect-old".into(), path_arg];
+    assert_eq!(
+        expected_receipt(&arguments, "--expect-old")
+            .unwrap_err()
+            .downcast_ref::<io::Error>()
+            .unwrap()
+            .kind(),
+        io::ErrorKind::NotFound
+    );
+    let bytes = std::array::from_fn::<_, 128, _>(|index| index as u8);
+    fs::write(&path, bytes).unwrap();
+    assert_eq!(
+        expected_receipt(&arguments, "--expect-old")
+            .unwrap()
+            .unwrap(),
+        bytes
+    );
+    fs::write(&path, [0; 129]).unwrap();
+    assert_eq!(
+        expected_receipt(&arguments, "--expect-old")
+            .unwrap_err()
+            .to_string(),
+        "credential size outside bounds"
+    );
+}
+
+#[test]
+fn local_startup_dispatch_checks_arguments_before_opening_paths() {
+    invoke("--help", &[]).unwrap();
+    invoke("-h", &[]).unwrap();
+
+    let directory = Directory::new();
+    let keys = directory.0.join("keys");
+    let database = directory.0.join("study.wdb");
+    let missing = directory.0.join("missing");
+    let absent_database = missing.join("study.wdb");
+    let id = hex_identity(COLLECTION);
+    let args = |file: &Path, actor: &'static str| {
+        [
+            file.as_os_str().to_owned(),
+            OsString::from(actor),
+            id.clone().into(),
+        ]
+    };
+    assert_eq!(
+        invoke("wrong", &[keys.as_os_str()])
+            .unwrap_err()
+            .to_string(),
+        USAGE
+    );
+    assert!(!keys.exists());
+    invoke("keygen", &[keys.as_os_str()]).unwrap();
+    for name in ["cert.der", "key.der"] {
+        assert!(fs::metadata(keys.join(name)).unwrap().len() > 0);
+    }
+    let rejected = args(&database, "c");
+    assert_eq!(
+        invoke("init", &rejected.each_ref().map(OsString::as_os_str))
+            .unwrap_err()
+            .to_string(),
+        "actor must be a or b"
+    );
+    let accepted = args(&database, "a");
+    let accepted = accepted.each_ref().map(OsString::as_os_str);
+    assert_eq!(invoke("wrong", &accepted).unwrap_err().to_string(), USAGE);
+    assert!(!database.exists());
+    let missing_parent = args(&absent_database, "a");
+    assert_eq!(
+        invoke("init", &missing_parent.each_ref().map(OsString::as_os_str))
+            .unwrap_err()
+            .downcast_ref::<Error>(),
+        Some(&Error::NotFound)
+    );
+    invoke("init", &accepted).unwrap();
+    let bytes = fs::read(&database).unwrap();
+    assert_eq!(
+        invoke("init", &accepted)
+            .unwrap_err()
+            .downcast_ref::<Error>(),
+        Some(&Error::AlreadyExists)
+    );
+    assert_eq!(fs::read(&database).unwrap(), bytes);
+    {
+        let db = Database::open_file(&database, Limits::default()).unwrap();
+        let enrollment = Enrollment::new("a", COLLECTION).unwrap();
+        assert_eq!(db.snapshot().revision(), 2);
+        let replica = StudyReplica::open(
+            &db,
+            db.collection_id(COLLECTION_ROW),
+            enrollment.policy,
+            enrollment.actor,
+        )
+        .unwrap();
+        assert_eq!(replica.read().unwrap(), study::StudyProgress::default());
+    }
+
+    let pin = missing.join("peer.der");
+    let mut run = accepted.to_vec();
+    run.extend([
+        OsStr::new("127.0.0.1:0"),
+        OsStr::new("127.0.0.1:0"),
+        missing.as_os_str(),
+        pin.as_os_str(),
+    ]);
+    run.push(OsStr::new("--extra"));
+    assert_eq!(invoke("run", &run).unwrap_err().to_string(), USAGE);
+    run.pop();
+    assert_eq!(
+        invoke("run", &run)
+            .unwrap_err()
+            .downcast_ref::<io::Error>()
+            .unwrap()
+            .kind(),
+        io::ErrorKind::NotFound
+    );
+    assert_eq!(fs::read(&database).unwrap(), bytes);
+}
+
+#[test]
+fn roster_dispatch_preserves_configuration_and_receipt_errors() {
+    let directory = Directory::new();
+    let [a, b, old, new, bad, new_a, new_b, missing] =
+        ["a", "b", "old", "new", "bad", "new-a", "new-b", "missing"]
+            .map(|name| directory.0.join(name));
+    let policy = roster_policy();
+    write_roster_policy(&old, policy);
+    write_roster_policy(
+        &new,
+        Policy {
+            collection: [10; 16],
+            generation: policy.generation + 1,
+            actors: [[3; 16], [4; 16]],
+        },
+    );
+    fs::write(&bad, "unsupported-policy-v2").unwrap();
+    for (actor, path) in [("a", &a), ("b", &b)] {
+        initialize(path, Enrollment::new(actor, COLLECTION).unwrap()).unwrap();
+    }
+    let sources = [&a, &b];
+    let seen = sources.map(|path| fs::read(path).unwrap());
+    let checkpoint = |policy: &Path| {
+        invoke(
+            "checkpoint-roster",
+            &[a.as_os_str(), b.as_os_str(), policy.as_os_str()],
+        )
+    };
+    let stage = |old: &Path, new: &Path, receipt: Option<&Path>| {
+        let mut args = vec![
+            a.as_os_str(),
+            b.as_os_str(),
+            old.as_os_str(),
+            new_a.as_os_str(),
+            new_b.as_os_str(),
+            new.as_os_str(),
+        ];
+        if let Some(receipt) = receipt {
+            args.extend([OsStr::new("--expect-old"), receipt.as_os_str()]);
+        }
+        invoke("stage-roster", &args)
+    };
+    let verify = |policy: &Path, receipt: Option<&Path>| {
+        let mut args = vec![a.as_os_str(), b.as_os_str(), policy.as_os_str()];
+        if let Some(receipt) = receipt {
+            args.extend([OsStr::new("--expect-staged"), receipt.as_os_str()]);
+        }
+        invoke("verify-roster", &args)
+    };
+    for result in [
+        checkpoint(&bad),
+        stage(&bad, &new, None),
+        stage(&old, &bad, None),
+        verify(&bad, None),
+    ] {
+        assert_eq!(
+            result.unwrap_err().downcast_ref::<Error>(),
+            Some(&Error::UnsupportedFormat)
+        );
+    }
+    for result in [
+        stage(&old, &new, Some(&missing)),
+        verify(&old, Some(&missing)),
+    ] {
+        assert_eq!(
+            result
+                .unwrap_err()
+                .downcast_ref::<io::Error>()
+                .unwrap()
+                .kind(),
+            io::ErrorKind::NotFound
+        );
+    }
+    for arguments in [
+        vec![a.as_os_str(), b.as_os_str(), old.as_os_str()],
+        vec![
+            a.as_os_str(),
+            b.as_os_str(),
+            old.as_os_str(),
+            new_a.as_os_str(),
+            new_b.as_os_str(),
+            new.as_os_str(),
+        ],
+    ] {
+        assert_eq!(invoke("wrong", &arguments).unwrap_err().to_string(), USAGE);
+    }
+    assert!(!new_a.exists() && !new_b.exists());
+    assert_eq!(sources.map(|path| fs::read(path).unwrap()), seen);
 }
 
 #[test]
