@@ -626,3 +626,10 @@ all 16 private packages, three benchmark runs and the 22-target fuzz
 campaign against one source. The fuzz archive restored its empty failure
 directories and passed offline verification. R7 still requires a final
 approved source and off-machine proof custody.
+
+The [follower decoder error pairs](decisions/replica-decode-current.md)
+at `243bb55` passed on arm64 macOS and Docker Linux in debug and release.
+Both mutants failed the designated test in every campaign. The four campaigns
+produced 44 command reports. The local proof SHA-256 is
+`1136ed15fded883e479f2f694a3bc78d7891c8e1e7e3bc8b2691069f30926fa8`.
+Reconciliation leaves 1,875 runtime, 26 driver and 7,384 tooling gaps.
