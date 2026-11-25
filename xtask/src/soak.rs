@@ -25,6 +25,8 @@ const IMAGE_CAP: u64 = 32 * 1024 * 1024;
 const MAX_ROUNDS: u64 = 100_000;
 const MAX_ROW: u64 = 4096;
 const HARNESS: &str = "tools/soak";
+const BINARY: &str = "build/release/weekend-native-soak";
+const ARTIFACT_EXCLUSIONS: &[&str] = &["evidence.json", "source", "build"];
 const TIMING_FIELDS: [&str; 6] = [
     "round",
     "concurrent",
@@ -173,15 +175,123 @@ fn observe(
         result.cleanup_failure
     );
     let (last, timings) = summary(BufReader::new(File::open(&request.stdout)?), round_limit)?;
-    if integer(&last, "rounds")? < round_limit {
+    verify_duration(&last, round_limit, seconds, result.elapsed_seconds)?;
+    c.evidence["last_record"] = last;
+    c.evidence["round_timing_ns"] = timings;
+    Ok(())
+}
+
+fn verify_duration(
+    last: &Value,
+    round_limit: u64,
+    seconds: u64,
+    observed_seconds: f64,
+) -> Result<()> {
+    if integer(last, "rounds")? < round_limit {
         ensure!(
-            integer(&last, "elapsed_ms")? >= seconds * 1000
-                && result.elapsed_seconds >= seconds as f64,
+            integer(last, "elapsed_ms")? >= seconds * 1000 && observed_seconds >= seconds as f64,
             "soak ended before reaching its round or duration limit"
         );
     }
-    c.evidence["last_record"] = last;
-    c.evidence["round_timing_ns"] = timings;
+    Ok(())
+}
+
+fn verify_evidence(root: &Path) -> Result<Value> {
+    let evidence_path = root.join("evidence.json");
+    let meta = fs::symlink_metadata(&evidence_path)?;
+    ensure!(
+        meta.is_file() && meta.len() <= 16 * 1024 * 1024,
+        "regular soak evidence within size budget required"
+    );
+    let evidence = delivery::json(&fs::read(evidence_path)?)?;
+    ensure!(
+        evidence["passed"] == true
+            && evidence["verified"] == true
+            && evidence["cancelled"] == false,
+        "soak did not finish with verified evidence"
+    );
+    let seconds = integer(&evidence, "seconds")?;
+    let limit = integer(&evidence, "round_limit")?;
+    verify_bounds(seconds, limit)?;
+    let report: Report = serde_json::from_value(evidence["supervision"].clone())?;
+    ensure!(
+        report.success() && !report.timed_out && !report.cancelled && !report.stopped,
+        "soak child or process cleanup failed"
+    );
+    ensure!(
+        evidence["elapsed_seconds"].as_f64() == Some(report.elapsed_seconds)
+            && evidence["rss_sample_count"].as_u64() == Some(report.rss_sample_count)
+            && evidence["sampled_peak_rss_kib"].as_u64() == Some(report.sampled_peak_rss_kib),
+        "soak process summary differs from supervision receipt"
+    );
+    let artifacts = inventory(root, ARTIFACT_EXCLUSIONS)?;
+    ensure!(
+        json!(artifacts) == evidence["artifacts"],
+        "soak artifacts differ from manifest"
+    );
+    ensure!(
+        artifacts.get("source.tar").map(String::as_str) == evidence["archive_sha256"].as_str()
+            && artifacts.contains_key("source.tar"),
+        "soak source archive differs from manifest"
+    );
+    ensure!(
+        json!(inventory(&root.join("source"), &[])?) == evidence["engine_source_sha256"],
+        "soak source differs from manifest"
+    );
+    for directory in ["build", "build/release"] {
+        ensure!(
+            fs::symlink_metadata(root.join(directory))?.is_dir(),
+            "soak executable directory must be regular"
+        );
+    }
+    let binary = root.join(BINARY);
+    let meta = fs::symlink_metadata(&binary)?;
+    ensure!(
+        meta.is_file() && meta.len() <= 64 * 1024 * 1024,
+        "regular soak executable within size budget required"
+    );
+    ensure!(
+        evidence["binary_sha256"].as_str() == Some(sha(&binary)?.as_str()),
+        "soak executable differs from manifest"
+    );
+    for (log, bytes) in [
+        ("rounds.jsonl", report.stdout_bytes),
+        ("stderr.log", report.stderr_bytes),
+    ] {
+        ensure!(
+            artifacts.contains_key(log)
+                && evidence["logs_sha256"][log].as_str() == artifacts.get(log).map(String::as_str)
+                && fs::metadata(root.join(log))?.len() == bytes,
+            "soak log differs from receipt: {log}"
+        );
+    }
+    let (last, timings) = summary(
+        BufReader::new(File::open(root.join("rounds.jsonl"))?),
+        limit,
+    )?;
+    verify_duration(&last, limit, seconds, report.elapsed_seconds)?;
+    ensure!(
+        last == evidence["last_record"] && timings == evidence["round_timing_ns"],
+        "soak summaries differ from round records"
+    );
+    Ok(json!({
+        "verified":true,
+        "engine_revision":evidence["engine_revision"],
+        "last_record":last,
+        "round_timing_ns":timings,
+    }))
+}
+
+pub fn verify(root: &Path) -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(&verify_evidence(root)?)?);
+    Ok(())
+}
+
+fn verify_bounds(seconds: u64, rounds: u64) -> Result<()> {
+    ensure!(
+        (1..=86_400).contains(&seconds) && (1..=MAX_ROUNDS).contains(&rounds),
+        "invalid soak bounds"
+    );
     Ok(())
 }
 
@@ -197,10 +307,7 @@ fn block_size(output: &Path) -> Result<u128> {
 }
 
 pub fn run(run: &Run, opts: Options) -> Result<()> {
-    ensure!(
-        (1..=86_400).contains(&opts.seconds) && (1..=MAX_ROUNDS).contains(&opts.rounds),
-        "invalid soak bounds"
-    );
+    verify_bounds(opts.seconds, opts.rounds)?;
     let output = assurance::fresh_output(&run.root, &opts.output)?;
     let mut c = Campaign::new(run, &output, "bounded tiny-record native lifecycle soak")?;
     c.evidence["verified"] = json!(false);
@@ -253,7 +360,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             inventory(&source, &[])? == source_hashes,
             "frozen soak source changed during build"
         );
-        let binary = target.join("release/weekend-native-soak");
+        let binary = output.join(BINARY);
         let binary_hash = sha(&binary)?;
         c.evidence["binary_sha256"] = json!(binary_hash);
         c.limits(64 * 1024 * 1024, None)?;
@@ -282,7 +389,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
             sha(&binary)? == binary_hash && inventory(&source, &[])? == source_hashes,
             "frozen soak source or binary changed during execution"
         );
-        c.evidence["artifacts"] = json!(inventory(&output, &["evidence.json", "source", "build"])?);
+        c.evidence["artifacts"] = json!(inventory(&output, ARTIFACT_EXCLUSIONS)?);
         Ok(())
     })();
     c.evidence["verified"] = json!(result.is_ok());
@@ -383,6 +490,88 @@ mod tests {
             bad.last_mut().unwrap()[name] = value;
             assert!(summary(jsonl(&bad).as_bytes(), 9).is_err(), "{name}");
         }
+    }
+
+    #[test]
+    fn restored_evidence_checks_payloads_completion_and_timing_summary() {
+        let dir = Scratch::new(&std::env::temp_dir(), "timed-soak-proof").unwrap();
+        let root = dir.path();
+        fs::create_dir(root.join("source")).unwrap();
+        fs::create_dir_all(root.join("build/release")).unwrap();
+        let rows = records(9);
+        let log = jsonl(&rows);
+        for (file, body) in [
+            ("source.tar", "source archive"),
+            ("source/driver.rs", "driver"),
+            (BINARY, "executable"),
+            ("rounds.jsonl", &log),
+            ("stderr.log", ""),
+        ] {
+            fs::write(root.join(file), body).unwrap();
+        }
+        let artifacts = inventory(root, ARTIFACT_EXCLUSIONS).unwrap();
+        let (last, timings) = summary(log.as_bytes(), 9).unwrap();
+        let report = Report {
+            returncode: Some(0),
+            cleanup_verified: true,
+            elapsed_seconds: 0.1,
+            stdout_bytes: log.len() as u64,
+            rss_sample_count: 1,
+            sampled_peak_rss_kib: 100,
+            ..Default::default()
+        };
+        let good = json!({
+            "verified":true, "passed":true, "cancelled":false, "engine_revision":"fixture",
+            "seconds":1, "round_limit":9,
+            "supervision":report, "elapsed_seconds":0.1, "rss_sample_count":1, "sampled_peak_rss_kib":100,
+            "archive_sha256":artifacts["source.tar"],
+            "engine_source_sha256":inventory(&root.join("source"), &[]).unwrap(),
+            "logs_sha256":{"rounds.jsonl":artifacts["rounds.jsonl"],"stderr.log":artifacts["stderr.log"]},
+            "binary_sha256":sha(&root.join(BINARY)).unwrap(),
+            "artifacts":artifacts,"last_record":last,"round_timing_ns":timings
+        });
+        let write_evidence = |value: &Value| {
+            fs::write(
+                root.join("evidence.json"),
+                serde_json::to_vec(value).unwrap(),
+            )
+            .unwrap();
+        };
+        write_evidence(&good);
+        assert_eq!(verify_evidence(root).unwrap()["round_timing_ns"], timings);
+        for (field, value, message) in [
+            ("round_limit", json!(10), "ended before"),
+            ("cancelled", json!(true), "did not finish"),
+            ("round_timing_ns", json!({}), "summaries differ"),
+            ("binary_sha256", json!("changed"), "executable differs"),
+        ] {
+            let mut bad = good.clone();
+            bad[field] = value;
+            write_evidence(&bad);
+            assert!(
+                verify_evidence(root)
+                    .unwrap_err()
+                    .to_string()
+                    .contains(message),
+                "{field}"
+            );
+        }
+        write_evidence(&good);
+        fs::write(root.join("source/driver.rs"), "different source").unwrap();
+        assert!(
+            verify_evidence(root)
+                .unwrap_err()
+                .to_string()
+                .contains("source differs")
+        );
+        fs::write(root.join("source/driver.rs"), "driver").unwrap();
+        fs::write(root.join("rounds.jsonl"), b"").unwrap();
+        assert!(
+            verify_evidence(root)
+                .unwrap_err()
+                .to_string()
+                .contains("artifacts differ")
+        );
     }
 
     fn options(output: PathBuf) -> Options {

@@ -161,6 +161,9 @@ enum Task {
     /// Exercise a bounded native lifecycle workload on a frozen engine.
     #[cfg(unix)]
     Soak(soak::Options),
+    /// Verify extracted evidence from a completed timed native soak.
+    #[cfg(unix)]
+    SoakVerify { directory: std::path::PathBuf },
     /// Qualify storage, typed schema, or core snapshot compatibility across archives.
     #[cfg(any(unix, windows))]
     Compatibility(compatibility::Options),
@@ -378,6 +381,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::FollowerBackupRestore(options) => follower_backup::run(&run, options),
         #[cfg(unix)]
         Task::Soak(options) => soak::run(&run, options),
+        #[cfg(unix)]
+        Task::SoakVerify { directory } => soak::verify(&assurance::absolute(&run.root, &directory)),
         #[cfg(any(unix, windows))]
         Task::Compatibility(options) => compatibility::run(&run, options),
         #[cfg(unix)]

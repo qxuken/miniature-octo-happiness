@@ -81,6 +81,22 @@ claim. Separate crash/fault, native interruption and platform qualification rema
 necessary. Evidence stays in caller-selected output directories rather than being
 committed as bulky artifacts.
 
+## Recheck extracted timed evidence
+
+Preserve the output directory, including its archived source and
+`build/release/weekend-native-soak`. After a fresh extraction, run:
+
+```sh
+cargo xtask soak-verify /absolute/path/to/extracted-evidence
+```
+
+The verifier checks the extracted files, executable, allowed process
+outcome and both completion clocks. It recomputes the timing percentiles
+from the raw JSONL records and compares both the timing and completion
+summaries to the evidence. Proofs produced before per-round timing do
+not have the fields required by this command. Check the archive's
+recorded SHA-256 before extraction to bind it to its original evidence.
+
 ## Recorded qualification
 
 On macOS 27.0.1 arm64, rustc 1.99.1 / LLVM 23.1.1, frozen engine

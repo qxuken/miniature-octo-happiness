@@ -177,7 +177,7 @@
     "xtask/src/instrumentation.rs": "3854dbf5a03081fa56d57c1ca385054b5d6c2a4468e7cb26b87bd0d885d1632d",
     "xtask/src/interactive.rs": "a7f1b446652b9ee1f5acdaae4c6d3bc5294fbf03c26cfbc65ebf0c66d569975f",
     "xtask/src/macos_volume.rs": "9b9dab701a7336aa5e645cd09bfa71f5c66958f5ca46e648bb71a0c4d80bdf97",
-    "xtask/src/main.rs": "6eda82b2c6722b75facabbe42a2ffb5b13ba2742d71fdd28d0a883863ef2a45b",
+    "xtask/src/main.rs": "969d6c838aa70ade7d4c0373e66b45905e50634c67b7dcb3a51d9d37413b0381",
     "xtask/src/maintenance_space.rs": "402ec5e967227f12fc6e901e393fdedb253bef1bb235b510a94f8948753b43a0",
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "908c0003f5d40873e75f5f2a573826f9abe91818f21370fd4ec1765910ce90fe",
@@ -207,7 +207,7 @@
     "xtask/src/snapshot_proof.rs": "3a6f37f065f74bab278f2f6136cad970b979512f8daac485dabf77bc09811d0c",
     "xtask/src/snapshot_upgrade.rs": "acf857f2c4cc8a40b9a1f64651cdb39fcda163aa42e792b6d9e4479edf60b73f",
     "xtask/src/snapshot_upgrade_linux.rs": "daf6113e3e0039b56478371ec341d472f582c7fa5efb675cc59d46dc6c1ae853",
-    "xtask/src/soak.rs": "0cd5c164d281c9c0ddf48a1aafd1bef5e602072633950a7c87ea4ce14bfdd14f",
+    "xtask/src/soak.rs": "f45e2809003e5d419f2ad01ec6daa9ec25bff0d2eee01cbfaeaedfec1199b577",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
     "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
     "xtask/src/sqlite_baseline.rs": "2edb8f5f19c8bfd7917c90fd0da10fde1e1937748c05dbe43c502e7bc0d5b247",
@@ -468,7 +468,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 342,
-    "xtask::xtask": 5274
+    "xtask::xtask": 5290
   },
   "groups": [
     {
