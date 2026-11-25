@@ -96,7 +96,7 @@
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
-    "src/engine.rs": "fe60c081c3e844455b4d8c2761a5459d67781763b6487e08e3f21c81dd6c64d9",
+    "src/engine.rs": "86e0bdcb4b93dc718f305bbc6085325f712927eeb99e9c2108f621f14c351258",
     "src/ffi.rs": "badceb85abf4de706b52d6ee8d03836712055e8e5a3b93ca8b7cca2fbf963e29",
     "src/lib.rs": "9ff143a41e86bd50fb5ec30486fe17a916eeae001f35349f88062bc3fa6c24b8",
     "src/memory.rs": "e6ebf06ad09de067f4ad341c7f517532cd9d8ca0c33fb41cc4575b092c8062cf",
