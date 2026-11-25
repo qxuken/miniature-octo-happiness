@@ -1139,3 +1139,36 @@ lost the second reply, replayed locally with a stable result, preserved
 the two retained roots and left the original files intact. Qualification
 under the intended deployment account and on the selected release source
 remains open.
+
+### Database constructor error propagation
+
+Seven source records in `Database::with_options`, `create_on_with_options`
+and `open_on_with_options` now bind the existing tests to individual
+constructor failures. Each mutation translates one error at its call site
+to `Invalid`. The expected result distinguishes allocator refusal from
+store-identity exhaustion.
+
+| Call path | Failure witness | Success and state checks |
+|---|---|---|
+| Allocate budget control and initial head | Creation refuses allocations 0 and 1 respectively with `OutOfMemory` | The allocation sweep ends with revision 0 and the supplied identity |
+| Allocate the process-local store identity | The isolated child reaches the end of the identity range and receives `Exhausted` | The previous store keeps the final assignable identity and its readable revision |
+| Initialize a database and create its durable image | The creation sweep refuses both initialization and storage preparation | No write precedes a refusal, allocation charges retire, and the lease can be reacquired |
+| Initialize a database and recover its durable image | The reopen sweep returns `OutOfMemory` during both initialization and graph recovery | The image stays byte-identical and a fresh opener verifies the current and retained values |
+
+All seven mutations on `cb2202e` triggered the intended test failure in
+both debug and release on macOS and Docker Linux. Review of the extracted
+archives checked all 28 failures, 112 supervised command receipts and the
+copied engine, test and registry hashes. The [archive checksums](decisions/constructor-cb2202e.sha256)
+identify both campaigns and their source bundle. The inventory has
+1,825 runtime, 26 driver and 7,397 tooling gaps remaining.
+
+The identity mutation exposed a weakness in the subprocess test. The
+parent accepted any successful child exit, and its diagnostic omitted the
+child harness's captured assertion. On `7b37843` the parent requires the
+named child test to pass and includes the child's stdout and stderr on
+failure. Both hosts passed the normal test in debug and release. Selecting
+a nonexistent child produced a zero exit with zero child tests and failed
+the parent. Breaking the last-identity assertion also failed the parent
+and exposed the child's actual identity value in its diagnostic.
+The [negative-control checksums](decisions/identity-child-7b37843.sha256)
+pin the logs, reproduction script and source.
