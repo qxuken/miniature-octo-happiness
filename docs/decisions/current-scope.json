@@ -243,7 +243,7 @@
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
     "docs/decisions/current.md": "fc26e89154fd2077e63ac2815bde91d8be7ac8275e627f686d03d9e2329e6c1f",
-    "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
+    "docs/decisions/diagnostics.md": "034c6dd99e61d1f1b0140caece02ca482238a46721d8cd6fea28d32bdaf1ae35",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "f5ad16c33b6559caa8301a2bff9861910d93f4c89af7811703b0ea51a047eaff",
     "docs/decisions/ffi.md": "5de80429b18fb25cc5ff237cd58d96064b99e4e8335df23242b6334e1b9d36ef",
