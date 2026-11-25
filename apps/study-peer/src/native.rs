@@ -268,7 +268,7 @@ fn run_with_io<S: io::Read + Write>(
         let receiving_replica = &replica;
         let server = &tls;
         let received = &incoming_status;
-        let receiving = scope.spawn(move || {
+        let receive = move || {
             diagnostics::capture(settings, Phase::Incoming, || {
                 admission::receive(listener, server, stop_receiving, received, |stream| {
                     Ok(diagnostics::storage(Phase::Replication, || {
@@ -276,8 +276,8 @@ fn run_with_io<S: io::Read + Write>(
                     })?)
                 })
             })
-        });
-        let outgoing = scope.spawn(|| {
+        };
+        let send = || {
             let mut delay = POLL;
             while !stop.load(Relaxed) {
                 if !pushing.load(Relaxed) {
@@ -304,7 +304,9 @@ fn run_with_io<S: io::Read + Write>(
                 }
                 thread::park_timeout(delay);
             }
-        });
+        };
+        let (receiving, outgoing) =
+            launch_workers(scope, &stop, receive, send, || Ok(thread::Builder::new()))?;
 
         let (result, local_diagnostic) =
             diagnostics::capture(settings, Phase::LocalCommand, || {
@@ -384,4 +386,36 @@ fn run_with_io<S: io::Read + Write>(
         })?;
         diagnostics::propagate(result, local_diagnostic)
     })
+}
+
+fn launch_workers<'scope, 'env, T: Send + 'scope>(
+    scope: &'scope thread::Scope<'scope, 'env>,
+    stop: &AtomicBool,
+    receive: impl FnOnce() -> T + Send + 'scope,
+    send: impl FnOnce() + Send + 'scope,
+    mut new_worker: impl FnMut() -> io::Result<thread::Builder>,
+) -> AppResult<(
+    thread::ScopedJoinHandle<'scope, T>,
+    thread::ScopedJoinHandle<'scope, ()>,
+)> {
+    let receiving = diagnostics::at(Phase::Incoming, || {
+        new_worker()
+            .and_then(|builder| builder.spawn_scoped(scope, receive))
+            .map_err(Into::into)
+    })?;
+    let outgoing = diagnostics::at(Phase::Connect, || {
+        new_worker()
+            .and_then(|builder| builder.spawn_scoped(scope, send))
+            .map_err(Into::into)
+    });
+    match outgoing {
+        Ok(outgoing) => Ok((receiving, outgoing)),
+        Err(error) => {
+            stop.store(true, Relaxed);
+            receiving.thread().unpark();
+            // The launch failure remains the result if the receiver also panics.
+            let _ = receiving.join();
+            Err(error)
+        }
+    }
 }

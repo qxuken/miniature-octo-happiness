@@ -874,6 +874,83 @@ fn with_interactive_deadline(test: impl FnOnce() + Send + 'static) {
 }
 
 #[test]
+fn service_launch_failure_stops_and_joins_an_already_started_receiver() {
+    with_interactive_deadline(|| {
+        let mut arguments = vec!["--diagnostics=json".into(), "run".into()];
+        let settings = diagnostics::settings_from_args(diagnostics::App::Study, &mut arguments);
+        for (fail_at, panic_receiver) in [(0, false), (1, false), (2, false), (2, true)] {
+            let stop = AtomicBool::new(false);
+            let received = AtomicBool::new(false);
+            let sent = AtomicBool::new(false);
+            let (entered, enter) = mpsc::channel();
+            let mut attempts = 0;
+            let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+                thread::scope(|scope| {
+                    let (receiving, outgoing) = launch_workers(
+                        scope,
+                        &stop,
+                        || {
+                            entered.send(()).unwrap();
+                            let deadline = Instant::now() + Duration::from_secs(4);
+                            while !stop.load(Relaxed) {
+                                assert!(Instant::now() < deadline, "receiver did not stop");
+                                thread::park_timeout(Duration::from_millis(25));
+                            }
+                            received.store(true, Relaxed);
+                            assert!(!panic_receiver, "controlled receiving worker panic");
+                        },
+                        || sent.store(true, Relaxed),
+                        || {
+                            attempts += 1;
+                            if attempts == fail_at {
+                                if attempts == 2 {
+                                    enter.recv_timeout(Duration::from_secs(4)).unwrap();
+                                }
+                                return Err(io::Error::new(
+                                    io::ErrorKind::WouldBlock,
+                                    "launch refused",
+                                ));
+                            }
+                            Ok(thread::Builder::new())
+                        },
+                    )?;
+                    stop.store(true, Relaxed);
+                    receiving.thread().unpark();
+                    receiving.join().unwrap();
+                    outgoing.join().unwrap();
+                    Ok(())
+                })
+            });
+            assert_eq!(attempts, if fail_at == 1 { 1 } else { 2 });
+            assert_eq!(stop.load(Relaxed), fail_at != 1);
+            assert_eq!(received.load(Relaxed), fail_at != 1);
+            assert_eq!(sent.load(Relaxed), fail_at == 0);
+            if fail_at == 0 {
+                result.unwrap();
+                assert!(diagnostic.is_none());
+            } else {
+                let error = result.unwrap_err();
+                assert_eq!(
+                    error.downcast_ref::<io::Error>().map(io::Error::kind),
+                    Some(io::ErrorKind::WouldBlock)
+                );
+                assert_eq!(error.to_string(), "launch refused");
+                let phase = if fail_at == 1 { "incoming" } else { "connect" };
+                assert!(
+                    diagnostic
+                        .unwrap()
+                        .json(settings)
+                        .to_string()
+                        .contains(&format!(
+                            "\"phase\":\"{phase}\",\"category\":\"io\",\"code\":\"would_block\""
+                        ))
+                );
+            }
+        }
+    });
+}
+
+#[test]
 fn interactive_io_errors_stop_workers_and_preserve_commits() {
     with_interactive_deadline(|| {
         let invalid = interactive_case(b"peer\n\xff\n", false, true, false);

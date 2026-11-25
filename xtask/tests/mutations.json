@@ -16941,6 +16941,54 @@
       "matches": 1,
       "package": "study-peer",
       "exact_test": "native::admission::tests::failed_worker_launch_closes_the_new_socket_and_joins_the_active_worker"
+    },
+    {
+      "name": "r1-study-service-launch-receive-error",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::at(Phase::Incoming, || {\n        new_worker()\n            .and_then(|builder| builder.spawn_scoped(scope, receive))\n            .map_err(Into::into)\n    })?",
+      "new": "diagnostics::at(Phase::Incoming, || {\n        new_worker()\n            .and_then(|builder| builder.spawn_scoped(scope, receive))\n            .map_err(Into::into)\n    }).map_err(|_| Error::Invalid)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::service_launch_failure_stops_and_joins_an_already_started_receiver"
+    },
+    {
+      "name": "r1-study-service-launch-receive-phase",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::at(Phase::Incoming, || {\n        new_worker()\n            .and_then(|builder| builder.spawn_scoped(scope, receive))\n            .map_err(Into::into)\n    })",
+      "new": "diagnostics::at(Phase::Arguments, || {\n        new_worker()\n            .and_then(|builder| builder.spawn_scoped(scope, receive))\n            .map_err(Into::into)\n    })",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::service_launch_failure_stops_and_joins_an_already_started_receiver"
+    },
+    {
+      "name": "r1-study-service-launch-keep-receiver-running",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "stop.store(true, Relaxed);\n            receiving.thread().unpark();",
+      "new": "stop.store(false, Relaxed);\n            receiving.thread().unpark();",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::service_launch_failure_stops_and_joins_an_already_started_receiver"
+    },
+    {
+      "name": "r1-study-service-launch-leave-receiver-unjoined",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "let _ = receiving.join();",
+      "new": "drop(receiving);",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::service_launch_failure_stops_and_joins_an_already_started_receiver"
     }
   ]
 }

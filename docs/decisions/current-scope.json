@@ -3,7 +3,7 @@
   "baseline": "c57c12362b58655fca0ce536617ed76528ea1e91",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
-    "apps/study-peer/src/native.rs": "9ced0c6b1d1ea19a0c2c827410755ad5775e4026c8271d1d7448a9f9822f9c68",
+    "apps/study-peer/src/native.rs": "90bd16b82af0c231e5b96831149c56bf18959714b98e0489a6a52a0ce42372a3",
     "apps/study-peer/src/native/admission.rs": "adfe170e38702c1845b7eb56a2d69d5d0ae9bfbb4b104467b3cb6f43d7864959",
     "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
@@ -227,7 +227,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "88da106a115a327ae4ba7a7b549cc1d6936e12d4044c6478bbf491c83bf745cd",
+    "apps/study-peer/src/native/tests.rs": "8999f6079530f0e93db10deeb3601f7f6549ee28f8e2ab418c98db8bdf0d5a8a",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
     "apps/weekend-replicate/tests/cli.rs": "7c5058e3bc08b609ed5ce52e1d88ad7ae5c7d0e16afec25b25ced819742dff99",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "b4cccf0c9e97b0342f3a34ba721691ac166341afb3454d394ffae3bc8db2eda9",
+    "xtask/tests/mutations.json": "7eb4fa253b4a018bdd7273b011096464d700a003c88a9924e9bbb3b9af670242",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -416,14 +416,15 @@
     "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
     "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f",
     "docs/decisions/study-incoming-worker-current.md": "f94f0d11e3bd22ae1df89ae4574953425ec3a07b591c5dc86988b6749339b5bb",
-    "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591"
+    "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591",
+    "docs/decisions/study-service-launch-current.md": "a3dc55a0167d1d5a5a047e6617eea50ab23d969b5642d2fdd77b86cfff02797e"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
     "monthly-workload::monthly-workload": 25,
     "private-rust-consumer::private-rust-consumer": 34,
     "replica-progress-fixture::replica-progress-fixture": 2,
-    "study-peer::study-peer": 303,
+    "study-peer::study-peer": 306,
     "typed-renamed-consumer::typed-renamed-consumer": 3,
     "weekend-atomic-model::budget": 6,
     "weekend-atomic-model::weekend-atomic-model": 11,
@@ -893,7 +894,8 @@
         "docs/decisions/study-service-startup-current.md",
         "docs/decisions/study-peer-status-current.md",
         "docs/decisions/study-incoming-worker-current.md",
-        "docs/decisions/study-worker-launch-current.md"
+        "docs/decisions/study-worker-launch-current.md",
+        "docs/decisions/study-service-launch-current.md"
       ],
       "residual": "Fixed-roster deployment, raw reserved rows and native stream errors remain explicit application obligations."
     },
@@ -30549,7 +30551,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 11023,
+        "start_byte": 11116,
         "conditions": [
           "line"
         ]
@@ -30572,7 +30574,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 11468,
+        "start_byte": 11561,
         "conditions": [
           "writeln!(output, \"push {value}\")"
         ]
@@ -30595,7 +30597,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 12577,
+        "start_byte": 12670,
         "conditions": [
           "writeln!(output, \"{reply}\")"
         ]
@@ -30618,7 +30620,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 13113,
+        "start_byte": 13206,
         "conditions": [
           "writeln!(output, \"{report}\")"
         ]
@@ -30641,7 +30643,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 13491,
+        "start_byte": 13584,
         "conditions": [
           "writeln!(output, \"{}\", diagnostic.json(settings))"
         ]
@@ -30664,7 +30666,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 13628,
+        "start_byte": 13721,
         "conditions": [
           "writeln!(output, \"error local edits are disabled during staging\")"
         ]
@@ -30687,7 +30689,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 13848,
+        "start_byte": 13941,
         "conditions": [
           "writeln!(output, \"{reply}\")"
         ]
@@ -30710,7 +30712,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 14137,
+        "start_byte": 14230,
         "conditions": [
           "writeln!(output, \"{}\", diagnostic.json(settings))"
         ]
@@ -30733,7 +30735,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 14245,
+        "start_byte": 14338,
         "conditions": [
           "writeln!(output, \"error {error}\")"
         ]
@@ -30756,7 +30758,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "if",
-        "start_byte": 12801,
+        "start_byte": 12894,
         "conditions": [
           "settings.enabled"
         ]
@@ -30793,7 +30795,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "match_guard",
-        "start_byte": 13195,
+        "start_byte": 13288,
         "conditions": [
           "options.sync_only"
         ]
@@ -30830,7 +30832,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "if",
-        "start_byte": 13246,
+        "start_byte": 13339,
         "conditions": [
           "settings.enabled"
         ]
@@ -30867,7 +30869,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "match_guard",
-        "start_byte": 13893,
+        "start_byte": 13986,
         "conditions": [
           "settings.enabled"
         ]
@@ -31334,7 +31336,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "while",
-        "start_byte": 9740,
+        "start_byte": 9709,
         "conditions": [
           "!stop.load(Relaxed)"
         ]
@@ -31371,7 +31373,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "if",
-        "start_byte": 9784,
+        "start_byte": 9753,
         "conditions": [
           "!pushing.load(Relaxed)"
         ]
@@ -31408,7 +31410,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "if",
-        "start_byte": 10418,
+        "start_byte": 10387,
         "conditions": [
           "result.is_ok()"
         ]
@@ -31446,7 +31448,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "match_guard",
-        "start_byte": 11909,
+        "start_byte": 12002,
         "conditions": [
           "settings.enabled"
         ]
@@ -31483,7 +31485,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 10077,
+        "start_byte": 10046,
         "conditions": [
           "diagnostics::at(Phase::Connect, || tls.connect(peer))"
         ]
@@ -31506,7 +31508,7 @@
         "target": "study-peer::study-peer",
         "owner": "run_with_io",
         "kind": "try_propagation",
-        "start_byte": 10237,
+        "start_byte": 10206,
         "conditions": [
           "diagnostics::storage(Phase::Replication, || {\n                        replica.push_authenticated(stream)\n                    })"
         ]
@@ -31799,6 +31801,30 @@
       ],
       "mutations": [
         "r1-study-incoming-worker-launch"
+      ]
+    },
+    {
+      "name": "STUDY-SERVICE-LAUNCH-RECEIVE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "launch_workers",
+        "kind": "try_propagation",
+        "start_byte": 15529,
+        "conditions": [
+          "diagnostics::at(Phase::Incoming, || {\n        new_worker()\n            .and_then(|builder| builder.spawn_scoped(scope, receive))\n            .map_err(Into::into)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_launch_failure_stops_and_joins_an_already_started_receiver"
+        }
+      ],
+      "mutations": [
+        "r1-study-service-launch-receive-error",
+        "r1-study-service-launch-receive-phase"
       ]
     }
   ],
