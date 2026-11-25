@@ -2282,3 +2282,22 @@ three images. Hosted confirmation of the repair is pending.
 Reconciliation leaves 398 runtime and 7,485 tooling gaps after removal
 of the superseded retry guard.
 [APFS detach ledger](decisions/apfs-detach-current.md)
+
+### Coordinator legacy commit failure and recovery
+
+At `29286d9`, both legacy write commands preserve their original
+lookup, parse and draft-limit errors. The identified write sweep fails
+each recorded commit I/O under both simulator crash policies. Fresh
+opens see revision 4 with neither change or revision 5 with both the
+new counter and receipt. Retrying reaches revision 5 exactly once
+and preserves the original receipt in the retained revision 3 root.
+
+Both profiles on macOS and Docker Linux/ext4 detected all 34 named
+controls across the two Cargo targets. Three Windows x64 test
+binaries cross-linked in both profiles, with native execution open.
+Reconciliation leaves 381 runtime and 7,468 tooling gaps.
+[Coordinator commit ledger](decisions/coordinator-legacy-commit-current.md)
+
+PR #82 head `9e660e4` finished with 27 passes, one skip and the
+known APFS cleanup failure. The APFS repair and coordinator proof
+share the next push. [Completed CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45714156600)

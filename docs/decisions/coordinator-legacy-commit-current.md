@@ -27,3 +27,29 @@ the same retry result and the exact retained receipt bytes and value.
 The simulated fault sweep adds behavioral evidence for the commit
 sites and their caller. The named mutations cover source decisions
 that are enumerated by the inventory.
+## Verification
+
+The frozen `29286d9babfc5885a14a2a9be0ddf26e6107701e` source passed
+with Rust 1.100.0 on macOS arm64 and Docker Linux arm64/ext4. Both
+profiles passed 46 coordinator tests and 40 standalone fuzz-library
+tests. Two macOS and three Linux coordinator workload tests remained
+opt-in. Clippy passed with warnings denied in both Cargo targets.
+
+Every profile on each host detected all 17 coordinator and all 17
+standalone mutants at the intended assertions. Fresh extraction
+checked 996 source hashes and 58 supervised command outcomes per
+target campaign. The 32-case Windows oracle kept its exact case
+selection and the source hashes match `ba39bb0`. Two Windows x64
+coordinator binaries and the standalone fuzz-library test binary
+cross-linked in each profile. Native execution remains pending.
+[Campaign checksums](coordinator-commit-29286d9.sha256)
+
+### Reproduction on Unix
+
+```sh
+cargo +1.100.0 xtask mutations --case r1-legacy-coordinator-commit- --toolchain 1.100.0
+cargo +1.100.0 xtask mutations --case r1-legacy-coordinator-commit- --toolchain 1.100.0 --release
+```
+
+Reconciliation binds 17 records in each target, leaving 381 runtime
+and 7,468 tooling gaps.
