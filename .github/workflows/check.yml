@@ -43,6 +43,25 @@ jobs:
         run: cargo build --offline --locked --release --manifest-path target/r2-engine/Cargo.toml --target-dir target/r2-artifacts -p weekend-db -p write-coordinator --all-features --bin weekend-admin --bin write-coordinator
       - name: Rehearse the handoff against the optimized selected CLIs
         run: cargo xtask incident-recovery --admin target/r2-artifacts/release/weekend-admin${{ runner.os == 'Windows' && '.exe' || '' }} --coordinator target/r2-artifacts/release/write-coordinator${{ runner.os == 'Windows' && '.exe' || '' }} --artifact-source ${{ env.R2_ENGINE_SOURCE }} --output target/operator-recovery-release
+      - name: Rehearse operator recovery with the release candidate binaries
+        if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+        shell: bash
+        run: |
+          candidate=$(git rev-parse HEAD)
+          test "$candidate" = "$(git rev-parse "$GITHUB_SHA^{commit}")"
+          suffix=""
+          if [[ "$RUNNER_OS" == Windows ]]; then suffix=".exe"; fi
+          for profile in debug release; do
+            cargo_profile=$profile
+            if [[ "$profile" == debug ]]; then cargo_profile=dev; fi
+            WEEKEND_DB_SOURCE_ID="$candidate" cargo build --offline --locked --profile "$cargo_profile" \
+              --target-dir target/candidate-operator-build -p weekend-db -p write-coordinator \
+              --all-features --bin weekend-admin --bin write-coordinator
+            bin="target/candidate-operator-build/$profile"
+            cargo xtask incident-recovery --admin "$bin/weekend-admin$suffix" \
+              --coordinator "$bin/write-coordinator$suffix" --artifact-source "$candidate" \
+              --output "target/candidate-operator/$profile"
+          done
       - name: Retain operator recovery evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -54,6 +73,12 @@ jobs:
             !target/operator-recovery/*.secret
             target/operator-recovery-release/**
             !target/operator-recovery-release/*.secret
+            target/candidate-operator/**
+            !target/candidate-operator/**/*.secret
+            target/candidate-operator-build/*/weekend-admin
+            target/candidate-operator-build/*/write-coordinator
+            target/candidate-operator-build/*/weekend-admin.exe
+            target/candidate-operator-build/*/write-coordinator.exe
   coordinator-package-recovery:
     name: Packaged coordinator recovery (${{ matrix.os }})
     permissions:
