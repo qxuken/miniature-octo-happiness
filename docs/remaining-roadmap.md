@@ -1290,3 +1290,22 @@ all six inspection integration tests and both unit tests. The
 the source and both campaigns. Review verified 40 catches and 152
 supervised command receipts. Reconciliation leaves 1,462 runtime,
 26 driver and 7,397 tooling gaps.
+
+### Administrative command dispatch
+
+The [current admin ledger](decisions/admin-dispatch-current.md) accounts
+for the last 26 unclassified driver records. Tests distinguish an unknown
+two-argument command from `compact` and verify the input file is unchanged.
+Unix compaction succeeds on a closed database and propagates `Busy` while
+the writer lease is held. Scripted export checks propagate the original
+lock and write errors.
+
+On `fb32ce3`, five named mutations triggered the intended failures in
+both profiles on macOS and Docker Linux. Each profile passed all 19
+selected command and integration tests. Review verified 20 catches and
+88 supervised command receipts. The [archive manifest](decisions/admin-dispatch-fb32ce3.sha256)
+also pins the [native Windows log](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45616580373/job/139213422461)
+for `1029d2c`, which passed the existing unsupported-compaction test in
+debug and release. The Windows compact guard remains partially verified
+until the new same-arity case runs natively. The inventory now has zero
+unclassified driver records, 1,462 runtime gaps and 7,397 tooling gaps.
