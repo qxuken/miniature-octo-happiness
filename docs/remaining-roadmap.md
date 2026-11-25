@@ -1379,3 +1379,20 @@ identified decision kept its disposition. The parser itself adds one tooling
 decision. There are now 1,172 runtime gaps and 7,398 tooling gaps. The
 [archive checksums](decisions/inventory-appendix-720f64e.sha256) identify
 the reports, test logs and source bundle.
+
+### Consecutive simulator sync failures
+
+On `dd19a6c`, four two-failure schedules checked the exact durable bytes
+after each failed sync, the volatile bytes through the live lease and the
+reopened bytes after a successful retry and another crash. Five mutations
+changed the survivor base image, pending-write retention, successful-sync
+cleanup, retry source or failure status. All five failed the intended test
+in debug and release on both macOS arm64 and Docker Linux arm64. The same
+41 ByteStore, durability and storage-decision tests passed in each run.
+
+The [simulator ledger](decisions/simulator-survival-current.md) reconciles
+its remaining 48 source records. The 32-bit conversion, coupled lease/mask
+operands and physical-device checks retain their earlier qualifications.
+There are 1,124 runtime and 7,398 tooling gaps. The [archive manifest](decisions/sim-survival-dd19a6c.sha256)
+identifies the source bundle, reviewed inventory and 80 supervised command
+receipts. Off-machine custody remains outstanding.
