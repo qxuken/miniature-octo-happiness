@@ -873,3 +873,18 @@ matched their historical blobs, even when the surrounding Git configuration
 still requested CRLF conversion. The workflow checks those lock identities
 before fetching dependencies. Actionlint 1.7.12 passed. This control ran
 on macOS and covers Git byte conversion only.
+
+### Five-profile compatibility workflow at 63eed2c
+
+The exact release shell step passed all five profiles on native macOS arm64
+and Docker Linux arm64/ext4. Both began from shallow checkouts. A local Git
+mirror supplied the historical objects and cached registry dependencies
+supplied Cargo. Linux ran without network access. All ten profile runs used
+candidate `63eed2c` and their configured historical endpoints. Fresh archive
+reads verified 555 declared files on each host (102 storage, 96 snapshot,
+107 typed, 205 snapshot CLI, 45 Study CLI), the worker receipt, and all
+three exported snapshot digests. Both archives contain the same historical
+and candidate source tar hashes and exclude private keys. The source
+bundle, exact workflow step, logs and filtered archives are pinned in the
+[compatibility manifest](candidate-compatibility-63eed2c.sha256). Hosted
+release and native Windows qualification remain open for this revision.
