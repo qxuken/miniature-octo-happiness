@@ -64,3 +64,54 @@ The expected error text identifies the particular failing input.
 The two invariants apply to parser-produced inputs. Compiler code generated
 by `quote!`, the separate fuzz target and dependency internals retain
 their own qualification scope.
+
+## Verification
+
+Frozen source `31a39cfc3ea1f90765e0c15e99f9d56b033422b8` passed with
+locked Rust 1.100.0 on arm64 macOS and offline arm64 Docker Linux on ext4.
+Each debug and release run passed 116 macro and typed crate tests with one
+existing skip, as well as all 14 CRDT integration tests. The golden descriptor
+matched after database reopen in every run. Strict Clippy passed on both
+hosts and for the x86_64 MSVC cross target.
+
+Each campaign detected all 51 Model mutations, including the five earlier
+controls. Fresh extraction verified both diagnostic strings for each of the
+23 propagation mutations, the exact intended test results, and all 946
+copied files per campaign. Replay also checked the locked syn crate checksum
+and the dependency source for both parser invariants. The
+[archive checksums](model-derive-31a39cf.sha256) bind the 680 command
+reports, runners, dependency archive and replay inputs.
+
+The macOS `expansion_guards` executable built with nightly `739adecd4`
+and `-C instrument-coverage -Z coverage-options=condition` passed all 38
+tests. Both outcomes appeared at all 28 recorded conditions. The saved
+executable and profile reproduced the full LLVM export byte for byte
+after extraction.
+
+| Selected compiler condition in `model.rs` | True | False |
+| --- | ---: | ---: |
+| 6, zero numeric value | 6 | 208 |
+| 45, repeated reserved ID | 2 | 12 |
+| 124, explicit default expression | 6 | 5 |
+| 135, empty stored label | 2 | 16 |
+| 155, repeated stored label | 2 | 28 |
+| 163, generated constant collision | 2 | 26 |
+| 169, unique index constant | 4 | 22 |
+
+This batch accounts for 54 runtime records with 23 predicate pairs, 23
+propagation controls, six scoped executions and two invariants. The
+proc-macro target has zero open individual runtime records in the current
+source inventory. The project total is 550 runtime and 7,514 tooling gaps.
+Native Windows execution and the separate fuzz context remain open.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p weekend-db-macros -p weekend-db-typed
+cargo test --offline --locked --all-features -p weekend-db --test crdt
+cargo xtask mutations --toolchain 1.100.0 --case r1-derive-model- \
+  --output "$OUTPUT/debug"
+cargo xtask mutations --toolchain 1.100.0 --case r1-derive-model- \
+  --release --output "$OUTPUT/release"
+```
+
+Repeat the test commands with `--release` for optimized test execution.

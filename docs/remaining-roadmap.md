@@ -1987,3 +1987,14 @@ assertions and exact propagation diagnostics, and the macOS compiler profile
 reproduces both outcomes at all 12 recorded conditions. Reconciliation leaves
 604 runtime and 7,514 tooling gaps. Native Windows and other compilation
 contexts remain open.
+
+### Model derive schema admission and propagation
+
+At `31a39cf`, the [Model derive ledger](decisions/model-derive-current.md)
+accounts for 54 runtime records. All 51 mutations pass the detection
+controls in macOS and Docker Linux debug and release. The golden descriptor
+matches after reopen. Fresh extraction verifies the diagnostic pairs, the
+dependency parser invariants and the compiler profile's 28 conditions.
+The proc-macro target's individual runtime queue is empty. The project
+inventory has 550 runtime and 7,514 tooling gaps. Native Windows execution
+and separately compiled contexts remain open.
