@@ -13782,6 +13782,66 @@
       "target": "--test",
       "test": "runtime_decisions",
       "exact_test": "index_corruption_rejects_without_modifying_retained_roots_or_staged_writes"
+    },
+    {
+      "name": "r1-simulator-survival-prior-durable",
+      "file": "src/storage/simulator.rs",
+      "old": "let mut image = copy(mem, &disk.durable)?;",
+      "new": "let mut image = copy(mem, &disk.volatile)?;",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "bytestore",
+      "exact_test": "consecutive_failed_syncs_preserve_pending_writes_until_successful_retry"
+    },
+    {
+      "name": "r1-simulator-survival-failed-clear",
+      "file": "src/storage/simulator.rs",
+      "old": "disk.durable = survive(&self.mem, &disk, policy)?;",
+      "new": "disk.durable = survive(&self.mem, &disk, policy)?;\n                disk.pending.clear();",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "bytestore",
+      "exact_test": "consecutive_failed_syncs_preserve_pending_writes_until_successful_retry"
+    },
+    {
+      "name": "r1-simulator-survival-success-clear",
+      "file": "src/storage/simulator.rs",
+      "old": "disk.durable = durable;\n                disk.pending.clear();",
+      "new": "disk.durable = durable;",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "bytestore",
+      "exact_test": "consecutive_failed_syncs_preserve_pending_writes_until_successful_retry"
+    },
+    {
+      "name": "r1-simulator-survival-retry-source",
+      "file": "src/storage/simulator.rs",
+      "old": "let durable = copy(&self.mem, &disk.volatile)?;",
+      "new": "let durable = copy(&self.mem, &disk.durable)?;",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "bytestore",
+      "exact_test": "consecutive_failed_syncs_preserve_pending_writes_until_successful_retry"
+    },
+    {
+      "name": "r1-simulator-survival-failure-status",
+      "file": "src/storage/simulator.rs",
+      "old": "disk.durable = survive(&self.mem, &disk, policy)?;\n                Err(Error::Io)",
+      "new": "disk.durable = survive(&self.mem, &disk, policy)?;\n                Ok(())",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "bytestore",
+      "exact_test": "consecutive_failed_syncs_preserve_pending_writes_until_successful_retry"
     }
   ]
 }

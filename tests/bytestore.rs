@@ -130,3 +130,38 @@ fn byte_ranges_and_one_shot_faults_leave_a_usable_lease() {
     disk.sync().unwrap();
     assert_eq!(disk.durable_image().unwrap(), [1, 2]);
 }
+
+#[test]
+fn consecutive_failed_syncs_preserve_pending_writes_until_successful_retry() {
+    for (mask, expected) in [(0, b"-c--"), (1, b"ab--"), (2, b"-cd-"), (3, b"abd-")] {
+        let mut disk = SimulatedDisk::from_image(b"----").unwrap();
+        disk.lock().unwrap();
+        assert_eq!(disk.write(0, b"ab"), Ok(2));
+        assert_eq!(disk.write(1, b"cd"), Ok(2));
+
+        disk.arm(
+            0,
+            Fault::SyncError(Crash::Torn {
+                write: 1,
+                prefix: 1,
+            }),
+        );
+        assert_eq!(disk.sync(), Err(Error::Io));
+        assert_eq!(disk.durable_image().unwrap(), b"-c--");
+
+        disk.arm(0, Fault::SyncError(Crash::Mask(mask)));
+        assert_eq!(disk.sync(), Err(Error::Io));
+        assert_eq!(disk.durable_image().unwrap(), expected, "mask {mask}");
+        let mut visible = [0; 4];
+        assert_eq!(disk.read(0, &mut visible), Ok(4));
+        assert_eq!(&visible, b"acd-");
+
+        disk.sync().unwrap();
+        assert_eq!(disk.durable_image().unwrap(), b"acd-");
+        assert_eq!(disk.write(3, b"!"), Ok(1));
+        disk.crash(Crash::Mask(1)).unwrap();
+        disk.lock().unwrap();
+        assert_eq!(disk.read(0, &mut visible), Ok(4));
+        assert_eq!(&visible, b"acd!");
+    }
+}

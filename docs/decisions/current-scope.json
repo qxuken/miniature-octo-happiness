@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "e160886fa8c93603982c36b4c7e118fde3d34fc8ce5a13e180fd6a7da2cd927a",
+    "xtask/tests/mutations.json": "74b2498898b7f0d201fdcaee0c9f7e8451da92e88b298b3f68d50a1b21b138f0",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -383,7 +383,9 @@
     "docs/decisions/admin-dispatch-current.md": "f0945c5d8501bfa90b352e8c43d86d18d1a0bee5dd5418cb4c63a491f08c1bfe",
     "docs/decisions/typed-store-current.md": "4a908d642fd6f9d85e5004f3dadc06c94de429816e8e4649848352529a20879c",
     "docs/decisions/typed-catalog-current.md": "5e498217efc23dcd2e299041a945ede86752ab62b773a1ef6cadd52d7b805fee",
-    "docs/decisions/typed-lookup-current.md": "5737b59d961037bc7a8d703e740f41b0b441ebaf1228c8835408312b4fee8f71"
+    "docs/decisions/typed-lookup-current.md": "5737b59d961037bc7a8d703e740f41b0b441ebaf1228c8835408312b4fee8f71",
+    "docs/decisions/simulator-survival-current.md": "9b731edf4d3bb656a0aafca2c16e5a1b1126d9d580147cba2e55501559625af2",
+    "tests/bytestore.rs": "63241a465b5cdf73e83baddd8d0fee4eb00bd067cc00bb5cfc21c38b9e4c020b"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -678,7 +680,9 @@
         "tests/storage_decisions.rs",
         "tests/support/allocator.rs",
         "docs/decisions/rust-output-allocation.md",
-        "docs/decisions/public-allocation-hook-retirement.md"
+        "docs/decisions/public-allocation-hook-retirement.md",
+        "docs/decisions/simulator-survival-current.md",
+        "tests/bytestore.rs"
       ],
       "residual": "Finite modeled schedules and allocation errors do not establish native device behavior."
     },
