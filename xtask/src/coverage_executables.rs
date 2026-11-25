@@ -259,7 +259,8 @@ fn execute(
         result["measured_files"] = json!(coverage::coverage_files(
             &c.run.root,
             &exported,
-            Scope::Workspace
+            Scope::Workspace,
+            &c.evidence["source_hashes"]
         )?);
         let mut command = vec![path(cov), path("show")];
         command.extend(args);

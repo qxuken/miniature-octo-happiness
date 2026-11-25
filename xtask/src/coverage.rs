@@ -127,7 +127,12 @@ pub fn export_data(exported: &Value) -> Result<&Value> {
     );
     Ok(&data[0])
 }
-pub fn coverage_files(root: &Path, exported: &Value, scope: Scope) -> Result<Vec<String>> {
+pub fn coverage_files(
+    root: &Path,
+    exported: &Value,
+    scope: Scope,
+    source_hashes: &Value,
+) -> Result<Vec<String>> {
     let files = export_data(exported)?
         .get("files")
         .and_then(Value::as_array)
@@ -138,6 +143,7 @@ pub fn coverage_files(root: &Path, exported: &Value, scope: Scope) -> Result<Vec
     } else {
         &["src", "crates", "apps"]
     };
+    let mut measured = std::collections::BTreeSet::new();
     files
         .iter()
         .map(|row| {
@@ -145,10 +151,23 @@ pub fn coverage_files(root: &Path, exported: &Value, scope: Scope) -> Result<Vec
                 .get("filename")
                 .and_then(Value::as_str)
                 .context("coverage filename missing")?;
-            let resolved = crate::notices::resolve(&assurance::absolute(root, Path::new(name)))?;
+            let resolved = dunce::canonicalize(assurance::absolute(root, Path::new(name)))
+                .with_context(|| format!("missing coverage source: {name}"))?;
             ensure!(
                 prefixes.iter().any(|p| resolved.starts_with(root.join(p))),
                 "coverage outside requested repository scope: {name}"
+            );
+            let relative = resolved
+                .strip_prefix(root)?
+                .to_str()
+                .context("non-UTF-8 source path")?;
+            ensure!(
+                resolved.is_file() && source_hashes.get(relative).is_some_and(Value::is_string),
+                "coverage source absent from campaign inventory: {name}"
+            );
+            ensure!(
+                measured.insert(resolved),
+                "duplicate coverage source: {name}"
             );
             Ok(name.to_owned())
         })
@@ -423,7 +442,12 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         let totals = &export_data(&exported)?["totals"];
         metric_counts(totals, options.mode.metric())?;
         c.evidence["totals"] = totals.clone();
-        c.evidence["measured_files"] = json!(coverage_files(&run.root, &exported, options.scope)?);
+        c.evidence["measured_files"] = json!(coverage_files(
+            &run.root,
+            &exported,
+            options.scope,
+            &c.evidence["source_hashes"]
+        )?);
         c.evidence["objects"] = json!(objects);
         let mut command = vec![path(&cov), path("show")];
         command.extend(args);
@@ -589,23 +613,30 @@ mod tests {
         );
         let exported = |p: &Path| json!({"data":[{"totals":{},"files":[{"filename":p}]}]});
         let local = root.join("src/lib.rs");
+        let sources = json!({"src/lib.rs": sha(&local).unwrap()});
         assert_eq!(
-            coverage_files(root, &exported(&local), Scope::Library).unwrap(),
+            coverage_files(root, &exported(&local), Scope::Library, &sources).unwrap(),
             [local.to_str().unwrap()]
         );
+        let duplicated = json!({"data":[{"totals":{},"files":[{"filename":local},{"filename":"src/./lib.rs"}]}]});
+        assert!(coverage_files(root, &duplicated, Scope::Library, &sources).is_err());
         for name in [
             PathBuf::from("/rustc/hash/library/std/src/thread_local.rs"),
             PathBuf::from("/outside/source.rs"),
             root.join("apps/example.rs"),
             root.join("src-sibling/stray.rs"),
+            root.join("src"),
+            root.join("src/missing-source.rs"),
+            root.join("src/engine.rs"), // exists but was omitted from the supplied inventory
         ] {
-            assert!(coverage_files(root, &exported(&name), Scope::Library).is_err());
+            assert!(coverage_files(root, &exported(&name), Scope::Library, &sources).is_err());
         }
         assert!(
             coverage_files(
                 root,
                 &json!({"data":[{"totals":{},"files":[]}]}),
-                Scope::Workspace
+                Scope::Workspace,
+                &sources
             )
             .is_err()
         );

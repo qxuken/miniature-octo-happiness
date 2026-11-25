@@ -164,8 +164,8 @@
     "xtask/src/clean.rs": "6f6ee36687033547a9c1e1e47b1ba89091a51a76a0691a2a2b185866980bd241",
     "xtask/src/compatibility.rs": "036b3da70dc40dcbce45d4d0fe61894591c0674c180824fef40c7e89abfc37f4",
     "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
-    "xtask/src/coverage.rs": "701672c26b2ff14a6397bac61add44a6c6ddb18570948548e97fd561162af930",
-    "xtask/src/coverage_executables.rs": "2de11e2b513e474850d7ee28593f312fc3035d6b8c725df5b9acc5d19a999bc4",
+    "xtask/src/coverage.rs": "a02c2f2e18eba60046ebcf87b6520c38e80cc0dd9de4c4eae919e1949ec0b008",
+    "xtask/src/coverage_executables.rs": "62d803c6f98fc3f477b962dbd8deca6f765d7f7033f213322002b76591dee96b",
     "xtask/src/delivered_faults.rs": "adb0c3f9e44844324ba67e6550123424b4b6fd2231605c3c39dd23d01c795861",
     "xtask/src/delivery.rs": "6fd257af131db1925e24b1ed44752d824be5e615f5f59e8361b184fb372f0d63",
     "xtask/src/delivery_matrix.rs": "0dc8cdb7bc1391df4da16436626f2912c5695ae701ea254debde705c6274ca6a",
@@ -462,7 +462,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 342,
-    "xtask::xtask": 5254
+    "xtask::xtask": 5256
   },
   "groups": [
     {
