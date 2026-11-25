@@ -297,13 +297,13 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "0aa268ea9d6d5494990bf5b46b5296d42eacc3707d74460e36f7839b183ab612",
+    "xtask/tests/mutations.json": "17f44f38a3165a769da000de76b2b16e5ed6d5c208cb365908d733d15e918769",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "b5db51c831e6c224fe13c7858187536ad6ecf34c9266778d700c36436716bffd",
     "docs/decisions/codec-metadata-current.md": "4055bdaa6c5396f1cfd930e34a4dc130923256563109bbeea2488c6f8cd10edc",
-    "docs/r1-ci-shards.md": "529e95454b537bcb0dcf6dd9a6e1c1ced6abc069d0493f43593291b60de688e8",
+    "docs/r1-ci-shards.md": "4ab5df8b04da818bb73547c39fd6aca3f677a7171404ec1797969d63527ce61c",
     "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
     "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
     "src/storage/mod.rs": "c7df5222e6d03401a600c5e624c36e3abc52e5a8341adf87d04af18ad66ef08f",
@@ -368,7 +368,7 @@
     "xtask/src/mutations.rs": "35264339554180eefa7eed8dd45b04d663cb8af9ee902965d897c95fd6f59db0",
     "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
     "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
-    "tests/replication.rs": "8a7ec4206552563e6758eb59fd98948f9820032b9972507ec346c7869882668c",
+    "tests/replication.rs": "8ad8b9f741ee97f945d75f32390ef5c2f13b1ff9f14403803f455d49cb0e76be",
     "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
     "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
     "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
@@ -23183,6 +23183,146 @@
       ],
       "mutations": [
         "r1-catalog-lifecycle-drop-publish"
+      ]
+    },
+    {
+      "name": "WRITER-RECOVERY-POISON-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "lock_writer",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.writer.lock().map_err(|_| Error::RecoveryRequired)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "mutex_poison_preserves_reads_and_blocks_all_writer_gates"
+        }
+      ],
+      "mutations": [
+        "r1-writer-recovery-poison-error"
+      ]
+    },
+    {
+      "name": "WRITER-RECOVERY-STORAGE-IF",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "lock_writer",
+        "kind": "if",
+        "conditions": [
+          "let Some(storage) = writer.as_ref()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "mutex_poison_preserves_reads_and_blocks_all_writer_gates"
+        },
+        {
+          "file": "tests/replication.rs",
+          "name": "primary_enrollment_requires_a_healthy_durable_writer"
+        }
+      ],
+      "mutations": [
+        "r1-writer-recovery-skip-storage",
+        "r1-writer-recovery-reject-memory"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "WRITER-RECOVERY-STORAGE-PATTERN_TEST",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "lock_writer",
+        "kind": "pattern_test",
+        "conditions": [
+          "writer.as_ref()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "mutex_poison_preserves_reads_and_blocks_all_writer_gates"
+        },
+        {
+          "file": "tests/replication.rs",
+          "name": "primary_enrollment_requires_a_healthy_durable_writer"
+        }
+      ],
+      "mutations": [
+        "r1-writer-recovery-skip-storage",
+        "r1-writer-recovery-reject-memory"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "WRITER-RECOVERY-POISON-STATUS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "requires_recovery",
+        "kind": "match",
+        "conditions": [
+          "self.writer.lock()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "mutex_poison_preserves_reads_and_blocks_all_writer_gates"
+        }
+      ],
+      "mutations": [
+        "r1-writer-recovery-poison-status"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
       ]
     }
   ],

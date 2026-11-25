@@ -985,3 +985,37 @@ fn native_manifest_growth_and_reseed_preserve_receipts() {
         }
     }
 }
+
+#[test]
+fn primary_enrollment_requires_a_healthy_durable_writer() {
+    use weekend_db::storage::{Crash, Fault, SimulatedDisk};
+
+    let stream = [2; 16];
+    let memory = Database::new().unwrap();
+    assert_eq!(Primary::new(&memory, stream).err(), Some(Error::Invalid));
+
+    let disk = SimulatedDisk::new().unwrap();
+    let db = Database::create_on(disk.clone(), [1; 16], Limits::default()).unwrap();
+    let enrollment = Primary::new(&db, stream).unwrap().enrollment();
+    let revision = db.snapshot().revision();
+    disk.arm(0, Fault::Error);
+    assert_eq!(db.create_collection(), Err(Error::Io));
+    assert!(db.requires_recovery());
+    let trace = disk.trace().unwrap();
+    assert_eq!(
+        Primary::new(&db, stream).err(),
+        Some(Error::RecoveryRequired)
+    );
+    assert_eq!(db.snapshot().revision(), revision);
+    assert_eq!(disk.trace().unwrap(), trace);
+
+    drop(db);
+    disk.clear_fault();
+    disk.crash(Crash::DropAll).unwrap();
+    let reopened = Database::open_on(disk, Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), revision);
+    assert_eq!(
+        Primary::new(&reopened, stream).unwrap().enrollment(),
+        enrollment
+    );
+}

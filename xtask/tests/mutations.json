@@ -12919,6 +12919,51 @@
       "matches": 1,
       "package": "weekend-db",
       "exact_test": "catalog_io_failure_preserves_reopened_current_and_retained_roots"
+    },
+    {
+      "name": "r1-writer-recovery-poison-error",
+      "file": "src/engine.rs",
+      "old": "self.writer.lock().map_err(|_| Error::RecoveryRequired)?",
+      "new": "self.writer.lock().map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "engine::tests::mutex_poison_preserves_reads_and_blocks_all_writer_gates"
+    },
+    {
+      "name": "r1-writer-recovery-skip-storage",
+      "file": "src/engine.rs",
+      "old": "if let Some(storage) = writer.as_ref() {\n            storage.guard()?;\n        }",
+      "new": "if let Some(storage) = writer.as_ref().filter(|_| false) {\n            storage.guard()?;\n        }",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "replication",
+      "exact_test": "primary_enrollment_requires_a_healthy_durable_writer"
+    },
+    {
+      "name": "r1-writer-recovery-reject-memory",
+      "file": "src/engine.rs",
+      "old": "if let Some(storage) = writer.as_ref() {\n            storage.guard()?;\n        }",
+      "new": "if let Some(storage) = writer.as_ref() {\n            storage.guard()?;\n        } else {\n            return Err(Error::RecoveryRequired);\n        }",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "engine::tests::mutex_poison_preserves_reads_and_blocks_all_writer_gates"
+    },
+    {
+      "name": "r1-writer-recovery-poison-status",
+      "file": "src/engine.rs",
+      "old": "Ok(writer) => writer.as_ref().is_some_and(Storage::requires_recovery),\n            Err(_) => true,",
+      "new": "Ok(writer) => writer.as_ref().is_some_and(Storage::requires_recovery),\n            Err(_) => false,",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "engine::tests::mutex_poison_preserves_reads_and_blocks_all_writer_gates"
     }
   ]
 }
