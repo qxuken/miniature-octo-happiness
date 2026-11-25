@@ -27,7 +27,7 @@ output and command evidence to the current whole-file digest.
 
 | Source | SHA-256 |
 | --- | --- |
-| apps/weekend-replicate/src/native.rs | 34ccc9a74b1afa965a2104021e7cfca7ca7abeccaaa74523b5a89f725bead0f1 |
+| `apps/weekend-replicate/src/native.rs` | `34ccc9a74b1afa965a2104021e7cfca7ca7abeccaaa74523b5a89f725bead0f1` |
 
 | Status | Target | Position | Bytes | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -65,3 +65,47 @@ output and command evidence to the current whole-file digest.
 | E | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:217:49– | 8608..8609 | try_propagation | main | Closing stdout prevents the first capture line and reports an I/O diagnostic. A normal capture prints both exact lines. |
 | C | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:237:14– | 9094..9105 | match_guard | main | The exact verb reaches its phase. Changing only the verb returns usage and preserves the directory. |
 | C | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:262:14– | 9892..9912 | match_guard | main | The exact verb reaches its phase. Changing only the verb returns usage and preserves the directory. |
+
+## New propagation controls
+
+| Source operation in `serve` | Deliberate change | Regression observation |
+| --- | --- | --- |
+| Bind error, bytes 16147..16148 | Replace the native bind result with a synthetic permission error | The diagnostic loses the recorded native error code. |
+| Listen wrapper, bytes 16275..16276 | Route the same error to the local-command phase | The regression expects the listen phase. |
+| Readiness output, bytes 16327..16328 | Restore the panicking stdout call | The closed-pipe process exits 101 and prints the panic. |
+
+## Verification
+
+Frozen source `350591c6d2eeb865f14ef65148d0c3fa6bb2f2c1` passed both
+profiles on arm64 macOS and arm64 Docker Linux with Rust 1.100.0.
+The source, builds and runtime temporary files were on ext4 in Docker.
+Each profile passed 50 snapshot CLI tests on macOS, 51 on Linux and
+11 core replication tests on each. The long manifest growth case
+and the dedicated Linux exhaustion fixture stayed in their opt-in
+qualification lanes. Strict Clippy passed on both hosts.
+
+All three startup controls and four existing dispatch controls
+failed their designated assertion in each campaign. Fresh extraction
+verified 112 command reports, the exact runners and all 976 copied
+files per campaign. Five Windows x64 MSVC debug targets cross-linked.
+[Archive checksums](snapshot-readiness-350591c.sha256)
+
+Final reconciliation preserves the 34 earlier scoped rows, records
+three new propagation controls and exposes one additional listener
+decision in the inventory. It leaves 420 runtime and 7,514 tooling
+gaps.
+
+The previous PR #82 head `fc05d80` finished with 28 passing checks
+and one planned skip. That hosted run precedes the readiness fix.
+[Engine checks](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45696024354),
+[bounded fuzzing](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45696024163)
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p weekend-replicate
+cargo test --offline --locked --all-features -p weekend-db --test replication
+cargo xtask mutations --toolchain 1.100.0 --case r1-snapshot-startup- \
+  --case r1-snapshot-dispatch- --output "$OUTPUT/debug"
+```
+
+Repeat with `--release` and a fresh mutation output path.

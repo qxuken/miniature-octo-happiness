@@ -373,6 +373,11 @@ when its listener retires. Both retain the open native and deployed
 platform obligations. [Credential-file ledger](decisions/credential-file-admission-current.md),
 [listener retirement ledger](decisions/study-listener-retirement-current.md)
 
+Follower startup now reports a closed readiness pipe before admitting
+any peer. The operator can reopen status and verify the same durable
+receipt after a listen or readiness failure.
+[Snapshot startup ledger](decisions/snapshot-readiness-current.md)
+
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision

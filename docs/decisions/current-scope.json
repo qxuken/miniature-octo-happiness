@@ -424,7 +424,7 @@
     "docs/decisions/coordinator-connection-handoff-current.md": "c82b333c26f1e9f1cf0369127eadcb6f1206dfc7d891e5f8b81a08cc686cefa5",
     "docs/decisions/credential-file-admission-current.md": "b53ddc975a9d003124345dd1f8aadb4a268d2c4024ba1290d51009ab0c119962",
     "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403",
-    "docs/decisions/snapshot-readiness-current.md": "caaa573ffb42eab698fc4744e009bf2bbc5850e75d34ecc1831cc8e920669c73"
+    "docs/decisions/snapshot-readiness-current.md": "4cf929aaac0c358c0e2188b9b64f06718e981d7a89b606ea35f6faac1fb2027a"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

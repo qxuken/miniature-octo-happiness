@@ -2152,3 +2152,17 @@ cross-link. The final source ledger preserves the eight prior Study
 admission decisions and leaves 422 runtime and 7,514 tooling gaps.
 [Credential-file ledger](decisions/credential-file-admission-current.md),
 [listener retirement ledger](decisions/study-listener-retirement-current.md)
+
+### Snapshot follower startup diagnostics
+
+At `350591c`, a closed readiness pipe returns a local-command I/O error
+before the server accepts a connection. An occupied address reports
+the native listen error. After either failure, status reopens the
+same durable receipt and the manifest and selected image match byte
+for byte. A healthy restart returns the same receipt to an authenticated poll.
+
+The snapshot CLI and core replication suites passed both profiles
+on macOS and ext4 Docker Linux. Both hosts detected seven controls
+in each profile. Windows debug targets cross-linked. Reconciliation
+leaves 420 runtime and 7,514 tooling gaps.
+[Snapshot startup ledger](decisions/snapshot-readiness-current.md)
