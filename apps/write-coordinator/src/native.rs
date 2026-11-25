@@ -11,8 +11,6 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
-#[cfg(test)]
-use weekend_db::Error;
 use weekend_db::{Database, Limits, Result as DbResult};
 
 const USAGE: &str = "write-coordinator init <file>

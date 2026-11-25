@@ -21,7 +21,7 @@
     "apps/weekend-tasks/src/lib.rs": "887d9ce8c80ae6b4d92166e5c6947dce64dbf0611fd393559b8510d23d1980c6",
     "apps/weekend-tasks/src/main.rs": "c30b765061790065812d268281f5d6f7c54113d91977f48692635f8045003f46",
     "apps/write-coordinator/src/main.rs": "0baa2da45ecc666867adbf652fc95958edefe1ac0523c76d96934b69e7b5517b",
-    "apps/write-coordinator/src/native.rs": "72554f7d904b8705512bb0181b6d0aeccd5f8e0f6f059d3c65d5f6b7996e5ffc",
+    "apps/write-coordinator/src/native.rs": "b53799c3670a6d60d81c648649e7b3839e29d45d492b1692f21faf8dcb6db119",
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "e92395560eeb7e168c993059b15771d8a93c358d942136e31cbb14ed30ef73a3",
     "apps/write-coordinator/src/native/sequenced.rs": "cfb7566de7deb025b272c3ef77a2eb2827dbd27a685ebe2b17938a6f47e37bd6",
