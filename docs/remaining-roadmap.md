@@ -679,3 +679,39 @@ retain 76 command reports in `retain-admission-0697196.tar.gz`, SHA-256
 Reconcile with `cargo xtask mutations --case r1-retain-admission- --toolchain
 1.100.0 --output "$OUTPUT"` and repeat with `--release` and a fresh output.
 The inventory now has 1,871 runtime, 26 driver and 7,388 tooling gaps.
+
+### Retention publication errors and retry
+
+At `61bb3ed`, the retention fault test retries both a retain and a release
+on the same writer immediately after each injected publication I/O failure.
+Both calls must report `RecoveryRequired`, the simulator operation count
+must stay unchanged, and a held snapshot must still read its historical row.
+The test then crashes and reopens the database under each existing
+persistence schedule and verifies the recovered catalog, current value and
+each retained value.
+
+| Caller boundary | Successful path | Error path and expected observation |
+| --- | --- | --- |
+| Storage guard in `lock_writer`, then writer lock in `publication_state` | Healthy storage admits the writer | Recovery-required storage rejects entry before another byte-store operation |
+| Publication state in each of retain and release | A healthy operation can publish | Both calls propagate `RecoveryRequired` on the same poisoned writer |
+| Head allocation in each operation | The new catalog survives reopen | Allocator refusal returns `OutOfMemory`; the old revision, catalog, bytes and live allocations are preserved |
+| Publish in each operation | The new catalog becomes visible | Simulated I/O failure propagates `Io` or `OutcomeUnknown`; a definite failure reopens the old catalog |
+| Release lookup | An existing ID can be released | Releasing the absent ID after reopen returns `NotFound` |
+| Release revision increment | Publication can reach the maximum revision | The next release reports `Exhausted` and leaves the catalog unchanged |
+
+On arm64 macOS and Docker Linux, debug and release accepted the original
+source and caught every one of the ten mutations. All four campaigns
+verified process cleanup. The 152 command reports and their transcripts
+are retained in `retention-flow-61bb3ed.tar.gz`, SHA-256
+`c1a31dc4f9d6fe95f437ca1df004c39caf04e57ce5dc177bcc9135ad31305d42`.
+The reconciled inventory has 1,861 runtime, 26 driver and 7,388 tooling gaps.
+
+### Native Windows coordinator evidence
+
+The [hosted Windows coordinator job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45604499033/artifacts/15017677903)
+at test merge `4a37229e1b3be3835e79a346dc325df9357a0c3e` ran all 32 coordinator controls in debug and release. The downloaded
+ZIP matched GitHub's SHA-256
+`3ed68b8ab235b30a04d5d3fab88d60ef0e482b15470560c29dc19044a80e727e`.
+Review matched 863 tracked files, original and mutated source, executable
+and transcript hashes, exact assertion text and cleanup for all 128 test
+outcomes. This Windows run covers the coordinator controls only.
