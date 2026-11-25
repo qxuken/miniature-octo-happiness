@@ -309,6 +309,7 @@ mod tests {
     #[test]
     fn malformed_receipts_fail_closed_for_lookup_and_retry() {
         for (sequence, expected, revision, len, version) in [
+            (1, 3, 4, 34, 1),        // otherwise valid, with trailing bytes
             (1, 3, 4, 32, 1),        // length
             (1, 3, 4, 33, 2),        // version
             (0, 3, 4, 33, 1),        // reserved sequence
@@ -329,6 +330,7 @@ mod tests {
             }
             .encode();
             encoded[0] = version;
+            let encoded = [encoded.as_slice(), &[0]].concat();
             let mut tx = db.begin();
             tx.put(
                 db.collection_id(DATA_COLLECTION),
@@ -347,6 +349,90 @@ mod tests {
             assert_eq!(handle(&mut db, "set-seq 0 1 4 30"), Err(Error::Corrupt));
             assert_eq!(handle(&mut db, "get").unwrap(), "value 4 0");
         }
+    }
+
+    #[test]
+    fn reopened_replay_preserves_current_and_retained_receipts() {
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(disk.clone(), [7; 16], Limits::default()).unwrap();
+        initialize(&db).unwrap();
+        assert_eq!(handle(&mut db, "set-seq 0 1 3 12").unwrap(), "committed 4");
+        let retained_id = db.retain_snapshot(&db.snapshot()).unwrap();
+        let identity = hex(&[7; 16]);
+        let first = Receipt {
+            sequence: 1,
+            expected: 3,
+            value: 12,
+            revision: 4,
+        };
+        let previous = hex(&first.encode());
+        let next = format!("journal-set {identity} 0 2 {previous} 5 30");
+        assert_eq!(handle(&mut db, &next).unwrap(), "committed 6");
+        drop(db);
+        let before = disk.durable_image().unwrap();
+        disk.crash(Crash::DropAll).unwrap();
+        let mut db = open(&disk);
+
+        assert_eq!(handle(&mut db, &next).unwrap(), "committed 6");
+        for invalid in [
+            format!("journal-set {identity} 0 2 {previous} 4 30"),
+            format!("journal-set {identity} 0 2 {previous} 5 31"),
+        ] {
+            assert_eq!(handle(&mut db, &invalid), Err(Error::Invalid), "{invalid}");
+        }
+        for invalid in [
+            "set-seq 0 0 6 70",
+            "set-seq 0 4 6 70",
+            "set-seq 1024 1 6 70",
+        ] {
+            assert_eq!(handle(&mut db, invalid), Err(Error::Invalid), "{invalid}");
+        }
+        assert_eq!(handle(&mut db, "set-seq 0 1 3 12").unwrap(), "retired 1");
+        assert_eq!(
+            handle(&mut db, "set-seq 0 3 5 70").unwrap(),
+            "conflict 6 30"
+        );
+        let second = Receipt {
+            sequence: 2,
+            expected: 5,
+            value: 30,
+            revision: 6,
+        };
+        let wrong_predecessor = hex(&Receipt {
+            value: 31,
+            ..second
+        }
+        .encode());
+        assert_eq!(
+            handle(
+                &mut db,
+                &format!("journal-set {identity} 0 3 {wrong_predecessor} 6 70")
+            ),
+            Err(Error::Conflict)
+        );
+        let previous = hex(&second.encode());
+        for invalid in [
+            format!("journal-set {identity} 0 4 {previous} 6 70"),
+            format!("journal-set {identity} 0 3 {} 6 70", hex(&first.encode())),
+            format!("journal-set {identity} 0 3 {previous} 5 70"),
+        ] {
+            assert_eq!(handle(&mut db, &invalid), Err(Error::Invalid), "{invalid}");
+        }
+        assert_eq!(
+            handle(&mut db, &format!("journal-get {}", hex(&[8; 16]))),
+            Err(Error::ForeignStore)
+        );
+
+        let collection = db.collection_id(DATA_COLLECTION);
+        let head = db.snapshot();
+        assert_eq!(head.revision(), 6);
+        assert_eq!(counter_at(&head, collection), Ok(30));
+        assert_eq!(receipt_at(&head, collection, "0"), Ok(Some(second)));
+        let retained = db.retained_snapshot(retained_id).unwrap();
+        assert_eq!(retained.revision(), 4);
+        assert_eq!(counter_at(&retained, collection), Ok(12));
+        assert_eq!(receipt_at(&retained, collection, "0"), Ok(Some(first)));
+        assert_eq!(disk.durable_image().unwrap(), before);
     }
 
     #[test]

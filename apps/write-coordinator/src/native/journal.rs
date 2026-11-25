@@ -435,6 +435,67 @@ mod tests {
     }
 
     #[test]
+    fn journal_decode_rejects_each_noncanonical_field() {
+        let state = State {
+            identity: IDENTITY,
+            slot: (MAX_SLOTS - 1) as u16,
+            last: Some(Receipt {
+                sequence: 1,
+                expected: 3,
+                value: 12,
+                revision: 4,
+            }),
+            pending: Some(Pending {
+                expected: 4,
+                value: 20,
+            }),
+        };
+        let full = state.encode();
+        assert_eq!(State::decode(&full).unwrap().encode(), full);
+        let empty = State {
+            last: None,
+            pending: None,
+            ..state
+        }
+        .encode();
+        assert_eq!(State::decode(&empty).unwrap().encode(), empty);
+
+        let mut oversized = full.to_vec();
+        oversized.push(0);
+        assert!(matches!(State::decode(&oversized), Err(Error::Corrupt)));
+        assert!(matches!(State::decode(&full[..75]), Err(Error::Corrupt)));
+
+        for (label, original, offset, replacement) in [
+            ("magic", full, 0, &[0][..]),
+            ("reserved flag", full, 26, &[0b111]),
+            ("zero identity", full, 8, &[0; 16]),
+            (
+                "slot past capacity",
+                full,
+                24,
+                &(MAX_SLOTS as u16).to_le_bytes(),
+            ),
+            ("unknown receipt version", full, 27, &[2]),
+            ("absent receipt has payload", empty, 27, &[1]),
+            ("absent intent has payload", empty, 60, &[1]),
+            ("intent below receipt floor", full, 60, &3_u64.to_le_bytes()),
+            (
+                "exhausted intent revision",
+                full,
+                60,
+                &u64::MAX.to_le_bytes(),
+            ),
+        ] {
+            let mut bytes = original;
+            bytes[offset..offset + replacement.len()].copy_from_slice(replacement);
+            assert!(
+                matches!(State::decode(&bytes), Err(Error::Corrupt)),
+                "{label}"
+            );
+        }
+    }
+
+    #[test]
     fn journal_check_observes_without_resolving_an_intent() {
         let local = SimulatedDisk::new().unwrap();
         let mut journal = create(&local);

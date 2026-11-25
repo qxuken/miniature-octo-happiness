@@ -110,7 +110,8 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 && match (&c.manifest, c.package.as_str()) {
                     (
                         None,
-                        "weekend-db" | "weekend-db-typed" | "weekend-db-macros" | "study-peer",
+                        "weekend-db" | "weekend-db-typed" | "weekend-db-macros" | "study-peer"
+                        | "write-coordinator",
                     ) => true,
                     (Some(manifest), "weekend-decision-inventory") =>
                         manifest == Path::new("tools/decision-inventory/Cargo.toml"),
@@ -121,13 +122,13 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
         );
         ensure!(
             c.exact_test.as_deref().is_none_or(|name| {
-                c.target == "--test"
+                matches!(c.target.as_str(), "--test" | "--bin")
                     && name.split("::").all(|part| {
                         !part.is_empty()
                             && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
                     })
             }),
-            "invalid exact integration test for {}",
+            "invalid exact test for {}",
             c.name
         );
     }
@@ -728,7 +729,7 @@ mod tests {
     }
     #[cfg(unix)]
     #[test]
-    fn exact_integration_selection_requires_the_named_test_outcome() {
+    fn exact_target_selection_requires_the_named_test_outcome() {
         let inventory = inventory().unwrap();
         let mut case = inventory.cases[0].clone();
         case.exact_test = Some("module::expected".into());
@@ -763,8 +764,27 @@ mod tests {
         }
         data["cases"][0]["exact_test"] = json!("module::expected");
         assert!(parse_inventory(&data.to_string()).is_ok());
-        data["cases"][0]["target"] = json!("--lib");
-        assert!(parse_inventory(&data.to_string()).is_err());
+        data["cases"][0]["package"] = json!("write-coordinator");
+        data["cases"][0]["target"] = json!("--bin");
+        data["cases"][0]["test"] = json!("write-coordinator");
+        let inventory = parse_inventory(&data.to_string()).unwrap();
+        let args = command(&inventory.cases[0], Some("1.100.0"), false);
+        assert_eq!(
+            &args[6..],
+            [
+                "write-coordinator",
+                "--all-features",
+                "--bin",
+                "write-coordinator",
+                "module::expected",
+                "--",
+                "--exact",
+            ]
+        );
+        for target in ["--lib", "--bins"] {
+            data["cases"][0]["target"] = json!(target);
+            assert!(parse_inventory(&data.to_string()).is_err());
+        }
     }
     #[test]
     fn only_requested_production_occurrence_changes_and_source_drift_rejects() {
