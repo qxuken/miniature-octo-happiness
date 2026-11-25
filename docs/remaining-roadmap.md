@@ -1361,3 +1361,21 @@ source dispositions distinguish named pairs, execution and delegated errors.
 The [archive manifest](decisions/typed-lookup-9cfbac2.sha256) identifies both
 platform runs, 116 supervised command receipts, reconciliation and the source
 bundle. Off-machine custody remains open.
+
+### Historical typed decision matching
+
+The inventory reader stripped the closing backtick from the typed ledger’s
+combined kind/owner column. On `720f64e` it preserves the quoted owner and
+requires both the source position and byte range when both appear. The
+regression failed before the fix. It accepts the original row and rejects a
+different owner, filename, line or byte range. All 34 inventory tests passed
+in debug and release on macOS arm64 and Docker Linux arm64.
+
+The two platforms produced byte-identical inventory and review reports. Each
+of the 56 recovered rows matches the original ledger’s owner, kind, position,
+range, target scope and file digest. The changes account for all 32 remaining
+typed codec rows and all 24 typed library rows. Every other previously
+identified decision kept its disposition. The parser itself adds one tooling
+decision. There are now 1,172 runtime gaps and 7,398 tooling gaps. The
+[archive checksums](decisions/inventory-appendix-720f64e.sha256) identify
+the reports, test logs and source bundle.
