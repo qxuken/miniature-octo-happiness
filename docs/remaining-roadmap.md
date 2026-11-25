@@ -1930,8 +1930,23 @@ At `40fe1d5`, macOS/APFS and Docker Linux/ext4 each pass the
 all 64 retained roots and 344,064 observed reads. Read response,
 queue wait, commit and maintenance measurements are recorded in the
 [load sweep](compound-resource-envelope.md#three-offered-read-rates-on-a-fixed-window).
-Writer queueing under fixed arrivals, deployment hardware and accepted
-budgets remain R3 requirements.
+The [writer arrival sweep](compound-resource-envelope.md#scheduled-writer-arrivals-under-the-fixed-reader-load)
+extends this workload with fixed writer arrivals. Intended deployment
+hardware and approved service budgets remain R3 requirements.
 
 The reconciliation records 17 additional tooling decisions and leaves
 646 runtime and 7,464 tooling gaps.
+
+### Scheduled writer load sweep
+
+At `caadea6`, four runs complete 62.5 and 375 offered writes/s with
+8,000 offered reads/s on macOS/APFS and Docker Linux/ext4. The replay
+checks writer queue, dispatch, draft, commit and response times, as
+well as causal ordering between writer acknowledgments and reader
+observations. Fresh extraction verifies every final image at revision
+517 and all 64 retained roots. The [writer sweep](compound-resource-envelope.md#scheduled-writer-arrivals-under-the-fixed-reader-load)
+records the observed response and throughput. Production hardware,
+representative workloads and accepted budgets remain R3 gates.
+
+This source adds 21 tooling decisions. Reconciliation leaves 646
+runtime and 7,485 tooling gaps.

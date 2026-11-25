@@ -1099,3 +1099,71 @@ timing summaries. A reader linked against the frozen macOS engine
 reopens all six extracted final images and checks 4,096 rows per view
 in the current root and every retained root. Each image keeps its
 recorded SHA-256. [Archive manifest](decisions/arrival-rates-40fe1d5.sha256)
+
+## Scheduled writer arrivals under the fixed reader load
+
+Frozen `caadea67dc5f2cec694b90b9ef606af4e7c4f093` ran on macOS
+arm64/APFS and Docker Linux arm64/ext4 using Rust 1.100.0. The Docker
+controller ran with two CPUs and a 2 GiB memory limit. All runs use
+the same byte-identical seed and the same 8,000 scheduled reads/s
+per 768 ms reader window.
+
+Each cycle offers sixteen writes in each of three lanes. A writer
+prepares a full 1,024-key draft after its request starts. Intervals
+of 48 ms and 8 ms per lane offer 62.5 and 375 writes/s. Every run
+completes all 384 writes over eight cycles. The offered writer
+windows are 768 ms and 128 ms per cycle respectively. Completed
+writes/s divides the total acknowledgments by the sum of the
+times from each cycle's shared start to its final writer response.
+
+The raw writer records bind revision, request start, commit start
+and completion. Queue wait runs from the scheduled arrival to the
+later of that arrival and the preceding request's completion.
+Dispatch delay runs from eligibility to start. Draft timing ends
+at the commit call. Commit timing includes contention and durable
+publication. Response includes every stage from the scheduled
+arrival. The replay also checks each reader's observed revision
+against the start of that commit and the writer acknowledgments
+available when the read began.
+
+Use `--writer-period-us` with `compound-breadth-arrivals`.
+The accepted range is 1,000 to 48,000 µs. Omit the option for
+completion-paced writers.
+
+```sh
+cargo +1.100.0 xtask resource compound-breadth-arrivals --revision caadea6 \
+  --writer-period-us 8000 --output target/breadth-writers-375
+```
+
+| Platform | Offered writes/s | Completed writes/s | Writes | Queued writes | Writer wait p50 / p95 / p99 (ms) | Writer response p50 / p95 / p99 (ms) | Draft p99 (ms) | Commit p99 (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64/APFS | 62.5 | 63.7 | 384 | 0 | 0.000 / 0.000 / 0.000 | 23.642 / 36.539 / 40.115 | 5.967 | 32.442 |
+| macOS arm64/APFS | 375 | 93.7 | 384 | 360 | 172.031 / 342.181 / 363.952 | 203.289 / 373.061 / 394.638 | 6.917 | 34.602 |
+| Docker Linux arm64/ext4 | 62.5 | 65.8 | 384 | 0 | 0.000 / 0.000 / 0.000 | 8.476 / 14.682 / 16.546 | 9.307 | 6.966 |
+| Docker Linux arm64/ext4 | 375 | 347.7 | 384 | 207 | 0.390 / 21.992 / 26.012 | 8.743 / 30.321 / 34.012 | 16.354 | 25.251 |
+
+| Platform | Offered writes/s | Writer dispatch p99 (ms) | Writer service p99 (ms) | Reader response p99 (ms) | Writes completed at or after window end | Peak RSS (KiB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64/APFS | 62.5 | 9.949 | 36.524 | 3.939 | 0 | 217904 |
+| macOS arm64/APFS | 375 | 0.965 | 37.861 | 4.463 | 293 | 219024 |
+| Docker Linux arm64/ext4 | 62.5 | 10.123 | 13.986 | 5.165 | 0 | 189860 |
+| Docker Linux arm64/ext4 | 375 | 1.829 | 32.672 | 7.353 | 30 | 189632 |
+
+At the higher offered rate, 360 macOS writes and 207 Docker Linux
+writes queued. Response p99 reached 394.638 ms on macOS and 34.012 ms
+on Docker Linux in these runs. At 62.5 writes/s, each writer lane was
+ready by its next scheduled request. The runs report behavior on this
+development host. The intended deployment still needs representative
+sustained workloads and agreed limits.
+
+All 21 macOS and 22 Linux resource tests passed per debug and release
+profile. Strict Clippy passed for the controller and driver on both
+platforms. The macOS reader-only control retained the two-field paced
+writer trace and verified all 384 commits and 49,152 reads.
+
+Fresh extraction independently replays all 1,536 write acknowledgments
+and 196,608 reader observations across the four scheduled writer runs.
+A reader linked to the frozen macOS engine opens every final image,
+validates revision 517 and all 64 retained roots, and checks 4,096 rows
+per view. Each image retains its SHA-256 after the check.
+[Archive manifest](decisions/writer-arrivals-caadea6.sha256)
