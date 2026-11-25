@@ -390,7 +390,8 @@
     "docs/decisions/codec-recovery-offsets-current.md": "242563ede2264b216cbba326d7dc4e0d14e86a3608a4374be2232bd28ee79ba5",
     "docs/decisions/memory-growth-current.md": "ed7001d955f500ec2f49cb24053803a25d3ee70c2d3c5a054462b07e8e2a2229",
     "docs/decisions/journal-replay-current.md": "c4faf55506857dc06af10af742beacd3218b84bcf37a44775b7d18e9cd5cf3ad",
-    "docs/decisions/journal-admission-current.md": "52e5fc46922de2304baa8cf4489eef13107022203245a6458ec655211c710110"
+    "docs/decisions/journal-admission-current.md": "52e5fc46922de2304baa8cf4489eef13107022203245a6458ec655211c710110",
+    "docs/decisions/journal-state-current.md": "fe718ebe3a42da300efe0863e039e2f646cceead1e77c98c4365e5dad4cf46c2"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -884,7 +885,8 @@
         "docs/coordinator-pending-restore.md",
         "docs/decisions/coordinator-service-current.md",
         "docs/decisions/journal-replay-current.md",
-        "docs/decisions/journal-admission-current.md"
+        "docs/decisions/journal-admission-current.md",
+        "docs/decisions/journal-state-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
