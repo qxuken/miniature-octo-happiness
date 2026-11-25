@@ -144,12 +144,17 @@ fn source_locks(source: &Path) -> Result<()> {
 // release build on both endpoints before exempting the CRDT test module.
 fn verify_crdt_inputs(depfile: &str) -> Result<()> {
     let paths = depfile.replace('\\', "/");
+    let includes = |suffix: &str| {
+        paths
+            .split_ascii_whitespace()
+            .any(|path| path.ends_with(suffix))
+    };
     ensure!(
-        paths.contains("/src/crdt.rs") && paths.contains("/src/crdt/multi_value_register.rs"),
+        includes("/src/crdt.rs") && includes("/src/crdt/multi_value_register.rs"),
         "study binary dependency report is missing CRDT runtime inputs"
     );
     ensure!(
-        !paths.contains("/src/crdt/decisions.rs"),
+        !includes("/src/crdt/decisions.rs"),
         "study binary depends on the CRDT test module"
     );
     Ok(())
@@ -603,6 +608,11 @@ mod tests {
         let runtime = r"C:\repo\src\crdt.rs C:\repo\src\crdt\multi_value_register.rs";
         assert!(verify_crdt_inputs(runtime).is_ok());
         assert!(verify_crdt_inputs("").is_err());
+        for required in ["crdt.rs", "multi_value_register.rs"] {
+            let renamed = runtime.replace(required, &format!("{required}.old"));
+            assert!(verify_crdt_inputs(&renamed).is_err());
+        }
+        assert!(verify_crdt_inputs(&format!("{runtime} /repo/src/crdt/decisions.rs.old")).is_ok());
         assert!(verify_crdt_inputs(&format!("{runtime} /repo/src/crdt/decisions.rs")).is_err());
     }
 

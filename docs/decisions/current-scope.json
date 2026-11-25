@@ -212,7 +212,7 @@
     "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
     "xtask/src/sqlite_baseline.rs": "2edb8f5f19c8bfd7917c90fd0da10fde1e1937748c05dbe43c502e7bc0d5b247",
     "xtask/src/study_soak.rs": "430b55111e7145ab89fe9ce1ec5cfe94280dbb18b11087c4164a78e818cf650b",
-    "xtask/src/study_upgrade.rs": "3ce80e76e370dffcad5edb7bb6a09ceaf916a684eec0ef5dba2413bde7bfe956",
+    "xtask/src/study_upgrade.rs": "85934f92de2681263e1fc7c756432a29fbb7eaa537e4222bc8a9610804597e89",
     "xtask/src/supervise.rs": "d066164f1cf2d9e9efc473c539199af501acd37c7e455b9410708c70bd33e6be",
     "xtask/src/support.rs": "ab81f996e6e6e19a44180b3a350176859a343b4a5b34f04bbf24789b62c67dd1",
     "xtask/src/toolchain.rs": "a0e44e9f90a3d893fa9402a64e4c860e44f0e3029020ce9f8395978fa92fa7b5",
