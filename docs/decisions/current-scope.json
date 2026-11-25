@@ -412,17 +412,18 @@
     "apps/study-peer/tests/service_diagnostics.rs": "bd7790b20933e411bed5778836f2c0ceb8db3aaaadd001efd0fe304481f1deb0",
     "docs/decisions/study-seed-pair-current.md": "0a78ae4c18d91c23a8361dce28ea35b41fea270802987b94f4b9bf6f7951d4d6",
     "docs/decisions/study-cli-admission-current.md": "ce52224f8a52a09cf0c353c04c21207c3bc5be3ce6ce599a83520337bfd49d15",
-    "docs/decisions/study-interactive-io-current.md": "033cf798c68c87fe2f4ec560d5adf70d1d16cfa95daa18b3dc46ccbbda3d6627",
+    "docs/decisions/study-interactive-io-current.md": "b45280815b11f7095a4c0fe6daf05f86b5bad8ce5a26842b8e8dec8649a216a5",
     "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
     "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f",
     "docs/decisions/study-incoming-worker-current.md": "f94f0d11e3bd22ae1df89ae4574953425ec3a07b591c5dc86988b6749339b5bb",
     "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591",
     "docs/decisions/study-service-launch-current.md": "d271a3fcbcfeefc1ec3871c3f3b6b5e7c0bc60b8cf028a47a19bafb147874ca7",
     "docs/decisions/study-service-shutdown-current.md": "f30d9f7b68de9ffe6037ed386e8779adbee16b2af41661ba9812cb6b83588330",
-    "docs/decisions/study-windows-fixtures-current.md": "b049d3cf81047f03aabba5ad882b657e24aec4333e729703ab136fb094783791",
+    "docs/decisions/study-windows-fixtures-current.md": "97531770ea0ada7b26b432ceec1f4d13f894329ea40557c989eb6a6760339493",
     "docs/decisions/study-receive-current.md": "c5b3e1e268936240cd70ba66d470a94bc1bae2086e5235811371ab3ed97cab59",
     "docs/decisions/coordinator-connection-handoff-current.md": "c82b333c26f1e9f1cf0369127eadcb6f1206dfc7d891e5f8b81a08cc686cefa5",
-    "docs/decisions/credential-file-admission-current.md": "30fe878e6e016274afae631c38e21408c5d6e290268ce2ad1dd2aaedb898558a"
+    "docs/decisions/credential-file-admission-current.md": "b53ddc975a9d003124345dd1f8aadb4a268d2c4024ba1290d51009ab0c119962",
+    "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -903,7 +904,8 @@
         "docs/decisions/study-service-launch-current.md",
         "docs/decisions/study-service-shutdown-current.md",
         "docs/decisions/study-windows-fixtures-current.md",
-        "docs/decisions/study-receive-current.md"
+        "docs/decisions/study-receive-current.md",
+        "docs/decisions/study-listener-retirement-current.md"
       ],
       "residual": "Fixed-roster deployment, raw reserved rows and native stream errors remain explicit application obligations."
     },

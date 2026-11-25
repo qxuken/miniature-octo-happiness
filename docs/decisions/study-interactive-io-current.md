@@ -8,8 +8,9 @@ diagnostic category and exit status.
 
 Once ready, the command loop reports a bad UTF-8 input line as
 `local_command/io/invalid_data`. A refused reply preserves the
-`BrokenPipe` error across the worker shutdown. Tests bind the same socket
-again immediately and reopen the database through the native file adapter.
+`BrokenPipe` error across the worker shutdown. Tests reopen the database
+through the native file adapter. A separate test verifies that shutdown
+closes a queued TCP connection. [Listener retirement ledger](study-listener-retirement-current.md)
 
 | Command or input | Result if the reply is refused | Reopened revision and practice |
 | --- | --- | --- |

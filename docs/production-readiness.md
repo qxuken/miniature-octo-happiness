@@ -366,6 +366,13 @@ order, child staging and allocation propagation.
 The [COMMIT encoder ledger](decisions/codec-encode-commit-current.md) covers
 descriptor fields, retained DATA staging, catalog iteration and finishing
 both caches before publication.
+The shared TLS credential-file campaign covers type checks before
+opening, byte bounds and Unix key permissions in both network CLIs.
+The Study shutdown campaign verifies that a queued connection closes
+when its listener retires. Both retain the open native and deployed
+platform obligations. [Credential-file ledger](decisions/credential-file-admission-current.md),
+[listener retirement ledger](decisions/study-listener-retirement-current.md)
+
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision

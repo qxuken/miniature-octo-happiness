@@ -61,3 +61,9 @@ downloaded artifact matches SHA-256
 Its packaged test fixture matched the exact bytes of the merge and PR
 head.
 [Native Windows minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45696024354/job/139493770789)
+
+The full native Windows job also passed on the same test merge. Its
+debug and release workspace logs each list both Study regressions
+among 54 passing Study unit tests. The retained log matches SHA-256
+`b2effa942ba68447591927104c4f02613663cec7fb97a1fe90adee5ed30cef23`.
+[Native Windows workspace job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45696024354/job/139493770620)

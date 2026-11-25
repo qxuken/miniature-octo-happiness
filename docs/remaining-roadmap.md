@@ -2137,3 +2137,18 @@ selected controls on macOS and Docker Linux. The Windows oracle still
 checks the 32 established controls. Both new Windows debug test targets
 cross-linked. Reconciliation leaves 434 runtime and 7,514 tooling gaps.
 [Connection handoff ledger](decisions/coordinator-connection-handoff-current.md)
+
+### Credential-file admission and Study listener retirement
+
+At `3dc33ce`, both network CLIs preserve missing-file errors and
+exercise the regular-file, exact-size and Unix private-mode rules.
+The Study shutdown test observes the disposition of a pending client
+already queued on its own listener. A controlled competing listener
+reproduces the former macOS ephemeral-port assertion failure.
+
+macOS and ext4 Docker Linux pass debug and release, including 28
+selected mutations per campaign. Both apps' Windows debug targets
+cross-link. The final source ledger preserves the eight prior Study
+admission decisions and leaves 422 runtime and 7,514 tooling gaps.
+[Credential-file ledger](decisions/credential-file-admission-current.md),
+[listener retirement ledger](decisions/study-listener-retirement-current.md)
