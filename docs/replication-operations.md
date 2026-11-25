@@ -434,6 +434,15 @@ proof that the older image is still selected. The restartable workflow
 uses the existing snapshot wire protocol and the same enrollment policy.
 When restoring or forking a primary, configure a fresh stream and follower.
 
+The send commands exit on a capture-announcement write or flush error
+before connecting. If stdout fails after the follower installs the export,
+the send command exits with an output error. The follower may already have
+a durable receipt. Poll over a fresh authenticated connection to retrieve
+it. With structured diagnostics, these output errors report `local_command`
+and category `io`. A local `capture` that fails only while printing can
+leave a usable pair of files. The next `ship-captured` verifies the pair
+before contacting the follower.
+
 For embedded Rust, persist `Export::descriptor()` before transfer, then
 reconstruct `Primary` and use `Primary::reopen_export_file` or
 `Primary::reopen_export` with the saved descriptor. The application owns

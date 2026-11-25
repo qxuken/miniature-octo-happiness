@@ -14,7 +14,7 @@
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
-    "apps/weekend-replicate/src/native.rs": "bf4b7a29d62011a342a9badb6dc8d74fcaab5ea51c901ff25cc19605d874679c",
+    "apps/weekend-replicate/src/native.rs": "877644213284371ed1fafff85a12eeeeb3f8afe14feb09703b18ab9223369e1a",
     "apps/weekend-replicate/src/native/admission.rs": "7144c0e040b9955bf64fe857361653378d3e01fb784639da5c8eae125ad312c3",
     "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
     "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
@@ -228,8 +228,8 @@
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "eab0715df7bfb966af651040b584a5b56845a6ea4d1a9d1504f8e8f1d1d34ff2",
     "apps/study-peer/tests/cli.rs": "6e3ad714e6102cb4545fcaa16e30e57734a2eb1bcc0e38c6c1388a3dca6d9f8d",
-    "apps/weekend-replicate/src/native/tests.rs": "e8add383bdf9c758a2f144731051854c09d30e58fe82af191e11e63065346c01",
-    "apps/weekend-replicate/tests/cli.rs": "5bc1f316b556d389e376d3918b1e7544e32871f61f63d974802e3765917c0528",
+    "apps/weekend-replicate/src/native/tests.rs": "8b087498203c4c331107c1fbe378e6da9af0726e02dd127ff302d0944c9d470e",
+    "apps/weekend-replicate/tests/cli.rs": "798bd5de0e4c7c53b09a70c2b4a5c5588cd8f9c861ad1f82ed1e8d6c3ec0224c",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
@@ -394,7 +394,8 @@
     "docs/decisions/journal-state-current.md": "87c03e39f11595528de2bdf7b740ce9b31b7e4f54f61eb424e09918d74e1a489",
     "docs/decisions/journal-cli-current.md": "2f820ee2db5c43b9393fdc1cb94f14cf22045542899f5e419c255b2e3a8c86f9",
     "docs/decisions/service-diagnostics-current.md": "6e1fefc7b06a3ee3a25158288e2568aee38ca530076c3f0b3ac646b5efa0fc42",
-    "docs/decisions/capture-record-current.md": "89e1d03816322b7e74ccee14e044f4019d794c969ea74a8ddc8d0629f71d6e2c"
+    "docs/decisions/capture-record-current.md": "89e1d03816322b7e74ccee14e044f4019d794c969ea74a8ddc8d0629f71d6e2c",
+    "docs/decisions/snapshot-output-current.md": "6440475871ddab6a8064da9733355e8eef78b2e3968add647d8b6104fe865152"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -453,7 +454,7 @@
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
     "weekend-replicate::live_month": 128,
-    "weekend-replicate::weekend-replicate": 246,
+    "weekend-replicate::weekend-replicate": 251,
     "weekend-resource-envelope::build-script-build": 1,
     "weekend-resource-envelope::weekend-compound-resource": 216,
     "weekend-resource-envelope::weekend-resource-envelope": 30,
@@ -871,7 +872,8 @@
         "docs/decisions/snapshot-cli.md",
         "apps/weekend-replicate/src/native/tests.rs",
         "apps/weekend-replicate/tests/cli.rs",
-        "docs/decisions/capture-record-current.md"
+        "docs/decisions/capture-record-current.md",
+        "docs/decisions/snapshot-output-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },

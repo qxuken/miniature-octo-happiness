@@ -392,6 +392,46 @@ fn native_captured_export_survives_sender_kill_and_primary_advancement() {
     let stalled = TcpListener::bind("127.0.0.1:0").unwrap();
     stalled.set_nonblocking(true).unwrap();
     let stalled_address = stalled.local_addr().unwrap().to_string();
+    let run_with_closed_stdout = |mut command: Command| {
+        let (reader, writer) = std::io::pipe().unwrap();
+        drop(reader);
+        let failed_output = command.stdout(writer).output().unwrap();
+        assert!(!failed_output.status.success());
+        let error = String::from_utf8(failed_output.stderr).unwrap();
+        assert_eq!(error.lines().count(), 1, "{error}");
+        assert!(
+            error.contains(r#""phase":"local_command","category":"io""#),
+            "{error}"
+        );
+    };
+    let mut closed_ship = Command::new(BIN);
+    closed_ship
+        .arg("--diagnostics=json")
+        .args(command(stream, &image, &record, &stalled_address).get_args());
+    run_with_closed_stdout(closed_ship);
+
+    let other_image = root.join("capture-with-closed-stdout.wdb");
+    let other_record = root.join("descriptor-with-closed-stdout.wdb");
+    let mut closed_capture = Command::new(BIN);
+    closed_capture
+        .args(["--diagnostics=json", "capture", source, stream])
+        .args([&other_image, &other_record]);
+    run_with_closed_stdout(closed_capture);
+    assert_eq!(fs::read(&other_image).unwrap(), original);
+    let check_capture = command(stream, &other_image, &other_record, &stalled_address);
+    // A new process validates the newly written descriptor before reporting
+    // another output error, without opening a network connection.
+    let mut closed_reopen = Command::new(BIN);
+    closed_reopen
+        .arg("--diagnostics=json")
+        .args(check_capture.get_args());
+    run_with_closed_stdout(closed_reopen);
+
+    assert!(matches!(stalled.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock));
+    assert_eq!(files(&follower), empty_follower);
+    assert_eq!(fs::read(&image).unwrap(), original);
+    assert_eq!(fs::read(&record).unwrap(), ticket);
+
     let mut interrupted = Server(
         command(stream, &image, &record, &stalled_address)
             .stdout(Stdio::piped())

@@ -61,11 +61,11 @@ fn pair() -> (Tls, Tls) {
         Tls::new(&b, a.certificate()).unwrap(),
     )
 }
-fn exchange(
+fn exchange<T>(
     follower: &mut Follower,
     server: &Tls,
-    action: impl FnOnce(SocketAddr) -> AppResult<DurableAck>,
-) -> (AppResult<DurableAck>, Result<(), SessionError>) {
+    action: impl FnOnce(SocketAddr) -> AppResult<T>,
+) -> (AppResult<T>, Result<(), SessionError>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     thread::scope(|scope| {
@@ -725,4 +725,141 @@ fn saved_capture_checks_lineage_revision_length_and_digest_before_delivery() {
     drop(reopened);
     assert_eq!(fs::read(&image).unwrap(), image_bytes);
     assert_eq!(fs::read(&path).unwrap(), primary_bytes);
+}
+
+#[test]
+fn capture_output_and_durable_acknowledgment_fail_independently() {
+    struct FailingFlush {
+        bytes: Vec<u8>,
+        remaining_flushes: usize,
+    }
+    impl Write for FailingFlush {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.bytes.write(bytes)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            if self.remaining_flushes == 0 {
+                return Err(io::ErrorKind::BrokenPipe.into());
+            }
+            self.remaining_flushes -= 1;
+            Ok(())
+        }
+    }
+
+    let dir = Directory::new();
+    let path = source(&dir);
+    let image = dir.0.join("export");
+    let stream = [1; 16];
+    let prepared = prepare(&path, stream, &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    let enrollment = descriptor.enrollment;
+    let local = format!(
+        "local captured_revision={} stream={} file_identity={}\n",
+        descriptor.revision,
+        hex(&enrollment.stream_id),
+        hex(&enrollment.file_identity)
+    );
+    let (client, server) = pair();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut output = FailingFlush {
+        bytes: Vec::new(),
+        remaining_flushes: 0,
+    };
+    let error = deliver(
+        prepared,
+        &client,
+        listener.local_addr().unwrap(),
+        1,
+        &mut output,
+        "",
+    )
+    .unwrap_err();
+    assert_eq!(
+        error.downcast_ref::<io::Error>().unwrap().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(output.bytes, local.as_bytes());
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
+
+    let record = dir.0.join("descriptor");
+    capture_record::store(&record, descriptor).unwrap();
+    let prepared = prepare_saved(&path, stream, &image, &record).unwrap();
+    let mut receiver = follower(&dir, enrollment);
+    let mut output = vec![0; local.len()];
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "ship-captured".into()],
+    );
+    let mut diagnostic = None;
+    let (sent, served) = exchange(&mut receiver, &server, |address| {
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            deliver(
+                prepared,
+                &client,
+                address,
+                1,
+                &mut output.as_mut_slice(),
+                "",
+            )
+        });
+        diagnostic = detail;
+        result
+    });
+    served.unwrap();
+    assert_eq!(
+        sent.unwrap_err()
+            .downcast_ref::<io::Error>()
+            .unwrap()
+            .kind(),
+        io::ErrorKind::WriteZero
+    );
+    assert_eq!(output, local.as_bytes());
+    let json = diagnostic.unwrap().json(settings).to_string();
+    assert!(json.contains(r#""phase":"local_command","category":"io""#));
+    assert!(json.contains(r#""follower_outcome":"unconfirmed""#));
+    let ack = DurableAck {
+        stream_id: stream,
+        revision: descriptor.revision,
+        digest: descriptor.digest,
+    };
+    let manifest = receiver.status().unwrap().manifest_bytes;
+    drop(receiver);
+
+    let mut reopened =
+        Follower::open(dir.0.join("follower"), enrollment, Limits::default()).unwrap();
+    check(&reopened, ack, 2);
+    let prepared = prepare_saved(&path, stream, &image, &record).unwrap();
+    let mut output = FailingFlush {
+        bytes: Vec::new(),
+        remaining_flushes: 1,
+    };
+    let (retried, served) = exchange(&mut reopened, &server, |address| {
+        deliver(prepared, &client, address, 1, &mut output, "")
+    });
+    served.unwrap();
+    assert_eq!(
+        retried
+            .unwrap_err()
+            .downcast_ref::<io::Error>()
+            .unwrap()
+            .kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(
+        output.bytes,
+        format!("{local}{}\n", ack_line(Some(ack))).as_bytes()
+    );
+
+    let mut prepared = prepare_saved(&path, stream, &image, &record).unwrap();
+    let (polled, served) = exchange(&mut reopened, &server, |address| {
+        Ok(prepared.primary.poll(client.connect(address)?)?)
+    });
+    served.unwrap();
+    assert_eq!(polled.unwrap(), Some(ack));
+    assert_eq!(reopened.status().unwrap().manifest_bytes, manifest);
 }

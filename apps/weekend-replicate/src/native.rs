@@ -202,13 +202,18 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let prepared = prepare(source.as_ref(), stream, export.as_ref())?;
             let capture = prepared.export.descriptor();
             capture_record::store(Path::new(descriptor), capture)?;
-            announce(&prepared)?;
-            println!(
-                "local export_length={} export_digest={}",
-                capture.length,
-                hex(&capture.digest)
-            );
-            Ok(())
+            let mut output = io::stdout().lock();
+            diagnostics::at(Phase::LocalCommand, || {
+                announce(&prepared, &mut output)?;
+                writeln!(
+                    output,
+                    "local export_length={} export_digest={}",
+                    capture.length,
+                    hex(&capture.digest),
+                )?;
+                output.flush()?;
+                Ok(())
+            })
         }
         [
             c,
@@ -230,6 +235,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 &tls,
                 address,
                 attempts,
+                &mut io::stdout(),
                 "Export file retained. Use capture to preserve a descriptor for a future restart.",
             )
         }
@@ -259,6 +265,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 &tls,
                 address,
                 attempts,
+                &mut io::stdout(),
                 "Export and descriptor retained. Retry with ship-captured.",
             )
         }
@@ -286,15 +293,16 @@ struct Prepared {
     primary: Primary,
     export: Export,
 }
-fn announce(prepared: &Prepared) -> AppResult<()> {
+fn announce(prepared: &Prepared, output: &mut impl Write) -> AppResult<()> {
     let e = prepared.primary.enrollment();
-    println!(
+    writeln!(
+        output,
         "local captured_revision={} stream={} file_identity={}",
         prepared.export.revision(),
         hex(&e.stream_id),
         hex(&e.file_identity),
-    );
-    io::stdout().flush()?;
+    )?;
+    output.flush()?;
     Ok(())
 }
 fn prepare(source: &Path, stream: [u8; 16], destination: &Path) -> AppResult<Prepared> {
@@ -328,16 +336,20 @@ fn deliver(
     tls: &Tls,
     address: SocketAddr,
     attempts: usize,
+    output: &mut impl Write,
     context: &str,
 ) -> AppResult<()> {
-    announce(&prepared)?;
+    diagnostics::at(Phase::LocalCommand, || announce(&prepared, output))?;
     let ack = ship(&mut prepared, tls, address, attempts).map_err(|error| {
         if diagnostics::settings().enabled { error } else {
             format!("transfer not confirmed; follower outcome may be uncertain: {error}. Poll on a fresh authenticated connection. {context}").into()
         }
     })?;
-    println!("{}", ack_line(Some(ack)));
-    Ok(())
+    diagnostics::at(Phase::LocalCommand, || {
+        writeln!(output, "{}", ack_line(Some(ack)))?;
+        output.flush()?;
+        Ok(())
+    })
 }
 fn ship(
     prepared: &mut Prepared,
