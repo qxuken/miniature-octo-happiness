@@ -6,7 +6,7 @@
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
     "apps/study-peer/src/native/admission.rs": "0d01bb5355a7b420f9cad80a7fa5fea02d09adaf7a92cce91cf6029750469dab",
     "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
-    "apps/study-peer/src/native/roster.rs": "29b73975c59b0d9afcda7608cc8ae22f1b8005c20a2ad5da15d7d69ab418b420",
+    "apps/study-peer/src/native/roster.rs": "52e0b17d9a5fc2c3e3aa5cf97876dbfe131941225b4a2a3ef95118a266ff8950",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
     "apps/support/pinned_tls.rs": "3772645837b8f2f4e8ba8b1c743902538a2541f781999724a59de98395706b53",
@@ -226,7 +226,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "fd8de48b9955fdc1fe083e9da3e7c3bf0a450364c18657d30e9a2590ca371e86",
+    "apps/study-peer/src/native/tests.rs": "5a959cbbcb84d96cc45e722c7103425613e5004b92d58b760a86311d2703fb20",
     "apps/study-peer/tests/cli.rs": "6e3ad714e6102cb4545fcaa16e30e57734a2eb1bcc0e38c6c1388a3dca6d9f8d",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
     "apps/weekend-replicate/tests/cli.rs": "7c5058e3bc08b609ed5ce52e1d88ad7ae5c7d0e16afec25b25ced819742dff99",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "09a8905d7f077544c98c1ea43a3adf763087637c2362ab8e4f6151c4022c8585",
+    "xtask/tests/mutations.json": "fc7ad17afb3b6afbab883b223e975d9e8293b66cca974bf130398376990fb333",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -26148,6 +26148,463 @@
       ],
       "mutations": [
         "r1-study-roster-actor-b-error"
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-MODE-TAG",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "line",
+        "kind": "match",
+        "conditions": [
+          "self"
+        ],
+        "start_byte": 3803
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "receipt_preimage_binds_policy_ordered_store_ids_and_state"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-mode-tag"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-REVISION-MODE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "line",
+        "kind": "if",
+        "conditions": [
+          "matches!(self, Self::Checkpoint)"
+        ],
+        "start_byte": 4265
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "receipt_preimage_binds_policy_ordered_store_ids_and_state"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-revision-mode"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-STORAGE-ID-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "line",
+        "kind": "try_propagation",
+        "conditions": [
+          "db.storage_identity()"
+        ],
+        "start_byte": 4249
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "receipt_preimage_binds_policy_ordered_store_ids_and_state"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-storage-id-error"
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-COMPARE-BYTES",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "require",
+        "kind": "if",
+        "conditions": [
+          "self.line(pair, policy, state)?.as_bytes() != expected"
+        ],
+        "start_byte": 4804
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "receipt_preimage_binds_policy_ordered_store_ids_and_state"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-compare-bytes"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-RENDER-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "require",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.line(pair, policy, state)"
+        ],
+        "start_byte": 4837
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "receipt_preimage_binds_policy_ordered_store_ids_and_state"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-render-error"
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-AGREED-OPEN-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "agreed",
+        "kind": "try_propagation",
+        "conditions": [
+          "StudyReplica::open(db, db.collection_id(COLLECTION_ROW), policy, actor)"
+        ],
+        "start_byte": 3441
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "agreed_distinguishes_missing_records_and_disagreement"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-agreed-open-error"
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-AGREED-LEFT-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "agreed",
+        "kind": "try_propagation",
+        "conditions": [
+          "read(a, policy.actors[0])"
+        ],
+        "start_byte": 3497
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "agreed_distinguishes_missing_records_and_disagreement"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-agreed-left-error"
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-AGREED-RIGHT-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "agreed",
+        "kind": "try_propagation",
+        "conditions": [
+          "read(b, policy.actors[1])"
+        ],
+        "start_byte": 3540
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "agreed_distinguishes_missing_records_and_disagreement"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-agreed-right-error"
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-AGREED-COMPARE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "agreed",
+        "kind": "if",
+        "conditions": [
+          "left != read(b, policy.actors[1])?"
+        ],
+        "start_byte": 3504
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "agreed_distinguishes_missing_records_and_disagreement"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-agreed-compare"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-STAGE-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "if",
+        "conditions": [
+          "let Some(expected) = expected_old"
+        ],
+        "start_byte": 6060
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_and_verify_check_receipts_before_admitting_the_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-stage-selection"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-STAGE-SOME",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "pattern_test",
+        "conditions": [
+          "expected_old"
+        ],
+        "start_byte": 6063
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_and_verify_check_receipts_before_admitting_the_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-stage-selection"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-STAGE-REJECTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "conditions": [
+          "Receipt::Checkpoint.require(expected, [&a, &b], old, state)"
+        ],
+        "start_byte": 6166
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_and_verify_check_receipts_before_admitting_the_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-stage-rejection"
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-VERIFY-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "verify",
+        "kind": "if",
+        "conditions": [
+          "let Some(expected) = expected_staged"
+        ],
+        "start_byte": 7746
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_and_verify_check_receipts_before_admitting_the_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-verify-selection"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-VERIFY-SOME",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "verify",
+        "kind": "pattern_test",
+        "conditions": [
+          "expected_staged"
+        ],
+        "start_byte": 7749
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_and_verify_check_receipts_before_admitting_the_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-verify-selection"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-RECEIPT-VERIFY-REJECTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "verify",
+        "kind": "try_propagation",
+        "conditions": [
+          "Receipt::Staged.require(expected, [&a, &b], policy, state)"
+        ],
+        "start_byte": 7854
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_and_verify_check_receipts_before_admitting_the_pair"
+        }
+      ],
+      "mutations": [
+        "r1-study-receipt-verify-rejection"
       ]
     }
   ],

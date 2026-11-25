@@ -260,3 +260,155 @@ pub(super) fn verify(
     visible.report();
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native::tests::Directory;
+    use std::fs;
+    use weekend_db::storage::MemoryStore;
+
+    const POLICY: Policy = Policy {
+        collection: [9; 16],
+        generation: 0x0102_0304_0506_0708,
+        actors: [[1; 16], [2; 16]],
+    };
+
+    #[test]
+    fn receipt_preimage_binds_policy_ordered_store_ids_and_state() {
+        let a = Database::create_on(MemoryStore::new().unwrap(), [0x41; 16], Limits::default())
+            .unwrap();
+        let b = Database::create_on(MemoryStore::new().unwrap(), [0x42; 16], Limits::default())
+            .unwrap();
+        a.create_collection().unwrap();
+        b.create_collection().unwrap();
+        b.create_collection().unwrap();
+        let pair = [&a, &b];
+        let mut state = StudyProgress::default();
+        state.completed.insert(42).unwrap();
+        let mut payload = [0; StudyProgress::<true>::SIZE];
+        state.encode(&mut payload).unwrap();
+
+        let preimage = |tag: &str, revisions: bool| {
+            let mut bytes = tag.as_bytes().to_vec();
+            bytes.extend([9; 16]);
+            bytes.extend([8, 7, 6, 5, 4, 3, 2, 1]);
+            bytes.extend([1; 16]);
+            bytes.extend([2; 16]);
+            bytes.extend([0x41; 16]);
+            if revisions {
+                bytes.extend(1u64.to_le_bytes());
+            }
+            bytes.extend([0x42; 16]);
+            if revisions {
+                bytes.extend(2u64.to_le_bytes());
+            }
+            bytes.extend(b"COURSES\x06");
+            bytes.extend(payload);
+            format!("{tag} {:x}\n", Sha256::digest(bytes))
+        };
+        let checkpoint = "study-roster-checkpoint-v1";
+        let staged = "study-roster-stage-v1";
+        assert_eq!(
+            Receipt::Checkpoint.line(pair, POLICY, state).unwrap(),
+            preimage(checkpoint, true)
+        );
+        assert_eq!(
+            Receipt::Staged.line(pair, POLICY, state).unwrap(),
+            preimage(staged, false)
+        );
+        for (receipt, tag, revisions) in [
+            (Receipt::Checkpoint, checkpoint, true),
+            (Receipt::Staged, staged, false),
+        ] {
+            let expected = preimage(tag, revisions);
+            receipt
+                .require(expected.as_bytes(), pair, POLICY, state)
+                .unwrap();
+            assert_eq!(
+                receipt.require(expected.trim_end().as_bytes(), pair, POLICY, state),
+                Err(Error::Conflict)
+            );
+            let volatile = Database::new().unwrap();
+            assert_eq!(
+                receipt.require(expected.as_bytes(), [&a, &volatile], POLICY, state),
+                Err(Error::Invalid)
+            );
+        }
+    }
+
+    #[test]
+    fn agreed_distinguishes_missing_records_and_disagreement() {
+        let a = Database::new().unwrap();
+        let b = Database::new().unwrap();
+        for db in [&a, &b] {
+            db.create_collection().unwrap();
+        }
+        assert_eq!(agreed(&a, &b, POLICY), Err(Error::NotFound));
+        let left = StudyReplica::enroll(
+            &a,
+            a.collection_id(COLLECTION_ROW),
+            POLICY,
+            POLICY.actors[0],
+        )
+        .unwrap();
+        assert_eq!(agreed(&a, &b, POLICY), Err(Error::NotFound));
+        StudyReplica::enroll(
+            &b,
+            b.collection_id(COLLECTION_ROW),
+            POLICY,
+            POLICY.actors[1],
+        )
+        .unwrap();
+        let missing = Database::new().unwrap();
+        missing.create_collection().unwrap();
+        assert_eq!(agreed(&missing, &b, POLICY), Err(Error::NotFound));
+        assert_eq!(agreed(&a, &b, POLICY).unwrap(), StudyProgress::default());
+        left.update(|state, _| {
+            state.completed.insert(42)?;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(agreed(&a, &b, POLICY), Err(Error::Conflict));
+    }
+
+    #[test]
+    fn stage_and_verify_check_receipts_before_admitting_the_pair() {
+        let root = Directory::new();
+        let old = ["a", "b"].map(|name| root.0.join(name));
+        let next = ["new-a", "new-b"].map(|name| root.0.join(name));
+        let from = old.each_ref().map(|path| path.as_path());
+        let to = next.each_ref().map(|path| path.as_path());
+        let new = Policy {
+            collection: [10; 16],
+            generation: POLICY.generation + 1,
+            actors: [[3; 16], [4; 16]],
+        };
+        let state = StudyProgress::default();
+        let [a, b] = from.map(|path| Database::create_file(path, Limits::default()).unwrap());
+        enroll(&a, enrollment("a", POLICY).unwrap()).unwrap();
+        enroll(&b, enrollment("b", POLICY).unwrap()).unwrap();
+        let stale = Receipt::Checkpoint.line([&a, &b], POLICY, state).unwrap();
+        let staged = Receipt::Staged.line([&a, &b], POLICY, state).unwrap();
+        a.retain_snapshot(&a.snapshot()).unwrap();
+        let current = Receipt::Checkpoint.line([&a, &b], POLICY, state).unwrap();
+        assert_ne!(stale, current);
+        drop((a, b));
+        let original = from.map(|path| fs::read(path).unwrap());
+        let error = stage(from, POLICY, to, new, Some(stale.as_bytes())).unwrap_err();
+        assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Conflict));
+        assert!(to.iter().all(|path| !path.exists()));
+        let error = verify(from, POLICY, Some(current.as_bytes())).unwrap_err();
+        assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Conflict));
+        verify(from, POLICY, Some(staged.as_bytes())).unwrap();
+        verify(from, POLICY, None).unwrap();
+        stage(from, POLICY, to, new, None).unwrap();
+        verify(to, new, None).unwrap();
+        for path in to {
+            fs::remove_file(path).unwrap();
+        }
+        stage(from, POLICY, to, new, Some(current.as_bytes())).unwrap();
+        verify(to, new, None).unwrap();
+        assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
+    }
+}

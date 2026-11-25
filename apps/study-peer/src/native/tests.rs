@@ -12,9 +12,9 @@ use weekend_db::crdt::Policy;
 const WORKER: &str = "STUDY_PEER_TEST_WORKER";
 const COLLECTION: [u8; 16] = [9; 16];
 
-struct Directory(PathBuf);
+pub(super) struct Directory(pub(super) PathBuf);
 impl Directory {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
