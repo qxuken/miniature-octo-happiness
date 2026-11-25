@@ -236,7 +236,33 @@ fn run_with_io<S: io::Read + Write>(
     options: RunOptions,
     incoming: impl Fn(Incoming) -> S + Send + Sync,
     input: impl BufRead,
-    mut output: impl Write,
+    output: impl Write,
+) -> AppResult<()> {
+    run_with_listener_ops(
+        db,
+        enrollment,
+        network,
+        options,
+        incoming,
+        (input, output),
+        (
+            |listener| listener.set_nonblocking(true),
+            TcpListener::local_addr,
+        ),
+    )
+}
+
+fn run_with_listener_ops<S: io::Read + Write>(
+    db: &Database,
+    enrollment: Enrollment,
+    network: Network,
+    options: RunOptions,
+    incoming: impl Fn(Incoming) -> S + Send + Sync,
+    (input, mut output): (impl BufRead, impl Write),
+    (nonblocking, bound_address): (
+        impl FnOnce(&TcpListener) -> io::Result<()>,
+        impl FnOnce(&TcpListener) -> io::Result<SocketAddr>,
+    ),
 ) -> AppResult<()> {
     let replica = diagnostics::storage(Phase::StorageOpen, || {
         StudyReplica::open(
@@ -251,12 +277,14 @@ fn run_with_io<S: io::Read + Write>(
         peer,
         tls,
     } = network;
-    listener.set_nonblocking(true)?;
+    let address = diagnostics::at(Phase::Listen, || {
+        nonblocking(&listener)?;
+        Ok(bound_address(&listener)?)
+    })?;
     let pushing = AtomicBool::new(options.pushing);
     let stop = Arc::new(AtomicBool::new(false));
     let status = Mutex::new(PeerStatus::default());
     let incoming_status = Mutex::new(admission::Status::default());
-    let address = listener.local_addr()?;
     diagnostics::at(Phase::LocalCommand, || {
         writeln!(output, "ready {address}")?;
         Ok(())

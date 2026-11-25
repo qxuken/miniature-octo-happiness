@@ -17433,6 +17433,42 @@
       "matches": 1,
       "package": "weekend-replicate",
       "exact_test": "native::tests::listener_setup_failure_preserves_the_receipt_and_closes_queued_clients"
+    },
+    {
+      "name": "r1-study-listener-mode",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "nonblocking(&listener)?",
+      "new": "nonblocking(&listener).map_err(|_| io::Error::from(io::ErrorKind::Other))?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::listener_setup_failure_preserves_state_and_releases_the_listener"
+    },
+    {
+      "name": "r1-study-listener-address",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "bound_address(&listener)?",
+      "new": "bound_address(&listener).map_err(|_| io::Error::from(io::ErrorKind::Other))?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::listener_setup_failure_preserves_state_and_releases_the_listener"
+    },
+    {
+      "name": "r1-study-listener-phase",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::at(Phase::Listen, || {",
+      "new": "diagnostics::at(Phase::Arguments, || {",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::listener_setup_failure_preserves_state_and_releases_the_listener"
     }
   ]
 }

@@ -3,7 +3,7 @@
   "baseline": "c57c12362b58655fca0ce536617ed76528ea1e91",
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
-    "apps/study-peer/src/native.rs": "31436dd88779d36821eaf7008cb203c70bc0dbc6be214e882dfab3dda14f1def",
+    "apps/study-peer/src/native.rs": "6514b7eaead040c724b38f12a03ad1e4116722b2ca4d7a97d3a1d4d7faff734c",
     "apps/study-peer/src/native/admission.rs": "45f09848e1f7aa738a5030bd444454162c1d7a73b2bf3d9fce31076995cd344d",
     "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
@@ -227,7 +227,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "16095a3a2f18ce9f7d66fad33923194417e3c37a0ab1fddb8b69b25e29e483ea",
+    "apps/study-peer/src/native/tests.rs": "96f1fd12d877e16bff818a88dcd8697c33ca9c2f532fae221c1525eca75325a8",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
     "apps/weekend-replicate/src/native/tests.rs": "75bb6991bf10f7bcf4cb301725c06399a50386ee2f45c2fa2914ce56c61f5779",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "41883b49d8d6f6dd5dfe3d90e16cbcc78d2586282e522abccab248649da8be34",
-    "xtask/tests/mutations.json": "bf0d22f2e81be0fef7d1cfef50f2ffce20c12104d7b9356d02eb4a2226e075e2",
+    "xtask/tests/mutations.json": "de89e1fd76b13f15149ad1976d798bc973960dc1077dd8dfb416d56fbba102de",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -427,14 +427,15 @@
     "docs/decisions/snapshot-readiness-current.md": "e1839a70d1c1ab08ad6407a30165b9d52258cb498a10a022c5593d061ff128c3",
     "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719",
     "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679",
-    "docs/decisions/snapshot-listener-current.md": "c3c093517f84a542dd684b40ce34f819363f3d8d48533f6175a84abb5f29d7e6"
+    "docs/decisions/snapshot-listener-current.md": "c3c093517f84a542dd684b40ce34f819363f3d8d48533f6175a84abb5f29d7e6",
+    "docs/decisions/study-listener-current.md": "a8481c7e892de18534415a0e681644a44c5ca3854745d311fac1fb48a3ea1aaf"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
     "monthly-workload::monthly-workload": 25,
     "private-rust-consumer::private-rust-consumer": 34,
     "replica-progress-fixture::replica-progress-fixture": 2,
-    "study-peer::study-peer": 304,
+    "study-peer::study-peer": 305,
     "typed-renamed-consumer::typed-renamed-consumer": 3,
     "weekend-atomic-model::budget": 6,
     "weekend-atomic-model::weekend-atomic-model": 11,
@@ -909,7 +910,8 @@
         "docs/decisions/study-service-shutdown-current.md",
         "docs/decisions/study-windows-fixtures-current.md",
         "docs/decisions/study-receive-current.md",
-        "docs/decisions/study-listener-retirement-current.md"
+        "docs/decisions/study-listener-retirement-current.md",
+        "docs/decisions/study-listener-current.md"
       ],
       "residual": "Fixed-roster deployment, raw reserved rows and native stream errors remain explicit application obligations."
     },
@@ -30545,9 +30547,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 8987,
+        "start_byte": 9720,
         "conditions": [
           "writeln!(output, \"ready {address}\")"
         ]
@@ -30569,9 +30571,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 11116,
+        "start_byte": 11849,
         "conditions": [
           "line"
         ]
@@ -30592,9 +30594,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 11561,
+        "start_byte": 12294,
         "conditions": [
           "writeln!(output, \"push {value}\")"
         ]
@@ -30615,9 +30617,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 12670,
+        "start_byte": 13403,
         "conditions": [
           "writeln!(output, \"{reply}\")"
         ]
@@ -30638,9 +30640,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 13206,
+        "start_byte": 13939,
         "conditions": [
           "writeln!(output, \"{report}\")"
         ]
@@ -30661,9 +30663,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 13584,
+        "start_byte": 14317,
         "conditions": [
           "writeln!(output, \"{}\", diagnostic.json(settings))"
         ]
@@ -30684,9 +30686,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 13721,
+        "start_byte": 14454,
         "conditions": [
           "writeln!(output, \"error local edits are disabled during staging\")"
         ]
@@ -30707,9 +30709,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 13941,
+        "start_byte": 14674,
         "conditions": [
           "writeln!(output, \"{reply}\")"
         ]
@@ -30730,9 +30732,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 14230,
+        "start_byte": 14963,
         "conditions": [
           "writeln!(output, \"{}\", diagnostic.json(settings))"
         ]
@@ -30753,9 +30755,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 14338,
+        "start_byte": 15071,
         "conditions": [
           "writeln!(output, \"error {error}\")"
         ]
@@ -30776,9 +30778,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "if",
-        "start_byte": 12894,
+        "start_byte": 13627,
         "conditions": [
           "settings.enabled"
         ]
@@ -30813,9 +30815,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "match_guard",
-        "start_byte": 13288,
+        "start_byte": 14021,
         "conditions": [
           "options.sync_only"
         ]
@@ -30850,9 +30852,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "if",
-        "start_byte": 13339,
+        "start_byte": 14072,
         "conditions": [
           "settings.enabled"
         ]
@@ -30887,9 +30889,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "match_guard",
-        "start_byte": 13986,
+        "start_byte": 14719,
         "conditions": [
           "settings.enabled"
         ]
@@ -31331,9 +31333,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 8515,
+        "start_byte": 9193,
         "conditions": [
           "diagnostics::storage(Phase::StorageOpen, || {\n        StudyReplica::open(\n            db,\n            db.collection_id(COLLECTION_ROW),\n            enrollment.policy,\n            enrollment.actor,\n        )\n    })"
         ]
@@ -31354,9 +31356,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "while",
-        "start_byte": 9709,
+        "start_byte": 10442,
         "conditions": [
           "!stop.load(Relaxed)"
         ]
@@ -31391,9 +31393,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "if",
-        "start_byte": 9753,
+        "start_byte": 10486,
         "conditions": [
           "!pushing.load(Relaxed)"
         ]
@@ -31428,9 +31430,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "if",
-        "start_byte": 10387,
+        "start_byte": 11120,
         "conditions": [
           "result.is_ok()"
         ]
@@ -31466,9 +31468,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "match_guard",
-        "start_byte": 12002,
+        "start_byte": 12735,
         "conditions": [
           "settings.enabled"
         ]
@@ -31503,9 +31505,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 10046,
+        "start_byte": 10779,
         "conditions": [
           "diagnostics::at(Phase::Connect, || tls.connect(peer))"
         ]
@@ -31526,9 +31528,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 10206,
+        "start_byte": 10939,
         "conditions": [
           "diagnostics::storage(Phase::Replication, || {\n                        replica.push_authenticated(stream)\n                    })"
         ]
@@ -31831,7 +31833,7 @@
         "target": "study-peer::study-peer",
         "owner": "launch_workers",
         "kind": "try_propagation",
-        "start_byte": 15938,
+        "start_byte": 16671,
         "conditions": [
           "diagnostics::at(Phase::Incoming, || {\n        new_worker()\n            .and_then(|builder| builder.spawn_scoped(scope, receive))\n            .map_err(Into::into)\n    })"
         ]
@@ -31855,7 +31857,7 @@
         "target": "study-peer::study-peer",
         "owner": "finish_workers",
         "kind": "try_propagation",
-        "start_byte": 15177,
+        "start_byte": 15910,
         "conditions": [
           "diagnostics::at(Phase::Shutdown, || {\n        received.map_err(|_| Error::Panic.into())\n    })"
         ]
@@ -31879,7 +31881,7 @@
         "target": "study-peer::study-peer",
         "owner": "finish_workers",
         "kind": "try_propagation",
-        "start_byte": 15228,
+        "start_byte": 15961,
         "conditions": [
           "diagnostics::propagate(received, diagnostic)"
         ]
@@ -31903,7 +31905,7 @@
         "target": "study-peer::study-peer",
         "owner": "finish_workers",
         "kind": "try_propagation",
-        "start_byte": 15309,
+        "start_byte": 16042,
         "conditions": [
           "diagnostics::at(Phase::Shutdown, || sent.map_err(|_| Error::Panic.into()))"
         ]
@@ -31924,9 +31926,9 @@
       "selector": {
         "file": "apps/study-peer/src/native.rs",
         "target": "study-peer::study-peer",
-        "owner": "run_with_io",
+        "owner": "run_with_listener_ops",
         "kind": "try_propagation",
-        "start_byte": 9591,
+        "start_byte": 10324,
         "conditions": [
           "diagnostics::storage(Phase::Replication, || {\n                        receiving_replica.serve_authenticated(incoming(stream))\n                    })"
         ]
@@ -32700,6 +32702,75 @@
       ],
       "mutations": [
         "r1-snapshot-listener-address"
+      ]
+    },
+    {
+      "name": "STUDY-LISTENER-NONBLOCKING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_listener_ops",
+        "kind": "try_propagation",
+        "start_byte": 9360,
+        "conditions": [
+          "nonblocking(&listener)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "listener_setup_failure_preserves_state_and_releases_the_listener"
+        }
+      ],
+      "mutations": [
+        "r1-study-listener-mode"
+      ]
+    },
+    {
+      "name": "STUDY-LISTENER-BOUND-ADDRESS",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_listener_ops",
+        "kind": "try_propagation",
+        "start_byte": 9398,
+        "conditions": [
+          "bound_address(&listener)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "listener_setup_failure_preserves_state_and_releases_the_listener"
+        }
+      ],
+      "mutations": [
+        "r1-study-listener-address"
+      ]
+    },
+    {
+      "name": "STUDY-LISTENER-SETUP-PHASE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_listener_ops",
+        "kind": "try_propagation",
+        "start_byte": 9407,
+        "conditions": [
+          "diagnostics::at(Phase::Listen, || {\n        nonblocking(&listener)?;\n        Ok(bound_address(&listener)?)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "listener_setup_failure_preserves_state_and_releases_the_listener"
+        }
+      ],
+      "mutations": [
+        "r1-study-listener-phase"
       ]
     }
   ],

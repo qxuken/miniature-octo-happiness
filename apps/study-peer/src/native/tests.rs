@@ -1642,3 +1642,113 @@ fn incoming_peer_disconnect_preserves_the_error_and_allows_a_retry() {
         assert_eq!(replica.read().unwrap().practice_minutes.total(), 7);
     }
 }
+
+#[test]
+fn listener_setup_failure_preserves_state_and_releases_the_listener() {
+    use std::{cell::Cell, net::TcpStream};
+
+    let mut arguments = vec!["--diagnostics=json".into(), "run".into()];
+    let settings = diagnostics::settings_from_args(diagnostics::App::Study, &mut arguments);
+    for (mode_fails, kind, code, detail) in [
+        (
+            true,
+            io::ErrorKind::PermissionDenied,
+            "permission_denied",
+            "set nonblocking",
+        ),
+        (
+            false,
+            io::ErrorKind::InvalidInput,
+            "invalid_input",
+            "read local address",
+        ),
+    ] {
+        let dir = Directory::new();
+        let path = dir.0.join("study.wdb");
+        let enrollment = Enrollment::new("a", COLLECTION).unwrap();
+        initialize(&path, enrollment).unwrap();
+        let original = fs::read(&path).unwrap();
+        let db = Database::open_file(&path, Limits::default()).unwrap();
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let tls = Tls::new(&local, peer.certificate()).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut queued = TcpStream::connect(address).unwrap();
+        queued
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+
+        let queried = Cell::new(false);
+        let mut output = Vec::new();
+        let mut input = io::Cursor::new(b"practice 7\n");
+        let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+            run_with_listener_ops(
+                &db,
+                enrollment,
+                Network {
+                    listener,
+                    peer: address,
+                    tls,
+                },
+                RunOptions {
+                    pushing: false,
+                    sync_only: false,
+                },
+                |stream| stream,
+                (&mut input, &mut output),
+                (
+                    |listener| {
+                        if mode_fails {
+                            Err(io::Error::new(kind, detail))
+                        } else {
+                            listener.set_nonblocking(true)
+                        }
+                    },
+                    |_| {
+                        queried.set(true);
+                        Err(io::Error::new(kind, detail))
+                    },
+                ),
+            )
+        });
+        let error = result.unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(kind)
+        );
+        assert_eq!(error.to_string(), detail);
+        let diagnostic = diagnostic.unwrap().json(settings).to_string();
+        assert!(
+            diagnostic.contains(&format!(
+                r#""phase":"listen","category":"io","code":"{code}""#
+            )),
+            "{diagnostic}"
+        );
+        assert_eq!(queried.get(), !mode_fails);
+        assert_eq!(input.position(), 0);
+        assert!(output.is_empty());
+
+        match queued.read(&mut [0]) {
+            Ok(0) => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                ) => {}
+            other => panic!("listener setup left a queued Study connection open: {other:?}"),
+        }
+        drop(db);
+        assert_eq!(fs::read(&path).unwrap(), original);
+        let reopened = Database::open_file(&path, Limits::default()).unwrap();
+        let replica = StudyReplica::open(
+            &reopened,
+            reopened.collection_id(COLLECTION_ROW),
+            enrollment.policy,
+            enrollment.actor,
+        )
+        .unwrap();
+        assert_eq!(reopened.snapshot().revision(), 2);
+        assert_eq!(replica.read().unwrap().practice_minutes.total(), 0);
+    }
+}
