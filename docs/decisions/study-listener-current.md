@@ -61,6 +61,10 @@ source file hashes, the exact failed assertions, and 73 supervised
 command outcomes per campaign. Reconciliation preserves unrelated
 decisions and leaves 410 runtime and 7,514 tooling gaps.
 
-Nine Windows x64 test targets cross-linked in each profile. Native
-Windows execution of this change is pending.
+Nine Windows x64 test targets cross-linked in each profile.
 [Campaign checksums](study-listener-002973f.sha256)
+
+PR #82 head `9e660e4` passed the native Windows minimum-Rust job.
+The verified artifact runs this listener regression in debug and release
+at tested merge `3c686cb`, with byte-identical source for this test.
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45714156600/job/139555819593) · [Artifact checksums](windows-msrv-9e660e4.sha256)

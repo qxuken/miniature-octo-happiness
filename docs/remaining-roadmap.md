@@ -2237,8 +2237,9 @@ under the listen phase with their original I/O errors. The regression
 checks connection retirement, readiness and local command input, exact
 database bytes and an independent reopen at revision 2. Debug and release
 passed on macOS and Docker Linux/ext4, with 21 controls caught in each
-campaign. Nine Windows x64 targets cross-linked in each profile, with
-native execution pending. Reconciliation leaves 410 runtime and 7,514
+campaign. Nine Windows x64 targets cross-linked in each profile. The
+listener regression and its snapshot counterpart also passed both native
+Windows profiles at PR #82 head `9e660e4`. Reconciliation leaves 410 runtime and 7,514
 tooling gaps. [Study listener ledger](decisions/study-listener-current.md)
 
 PR #82 head `06fb27c` finished with 28 passed checks and one skip.
@@ -2257,3 +2258,15 @@ campaign. Windows x64 cross-linking passed for both targets and profiles.
 Four standalone protocol records remain open, and reconciliation leaves
 410 runtime and 7,498 tooling gaps overall.
 [Study protocol ledger](decisions/study-protocol-current.md)
+
+### Coordinator legacy receipts in both test targets
+
+At `de72035`, the coordinator and standalone fuzz library exercise
+the same request ID, receipt shape, revision, binding, stale retry and
+capacity controls. The malformed cases preserve the current revision,
+counter and receipt bytes. macOS and Docker Linux/ext4 passed both
+profiles and caught all 26 named controls in each. Three Windows x64
+test targets cross-linked in both profiles, with native execution open.
+Reconciliation closes 12 records in each source context and leaves
+398 runtime and 7,486 tooling gaps.
+[Coordinator receipt ledger](decisions/coordinator-legacy-receipts-current.md)

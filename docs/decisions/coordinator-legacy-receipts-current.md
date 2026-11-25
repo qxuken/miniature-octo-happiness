@@ -23,3 +23,25 @@ filesystem interruption and journal recovery use their own campaigns.
 | Source | SHA-256 |
 | --- | --- |
 | `apps/write-coordinator/src/native/protocol.rs` | `e92395560eeb7e168c993059b15771d8a93c358d942136e31cbb14ed30ef73a3` |
+## Verification
+
+Rust 1.100.0 ran the frozen source at
+`de72035887f0749fc91239c14210debbd6c5caf3` in debug and release on
+macOS arm64 and Docker Linux arm64/ext4. Each profile passed 43
+coordinator tests and 37 standalone fuzz-library tests. Two macOS and
+three Linux coordinator workload tests remained opt-in. Clippy passed
+with warnings denied for both compilation targets.
+
+Each campaign caught all 13 controls for the coordinator binary and
+all 13 for the standalone fuzz library at the expected assertions.
+Fresh extraction verified 991 source hashes and 46 supervised command
+outcomes in every campaign. The existing 32-case Windows coordinator
+oracle matched its refreshed source and exact test selection. Two
+coordinator targets and one standalone fuzz target cross-linked in
+each Windows x64 profile. Native execution of these controls is pending.
+
+The earlier source at `b71584d` failed strict Clippy on an unused test
+import after the tests moved. That import was removed and both full
+campaigns reran at `de72035`. The current inventory closes 12 runtime
+and 12 tooling records, leaving 398 runtime and 7,486 tooling gaps.
+[Campaign checksums](coordinator-receipt-de72035.sha256)

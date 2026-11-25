@@ -99,3 +99,10 @@ cargo xtask mutations --toolchain 1.100.0 --case r1-snapshot-listener- \
 ```
 
 Repeat with `--release` and a fresh mutation output path.
+
+## Native Windows confirmation
+
+PR #82 head `9e660e4` passed the native Windows minimum-Rust job.
+The verified artifact runs this listener regression in debug and release
+at tested merge `3c686cb`, with byte-identical source for this test.
+[Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45714156600/job/139555819593) · [Artifact checksums](windows-msrv-9e660e4.sha256)
