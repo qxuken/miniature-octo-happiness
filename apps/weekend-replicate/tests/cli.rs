@@ -848,7 +848,9 @@ fn native_dispatch_checks_command_names_and_options_before_creating_files() {
         ),
     ] {
         let mut extended = args.to_vec();
-        extended.extend([flag, "0"]);
+        extended.extend([flag, "1"]);
+        reject(verb, &extended, r#""phase":"credentials_load""#, true);
+        *extended.last_mut().unwrap() = "0";
         reject(verb, &extended, "option outside bounds", false);
         *extended.last_mut().unwrap() = "invalid";
         reject(verb, &extended, "invalid digit found in string", false);

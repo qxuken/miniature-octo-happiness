@@ -229,7 +229,7 @@
     "apps/study-peer/src/native/tests.rs": "eab0715df7bfb966af651040b584a5b56845a6ea4d1a9d1504f8e8f1d1d34ff2",
     "apps/study-peer/tests/cli.rs": "6e3ad714e6102cb4545fcaa16e30e57734a2eb1bcc0e38c6c1388a3dca6d9f8d",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
-    "apps/weekend-replicate/tests/cli.rs": "cc36ddad6ecaa0fe446aaa882fce7670309e22b5b89800f775229c3cae311d00",
+    "apps/weekend-replicate/tests/cli.rs": "5ab943e86e3eeb92253e97abf7adc61fbbb27e7eed72f41844e99fff9e8712e0",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
@@ -397,7 +397,7 @@
     "docs/decisions/capture-record-current.md": "89e1d03816322b7e74ccee14e044f4019d794c969ea74a8ddc8d0629f71d6e2c",
     "docs/decisions/snapshot-output-current.md": "6440475871ddab6a8064da9733355e8eef78b2e3968add647d8b6104fe865152",
     "docs/decisions/snapshot-dispatch-current.md": "56ed212c3b6de7f219adfc6e58f0a4b515777d20051bc7fa4ff834167bb4cfad",
-    "apps/weekend-replicate/tests/audit_cli.rs": "48e2b3cb7a742a7dfc4b24a7e51499cb3a4ae6e74ee050127a99a076089ee3bd",
+    "apps/weekend-replicate/tests/audit_cli.rs": "273b5711541e219ca03885c66cca8addc8cd60eb0bd9031cbe90d1e7a7c5d056",
     "apps/weekend-replicate/src/native/pin_tests.rs": "76b408cae4f5a780ecbedf28352d118893d22f60ec1c7f6cf9ba39bbd11f748c"
   },
   "target_records": {
