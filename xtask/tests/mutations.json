@@ -14013,6 +14013,66 @@
       "exact_test": "native::journal::tests::journal_check_observes_without_resolving_an_intent",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-journal-admission-pending",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "if self.state.pending.is_some() {",
+      "new": "if false {",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::journal_admission_preserves_the_prior_receipt_until_an_intent_is_eligible",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-admission-floor",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "intended.expected < self.state.floor() || intended.expected == u64::MAX",
+      "new": "intended.expected == u64::MAX",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::journal_admission_preserves_the_prior_receipt_until_an_intent_is_eligible",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-admission-maximum",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "intended.expected < self.state.floor() || intended.expected == u64::MAX",
+      "new": "intended.expected < self.state.floor()",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::journal_admission_preserves_the_prior_receipt_until_an_intent_is_eligible",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-admission-ahead",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "if intended.expected > revision {",
+      "new": "if intended.expected >= revision {",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::journal_admission_preserves_the_prior_receipt_until_an_intent_is_eligible",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-admission-conflict",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "if intended.expected < revision {",
+      "new": "if false {",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::journal_admission_preserves_the_prior_receipt_until_an_intent_is_eligible",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

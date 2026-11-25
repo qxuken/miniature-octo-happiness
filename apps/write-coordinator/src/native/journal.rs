@@ -155,7 +155,7 @@ impl Journal {
         }
         let reply = send(&format!("journal-get {}", hex(&self.state.identity)))?;
         let (revision, value) = parse_state(&reply, "value")?;
-        if revision < self.state.floor() || intended.expected > revision {
+        if intended.expected > revision {
             return Err(
                 "coordinator is behind the expected revision; reconcile before writing".into(),
             );
@@ -835,6 +835,102 @@ mod tests {
                 .unwrap(),
             "committed 4"
         );
+    }
+
+    #[test]
+    fn journal_admission_preserves_the_prior_receipt_until_an_intent_is_eligible() {
+        let local = SimulatedDisk::new().unwrap();
+        let mut journal = create(&local);
+        let last = Receipt {
+            sequence: 1,
+            expected: 3,
+            value: 20,
+            revision: 4,
+        };
+        journal
+            .save(State {
+                last: Some(last),
+                ..journal.state
+            })
+            .unwrap();
+        let baseline = local.durable_image().unwrap();
+        let get = format!("journal-get {}", hex(&IDENTITY));
+        let intent = |expected| Pending {
+            expected,
+            value: 99,
+        };
+
+        for expected in [3, u64::MAX] {
+            let error = journal
+                .set(intent(expected), &mut |_| {
+                    panic!("inadmissible intent sent")
+                })
+                .unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                "expected revision is outside the journal's admissible range"
+            );
+            assert_eq!(local.durable_image().unwrap(), baseline);
+        }
+
+        for (expected, observed) in [(4, 3), (5, 4), (4, 5)] {
+            let mut requests = 0;
+            let result = journal.set(intent(expected), &mut |command| {
+                assert_eq!(command, get);
+                requests += 1;
+                Ok(format!("value {observed} 30"))
+            });
+            assert_eq!(requests, 1);
+            if expected < observed {
+                assert_eq!(result.unwrap(), "conflict 5 30");
+            } else {
+                assert_eq!(
+                    result.unwrap_err().to_string(),
+                    "coordinator is behind the expected revision; reconcile before writing"
+                );
+            }
+            assert_eq!(local.durable_image().unwrap(), baseline);
+        }
+
+        let mut sent = Vec::new();
+        let error = journal
+            .set(intent(4), &mut |command| {
+                sent.push(command.to_owned());
+                if command == get {
+                    Ok("value 4 20".to_owned())
+                } else {
+                    Err("reply unavailable".into())
+                }
+            })
+            .unwrap_err();
+        assert_eq!(error.to_string(), "reply unavailable");
+        assert_eq!(
+            sent,
+            [
+                get,
+                format!(
+                    "journal-set {} 7 2 {} 4 99",
+                    hex(&IDENTITY),
+                    hex(&last.encode())
+                )
+            ]
+        );
+
+        drop(journal);
+        local.crash(Crash::DropAll).unwrap();
+        let mut journal = open(&local);
+        let pending = journal.state.pending.unwrap();
+        assert_eq!((pending.expected, pending.value), (4, 99));
+        assert_eq!(journal.state.last.unwrap().encode(), last.encode());
+        let staged = local.durable_image().unwrap();
+        let error = journal
+            .set(intent(4), &mut |_| panic!("second intent sent"))
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "journal has a pending write; run journal resume"
+        );
+        assert_eq!(local.durable_image().unwrap(), staged);
     }
 
     #[test]
