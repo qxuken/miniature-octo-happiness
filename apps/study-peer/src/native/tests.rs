@@ -7,6 +7,7 @@ use std::{
     sync::mpsc::{self, Receiver},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
+use weekend_db::crdt::Policy;
 
 const WORKER: &str = "STUDY_PEER_TEST_WORKER";
 const COLLECTION: [u8; 16] = [9; 16];
@@ -32,6 +33,183 @@ impl Drop for Directory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+fn roster_policy() -> Policy {
+    Enrollment::new("a", COLLECTION).unwrap().policy
+}
+
+fn hex_identity(bytes: [u8; 16]) -> String {
+    format!("{:032x}", u128::from_be_bytes(bytes))
+}
+
+fn write_roster_policy(file: &Path, policy: Policy) {
+    fs::write(
+        file,
+        format!(
+            "study-policy-v1 {} {} {} {}\n",
+            hex_identity(policy.collection),
+            policy.generation,
+            hex_identity(policy.actors[0]),
+            hex_identity(policy.actors[1]),
+        ),
+    )
+    .unwrap();
+}
+
+#[test]
+fn roster_policy_requires_exact_syntax_and_preserves_input_errors() {
+    let directory = Directory::new();
+    let path = directory.0.join("policy");
+    let error = || roster::policy_file(&path).expect_err("invalid policy");
+    assert_eq!(
+        error().downcast_ref::<io::Error>().unwrap().kind(),
+        io::ErrorKind::NotFound
+    );
+    fs::write(&path, [b'a'; 257]).unwrap();
+    assert_eq!(error().to_string(), "credential size outside bounds");
+    fs::write(&path, [0xff]).unwrap();
+    assert!(error().is::<std::str::Utf8Error>());
+
+    let policy = roster_policy();
+    write_roster_policy(&path, policy);
+    let valid = fs::read_to_string(&path).unwrap();
+    let words: Vec<_> = valid.split_ascii_whitespace().collect();
+    assert_eq!(roster::policy_file(&path).unwrap(), policy);
+    for invalid in [
+        valid.replace("study-policy-v1", "study-policy-v2"),
+        words[..4].join(" "),
+        format!("{valid} unexpected"),
+    ] {
+        fs::write(&path, invalid).unwrap();
+        assert_eq!(
+            error().downcast_ref::<Error>(),
+            Some(&Error::UnsupportedFormat)
+        );
+    }
+    for field in [1, 3, 4] {
+        for invalid in ["1".repeat(31), "g".repeat(32)] {
+            let mut malformed = words.clone();
+            malformed[field] = &invalid;
+            fs::write(&path, malformed.join(" ")).unwrap();
+            assert_eq!(
+                error().to_string(),
+                "identity must be 32 hexadecimal digits"
+            );
+        }
+    }
+    let mut malformed = words;
+    malformed[2] = "18446744073709551616";
+    fs::write(&path, malformed.join(" ")).unwrap();
+    assert!(error().is::<std::num::ParseIntError>());
+}
+
+#[test]
+fn roster_policy_identity_generation_and_actor_checks_are_independent() {
+    let directory = Directory::new();
+    let path = directory.0.join("policy");
+    let valid = roster_policy();
+    write_roster_policy(&path, valid);
+    assert_eq!(roster::policy_file(&path).unwrap(), valid);
+    for invalid in [
+        Policy {
+            collection: [0; 16],
+            ..valid
+        },
+        Policy {
+            generation: 0,
+            ..valid
+        },
+        Policy {
+            actors: [[0; 16], valid.actors[1]],
+            ..valid
+        },
+        Policy {
+            actors: [valid.actors[1]; 2],
+            ..valid
+        },
+    ] {
+        write_roster_policy(&path, invalid);
+        assert_eq!(
+            roster::policy_file(&path)
+                .err()
+                .unwrap()
+                .downcast_ref::<Error>(),
+            Some(&Error::Invalid)
+        );
+    }
+    for (name, actor) in ["a", "b"].into_iter().zip(valid.actors) {
+        let enrollment = roster::enrollment(name, valid).unwrap();
+        assert_eq!(enrollment.actor, actor);
+        assert_eq!(enrollment.policy, valid);
+    }
+    assert_eq!(
+        roster::enrollment("", valid).err().unwrap().to_string(),
+        "actor must be a or b"
+    );
+}
+
+#[test]
+fn roster_stage_requires_fresh_collection_generation_and_actors() {
+    let directory = Directory::new();
+    let old_files = ["old-a", "old-b"].map(|name| directory.0.join(name));
+    let new_files = ["new-a", "new-b"].map(|name| directory.0.join(name));
+    let old = roster_policy();
+    let new = Policy {
+        collection: [10; 16],
+        generation: old.generation + 1,
+        actors: [[3; 16], [4; 16]],
+    };
+    for (name, path) in ["a", "b"].into_iter().zip(&old_files) {
+        let db = Database::create_file(path, Limits::default()).unwrap();
+        enroll(&db, roster::enrollment(name, old).unwrap()).unwrap();
+        db.retain_snapshot(&db.snapshot()).unwrap();
+    }
+    let original = old_files.each_ref().map(|file| fs::read(file).unwrap());
+    let stage = |policy| {
+        roster::stage(
+            old_files.each_ref().map(|file| file.as_path()),
+            old,
+            new_files.each_ref().map(|file| file.as_path()),
+            policy,
+            None,
+        )
+    };
+    for invalid in [
+        Policy {
+            collection: old.collection,
+            ..new
+        },
+        Policy {
+            generation: old.generation,
+            ..new
+        },
+        Policy {
+            actors: [old.actors[0], new.actors[1]],
+            ..new
+        },
+    ] {
+        assert_eq!(
+            stage(invalid).unwrap_err().downcast_ref::<Error>(),
+            Some(&Error::Invalid)
+        );
+        assert!(new_files.iter().all(|path| !path.exists()));
+        assert_eq!(
+            old_files.each_ref().map(|file| fs::read(file).unwrap()),
+            original
+        );
+    }
+    stage(new).unwrap();
+    for (path, actor) in new_files.iter().zip(new.actors) {
+        let db = Database::open_file(path, Limits::default()).unwrap();
+        let replica =
+            StudyReplica::open(&db, db.collection_id(COLLECTION_ROW), new, actor).unwrap();
+        assert_eq!(replica.read().unwrap(), study::StudyProgress::default());
+    }
+    assert_eq!(
+        old_files.each_ref().map(|file| fs::read(file).unwrap()),
+        original
+    );
 }
 
 #[test]
