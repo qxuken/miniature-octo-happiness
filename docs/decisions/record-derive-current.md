@@ -59,3 +59,56 @@ by the generated runtime fixture and the StudyProgress wire oracle.
 
 These records apply to the proc-macro target. Generated code, dependency
 internals and separately compiled contexts have their own evidence.
+
+## Verification
+
+Frozen source `db36b40276218332968adf0af473f69c9b143071` passed with
+locked Rust 1.100.0 on arm64 macOS and offline arm64 Docker Linux on ext4.
+Each debug and release run passed 106 macro and typed crate tests with
+one existing skip, and all 14 CRDT tests. Strict Clippy passed on both hosts.
+
+Each campaign detected all 23 Record mutations, including the three
+earlier wire-list controls. The initial archive replay showed that the
+outer-parser mutation changed a nested error before the attribute-shape
+assertion ran. A dedicated attribute-shape test now isolates that case.
+Fresh extraction verified the exact named tests, both diagnostic strings
+for each of the ten propagation mutations, and all 944 copied source files
+per campaign. The [archive checksums](record-derive-db36b40.sha256) bind
+320 command reports, their runners and the compiler profile.
+
+The macOS `expansion_guards` executable built with nightly `739adecd4`
+and `-C instrument-coverage -Z coverage-options=condition` passed 28 tests.
+Its profile and executable reproduced the LLVM export byte for byte after
+extraction.
+
+| Condition in `record.rs` | True | False |
+| --- | ---: | ---: |
+| 12, unrelated struct attribute | 4 | 54 |
+| 16, fields option | 49 | 122 |
+| 17, repeated fields option | 2 | 47 |
+| 25, crate option | 12 | 110 |
+| 26, repeated crate option | 2 | 10 |
+| 32, key option | 52 | 58 |
+| 34, format option | 49 | 9 |
+| 36, resolve option | 7 | 2 |
+| 41, repeated expression option | 7 | 101 |
+| 68, record attribute on a field | 2 | 26 |
+| 83, repeated wire field | 2 | 22 |
+| 96, incomplete wire order | 2 | 13 |
+
+The 26 source records consist of ten predicate pairs, ten propagation
+controls, five scoped executions and one coupled pattern. The inventory
+retains 10,770 records, with 604 runtime and 7,514 tooling gaps. Native
+Windows and the separately compiled fuzz context remain open.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p weekend-db-macros -p weekend-db-typed
+cargo test --offline --locked --all-features -p weekend-db --test crdt
+cargo xtask mutations --toolchain 1.100.0 --case r1-derive-record- \
+  --output "$OUTPUT/debug"
+cargo xtask mutations --toolchain 1.100.0 --case r1-derive-record- \
+  --release --output "$OUTPUT/release"
+```
+
+Repeat the test commands with `--release` for optimized test execution.

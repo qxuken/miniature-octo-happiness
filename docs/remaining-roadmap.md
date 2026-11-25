@@ -1976,3 +1976,14 @@ both outcomes of ten conditions. Fresh extraction verifies the exact
 mutation results and compiler profile. Reconciliation leaves 630 runtime and
 7,514 tooling gaps. The other derives, separate fuzz context and native
 Windows execution remain open.
+
+### Record derive admission and option parsing
+
+At `db36b40`, the [Record derive ledger](decisions/record-derive-current.md)
+accounts for 26 runtime records covering option dispatch, propagation and
+wire-list admission. All 23 named mutations are detected on macOS and
+Docker Linux in debug and release. Fresh extraction checks the named
+assertions and exact propagation diagnostics, and the macOS compiler profile
+reproduces both outcomes at all 12 recorded conditions. Reconciliation leaves
+604 runtime and 7,514 tooling gaps. Native Windows and other compilation
+contexts remain open.
