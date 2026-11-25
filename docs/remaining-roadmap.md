@@ -1784,3 +1784,32 @@ r1-study-roster- --toolchain 1.100.0` and repeat with `--release`.
 The reconciliation classifies 16 decisions in this batch. It leaves
 57 roster decisions, including receipt construction and stage error
 propagation, among the 682 runtime and 7,447 tooling gaps.
+
+### Study roster receipt binding and guarded cutover
+
+At `860d149`, an independent byte layout checks both receipt variants
+with distinct store identities and revisions. The layout binds the
+receipt tag, collection, little-endian generation, actor order, store
+order, record format and encoded state. A checkpoint binds both
+revisions. A staged receipt stays valid after a retention-only commit
+to the same pair and payload. Exact comparison also rejects a missing
+line terminator, and a volatile store preserves the identity error.
+
+| Decision | Observed alternatives |
+| --- | --- |
+| Compare enrolled states | Matching states proceed. Different states return Conflict. Absence of either enrolled record preserves NotFound. |
+| Checkpoint argument at stage | Absent and current receipts allow a valid stage. A receipt from before a retention-only commit returns Conflict with neither destination created. |
+| Staged argument at verify | Absent and matching staged receipts allow verification. A checkpoint receipt supplied here returns Conflict. |
+
+Rust 1.100.0 passed all 40 Study tests and strict Clippy on macOS arm64
+and Docker Linux arm64/ext4. Each platform detected all 20 mutations in
+debug and release. A fresh extraction verifies the 931 source hashes,
+80 detections and 268 supervised command receipts against the
+[archive manifest](decisions/study-receipt-860d149.sha256). Reproduce with
+`cargo +1.100.0 xtask mutations --case r1-study-receipt- --toolchain
+1.100.0` and repeat with `--release`.
+
+The reconciliation classifies 15 source decisions here. The other
+controls verify receipt fields and ordering. The outstanding queue
+has 42 roster decisions, including stage storage and seeding errors,
+among 667 runtime and 7,447 tooling gaps.
