@@ -145,7 +145,12 @@ fn historical_rows_in_scope(text: &str, file: &str, d: &Value, single_source: bo
         }
         let cells = row
             .split('|')
-            .map(|c| c.trim().trim_matches('`'))
+            .map(str::trim)
+            .map(|cell| {
+                cell.strip_prefix('`')
+                    .and_then(|s| s.strip_suffix('`'))
+                    .unwrap_or(cell)
+            })
             .collect::<Vec<_>>();
         if let Some(column) = cells.iter().position(|c| c.eq_ignore_ascii_case("target")) {
             target_column = Some(column);
@@ -202,7 +207,7 @@ fn historical_rows_in_scope(text: &str, file: &str, d: &Value, single_source: bo
         let position = format!("{}:{}", d["location"]["line"], d["location"]["column"]);
         let exact_position = span
             .strip_prefix(&position)
-            .is_some_and(|rest| rest.as_bytes().first().is_some_and(|b| !b.is_ascii_digit()));
+            .is_some_and(|rest| !rest.as_bytes().first().is_some_and(u8::is_ascii_digit));
         let numeric = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
         let has_bytes = cells.iter().any(|cell| {
             cell.split_once("..")
@@ -217,7 +222,7 @@ fn historical_rows_in_scope(text: &str, file: &str, d: &Value, single_source: bo
                     })
         });
         let identity = if has_bytes {
-            cells.contains(&byte_range.as_str()) || row.contains(&bracket_range)
+            exact_position && (cells.contains(&byte_range.as_str()) || row.contains(&bracket_range))
         } else {
             exact_position
         };
@@ -758,6 +763,31 @@ mod tests {
         assert!(historical_rows(&format!("{text}\n{row}"), "lib.rs", d).is_empty());
         assert!(historical_rows("| P | if | check | 935f68319d4f |", "lib.rs", d).is_empty());
     }
+    #[test]
+    fn typed_appendix_requires_the_exact_owner_position_and_byte_range() {
+        let f = Fixture::new();
+        let d = f.report["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["kind"] == "if")
+            .unwrap();
+        let l = &d["location"];
+        let row = format!(
+            "| lib.rs:{}:{} [{}–{}] | if / `check` | P | T2 |",
+            l["line"], l["column"], l["start_byte"], l["end_byte"]
+        );
+        assert_eq!(historical_rows(&row, "lib.rs", d).len(), 1);
+        for wrong in [
+            row.replace("`check`", "`check_extra`"),
+            row.replace("lib.rs:", "other.rs:"),
+            row.replace("lib.rs:", "lib.rs:9"),
+            row.replace(']', "0]"),
+        ] {
+            assert!(historical_rows(&wrong, "lib.rs", d).is_empty(), "{wrong}");
+        }
+    }
+
     #[test]
     fn exact_source_pairs_keep_references_residuals_and_execution_scope_separate() {
         let f = Fixture::new();
