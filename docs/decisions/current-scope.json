@@ -412,7 +412,7 @@
     "apps/study-peer/tests/service_diagnostics.rs": "d10f545565e3b99a8c9e5c4ff5bb0f746cdeed725b9445e3e7e484d2fa948db5",
     "docs/decisions/study-seed-pair-current.md": "0a78ae4c18d91c23a8361dce28ea35b41fea270802987b94f4b9bf6f7951d4d6",
     "docs/decisions/study-cli-admission-current.md": "ce52224f8a52a09cf0c353c04c21207c3bc5be3ce6ce599a83520337bfd49d15",
-    "docs/decisions/study-interactive-io-current.md": "242dc9514c75d044b5d21f43d49957e6b22129497afa4ca6ba31e574ed2b38e9"
+    "docs/decisions/study-interactive-io-current.md": "033cf798c68c87fe2f4ec560d5adf70d1d16cfa95daa18b3dc46ccbbda3d6627"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

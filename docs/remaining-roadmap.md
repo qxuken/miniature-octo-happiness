@@ -2020,3 +2020,15 @@ were detected on macOS and Docker Linux in debug and release. Tests confirm
 that rejected preflight inputs preserve the source bytes and leave both
 stage destinations absent. Compiler evidence observes both outcomes at
 12 conditions. The project now has 502 runtime and 7,514 tooling gaps.
+
+### Study interactive command I/O
+
+At `dab1210`, a closed readiness pipe reports a local command I/O error.
+A closed reply pipe after a successful practice edit preserves the edit
+at revision 3. The [interactive I/O ledger](decisions/study-interactive-io-current.md)
+records both outcomes and the unchanged revision 2 on refused replies to
+read-only or rejected commands. All 15 mutations were detected on macOS
+and Docker Linux in debug and release. The macOS compiler records both
+outcomes for all four selected command conditions. The final
+reconciliation leaves 486 runtime and 7,514 tooling gaps. Worker startup,
+native worker failures and the full peer status outcome matrix remain open.
