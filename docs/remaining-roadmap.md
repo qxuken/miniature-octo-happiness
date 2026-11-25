@@ -32,7 +32,7 @@ source, platform, feature mask and workload scope.
 
 | ID | Unfinished step | Completion evidence |
 |---|---|---|
-| R1 | The [merged-main inventory refresh and named control batch](r1-qualification.md) records every source and an explicit per-record reconciliation result. Current engine TX-V1, admin export, typed, CRDT and snapshot controls are repeatable. PR #2's 16 checks pass, including native Windows. The [Cargo catalog](decision-inventory-catalog.md) expands discovery to all 21 manifests/fourteen workspaces and 66 non-test targets, preserving zero-record targets and binding per-target scope and historical eligibility. | **R1 remains open:** reconcile the individual G queue in the [current ledger](decisions/current.md), plus generated/compiler, delegated/native and tooling obligations. Source reference discovery and a finite guard batch do not close the full per-decision requirement. Added contexts remain unqualified; four new functional mutants do not establish whole-tool MC/DC. |
+| R1 | The [merged-main inventory refresh and named control batch](r1-qualification.md) records every source and an explicit per-record reconciliation result. Current engine TX-V1, admin export, typed, CRDT and snapshot controls are repeatable. PR #2's 16 checks pass, including native Windows. The [Cargo catalog](decision-inventory-catalog.md) expands discovery to all 21 manifests/fourteen workspaces and 66 non-test targets, preserving zero-record targets and binding per-target scope and historical eligibility. | **R1 remains open:** reconcile the individual G queue in the [current ledger](decisions/current.md), plus generated/compiler, delegated/native and tooling obligations. Source reference discovery and a finite guard batch do not close the full per-decision requirement. The reconciliation ledger retains remaining standalone and tooling decisions, with coverage limited to the named controls and qualified contexts. |
 | R2 | The [operational refresh](r2-qualification.md) qualifies engine `6b657e5`: 39 operator outcomes on each Mac/Linux lane, 30 authenticated Study rounds/six paired restarts, and 31 snapshot installations/32 polls with four reconciled lost replies. PR #3's final head passes all 19 checks, including native Windows's 41 operator outcomes. The [pending-pair matrix](coordinator-pending-restore.md) adds unresolved intents, a second lost reply and fresh current/retained observers; PR #4 head `7df2dc2` passes all 19 checks. PR #5 head `2bc8e79` passes all 22 checks, including post-download private package recovery. The [two-writer handoff](coordinator-operator-handoff.md#hosted-native-follow-up-at-pr-6) passes both CLI profiles on native macOS, Linux and Windows: six independently audited 85-outcome runs at PR #6 head `3de695f`, whose full 22-check set is green. The frozen macOS/Docker Linux result retains controller `f5287e6` and selected CLIs `2bc8e79`. | **R2 remains open:** qualify other promised delivered-artifact/deployment profiles and obtain actual operator/deployment acceptance. Current/retained roots, exact receipts and repeat-sync stability remain required. Local commit and follower durable acknowledgment stay separate. Authority selection, external endpoint fencing and intended-account qualification remain explicit deployment duties. |
 | R3 | Qualify deployment workloads and resource budgets for the proposed Linux server/macOS client. Extend compound near-cap cases with affected-cache forks, independent/shared DAG shapes, cold-open index construction, full-width retained histories and longer contention/maintenance schedules. | Measure p50/p95/p99 response and queue latency, commit rate, RSS/stack, disk growth, maintenance pauses, restore time, recovery point and follower lag. Compare the matched SQLite durability/history profile. Agree on budgets before claiming service limits; accelerated logical months are not wall-clock soaks. |
 | R4 | Select the supported API/ABI/disk/wire/CLI version window and qualify its release endpoints, including schema/index and policy migration, upgrade, rejection and rollback. | Exact historical/candidate binaries and original locked inputs pass every promised direction, preserving original files, retained schemas and identities. Existing pinned version pairs do not imply arbitrary compatibility. Future format converters require their own qualification. |
@@ -2240,3 +2240,20 @@ passed on macOS and Docker Linux/ext4, with 21 controls caught in each
 campaign. Nine Windows x64 targets cross-linked in each profile, with
 native execution pending. Reconciliation leaves 410 runtime and 7,514
 tooling gaps. [Study listener ledger](decisions/study-listener-current.md)
+
+PR #82 head `06fb27c` finished with 28 passed checks and one skip.
+The verified listener batch then pushed at `9e660e4`.
+[Prior engine workflow](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45706498857)
+
+### Study protocol in the standalone fuzz workspace
+
+At `8b33e8c`, the mutation runner selects exact library tests under
+the locked standalone manifest. The tests cover enrollment bytes,
+native argument encoding, original command errors and atomic rollback
+after a partial draft edit, including register exhaustion. The Study
+application and standalone fuzz library passed on macOS and Docker
+Linux/ext4 in debug and release, with all 17 controls caught per
+campaign. Windows x64 cross-linking passed for both targets and profiles.
+Four standalone protocol records remain open, and reconciliation leaves
+410 runtime and 7,498 tooling gaps overall.
+[Study protocol ledger](decisions/study-protocol-current.md)

@@ -429,7 +429,7 @@
     "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679",
     "docs/decisions/snapshot-listener-current.md": "c3c093517f84a542dd684b40ce34f819363f3d8d48533f6175a84abb5f29d7e6",
     "docs/decisions/study-listener-current.md": "b63b2f1262b807a5d2fe0d670cf238d871935017c592834569bf07c11ae58234",
-    "docs/decisions/study-protocol-current.md": "417f3eccb67a1cbb2ee49a902de18f57e5232f80223fbbd8fe7b6493cbda5af1"
+    "docs/decisions/study-protocol-current.md": "f64491f0ba1600aa1aa3e192e58be8e53f18fa4f1c07b9a638b881c46eb7aa35"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

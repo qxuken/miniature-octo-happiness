@@ -53,3 +53,27 @@ original reviewed scope.
 | P | study-peer::study-peer | apps/study-peer/src/native/protocol.rs:99:9–99:11 | 3343..3345 | if | edit | Original Study runtime predicate scenarios retain their source binding. [Original runtime audit](distributed-apps.md#a1-study-enrollment-commands-and-reviewed-resolution) |
 | E | study-peer::study-peer | apps/study-peer/src/native/protocol.rs:22:21–22:26 | 638..643 | match | new | Study exercise accepts and rejects the documented case classes. [Original runtime audit](distributed-apps.md#a1-study-enrollment-commands-and-reviewed-resolution) |
 | P | study-peer::study-peer | apps/study-peer/src/native/protocol.rs:27:9–27:11 | 805..807 | if | new | Original Study runtime predicate scenarios retain their source binding. [Original runtime audit](distributed-apps.md#a1-study-enrollment-commands-and-reviewed-resolution) |
+
+## Verification
+
+Rust 1.100.0 checked frozen source
+`8b33e8c54885c7c7f1e29b947b6b3c1c39015b34` on macOS arm64 and Docker
+Linux arm64/ext4. Each host and profile passed 70 Study tests, 35 standalone
+fuzz-library tests and 12 mutation-runner contract tests. All 17 named
+mutants reached their intended assertions in all four campaigns.
+Clippy passed with warnings denied for Study, the runner and the fuzz
+library. The Linux driver was edited while it was active and stopped
+before linting. The test and mutation reports had already completed.
+Linux Clippy ran separately against the same frozen source.
+
+The freshly extracted proof verifies 989 copied source hashes and
+59 supervised command outcomes per campaign. Four Study targets and
+the standalone fuzz-library target cross-linked for Windows x64 in
+each profile. Native Windows execution of these tests is pending.
+The workflow fetches the locked standalone dependencies in the
+existing Unix R1 control step. Actionlint 1.7.12 passed.
+
+Standalone protocol qualification closes 17 records, including one
+overlapping short-circuit expression. Exact library test selection
+adds one runner decision. Reconciliation leaves 410 runtime and
+7,498 tooling gaps. [Campaign checksums](study-protocol-8b33e8c.sha256)
