@@ -1481,3 +1481,13 @@ The [archive manifest](decisions/journal-cli-62e5989.sha256) identifies the
 logs, source bundle and reconciliation. Thirty journal gaps remain, including
 the all-zero identity response. There are 888 runtime gaps overall and 7,398
 tooling gaps. These counts track source review; compiler MC/DC remains open.
+
+At `2aab66f`, a scripted peer exercised seven journal initialization
+exchanges. A zero identity stopped the client before the receipt query. EOF
+in either exchange, invalid identity text and a noncanonical empty receipt
+all left the journal path absent. A valid identity and exact empty receipt
+allowed creation, and a new process reopened the expected identity and slot.
+The three ordinary journal process tests passed in both profiles on macOS
+arm64 and Docker Linux arm64. The [archive manifest](decisions/journal-handshake-2aab66f.sha256)
+covers those runs and the updated reconciliation. Twenty-five journal records
+and 883 runtime records overall remain unclassified.
