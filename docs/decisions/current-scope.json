@@ -282,7 +282,7 @@
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
-    "tests/retention.rs": "09644609d0bb8dc4128fa098049ef9be8ec15ea5fa74a5f65368a93df9cb9e26",
+    "tests/retention.rs": "b2fc45bef5fe3b3bb204e4976c13c9ad63c5d12d45cfc269edfd1a98ae74ad9b",
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
     "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
     "tests/schema.rs": "3153c7287d15acc3c31570149cf4b85154fef6a602e2058bf5a6681aeea3f3d5",
@@ -297,7 +297,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "bacffcdc36c308bff186335060bdd0faac93c1f5e7b79c6809ff9a6bf5eaf48c",
+    "xtask/tests/mutations.json": "45dd3d2de24434805504cd65e574a99107398cb1455752fd5068661fbdb9999c",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -22371,6 +22371,226 @@
       ],
       "mutations": [
         "r1-retain-admission-id"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-LOCK-WRITER-GUARD",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "lock_writer",
+        "kind": "try_propagation",
+        "conditions": [
+          "storage.guard()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-lock-writer-guard"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-PUBLICATION-STATE-LOCK",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "publication_state",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.lock_writer()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-publication-state-lock"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-RETAIN-SNAPSHOT-WRITER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "retain_snapshot",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.publication_state()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-retain-snapshot-writer"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-RETAIN-SNAPSHOT-HEAD",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "retain_snapshot",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.shared(Head {\n            revision: next,\n            data_revision: state.head.data_revision,\n            collections: state.head.collections.clone(),\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retention_preparation_allocation_failures_are_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-retain-snapshot-head"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-RETAIN-SNAPSHOT-PUBLISH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "retain_snapshot",
+        "kind": "try_propagation",
+        "conditions": [
+          "publication.publish(head, next_collection, Some(retention))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-retain-snapshot-publish"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-RELEASE-RETAINED-WRITER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "release_retained",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.publication_state()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-release-retained-writer"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-RELEASE-RETAINED-HEAD",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "release_retained",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.mem.shared(Head {\n            revision: next,\n            data_revision: state.head.data_revision,\n            collections: state.head.collections.clone(),\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retention_preparation_allocation_failures_are_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-release-retained-head"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-RELEASE-RETAINED-PUBLISH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "release_retained",
+        "kind": "try_propagation",
+        "conditions": [
+          "publication.publish(head, next_collection, Some(retention))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-release-retained-publish"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-RELEASE-RETAINED-LOOKUP",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "release_retained",
+        "kind": "try_propagation",
+        "conditions": [
+          "state\n            .retention\n            .entries\n            .iter()\n            .position(|r| r.id == id)\n            .ok_or(Error::NotFound)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "historical_retain_release_and_live_lifetimes_survive_reopening"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-release-retained-lookup"
+      ]
+    },
+    {
+      "name": "RETENTION-FLOW-RELEASE-RETAINED-REVISION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "release_retained",
+        "kind": "try_propagation",
+        "conditions": [
+          "state.head.revision.checked_add(1).ok_or(Error::Exhausted)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "every_revision_increment_accepts_last_revision_then_rejects_wrap"
+        }
+      ],
+      "mutations": [
+        "r1-retention-flow-release-retained-revision"
       ]
     }
   ],

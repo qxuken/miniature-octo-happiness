@@ -12503,6 +12503,125 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-retention-flow-lock-writer-guard",
+      "file": "src/engine.rs",
+      "old": "storage.guard()?",
+      "new": "storage.guard().map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+    },
+    {
+      "name": "r1-retention-flow-publication-state-lock",
+      "file": "src/engine.rs",
+      "old": "self.lock_writer()?",
+      "new": "self.lock_writer().map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 4,
+      "matches": 4,
+      "package": "weekend-db",
+      "exact_test": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+    },
+    {
+      "name": "r1-retention-flow-retain-snapshot-writer",
+      "file": "src/engine.rs",
+      "old": "self.publication_state()?",
+      "new": "self.publication_state().map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 4,
+      "package": "weekend-db",
+      "exact_test": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+    },
+    {
+      "name": "r1-retention-flow-retain-snapshot-head",
+      "file": "src/engine.rs",
+      "old": "self.mem.shared(Head {\n            revision: next,\n            data_revision: state.head.data_revision,\n            collections: state.head.collections.clone(),\n        })?",
+      "new": "self.mem.shared(Head {\n            revision: next,\n            data_revision: state.head.data_revision,\n            collections: state.head.collections.clone(),\n        }).map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 2,
+      "package": "weekend-db",
+      "exact_test": "retention_preparation_allocation_failures_are_atomic"
+    },
+    {
+      "name": "r1-retention-flow-retain-snapshot-publish",
+      "file": "src/engine.rs",
+      "old": "publication.publish(head, next_collection, Some(retention))?",
+      "new": "publication.publish(head, next_collection, Some(retention)).map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 2,
+      "package": "weekend-db",
+      "exact_test": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+    },
+    {
+      "name": "r1-retention-flow-release-retained-writer",
+      "file": "src/engine.rs",
+      "old": "self.publication_state()?",
+      "new": "self.publication_state().map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 2,
+      "matches": 4,
+      "package": "weekend-db",
+      "exact_test": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+    },
+    {
+      "name": "r1-retention-flow-release-retained-head",
+      "file": "src/engine.rs",
+      "old": "self.mem.shared(Head {\n            revision: next,\n            data_revision: state.head.data_revision,\n            collections: state.head.collections.clone(),\n        })?",
+      "new": "self.mem.shared(Head {\n            revision: next,\n            data_revision: state.head.data_revision,\n            collections: state.head.collections.clone(),\n        }).map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 2,
+      "matches": 2,
+      "package": "weekend-db",
+      "exact_test": "retention_preparation_allocation_failures_are_atomic"
+    },
+    {
+      "name": "r1-retention-flow-release-retained-publish",
+      "file": "src/engine.rs",
+      "old": "publication.publish(head, next_collection, Some(retention))?",
+      "new": "publication.publish(head, next_collection, Some(retention)).map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 2,
+      "matches": 2,
+      "package": "weekend-db",
+      "exact_test": "retain_release_faults_recover_whole_catalogs_at_every_io_boundary"
+    },
+    {
+      "name": "r1-retention-flow-release-retained-lookup",
+      "file": "src/engine.rs",
+      "old": "state\n            .retention\n            .entries\n            .iter()\n            .position(|r| r.id == id)\n            .ok_or(Error::NotFound)?",
+      "new": "state\n            .retention\n            .entries\n            .iter()\n            .position(|r| r.id == id)\n            .ok_or(Error::NotFound).map_err(|_| Error::Invalid)?",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "historical_retain_release_and_live_lifetimes_survive_reopening"
+    },
+    {
+      "name": "r1-retention-flow-release-retained-revision",
+      "file": "src/engine.rs",
+      "old": "state.head.revision.checked_add(1).ok_or(Error::Exhausted)?",
+      "new": "state.head.revision.checked_add(1).ok_or(Error::Exhausted).map_err(|_| Error::Invalid)?",
+      "test": "engine::tests::every_revision_increment_accepts_last_revision_then_rejects_wrap",
+      "target": "--lib",
+      "occurrence": 2,
+      "matches": 5,
+      "package": "weekend-db"
     }
   ]
 }

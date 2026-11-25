@@ -236,6 +236,10 @@ fn retain_release_faults_recover_whole_catalogs_at_every_io_boundary() {
                 let error = result.unwrap_err();
                 assert!(matches!(error, Error::Io | Error::OutcomeUnknown));
                 assert!(db.requires_recovery());
+                let operations = disk.trace().unwrap().len();
+                assert_eq!(db.release_retained(1), Err(Error::RecoveryRequired));
+                assert_eq!(db.retain_snapshot(&snap), Err(Error::RecoveryRequired));
+                assert_eq!(disk.trace().unwrap().len(), operations);
                 assert_eq!(db.retained_ids().unwrap(), vec![1]);
                 assert_eq!(bytes(&live, &db), b"historical-only");
                 disk.crash(policy).unwrap();
