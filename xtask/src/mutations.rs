@@ -111,7 +111,7 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                     (
                         None,
                         "weekend-db" | "weekend-db-typed" | "weekend-db-macros" | "study-peer"
-                        | "write-coordinator",
+                        | "write-coordinator" | "weekend-replicate",
                     ) => true,
                     (Some(manifest), "weekend-decision-inventory") =>
                         manifest == Path::new("tools/decision-inventory/Cargo.toml"),

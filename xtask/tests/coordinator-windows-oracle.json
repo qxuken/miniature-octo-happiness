@@ -1,7 +1,7 @@
 {
-  "source_commit": "b0db5d6c03f110766351293482de7163a6e5c7e1",
+  "source_commit": "dd2b9feed8e6a938264fdd7862ac4ef2808067fb",
   "source_sha256": {
-    "apps/write-coordinator/src/native/journal.rs": "6171f632f8128161e0ee0e26585ebcb8075d95c2a8a41269df5c66af936b5a46",
+    "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "3a5caa03af98054871ce6a4e535b18350af19a6a587464b6ac523a0bb44b1da7",
     "apps/write-coordinator/src/native/sequenced.rs": "cfb7566de7deb025b272c3ef77a2eb2827dbd27a685ebe2b17938a6f47e37bd6",
     "apps/write-coordinator/src/native/service.rs": "b1bd1006b17a6262d1272b8c742365e0c213f7802057716e6d33fbdac1960f84"
