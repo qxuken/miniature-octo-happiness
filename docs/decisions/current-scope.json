@@ -386,7 +386,8 @@
     "docs/decisions/typed-lookup-current.md": "5737b59d961037bc7a8d703e740f41b0b441ebaf1228c8835408312b4fee8f71",
     "docs/decisions/simulator-survival-current.md": "9b731edf4d3bb656a0aafca2c16e5a1b1126d9d580147cba2e55501559625af2",
     "tests/bytestore.rs": "63241a465b5cdf73e83baddd8d0fee4eb00bd067cc00bb5cfc21c38b9e4c020b",
-    "docs/decisions/codec-crc-current.md": "86f5c8ac361be7c5832a232bc2ca37a683f204eab861b1ccfd8905bf31f97bee"
+    "docs/decisions/codec-crc-current.md": "86f5c8ac361be7c5832a232bc2ca37a683f204eab861b1ccfd8905bf31f97bee",
+    "docs/decisions/codec-recovery-offsets-current.md": "242563ede2264b216cbba326d7dc4e0d14e86a3608a4374be2232bd28ee79ba5"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -622,7 +623,8 @@
         "docs/decisions/codec-encode-commit-current.md",
         "docs/decisions/codec-cache-index-current.md",
         "tests/allocator_routing.rs",
-        "docs/decisions/codec-crc-current.md"
+        "docs/decisions/codec-crc-current.md",
+        "docs/decisions/codec-recovery-offsets-current.md"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
