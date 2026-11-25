@@ -1921,3 +1921,17 @@ Six earlier receipt and cutoff controls also detected their mutations in both ma
 Eight decisions reconcile, including the new write and flush
 propagation and the two receipt-selection records. The ledger
 contains 646 runtime and 7,447 tooling gaps.
+
+### Fixed-window reader load sweep
+
+At `40fe1d5`, macOS/APFS and Docker Linux/ext4 each pass the
+4,000, 8,000 and 16,000 scheduled reads/s profile across the same
+768 ms window. The six restored proofs verify current revision 517,
+all 64 retained roots and 344,064 observed reads. Read response,
+queue wait, commit and maintenance measurements are recorded in the
+[load sweep](compound-resource-envelope.md#three-offered-read-rates-on-a-fixed-window).
+Writer queueing under fixed arrivals, deployment hardware and accepted
+budgets remain R3 requirements.
+
+The reconciliation records 17 additional tooling decisions and leaves
+646 runtime and 7,464 tooling gaps.
