@@ -13320,6 +13320,62 @@
       "target": "--test",
       "test": "schema",
       "exact_test": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+    },
+    {
+      "name": "r1-logical-current-map-scratch",
+      "file": "src/storage/logical.rs",
+      "old": "value.map_entries_for_encoding(self.mem)?",
+      "new": "value.map_entries_for_encoding(self.mem).map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "storage::logical::decisions::nested_map_iteration_charges_the_logical_writer_and_preserves_wire_order"
+    },
+    {
+      "name": "r1-logical-current-map-key",
+      "file": "src/storage/logical.rs",
+      "old": "                    self.blob(key)?;",
+      "new": "                    self.blob(key).map_err(|_| Error::Invalid)?;",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "storage::logical::decisions::nested_map_iteration_charges_the_logical_writer_and_preserves_wire_order"
+    },
+    {
+      "name": "r1-logical-current-map-child",
+      "file": "src/storage/logical.rs",
+      "old": "self.value(child)?",
+      "new": "self.value(child).map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "storage::logical::decisions::nested_map_iteration_charges_the_logical_writer_and_preserves_wire_order"
+    },
+    {
+      "name": "r1-logical-current-restore-size",
+      "file": "src/storage/logical.rs",
+      "old": "codec::encode_fresh(\n        mem,\n        &image.head,\n        image.next,\n        image.identity,\n        &image.retention,\n    )?",
+      "new": "codec::encode_fresh(\n        mem,\n        &image.head,\n        image.next,\n        image.identity,\n        &image.retention,\n    ).map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "storage::logical::decisions::shared_dag_expansion_checks_nodes_and_physical_restore_size_without_source_writes"
+    },
+    {
+      "name": "r1-logical-current-external-buffer",
+      "file": "src/storage/logical.rs",
+      "old": "writer.bytes.into_external()",
+      "new": "writer.bytes.into_external().map_err(|_| Error::Invalid)",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "allocator_routing",
+      "exact_test": "read_only_image_outputs_propagate_global_refusals_without_writes"
     }
   ]
 }

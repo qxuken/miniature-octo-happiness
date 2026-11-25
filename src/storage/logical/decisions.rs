@@ -331,3 +331,73 @@ fn shared_dag_expansion_checks_nodes_and_physical_restore_size_without_source_wr
         );
     }
 }
+
+#[test]
+fn nested_map_iteration_charges_the_logical_writer_and_preserves_wire_order() {
+    use crate::{Database, memory::test_allocator::TestAllocator};
+    use std::sync::Arc;
+
+    let db = Database::new().unwrap();
+    let inner = db
+        .map()
+        .unwrap()
+        .map_set(b"k", &db.unsigned(7).unwrap())
+        .unwrap();
+    let value = db
+        .map()
+        .unwrap()
+        .map_set(b"z", &inner)
+        .unwrap()
+        .map_set(b"a", &db.none().unwrap())
+        .unwrap();
+    let allocator = Arc::new(TestAllocator::default());
+    let mem = allocator.memory(Limits::default());
+    let mut expected = vec![Kind::Map as u8];
+    expected.extend(ints(&[2, 1]));
+    expected.extend([b'a', Kind::None as u8]);
+    expected.extend(ints(&[0, 1]));
+    expected.extend([b'z', Kind::Map as u8]);
+    expected.extend(ints(&[1, 1]));
+    expected.extend([b'k', Kind::Unsigned as u8]);
+    expected.extend(ints(&[7]));
+
+    for allowance in 0..=2 {
+        let mut writer = Writer {
+            bytes: ChargedVec::new(),
+            mem: &mem,
+            nodes: 0,
+        };
+        mem.reserve(&mut writer.bytes, expected.len()).unwrap();
+        let live = allocator.live_bytes();
+        let result = allocator.with_refusal(allowance, || writer.value(&value));
+        assert_eq!(allocator.live_bytes(), live);
+        if allowance < 2 {
+            assert_eq!(result, Err(Error::OutOfMemory));
+        } else {
+            result.unwrap();
+            assert_eq!(&writer.bytes[..], expected);
+        }
+    }
+
+    let encode = || {
+        let mut writer = Writer {
+            bytes: ChargedVec::new(),
+            mem: &mem,
+            nodes: 0,
+        };
+        writer.value(&value)?;
+        assert_eq!(&writer.bytes[..], expected);
+        Ok(())
+    };
+    let live = allocator.live_bytes();
+    let before = allocator.requests();
+    encode().unwrap();
+    let requests = allocator.requests() - before;
+    for allowance in 0..requests {
+        assert_eq!(
+            allocator.with_refusal(allowance, encode),
+            Err(Error::OutOfMemory)
+        );
+        assert_eq!(allocator.live_bytes(), live);
+    }
+}
