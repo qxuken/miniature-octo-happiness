@@ -2270,3 +2270,15 @@ test targets cross-linked in both profiles, with native execution open.
 Reconciliation closes 12 records in each source context and leaves
 398 runtime and 7,486 tooling gaps.
 [Coordinator receipt ledger](decisions/coordinator-legacy-receipts-current.md)
+
+### APFS busy image cleanup
+
+The hosted macOS maintenance job at `9e660e4` exhausted five ordinary
+detach attempts with status 16. At `087f4a9`, the private-image probe
+reproduces the old failure and succeeds after releasing the holder.
+Both local profiles pass the retry and ballast tests. The local
+near-cap copy, exchange and cleanup workflows pass and retire all
+three images. Hosted confirmation of the repair is pending.
+Reconciliation leaves 398 runtime and 7,485 tooling gaps after removal
+of the superseded retry guard.
+[APFS detach ledger](decisions/apfs-detach-current.md)

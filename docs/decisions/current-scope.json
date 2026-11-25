@@ -430,7 +430,8 @@
     "docs/decisions/snapshot-listener-current.md": "63b8ff931998fbd604f0eb74fde7cac9d757b5e917f7fa0664ff5bbcdd27867c",
     "docs/decisions/study-listener-current.md": "1042959f13fc8b745f0bfeff0f6076a420a3bfee6d8df51776509176de540b0e",
     "docs/decisions/study-protocol-current.md": "f64491f0ba1600aa1aa3e192e58be8e53f18fa4f1c07b9a638b881c46eb7aa35",
-    "docs/decisions/coordinator-legacy-receipts-current.md": "ce45c3172123a6c8275376d39619c0b83bc83bfcc530f49f385c0311e1c37afb"
+    "docs/decisions/coordinator-legacy-receipts-current.md": "ce45c3172123a6c8275376d39619c0b83bc83bfcc530f49f385c0311e1c37afb",
+    "docs/decisions/apfs-detach-current.md": "6d7b0a32cd016f9c916c2778b36b69ba2e0cc42f276e6ee7560d2934bf8a9a79"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -1022,7 +1023,8 @@
         "docs/r1-ci-shards.md",
         "docs/decisions/macos-primitives-current.md",
         "docs/decisions/derive-admission-current.md",
-        "xtask/tests/fixtures/failing-cargo.sh"
+        "xtask/tests/fixtures/failing-cargo.sh",
+        "docs/decisions/apfs-detach-current.md"
       ],
       "residual": "Helper and native negative controls remain scoped evidence, not individual independence pairs for all tooling records. Standalone workspaces and consumers are now inventoried in their own target contexts; their records and macro/compiled boundaries remain explicit obligations."
     },
