@@ -1059,3 +1059,134 @@ fn export_preparation_reports_the_first_error_and_preserves_existing_files() {
         descriptor
     );
 }
+
+#[test]
+fn retry_preserves_terminal_errors_and_tolerates_a_closed_notice_pipe() {
+    let ack = DurableAck {
+        revision: 4,
+        stream_id: [1; 16],
+        digest: [2; 32],
+    };
+    let permanent_failures = [
+        Error::ForeignStore,
+        Error::UnsupportedFormat,
+        Error::Conflict,
+        Error::Invalid,
+        Error::Corrupt,
+        Error::Limit,
+        Error::RecoveryRequired,
+    ];
+    let cases = permanent_failures
+        .into_iter()
+        .map(|error| (2, error, 1, Err(error)))
+        .chain([
+            (1, Error::Io, 1, Err(Error::Io)),
+            (2, Error::Io, 2, Ok(ack)),
+        ]);
+    for (attempts, failure, calls, expected) in cases {
+        let mut count = 0;
+        let mut report = Vec::new();
+        let actual = retry_ship(attempts, &mut report, || {
+            count += 1;
+            if count == 1 {
+                Err(failure.into())
+            } else {
+                Ok(ack)
+            }
+        });
+        assert_eq!(
+            actual.map_err(|error| *error.downcast::<Error>().unwrap()),
+            expected
+        );
+        assert_eq!(count, calls);
+        if calls == 2 {
+            assert_eq!(
+                report,
+                b"exchange unconfirmed; reconnecting with the same export (attempt 2)\n"
+            );
+        } else {
+            assert!(report.is_empty());
+        }
+    }
+
+    let mut report = Vec::new();
+    let error = retry_ship(0, &mut report, || {
+        panic!("zero attempts reached the exchange")
+    })
+    .unwrap_err();
+    assert_eq!(error.to_string(), "no transfer attempt configured");
+    assert!(report.is_empty());
+
+    let (reader, mut writer) = io::pipe().unwrap();
+    drop(reader);
+    let mut count = 0;
+    let observed = retry_ship(2, &mut writer, || {
+        count += 1;
+        if count == 1 {
+            Err(io::Error::from(io::ErrorKind::ConnectionReset).into())
+        } else {
+            Ok(ack)
+        }
+    });
+    assert_eq!(observed.unwrap(), ack);
+    assert_eq!(count, 2);
+}
+
+#[test]
+fn interrupted_authenticated_exchange_retries_the_same_export() {
+    use sha2::{Digest, Sha256};
+
+    let dir = Directory::new();
+    let source = source(&dir);
+    let image = dir.0.join("retry-export.wdb");
+    let mut prepared = prepare(&source, [1; 16], &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    let mut follower = follower(&dir, descriptor.enrollment);
+    let (client, server) = pair();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+    let accept = || {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            match listener.accept() {
+                Ok((socket, _)) => break socket,
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline, "snapshot retry did not connect");
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("fixture accept failed: {error}"),
+            }
+        }
+    };
+
+    let ack = thread::scope(|scope| {
+        let receiver = scope.spawn(|| {
+            let mut interrupted = server.accept(accept()).unwrap();
+            interrupted.read_exact(&mut [0]).unwrap();
+            drop(interrupted);
+            serve_one(&mut follower, &server, accept()).unwrap();
+        });
+        let result = ship(&mut prepared, &client, address, 2);
+        receiver.join().unwrap();
+        result.unwrap()
+    });
+    assert_eq!(ack.revision, descriptor.revision);
+    assert_eq!(ack.stream_id, descriptor.enrollment.stream_id);
+    assert_eq!(ack.digest, descriptor.digest);
+    assert_eq!(prepared.export.descriptor(), descriptor);
+    drop(prepared);
+    assert_eq!(
+        Into::<[u8; 32]>::into(Sha256::digest(fs::read(image).unwrap())),
+        ack.digest
+    );
+    check(&follower, ack, 2);
+    drop(follower);
+    let reopened = Follower::open(
+        dir.0.join("follower"),
+        descriptor.enrollment,
+        Limits::default(),
+    )
+    .unwrap();
+    check(&reopened, ack, 2);
+}

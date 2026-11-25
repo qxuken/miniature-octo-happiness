@@ -14,7 +14,7 @@
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
-    "apps/weekend-replicate/src/native.rs": "12a7d4a871c1475d134e1a886db50bfe110c071695ea990829b492591e46dd88",
+    "apps/weekend-replicate/src/native.rs": "5475ce5eb5c847329b54d9353ccc0b19df50ed92f331ed8a3433932670a1773e",
     "apps/weekend-replicate/src/native/admission.rs": "7144c0e040b9955bf64fe857361653378d3e01fb784639da5c8eae125ad312c3",
     "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
     "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
@@ -229,7 +229,7 @@
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "16095a3a2f18ce9f7d66fad33923194417e3c37a0ab1fddb8b69b25e29e483ea",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
-    "apps/weekend-replicate/src/native/tests.rs": "43027c082c53076da89349c8b2e813747e9cc40887c6bd4d3c4e2669669c499f",
+    "apps/weekend-replicate/src/native/tests.rs": "c757a6331a61e586295222eb8028d00bac0bdff42cb8cca6bd69dcb2fa302e12",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "41883b49d8d6f6dd5dfe3d90e16cbcc78d2586282e522abccab248649da8be34",
-    "xtask/tests/mutations.json": "7a6572cca5ed77bdea1f58763fb0c317a8f15ff96dff7b2293b3306cd809863b",
+    "xtask/tests/mutations.json": "b25f4101b576e8cd420918c8f2d25717ba29d7b155fdf14d2af2b120f743404e",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -425,7 +425,8 @@
     "docs/decisions/credential-file-admission-current.md": "b53ddc975a9d003124345dd1f8aadb4a268d2c4024ba1290d51009ab0c119962",
     "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403",
     "docs/decisions/snapshot-readiness-current.md": "4cf929aaac0c358c0e2188b9b64f06718e981d7a89b606ea35f6faac1fb2027a",
-    "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719"
+    "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719",
+    "docs/decisions/snapshot-retry-current.md": "607d07e8805c2157dbd2cec7c2fa05478b1ec7acb007ff0bcfd756d5e4523128"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -927,7 +928,8 @@
         "docs/decisions/snapshot-dispatch-current.md",
         "docs/decisions/snapshot-maintenance-output-current.md",
         "docs/decisions/snapshot-readiness-current.md",
-        "docs/decisions/snapshot-command-output-current.md"
+        "docs/decisions/snapshot-command-output-current.md",
+        "docs/decisions/snapshot-retry-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },
@@ -32497,7 +32499,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve",
         "kind": "try_propagation",
-        "start_byte": 16386,
+        "start_byte": 16620,
         "conditions": [
           "TcpListener::bind(address)"
         ]
@@ -32520,7 +32522,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve",
         "kind": "try_propagation",
-        "start_byte": 16514,
+        "start_byte": 16748,
         "conditions": [
           "diagnostics::at(Phase::Listen, || {\n        let listener = TcpListener::bind(address)?;\n        listener.set_nonblocking(true)?;\n        let address = listener.local_addr()?;\n        Ok((listener, address))\n    })"
         ]
@@ -32543,7 +32545,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve",
         "kind": "try_propagation",
-        "start_byte": 16566,
+        "start_byte": 16800,
         "conditions": [
           "print_report(format_args!(\"ready {address}\"))"
         ]
@@ -32602,6 +32604,54 @@
       ],
       "mutations": [
         "r1-snapshot-command-output-report-flush"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-RETRY-TERMINAL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "retry_ship",
+        "kind": "if",
+        "start_byte": 15169,
+        "conditions": [
+          "permanent",
+          "attempt + 1 == attempts"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "retry_preserves_terminal_errors_and_tolerates_a_closed_notice_pipe"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-retry-permanent",
+        "r1-snapshot-retry-exhausted"
       ]
     }
   ],

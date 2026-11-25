@@ -371,13 +371,21 @@ fn ship(
     address: SocketAddr,
     attempts: usize,
 ) -> AppResult<DurableAck> {
-    for attempt in 0..attempts {
-        let result = diagnostics::at(Phase::Connect, || tls.connect(address)).and_then(|channel| {
+    retry_ship(attempts, &mut io::stderr(), || {
+        diagnostics::at(Phase::Connect, || tls.connect(address)).and_then(|channel| {
             Ok(diagnostics::storage(Phase::Replication, || {
                 prepared.primary.ship(&mut prepared.export, channel)
             })?)
-        });
-        match result {
+        })
+    })
+}
+fn retry_ship(
+    attempts: usize,
+    report: &mut impl Write,
+    mut exchange: impl FnMut() -> AppResult<DurableAck>,
+) -> AppResult<DurableAck> {
+    for attempt in 0..attempts {
+        match exchange() {
             Ok(ack) => return Ok(ack),
             Err(error) => {
                 let permanent = error.downcast_ref::<Error>().is_some_and(|e| {
@@ -395,7 +403,8 @@ fn ship(
                 if permanent || attempt + 1 == attempts {
                     return Err(error);
                 }
-                eprintln!(
+                let _ = writeln!(
+                    report,
                     "exchange unconfirmed; reconnecting with the same export (attempt {})",
                     attempt + 2
                 );

@@ -17373,6 +17373,42 @@
       "matches": 1,
       "package": "weekend-replicate",
       "exact_test": "native::tests::poll_output_preserves_local_revision_and_follower_receipt"
+    },
+    {
+      "name": "r1-snapshot-retry-permanent",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "if permanent || attempt + 1 == attempts {",
+      "new": "if attempt + 1 == attempts {",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::retry_preserves_terminal_errors_and_tolerates_a_closed_notice_pipe"
+    },
+    {
+      "name": "r1-snapshot-retry-exhausted",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "if permanent || attempt + 1 == attempts {",
+      "new": "if permanent {",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::retry_preserves_terminal_errors_and_tolerates_a_closed_notice_pipe"
+    },
+    {
+      "name": "r1-snapshot-retry-notice-panic",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "                let _ = writeln!(\n                    report,\n                    \"exchange unconfirmed; reconnecting with the same export (attempt {})\",\n                    attempt + 2\n                );",
+      "new": "                writeln!(\n                    report,\n                    \"exchange unconfirmed; reconnecting with the same export (attempt {})\",\n                    attempt + 2\n                ).expect(\"failed writing retry notice\");",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::retry_preserves_terminal_errors_and_tolerates_a_closed_notice_pipe"
     }
   ]
 }
