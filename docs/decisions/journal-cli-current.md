@@ -12,7 +12,14 @@ argument and rejects slot 1024 before creating a file.
 Reinitializing occupied slot 1023 fails for both the existing journal and a
 fresh destination. The journal bytes and coordinator receipt remain intact,
 and the fresh path stays absent. This covers the occupied-slot operand with
-a valid identity. The all-zero remote identity case remains open.
+a valid identity. The scripted peer test
+`journal_init_creates_a_file_only_after_identity_and_empty_receipt`
+checks the other operand. An all-zero identity ends the exchange before a
+receipt query. With a valid identity, changing only the reply from
+`receipt 0` to `receipt 00` rejects the initialization. EOF at either
+exchange, an unexpected response verb and malformed identity digits also
+leave the destination absent. The successful case reopens in a new process
+and reports the agreed identity, slot and empty receipt.
 
 | Source | SHA-256 |
 | --- | --- |
@@ -34,3 +41,8 @@ a valid identity. The all-zero remote identity case remains open.
 | C | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:392:16– | 13323..13365 | short_circuit_and | run | For the accepted arity, vary action alone or option alone against the accepted invocation. |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:395:43– | 13458..13459 | try_propagation | run | Malformed expected revision or value returns the numeric parse error; the valid pair commits. |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:396:37– | 13497..13498 | try_propagation | run | Malformed expected revision or value returns the numeric parse error; the valid pair commits. |
+| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:355:41– | 11698..11699 | try_propagation | run | EOF during the identity exchange returns the framing error. |
+| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:361:19– | 11985..11986 | try_propagation | run | Wrong response verb or malformed identity digits rejects before any receipt query. |
+| C | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:362:13– | 12000..12002 | if | run | Zero identity short-circuits the receipt query. A valid identity admits only the exact empty receipt. |
+| C | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:362:16– | 12003..12117 | short_circuit_or | run | Zero identity short-circuits the receipt query. A valid identity admits only the exact empty receipt. |
+| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:363:79– | 12101..12102 | try_propagation | run | EOF during the receipt exchange propagates before local file creation. |

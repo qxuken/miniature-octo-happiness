@@ -1603,3 +1603,87 @@ fn journal_cli_rejects_invalid_arguments_and_claimed_slots_without_writing() {
     assert_eq!(fs::read(&journal).unwrap(), image);
     assert_eq!(client.request("receipt 1023"), "receipt 1 3 42 4");
 }
+
+#[test]
+fn journal_init_creates_a_file_only_after_identity_and_empty_receipt() {
+    use std::net::TcpListener;
+
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let journal = dir.0.join("writer.db");
+    let key = dir.0.join("secret");
+    let token = "4".repeat(64);
+    write_secret(&key, &token);
+    let id = "0123456789abcdef0123456789abcdef";
+    let valid_identity = format!("identity {id}\n");
+    let invalid_identity = "invalid coordinator identity response";
+    let refused =
+        "journal initialization requires an empty assigned slot and a valid coordinator identity";
+    let truncated = "missing or oversized line";
+    for (identity_reply, receipt_reply, expected_error) in [
+        ("", None, Some(truncated)),
+        ("value 3 0\n", None, Some(invalid_identity)),
+        ("identity xyz\n", None, Some(invalid_identity)),
+        (
+            "identity 00000000000000000000000000000000\n",
+            None,
+            Some(refused),
+        ),
+        (valid_identity.as_str(), Some(""), Some(truncated)),
+        (valid_identity.as_str(), Some("receipt 00\n"), Some(refused)),
+        (valid_identity.as_str(), Some("receipt 0\n"), None),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let peer = AuthenticatedClient {
+            address: listener.local_addr().unwrap(),
+            token: token.clone(),
+        };
+        let child = Command::new(BIN)
+            .args(["journal", "init"])
+            .arg(&journal)
+            .arg(peer.address.port().to_string())
+            .args(["7", "--secret-file"])
+            .arg(&key)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let (mut socket, command) = accept_journal_request(&listener, &peer, "identity");
+        assert_eq!(command, "identity");
+        assert!(!journal.exists());
+        socket.write_all(identity_reply.as_bytes()).unwrap();
+        drop(socket);
+        if let Some(reply) = receipt_reply {
+            let (mut socket, command) = accept_journal_request(&listener, &peer, "journal-receipt");
+            assert_eq!(command, format!("journal-receipt {id} 7"));
+            assert!(!journal.exists());
+            socket.write_all(reply.as_bytes()).unwrap();
+        }
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        if let Some(error) = expected_error {
+            assert!(!output.status.success(), "{output:?}");
+            assert!(output.stdout.is_empty());
+            assert_eq!(String::from_utf8(output.stderr).unwrap().trim_end(), error);
+            assert!(!journal.exists());
+        } else {
+            assert!(output.status.success(), "{output:?}");
+            let reopened = Command::new(BIN)
+                .args(["journal", "status"])
+                .arg(&journal)
+                .output()
+                .unwrap();
+            assert!(reopened.status.success(), "{reopened:?}");
+            assert_eq!(output.stdout, reopened.stdout);
+            assert_eq!(
+                String::from_utf8(reopened.stdout).unwrap(),
+                format!("journal {id} 7\nreceipt 0\n")
+            );
+        }
+    }
+}
