@@ -5,7 +5,7 @@ use super::{
 use crate::diagnostics::{self, Diagnostic, Phase, Settings};
 use std::{
     io,
-    net::TcpListener,
+    net::{SocketAddr, TcpListener, TcpStream},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering::Relaxed},
@@ -73,6 +73,17 @@ pub(super) fn receive(
     status: &Mutex<Status>,
     serve: impl Fn(Incoming) -> AppResult<()> + Sync,
 ) -> AppResult<()> {
+    receive_with_accept(listener, tls, stop, status, serve, TcpListener::accept)
+}
+
+fn receive_with_accept(
+    listener: TcpListener,
+    tls: &Tls,
+    stop: &Arc<AtomicBool>,
+    status: &Mutex<Status>,
+    serve: impl Fn(Incoming) -> AppResult<()> + Sync,
+    mut accept: impl FnMut(&TcpListener) -> io::Result<(TcpStream, SocketAddr)>,
+) -> AppResult<()> {
     let merge = Mutex::new(());
     let serve = &serve;
     let settings = diagnostics::settings();
@@ -83,7 +94,7 @@ pub(super) fn receive(
                 while let Some(done) = workers.iter().position(ScopedJoinHandle::is_finished) {
                     workers.swap_remove(done).join().map_err(|_| Error::Panic)?;
                 }
-                let (socket, _) = match listener.accept() {
+                let (socket, _) = match accept(&listener) {
                     Ok(connection) => connection,
                     Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                         thread::park_timeout(Duration::from_millis(25));
@@ -148,7 +159,6 @@ mod tests {
     use crate::native::tls::Credentials;
     use std::{
         io::{Read, Write},
-        net::TcpStream,
         sync::mpsc,
     };
 
@@ -166,6 +176,164 @@ mod tests {
             assert!(Instant::now() < wait, "{}", status.lock().unwrap().report());
             thread::sleep(Duration::from_millis(5));
         }
+    }
+
+    #[test]
+    fn listener_retries_transient_errors_and_preserves_fatal_error() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let status = Mutex::new(Status::default());
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut errors = [
+            io::ErrorKind::WouldBlock,
+            io::ErrorKind::Interrupted,
+            io::ErrorKind::ConnectionAborted,
+            io::ErrorKind::PermissionDenied,
+        ]
+        .into_iter();
+        let result = receive_with_accept(
+            listener,
+            &server,
+            &stop,
+            &status,
+            |_| panic!("a refused listener call must not serve a session"),
+            |_| {
+                Err(errors
+                    .next()
+                    .expect("listener continued after fatal error")
+                    .into())
+            },
+        );
+        assert_eq!(
+            result
+                .unwrap_err()
+                .downcast_ref::<io::Error>()
+                .map(io::Error::kind),
+            Some(io::ErrorKind::PermissionDenied)
+        );
+        assert!(errors.next().is_none());
+        assert!(stop.load(Relaxed));
+        assert_eq!(
+            status.lock().unwrap().report(),
+            "incoming served=0 failed=0 busy=0"
+        );
+    }
+
+    #[test]
+    fn shutdown_joins_active_workers_and_preserves_the_first_failure() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let client = Tls::new(&a, b.certificate()).unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+
+        for (panic_worker, listener_error) in [(false, false), (true, false), (true, true)] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let address = listener.local_addr().unwrap();
+            let status = Mutex::new(Status::default());
+            let stop = Arc::new(AtomicBool::new(false));
+            let (entered, enter) = mpsc::channel();
+            thread::scope(|scope| {
+                let stop_worker = &stop;
+                let status_worker = &status;
+                let server = &server;
+                let run = scope.spawn(move || {
+                    let mut admitted = false;
+                    receive_with_accept(
+                        listener,
+                        server,
+                        stop_worker,
+                        status_worker,
+                        |_| {
+                            entered.send(())?;
+                            let deadline = Instant::now() + Duration::from_secs(4);
+                            while !stop_worker.load(Relaxed) {
+                                assert!(Instant::now() < deadline, "worker did not observe stop");
+                                thread::sleep(Duration::from_millis(5));
+                            }
+                            assert!(!panic_worker, "controlled worker panic");
+                            Ok(())
+                        },
+                        |listener| {
+                            if !admitted {
+                                let accepted = listener.accept();
+                                admitted = accepted.is_ok();
+                                return accepted;
+                            }
+                            enter.recv_timeout(Duration::from_secs(4)).unwrap();
+                            if listener_error {
+                                Err(io::ErrorKind::PermissionDenied.into())
+                            } else {
+                                stop_worker.store(true, Relaxed);
+                                Err(io::ErrorKind::WouldBlock.into())
+                            }
+                        },
+                    )
+                });
+                let _shutdown = Stop(&stop);
+                let connection = client.connect(address).unwrap();
+                let result = run.join().unwrap();
+                drop(connection);
+                let status = status.lock().unwrap();
+                assert_eq!(status.served, u64::from(!panic_worker));
+                assert_eq!((status.failed, status.busy), (0, 0));
+                assert!(stop.load(Relaxed));
+                match (panic_worker, listener_error) {
+                    (false, _) => result.unwrap(),
+                    (true, false) => {
+                        assert_eq!(
+                            result.unwrap_err().downcast_ref::<Error>(),
+                            Some(&Error::Panic)
+                        );
+                    }
+                    (true, true) => {
+                        assert_eq!(
+                            result
+                                .unwrap_err()
+                                .downcast_ref::<io::Error>()
+                                .map(io::Error::kind),
+                            Some(io::ErrorKind::PermissionDenied)
+                        );
+                    }
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn completed_worker_panic_is_propagated_by_the_listener() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let client = Tls::new(&a, b.certificate()).unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let status = Mutex::new(Status::default());
+        let stop = Arc::new(AtomicBool::new(false));
+
+        thread::scope(|scope| {
+            let run = scope.spawn(|| {
+                receive(listener, &server, &stop, &status, |_| {
+                    panic!("controlled worker panic");
+                })
+            });
+            let _shutdown = Stop(&stop);
+            let connection = client.connect(address).unwrap();
+            let deadline = Instant::now() + Duration::from_secs(4);
+            while !stop.load(Relaxed) {
+                assert!(
+                    Instant::now() < deadline,
+                    "listener did not reap failed worker"
+                );
+                thread::sleep(Duration::from_millis(5));
+            }
+            let error = run.join().unwrap().unwrap_err();
+            assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Panic));
+            drop(connection);
+        });
     }
 
     #[test]

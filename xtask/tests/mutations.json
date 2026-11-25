@@ -16821,6 +16821,114 @@
       "matches": 1,
       "package": "study-peer",
       "exact_test": "native::tests::two_writers_recover_a_lost_ack"
+    },
+    {
+      "name": "r1-study-incoming-accept-loop",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "!stop.load(Relaxed)",
+      "new": "false",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::listener_retries_transient_errors_and_preserves_fatal_error"
+    },
+    {
+      "name": "r1-study-incoming-would-block",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "error.kind() == io::ErrorKind::WouldBlock",
+      "new": "false",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::listener_retries_transient_errors_and_preserves_fatal_error"
+    },
+    {
+      "name": "r1-study-incoming-session-cap",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "workers.len() == MAX_SESSIONS",
+      "new": "workers.len() <= MAX_SESSIONS",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::stalled_sessions_are_bounded_and_the_authenticated_merge_is_serial"
+    },
+    {
+      "name": "r1-study-incoming-merge-gate",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "let Ok(_guard) = merge.try_lock()",
+      "new": "false",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::stalled_sessions_are_bounded_and_the_authenticated_merge_is_serial"
+    },
+    {
+      "name": "r1-study-incoming-reject-aborted",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "matches!(\n                            error.kind(),\n                            io::ErrorKind::ConnectionAborted | io::ErrorKind::Interrupted\n                        )",
+      "new": "matches!(\n                            error.kind(),\n                            io::ErrorKind::Interrupted\n                        )",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::listener_retries_transient_errors_and_preserves_fatal_error"
+    },
+    {
+      "name": "r1-study-incoming-reject-interrupted",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "matches!(\n                            error.kind(),\n                            io::ErrorKind::ConnectionAborted | io::ErrorKind::Interrupted\n                        )",
+      "new": "matches!(\n                            error.kind(),\n                            io::ErrorKind::ConnectionAborted\n                        )",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::listener_retries_transient_errors_and_preserves_fatal_error"
+    },
+    {
+      "name": "r1-study-incoming-reaped-worker",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "workers.swap_remove(done).join().map_err(|_| Error::Panic)?",
+      "new": "workers.swap_remove(done).join().map_err(|_| Error::Invalid)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::completed_worker_panic_is_propagated_by_the_listener"
+    },
+    {
+      "name": "r1-study-incoming-healthy-join",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "worker.join().is_err()",
+      "new": "worker.join().is_ok()",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::shutdown_joins_active_workers_and_preserves_the_first_failure"
+    },
+    {
+      "name": "r1-study-incoming-earlier-listener-error",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "result.is_ok()",
+      "new": "true",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::shutdown_joins_active_workers_and_preserves_the_first_failure"
     }
   ]
 }

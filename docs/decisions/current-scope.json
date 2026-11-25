@@ -4,7 +4,7 @@
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "9ced0c6b1d1ea19a0c2c827410755ad5775e4026c8271d1d7448a9f9822f9c68",
-    "apps/study-peer/src/native/admission.rs": "0d01bb5355a7b420f9cad80a7fa5fea02d09adaf7a92cce91cf6029750469dab",
+    "apps/study-peer/src/native/admission.rs": "6b990a48452dda2ba7fae7e604fcc61f6f0dc80853983c7d8e56bc0b0b7bdd0c",
     "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "af383ae617dd989a04db580f726c0b38b45d5af956432b92569ffb6253ba30fb",
+    "xtask/tests/mutations.json": "153281845a3b2dbc58f40b2b8a5c4e5bcaaf9a8dad7ac0e1ecbdd5b06cac72d9",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -414,7 +414,8 @@
     "docs/decisions/study-cli-admission-current.md": "ce52224f8a52a09cf0c353c04c21207c3bc5be3ce6ce599a83520337bfd49d15",
     "docs/decisions/study-interactive-io-current.md": "033cf798c68c87fe2f4ec560d5adf70d1d16cfa95daa18b3dc46ccbbda3d6627",
     "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
-    "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f"
+    "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f",
+    "docs/decisions/study-incoming-worker-current.md": "c76eafff63a3e3f76fe0f1707d3043c20116c94bac1dd3ee783b0560a8d28264"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -889,7 +890,8 @@
         "docs/decisions/study-cli-admission-current.md",
         "docs/decisions/study-interactive-io-current.md",
         "docs/decisions/study-service-startup-current.md",
-        "docs/decisions/study-peer-status-current.md"
+        "docs/decisions/study-peer-status-current.md",
+        "docs/decisions/study-incoming-worker-current.md"
       ],
       "residual": "Fixed-roster deployment, raw reserved rows and native stream errors remain explicit application obligations."
     },
@@ -31515,6 +31517,263 @@
       ],
       "mutations": [
         "r1-study-peer-status-lost-ack-error"
+      ]
+    },
+    {
+      "name": "STUDY-INCOMING-ACCEPT-LOOP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native/admission.rs",
+        "target": "study-peer::study-peer",
+        "owner": "receive_with_accept",
+        "kind": "while",
+        "start_byte": 2631,
+        "conditions": [
+          "!stop.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/admission.rs",
+          "name": "listener_retries_transient_errors_and_preserves_fatal_error"
+        }
+      ],
+      "mutations": [
+        "r1-study-incoming-accept-loop"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-INCOMING-WOULD-BLOCK",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native/admission.rs",
+        "target": "study-peer::study-peer",
+        "owner": "receive_with_accept",
+        "kind": "match_guard",
+        "start_byte": 2998,
+        "conditions": [
+          "error.kind() == io::ErrorKind::WouldBlock"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/admission.rs",
+          "name": "listener_retries_transient_errors_and_preserves_fatal_error"
+        }
+      ],
+      "mutations": [
+        "r1-study-incoming-would-block"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-INCOMING-SESSION-CAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native/admission.rs",
+        "target": "study-peer::study-peer",
+        "owner": "receive_with_accept",
+        "kind": "if",
+        "start_byte": 3576,
+        "conditions": [
+          "workers.len() == MAX_SESSIONS"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/admission.rs",
+          "name": "stalled_sessions_are_bounded_and_the_authenticated_merge_is_serial"
+        }
+      ],
+      "mutations": [
+        "r1-study-incoming-session-cap"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-INCOMING-MERGE-GATE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native/admission.rs",
+        "target": "study-peer::study-peer",
+        "owner": "receive_with_accept",
+        "kind": "if",
+        "start_byte": 4270,
+        "conditions": [
+          "let Ok(_guard) = merge.try_lock()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/admission.rs",
+          "name": "stalled_sessions_are_bounded_and_the_authenticated_merge_is_serial"
+        }
+      ],
+      "mutations": [
+        "r1-study-incoming-merge-gate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-INCOMING-RETRYABLE-ERRORS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native/admission.rs",
+        "target": "study-peer::study-peer",
+        "owner": "receive_with_accept",
+        "kind": "match_guard",
+        "start_byte": 3232,
+        "conditions": [
+          "matches!(\n                            error.kind(),\n                            io::ErrorKind::ConnectionAborted | io::ErrorKind::Interrupted\n                        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/admission.rs",
+          "name": "listener_retries_transient_errors_and_preserves_fatal_error"
+        }
+      ],
+      "mutations": [
+        "r1-study-incoming-reject-aborted",
+        "r1-study-incoming-reject-interrupted"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-INCOMING-REAPED-WORKER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native/admission.rs",
+        "target": "study-peer::study-peer",
+        "owner": "receive_with_accept",
+        "kind": "try_propagation",
+        "start_byte": 2833,
+        "conditions": [
+          "workers.swap_remove(done).join().map_err(|_| Error::Panic)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/admission.rs",
+          "name": "completed_worker_panic_is_propagated_by_the_listener"
+        }
+      ],
+      "mutations": [
+        "r1-study-incoming-reaped-worker"
+      ]
+    },
+    {
+      "name": "STUDY-INCOMING-SHUTDOWN-RESULT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native/admission.rs",
+        "target": "study-peer::study-peer",
+        "owner": "receive_with_accept",
+        "kind": "if",
+        "start_byte": 5222,
+        "conditions": [
+          "worker.join().is_err()",
+          "result.is_ok()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/admission.rs",
+          "name": "shutdown_joins_active_workers_and_preserves_the_first_failure"
+        }
+      ],
+      "mutations": [
+        "r1-study-incoming-healthy-join",
+        "r1-study-incoming-earlier-listener-error"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        }
       ]
     }
   ],
