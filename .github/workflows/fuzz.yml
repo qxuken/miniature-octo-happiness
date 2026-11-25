@@ -42,6 +42,13 @@ jobs:
           FUZZ_RUNS: ${{ github.event_name == 'schedule' && '100000' || '1000' }}
           FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '120' || '20' }}
         run: cargo +1.100.0 xtask fuzz --runs "$FUZZ_RUNS" --seconds "$FUZZ_SECONDS" --output target/fuzz-evidence/ci
+      - name: Preserve the complete fuzz evidence tree for offline verification
+        if: always()
+        run: |
+          if [[ -d target/fuzz-evidence/ci ]]; then
+            tar -C target/fuzz-evidence -cf target/fuzz-evidence/ci.tar ci
+            tar -C target/fuzz-evidence -df target/fuzz-evidence/ci.tar
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:

@@ -620,3 +620,9 @@ per-case assertion diagnostics are checked locally. Native execution and
 the resulting artifact review are pending. The reconciled inventory includes
 10,627 source records across 222 files after the workload and controller
 changes.
+
+The [49ddab5 delivery checkpoint](delivery-checkpoint-49ddab5.md) verified
+all 16 private packages, three benchmark runs and the 22-target fuzz
+campaign against one source. The fuzz archive restored its empty failure
+directories and passed offline verification. R7 still requires a final
+approved source and off-machine proof custody.
