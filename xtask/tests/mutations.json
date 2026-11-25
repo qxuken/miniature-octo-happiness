@@ -12424,6 +12424,17 @@
       "matches": null,
       "package": "write-coordinator",
       "exact_test": "native::journal::tests::only_an_exact_acknowledgment_or_newer_conflict_clears_pending"
+    },
+    {
+      "name": "r1-cache-open-before-stabilization",
+      "file": "src/storage/mod.rs",
+      "old": "let cache = mem.shared(ValueCache::from_entries(mem, recovered.cache)?)?;",
+      "new": "storage.backend.sync().map_err(|_| Error::Io)?;\n        let cache = mem.shared(ValueCache::from_entries(mem, recovered.cache)?)?;",
+      "test": "storage::decision_tests::cold_open_cache_allocation_failures_precede_stabilization_and_release_the_lease",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }

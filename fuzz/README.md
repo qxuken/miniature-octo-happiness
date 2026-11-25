@@ -9,7 +9,7 @@ seed inputs live under `seeds/`.
 |---|---|
 | `open_image_bytes` | Raw images up to 256 KiB. A rejected image must return a documented error before writes or syncs. A successful open may change only the selected witness and must preserve current and retained revision metadata across power-loss replay. |
 | `open_structured_image` | A real v2 fixture with roots 3 and 4 and retained revision 2. Directed cases check exact revision, row values, retained state, or error. The patch mode mutates metadata and graph regions and can repair CRCs to reach the structural checks. |
-| `commit_crash` | A generated transaction on a small retained history. It injects an I/O error, short write, tear, or sync failure and can interrupt up to three additional recovery attempts. The metadata-prefix oracle predicts the exact selected revision and witness for the generated cuts. A copying map checks current and retained values, and a later commit must survive reopening. |
+| `commit_crash` | A generated transaction on a small retained history. It injects an I/O error, short write, tear, or sync failure and can interrupt up to three additional recovery attempts. Each recovery attempt may also face a live-byte limit. The oracle checks the first reported failure, exact selected revision and witness, and current and retained values. A later commit must survive reopening. |
 | `txn_schedule` | Up to 32 commands interleave three drafts over two collections and four keys. An independent copying model and committed write history predict every commit or conflict and check reads, scans, final rows, revisions, terminal state, and pinned/retained snapshots. |
 | `value_ops` | Bounded map/list edits compared with the existing copying `BTreeMap`/`Vec` model. Includes nested values, common-prefix and empty keys, float bit patterns, list radix boundaries, invalid indices, and immutable histories surviving database drop. |
 | `image_and_ops` | Generated edits, retains, releases, empty commits, reopens and compact copies around a controlled image mutation. An independent model tracks full current and retained rows, publication/data revisions, and retained IDs. |
@@ -82,7 +82,12 @@ the original failure at the first open operation, and bits 2–3 give the
 number of four-byte recovery faults before the key/value edits. Each
 recovery fault supplies the cut, fault mode, crash policy and parameter.
 Cuts select the first read, last read, stabilization sync, witness write
-or witness sync. The remaining bytes provide up to twelve key/value edits.
+or witness sync. Flag bits 4–6 can also cap the live-byte budget of the
+corresponding recovery attempts at one byte below the successful open's
+peak. A separate copy measures where that limit stops the reads. The
+oracle compares the I/O fault position with this prefix to predict
+`Io` or `Limit`, and checks that a refused attempt leaves durable bytes
+unchanged. The remaining bytes provide up to twelve key/value edits.
 The commit metadata and witness faults cover both ends and every interior
 byte of the eight-byte checksum.
 

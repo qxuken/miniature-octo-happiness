@@ -108,6 +108,21 @@ mod tests {
     }
 
     #[test]
+    fn recovery_budget_and_io_faults_replay_in_order() {
+        let mut schedule = *include_bytes!("../seeds/commit_crash/witness-repair-budget");
+        commit_crash(&schedule);
+        for parity in 0..2 {
+            for cut in 0..5 {
+                for capped in [1, 2, 4, 7] {
+                    schedule[4] = parity | 12 | (capped << 4);
+                    schedule[5] = cut; // First recovery fault's I/O position.
+                    commit_crash(&schedule);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn generated_values_and_history_replay() {
         ffi_ops(&[0, 24, 9, 1, 0, 1, 2, 1, 0, 2, 1, 2, 2, 1, 3, 4, 0, 0]);
         ffi_ops(&[
