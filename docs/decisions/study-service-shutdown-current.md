@@ -46,3 +46,32 @@ Their original observations remain in the startup ledger.
 | E | study-peer::study-peer | apps/study-peer/src/native.rs:328:33– | 11835..11840 | match | run_with_io | The same loop observes idle before pushing, a refused connection in each diagnostic mode, and an acknowledged state after retry. |
 | E | study-peer::study-peer | apps/study-peer/src/native.rs:363:30– | 13809..13814 | match | run_with_io | A committed edit and both modes of rejected commands exercise each reply arm. |
 | E | study-peer::study-peer | apps/study-peer/src/native.rs:422:5– | 16130..16135 | match | launch_workers | Both workers start on success. A refused outgoing launch stops and explicitly joins the receiver before returning the original error. A separate case makes the receiver panic during this cleanup. |
+
+## Verification
+
+Frozen source `d7d0bf8d32e80a0263fb46ac8bba36666690b5f2` passed with
+Rust 1.100.0 on arm64 macOS and offline arm64 Docker Linux on ext4.
+Both debug and release passed 65 Study tests, 14 core CRDT tests and
+all nine selected mutation controls. Strict Clippy passed on both hosts.
+
+Fresh extraction checked the original failing reproduction, the nine
+expected mutation assertions per profile, all 132 supervised commands,
+964 copied files per campaign and the exact runner binaries. The macOS
+nightly `739adecd4` recorded six entries to `finish_workers`. The
+extracted executable and raw profiles reproduced the LLVM export
+byte for byte. [Archive checksums](study-shutdown-d7d0bf8.sha256)
+
+Five prior propagation sites are represented by three current, tested
+decisions. Two nested conversions were removed. Reconciliation leaves
+439 runtime and 7,514 tooling gaps.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p study-peer
+cargo test --offline --locked --all-features -p weekend-db --test crdt
+cargo xtask mutations --toolchain 1.100.0 \
+  --case r1-study-service-shutdown- --case r1-study-service-launch- \
+  --output "$OUTPUT/debug"
+```
+
+Repeat the commands with `--release` and a fresh mutation output path.

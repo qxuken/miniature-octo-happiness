@@ -2087,3 +2087,14 @@ receiver panic during cleanup. Four new launch controls and seven existing
 outgoing controls pass on macOS and Docker Linux in debug and release.
 Reconciliation accounts for three new source records and leaves 444 runtime
 and 7,514 tooling gaps. [Service worker launch ledger](decisions/study-service-launch-current.md)
+
+### Study service worker shutdown
+
+At `d7d0bf8`, shutdown joins both service workers before returning any
+error. A receiver I/O error retains its original diagnostic when the
+outgoing worker also panics. With a healthy receiver, an outgoing
+panic reports a shutdown error. The prior ordering failed the focused
+test with a scoped-thread panic. The five shutdown controls and all four
+launch controls passed debug and release on macOS and Docker Linux.
+Reconciliation leaves 439 runtime and 7,514 tooling gaps.
+[Service shutdown ledger](decisions/study-service-shutdown-current.md)
