@@ -204,6 +204,7 @@ jobs:
       - name: Detect the R1 controls in debug and release
         if: runner.os != 'Windows' && matrix.mode == 'full'
         run: |
+          cargo +1.100.0 fetch --locked --manifest-path fuzz/Cargo.toml
           cargo +1.100.0 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --toolchain 1.100.0 --output target/r1/mutations-debug
           cargo +1.100.0 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --release --toolchain 1.100.0 --output target/r1/mutations-release
       - name: Detect Darwin-specific R1 controls in debug and release

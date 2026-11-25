@@ -115,6 +115,7 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                     ) => true,
                     (Some(manifest), "weekend-decision-inventory") =>
                         manifest == Path::new("tools/decision-inventory/Cargo.toml"),
+                    (Some(manifest), "weekend-db-fuzz") => manifest == Path::new("fuzz/Cargo.toml"),
                     _ => false,
                 }
                 && !c.test.is_empty(),
@@ -122,7 +123,8 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
         );
         ensure!(
             c.exact_test.as_deref().is_none_or(|name| {
-                matches!(c.target.as_str(), "--test" | "--bin")
+                (matches!(c.target.as_str(), "--test" | "--bin")
+                    || (c.target == "--lib" && c.test == name))
                     && name.split("::").all(|part| {
                         !part.is_empty()
                             && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
@@ -204,7 +206,10 @@ fn command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
         ]);
     }
     if let Some(test) = &case.exact_test {
-        args.extend([test.clone(), "--".into(), "--exact".into()]);
+        if case.target != "--lib" {
+            args.push(test.clone());
+        }
+        args.extend(["--".into(), "--exact".into()]);
     }
     args
 }
@@ -819,6 +824,34 @@ mod tests {
             data["cases"][0]["target"] = json!(target);
             assert!(parse_inventory(&data.to_string()).is_err());
         }
+        data["cases"][0]["target"] = json!("--lib");
+        data["cases"][0]["test"] = json!("module::expected");
+        data["cases"][0]["package"] = json!("weekend-db-fuzz");
+        for manifest in [
+            Value::Null,
+            json!("../fuzz/Cargo.toml"),
+            json!("Cargo.toml"),
+        ] {
+            data["cases"][0]["manifest"] = manifest;
+            assert!(parse_inventory(&data.to_string()).is_err());
+        }
+        data["cases"][0]["manifest"] = json!("fuzz/Cargo.toml");
+        let inventory = parse_inventory(&data.to_string()).unwrap();
+        let args = command(&inventory.cases[0], Some("1.100.0"), true);
+        assert_eq!(
+            &args[6..],
+            [
+                "weekend-db-fuzz",
+                "--all-features",
+                "--lib",
+                "module::expected",
+                "--release",
+                "--manifest-path",
+                "fuzz/Cargo.toml",
+                "--",
+                "--exact",
+            ]
+        );
     }
     #[test]
     fn only_requested_production_occurrence_changes_and_source_drift_rejects() {

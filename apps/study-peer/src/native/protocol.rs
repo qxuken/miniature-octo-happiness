@@ -107,20 +107,42 @@ pub(crate) fn edit(
 mod decisions {
     use super::*;
     use std::cell::Cell;
+    use weekend_db::crdt::{MaxRegister, MinRegister, Record};
+
     #[test]
     fn enrollment_commands_and_retry_budget() {
-        for (actor, id, good) in [
-            ("a", "11111111111111111111111111111111", true),
-            ("b", "abcdefABCDEFabcdefABCDEFabcdefAB", true),
-            ("c", "11111111111111111111111111111111", false),
-            ("a", "00000000000000000000000000000000", false),
-            ("a", "1", false),
-            ("a", "z1111111111111111111111111111111", false),
+        const MIXED: [u8; 16] = [
+            0xab, 0xcd, 0xef, 0xab, 0xcd, 0xef, 0xab, 0xcd, 0xef, 0xab, 0xcd, 0xef, 0xab, 0xcd,
+            0xef, 0xab,
+        ];
+        for (actor, id, collection, member) in [
+            ("a", "11111111111111111111111111111111", [0x11; 16], [1; 16]),
+            ("b", "abcdefABCDEFabcdefABCDEFabcdefAB", MIXED, [2; 16]),
         ] {
-            assert_eq!(
-                Enrollment::parse(OsStr::new(actor), OsStr::new(id)).is_ok(),
-                good
-            );
+            let enrollment = Enrollment::parse(OsStr::new(actor), OsStr::new(id)).unwrap();
+            assert_eq!(enrollment.policy.collection, collection, "collection");
+            assert_eq!(enrollment.actor, member, "member");
+        }
+        let digits = "collection ID must be 32 hexadecimal digits";
+        for (actor, id, reason) in [
+            (
+                "c",
+                "11111111111111111111111111111111",
+                "actor must be a or b",
+            ),
+            (
+                "a",
+                "00000000000000000000000000000000",
+                "collection ID must be nonzero",
+            ),
+            ("a", "1", digits),
+            ("a", "z1111111111111111111111111111111", digits),
+            ("a", "+1111111111111111111111111111111", digits),
+        ] {
+            match Enrollment::parse(OsStr::new(actor), OsStr::new(id)) {
+                Ok(_) => panic!("accepted invalid enrollment {actor} {id}"),
+                Err(error) => assert_eq!(error.to_string(), reason),
+            }
         }
         let db = Database::new().unwrap();
         let e = Enrollment::new("a", [1; 16]).unwrap();
@@ -194,10 +216,135 @@ mod decisions {
         assert_eq!(calls.get(), 2);
         assert_eq!(r.read().unwrap().practice_minutes.total(), 6);
     }
-    #[cfg(unix)]
+
+    #[cfg(any(unix, windows))]
     #[test]
     fn non_utf8_arguments_are_rejected() {
-        use std::os::unix::ffi::OsStrExt;
-        assert!(utf8(OsStr::from_bytes(&[255])).is_err());
+        use std::ffi::OsString;
+        #[cfg(unix)]
+        let malformed = {
+            use std::os::unix::ffi::OsStringExt;
+            OsString::from_vec(vec![0xff])
+        };
+        #[cfg(windows)]
+        let malformed = {
+            use std::os::windows::ffi::OsStringExt;
+            OsString::from_wide(&[0xd800])
+        };
+        let actor = OsStr::new("a");
+        let id = OsStr::new("11111111111111111111111111111111");
+        for (argument, result) in [
+            ("collection", Enrollment::parse(actor, &malformed)),
+            ("actor", Enrollment::parse(&malformed, id)),
+        ] {
+            match result {
+                Ok(_) => panic!("accepted non-UTF-8 {argument}"),
+                Err(error) => {
+                    assert_eq!(error.to_string(), "expected a UTF-8 argument", "{argument}")
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn commands_preserve_parse_errors_and_missing_rows() {
+        use std::num::{IntErrorKind, ParseIntError};
+
+        let db = Database::new().unwrap();
+        let enrollment = Enrollment::new("a", [1; 16]).unwrap();
+        let collection = db.create_collection().unwrap();
+        let replica =
+            StudyReplica::enroll(&db, collection, enrollment.policy, enrollment.actor).unwrap();
+        let before = db.snapshot();
+        assert_eq!(
+            command(&["show"], &db, &replica).unwrap(),
+            format!("state {} 0 [] [] []", before.revision())
+        );
+        for words in [
+            &["practice", "x"][..],
+            &["edit", "x", "2", "3", "4"],
+            &["edit", "1", "x", "3", "4"],
+            &["edit", "1", "2", "x", "4"],
+            &["edit", "1", "2", "3", "x"],
+        ] {
+            let error = command(words, &db, &replica).unwrap_err();
+            assert_eq!(
+                error
+                    .downcast_ref::<ParseIntError>()
+                    .map(ParseIntError::kind),
+                Some(&IntErrorKind::InvalidDigit),
+                "{words:?}"
+            );
+            assert_eq!(db.snapshot().revision(), before.revision());
+            assert_eq!(replica.read().unwrap(), StudyProgress::default());
+        }
+        let mut tx = db.begin();
+        tx.delete(collection, StudyProgress::<true>::KEY).unwrap();
+        let removed = tx.commit().unwrap();
+        let error = command(&["show"], &db, &replica).unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<Error>(),
+            Some(&Error::NotFound),
+            "show"
+        );
+        assert_eq!(db.snapshot().revision(), removed);
+        assert_eq!(replica.read_at(&before).unwrap(), StudyProgress::default());
+    }
+
+    #[test]
+    fn failed_field_updates_discard_the_whole_command() {
+        let db = Database::new().unwrap();
+        let enrollment = Enrollment::new("a", [1; 16]).unwrap();
+        let replica = StudyReplica::enroll(
+            &db,
+            db.create_collection().unwrap(),
+            enrollment.policy,
+            enrollment.actor,
+        )
+        .unwrap();
+        let before = db.snapshot().revision();
+        assert_eq!(
+            command(&["edit", "1", "2", "3", "4"], &db, &replica).unwrap(),
+            format!("local {}", before + 1),
+        );
+        let initial = db.snapshot();
+        let initial_progress = replica.read_at(&initial).unwrap();
+        assert_eq!(initial_progress.practice_minutes.total(), 2);
+        assert!(initial_progress.completed.contains(1));
+        assert_eq!(initial_progress.weekly_goal.values().next(), Some(3));
+        assert_eq!(initial_progress.session_limit.values().next(), Some(4));
+        let reject = |words: &[&str], expected| {
+            let snapshot = db.snapshot();
+            let previous = replica.read_at(&snapshot).unwrap();
+            let error = command(words, &db, &replica).unwrap_err();
+            assert_eq!(error.downcast_ref::<Error>(), Some(&expected), "{words:?}");
+            assert_eq!(db.snapshot().revision(), snapshot.revision());
+            assert_eq!(replica.read().unwrap(), previous);
+        };
+        reject(&["practice", "0"], Error::Invalid);
+        reject(&["edit", "64", "2", "3", "4"], Error::Bounds);
+        reject(&["edit", "2", "0", "3", "4"], Error::Invalid);
+
+        // A valid actor-a register entry with the largest representable dot.
+        // Seed it through the replica so the row keeps its policy.
+        let mut exhausted = [0; MaxRegister::SIZE];
+        exhausted[..8].copy_from_slice(&u64::MAX.to_le_bytes());
+        exhausted[8] = 1;
+        exhausted[9..17].copy_from_slice(&9u64.to_le_bytes());
+        replica
+            .update(|state, _| {
+                state.session_limit = MinRegister::decode(&exhausted)?;
+                Ok(())
+            })
+            .unwrap();
+        reject(&["edit", "2", "2", "3", "4"], Error::Exhausted);
+        replica
+            .update(|state, _| {
+                state.weekly_goal = MaxRegister::decode(&exhausted)?;
+                Ok(())
+            })
+            .unwrap();
+        reject(&["edit", "3", "2", "3", "4"], Error::Exhausted);
+        assert_eq!(replica.read_at(&initial).unwrap(), initial_progress);
     }
 }
