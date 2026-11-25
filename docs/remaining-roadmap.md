@@ -948,3 +948,40 @@ and the Linux archive SHA-256 is
 `fe401ab8c6c647eca464abcba75fbdd073b43ce1245b266557986c71f267a7d6`.
 Reconciliation found 10,639 decisions, zero binding failures and 1,850
 runtime, 26 driver and 7,396 tooling gaps. Compiler MC/DC remains open.
+
+### Same-source distributed workloads at 4a37229
+
+The authenticated snapshot month and two-peer Study workload ran against
+the four-platform package checkpoint. Both used a native macOS arm64/APFS
+client and Docker Linux arm64/ext4 on the same physical Mac. Both compilers
+reported Rust 1.100.0. Both campaigns retired their owned container and
+volume. The [checkpoint manifest](delivery-checkpoint-4a37229.sha256)
+pins the workload archives.
+
+The snapshot primary made 31 installations and 32 polls. On each of the
+30 workload days its local revision was one ahead of the captured revision.
+Days 7, 14, 21 and 28 lost the shipping reply. A separate poll returned the
+durable captured revision in each case. The final export and reopened
+follower matched byte for byte at revision 93 (36,851,712 bytes).
+Fresh extraction verified 124 artifact hashes and the 31 raw CSV rows.
+
+| Snapshot operation | Samples | Median | p95 |
+|---|---:|---:|---:|
+| Local commit | 30 | 11.7 ms | 17.6 ms |
+| Capture | 30 | 114.6 ms | 265.2 ms |
+| Ship with a reply | 26 | 151.2 ms | 279.0 ms |
+| Poll | 30 | 1.4 ms | 14.7 ms |
+
+Percentiles use nearest rank across workload days. The final catch-up export
+is excluded. These measurements include Docker Desktop networking and
+concurrent host qualification activity.
+
+Both Study peers converged each round and held their revisions on repeat
+sync. Six paired interruptions preserved the recorded states on reopening.
+At round 30 both peers reported revision 64, 1,395 minutes, weekly goal
+230, daily limit 10 and lessons 2–61. The archive restored both final
+database hashes, the round observations and all 14 process exit receipts.
+It contains 231 of the 233 inventoried artifacts. The two synthetic private
+keys were hash-checked in the private working directory and omitted from
+the archive. Intended-device operation and owner-approved latency budgets
+remain open.
