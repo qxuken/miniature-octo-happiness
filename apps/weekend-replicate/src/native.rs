@@ -68,8 +68,10 @@ fn ack_line(ack: Option<DurableAck>) -> String {
     }
 }
 fn print_report(args: std::fmt::Arguments<'_>) -> AppResult<()> {
+    write_report(&mut io::stdout().lock(), args)
+}
+fn write_report(output: &mut impl Write, args: std::fmt::Arguments<'_>) -> AppResult<()> {
     diagnostics::at(Phase::LocalCommand, || {
-        let mut output = io::stdout().lock();
         writeln!(output, "{args}")?;
         output.flush()?;
         Ok(())
@@ -104,10 +106,7 @@ fn option(
 }
 pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
     match args.as_slice() {
-        [c] if c == "--help" || c == "-h" => {
-            println!("{USAGE}");
-            Ok(())
-        }
+        [c] if c == "--help" || c == "-h" => print_report(format_args!("{USAGE}")),
         [c, dir] if c == "keygen" => diagnostics::at(Phase::CredentialsLoad, || {
             Credentials::create(Path::new(dir))
         }),
@@ -116,18 +115,14 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let info = diagnostics::storage(Phase::StorageVerify, || {
                 weekend_db::storage::inspect_file(source, Limits::default())
             })?;
-            println!(
-                "local verified_revision={} stream={} file_identity={}",
+            print_report(format_args!(
+                "local verified_revision={} stream={} file_identity={}\nweekend-replicate follower-init EMPTY_DIR {} {}",
                 info.revision,
                 hex(&stream),
-                hex(&info.identity)
-            );
-            println!(
-                "weekend-replicate follower-init EMPTY_DIR {} {}",
+                hex(&info.identity),
                 hex(&stream),
                 hex(&info.identity)
-            );
-            Ok(())
+            ))
         }
         [c, dir, stream, file] if c == "follower-init" => {
             let e = enrollment(stream, file)?;
@@ -290,15 +285,24 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let mut primary =
                 diagnostics::storage(Phase::Replication, || Primary::new(&db, stream))?;
             drop(db);
-            println!("local verified_revision={revision}");
-            let channel = diagnostics::at(Phase::Connect, || tls.connect(address))?;
-            let ack = diagnostics::storage(Phase::Replication, || primary.poll(channel))?;
-            println!("{}", ack_line(ack));
-            Ok(())
+            poll(&mut primary, &tls, address, revision, &mut io::stdout())
         }
         _ => Err(USAGE.into()),
     }
 }
+fn poll(
+    primary: &mut Primary,
+    tls: &Tls,
+    address: SocketAddr,
+    revision: u64,
+    output: &mut impl Write,
+) -> AppResult<()> {
+    write_report(output, format_args!("local verified_revision={revision}"))?;
+    let channel = diagnostics::at(Phase::Connect, || tls.connect(address))?;
+    let ack = diagnostics::storage(Phase::Replication, || primary.poll(channel))?;
+    write_report(output, format_args!("{}", ack_line(ack)))
+}
+
 struct Prepared {
     primary: Primary,
     export: Export,

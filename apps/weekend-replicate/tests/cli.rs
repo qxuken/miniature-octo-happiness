@@ -182,6 +182,26 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     credentials(&b);
     let a_pin = a.join("cert.der");
     let b_pin = b.join("cert.der");
+    let mut help = Command::new(BIN);
+    help.args(["--diagnostics=json", "--help"]);
+    run_with_closed_stdout(help);
+    let mut describe = Command::new(BIN);
+    describe.args(["--diagnostics=json", "describe", source, stream]);
+    run_with_closed_stdout(describe);
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let mut poll = Command::new(BIN);
+    poll.args(["--diagnostics=json", "poll", source, stream, &address])
+        .arg(&a)
+        .arg(&b_pin);
+    run_with_closed_stdout(poll);
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+
     let server_args = [
         "serve",
         follower,

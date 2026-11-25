@@ -727,26 +727,26 @@ fn saved_capture_checks_lineage_revision_length_and_digest_before_delivery() {
     assert_eq!(fs::read(&path).unwrap(), primary_bytes);
 }
 
+struct FailingFlush {
+    bytes: Vec<u8>,
+    remaining_flushes: usize,
+}
+impl Write for FailingFlush {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.bytes.write(bytes)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if self.remaining_flushes == 0 {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        self.remaining_flushes -= 1;
+        Ok(())
+    }
+}
+
 #[test]
 fn capture_output_and_durable_acknowledgment_fail_independently() {
-    struct FailingFlush {
-        bytes: Vec<u8>,
-        remaining_flushes: usize,
-    }
-    impl Write for FailingFlush {
-        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-            self.bytes.write(bytes)
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            if self.remaining_flushes == 0 {
-                return Err(io::ErrorKind::BrokenPipe.into());
-            }
-            self.remaining_flushes -= 1;
-            Ok(())
-        }
-    }
-
     let dir = Directory::new();
     let path = source(&dir);
     let image = dir.0.join("export");
@@ -862,6 +862,105 @@ fn capture_output_and_durable_acknowledgment_fail_independently() {
     served.unwrap();
     assert_eq!(polled.unwrap(), Some(ack));
     assert_eq!(reopened.status().unwrap().manifest_bytes, manifest);
+}
+
+#[test]
+fn poll_output_preserves_local_revision_and_follower_receipt() {
+    let dir = Directory::new();
+    let path = source(&dir);
+    let stream = [1; 16];
+    let mut prepared = prepare(&path, stream, &dir.0.join("export")).unwrap();
+    let enrollment = prepared.primary.enrollment();
+    let (client, server) = pair();
+    let mut receiver = follower(&dir, enrollment);
+    let (sent, served) = exchange(&mut receiver, &server, |address| {
+        ship(&mut prepared, &client, address, 1)
+    });
+    let receipt = sent.unwrap();
+    served.unwrap();
+    assert_eq!(receipt.revision, 4);
+    drop(receiver);
+    let follower_path = dir.0.join("follower");
+    let manifest = follower_path.join("replica-manifest.wdb");
+    let original = fs::read(&manifest).unwrap();
+    let mut receiver = Follower::open(&follower_path, enrollment, Limits::default()).unwrap();
+
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    let mut tx = db.begin();
+    tx.put(db.collection_id(1), b"key", &db.unsigned(3).unwrap())
+        .unwrap();
+    assert_eq!(tx.commit(), Ok(5));
+    drop(tx);
+    let revision = db.snapshot().revision();
+    let mut primary = Primary::new(&db, stream).unwrap();
+    drop(db);
+    let local = "local verified_revision=5\n";
+    let reports = format!("{local}{}\n", ack_line(Some(receipt)));
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "poll".into()],
+    );
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut output = FailingFlush {
+        bytes: Vec::new(),
+        remaining_flushes: 0,
+    };
+    let (failed, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+        poll(
+            &mut primary,
+            &client,
+            listener.local_addr().unwrap(),
+            revision,
+            &mut output,
+        )
+    });
+    let error = failed.unwrap_err();
+    assert_eq!(
+        error.downcast_ref::<io::Error>().map(io::Error::kind),
+        Some(io::ErrorKind::BrokenPipe)
+    );
+    assert!(
+        diagnostic
+            .unwrap()
+            .json(settings)
+            .to_string()
+            .contains(r#""phase":"local_command","category":"io","code":"broken_pipe""#)
+    );
+    assert_eq!(output.bytes, local.as_bytes());
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
+
+    let mut output = FailingFlush {
+        bytes: Vec::new(),
+        remaining_flushes: 1,
+    };
+    let (observed, served) = exchange(&mut receiver, &server, |address| {
+        poll(&mut primary, &client, address, revision, &mut output)
+    });
+    served.unwrap();
+    assert_eq!(
+        observed
+            .unwrap_err()
+            .downcast_ref::<io::Error>()
+            .map(io::Error::kind),
+        Some(io::ErrorKind::BrokenPipe)
+    );
+    assert_eq!(output.bytes, reports.as_bytes());
+
+    let mut output = Vec::new();
+    let (observed, served) = exchange(&mut receiver, &server, |address| {
+        poll(&mut primary, &client, address, revision, &mut output)
+    });
+    served.unwrap();
+    observed.unwrap();
+    assert_eq!(output, reports.as_bytes());
+    check(&receiver, receipt, 2);
+    drop(receiver);
+    assert_eq!(fs::read(&manifest).unwrap(), original);
 }
 
 #[test]

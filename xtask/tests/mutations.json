@@ -17313,6 +17313,66 @@
       "matches": 1,
       "package": "weekend-replicate",
       "exact_test": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+    },
+    {
+      "name": "r1-snapshot-command-output-help",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "print_report(format_args!(\"{USAGE}\"))",
+      "new": "{ println!(\"{USAGE}\"); Ok(()) }",
+      "test": "cli",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+    },
+    {
+      "name": "r1-snapshot-command-output-describe",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "            print_report(format_args!(\n                \"local verified_revision={} stream={} file_identity={}\\nweekend-replicate follower-init EMPTY_DIR {} {}\",\n                info.revision,\n                hex(&stream),\n                hex(&info.identity),\n                hex(&stream),\n                hex(&info.identity)\n            ))",
+      "new": "            println!(\n                \"local verified_revision={} stream={} file_identity={}\\nweekend-replicate follower-init EMPTY_DIR {} {}\",\n                info.revision,\n                hex(&stream),\n                hex(&info.identity),\n                hex(&stream),\n                hex(&info.identity)\n            );\n            Ok(())",
+      "test": "cli",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+    },
+    {
+      "name": "r1-snapshot-command-output-poll-local",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "write_report(output, format_args!(\"local verified_revision={revision}\"))?",
+      "new": "write_report(output, format_args!(\"local verified_revision={revision}\")).map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::poll_output_preserves_local_revision_and_follower_receipt"
+    },
+    {
+      "name": "r1-snapshot-command-output-report-flush",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "writeln!(output, \"{args}\")?;\n        output.flush()?;",
+      "new": "writeln!(output, \"{args}\")?;\n        output.flush().map_err(|_| Error::Invalid)?;",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::poll_output_preserves_local_revision_and_follower_receipt"
+    },
+    {
+      "name": "r1-snapshot-command-output-poll-receipt",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "write_report(output, format_args!(\"{}\", ack_line(ack)))",
+      "new": "write_report(output, format_args!(\"{}\", ack_line(ack))).or(Ok(()))",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::poll_output_preserves_local_revision_and_follower_receipt"
     }
   ]
 }
