@@ -12658,6 +12658,102 @@
       "matches": 1,
       "package": "weekend-db",
       "exact_test": "retained_catalog_reads_preserve_state_when_listing_allocation_fails"
+    },
+    {
+      "name": "r1-snapshot-read-key-length",
+      "file": "src/engine.rs",
+      "old": "key.len() > db.limits().max_bytes",
+      "new": "key.len() >= db.limits().max_bytes",
+      "test": "engine_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "snapshot_collection_and_key_errors_have_valid_controls"
+    },
+    {
+      "name": "r1-snapshot-read-get-store",
+      "file": "src/engine.rs",
+      "old": "    pub fn get(&self, id: CollectionId, k: &[u8]) -> Result<Option<Value>> {\n        self.db.check_collection(id)?;",
+      "new": "    pub fn get(&self, id: CollectionId, k: &[u8]) -> Result<Option<Value>> {\n        self.db.check_collection(id).map_err(|_| Error::Invalid)?;",
+      "test": "engine_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "snapshot_collection_and_key_errors_have_valid_controls"
+    },
+    {
+      "name": "r1-snapshot-read-get-missing",
+      "file": "src/engine.rs",
+      "old": "        key(self.db, k)?;\n        Ok(collection(&self.head, id)?",
+      "new": "        key(self.db, k)?;\n        Ok(collection(&self.head, id).map_err(|_| Error::Invalid)?",
+      "test": "engine_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "snapshot_collection_and_key_errors_have_valid_controls"
+    },
+    {
+      "name": "r1-snapshot-read-get-key",
+      "file": "src/engine.rs",
+      "old": "        key(self.db, k)?;\n        Ok(collection(&self.head, id)?",
+      "new": "        key(self.db, k).map_err(|_| Error::Invalid)?;\n        Ok(collection(&self.head, id)?",
+      "test": "engine_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "snapshot_collection_and_key_errors_have_valid_controls"
+    },
+    {
+      "name": "r1-snapshot-read-scan-store",
+      "file": "src/engine.rs",
+      "old": "    pub fn scan(&self, id: CollectionId) -> Result<Rows> {\n        self.db.check_collection(id)?;",
+      "new": "    pub fn scan(&self, id: CollectionId) -> Result<Rows> {\n        self.db.check_collection(id).map_err(|_| Error::Invalid)?;",
+      "test": "engine_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "snapshot_collection_and_key_errors_have_valid_controls"
+    },
+    {
+      "name": "r1-snapshot-read-scan-missing",
+      "file": "src/engine.rs",
+      "old": "        rows(self.db, &collection(&self.head, id)?.records)",
+      "new": "        rows(self.db, &collection(&self.head, id).map_err(|_| Error::Invalid)?.records)",
+      "test": "engine_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "snapshot_collection_and_key_errors_have_valid_controls"
+    },
+    {
+      "name": "r1-snapshot-read-count-store",
+      "file": "src/engine.rs",
+      "old": "    pub fn count(&self, id: CollectionId) -> Result<usize> {\n        self.db.check_collection(id)?;",
+      "new": "    pub fn count(&self, id: CollectionId) -> Result<usize> {\n        self.db.check_collection(id).map_err(|_| Error::Invalid)?;",
+      "test": "engine_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "snapshot_collection_and_key_errors_have_valid_controls"
+    },
+    {
+      "name": "r1-snapshot-read-count-missing",
+      "file": "src/engine.rs",
+      "old": "        Ok(collection(&self.head, id)?.records.len())",
+      "new": "        Ok(collection(&self.head, id).map_err(|_| Error::Invalid)?.records.len())",
+      "test": "engine_decisions",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "snapshot_collection_and_key_errors_have_valid_controls"
     }
   ]
 }

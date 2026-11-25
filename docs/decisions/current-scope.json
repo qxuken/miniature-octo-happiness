@@ -297,7 +297,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "9fee54936c105f1740283522f49d129eac81844225da0f26efd94cf83a15a837",
+    "xtask/tests/mutations.json": "6c2ea603b0cdd3047db0bc12ea29f4ab12349996dfadde97d05664cfa18ec52a",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -22657,6 +22657,196 @@
       ],
       "mutations": [
         "r1-catalog-read-retained-ids-owned-reserve"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-READ-KEY-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "key",
+        "kind": "if",
+        "conditions": [
+          "key.len() > db.limits().max_bytes"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-read-key-length"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-READ-GET-STORE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "get",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.db.check_collection(id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-read-get-store"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-READ-GET-MISSING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "get",
+        "kind": "try_propagation",
+        "conditions": [
+          "collection(&self.head, id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-read-get-missing"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-READ-GET-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "get",
+        "kind": "try_propagation",
+        "conditions": [
+          "key(self.db, k)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-read-get-key"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-READ-SCAN-STORE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "scan",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.db.check_collection(id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-read-scan-store"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-READ-SCAN-MISSING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "scan",
+        "kind": "try_propagation",
+        "conditions": [
+          "collection(&self.head, id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-read-scan-missing"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-READ-COUNT-STORE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "count",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.db.check_collection(id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-read-count-store"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-READ-COUNT-MISSING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "count",
+        "kind": "try_propagation",
+        "conditions": [
+          "collection(&self.head, id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-read-count-missing"
       ]
     }
   ],
