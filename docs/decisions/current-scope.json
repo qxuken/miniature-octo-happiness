@@ -414,7 +414,7 @@
     "docs/decisions/study-cli-admission-current.md": "ce52224f8a52a09cf0c353c04c21207c3bc5be3ce6ce599a83520337bfd49d15",
     "docs/decisions/study-interactive-io-current.md": "033cf798c68c87fe2f4ec560d5adf70d1d16cfa95daa18b3dc46ccbbda3d6627",
     "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
-    "docs/decisions/study-peer-status-current.md": "3fe1ea47fd706eed2bed2e47886fcb24134ec45fc4f36f58d173e9d56b050024"
+    "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

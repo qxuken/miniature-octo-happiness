@@ -2043,3 +2043,15 @@ were detected in debug and release on macOS and Docker Linux.
 Reconciliation leaves 468 runtime and 7,514 tooling gaps. The startup
 ledger keeps worker lifecycle and the peer status outcome matrix open.
 [Study service startup ledger](decisions/study-service-startup-current.md)
+
+### Study outgoing retry and shutdown
+
+At `cc7d291`, the paired peer test observes a local edit, failed connection,
+successful retry, and repeat acknowledgment while B stays at revision 3
+after its first commit. The failed connection reports zero text-mode
+acknowledgments, and the JSON mode reports the native refusal. Both
+workers quit after pushing is disabled, and B reopens with the acknowledged
+state. All seven mutation controls were detected in debug and release on
+macOS and Docker Linux. Reconciliation leaves 461 runtime and 7,514 tooling
+gaps. Native join failures and incoming admission remain open.
+[Outgoing peer status ledger](decisions/study-peer-status-current.md)
