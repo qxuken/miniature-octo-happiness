@@ -1156,14 +1156,20 @@ struct Worker {
     lines: Receiver<String>,
 }
 
+#[derive(Default)]
+struct WorkerOptions {
+    pause_reply: bool,
+    structured: bool,
+    report_session: bool,
+}
+
 impl Worker {
     fn start(
         dir: &Path,
         actor: &str,
         listen: SocketAddr,
         peer: SocketAddr,
-        pause_reply: bool,
-        structured: bool,
+        options: WorkerOptions,
     ) -> Self {
         let mut child = Command::new(std::env::current_exe().unwrap())
             .args([
@@ -1178,11 +1184,15 @@ impl Worker {
             .env("STUDY_PEER_TEST_PEER", peer.to_string())
             .env(
                 "STUDY_PEER_TEST_PAUSE",
-                if pause_reply { "yes" } else { "no" },
+                if options.pause_reply { "yes" } else { "no" },
             )
             .env(
                 "STUDY_PEER_TEST_JSON",
-                if structured { "yes" } else { "no" },
+                if options.structured { "yes" } else { "no" },
+            )
+            .env(
+                "STUDY_PEER_TEST_SESSION",
+                if options.report_session { "yes" } else { "no" },
             )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -1338,6 +1348,7 @@ fn two_writers_recover_a_lost_ack() {
             .unwrap(),
         };
         let enabled = std::env::var("STUDY_PEER_TEST_PAUSE").unwrap() == "yes";
+        let report_session = std::env::var("STUDY_PEER_TEST_SESSION").unwrap() == "yes";
         let options = RunOptions {
             pushing: false,
             sync_only: false,
@@ -1348,9 +1359,11 @@ fn two_writers_recover_a_lost_ack() {
         }
         let settings = diagnostics::settings_from_args(diagnostics::App::Study, &mut arguments);
         diagnostics::capture(settings, Phase::Arguments, || {
-            run(&db, enrollment, network, options, |stream| PauseReply {
-                stream,
-                enabled,
+            run(&db, enrollment, network, options, |stream| {
+                if report_session {
+                    println!("session-ready");
+                }
+                PauseReply { stream, enabled }
             })
         })
         .0
@@ -1367,10 +1380,19 @@ fn two_writers_recover_a_lost_ack() {
     let dynamic = "127.0.0.1:0".parse().unwrap();
     let reserved = TcpListener::bind(dynamic).unwrap();
     let b_address = reserved.local_addr().unwrap();
-    let mut a = Worker::start(&dir.0, "a", dynamic, b_address, false, false);
+    let mut a = Worker::start(&dir.0, "a", dynamic, b_address, WorkerOptions::default());
     let a_address = a.ready();
     drop(reserved);
-    let mut b = Worker::start(&dir.0, "b", b_address, a_address, true, false);
+    let mut b = Worker::start(
+        &dir.0,
+        "b",
+        b_address,
+        a_address,
+        WorkerOptions {
+            pause_reply: true,
+            ..WorkerOptions::default()
+        },
+    );
     assert_eq!(b.ready(), b_address);
 
     assert_eq!(a.command("edit 1 20 60 20"), "local 3");
@@ -1385,7 +1407,7 @@ fn two_writers_recover_a_lost_ack() {
 
     let failure = a.wait_for("peer", |line| line.starts_with("peer 0 error "));
     assert_eq!(failure, "peer 0 error Io");
-    let mut b = Worker::start(&dir.0, "b", b_address, a_address, false, false);
+    let mut b = Worker::start(&dir.0, "b", b_address, a_address, WorkerOptions::default());
     assert_eq!(b.ready(), b_address);
     a.wait_for("peer", |line| ack_count(line, 40) > 0);
     assert_eq!(a.command("show"), "state 3 20 [60] [20] [1]");
@@ -1410,7 +1432,7 @@ fn paused_peer_reports_idle_errors_and_quits_cleanly() {
     Credentials::generate().unwrap().write_fixture(&other);
     initialize(&path, enrollment).unwrap();
     let dynamic = "127.0.0.1:0".parse().unwrap();
-    let mut worker = Worker::start(&dir.0, "a", dynamic, dynamic, false, false);
+    let mut worker = Worker::start(&dir.0, "a", dynamic, dynamic, WorkerOptions::default());
     worker.ready();
     assert_eq!(worker.command("peer"), "peer 0 idle");
     assert!(worker.command("unknown").starts_with("error "));
@@ -1452,7 +1474,16 @@ fn peer_reports_connect_failure_then_acknowledges_retry() {
                 }
             }
         };
-        let mut a = Worker::start(&dir.0, "a", dynamic, b_address, false, structured);
+        let mut a = Worker::start(
+            &dir.0,
+            "a",
+            dynamic,
+            b_address,
+            WorkerOptions {
+                structured,
+                ..WorkerOptions::default()
+            },
+        );
         a.ready();
         assert_eq!(a.command("practice 7"), "local 3");
         assert_eq!(a.command("peer"), "peer 0 idle");
@@ -1519,6 +1550,95 @@ fn peer_reports_connect_failure_then_acknowledges_retry() {
             enrollment.actor,
         )
         .unwrap();
+        assert_eq!(replica.read().unwrap().practice_minutes.total(), 7);
+    }
+}
+
+#[test]
+fn incoming_peer_disconnect_preserves_the_error_and_allows_a_retry() {
+    for structured in [false, true] {
+        let dir = Directory::new();
+        for actor in ["a", "b"] {
+            let (path, identity, _, enrollment) = config(&dir.0, actor);
+            Credentials::generate().unwrap().write_fixture(&identity);
+            initialize(&path, enrollment).unwrap();
+        }
+        let (sender, identity, pin, sender_enrollment) = config(&dir.0, "a");
+        let (receiver, _, _, receiver_enrollment) = config(&dir.0, "b");
+        let client = Tls::new(
+            &Credentials::load(&identity).unwrap(),
+            fs::read(pin).unwrap().into(),
+        )
+        .unwrap();
+        let original = fs::read(&receiver).unwrap();
+        let dynamic = "127.0.0.1:0".parse().unwrap();
+        let mut b = Worker::start(
+            &dir.0,
+            "b",
+            dynamic,
+            dynamic,
+            WorkerOptions {
+                structured,
+                report_session: true,
+                ..WorkerOptions::default()
+            },
+        );
+        let address = b.ready();
+        let aborted = client.connect(address).unwrap();
+        assert_eq!(b.line(), "session-ready");
+        drop(aborted);
+        let failed = b.wait_for("incoming", |line| {
+            line.contains("failed=1") || line.contains("\"failed\":1")
+        });
+        if structured {
+            assert!(failed.contains(
+                "\"phase\":\"incoming\",\"served\":0,\"failed\":1,\"busy\":0,\"last\":{\"phase\":\"replication\",\"category\":\"engine\",\"code\":\"Io\""
+            ));
+        } else {
+            assert_eq!(failed, "incoming served=0 failed=1 busy=0 error Io");
+        }
+        assert_eq!(b.command("show"), "state 2 0 [] [] []");
+        assert_eq!(fs::read(&receiver).unwrap(), original);
+
+        let db = Database::open_file(&sender, Limits::default()).unwrap();
+        let replica = StudyReplica::open(
+            &db,
+            db.collection_id(COLLECTION_ROW),
+            sender_enrollment.policy,
+            sender_enrollment.actor,
+        )
+        .unwrap();
+        assert_eq!(
+            command(&["practice", "7"], &db, &replica).unwrap(),
+            "local 3"
+        );
+        let ack = replica
+            .push_authenticated(client.connect(address).unwrap())
+            .unwrap();
+        assert_eq!(ack.actor, receiver_enrollment.actor);
+        assert_eq!(ack.policy, receiver_enrollment.policy);
+        assert_eq!(ack.state.practice_minutes.total(), 7);
+        assert_eq!(b.line(), "session-ready");
+        let served = b.wait_for("incoming", |line| {
+            line.contains("served=1") || line.contains("\"served\":1")
+        });
+        if structured {
+            assert!(served.contains("\"served\":1,\"failed\":1,\"busy\":0"));
+        } else {
+            assert_eq!(served, "incoming served=1 failed=1 busy=0 error Io");
+        }
+        assert_eq!(b.command("show"), "state 3 7 [] [] []");
+        b.quit();
+
+        let db = Database::open_file(&receiver, Limits::default()).unwrap();
+        let replica = StudyReplica::open(
+            &db,
+            db.collection_id(COLLECTION_ROW),
+            receiver_enrollment.policy,
+            receiver_enrollment.actor,
+        )
+        .unwrap();
+        assert_eq!(db.snapshot().revision(), 3);
         assert_eq!(replica.read().unwrap().practice_minutes.total(), 7);
     }
 }

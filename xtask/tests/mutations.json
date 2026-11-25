@@ -17049,6 +17049,30 @@
       "matches": 1,
       "package": "study-peer",
       "exact_test": "native::tests::shutdown_joins_both_service_workers_before_reporting_errors"
+    },
+    {
+      "name": "r1-study-receive-application-error",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::storage(Phase::Replication, || {\n                        receiving_replica.serve_authenticated(incoming(stream))\n                    })?",
+      "new": "diagnostics::storage(Phase::Replication, || {\n                        receiving_replica.serve_authenticated(incoming(stream))\n                    }).map_err(|_| Error::Invalid)?",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::incoming_peer_disconnect_preserves_the_error_and_allows_a_retry"
+    },
+    {
+      "name": "r1-study-receive-application-phase",
+      "file": "apps/study-peer/src/native.rs",
+      "old": "diagnostics::storage(Phase::Replication, || {\n                        receiving_replica.serve_authenticated(incoming(stream))\n                    })",
+      "new": "diagnostics::storage(Phase::Incoming, || {\n                        receiving_replica.serve_authenticated(incoming(stream))\n                    })",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::tests::incoming_peer_disconnect_preserves_the_error_and_allows_a_retry"
     }
   ]
 }
