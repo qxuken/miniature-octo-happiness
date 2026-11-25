@@ -226,3 +226,18 @@ finding. That independent smoke has its own workload/source bindings and is not
 pooled into the performance samples. This report does not close larger-state/history,
 concurrency, cold-cache, sustained throughput, long-duration, other-platform,
 crash/power-loss, alternative SQLite-schema/tuning or actual storage-device gates.
+
+## Comparison at 5f49a59
+
+Three alternating-order rounds on macOS compared the same 32-key history
+with four durable pins per round. Both engines verified the current and
+four retained maps through reopen, backup, restore and compaction.
+
+| Engine | Commit p50 | Commit p95 | Commit p99 | Durable pin p50 |
+| --- | ---: | ---: | ---: | ---: |
+| Weekend DB | 8.996 ms | 10.003 ms | 11.052 ms | 8.972 ms |
+| SQLite | 0.435 ms | 0.818 ms | 0.927 ms | 0.403 ms |
+
+Each row pools 192 data commits and 12 separately timed pins. These
+observations cover the local single-writer fixture. The accelerated
+two-peer workload and deployed service budgets have separate evidence.
