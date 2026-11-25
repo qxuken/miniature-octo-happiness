@@ -907,3 +907,22 @@ An invocation check confirmed all three toolchain/budget combinations and
 verified that an injected nonzero status from either replay fails the shell
 step despite transcript capture. Actionlint 1.7.12 passed. Hosted extended
 qualification requires its own restored campaign receipt.
+
+### Hosted sanitizer and atomic model results at 4a37229
+
+PR #82 run 45604499033 built the same merge revision as the four-platform
+package checkpoint. Across its four diagnostic campaigns, the downloaded
+archives matched GitHub's digests. All 363 recorded source hashes in each
+campaign matched the frozen checkout. All 41 command records matched the
+saved process reports and output lengths and verified process cleanup.
+
+| Campaign | Observed result |
+|---|---|
+| Linux workspace ASan | 937 passed, 8 ignored across 65 test summaries |
+| macOS workspace TSan | 893 passed, 8 ignored across 65 test summaries. Both deliberate races emitted a TSan data-race report and exited by SIGABRT. The errno reuse control succeeded. |
+| Linux C/Rust ASan | All three memory, thread and file consumers succeeded. Both invalid calibration cases reported a heap-buffer overflow and exited 86. Both valid controls succeeded. |
+| Bounded atomic models | All three baselines succeeded. All five broken variants exited 101 with the required assertion text. |
+
+The [checkpoint manifest](delivery-checkpoint-4a37229.sha256) pins the three
+downloaded archives. These results cover instrumented builds. The exact
+delivered libraries have their separate consumer traces.
