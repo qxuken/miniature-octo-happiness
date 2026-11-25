@@ -76,12 +76,14 @@ fn main() {
     let mut rounds = 0;
     let mut total_reads = 0;
     while rounds < max_rounds && start.elapsed() < Duration::from_secs(seconds) {
+        let round_started = Instant::now();
         let db = Database::open_file(&path, limits()).unwrap();
         let pinned = db.snapshot();
         let old = rounds * WRITES;
         let barrier = Barrier::new(5);
         let stop = AtomicBool::new(false);
         let reads = AtomicU64::new(0);
+        let writers_started = Instant::now();
         std::thread::scope(|scope| {
             let readers: Vec<_> = (0..2)
                 .map(|_| {
@@ -129,6 +131,7 @@ fn main() {
                 reader.join().unwrap();
             }
         });
+        let concurrent_ns = writers_started.elapsed().as_nanos();
         rounds += 1;
         total_reads += reads.load(Ordering::Relaxed);
         assert!(reads.load(Ordering::Relaxed) > 0);
@@ -155,15 +158,23 @@ fn main() {
         let usage = db.memory_usage();
         drop(db);
         let before = std::fs::metadata(&path).unwrap().len();
+        let compact_started = Instant::now();
         Database::compact_file(&path, limits()).unwrap();
+        let compact_ns = compact_started.elapsed().as_nanos();
         let after = std::fs::metadata(&path).unwrap().len();
         assert!(after <= before);
         assert!(before < 32 * 1024 * 1024);
+        let reopen_started = Instant::now();
         let db = Database::open_file(&path, limits()).unwrap();
         verify(&db, rounds * WRITES, &retained, revision);
         drop(db);
+        let reopen_ns = reopen_started.elapsed().as_nanos();
+        let backup_started = Instant::now();
         storage::backup_file(&path, &backup, limits()).unwrap();
+        let backup_ns = backup_started.elapsed().as_nanos();
+        let restore_started = Instant::now();
         storage::restore_file(&backup, &restore, limits()).unwrap();
+        let restore_ns = restore_started.elapsed().as_nanos();
         for file in [&backup, &restore] {
             let db = Database::open_file(file, limits()).unwrap();
             verify(&db, rounds * WRITES, &retained, revision);
@@ -171,8 +182,9 @@ fn main() {
         }
         std::fs::remove_file(&backup).unwrap();
         std::fs::remove_file(&restore).unwrap();
+        let round_ns = round_started.elapsed().as_nanos();
         println!(
-            "{{\"round\":{rounds},\"elapsed_ms\":{},\"revision\":{revision},\"reads\":{total_reads},\"retained\":{},\"live_bytes\":{},\"peak_bytes\":{},\"append_bytes\":{before},\"compacted_bytes\":{after}}}",
+            "{{\"round\":{rounds},\"elapsed_ms\":{},\"revision\":{revision},\"reads\":{total_reads},\"retained\":{},\"live_bytes\":{},\"peak_bytes\":{},\"append_bytes\":{before},\"compacted_bytes\":{after},\"timing_ns\":{{\"round\":{round_ns},\"concurrent\":{concurrent_ns},\"compact\":{compact_ns},\"reopen\":{reopen_ns},\"backup\":{backup_ns},\"restore\":{restore_ns}}}}}",
             start.elapsed().as_millis(),
             retained.len(),
             usage.live_bytes,

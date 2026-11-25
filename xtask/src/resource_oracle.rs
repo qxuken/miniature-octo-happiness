@@ -331,7 +331,7 @@ fn sustained_digest(cycle: u64) -> u64 {
 }
 
 #[cfg(unix)]
-fn latency_samples(mut samples: Vec<u64>) -> Value {
+pub(crate) fn latency_samples(mut samples: Vec<u64>) -> Value {
     samples.sort_unstable();
     let rank = |percent: usize| samples[(samples.len() * percent).div_ceil(100) - 1];
     json!({

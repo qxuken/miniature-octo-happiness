@@ -2,7 +2,9 @@
 use crate::{
     artifact_trace::inventory,
     assurance::{self, Campaign},
-    delivery, serialization_scale,
+    delivery,
+    resource_oracle::latency_samples,
+    serialization_scale,
     supervise::{self, Report, Request},
     support::{Run, cmd, path, sha},
 };
@@ -23,6 +25,14 @@ const IMAGE_CAP: u64 = 32 * 1024 * 1024;
 const MAX_ROUNDS: u64 = 100_000;
 const MAX_ROW: u64 = 4096;
 const HARNESS: &str = "tools/soak";
+const TIMING_FIELDS: [&str; 6] = [
+    "round",
+    "concurrent",
+    "compact",
+    "reopen",
+    "backup",
+    "restore",
+];
 
 #[derive(Args)]
 pub struct Options {
@@ -42,8 +52,10 @@ fn integer(row: &Value, name: &str) -> Result<u64> {
         .with_context(|| format!("invalid soak record {name}"))
 }
 
-fn summary(mut reader: impl BufRead, round_limit: u64) -> Result<Value> {
+fn summary(mut reader: impl BufRead, round_limit: u64) -> Result<(Value, Value)> {
     let (mut rounds, mut reads, mut elapsed) = (0_u64, 0, 0);
+    let mut cumulative_ns = 0_u128;
+    let mut timing_samples: [Vec<u64>; TIMING_FIELDS.len()] = Default::default();
     let mut line = Vec::new();
     loop {
         line.clear();
@@ -66,7 +78,11 @@ fn summary(mut reader: impl BufRead, round_limit: u64) -> Result<Value> {
                 reader.fill_buf()?.is_empty(),
                 "extra data after soak completion"
             );
-            return Ok(row);
+            let timings = TIMING_FIELDS
+                .into_iter()
+                .zip(timing_samples.map(latency_samples))
+                .collect::<BTreeMap<_, _>>();
+            return Ok((row, json!(timings)));
         }
         rounds += 1;
         ensure!(
@@ -87,6 +103,22 @@ fn summary(mut reader: impl BufRead, round_limit: u64) -> Result<Value> {
             "nonmonotonic progress"
         );
         (reads, elapsed) = (new_reads, new_elapsed);
+        let timing = &row["timing_ns"];
+        let round_ns = integer(timing, "round")?;
+        cumulative_ns += u128::from(round_ns);
+        timing_samples[0].push(round_ns);
+        let mut phase_ns = 0_u128;
+        for (samples, field) in timing_samples.iter_mut().zip(TIMING_FIELDS).skip(1) {
+            let measured = integer(timing, field)?;
+            samples.push(measured);
+            phase_ns += u128::from(measured);
+        }
+        ensure!(
+            round_ns > 0
+                && phase_ns <= u128::from(round_ns)
+                && cumulative_ns < (u128::from(elapsed) + 1) * 1_000_000,
+            "inconsistent soak stage timings"
+        );
         let (live, peak) = (integer(&row, "live_bytes")?, integer(&row, "peak_bytes")?);
         ensure!(
             live > 0 && live <= peak && peak <= CAP,
@@ -140,7 +172,7 @@ fn observe(
         result.failure,
         result.cleanup_failure
     );
-    let last = summary(BufReader::new(File::open(&request.stdout)?), round_limit)?;
+    let (last, timings) = summary(BufReader::new(File::open(&request.stdout)?), round_limit)?;
     if integer(&last, "rounds")? < round_limit {
         ensure!(
             integer(&last, "elapsed_ms")? >= seconds * 1000
@@ -149,6 +181,7 @@ fn observe(
         );
     }
     c.evidence["last_record"] = last;
+    c.evidence["round_timing_ns"] = timings;
     Ok(())
 }
 
@@ -269,6 +302,7 @@ mod tests {
                     "round":n,"elapsed_ms":n*10,"revision":2+65*n+n.saturating_sub(8),
                     "reads":n*2,"retained":n.min(8),"live_bytes":1,"peak_bytes":2,
                     "append_bytes":16384,"compacted_bytes":8192,
+                    "timing_ns":{"round":1000,"concurrent":10,"compact":20,"reopen":n,"backup":15,"restore":25},
                 })
             })
             .collect::<Vec<_>>();
@@ -283,9 +317,30 @@ mod tests {
         for count in [1, 8, 9] {
             let rows = records(count);
             assert_eq!(
-                summary(jsonl(&rows).as_bytes(), count).unwrap(),
+                summary(jsonl(&rows).as_bytes(), count).unwrap().0,
                 *rows.last().unwrap()
             );
+        }
+    }
+
+    #[test]
+    fn timing_summary_requires_measured_phases_and_checks_the_round_clock() {
+        let rows = records(100);
+        let (_, timing) = summary(jsonl(&rows).as_bytes(), 100).unwrap();
+        assert_eq!(
+            timing["reopen"],
+            json!({"count":100,"zero_ticks":0,"p50_ns":50,"p95_ns":95,"p99_ns":99,"max_ns":100})
+        );
+        for (stage, value) in [
+            ("backup", Value::Null),
+            ("restore", json!(-1)),
+            ("compact", json!(1001)),
+            ("round", json!(0)),
+            ("round", json!(11_000_000)),
+        ] {
+            let mut broken = rows.clone();
+            broken[0]["timing_ns"][stage] = value;
+            assert!(summary(jsonl(&broken).as_bytes(), 100).is_err(), "{stage}");
         }
     }
 

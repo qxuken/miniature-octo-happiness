@@ -149,7 +149,7 @@
     "tools/resource-envelope/src/space.rs": "f30a72044aa4a9aa98ca0c17e49b416bfdfc011e6b34f5f9c414bd11749b9da5",
     "tools/serialization-scale/src/main.rs": "0909b8979b84c66038abec340e86539bf10ada0df1f3d72e65672fc7708c01e8",
     "tools/snapshot-test-keygen.rs": "65ba364c6b8eecdb7a2449531002d2c7d61638ce34efc5807b9f68bcdd6d9456",
-    "tools/soak/src/main.rs": "566cd6367494efaec1c81955f5c0d1ca8ecc7f5dd0088895f32a493cdf7efb12",
+    "tools/soak/src/main.rs": "ceb9f10dcadcfef69d552a722cedef808364e2779e67f4a40c045b470dd12e14",
     "tools/sqlite-baseline/src/main.rs": "2297471dc12831bde01c8ca25b9c1dc91f7151e078547339f4e5ed075f1d23ce",
     "tools/sqlite-baseline/src/sqlite.rs": "cc5f57d4a114f45695d39760b9b1c6201948616d8ed54216f77b7199d4970e1d",
     "tools/sqlite-baseline/src/workload.rs": "b501e8c6cd62d9de0ca0056c8d67ca745bd021b9c5e3da6f56b76af427d7014d",
@@ -198,7 +198,7 @@
     "xtask/src/replica_progress.rs": "212a59707841e163ffab534b29e8dffbc524484f058606ef9e3dcfe79abe0ddf",
     "xtask/src/replica_progress/monitor.rs": "53081b155fe4a54391d4cee507f711013dcbac79cfb2c181963f05b26066061c",
     "xtask/src/resource_campaign.rs": "f88d70710ae259e743fb1a7ab041679b99af977c0e30b35afee14136f05bd25d",
-    "xtask/src/resource_oracle.rs": "6426ff26830ab4625908c04f791fdff7da181696f84469038d9a513728c16a3c",
+    "xtask/src/resource_oracle.rs": "a6b42fce472f9476f2ae918ddd2e9d5d90846277290a7103f97c130073f51ed5",
     "xtask/src/resource_probe.rs": "b6d8f07af61130877e29b84a062a7feb84502d62ef7a48bc4c50fad19d4c1c91",
     "xtask/src/rust_source.rs": "5b2e70c6ca96494204ea94d1adf8be2205135815724c321aa9739a2100434e17",
     "xtask/src/sanitizers.rs": "bc3f2dd6816c776d4345d0873c7a0b2dc8430e1852a67dd514992a271c85c2aa",
@@ -207,7 +207,7 @@
     "xtask/src/snapshot_proof.rs": "3a6f37f065f74bab278f2f6136cad970b979512f8daac485dabf77bc09811d0c",
     "xtask/src/snapshot_upgrade.rs": "acf857f2c4cc8a40b9a1f64651cdb39fcda163aa42e792b6d9e4479edf60b73f",
     "xtask/src/snapshot_upgrade_linux.rs": "daf6113e3e0039b56478371ec341d472f582c7fa5efb675cc59d46dc6c1ae853",
-    "xtask/src/soak.rs": "d7d0ecaf8bdf5346773bb8d416d54c405fc02e40ecaa483ae000649154b5b388",
+    "xtask/src/soak.rs": "0cd5c164d281c9c0ddf48a1aafd1bef5e602072633950a7c87ea4ce14bfdd14f",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
     "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
     "xtask/src/sqlite_baseline.rs": "2edb8f5f19c8bfd7917c90fd0da10fde1e1937748c05dbe43c502e7bc0d5b247",
@@ -468,7 +468,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 342,
-    "xtask::xtask": 5271
+    "xtask::xtask": 5274
   },
   "groups": [
     {

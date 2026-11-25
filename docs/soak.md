@@ -54,6 +54,16 @@ requested duration. Round duration may overshoot the deadline; the runner enforc
 accepted wall duration is 1–86,400 seconds. At four tiny records this is a bounded
 small-state lifecycle/concurrency workload, not a throughput benchmark.
 
+The driver now records durations per round for the concurrent writer/reader
+group, compaction, reopening and verifying the compacted file, backup and
+restore. It also records the full round duration, which includes retention
+and verification of the backup and restored files. The launcher checks
+that stage durations fit within their round and that round durations fit
+within the driver clock. Evidence includes sample count, zero-clock ticks,
+p50, p95, p99 and maximum nanoseconds for each stage using nearest rank.
+The concurrent duration describes a batch of 64 commits with readers
+running. Individual commit and queue times are outside this measurement.
+
 `sampled_peak_rss_kib` is the maximum child RSS observed at approximately 200 ms
 intervals through native process telemetry. The controller retains the peak
 and sample count. It can miss intermediate
