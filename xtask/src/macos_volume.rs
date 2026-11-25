@@ -19,21 +19,25 @@ const PLUTIL: &str = "/usr/bin/plutil";
 const SIZE: u64 = 256 * 1024 * 1024;
 const BLOCK: u64 = 4096;
 const DETACH_RETRY_DELAY_MS: [u64; 7] = [250, 500, 1_000, 1_500, 2_000, 3_000, 4_000];
-const DETACH_ATTEMPTS: usize = DETACH_RETRY_DELAY_MS.len() + 1;
 
 fn retry_detach(
     mut attempt: impl FnMut(usize) -> Result<crate::trace_process::Report>,
     mut on_busy: impl FnMut(u64),
 ) -> Result<()> {
-    for number in 0..DETACH_ATTEMPTS {
+    for (number, delay) in DETACH_RETRY_DELAY_MS
+        .into_iter()
+        .map(Some)
+        .chain([None])
+        .enumerate()
+    {
         let report = attempt(number)?;
         ensure!(
             report.qualifies(true),
             "detach supervision failed: {report:?}"
         );
-        match report.exit {
-            Some(0) => return Ok(()),
-            Some(16) if number + 1 < DETACH_ATTEMPTS => on_busy(DETACH_RETRY_DELAY_MS[number]),
+        match (report.exit, delay) {
+            (Some(0), _) => return Ok(()),
+            (Some(16), Some(delay)) => on_busy(delay),
             _ => anyhow::bail!(
                 "owned APFS detach failed on attempt {}: {report:?}",
                 number + 1
@@ -341,7 +345,11 @@ mod tests {
             (vec![0], true, 0),
             (vec![16, 0], true, 1),
             (vec![16, 16, 16, 16, 16, 0], true, 5),
-            (vec![16; DETACH_ATTEMPTS], false, DETACH_ATTEMPTS - 1),
+            (
+                vec![16; DETACH_RETRY_DELAY_MS.len() + 1],
+                false,
+                DETACH_RETRY_DELAY_MS.len(),
+            ),
             (vec![1], false, 0),
         ] {
             let mut calls = 0;
