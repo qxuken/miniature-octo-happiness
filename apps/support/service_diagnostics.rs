@@ -636,4 +636,330 @@ mod tests {
         assert!(json.contains("\"offset\":18446744073709551615"));
         assert!(json.ends_with("}}}"));
     }
+
+    #[test]
+    fn diagnostic_fields_reserve_the_terminator_and_propagate_full_buffers() {
+        use fmt::Write;
+        let base = classify(Phase::StorageVerify, &Error::Corrupt);
+        let native = NativeIoDiagnostic {
+            operation: NativeIoOperation::Read,
+            category: NativeIoCategory::DiskFull,
+            raw_os_error: Some(-28),
+        };
+        let verification = VerificationDiagnostic {
+            stage: VerificationStage::Directory,
+            offset: None,
+        };
+        for (detail, native_json, verification_json) in [
+            (base, "null", "null"),
+            (
+                Diagnostic {
+                    os_code: Some(2),
+                    ..base
+                },
+                r#"{"operation":null,"category":null,"os_code":2}"#,
+                "null",
+            ),
+            (
+                Diagnostic {
+                    native: Some(native),
+                    verification: Some(verification),
+                    ..base
+                },
+                r#"{"operation":"read","category":"disk_full","os_code":-28}"#,
+                r#"{"stage":"directory","offset":null}"#,
+            ),
+            (
+                Diagnostic {
+                    native: Some(NativeIoDiagnostic {
+                        category: NativeIoCategory::Quota,
+                        raw_os_error: None,
+                        ..native
+                    }),
+                    verification: Some(VerificationDiagnostic {
+                        offset: Some(u64::MAX),
+                        ..verification
+                    }),
+                    ..base
+                },
+                r#"{"operation":"read","category":"quota","os_code":null}"#,
+                r#"{"stage":"directory","offset":18446744073709551615}"#,
+            ),
+        ] {
+            let expected = format!(
+                r#""phase":"storage_verify","category":"engine","code":"Corrupt","native":{native_json},"verification":{verification_json}"#
+            );
+            for remaining in 0..=expected.len() {
+                let mut line = JsonLine::new();
+                let start = line.bytes.len() - 1 - remaining;
+                line.write_str(&".".repeat(start)).unwrap();
+                assert_eq!(
+                    detail.fields(&mut line).is_ok(),
+                    remaining == expected.len()
+                );
+                assert!(line.len < line.bytes.len());
+                assert!(line.bytes[..start].iter().all(|&byte| byte == b'.'));
+                assert!(
+                    expected
+                        .as_bytes()
+                        .starts_with(&line.bytes[start..line.len])
+                );
+                if remaining == expected.len() {
+                    assert_eq!(&line.bytes[start..line.len], expected.as_bytes());
+                    assert!(line.write_str("x").is_err());
+                }
+                assert_eq!(line.bytes[line.len..], vec![0; line.bytes.len() - line.len]);
+            }
+        }
+    }
+
+    #[test]
+    fn capture_propagates_only_the_current_failed_operation() {
+        for active in [false, true] {
+            let config = Settings {
+                enabled: active,
+                ..enabled()
+            };
+            let detail = classify(Phase::Shutdown, &Error::Busy);
+            for fails in [false, true] {
+                let (result, captured) = capture(config, Phase::Incoming, || {
+                    let result = if fails {
+                        Err(Error::Limit.into())
+                    } else {
+                        Ok(7)
+                    };
+                    propagate(result, Some(detail))
+                });
+                if fails {
+                    assert_eq!(
+                        result.unwrap_err().downcast_ref::<Error>(),
+                        Some(&Error::Limit)
+                    );
+                } else {
+                    assert_eq!(result.unwrap(), 7);
+                }
+                assert_eq!(
+                    captured.map(|d| (d.phase, d.code.text())),
+                    (active && fails).then_some((Phase::Shutdown, "Busy"))
+                );
+            }
+        }
+        let (result, _) = capture(enabled(), Phase::Incoming, || {
+            let failure = classify(Phase::Shutdown, &Error::Busy);
+            for succeeds in [false, true] {
+                set_last(Some(failure));
+                let result = if succeeds {
+                    Ok(())
+                } else {
+                    Err(Error::Limit.into())
+                };
+                let _ = propagate(result, succeeds.then_some(failure));
+                assert_eq!(
+                    take(Phase::Incoming, &Error::Corrupt).code.text(),
+                    "Corrupt"
+                );
+            }
+            Ok(())
+        });
+        result.unwrap();
+        let json = incoming(enabled(), 0, u64::MAX, 1, None).to_string();
+        assert!(
+            json.ends_with(r#""served":0,"failed":18446744073709551615,"busy":1,"last":null}"#)
+        );
+    }
+
+    #[test]
+    fn classifier_distinguishes_parse_errors_and_preserves_known_tls_codes() {
+        for (error, category, code) in [
+            (
+                &"bad".parse::<u64>().unwrap_err() as &dyn StdError,
+                Category::Input,
+                "invalid_input",
+            ),
+            (
+                &"bad".parse::<std::net::SocketAddr>().unwrap_err(),
+                Category::Input,
+                "invalid_input",
+            ),
+            (&Poison, Category::Internal, "unclassified"),
+            (&Error::OutcomeUnknown, Category::Engine, "OutcomeUnknown"),
+            (
+                &io::Error::from(io::ErrorKind::Interrupted),
+                Category::Io,
+                "interrupted",
+            ),
+        ] {
+            let diagnostic = classify(Phase::Connect, error);
+            assert_eq!(
+                (diagnostic.category, diagnostic.code.text()),
+                (category, code)
+            );
+        }
+        for (error, expected) in [
+            (
+                rustls::Error::InvalidCertificate(rustls::CertificateError::BadEncoding),
+                "invalid_certificate",
+            ),
+            (
+                rustls::Error::InvalidMessage(rustls::InvalidMessage::InvalidContentType),
+                "invalid_message",
+            ),
+            (rustls::Error::General("PRIVATE_CANARY".into()), "other"),
+        ] {
+            let direct = classify(Phase::TlsHandshake, &error);
+            let wrapped = classify(Phase::TlsHandshake, &io::Error::other(error));
+            for diagnostic in [direct, wrapped] {
+                assert_eq!(
+                    (diagnostic.category, diagnostic.code.text()),
+                    (Category::Tls, expected)
+                );
+                assert!(
+                    !diagnostic
+                        .json(enabled())
+                        .to_string()
+                        .contains("PRIVATE_CANARY")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn stable_diagnostic_names_for_each_storage_code_and_command() {
+        use NativeIoOperation as Op;
+        use VerificationStage as Stage;
+        for (op, label) in [
+            (Op::Open, "open"),
+            (Op::Create, "create"),
+            (Op::OpenDirectory, "open_directory"),
+            (Op::DuplicateHandle, "duplicate_handle"),
+            (Op::Metadata, "metadata"),
+            (Op::Read, "read"),
+            (Op::Write, "write"),
+            (Op::Sync, "sync"),
+            (Op::Lock, "lock"),
+            (Op::Unlock, "unlock"),
+            (Op::Exchange, "exchange"),
+            (Op::Remove, "remove"),
+            (Op::CopyMetadata, "copy_metadata"),
+            (Op::Random, "random"),
+            (Op::Volume, "volume"),
+        ] {
+            assert_eq!(operation_name(op), label);
+        }
+        for (stage, label) in [
+            (Stage::ImageLength, "image_length"),
+            (Stage::Header, "header"),
+            (Stage::RootSlot, "root_slot"),
+            (Stage::Witness, "witness"),
+            (Stage::RootSelection, "root_selection"),
+            (Stage::CommitDescriptor, "commit_descriptor"),
+            (Stage::Directory, "directory"),
+            (Stage::Value, "value"),
+        ] {
+            assert_eq!(stage_name(stage), label);
+        }
+        for (category, label) in [
+            (NativeIoCategory::DiskFull, "disk_full"),
+            (NativeIoCategory::Permission, "permission"),
+            (NativeIoCategory::Quota, "quota"),
+            (NativeIoCategory::Other, "other"),
+        ] {
+            let mut diagnostic = classify(Phase::StorageOpen, &Error::Io);
+            diagnostic.native = Some(NativeIoDiagnostic {
+                operation: Op::Open,
+                category,
+                raw_os_error: None,
+            });
+            assert!(diagnostic.json(enabled()).to_string().contains(&format!(
+                r#""operation":"open","category":"{label}","os_code":null"#
+            )));
+        }
+        for code in [
+            Error::Invalid,
+            Error::Type,
+            Error::NotFound,
+            Error::Bounds,
+            Error::Buffer,
+            Error::Busy,
+            Error::Limit,
+            Error::OutOfMemory,
+            Error::Panic,
+            Error::Conflict,
+            Error::Closed,
+            Error::ForeignStore,
+            Error::Exhausted,
+            Error::Io,
+            Error::OutcomeUnknown,
+            Error::RecoveryRequired,
+            Error::Corrupt,
+            Error::UnsupportedFormat,
+            Error::AlreadyExists,
+            Error::UnsupportedPlatform,
+        ] {
+            assert_eq!(Code::Engine(code).text(), code.to_string());
+        }
+        use io::ErrorKind as Kind;
+        for (kind, label) in [
+            (Kind::NotFound, "not_found"),
+            (Kind::PermissionDenied, "permission_denied"),
+            (Kind::ConnectionRefused, "connection_refused"),
+            (Kind::ConnectionReset, "connection_reset"),
+            (Kind::ConnectionAborted, "connection_aborted"),
+            (Kind::TimedOut, "timed_out"),
+            (Kind::WouldBlock, "would_block"),
+            (Kind::Interrupted, "interrupted"),
+            (Kind::InvalidData, "invalid_data"),
+            (Kind::InvalidInput, "invalid_input"),
+            (Kind::UnexpectedEof, "unexpected_eof"),
+            (Kind::BrokenPipe, "broken_pipe"),
+            (Kind::AlreadyExists, "already_exists"),
+            (Kind::Other, "other"),
+        ] {
+            assert_eq!(Code::Io(kind).text(), label);
+        }
+        for word in [
+            "--help",
+            "-h",
+            "keygen",
+            "describe",
+            "follower-init",
+            "status",
+            "cleanup-inactive",
+            "compact-manifest",
+            "serve",
+            "ship",
+            "capture",
+            "ship-captured",
+            "poll",
+            "init",
+            "run",
+            "run-policy",
+            "checkpoint-roster",
+            "stage-roster",
+            "verify-roster",
+            "unrecognized",
+        ] {
+            let command = Command::parse(Some(&OsString::from(word)));
+            assert_eq!(
+                command.text(),
+                match word {
+                    "-h" | "--help" => "help",
+                    "unrecognized" => "unknown",
+                    other => other,
+                }
+            );
+            let config = Settings {
+                command,
+                ..enabled()
+            };
+            let report = classify(Phase::Arguments, &Error::Invalid)
+                .json(config)
+                .to_string();
+            assert_eq!(
+                report.contains("\"follower_outcome\":\"unconfirmed\""),
+                matches!(word, "ship" | "ship-captured")
+            );
+        }
+        assert_eq!(Command::parse(None), Command::Unknown);
+    }
 }
