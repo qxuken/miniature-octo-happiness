@@ -1295,3 +1295,264 @@ fn listener_setup_failure_preserves_the_receipt_and_closes_queued_clients() {
         check(&reopened, receipt, 2);
     }
 }
+
+fn installed_follower(dir: &Directory) -> (Follower, Enrollment, DurableAck) {
+    let mut prepared = prepare(&source(dir), [1; 16], &dir.0.join("export.wdb")).unwrap();
+    let enrollment = enrollment_of(&prepared);
+    let (mut follower, (client, server)) = (follower(dir, enrollment), pair());
+    let (sent, served) = exchange(&mut follower, &server, |address| {
+        ship(&mut prepared, &client, address, 1)
+    });
+    served.unwrap();
+    let ack = sent.unwrap();
+    check(&follower, ack, 2);
+    (follower, enrollment, ack)
+}
+
+#[test]
+fn snapshot_identity_errors_preserve_each_argument() {
+    use std::ffi::OsString;
+    #[cfg(unix)]
+    let broken = {
+        use std::os::unix::ffi::OsStringExt;
+        OsString::from_vec(vec![0xff])
+    };
+    #[cfg(windows)]
+    let broken = {
+        use std::os::windows::ffi::OsStringExt;
+        OsString::from_wide(&[0xd800])
+    };
+    let valid = OsStr::new("aB112233445566778899aabbccddeeff");
+    assert_eq!(
+        identity(valid).unwrap(),
+        [
+            0xab, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+            0xee, 0xff,
+        ]
+    );
+    let digits = "identity must be 32 hexadecimal digits";
+    for (input, expected) in [
+        (broken.as_os_str(), "expected UTF-8 argument"),
+        (OsStr::new("1"), digits),
+        (OsStr::new("+1111111111111111111111111111111"), digits),
+        (
+            OsStr::new("00000000000000000000000000000000"),
+            "identity must be nonzero",
+        ),
+    ] {
+        assert_eq!(identity(input).unwrap_err().to_string(), expected);
+        for (stream, file) in [(input, valid), (valid, input)] {
+            let error = enrollment(stream, file).expect_err("invalid identity accepted");
+            assert_eq!(error.to_string(), expected);
+        }
+    }
+    let e = enrollment(valid, OsStr::new("11111111111111111111111111111111")).unwrap();
+    assert_eq!(e.stream_id, identity(valid).unwrap());
+    assert_eq!(e.file_identity, [0x11; 16]);
+}
+
+#[test]
+fn offline_command_refusals_preserve_the_follower() {
+    let dir = Directory::new();
+    let (follower, enrollment, ack) = installed_follower(&dir);
+    let path = dir.0.join("follower");
+    let manifest = path.join("replica-manifest.wdb");
+    let selected = path.join(format!(
+        "replica-{}.wdb",
+        follower.status().unwrap().selected_slot.unwrap()
+    ));
+    drop(follower);
+    let original = [&manifest, &selected].map(|file| fs::read(file).unwrap());
+    let stream = hex(&enrollment.stream_id);
+    let file = hex(&enrollment.file_identity);
+    let foreign = hex(&[2; 16]);
+    let fail = |verb: &str, path: &Path, ids: &[&str], expected: &str, phase: &str| {
+        let mut args = vec!["--diagnostics=json".into(), verb.into(), path.into()];
+        args.extend(ids.iter().copied().map(std::ffi::OsString::from));
+        let settings = diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut args);
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || main(args));
+        assert_eq!(result.unwrap_err().to_string(), expected, "{verb}");
+        let detail = detail.unwrap().json(settings).to_string();
+        assert!(
+            detail.contains(&format!(r#""phase":"{phase}""#)),
+            "{detail}"
+        );
+    };
+    let corrupt = dir.0.join("corrupt-source.wdb");
+    fs::write(&corrupt, b"incomplete image").unwrap();
+    fail(
+        "describe",
+        &corrupt,
+        &["1"],
+        "identity must be 32 hexadecimal digits",
+        "arguments",
+    );
+    fail(
+        "describe",
+        &corrupt,
+        &[&stream],
+        "Corrupt",
+        "storage_verify",
+    );
+    assert_eq!(fs::read(&corrupt).unwrap(), b"incomplete image");
+
+    let zero = "00000000000000000000000000000000";
+    for verb in [
+        "follower-init",
+        "status",
+        "cleanup-inactive",
+        "compact-manifest",
+    ] {
+        if cfg!(windows) && verb == "compact-manifest" {
+            continue;
+        }
+        fail(
+            verb,
+            &path,
+            &["1", &file],
+            "identity must be 32 hexadecimal digits",
+            "arguments",
+        );
+        fail(
+            verb,
+            &path,
+            &[&stream, zero],
+            "identity must be nonzero",
+            "arguments",
+        );
+        if verb == "follower-init" {
+            fail(
+                verb,
+                &path,
+                &[&stream, &file],
+                "AlreadyExists",
+                "storage_create",
+            );
+        } else {
+            fail(
+                verb,
+                &path,
+                &[&foreign, &file],
+                "ForeignStore",
+                "storage_open",
+            );
+        }
+        assert_eq!(
+            [&manifest, &selected].map(|file| fs::read(file).unwrap()),
+            original
+        );
+    }
+
+    #[cfg(unix)]
+    {
+        let alias = path.join("manifest-alias");
+        fs::hard_link(&manifest, &alias).unwrap();
+        fail(
+            "compact-manifest",
+            &path,
+            &[&stream, &file],
+            "Invalid",
+            "storage_maintenance",
+        );
+        assert_eq!(fs::read(&alias).unwrap(), original[0]);
+        fs::remove_file(alias).unwrap();
+    }
+    assert_eq!(
+        [&manifest, &selected].map(|file| fs::read(file).unwrap()),
+        original
+    );
+    let reopened = Follower::open(&path, enrollment, Limits::default()).unwrap();
+    check(&reopened, ack, 2);
+}
+
+#[cfg(unix)]
+fn verify_manifest_status_failure(
+    command: &str,
+    phase: &str,
+    call: impl FnOnce(&mut Vec<u8>) -> AppResult<()>,
+) {
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), command.into()],
+    );
+    let mut output = Vec::new();
+    let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || call(&mut output));
+    assert_eq!(
+        result.unwrap_err().downcast_ref::<Error>(),
+        Some(&Error::NotFound)
+    );
+    let detail = detail.unwrap().json(settings).to_string();
+    assert!(
+        detail.contains(&format!(
+            r#""phase":"{phase}","category":"engine","code":"NotFound""#
+        )),
+        "{detail}"
+    );
+    assert!(output.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn manifest_status_failures_report_the_operation_phase() {
+    use weekend_db::replication::MANIFEST_LIMIT_BYTES;
+
+    let dir = Directory::new();
+    let (follower, enrollment, ack) = installed_follower(&dir);
+    let path = dir.0.join("follower");
+    let manifest = path.join("replica-manifest.wdb");
+    let hidden = path.join("temporarily-hidden-manifest");
+    let selected = path.join(format!(
+        "replica-{}.wdb",
+        follower.status().unwrap().selected_slot.unwrap()
+    ));
+    drop(follower);
+    let selected_bytes = fs::read(&selected).unwrap();
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&manifest)
+        .unwrap()
+        .set_len(MANIFEST_LIMIT_BYTES)
+        .unwrap();
+    let original = fs::read(&manifest).unwrap();
+    let open = || Follower::open(&path, enrollment, Limits::default()).unwrap();
+
+    let follower = open();
+    let mut healthy = Vec::new();
+    report_follower_status(&follower, &mut healthy).unwrap();
+    assert!(
+        String::from_utf8(healthy)
+            .unwrap()
+            .lines()
+            .any(|line| line == ack_line(Some(ack)))
+    );
+    // Move only the private fixture name to force the native metadata error.
+    fs::rename(&manifest, &hidden).unwrap();
+    verify_manifest_status_failure("status", "storage_verify", |output| {
+        report_follower_status(&follower, output)
+    });
+    verify_manifest_status_failure("compact-manifest", "storage_maintenance", |output| {
+        compact_follower_with(
+            follower,
+            |_| panic!("compaction ran after the initial status failed"),
+            output,
+        )
+    });
+    fs::rename(&hidden, &manifest).unwrap();
+    assert_eq!(fs::read(&manifest).unwrap(), original);
+
+    verify_manifest_status_failure("compact-manifest", "storage_maintenance", |output| {
+        compact_follower_with(
+            open(),
+            |follower| {
+                let replacement = follower.compact_manifest()?;
+                fs::rename(&manifest, &hidden).unwrap();
+                Ok(replacement)
+            },
+            output,
+        )
+    });
+    fs::rename(&hidden, &manifest).unwrap();
+    assert!(fs::metadata(&manifest).unwrap().len() < MANIFEST_LIMIT_BYTES);
+    assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    check(&open(), ack, 2);
+}

@@ -136,15 +136,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let f = diagnostics::storage(Phase::StorageOpen, || {
                 Follower::open(dir, e, Limits::default())
             })?;
-            let s = f.status()?;
-            print_report(format_args!(
-                "{}\nstatus requires_recovery={} manifest_bytes={} maintenance_required={} selected_slot={:?}",
-                ack_line(s.durable_ack),
-                s.requires_recovery,
-                s.manifest_bytes,
-                s.maintenance_required,
-                s.selected_slot
-            ))
+            report_follower_status(&f, &mut io::stdout().lock())
         }
         [c, dir, stream, file] if c == "cleanup-inactive" => {
             let e = enrollment(stream, file)?;
@@ -164,15 +156,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 let f = diagnostics::storage(Phase::StorageOpen, || {
                     Follower::open(dir, e, Limits::default())
                 })?;
-                let before = f.status()?.manifest_bytes;
-                let f = diagnostics::storage(Phase::Maintenance, || f.compact_manifest())?;
-                let after = f.status()?;
-                print_report(format_args!(
-                    "maintenance manifest_before={before} manifest_after={} maintenance_required={}\n{}",
-                    after.manifest_bytes,
-                    after.maintenance_required,
-                    ack_line(after.durable_ack)
-                ))
+                compact_follower_with(f, Follower::compact_manifest, &mut io::stdout().lock())
             }
             #[cfg(windows)]
             {
@@ -290,6 +274,41 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
         _ => Err(USAGE.into()),
     }
 }
+fn report_follower_status(follower: &Follower, output: &mut impl Write) -> AppResult<()> {
+    let status = diagnostics::storage(Phase::StorageVerify, || follower.status())?;
+    write_report(
+        output,
+        format_args!(
+            "{}\nstatus requires_recovery={} manifest_bytes={} maintenance_required={} selected_slot={:?}",
+            ack_line(status.durable_ack),
+            status.requires_recovery,
+            status.manifest_bytes,
+            status.maintenance_required,
+            status.selected_slot
+        ),
+    )
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn compact_follower_with(
+    follower: Follower,
+    compact: impl FnOnce(Follower) -> weekend_db::Result<Follower>,
+    output: &mut impl Write,
+) -> AppResult<()> {
+    let before = diagnostics::storage(Phase::Maintenance, || follower.status())?.manifest_bytes;
+    let follower = diagnostics::storage(Phase::Maintenance, || compact(follower))?;
+    let after = diagnostics::storage(Phase::Maintenance, || follower.status())?;
+    write_report(
+        output,
+        format_args!(
+            "maintenance manifest_before={before} manifest_after={} maintenance_required={}\n{}",
+            after.manifest_bytes,
+            after.maintenance_required,
+            ack_line(after.durable_ack),
+        ),
+    )
+}
+
 fn poll(
     primary: &mut Primary,
     tls: &Tls,

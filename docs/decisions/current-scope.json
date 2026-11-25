@@ -14,7 +14,7 @@
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
-    "apps/weekend-replicate/src/native.rs": "08bb98c0d40140e247b1560d73289c416538db846157b0cfb288935ebbbe802d",
+    "apps/weekend-replicate/src/native.rs": "e1bcaaac32f74872a520cdde3653d1909b0d86070798f488a14614cd40deb211",
     "apps/weekend-replicate/src/native/admission.rs": "7144c0e040b9955bf64fe857361653378d3e01fb784639da5c8eae125ad312c3",
     "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
     "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
@@ -229,7 +229,7 @@
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "96f1fd12d877e16bff818a88dcd8697c33ca9c2f532fae221c1525eca75325a8",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
-    "apps/weekend-replicate/src/native/tests.rs": "75bb6991bf10f7bcf4cb301725c06399a50386ee2f45c2fa2914ce56c61f5779",
+    "apps/weekend-replicate/src/native/tests.rs": "e0c373d7e0801509dd9cd8cea7293be1647d56b5a4dfeb0c3b94c86fe17ac401",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "66f32e10c0c20f6736c96137abb7af9aa55ed54d39d4cfb9bd32b06c2f3813ea",
-    "xtask/tests/mutations.json": "607ea0c417e1f2b54b960eee0d8693a966b1628d2b39a34170418376b1e0d7ae",
+    "xtask/tests/mutations.json": "bcdafabd9233b42c20b9d57a68c01b15a652823a34b0af6d923b02b2cd43d94a",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -432,7 +432,8 @@
     "docs/decisions/study-protocol-current.md": "f64491f0ba1600aa1aa3e192e58be8e53f18fa4f1c07b9a638b881c46eb7aa35",
     "docs/decisions/coordinator-legacy-receipts-current.md": "ce45c3172123a6c8275376d39619c0b83bc83bfcc530f49f385c0311e1c37afb",
     "docs/decisions/apfs-detach-current.md": "6d7b0a32cd016f9c916c2778b36b69ba2e0cc42f276e6ee7560d2934bf8a9a79",
-    "docs/decisions/coordinator-legacy-commit-current.md": "f98506d9ec744ca4b1230603f2e62dc5a40d245ffc569d2a4e9c8c33d3b7cb14"
+    "docs/decisions/coordinator-legacy-commit-current.md": "f98506d9ec744ca4b1230603f2e62dc5a40d245ffc569d2a4e9c8c33d3b7cb14",
+    "docs/decisions/snapshot-offline-maintenance-current.md": "12fcac8c4054fb89fb9230ceb676303df2ce7f5f1d1a1b3dc751132de916a911"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -938,7 +939,8 @@
         "docs/decisions/snapshot-readiness-current.md",
         "docs/decisions/snapshot-command-output-current.md",
         "docs/decisions/snapshot-retry-current.md",
-        "docs/decisions/snapshot-listener-current.md"
+        "docs/decisions/snapshot-listener-current.md",
+        "docs/decisions/snapshot-offline-maintenance-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },
@@ -32511,7 +32513,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17103,
+        "start_byte": 17705,
         "conditions": [
           "TcpListener::bind(address)"
         ]
@@ -32534,7 +32536,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17226,
+        "start_byte": 17828,
         "conditions": [
           "diagnostics::at(Phase::Listen, || {\n        let listener = TcpListener::bind(address)?;\n        nonblocking(&listener)?;\n        let address = bound_address(&listener)?;\n        Ok((listener, address))\n    })"
         ]
@@ -32557,7 +32559,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17286,
+        "start_byte": 17888,
         "conditions": [
           "write_report(output, format_args!(\"ready {address}\"))"
         ]
@@ -32580,7 +32582,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "poll",
         "kind": "try_propagation",
-        "start_byte": 11495,
+        "start_byte": 12097,
         "conditions": [
           "write_report(output, format_args!(\"local verified_revision={revision}\"))"
         ]
@@ -32626,7 +32628,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "retry_ship",
         "kind": "if",
-        "start_byte": 15169,
+        "start_byte": 15771,
         "conditions": [
           "permanent",
           "attempt + 1 == attempts"
@@ -32674,7 +32676,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17136,
+        "start_byte": 17738,
         "conditions": [
           "nonblocking(&listener)"
         ]
@@ -32697,7 +32699,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 17185,
+        "start_byte": 17787,
         "conditions": [
           "bound_address(&listener)"
         ]
@@ -34724,6 +34726,514 @@
       ],
       "mutations": [
         "r1-legacy-coordinator-commit-fuzz-receipt-draft"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-IDENTITY-ENCODING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "identity",
+        "kind": "try_propagation",
+        "start_byte": 1934,
+        "conditions": [
+          "text(s)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "snapshot_identity_errors_preserve_each_argument"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-identity-encoding"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-IDENTITY-FORMAT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "identity",
+        "kind": "if",
+        "start_byte": 1941,
+        "conditions": [
+          "s.len() != 32",
+          "!s.bytes().all(|b| b.is_ascii_hexdigit())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "snapshot_identity_errors_preserve_each_argument"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-identity-width",
+        "r1-snapshot-offline-identity-hex"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-IDENTITY-ZERO",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "identity",
+        "kind": "if",
+        "start_byte": 2141,
+        "conditions": [
+          "id == [0; 16]"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "snapshot_identity_errors_preserve_each_argument"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-identity-zero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-ENROLLMENT-STREAM",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "enrollment",
+        "kind": "try_propagation",
+        "start_byte": 2360,
+        "conditions": [
+          "identity(stream)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "snapshot_identity_errors_preserve_each_argument"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-enrollment-stream"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-ENROLLMENT-FILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "enrollment",
+        "kind": "try_propagation",
+        "start_byte": 2400,
+        "conditions": [
+          "identity(file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "snapshot_identity_errors_preserve_each_argument"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-enrollment-file"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-DESCRIBE-STREAM",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 4378,
+        "conditions": [
+          "identity(stream)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-describe-stream"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-DESCRIBE-VERIFY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 4543,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageVerify, || {\n                weekend_db::storage::inspect_file(source, Limits::default())\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-describe-verify"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-INIT-ENROLLMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5000,
+        "conditions": [
+          "enrollment(stream, file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-init-enrollment"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-STATUS-ENROLLMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5325,
+        "conditions": [
+          "enrollment(stream, file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-status-enrollment"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-CLEANUP-ENROLLMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5651,
+        "conditions": [
+          "enrollment(stream, file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-cleanup-enrollment"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-COMPACT-ENROLLMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 6250,
+        "conditions": [
+          "enrollment(stream, file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-compact-enrollment"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-STATUS-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5466,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n                Follower::open(dir, e, Limits::default())\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-status-open"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-CLEANUP-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5796,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n                Follower::open(dir, e, Limits::default())\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-cleanup-open"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-COMPACT-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 6403,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n                    Follower::open(dir, e, Limits::default())\n                })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-compact-open"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-STATUS-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "report_follower_status",
+        "kind": "try_propagation",
+        "start_byte": 10727,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageVerify, || follower.status())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "manifest_status_failures_report_the_operation_phase"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-status-read",
+        "r1-snapshot-offline-status-read-phase"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-COMPACT-BEFORE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "compact_follower_with",
+        "kind": "try_propagation",
+        "start_byte": 11404,
+        "conditions": [
+          "diagnostics::storage(Phase::Maintenance, || follower.status())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "manifest_status_failures_report_the_operation_phase"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-compact-before",
+        "r1-snapshot-offline-compact-before-phase"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-COMPACT-REPLACE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "compact_follower_with",
+        "kind": "try_propagation",
+        "start_byte": 11503,
+        "conditions": [
+          "diagnostics::storage(Phase::Maintenance, || compact(follower))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "offline_command_refusals_preserve_the_follower"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-compact-replace"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-OFFLINE-COMPACT-AFTER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "compact_follower_with",
+        "kind": "try_propagation",
+        "start_byte": 11584,
+        "conditions": [
+          "diagnostics::storage(Phase::Maintenance, || follower.status())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "manifest_status_failures_report_the_operation_phase"
+        },
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-offline-compact-after",
+        "r1-snapshot-offline-compact-after-phase"
       ]
     }
   ],
