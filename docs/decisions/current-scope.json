@@ -233,43 +233,111 @@
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "ac142ebc689c4cb6257b9e483f21e10eb72a279a60f321f35911a5800fe2bb46",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
+    "crates/weekend-db-macros/tests/expansion_guards.rs": "9d7c328c45270f4526402e806231eb56cf04d1d42a8d97e4e92a2e3b82557e55",
     "crates/weekend-db-typed/tests/migration_allocator.rs": "970fba9fe1555a04d807a069cd56e6e3315f636361584042f60c3ccbe37eba0c",
     "crates/weekend-db-typed/tests/models.rs": "c269dec8e59c5e2e86cf272a538b463fe324e84d5de92df717336f2ffadde016",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "a10cdc51904c34c7e6286c3c84d082cf323df67ad149ec1c694241194a9c5e26",
     "docs/coordinator-artifact-recovery.md": "89679ef0737929ae332126527d3532695f8e92c3716ccc33bea9d72fc1c6e60e",
     "docs/coordinator-operator-handoff.md": "b87f399fc29eb77a18fb1ea99fb62bfae6ae0f025ca50e06a6cc29dc85dc088a",
     "docs/coordinator-pending-restore.md": "d05d279ac7d4586c8e5caff39d6075edeac3ce57a439d419b1c21dc6ce1a2c18",
+    "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
+    "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
+    "docs/decisions/bytestore-publication-current.md": "dbde6175ae083da54e48faa497837bd67765216ca1d32b150946772399245f31",
+    "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
+    "docs/decisions/codec-arithmetic-current.md": "b5db51c831e6c224fe13c7858187536ad6ecf34c9266778d700c36436716bffd",
+    "docs/decisions/codec-cache-index-current.md": "7ca3ab5d31063681ee25992977f891f4722f03ea5058e5e914f02aceec51dad4",
+    "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
+    "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
+    "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
+    "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
+    "docs/decisions/codec-encode-value-current.md": "57516e4c482d3e90dc3a0c41b889ccc9d43e9213334acb825a0465d73ea6dea8",
+    "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
+    "docs/decisions/codec-metadata-current.md": "4055bdaa6c5396f1cfd930e34a4dc130923256563109bbeea2488c6f8cd10edc",
+    "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
     "docs/decisions/codec.md": "af20592d5d61e9ab8db5c1171a9be0babde8277c54a631049730e0c007232046",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
+    "docs/decisions/compact-copy-current.md": "1de619c305f3e8c8174196617509a92c7c4d077437126b836d99890cd6589c24",
+    "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7",
+    "docs/decisions/coordinator-service-current.md": "147ac14a4580140c553a7d7a22c653c05f274c1e787f657f7b14ed12d6d3ff6c",
+    "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
+    "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
     "docs/decisions/current.md": "fc26e89154fd2077e63ac2815bde91d8be7ac8275e627f686d03d9e2329e6c1f",
+    "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
     "docs/decisions/diagnostics.md": "70eaaa2262ce1e3c150e622652b1752ef40d9cf873a97b482df1d45bcddf94c3",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "f5ad16c33b6559caa8301a2bff9861910d93f4c89af7811703b0ea51a047eaff",
+    "docs/decisions/ffi-boundaries-current.md": "134bbe5cd6dd47a8d6de146aa5613ee180d6be2a4a82873bb24c07a7eab860c1",
+    "docs/decisions/ffi-file-factories-current.md": "53f0d983a931631ea8204b5341336f296156db46c153fa86383553184afb07da",
+    "docs/decisions/ffi-generated-exports-current.md": "0963872250e22d81476120a4376c941c32e4487f015493cbd597c28d877aaac5",
+    "docs/decisions/ffi-handle-accounting-current.md": "e3d8761a89b228d7412094d729920d181e80b109a5e44a03ebdc8203011fa11a",
+    "docs/decisions/ffi-transaction-reads-current.md": "f53aa2b9a3476efa8dd308c9433209c395c915e154dc0e8fb269c752343fc5c9",
     "docs/decisions/ffi.md": "5de80429b18fb25cc5ff237cd58d96064b99e4e8335df23242b6334e1b9d36ef",
+    "docs/decisions/foreign-allocator-current.md": "4102fa64070f267104176245528c9e6156081a6c14db449f872dec5168ac4435",
+    "docs/decisions/linux-architecture-current.md": "dcc8e81f83d8ae24d097f6b9fdff9ad51f11b0c0a978d1d8d7e99252be77d4bc",
+    "docs/decisions/linux-metadata-current.md": "9322111c3a33fd7c8b048a9874d150c550644dbd100b5a12a73ab4eda2cee12e",
+    "docs/decisions/linux-primitives-current.md": "05d0e30b6bc23b0ad93116c44a941db70768b2e568797669085679c27c9ec1ed",
+    "docs/decisions/macos-primitives-current.md": "5980f031c5237e3cf8df4d43793a949b37f82cc378919e25ff7977a2a5299c88",
     "docs/decisions/macros.md": "abf03b25df4e801504b94bcfd6fb2eb038f8c9bf34cfce2356272ad6645f0f35",
     "docs/decisions/memory.md": "df5ed308bd4ec52582215d342f4b1b511129ea7905ff0c9db5052b0953a448d8",
+    "docs/decisions/native-replacement-current.md": "212daa2ccb6d8f7143e45a8618726d58df6d4cc4e069c6ce34f1598c1523c8f5",
     "docs/decisions/native-storage.md": "0bdafa8a9733a3ecb60625dff2d0298fe1653759b3a1fa6a54968e191e843af8",
     "docs/decisions/operations.md": "a4fddf27ab8fec2bc7f834536244ede88cca96fdb54fd3dc67eefb4e13111e3a",
+    "docs/decisions/provider-ownership-current.md": "f92b393f49dec2717f17f5f87a5bb6f011ba169209ce7de2b9f0b50c9ae2351f",
+    "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa",
     "docs/decisions/replacement.md": "51ca29d454cde7576cccb39e147449bd5dd5c1b47a53d308c2f52287a3754317",
+    "docs/decisions/replica-decode-current.md": "1648af39c4a87c40f7a03096befeaafa780e4753decb50f16875fff56b54d5a7",
     "docs/decisions/replication.md": "c878715b597564370205df1887d5b398fe278fb70948762023bea76f40b1eed8",
+    "docs/decisions/rust-output-allocation.md": "d5da95d17be8fb22c7f6a4aefcf12d90779dc70685c7f9f02c33dcdb29f09623",
+    "docs/decisions/schema-allocator-current.md": "a024e4212c36a872b01b5469b2ce38fe0f7d17f630617c6852b5f9b808fc1a74",
     "docs/decisions/schema.md": "7ab28cc3450ecdf3d60b7b21da33878b4e70064171d7f254b1ab7e18b41553b7",
+    "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
     "docs/decisions/simulator.md": "33cffe2f6c97cddde019f32fa292b7815afe0e7424d5bedebd38585821c8858f",
+    "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
+    "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
     "docs/decisions/snapshot-cli.md": "6f3016cf826a3c06985ffb1be8d25ca032bb7c886e6027741aa91d6076be9634",
+    "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
     "docs/decisions/storage-core.md": "f4903525352908d017e9ff6858fdc70a45e38dcaca11e98a8ae726f96a2f2ef2",
+    "docs/decisions/storage-creation-reopen-current.md": "a4017782123dbd96eddbb3711613c8454fd7e963a73848c1e05329eb4c16c331",
+    "docs/decisions/transaction-assignment-commit-current.md": "68704d00fc7bde2719ac5262beaa293d04481a28695851830ead5ddae2e9acc3",
+    "docs/decisions/transaction-observation-scan-current.md": "d036c9575fe20eb343c3f1a744cc9511fcb0675bec4f2207daca725493fc9ab2",
+    "docs/decisions/tree-current.md": "e9b5fe8e5b11c2863bbb4869ca424790c09c1563e42762cc2157ab23b5bf1129",
     "docs/decisions/tree.md": "284d9f918e6fc8d58e50af85e833c66dccf2f269f47e1efbce662354f3d457c1",
+    "docs/decisions/typed-index-allocator-current.md": "378c8a341252aba5a761a99da8e92ce6fcd33bca15d2fb19fc7c9db551795cb1",
+    "docs/decisions/typed-migration-recovery-current.md": "2079c473658a94d7542796b2a2fd2d871d4652f7b020ab33dac6320bad7bd908",
     "docs/decisions/typed-runtime.md": "fd53f0fdd169a7dcabab4362c88fcdffb96c338f5ddc6f25e8fe733d8f16a4a9",
+    "docs/decisions/typed-unique-claims-current.md": "524965db8c78e505a08ba4dfbcf617d0b7b1dc58323f19f7bc565e2474a141fc",
+    "docs/decisions/unix-clone-failures-current.md": "2882bc5d3ea4cffe588d0905af0cf3dbbf7bf6d316bae776a85f057152b064b3",
+    "docs/decisions/unix-descriptors-current.md": "9f95d5e543643d360d5fd4fe0ed3cfdf03d5369281fe376b7e4c2b6a23c5532e",
+    "docs/decisions/unix-leases-current.md": "f5ac5e1ffb2fd9e20db12d310417e74c539e2c2f6bd40fcd426b0ea089c32a58",
+    "docs/decisions/unix-metadata-reads-current.md": "25777acb20ab47b1754d9903d2a61fe72e6f97154718dab1a845c3a3e8e50ed3",
+    "docs/decisions/unix-path-admission-current.md": "8d91d7f48b4856fba8a09f3f3e3bafbd334fe39987d02655840c6ddb0180cd7c",
+    "docs/decisions/unix-scratch-io-current.md": "78ba2cf6a5d6bb100d4b5fdc0ba9271548c7564f36e18e83c6a01ddebe0be41c",
+    "docs/decisions/unix-sync-current.md": "75017776f67659f67770a9bf187d253ee2da865bd3148e27d987f3d2a100033c",
+    "docs/decisions/value-current.md": "601ddff42e9fa6b955fada563c961cd40f3d88bd1d26b4e05971c9b51b5cce3b",
     "docs/decisions/value.md": "6eb1b11f18d377c4b79bb183ecc162e3d2cd4cd1c74f782bda13745864b30a47",
+    "docs/decisions/windows-admission-current.md": "148245e024712e57cf43f02cdedb7d5f98a82509af6b8b389835569d6a3d4c93",
+    "docs/decisions/windows-handle-io-current.md": "ed74f70a7f7ce018c3aac4c879da8b637f84500e22c1a375bc76fe8d1a9a995a",
+    "docs/decisions/windows-open-results-current.md": "1469eb6cc3a288e990f504e12d9ccbeda2c7e6cb85e30dd94ae4f5c90da7ad19",
+    "docs/decisions/windows-paths-current.md": "09fc05b2d123e33c10006f65242359f7ea2002bf1774dfc3bfc16557b33f7a6f",
+    "docs/decisions/windows-rng-results-current.md": "cc3e39c76f21ce226d474403cb5a31c14de93e5b3916350abee4e1e045f42a8f",
     "docs/helper-controls.md": "637a97679335158f58d134bb883b3f10ddca975256c89feb521a7e3ee923246f",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
     "docs/mutations.md": "546622bf9c7f293cc86c97d0c7770e50231a2ceb95475ffe502d177ca295ea2e",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
+    "docs/r1-ci-shards.md": "4ab5df8b04da818bb73547c39fd6aca3f677a7171404ec1797969d63527ce61c",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
     "docs/tls-handshake-decisions.md": "8642a290a1922b2056270d750e6cbb32a54f966e54807f865f71b48757825a78",
+    "examples/memory.c": "b259fda793fcda3db83989f49e9b04e8017a2eaad87eaae32f2322b909fa6af4",
+    "examples/support/allocator_contract.h": "b86da5ca90ca078d9c9cca8f6c8425b33150477534af65c31cb8029bec070fc9",
+    "examples/support/file_allocator_contract.h": "62f2c7646407824cee6e5ef7f8e6a5f2cf8adb456adb431e87b364db74d94ddb",
     "include/weekend_db.h": "615e635bd99076fa2781a23ee04ca5083bf4c38332f45b6d37f2fb17774d524c",
+    "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
+    "src/memory/test_allocator.rs": "82ae341c680760f0d6980cf367e4c247f8cdd756635de7a399eb820d78924029",
     "src/replication/follower/tests.rs": "5e8afbd69178077862bee3d44a1560fa462d58d8f256d4e0340686a1febf3492",
     "src/replication/tests.rs": "4752d275a9781684266d0da0db6985a3416c73ab83e0096f9f2e2161c5143235",
+    "src/storage/mod.rs": "c7df5222e6d03401a600c5e624c36e3abc52e5a8341adf87d04af18ad66ef08f",
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
     "tests/allocation.rs": "b2546afd7e746c8fefc5d12f0df66d27f84d2a9eaca19fb50a8286fe255dbc31",
     "tests/allocator_routing.rs": "eb9f78809734a6684708ddc06a9cf47f2589a3fa06006465758a30c44bc47f06",
@@ -279,103 +347,36 @@
     "tests/durability.rs": "dfefb8f8abdc5c6613bd3b80947769f31a2cba5892046437748a7c2d2aa65f79",
     "tests/engine_decisions.rs": "602a92e910290944be5b441b665ac3bd4547b9d6f00a174c51a549cf51a1ded7",
     "tests/files.rs": "539b7ce0697059082c9240f49ab56c131a25891d3dff0bfa72b3201e51882769",
+    "tests/headroom.rs": "d9ea3f3559aabc199495fba51a8d4020bb7f472b8a3112155e1d8e920005606c",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
+    "tests/linux_architecture.rs": "45f6c0859c890fe3540f3f322f0d1d5d41aff762eb116066fe07ec0143a36e2e",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
+    "tests/replication.rs": "bc45e2e5218b859c7364647b5623709d49f1f472828291f101b98fa419ad826a",
     "tests/retention.rs": "19c377d14d73e0cf58502f13374a1bd837d280b352daf52a70c62af98f3fd14d",
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
+    "tests/schema.rs": "1c560b21d176392a589dd217972438f2064556c02c0d367e40fccca9ab819e50",
     "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
-    "tests/schema.rs": "3153c7287d15acc3c31570149cf4b85154fef6a602e2058bf5a6681aeea3f3d5",
     "tests/storage_decisions.rs": "415cd1e0d799ad189d8c7797a80effcee04374d90fd077f59901779c5cec04b4",
+    "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
+    "tests/support/descriptor_limit.rs": "4e0810a10a9658351bdb92fdb60535bfe1268d74db8b9897e7b41b71030e72d7",
     "tests/transactions.rs": "f4d6aec6b5f63cea148c64b9a31b89f755848b196fb0e38b542e5d4802cdf112",
     "tests/value_decisions.rs": "605fd7d6147b1cbf504cdecc5d3f2d76181ada66b8d9d81c199d4b2fd0f77934",
     "tests/values.rs": "c93575a92084db933f4a51713e91af598c85efdebcaf9f1ccf6e0d1c2c98306f",
+    "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419",
+    "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "tools/incident-recovery/src/main.rs": "81995d6a7ade96e89cc1068e41b724fbab2508798a67a5b6cd96792bd0fa5431",
     "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
     "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
+    "xtask/src/mutations.rs": "35264339554180eefa7eed8dd45b04d663cb8af9ee902965d897c95fd6f59db0",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "07cfc47bdcfb8714e21f35cdaed7ba0c5fd17f9898d79eec918afac1b2778bfc",
-    "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
-    "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
-    "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
-    "docs/decisions/codec-arithmetic-current.md": "b5db51c831e6c224fe13c7858187536ad6ecf34c9266778d700c36436716bffd",
-    "docs/decisions/codec-metadata-current.md": "4055bdaa6c5396f1cfd930e34a4dc130923256563109bbeea2488c6f8cd10edc",
-    "docs/r1-ci-shards.md": "4ab5df8b04da818bb73547c39fd6aca3f677a7171404ec1797969d63527ce61c",
-    "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
-    "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
-    "src/storage/mod.rs": "c7df5222e6d03401a600c5e624c36e3abc52e5a8341adf87d04af18ad66ef08f",
-    "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
-    "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
-    "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
-    "docs/decisions/codec-encode-value-current.md": "57516e4c482d3e90dc3a0c41b889ccc9d43e9213334acb825a0465d73ea6dea8",
-    "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
-    "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
-    "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
-    "src/memory/test_allocator.rs": "82ae341c680760f0d6980cf367e4c247f8cdd756635de7a399eb820d78924029",
-    "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
-    "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
-    "docs/decisions/rust-output-allocation.md": "d5da95d17be8fb22c7f6a4aefcf12d90779dc70685c7f9f02c33dcdb29f09623",
-    "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa",
-    "docs/decisions/codec-cache-index-current.md": "7ca3ab5d31063681ee25992977f891f4722f03ea5058e5e914f02aceec51dad4",
-    "docs/decisions/transaction-observation-scan-current.md": "d036c9575fe20eb343c3f1a744cc9511fcb0675bec4f2207daca725493fc9ab2",
-    "docs/decisions/transaction-assignment-commit-current.md": "68704d00fc7bde2719ac5262beaa293d04481a28695851830ead5ddae2e9acc3",
-    "docs/decisions/tree-current.md": "e9b5fe8e5b11c2863bbb4869ca424790c09c1563e42762cc2157ab23b5bf1129",
-    "docs/decisions/value-current.md": "601ddff42e9fa6b955fada563c961cd40f3d88bd1d26b4e05971c9b51b5cce3b",
-    "docs/decisions/bytestore-publication-current.md": "dbde6175ae083da54e48faa497837bd67765216ca1d32b150946772399245f31",
-    "docs/decisions/storage-creation-reopen-current.md": "a4017782123dbd96eddbb3711613c8454fd7e963a73848c1e05329eb4c16c331",
-    "tests/headroom.rs": "d9ea3f3559aabc199495fba51a8d4020bb7f472b8a3112155e1d8e920005606c",
-    "docs/decisions/compact-copy-current.md": "1de619c305f3e8c8174196617509a92c7c4d077437126b836d99890cd6589c24",
-    "docs/decisions/native-replacement-current.md": "212daa2ccb6d8f7143e45a8618726d58df6d4cc4e069c6ce34f1598c1523c8f5",
-    "docs/decisions/unix-leases-current.md": "f5ac5e1ffb2fd9e20db12d310417e74c539e2c2f6bd40fcd426b0ea089c32a58",
-    "docs/decisions/unix-path-admission-current.md": "8d91d7f48b4856fba8a09f3f3e3bafbd334fe39987d02655840c6ddb0180cd7c",
-    "docs/decisions/unix-sync-current.md": "75017776f67659f67770a9bf187d253ee2da865bd3148e27d987f3d2a100033c",
-    "docs/decisions/macos-primitives-current.md": "5980f031c5237e3cf8df4d43793a949b37f82cc378919e25ff7977a2a5299c88",
-    "docs/decisions/linux-primitives-current.md": "05d0e30b6bc23b0ad93116c44a941db70768b2e568797669085679c27c9ec1ed",
-    "docs/decisions/linux-metadata-current.md": "9322111c3a33fd7c8b048a9874d150c550644dbd100b5a12a73ab4eda2cee12e",
-    "docs/decisions/windows-paths-current.md": "09fc05b2d123e33c10006f65242359f7ea2002bf1774dfc3bfc16557b33f7a6f",
-    "docs/decisions/unix-scratch-io-current.md": "78ba2cf6a5d6bb100d4b5fdc0ba9271548c7564f36e18e83c6a01ddebe0be41c",
-    "tests/linux_architecture.rs": "45f6c0859c890fe3540f3f322f0d1d5d41aff762eb116066fe07ec0143a36e2e",
-    "docs/decisions/linux-architecture-current.md": "dcc8e81f83d8ae24d097f6b9fdff9ad51f11b0c0a978d1d8d7e99252be77d4bc",
-    "docs/decisions/unix-descriptors-current.md": "9f95d5e543643d360d5fd4fe0ed3cfdf03d5369281fe376b7e4c2b6a23c5532e",
-    "docs/decisions/unix-metadata-reads-current.md": "25777acb20ab47b1754d9903d2a61fe72e6f97154718dab1a845c3a3e8e50ed3",
-    "docs/decisions/unix-clone-failures-current.md": "2882bc5d3ea4cffe588d0905af0cf3dbbf7bf6d316bae776a85f057152b064b3",
-    "tests/support/descriptor_limit.rs": "4e0810a10a9658351bdb92fdb60535bfe1268d74db8b9897e7b41b71030e72d7",
-    "xtask/tests/mutations-windows.json": "6a2eb401d709f79bed86b435797a054729fedd60da8b6dffc0f9ce918de35862",
-    "docs/decisions/windows-admission-current.md": "148245e024712e57cf43f02cdedb7d5f98a82509af6b8b389835569d6a3d4c93",
-    "docs/decisions/windows-handle-io-current.md": "ed74f70a7f7ce018c3aac4c879da8b637f84500e22c1a375bc76fe8d1a9a995a",
-    "docs/decisions/windows-rng-results-current.md": "cc3e39c76f21ce226d474403cb5a31c14de93e5b3916350abee4e1e045f42a8f",
-    "docs/decisions/windows-open-results-current.md": "1469eb6cc3a288e990f504e12d9ccbeda2c7e6cb85e30dd94ae4f5c90da7ad19",
-    "docs/decisions/ffi-handle-accounting-current.md": "e3d8761a89b228d7412094d729920d181e80b109a5e44a03ebdc8203011fa11a",
-    "docs/decisions/ffi-boundaries-current.md": "134bbe5cd6dd47a8d6de146aa5613ee180d6be2a4a82873bb24c07a7eab860c1",
-    "docs/decisions/ffi-generated-exports-current.md": "0963872250e22d81476120a4376c941c32e4487f015493cbd597c28d877aaac5",
-    "examples/memory.c": "b259fda793fcda3db83989f49e9b04e8017a2eaad87eaae32f2322b909fa6af4",
-    "examples/support/allocator_contract.h": "b86da5ca90ca078d9c9cca8f6c8425b33150477534af65c31cb8029bec070fc9",
-    "docs/decisions/ffi-file-factories-current.md": "53f0d983a931631ea8204b5341336f296156db46c153fa86383553184afb07da",
-    "examples/support/file_allocator_contract.h": "62f2c7646407824cee6e5ef7f8e6a5f2cf8adb456adb431e87b364db74d94ddb",
-    "docs/decisions/foreign-allocator-current.md": "4102fa64070f267104176245528c9e6156081a6c14db449f872dec5168ac4435",
-    "docs/decisions/provider-ownership-current.md": "f92b393f49dec2717f17f5f87a5bb6f011ba169209ce7de2b9f0b50c9ae2351f",
-    "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419",
-    "docs/decisions/ffi-transaction-reads-current.md": "f53aa2b9a3476efa8dd308c9433209c395c915e154dc0e8fb269c752343fc5c9",
-    "docs/decisions/typed-unique-claims-current.md": "524965db8c78e505a08ba4dfbcf617d0b7b1dc58323f19f7bc565e2474a141fc",
-    "docs/decisions/typed-index-allocator-current.md": "378c8a341252aba5a761a99da8e92ce6fcd33bca15d2fb19fc7c9db551795cb1",
-    "docs/decisions/typed-migration-recovery-current.md": "2079c473658a94d7542796b2a2fd2d871d4652f7b020ab33dac6320bad7bd908",
-    "crates/weekend-db-macros/tests/expansion_guards.rs": "9d7c328c45270f4526402e806231eb56cf04d1d42a8d97e4e92a2e3b82557e55",
-    "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
-    "xtask/src/mutations.rs": "35264339554180eefa7eed8dd45b04d663cb8af9ee902965d897c95fd6f59db0",
-    "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
-    "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
-    "tests/replication.rs": "bc45e2e5218b859c7364647b5623709d49f1f472828291f101b98fa419ad826a",
-    "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
-    "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
-    "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
-    "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12",
-    "docs/decisions/coordinator-service-current.md": "147ac14a4580140c553a7d7a22c653c05f274c1e787f657f7b14ed12d6d3ff6c",
-    "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7",
-    "docs/decisions/replica-decode-current.md": "1648af39c4a87c40f7a03096befeaafa780e4753decb50f16875fff56b54d5a7"
+    "xtask/tests/mutations-windows.json": "6a2eb401d709f79bed86b435797a054729fedd60da8b6dffc0f9ce918de35862",
+    "xtask/tests/mutations.json": "6a3b1cbd1ab70d320eeac3c3f3d337f5d1fe877b10a497cf9fb89eae5f7c594d",
+    "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -481,7 +482,8 @@
         "docs/decisions/current.md",
         "docs/decisions/schema.md",
         "tests/schema_decisions.rs",
-        "tests/schema.rs"
+        "tests/schema.rs",
+        "docs/decisions/schema-allocator-current.md"
       ],
       "residual": "Fallible primitive calls remain delegated; source pairs are not compiler-expanded coverage.",
       "single_source_ledgers": [
@@ -23911,6 +23913,118 @@
       ],
       "mutations": [
         "r1-engine-handoff-capture-retained"
+      ]
+    },
+    {
+      "name": "SCHEMA-SCRATCH-DESCRIPTOR-FIELDS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/schema.rs",
+        "owner": "from_value",
+        "kind": "try_propagation",
+        "conditions": [
+          "fields.map_entries_owned()"
+        ],
+        "start_byte": 6767
+      },
+      "tests": [
+        {
+          "file": "tests/schema.rs",
+          "name": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+        }
+      ],
+      "mutations": [
+        "r1-schema-scratch-descriptor-fields"
+      ]
+    },
+    {
+      "name": "SCHEMA-SCRATCH-PREVIOUS-FIELDS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/schema.rs",
+        "owner": "successor_of",
+        "kind": "try_propagation",
+        "conditions": [
+          "required(&old.raw, b\"fields\")?.map_entries_owned()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/schema.rs",
+          "name": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+        }
+      ],
+      "mutations": [
+        "r1-schema-scratch-previous-fields"
+      ]
+    },
+    {
+      "name": "SCHEMA-SCRATCH-DECLARED-FIELDS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/schema.rs",
+        "owner": "validate",
+        "kind": "try_propagation",
+        "conditions": [
+          "required(&self.raw, b\"fields\")?.map_entries_owned()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/schema.rs",
+          "name": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+        }
+      ],
+      "mutations": [
+        "r1-schema-scratch-declared-fields"
+      ]
+    },
+    {
+      "name": "SCHEMA-SCRATCH-STORED-FIELDS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/schema.rs",
+        "owner": "validate",
+        "kind": "try_propagation",
+        "conditions": [
+          "record.fields()?.map_entries_owned()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/schema.rs",
+          "name": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+        }
+      ],
+      "mutations": [
+        "r1-schema-scratch-stored-fields"
+      ]
+    },
+    {
+      "name": "SCHEMA-SCRATCH-RECORD-FIELDS",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/schema.rs",
+        "owner": "from_value",
+        "kind": "try_propagation",
+        "conditions": [
+          "fields.map_entries_owned()"
+        ],
+        "start_byte": 13198
+      },
+      "tests": [
+        {
+          "file": "tests/schema.rs",
+          "name": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+        }
+      ],
+      "mutations": [
+        "r1-schema-scratch-record-fields"
       ]
     }
   ],

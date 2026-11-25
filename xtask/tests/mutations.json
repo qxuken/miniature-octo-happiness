@@ -13260,6 +13260,66 @@
       "target": "--test",
       "test": "replication",
       "exact_test": "live_capture_rejects_unusable_sources_before_writing_the_destination"
+    },
+    {
+      "name": "r1-schema-scratch-descriptor-fields",
+      "file": "src/schema.rs",
+      "old": "        let entries = fields.map_entries_owned()?;",
+      "new": "        let entries = fields.map_entries_owned().map_err(|_| Error::InvalidRecord)?;",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "schema",
+      "exact_test": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+    },
+    {
+      "name": "r1-schema-scratch-previous-fields",
+      "file": "src/schema.rs",
+      "old": "required(&old.raw, b\"fields\")?.map_entries_owned()?",
+      "new": "required(&old.raw, b\"fields\")?.map_entries_owned().map_err(|_| Error::InvalidRecord)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "schema",
+      "exact_test": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+    },
+    {
+      "name": "r1-schema-scratch-declared-fields",
+      "file": "src/schema.rs",
+      "old": "required(&self.raw, b\"fields\")?.map_entries_owned()?",
+      "new": "required(&self.raw, b\"fields\")?.map_entries_owned().map_err(|_| Error::InvalidRecord)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "schema",
+      "exact_test": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+    },
+    {
+      "name": "r1-schema-scratch-stored-fields",
+      "file": "src/schema.rs",
+      "old": "record.fields()?.map_entries_owned()?",
+      "new": "record.fields()?.map_entries_owned().map_err(|_| Error::InvalidRecord)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "schema",
+      "exact_test": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
+    },
+    {
+      "name": "r1-schema-scratch-record-fields",
+      "file": "src/schema.rs",
+      "old": "        for (key, _) in fields.map_entries_owned()? {",
+      "new": "        for (key, _) in fields.map_entries_owned().map_err(|_| Error::InvalidRecord)? {",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "schema",
+      "exact_test": "schema_field_iteration_releases_scratch_at_every_allocation_refusal"
     }
   ]
 }
