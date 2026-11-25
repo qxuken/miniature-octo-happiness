@@ -1019,3 +1019,54 @@ fn primary_enrollment_requires_a_healthy_durable_writer() {
         enrollment
     );
 }
+
+#[test]
+fn live_capture_rejects_unusable_sources_before_writing_the_destination() {
+    use weekend_db::storage::{Fault, SimulatedDisk};
+
+    let disk = SimulatedDisk::new().unwrap();
+    let source = Database::create_on(disk.clone(), [1; 16], Limits::default()).unwrap();
+    let mut primary = Primary::new(&source, [2; 16]).unwrap();
+    let retained = source.retain_snapshot(&source.snapshot()).unwrap();
+    let revision = source.snapshot().revision();
+    let destination = SimulatedDisk::new().unwrap();
+    let memory = Database::new().unwrap();
+    assert_eq!(
+        primary
+            .export_live_to(&memory, destination.clone(), Limits::default())
+            .err(),
+        Some(Error::Invalid)
+    );
+    assert_eq!(
+        primary
+            .export_live_to(
+                &source,
+                destination.clone(),
+                Limits {
+                    max_live_bytes: 1,
+                    ..Limits::default()
+                }
+            )
+            .err(),
+        Some(Error::Limit)
+    );
+    assert!(destination.durable_image().unwrap().is_empty());
+    assert_eq!(source.retained_ids().unwrap(), [retained]);
+    let export = primary
+        .export_live_to(&source, destination, Limits::default())
+        .unwrap();
+    assert_eq!(export.revision(), revision);
+
+    disk.arm(0, Fault::Error);
+    assert_eq!(source.create_collection(), Err(Error::Io));
+    let untouched = SimulatedDisk::new().unwrap();
+    assert_eq!(
+        primary
+            .export_live_to(&source, untouched.clone(), Limits::default())
+            .err(),
+        Some(Error::RecoveryRequired)
+    );
+    assert!(untouched.durable_image().unwrap().is_empty());
+    assert_eq!(source.snapshot().revision(), revision);
+    assert_eq!(source.retained_ids().unwrap(), [retained]);
+}

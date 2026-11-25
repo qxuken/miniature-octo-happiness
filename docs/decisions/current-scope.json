@@ -277,7 +277,7 @@
     "tests/concurrency.rs": "2455b3fc5fc857a26753d3182ebd2186f2322222a07dabcd09df8e1baffb8774",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
     "tests/durability.rs": "dfefb8f8abdc5c6613bd3b80947769f31a2cba5892046437748a7c2d2aa65f79",
-    "tests/engine_decisions.rs": "5b06571470962865d3b90b9becf4b18dfb7757d0127c30a3a22b697af74cea93",
+    "tests/engine_decisions.rs": "602a92e910290944be5b441b665ac3bd4547b9d6f00a174c51a549cf51a1ded7",
     "tests/files.rs": "539b7ce0697059082c9240f49ab56c131a25891d3dff0bfa72b3201e51882769",
     "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
@@ -297,7 +297,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "224356650da127fcc493cb56b0e51203f27ab31970392a7c452ef79ecf570c76",
+    "xtask/tests/mutations.json": "07cfc47bdcfb8714e21f35cdaed7ba0c5fd17f9898d79eec918afac1b2778bfc",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -368,7 +368,7 @@
     "xtask/src/mutations.rs": "35264339554180eefa7eed8dd45b04d663cb8af9ee902965d897c95fd6f59db0",
     "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
     "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
-    "tests/replication.rs": "8ad8b9f741ee97f945d75f32390ef5c2f13b1ff9f14403803f455d49cb0e76be",
+    "tests/replication.rs": "ec9a8ef761685f0665677b8a50f9ea41de7f05624799509b7a077f33a89adaef",
     "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
     "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
     "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
@@ -23587,6 +23587,330 @@
       ],
       "mutations": [
         "r1-native-ctor-open-backend"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-SCAN-OWNER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "scan_owned",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.db.check_collection(id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-scan-owner"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-SCAN-LOOKUP",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "scan_owned",
+        "kind": "try_propagation",
+        "conditions": [
+          "collection(&self.head, id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "snapshot_collection_and_key_errors_have_valid_controls"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-scan-lookup"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-PERSIST-IF",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "publish",
+        "kind": "if",
+        "conditions": [
+          "let Some(backend) = storage.as_mut()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "absent_and_poisoned_storage_reject_publication_and_compaction"
+        },
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "read_only_commit_advances_publication_but_not_data_revision"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-bypass-storage",
+        "r1-engine-handoff-reject-memory"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-PERSIST-PATTERN_TEST",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "publish",
+        "kind": "pattern_test",
+        "conditions": [
+          "storage.as_mut()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "absent_and_poisoned_storage_reject_publication_and_compaction"
+        },
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "read_only_commit_advances_publication_but_not_data_revision"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-bypass-storage",
+        "r1-engine-handoff-reject-memory"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-PERSIST-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "publish",
+        "kind": "try_propagation",
+        "conditions": [
+          "backend.persist(\n                &db.mem,\n                &head,\n                next_collection,\n                retention.as_ref().unwrap_or(&state.retention),\n            )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "absent_and_poisoned_storage_reject_publication_and_compaction"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-persist-error"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-SPACE-WRITER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "storage_space",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.lock_writer()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "absent_and_poisoned_storage_reject_publication_and_compaction"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-space-writer"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-SPACE-BACKEND",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "storage_space",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.lock_writer()?.as_mut().ok_or(Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/engine_decisions.rs",
+          "name": "absent_and_poisoned_storage_reject_publication_and_compaction"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-space-backend"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-ENROLL-WRITER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "replication_head",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.lock_writer()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/replication.rs",
+          "name": "primary_enrollment_requires_a_healthy_durable_writer"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-enroll-writer"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-ENROLL-BACKEND",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "replication_head",
+        "kind": "try_propagation",
+        "conditions": [
+          "writer.as_ref().ok_or(Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/replication.rs",
+          "name": "primary_enrollment_requires_a_healthy_durable_writer"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-enroll-backend"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-FORK-ENTRIES",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "fork",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.reserve(&mut entries, self.entries.len() + extra)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "retention_preparation_allocation_failures_are_atomic"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-fork-entries"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-CAPTURE-WRITER",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "replication_snapshot",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.lock_writer()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/replication.rs",
+          "name": "live_capture_rejects_unusable_sources_before_writing_the_destination"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-capture-writer"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-CAPTURE-BACKEND",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "replication_snapshot",
+        "kind": "try_propagation",
+        "conditions": [
+          "writer.as_ref().ok_or(Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/replication.rs",
+          "name": "live_capture_rejects_unusable_sources_before_writing_the_destination"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-capture-backend"
+      ]
+    },
+    {
+      "name": "ENGINE-HANDOFF-CAPTURE-RETAINED",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "replication_snapshot",
+        "kind": "try_propagation",
+        "conditions": [
+          "state.retention.fork(mem, 0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/replication.rs",
+          "name": "live_capture_rejects_unusable_sources_before_writing_the_destination"
+        }
+      ],
+      "mutations": [
+        "r1-engine-handoff-capture-retained"
       ]
     }
   ],

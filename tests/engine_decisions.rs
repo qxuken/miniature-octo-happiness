@@ -357,6 +357,7 @@ fn snapshot_collection_and_key_errors_have_valid_controls() {
     assert_eq!(db.begin().get(c, b"x"), Err(Error::Limit));
     assert_eq!(db.begin().contains(c, b"x"), Err(Error::Limit));
     assert_eq!(s.scan(c), Ok(vec![]));
+    assert_eq!(s.scan_iter(c).unwrap().count(), 0);
     assert_eq!(s.count(c), Ok(0));
     for (id, expected) in [
         (foreign.collection_id(1), Error::ForeignStore),
@@ -364,6 +365,7 @@ fn snapshot_collection_and_key_errors_have_valid_controls() {
     ] {
         assert_eq!(s.get(id, b""), Err(expected));
         assert_eq!(s.scan(id), Err(expected));
+        assert_eq!(s.scan_iter(id).err(), Some(expected));
         assert_eq!(s.count(id), Err(expected));
         assert_eq!(db.drop_collection(id), Err(expected));
         assert_eq!(db.begin().get(id, b""), Err(expected));
