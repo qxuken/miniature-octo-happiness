@@ -20,7 +20,7 @@ compaction and scripted lock and write failures check the propagated errors.
 | P | weekend-db::weekend-admin | tools/admin.rs:35:28– | 1305..1323 | match_guard | run | A1 |
 | D | weekend-db::weekend-admin | tools/admin.rs:36:70– | 1398..1399 | try_propagation | run | A1 |
 | E | weekend-db::weekend-admin | tools/admin.rs:46:13– | 1807..1810 | for_iteration | run | A1 |
-| B | weekend-db::weekend-admin | tools/admin.rs:64:25– | 2460..2480 | match_guard | run | Native Windows rejects compact as unsupported. The new same-arity unknown-command witness awaits native Windows execution. |
+| C | weekend-db::weekend-admin | tools/admin.rs:64:25– | 2460..2480 | match_guard | run | Native Windows debug and release reject compact as UnsupportedPlatform and an unknown command of the same arity as Invalid. Both preserve the file. |
 | P | weekend-db::weekend-admin | tools/admin.rs:65:43– | 2571..2614 | match_guard | run | A1 |
 | C | weekend-db::weekend-admin | tools/admin.rs:65:43– | 2571..2614 | short_circuit_or | run | A1 |
 | P | weekend-db::weekend-admin | tools/admin.rs:66:25– | 2644..2646 | if | run | A1 |

@@ -266,6 +266,15 @@ latest receipt and any pending request. Use `resume` after a lost reply or a
 client interruption. It retries a pending request verbatim or reports the
 latest local acknowledgment when the pending request already cleared.
 
+If the first `journal init` is interrupted, run `journal status` before
+submitting a write. If it reports the expected identity, assigned slot and
+`receipt 0`, that journal is ready. An interruption between file creation
+and publication of the initial journal row can leave a database that status
+rejects with `NotFound` or `UnsupportedFormat`. For this first initialization,
+keep the partial file and run init at a fresh path for the same assigned slot.
+Init checks that the coordinator slot is still empty. A previously used slot
+requires recovery of its existing journal and receipt history.
+
 A journal write can return `Io` when its filesystem fills before staging
 the request or after the coordinator records its receipt. Use `journal
 status` and `journal check` to distinguish an aligned journal from a
