@@ -2055,3 +2055,14 @@ state. All seven mutation controls were detected in debug and release on
 macOS and Docker Linux. Reconciliation leaves 461 runtime and 7,514 tooling
 gaps. Native join failures and incoming admission remain open.
 [Outgoing peer status ledger](decisions/study-peer-status-current.md)
+
+### Study incoming worker shutdown
+
+At `2d87db3`, listener retry tests verify the three transient errors and
+return the original fatal error. If a worker panics during shutdown, a
+prior listener I/O failure keeps precedence. A worker panic during
+active admission also stops the listener. The archive verifies nine
+mutation controls in debug and release on macOS and Docker Linux.
+Reconciliation leaves 445 runtime and 7,514 tooling gaps. Native thread
+creation failure remains open.
+[Incoming worker ledger](decisions/study-incoming-worker-current.md)

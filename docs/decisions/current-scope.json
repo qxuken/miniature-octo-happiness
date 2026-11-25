@@ -415,7 +415,7 @@
     "docs/decisions/study-interactive-io-current.md": "033cf798c68c87fe2f4ec560d5adf70d1d16cfa95daa18b3dc46ccbbda3d6627",
     "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
     "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f",
-    "docs/decisions/study-incoming-worker-current.md": "c76eafff63a3e3f76fe0f1707d3043c20116c94bac1dd3ee783b0560a8d28264"
+    "docs/decisions/study-incoming-worker-current.md": "f94f0d11e3bd22ae1df89ae4574953425ec3a07b591c5dc86988b6749339b5bb"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
