@@ -38,16 +38,16 @@ evidence requirements.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `0584ba7e5eb42f5d949ceb6408f17c04059c53403d10ee9534efb53e4f212390` |
+| `src/storage/file.rs` | `a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| E | weekend-db::weekend_db | src/storage/file.rs:246:55– | 8209..8210 | try_propagation | duplicate | A real refused directory duplication is attributed to DuplicateHandle. |
-| E | weekend-db::weekend_db | src/storage/file.rs:338:55– | 11526..11527 | try_propagation | scratch | Entropy and name preparation finish. A full descriptor table then refuses the scratch parent copy. |
-| E | weekend-db::weekend_db | src/storage/file.rs:491:38– | 16263..16264 | try_propagation | compact_file_impl | EMFILE on the source directory copy stops before opening the canonical file. |
-| E | weekend-db::weekend_db | src/storage/file.rs:506:45– | 16815..16816 | try_propagation | compact_file_impl | Propagate a scratch directory refusal before the scratch name is created. |
-| E | weekend-db::weekend_db | src/storage/file.rs:507:37– | 16854..16855 | try_propagation | compact_file_impl | The scratch location is prepared. The extra directory descriptor for the target refuses. |
-| E | weekend-db::weekend_db | src/storage/file.rs:507:60– | 16877..16878 | try_propagation | compact_file_impl | Kernel refusal at scratch creation or initial lease recheck exits before replacement. |
+| E | weekend-db::weekend_db | src/storage/file.rs:249:55– | 8330..8331 | try_propagation | duplicate | A real refused directory duplication is attributed to DuplicateHandle. |
+| E | weekend-db::weekend_db | src/storage/file.rs:341:55– | 11647..11648 | try_propagation | scratch | Entropy and name preparation finish. A full descriptor table then refuses the scratch parent copy. |
+| E | weekend-db::weekend_db | src/storage/file.rs:494:38– | 16384..16385 | try_propagation | compact_file_impl | EMFILE on the source directory copy stops before opening the canonical file. |
+| E | weekend-db::weekend_db | src/storage/file.rs:509:45– | 16936..16937 | try_propagation | compact_file_impl | Propagate a scratch directory refusal before the scratch name is created. |
+| E | weekend-db::weekend_db | src/storage/file.rs:510:37– | 16975..16976 | try_propagation | compact_file_impl | The scratch location is prepared. The extra directory descriptor for the target refuses. |
+| E | weekend-db::weekend_db | src/storage/file.rs:510:60– | 16998..16999 | try_propagation | compact_file_impl | Kernel refusal at scratch creation or initial lease recheck exits before replacement. |
 
 ## Verification
 

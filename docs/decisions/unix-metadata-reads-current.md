@@ -23,18 +23,18 @@ calls. The kernel's metadata-error behavior remains a deployment gate.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `0584ba7e5eb42f5d949ceb6408f17c04059c53403d10ee9534efb53e4f212390` |
+| `src/storage/file.rs` | `a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| E | weekend-db::weekend_db | src/storage/file.rs:143:37– | 4538..4539 | try_propagation | length | Preserve a terminal failure and allow a later read of the claimed file. |
-| E | weekend-db::weekend_db | src/storage/file.rs:253:33– | 8567..8568 | try_propagation | open_mode | The initial regular-file read stops opening and drops the file on refusal. |
-| E | weekend-db::weekend_db | src/storage/file.rs:256:39– | 8669..8670 | try_propagation | open_mode | Propagate either metadata refusal while trying to acquire the lease. |
-| E | weekend-db::weekend_db | src/storage/file.rs:277:44– | 9514..9515 | try_propagation | check_lease | The named-file read stops before reading the held file. |
-| E | weekend-db::weekend_db | src/storage/file.rs:278:43– | 9559..9560 | try_propagation | check_lease | Refusal on the held file releases the failed claim. |
-| E | weekend-db::weekend_db | src/storage/file.rs:312:49– | 10666..10667 | try_propagation | matches | Refuse named-file metadata independently for the canonical and the scratch location. |
-| E | weekend-db::weekend_db | src/storage/file.rs:313:43– | 10711..10712 | try_propagation | matches | Refuse held-file metadata independently for both locations. |
-| E | weekend-db::weekend_db | src/storage/file.rs:494:32– | 16451..16452 | try_propagation | compact_file_impl | An unreadable source link count stops compaction before creating its scratch. |
+| E | weekend-db::weekend_db | src/storage/file.rs:146:37– | 4659..4660 | try_propagation | length | Preserve a terminal failure and allow a later read of the claimed file. |
+| E | weekend-db::weekend_db | src/storage/file.rs:256:33– | 8688..8689 | try_propagation | open_mode | The initial regular-file read stops opening and drops the file on refusal. |
+| E | weekend-db::weekend_db | src/storage/file.rs:259:39– | 8790..8791 | try_propagation | open_mode | Propagate either metadata refusal while trying to acquire the lease. |
+| E | weekend-db::weekend_db | src/storage/file.rs:280:44– | 9635..9636 | try_propagation | check_lease | The named-file read stops before reading the held file. |
+| E | weekend-db::weekend_db | src/storage/file.rs:281:43– | 9680..9681 | try_propagation | check_lease | Refusal on the held file releases the failed claim. |
+| E | weekend-db::weekend_db | src/storage/file.rs:315:49– | 10787..10788 | try_propagation | matches | Refuse named-file metadata independently for the canonical and the scratch location. |
+| E | weekend-db::weekend_db | src/storage/file.rs:316:43– | 10832..10833 | try_propagation | matches | Refuse held-file metadata independently for both locations. |
+| E | weekend-db::weekend_db | src/storage/file.rs:497:32– | 16572..16573 | try_propagation | compact_file_impl | An unreadable source link count stops compaction before creating its scratch. |
 
 ## Verification
 

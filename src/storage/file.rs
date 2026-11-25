@@ -94,6 +94,21 @@ impl FileStore {
             Err(Error::Io)
         }
     }
+    fn unlock_with(&mut self, mut unlock: impl FnMut(c_int) -> c_int) {
+        let result = retry(NativeIoOperation::Unlock, || {
+            if unlock(self.file.as_raw_fd()) == 0 {
+                Ok(())
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        });
+        self.lease = if result.is_ok() {
+            Lease::Released
+        } else {
+            // Disable I/O and leave the descriptor available for cleanup.
+            Lease::Open
+        };
+    }
 }
 impl Drop for FileStore {
     fn drop(&mut self) {
@@ -124,19 +139,7 @@ impl ByteStore for FileStore {
         Ok(())
     }
     fn unlock(&mut self) {
-        let result = retry(NativeIoOperation::Unlock, || {
-            if unsafe { flock(self.file.as_raw_fd(), 8) } == 0 {
-                Ok(())
-            } else {
-                Err(io::Error::last_os_error())
-            }
-        });
-        self.lease = if result.is_ok() {
-            Lease::Released
-        } else {
-            // Disable I/O and leave the descriptor available for cleanup.
-            Lease::Open
-        };
+        self.unlock_with(|fd| unsafe { flock(fd, 8) });
     }
     fn length(&mut self) -> Result<u64> {
         self.check()?;
@@ -1210,6 +1213,53 @@ mod decision_tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"replacement");
         drop(old);
         drop(first);
+    }
+
+    #[test]
+    fn failed_unlock_blocks_io_until_explicit_retry_or_drop() {
+        let fixture = PathFixture::new("unlock");
+        let path = fixture.0.join("data");
+        std::fs::write(&path, b"kept").unwrap();
+        for retry_on_drop in [false, true] {
+            let mut store = FileStore::open(&path).unwrap();
+            store.lock().unwrap();
+            let inherited = store.file.try_clone().unwrap();
+            let expected = store.file.as_raw_fd();
+            let failure = crate::storage::with_storage_diagnostics(|| {
+                store.unlock_with(|fd| {
+                    assert_eq!(fd, expected);
+                    // A separate invalid descriptor gives the real syscall error
+                    // without closing or otherwise changing the owned descriptor.
+                    unsafe { flock(-1, 8) }
+                });
+                let mut byte = *b"?";
+                assert_eq!(store.read(0, &mut byte), Err(Error::Io));
+                assert_eq!(byte, *b"?");
+                assert_eq!(store.write(0, b"bad"), Err(Error::Io));
+                assert_eq!(store.sync(), Err(Error::Io));
+                assert!(matches!(store.lease, Lease::Open));
+                store.length()
+            })
+            .unwrap_err();
+            assert_eq!(failure.error, Error::Io);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, NativeIoOperation::Unlock);
+            assert_eq!(native.raw_os_error, Some(9)); // EBADF
+            assert!(matches!(FileStore::open(&path), Err(Error::Busy)));
+            if !retry_on_drop {
+                store.unlock();
+                assert!(matches!(store.lease, Lease::Released));
+                drop(FileStore::open(&path).unwrap());
+            }
+            drop(store);
+            // The other descriptor keeps the same open file description alive.
+            // Successful reopen therefore requires an actual unlock.
+            let reopened = FileStore::open(&path).unwrap();
+            assert!(inherited.metadata().is_ok());
+            assert_eq!(std::fs::read(&path).unwrap(), b"kept");
+            drop(reopened);
+            drop(inherited);
+        }
     }
 
     #[test]

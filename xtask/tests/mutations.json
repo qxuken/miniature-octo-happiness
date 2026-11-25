@@ -7172,7 +7172,7 @@
       "file": "src/storage/file.rs",
       "old": "self.lease = if result.is_ok() {",
       "new": "self.lease = if result.is_err() {",
-      "test": "storage::file::decision_tests::all_io_requires_a_claim_and_failed_reacquisition_releases_the_inode",
+      "test": "storage::file::decision_tests::failed_unlock_blocks_io_until_explicit_retry_or_drop",
       "target": "--lib",
       "occurrence": 1,
       "matches": 1,
@@ -14276,6 +14276,17 @@
       "target": "--lib",
       "package": "weekend-db",
       "test": "storage::file::decision_tests::poisoned_compaction_observer_prevents_the_next_operation",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-unix-lease-unlock-syscall",
+      "file": "src/storage/file.rs",
+      "old": "unlock(self.file.as_raw_fd()) == 0",
+      "new": "unlock(self.file.as_raw_fd()) != 0",
+      "target": "--lib",
+      "package": "weekend-db",
+      "test": "storage::file::decision_tests::failed_unlock_blocks_io_until_explicit_retry_or_drop",
       "occurrence": 1,
       "matches": 1
     }

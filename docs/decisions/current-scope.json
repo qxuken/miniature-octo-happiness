@@ -106,7 +106,7 @@
     "src/schema.rs": "66bb396906513bf771b53627bbfeccc9da8a719bb3667df996677398f17170b8",
     "src/storage/codec.rs": "593b1dc249ceca770b436133c894b41aad0596c5f20be79abf96cd69644205ee",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
-    "src/storage/file.rs": "0584ba7e5eb42f5d949ceb6408f17c04059c53403d10ee9534efb53e4f212390",
+    "src/storage/file.rs": "a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f",
     "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
     "src/storage/linux.rs": "512931ec540b580a4cf83706878f73aeae4358e74fefd1e0b15fd74a3fcf0220",
     "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "aadd6e3277d6b160e226cbd81edb9792ba98e7e3bc89f6e6b5eb6501619e888a",
+    "xtask/tests/mutations.json": "f720e1842926d457fec1b245ef43bb525a6c34017df459235b2ecce5a9e3afeb",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -329,20 +329,20 @@
     "docs/decisions/storage-creation-reopen-current.md": "a4017782123dbd96eddbb3711613c8454fd7e963a73848c1e05329eb4c16c331",
     "tests/headroom.rs": "d9ea3f3559aabc199495fba51a8d4020bb7f472b8a3112155e1d8e920005606c",
     "docs/decisions/compact-copy-current.md": "1de619c305f3e8c8174196617509a92c7c4d077437126b836d99890cd6589c24",
-    "docs/decisions/native-replacement-current.md": "1ce1f655dc31dacfd10533f4ca04c7b054a0d764ad1099768812c7ee83a2be53",
-    "docs/decisions/unix-leases-current.md": "756eb218499eeb6b6d3aa8b7ca63224b02f2e3b56767d6b0b24f872d44c506b2",
-    "docs/decisions/unix-path-admission-current.md": "df8b634edd7d78aefa4997630f9e761c7686cb42715e55a54fc2cb62c7075888",
-    "docs/decisions/unix-sync-current.md": "ae49ef8d8f8bd64e1deb5c8bbc74bbf84967f36c46aba865df6f8c1f8095371b",
+    "docs/decisions/native-replacement-current.md": "800b23b2b83bbfe0bab145c394d216469573974aa8e32cbc66812e01fda1a5c3",
+    "docs/decisions/unix-leases-current.md": "033fec62102c7060d741bdb3844937f763d77f9e4c5efad738a2130fd6594fb3",
+    "docs/decisions/unix-path-admission-current.md": "4b0ea4b1dd98bcd9e81e53b7006343423a71e819e057598e58ff5bb49e930349",
+    "docs/decisions/unix-sync-current.md": "07bd12f2254e91503accb01afb23ea59512e757cb10731d95e27df28af6470b4",
     "docs/decisions/macos-primitives-current.md": "5980f031c5237e3cf8df4d43793a949b37f82cc378919e25ff7977a2a5299c88",
     "docs/decisions/linux-primitives-current.md": "05d0e30b6bc23b0ad93116c44a941db70768b2e568797669085679c27c9ec1ed",
     "docs/decisions/linux-metadata-current.md": "9322111c3a33fd7c8b048a9874d150c550644dbd100b5a12a73ab4eda2cee12e",
     "docs/decisions/windows-paths-current.md": "09fc05b2d123e33c10006f65242359f7ea2002bf1774dfc3bfc16557b33f7a6f",
-    "docs/decisions/unix-scratch-io-current.md": "1ab890174cd533063b5241eb10b46fc7ffe08bc7fc8de73fa643e7ea27b74233",
+    "docs/decisions/unix-scratch-io-current.md": "7bf5c1d7e9d68d442fee605ef55b1d6e30cf622531cb906365383334bc3f9422",
     "tests/linux_architecture.rs": "45f6c0859c890fe3540f3f322f0d1d5d41aff762eb116066fe07ec0143a36e2e",
-    "docs/decisions/linux-architecture-current.md": "d474c49ad6559bc3bd92025ceb1c7a98d0ac0d248a8acdd993b2f2c624520f48",
-    "docs/decisions/unix-descriptors-current.md": "7d024f60f4c0f0daf036683bd490b8729b067fae856a55cbc98fb42d02281af2",
-    "docs/decisions/unix-metadata-reads-current.md": "bf631508f28bf30c6718ed9a023a4563b43137910dcb050af0324b0b9320febd",
-    "docs/decisions/unix-clone-failures-current.md": "b651caef913155f888c084771d888b2822fdc4894add19f73f0ad0478d264511",
+    "docs/decisions/linux-architecture-current.md": "428d80d23f6b06a399e61cc8f423b4f852ecbce7beb3c9ff3e5bd4307cab87d9",
+    "docs/decisions/unix-descriptors-current.md": "c28a6d9dd469aefe24b1cc4f852906141378748510b86be2ce404776e75bf190",
+    "docs/decisions/unix-metadata-reads-current.md": "aaf3cd7c24a541ab70c8ebbdd1d77674c2f02872ad3b67f97ae5bf173fdbf258",
+    "docs/decisions/unix-clone-failures-current.md": "08d24c5416025094d12e9a1d1189bc5f29ed01844acf1799d3de903a6e141c81",
     "tests/support/descriptor_limit.rs": "4e0810a10a9658351bdb92fdb60535bfe1268d74db8b9897e7b41b71030e72d7",
     "xtask/tests/mutations-windows.json": "6a2eb401d709f79bed86b435797a054729fedd60da8b6dffc0f9ce918de35862",
     "docs/decisions/windows-admission-current.md": "148245e024712e57cf43f02cdedb7d5f98a82509af6b8b389835569d6a3d4c93",
@@ -402,7 +402,8 @@
     "docs/decisions/snapshot-maintenance-output-current.md": "a1e0d8119f0a4784f7ef6f0b09718da3bbf5bfed12d37da16b1ee01b3ecce5d6",
     "docs/decisions/replica-envelope-current.md": "b324cbf3360151880dd016c42733c2acdff027f31ade2cad51677ecb1c38c641",
     "docs/decisions/runtime-identity-current.md": "1fa85fa316980a6ab55f2bd73f7890d879d1bc62cfc0d6f74d8a471c849ca00c",
-    "docs/decisions/native-compaction-setup-current.md": "f252fac820cb22f5c5d9ab17415ce4374bf4678f7d33148befe0a9e988de8f0f"
+    "docs/decisions/native-compaction-setup-current.md": "3d69b238c78fceeb39b20798a0b31b62e988b25f1313df2fc7108506d986384f",
+    "src/storage/file.rs": "a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -13219,7 +13220,7 @@
         "conditions": [
           "sync_file(&self.file)"
         ],
-        "start_byte": 5269
+        "start_byte": 5390
       },
       "tests": [
         {
@@ -13264,7 +13265,7 @@
         "conditions": [
           "sync_file(&self.file)"
         ],
-        "start_byte": 5380
+        "start_byte": 5501
       },
       "tests": [
         {
@@ -25366,6 +25367,80 @@
             false,
             false,
             false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "UNIX-UNLOCK-SYSCALL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/file.rs",
+        "target": "weekend-db::weekend_db",
+        "kind": "if",
+        "owner": "unlock_with",
+        "start_byte": 3272,
+        "conditions": [
+          "unlock(self.file.as_raw_fd()) == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "failed_unlock_blocks_io_until_explicit_retry_or_drop"
+        }
+      ],
+      "mutations": [
+        "r1-unix-lease-unlock-syscall"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "UNIX-UNLOCK-STATE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "src/storage/file.rs",
+        "target": "weekend-db::weekend_db",
+        "kind": "if",
+        "owner": "unlock_with",
+        "start_byte": 3451,
+        "conditions": [
+          "result.is_ok()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/storage/file.rs",
+          "name": "failed_unlock_blocks_io_until_explicit_retry_or_drop"
+        }
+      ],
+      "mutations": [
+        "r1-unix-lease-unlock-state"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
             true
           ],
           "outcome": true
