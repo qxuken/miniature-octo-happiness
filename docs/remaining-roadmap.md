@@ -562,6 +562,15 @@ emits no receipt and preserves the current and retained rows. The inventory
 still has 9,284 open records. Native Windows and deployed peer qualification
 remain open.
 
+The [coordinator and client-journal batch](decisions/coordinator-service-current.md)
+groups admission, dispatch, receipt replay and journal recovery in one PR.
+The replay case preserves current revision 6, retained revision 4 and the
+durable image. All 32 named controls pass in debug and release on macOS and
+Docker Linux. The R1 queue is 9,262 records (1,877 runtime / 26 driver /
+7,359 tooling). Native Windows execution for this source and deployed
+operator qualification remain open. Subsequent work follows the
+[grouped roadmap](production-pr-roadmap.md#stack-order) through candidate freeze.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates

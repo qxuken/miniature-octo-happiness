@@ -371,7 +371,8 @@
     "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
     "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
     "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
-    "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12"
+    "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12",
+    "docs/decisions/coordinator-service-current.md": "1cd9caee07ccb15daae1a2ea6d583e5a0aaf467f879afe0f5ec1c5605cf7de6a"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -848,7 +849,8 @@
         "docs/decisions/distributed-apps.md",
         "apps/write-coordinator/tests/writers.rs",
         "apps/write-coordinator/tests/writers/pending_restore.rs",
-        "docs/coordinator-pending-restore.md"
+        "docs/coordinator-pending-restore.md",
+        "docs/decisions/coordinator-service-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -21396,6 +21398,814 @@
       ],
       "mutations": [
         "r1-crdt-causal-serve-validation-result"
+      ]
+    },
+    {
+      "name": "COORDINATOR-AUTH-LENGTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "authorize",
+        "kind": "if",
+        "conditions": [
+          "candidate.len() != secret.len()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-auth-length"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-LINE-LIMIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "read_line_from",
+        "kind": "while",
+        "conditions": [
+          "bytes.len() < MAX_LINE"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "authentication_and_line_bounds"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-line-limit"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-QUEUE-STOP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "dispatch_requests",
+        "kind": "if",
+        "conditions": [
+          "stopping.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "shutdown_completes_dispatched_write_and_drops_queued_write"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-queue-stopping"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-QUEUE-DEADLINE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "dispatch_requests",
+        "kind": "if",
+        "conditions": [
+          "Instant::now() >= request.deadline"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "expired_queued_commands_are_skipped_before_dispatch"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-queue-deadline"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-QUEUE-ADMISSION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "dispatch_requests",
+        "kind": "if",
+        "conditions": [
+          "request.admitted.send(response).is_err()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "expired_queued_commands_are_skipped_before_dispatch"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-queue-disconnected"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-RECEIPT-HEADER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "from_bytes",
+        "kind": "if",
+        "conditions": [
+          "bytes.len() != 33",
+          "bytes[0] != 1"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "malformed_receipts_fail_closed_for_lookup_and_retry"
+        },
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-receipt-length",
+        "r1-coordinator-receipt-version"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-RECEIPT-HISTORY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "from_bytes",
+        "kind": "if",
+        "conditions": [
+          "receipt.sequence == 0",
+          "receipt.expected.checked_add(1) != Some(receipt.revision)",
+          "receipt\n                .sequence\n                .checked_add(INITIAL_REVISION)\n                .is_none_or(|first| first > receipt.revision)",
+          "receipt.revision > head"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "malformed_receipts_fail_closed_for_lookup_and_retry"
+        },
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-receipt-sequence",
+        "r1-coordinator-receipt-expected",
+        "r1-coordinator-receipt-prefix",
+        "r1-coordinator-receipt-head"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-SLOT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "slot_key",
+        "kind": "if",
+        "conditions": [
+          "slot >= MAX_SLOTS"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        },
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "one_slot_accepts_more_than_a_thousand_commits_with_a_single_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-slot-capacity"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-STORE-IDENTITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "require_identity",
+        "kind": "if",
+        "conditions": [
+          "unhex::<16>(identity)? != db.storage_identity()?"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-store-identity"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-JOURNAL-PREDECESSOR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "if",
+        "conditions": [
+          "previous.map_or(0, |r| r.sequence).checked_add(1) != Some(sequence)",
+          "previous.is_some_and(|r| r.revision > expected)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-journal-predecessor-sequence",
+        "r1-coordinator-journal-predecessor-revision"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-REPLAY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "if",
+        "conditions": [
+          "(expected, value) != (receipt.expected, receipt.value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-replay-expected",
+        "r1-coordinator-replay-value"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-NEXT-SEQUENCE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "if",
+        "conditions": [
+          "last.checked_add(1) != Some(sequence)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-next-sequence"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-REVISION-CONFLICT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "if",
+        "conditions": [
+          "revision != expected"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-revision-conflict"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-JOURNAL-HEADER",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/journal.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "decode",
+        "kind": "if",
+        "conditions": [
+          "bytes.len() != 76",
+          "&bytes[..8] != MAGIC",
+          "bytes[26] & !3 != 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/journal.rs",
+          "name": "journal_decode_rejects_each_noncanonical_field"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-state-length",
+        "r1-coordinator-state-magic",
+        "r1-coordinator-state-flags"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-JOURNAL-IDENTITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/journal.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "decode",
+        "kind": "if",
+        "conditions": [
+          "identity == [0; 16]",
+          "u64::from(slot) >= MAX_SLOTS"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/journal.rs",
+          "name": "journal_decode_rejects_each_noncanonical_field"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-state-identity",
+        "r1-coordinator-state-slot"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-JOURNAL-ABSENT-RECEIPT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/journal.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "decode",
+        "kind": "if",
+        "conditions": [
+          "bytes[27..60] != [0; 33]"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/journal.rs",
+          "name": "journal_decode_rejects_each_noncanonical_field"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-state-absent-receipt"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-JOURNAL-ABSENT-INTENT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/journal.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "decode",
+        "kind": "if",
+        "conditions": [
+          "bytes[60..76] != [0; 16]"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/journal.rs",
+          "name": "journal_decode_rejects_each_noncanonical_field"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-state-absent-intent"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-JOURNAL-INTENT-BOUNDS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/journal.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "decode",
+        "kind": "short_circuit_or",
+        "conditions": [
+          "pending.expected < state.floor()",
+          "pending.expected == u64::MAX"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/journal.rs",
+          "name": "journal_decode_rejects_each_noncanonical_field"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-state-intent-floor",
+        "r1-coordinator-state-intent-revision"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-JOURNAL-CONFIRMATION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/journal.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "resume",
+        "kind": "if",
+        "conditions": [
+          "reply == format!(\"committed {revision}\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/journal.rs",
+          "name": "busy_keeps_the_intent_for_exact_retry_after_reopen"
+        },
+        {
+          "file": "apps/write-coordinator/src/native/journal.rs",
+          "name": "only_an_exact_acknowledgment_or_newer_conflict_clears_pending"
+        }
+      ],
+      "mutations": [
+        "r1-coordinator-resume-confirmation"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
       ]
     }
   ],

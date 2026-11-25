@@ -152,6 +152,10 @@ covers the two-actor event model, sequence and retirement admission, bounded
 minimum and maximum resolution, and rejection before publication or receipt.
 Native Windows and deployed peer qualification remain open.
 
+Batch 11 starts with [coordinator dispatch, receipts and journal recovery](decisions/coordinator-service-current.md).
+It verifies both roots after exact replay and rejected requests and reuses
+the earlier scheduler and ambiguous-acknowledgment simulator fixtures.
+
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those
 gates and the applicable assurance batches are complete.
