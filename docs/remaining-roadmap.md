@@ -1592,3 +1592,19 @@ Twenty mutation-runner regressions passed on macOS and Docker Linux. The
 [archive manifest](decisions/capture-record-4fda1a4.sha256) identifies the
 suites, mutation evidence and reconciliation. There are 746 unclassified
 runtime decisions and 7,415 tooling decisions.
+
+### Windows coordinator oracle source check
+
+At `ccfd5d5`, source reconciliation checks that the Windows coordinator
+oracle covers the exact files named by the coordinator mutation registry.
+Each oracle hash must agree with the reviewed source hash. This uses the
+existing reconciliation step before CI runs the mutations. A copy of the
+candidate with the old oracle from `c7b3271` was rejected at the journal
+source pin even after updating the outer reference hash.
+
+The 35 inventory tests passed in debug and release on macOS arm64 and
+Docker Linux arm64. Both platforms returned the same source hashes and
+decision dispositions. The [archive manifest](decisions/windows-oracle-ccfd5d5.sha256)
+includes the rejected input diff and the accepted reports. The 746 runtime
+gaps remain open. The new validation adds 13 tooling records, bringing
+the tooling gap count to 7,428.
