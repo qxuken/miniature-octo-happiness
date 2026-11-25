@@ -241,3 +241,43 @@ four retained maps through reopen, backup, restore and compaction.
 Each row pools 192 data commits and 12 separately timed pins. These
 observations cover the local single-writer fixture. The accelerated
 two-peer workload and deployed service budgets have separate evidence.
+
+## Sixty-four retained roots on macOS and Linux
+
+On November 25 the private Rust comparator ran against clean checkpoint
+`49ddab548fa60fced67f04d666d429cd49746492` with Rust 1.100.0 on arm64
+macOS/APFS and in an offline arm64 Linux container on ext4. Each of three
+fresh-file rounds performed 128 commits of eight updates among 128 keys,
+pinned every second commit, and reopened eight times. Both engines passed
+the complete current and 64-root byte oracle through backup, restore and
+compaction in every round. The checked-state digest was
+`414107962869247620` on both platforms.
+
+| Platform and engine | Durable commit p50 / p95 / p99 (ms) | Warm reopen plus full verification p50 / p95 / p99 (ms) | Verified restore range (ms) |
+| --- | --- | --- | --- |
+| macOS, weekend-db | 8.98 / 9.98 / 10.08 | 16.64 / 23.45 / 26.08 | 64.94–83.11 |
+| macOS, SQLite 3.54.0 | 0.25 / 0.75 / 1.14 | 7.87 / 9.00 / 9.30 | 20.07–21.92 |
+| Docker Linux, weekend-db | 0.32 / 0.63 / 2.84 | 13.53 / 14.98 / 21.93 | 52.55–53.20 |
+| Docker Linux, SQLite 3.40.1 | 0.18 / 0.25 / 0.38 | 9.53 / 10.75 / 10.76 | 19.87–21.41 |
+
+Quantiles pool 384 commits and 24 reopens per engine and platform. With
+24 observations, reopen p99 is the largest observed sample. The compacted
+weekend-db file occupied 5,201,920 logical bytes in each round. SQLite
+retained 1,136 of 1,152 version rows in a 352,256-byte compacted main file.
+At the size observation the WAL was empty on both platforms and macOS
+also reported a 32,768-byte shared-memory file. These single-writer,
+warm-cache measurements leave deployment concurrency and hardware budgets open.
+
+Reproduce from the checkpoint with Rust 1.100.0 first on PATH, the locked
+dependencies cached and a fresh output directory on the tested filesystem.
+
+```sh
+cargo xtask sqlite-baseline --revision 49ddab548fa60fced67f04d666d429cd49746492 \
+  --commits 128 --keys 128 --batch 8 --payload 256 --retain-every 2 \
+  --reopens 8 --rounds 3 --output "$OUTPUT"
+```
+
+The retained raw reports have SHA-256
+`52e26c8cccc2db9b549bf459f08f6559f765ae94bceb1bd616149bff24daf80b`
+(macOS) and `7b75d886aa3300ae85b985a735258bba7f035bb368f3be13bd273df81b5b8dd0`
+(Linux).

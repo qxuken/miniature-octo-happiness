@@ -649,4 +649,9 @@ Replaying its tar archive against that commit verified all 22 targets and
 20,918 completed executions. As a negative control, replaying the earlier
 loose-file download against its own commit failed at the missing
 `open_image_bytes/artifacts` directory. This qualifies restoration of
-this bounded CI campaign. The release-duration fuzz gate remains open.
+this bounded CI campaign. The final release still needs same-source fuzz evidence.
+
+The [64-root matched SQLite workload](sqlite-baseline.md#sixty-four-retained-roots-on-macos-and-linux)
+passed all current and retained byte checks across three rounds per engine
+on both macOS/APFS and Docker Linux/ext4 at `49ddab5`. R3 still needs
+deployment-device measurements, concurrency and agreed service budgets.
