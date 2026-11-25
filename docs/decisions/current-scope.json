@@ -425,7 +425,7 @@
     "docs/decisions/credential-file-admission-current.md": "b53ddc975a9d003124345dd1f8aadb4a268d2c4024ba1290d51009ab0c119962",
     "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403",
     "docs/decisions/snapshot-readiness-current.md": "4cf929aaac0c358c0e2188b9b64f06718e981d7a89b606ea35f6faac1fb2027a",
-    "docs/decisions/snapshot-command-output-current.md": "81549e3c32be92af1c6c8b0921cb7c0fd5e42d72072987bea4b3e41a48341cde"
+    "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

@@ -373,6 +373,11 @@ does not persist the sender's previous in-memory progress watermark. The
 follower's recovered manifest remains authoritative. A restored/forked primary
 requires new stream enrollment; do not reinterpret it as the old live writer.
 
+The CLI flushes the local verified revision before it dials. It reports
+the follower receipt after the authenticated poll. If receipt output fails,
+run a fresh poll or reopen follower status to recover the same durable
+receipt. [Snapshot poll output qualification](decisions/snapshot-command-output-current.md)
+
 Sampled polling tracks the verified revision gap and the age of the last
 durable observation across transient failures. Each sample uses the same
 primary lease rules and reconnects over authenticated TLS.

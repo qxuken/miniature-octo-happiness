@@ -2181,3 +2181,15 @@ The runtime ledger remains at 420 gaps.
 The full native Windows workspace job reproduced the same test and
 sharing violation on that head.
 [Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45704523143/job/139522941821)
+
+### Snapshot command output and receipt reporting
+
+At `23f1b30`, help, describe and poll use the fallible report writer.
+A failed local poll report stops before dialing. A failed receipt flush
+preserves the verified receipt, which a fresh read-only poll recovers.
+The regression observes local revision 5 and follower revision 4 in
+separate lines and compares the follower manifest byte for byte.
+Both profiles passed on macOS and Docker Linux/ext4 with twelve controls,
+and the Windows debug targets cross-linked. The ledger has 419 runtime
+and 7,514 tooling gaps.
+[Command output ledger](decisions/snapshot-command-output-current.md)

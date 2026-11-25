@@ -63,3 +63,35 @@ the current source digest using the same conditions and source spans.
 | E | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:212:49– | 8623..8624 | try_propagation | main | Closing stdout prevents the first capture line and reports an I/O diagnostic. A normal capture prints both exact lines. |
 | C | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:232:14– | 9109..9120 | match_guard | main | The exact verb reaches its phase. Changing only the verb returns usage and preserves the directory. |
 | C | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:257:14– | 9907..9927 | match_guard | main | The exact verb reaches its phase. Changing only the verb returns usage and preserves the directory. |
+
+## Verification
+
+At `23f1b3079f302c892d65f657bbea25188bad0ef8`, Rust 1.100.0 debug and
+release passed 51 CLI tests on arm64 macOS and 52 on arm64 Docker
+Linux. The Linux source, builds and runtime files were on ext4.
+Both profiles passed 11 core replication tests and strict Clippy on
+both hosts. The separate long manifest growth and Linux exhaustion
+cases stayed in their opt-in lanes. Five Windows x64 MSVC debug
+targets cross-linked.
+
+The five new controls reproduce both former print panics, an error
+substitution at the local poll gate, an error substitution in the
+shared writer and a swallowed receipt-output failure. All twelve
+selected controls reached their expected assertions in every campaign.
+Fresh extraction verified 176 command reports, the exact runners and
+all 979 copied files per campaign. [Archive checksums](snapshot-command-output-23f1b30.sha256)
+
+Source reconciliation preserves the existing readiness and dispatch
+evidence. The shared flush and local poll report each have a new
+propagation control. The refactor exposes one additional source record.
+The ledger has 419 runtime and 7,514 tooling gaps.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p weekend-replicate
+cargo test --offline --locked --all-features -p weekend-db --test replication
+cargo xtask mutations --toolchain 1.100.0 --case r1-snapshot-command-output- \
+  --case r1-snapshot-startup- --case r1-snapshot-dispatch- --output "$OUTPUT/debug"
+```
+
+Repeat with `--release` and a fresh mutation output path.
