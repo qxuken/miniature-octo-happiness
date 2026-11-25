@@ -372,7 +372,8 @@
     "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
     "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
     "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12",
-    "docs/decisions/coordinator-service-current.md": "1cd9caee07ccb15daae1a2ea6d583e5a0aaf467f879afe0f5ec1c5605cf7de6a"
+    "docs/decisions/coordinator-service-current.md": "1cd9caee07ccb15daae1a2ea6d583e5a0aaf467f879afe0f5ec1c5605cf7de6a",
+    "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -578,7 +579,8 @@
         "docs/decisions/codec-cache-index-current.md",
         "docs/decisions/bytestore-publication-current.md",
         "docs/decisions/storage-creation-reopen-current.md",
-        "docs/decisions/compact-copy-current.md"
+        "docs/decisions/compact-copy-current.md",
+        "docs/decisions/compound-recovery-current.md"
       ],
       "residual": "Native persistence assumptions and delegated calls remain separate from simulated pairs."
     },

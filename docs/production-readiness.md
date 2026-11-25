@@ -414,6 +414,10 @@ for suitable unsafe Rust paths and a bounded scheduler such as
 [Loom](https://github.com/tokio-rs/loom) for modeled atomic interactions.
 Retain real threaded and cross-process tests on native artifacts.
 
+The [compound recovery ledger](decisions/compound-recovery-current.md) records
+which memory or I/O failure wins during writable reopen, including exact
+retained and current roots and the next acknowledged commit.
+
 ## Crash, platform and release qualification
 
 | Gate | Required evidence |

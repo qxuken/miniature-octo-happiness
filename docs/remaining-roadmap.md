@@ -571,6 +571,12 @@ Docker Linux. The R1 queue is 9,262 records (1,877 runtime / 26 driver /
 operator qualification remain open. Subsequent work follows the
 [grouped roadmap](production-pr-roadmap.md#stack-order) through candidate freeze.
 
+The [compound recovery batch](decisions/compound-recovery-current.md) exercises
+selected-allocator refusal and competing disk faults, plus bounded-memory
+reopen under repeated simulated crashes. The corrected oracle passes 44,040
+macOS ASan executions. Broader backend schedules and physical device
+qualification remain open.
+
 All R1 and R2–R7 completion gates above remain open.
 
 ## Deployment and owner gates
