@@ -1,4 +1,7 @@
 //! Bounded, alternating-order comparison of separately built engine fixtures.
+#[path = "../../tools/sqlite-baseline/src/arrivals.rs"]
+#[allow(dead_code, reason = "only the fixture workers pace writes")]
+mod arrivals;
 #[path = "../../tools/sqlite-baseline/src/workload.rs"]
 mod workload;
 
@@ -52,6 +55,9 @@ pub struct Options {
     /// Sample the resident memory of each workload process during its round.
     #[arg(long)]
     sample_rss: bool,
+    /// Offer one write at each fixed interval, in microseconds (1000–25000).
+    #[arg(long)]
+    write_period_us: Option<u64>,
 }
 
 fn admit(run: &Run, opts: &Options) -> Result<(PathBuf, Work)> {
@@ -67,6 +73,11 @@ fn admit(run: &Run, opts: &Options) -> Result<(PathBuf, Work)> {
     ensure!(
         (1..=8).contains(&opts.rounds),
         "workload exceeds the bounded supported range"
+    );
+    ensure!(
+        opts.write_period_us
+            .is_none_or(|period| arrivals::WRITE_PERIOD_US.contains(&period)),
+        "write period exceeds the bounded supported range"
     );
     Ok((assurance::fresh_output(&run.root, &opts.output)?, work))
 }
@@ -113,6 +124,79 @@ fn check_round(row: &Value, work: Work, expected: &Expected, engine: &str) -> Re
     Ok(())
 }
 
+fn arrival_timings(
+    row: &Value,
+    work: Work,
+    expected: &Expected,
+    write_period_us: Option<u64>,
+) -> Result<Vec<[u64; 4]>> {
+    ensure!(
+        row["write_period_us"] == json!(write_period_us),
+        "wrong write period in baseline report"
+    );
+    let samples = &row["write_arrivals_ns"];
+    let Some(period_us) = write_period_us else {
+        ensure!(
+            samples.is_null() || samples.as_array().is_some_and(Vec::is_empty),
+            "unexpected write arrivals in unpaced baseline"
+        );
+        return Ok(Vec::new());
+    };
+    let samples = samples
+        .as_array()
+        .context("missing write arrival samples")?;
+    ensure!(
+        samples.len() as u64 == work.commits,
+        "incomplete write arrival samples"
+    );
+    let mut timings = Vec::with_capacity(samples.len());
+    let mut previous_finish = 0;
+    let mut pins = row["pin_ns"]
+        .as_array()
+        .context("missing pin samples")?
+        .iter();
+    for (index, sample) in samples.iter().enumerate() {
+        let [began, finished]: [u64; 2] =
+            serde_json::from_value(sample.clone()).context("malformed write arrival sample")?;
+        let due = index as u64 * period_us * 1_000;
+        let available = due.max(previous_finish);
+        ensure!(
+            available <= began && began <= finished,
+            "write began before its deadline or overlapped another request, or finished before it began"
+        );
+        let service = finished - began;
+        let transaction = row["transaction_ns"][index]
+            .as_u64()
+            .context("missing transaction sample")?;
+        let pin = if expected.retained.contains_key(&(index as u64 + 1)) {
+            pins.next()
+                .and_then(Value::as_u64)
+                .context("missing pin sample")?
+        } else {
+            0
+        };
+        ensure!(
+            transaction
+                .checked_add(pin)
+                .is_some_and(|total| service >= total),
+            "write service ended before the transaction and durable pin finished"
+        );
+        timings.push([available - due, began - available, service, finished - due]);
+        previous_finish = finished;
+    }
+    Ok(timings)
+}
+
+fn quantiles(mut samples: Vec<u64>) -> Result<Value> {
+    ensure!(!samples.is_empty(), "missing baseline sample");
+    samples.sort_unstable();
+    Ok(json!({
+        "samples":samples.len(),"p50_ns":samples[(50 * samples.len()).div_ceil(100) - 1],
+        "p95_ns":samples[(95 * samples.len()).div_ceil(100) - 1],
+        "p99_ns":samples[(99 * samples.len()).div_ceil(100) - 1],
+    }))
+}
+
 fn summarize(rounds: &[Value]) -> Result<Value> {
     let mut summary = json!({});
     for engine in ["weekend", "sqlite"] {
@@ -126,13 +210,7 @@ fn summarize(rounds: &[Value]) -> Result<Value> {
                     samples.push(sample.as_u64().context("malformed baseline sample")?);
                 }
             }
-            ensure!(!samples.is_empty(), "missing baseline sample");
-            samples.sort_unstable();
-            summary[engine][name] = json!({
-                "samples":samples.len(),"p50_ns":samples[(50 * samples.len()).div_ceil(100) - 1],
-                "p95_ns":samples[(95 * samples.len()).div_ceil(100) - 1],
-                "p99_ns":samples[(99 * samples.len()).div_ceil(100) - 1],
-            });
+            summary[engine][name] = quantiles(samples)?;
         }
     }
     Ok(summary)
@@ -148,6 +226,9 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         "commits":work.commits, "keys":work.keys, "batch":work.batch, "payload":work.payload,
         "retain_every":work.retain_every, "reopens":work.reopens,
     });
+    if let Some(period) = opts.write_period_us {
+        c.evidence["workload"]["write_period_us"] = json!(period);
+    }
     c.evidence["oracle_digest"] = json!(expected.digest);
     c.evidence["oracle_counts"] =
         json!({"current_keys":expected.current.len(),"retained_roots":expected.retained.len()});
@@ -165,6 +246,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         for file in [
             "Cargo.toml",
             "Cargo.lock",
+            "src/arrivals.rs",
             "src/main.rs",
             "src/sqlite.rs",
             "src/workload.rs",
@@ -223,6 +305,7 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         c.evidence["sqlite_linkage"] = json!(c.command(inspect, "sqlite-linkage", None, 30.)?);
         c.sample_rss = opts.sample_rss;
         let mut identity = None;
+        let mut arrivals = BTreeMap::<_, Vec<_>>::new();
         for index in 0..opts.rounds {
             let order = if index % 2 == 0 {
                 ["weekend", "sqlite"]
@@ -245,9 +328,15 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
                     ]
                     .map(|x| OsString::from(x.to_string())),
                 );
+                if let Some(period) = opts.write_period_us {
+                    args.push(period.to_string().into());
+                }
                 let stdout = c.command_at(args, &label, None, 180., &source)?;
                 let mut result = delivery::json(stdout.as_bytes())?;
                 check_round(&result, work, &expected, name)?;
+                let timings = arrival_timings(&result, work, &expected, opts.write_period_us)
+                    .with_context(|| format!("{label} invalid write timings"))?;
+                arrivals.entry(name).or_default().extend(timings);
                 if name == "sqlite" {
                     let runtime = json!({"version":result["sqlite_version"],"source_id":result["sqlite_source_id"],"compile_options":result["compile_options"]});
                     ensure!(
@@ -270,6 +359,19 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         }
         c.evidence["sqlite_runtime"] = identity.context("missing SQLite runtime identity")?;
         c.evidence["summary"] = summarize(c.evidence["rounds"].as_array().unwrap())?;
+        if opts.write_period_us.is_some() {
+            for (name, timings) in arrivals {
+                let summary = &mut c.evidence["summary"][name]["write_arrivals"];
+                summary["queued"] = json!(timings.iter().filter(|sample| sample[0] > 0).count());
+                for (index, phase) in ["queue_ns", "dispatch_ns", "service_ns", "response_ns"]
+                    .into_iter()
+                    .enumerate()
+                {
+                    summary[phase] =
+                        quantiles(timings.iter().map(|sample| sample[index]).collect())?;
+                }
+            }
+        }
         ensure!(
             inventory(&source, &[])? == source_hashes,
             "archived baseline source changed"
@@ -302,6 +404,7 @@ mod tests {
             reopens: 2,
             rounds: 1,
             sample_rss: false,
+            write_period_us: None,
         }
     }
 
@@ -340,6 +443,63 @@ mod tests {
                 .contains("bounded supported range")
         );
         assert!(!output.exists());
+        for period in [999, 25_001] {
+            let mut opts = options(output.clone());
+            opts.write_period_us = Some(period);
+            assert!(
+                super::run(&Run::new(tmp.path().to_owned()), opts)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("write period exceeds the bounded supported range")
+            );
+            assert!(!output.exists());
+        }
+    }
+
+    #[test]
+    fn write_arrivals_check_deadlines_serialization_and_pin_completion() {
+        let work = Work {
+            commits: 3,
+            keys: 1,
+            batch: 1,
+            payload: 16,
+            retain_every: 2,
+            reopens: 1,
+        };
+        let expected = work.expected();
+        let report = json!({
+            "write_period_us": 1_000,
+            "write_arrivals_ns": [[10, 1_200_000], [1_200_010, 1_500_000], [2_000_010, 2_000_100]],
+            "transaction_ns": [10, 10, 30],
+            "pin_ns": [100, 60],
+        });
+        assert_eq!(
+            arrival_timings(&report, work, &expected, Some(1_000)).unwrap(),
+            [
+                [0, 10, 1_199_990, 1_200_000],
+                [200_000, 10, 299_990, 500_000],
+                [0, 10, 90, 100]
+            ],
+        );
+        assert!(arrival_timings(&report, work, &expected, Some(1_001)).is_err());
+        assert!(arrival_timings(&report, work, &expected, None).is_err());
+        for (index, sample) in [
+            (1, json!([1_199_999, 1_500_000])),
+            (2, json!([1_999_999, 2_000_100])),
+            (2, json!([2_000_010, 2_000_009])),
+            (2, json!([2_000_010, 2_000_099])),
+            (0, json!([10, 1_200_000, 0])),
+        ] {
+            let mut changed = report.clone();
+            changed["write_arrivals_ns"][index] = sample;
+            assert!(arrival_timings(&changed, work, &expected, Some(1_000)).is_err());
+        }
+        let mut incomplete = report;
+        incomplete["write_arrivals_ns"]
+            .as_array_mut()
+            .unwrap()
+            .pop();
+        assert!(arrival_timings(&incomplete, work, &expected, Some(1_000)).is_err());
     }
 
     #[test]

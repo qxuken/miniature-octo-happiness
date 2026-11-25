@@ -150,8 +150,9 @@
     "tools/serialization-scale/src/main.rs": "0909b8979b84c66038abec340e86539bf10ada0df1f3d72e65672fc7708c01e8",
     "tools/snapshot-test-keygen.rs": "65ba364c6b8eecdb7a2449531002d2c7d61638ce34efc5807b9f68bcdd6d9456",
     "tools/soak/src/main.rs": "ceb9f10dcadcfef69d552a722cedef808364e2779e67f4a40c045b470dd12e14",
-    "tools/sqlite-baseline/src/main.rs": "2297471dc12831bde01c8ca25b9c1dc91f7151e078547339f4e5ed075f1d23ce",
-    "tools/sqlite-baseline/src/sqlite.rs": "cc5f57d4a114f45695d39760b9b1c6201948616d8ed54216f77b7199d4970e1d",
+    "tools/sqlite-baseline/src/arrivals.rs": "6f2e1c637f0e7cf35619bfec81263f204916c94f72311347accc8f5642d72f23",
+    "tools/sqlite-baseline/src/main.rs": "9d53c9b9c42cea9bf445d321b2daf7b8bfd5d209f497dd8861887e3a434a499b",
+    "tools/sqlite-baseline/src/sqlite.rs": "a5b760a943cac10f9db680e41f05bfddff2fd127910271605d285cfafcb39927",
     "tools/sqlite-baseline/src/workload.rs": "b501e8c6cd62d9de0ca0056c8d67ca745bd021b9c5e3da6f56b76af427d7014d",
     "xtask/src/abi.rs": "f7f089dfd602962861fe05505d6e0938c64cbc85098ef1677f555fb118a7df7a",
     "xtask/src/apfs_exhaustion.rs": "9f27265733bb1d83bbc4319ea5f349a59241af6e4d0a9af02067f84872f2c19e",
@@ -210,7 +211,7 @@
     "xtask/src/soak.rs": "f45e2809003e5d419f2ad01ec6daa9ec25bff0d2eee01cbfaeaedfec1199b577",
     "xtask/src/source_archive.rs": "a698488f56c2ed5af93e334eb38c1d31b8bb5d236282835b75daf4d226929b23",
     "xtask/src/source_inventory.rs": "e62886bfb78ec71d344f598e85b065028c32ce1d77fe8896739cffdc52bda02d",
-    "xtask/src/sqlite_baseline.rs": "2edb8f5f19c8bfd7917c90fd0da10fde1e1937748c05dbe43c502e7bc0d5b247",
+    "xtask/src/sqlite_baseline.rs": "f09c50fade656d716ecbf14643a7a9bceb9433059b95c3a7fb2eabaa9f94b00d",
     "xtask/src/study_soak.rs": "430b55111e7145ab89fe9ce1ec5cfe94280dbb18b11087c4164a78e818cf650b",
     "xtask/src/study_upgrade.rs": "85934f92de2681263e1fc7c756432a29fbb7eaa537e4222bc8a9610804597e89",
     "xtask/src/supervise.rs": "bea23e39a6f4141c8347cdd6b318da11fedf397cbe3126933b9df099fe8fbf03",
@@ -468,12 +469,12 @@
     "weekend-resource-envelope::weekend-compound-resource": 227,
     "weekend-resource-envelope::weekend-resource-envelope": 30,
     "weekend-serialization-scale::weekend-serialization-scale": 9,
-    "weekend-sqlite-baseline::sqlite-comparator": 114,
-    "weekend-sqlite-baseline::weekend-sqlite-baseline": 11,
+    "weekend-sqlite-baseline::sqlite-comparator": 119,
+    "weekend-sqlite-baseline::weekend-sqlite-baseline": 15,
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 342,
-    "xtask::xtask": 5317
+    "xtask::xtask": 5337
   },
   "groups": [
     {
@@ -950,6 +951,7 @@
       "paths": [
         "xtask/",
         "tools/quota/windows_identity.rs",
+        "tools/sqlite-baseline/src/arrivals.rs",
         "tools/sqlite-baseline/src/workload.rs"
       ],
       "references": [
