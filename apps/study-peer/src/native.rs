@@ -218,6 +218,26 @@ fn run<S: io::Read + Write>(
     options: RunOptions,
     incoming: impl Fn(Incoming) -> S + Send + Sync,
 ) -> AppResult<()> {
+    run_with_io(
+        db,
+        enrollment,
+        network,
+        options,
+        incoming,
+        io::stdin().lock(),
+        io::stdout(),
+    )
+}
+
+fn run_with_io<S: io::Read + Write>(
+    db: &Database,
+    enrollment: Enrollment,
+    network: Network,
+    options: RunOptions,
+    incoming: impl Fn(Incoming) -> S + Send + Sync,
+    input: impl BufRead,
+    mut output: impl Write,
+) -> AppResult<()> {
     let replica = diagnostics::storage(Phase::StorageOpen, || {
         StudyReplica::open(
             db,
@@ -236,8 +256,11 @@ fn run<S: io::Read + Write>(
     let stop = Arc::new(AtomicBool::new(false));
     let status = Mutex::new(PeerStatus::default());
     let incoming_status = Mutex::new(admission::Status::default());
-    let stdout = io::stdout();
-    writeln!(stdout.lock(), "ready {}", listener.local_addr()?)?;
+    let address = listener.local_addr()?;
+    diagnostics::at(Phase::LocalCommand, || {
+        writeln!(output, "ready {address}")?;
+        Ok(())
+    })?;
 
     let settings = diagnostics::settings();
     thread::scope(|scope| {
@@ -285,7 +308,7 @@ fn run<S: io::Read + Write>(
 
         let (result, local_diagnostic) =
             diagnostics::capture(settings, Phase::LocalCommand, || {
-                for line in io::stdin().lock().lines() {
+                for line in input.lines() {
                     let line = line?;
                     let words: Vec<_> = line.split_whitespace().collect();
                     match words.as_slice() {
@@ -294,7 +317,7 @@ fn run<S: io::Read + Write>(
                         ["push", value @ ("on" | "off")] => {
                             pushing.store(*value == "on", Relaxed);
                             outgoing.thread().unpark();
-                            writeln!(stdout.lock(), "push {value}")?;
+                            writeln!(output, "push {value}")?;
                         }
                         ["peer"] => {
                             let reply = {
@@ -313,7 +336,7 @@ fn run<S: io::Read + Write>(
                                     None => format!("peer {n} idle"),
                                 }
                             };
-                            writeln!(stdout.lock(), "{reply}")?;
+                            writeln!(output, "{reply}")?;
                         }
                         ["incoming"] => {
                             let report = {
@@ -324,28 +347,25 @@ fn run<S: io::Read + Write>(
                                     status.report()
                                 }
                             };
-                            writeln!(stdout.lock(), "{report}")?;
+                            writeln!(output, "{report}")?;
                         }
                         ["edit" | "practice", ..] if options.sync_only => {
                             if settings.enabled {
                                 let diagnostic =
                                     diagnostics::take(Phase::LocalCommand, &Error::Invalid);
-                                writeln!(stdout.lock(), "{}", diagnostic.json(settings))?;
+                                writeln!(output, "{}", diagnostic.json(settings))?;
                             } else {
-                                writeln!(
-                                    stdout.lock(),
-                                    "error local edits are disabled during staging"
-                                )?;
+                                writeln!(output, "error local edits are disabled during staging")?;
                             }
                         }
                         _ => match observe_local_command(|| command(&words, db, &replica)) {
-                            Ok(reply) => writeln!(stdout.lock(), "{reply}")?,
+                            Ok(reply) => writeln!(output, "{reply}")?,
                             Err(error) if settings.enabled => {
                                 let diagnostic =
                                     diagnostics::take(Phase::LocalCommand, error.as_ref());
-                                writeln!(stdout.lock(), "{}", diagnostic.json(settings))?;
+                                writeln!(output, "{}", diagnostic.json(settings))?;
                             }
-                            Err(error) => writeln!(stdout.lock(), "error {error}")?,
+                            Err(error) => writeln!(output, "error {error}")?,
                         },
                     }
                 }

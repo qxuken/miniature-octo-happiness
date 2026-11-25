@@ -41,6 +41,42 @@ fn structured_errors_keep_categories_without_echoing_private_inputs() {
 }
 
 #[test]
+fn closed_ready_pipe_is_a_local_command_error() {
+    let root = Root::new("study-ready");
+    let database = root.0.join("study.wdb");
+    let init = command(true)
+        .arg("init")
+        .arg(&database)
+        .args(["a", ID])
+        .output()
+        .unwrap();
+    assert!(init.status.success());
+    let original = fs::read(&database).unwrap();
+    let local = root.credentials("local");
+    let pin = root.credentials("peer").join("cert.der");
+    let (read, write) = io::pipe().unwrap();
+    drop(read);
+    let output = command(true)
+        .arg("run")
+        .arg(&database)
+        .args(["a", ID, "127.0.0.1:0", "127.0.0.1:1"])
+        .arg(local)
+        .arg(pin)
+        .arg("--no-push")
+        .stdout(write)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    diagnostic(
+        &String::from_utf8(output.stderr).unwrap(),
+        "local_command",
+        "io",
+        "broken_pipe",
+    );
+    assert_eq!(fs::read(&database).unwrap(), original);
+}
+
+#[test]
 fn roster_stdout_refusal_reports_io_and_preserves_the_staged_pair() {
     let root = Root::new("study-cutover");
     let [a, b, new_a, new_b, old, new, expected] = [

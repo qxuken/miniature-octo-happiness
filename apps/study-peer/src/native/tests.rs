@@ -553,6 +553,227 @@ fn cli_command_observation_preserves_storage_context_errors_and_retry_budget() {
     assert_eq!(database.snapshot().revision(), before);
 }
 
+struct LimitedOutput {
+    remaining: usize,
+    bytes: Vec<u8>,
+}
+
+impl Write for LimitedOutput {
+    fn write(&mut self, input: &[u8]) -> io::Result<usize> {
+        if self.remaining == 0 {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        let length = self.remaining.min(input.len());
+        self.bytes.extend_from_slice(&input[..length]);
+        self.remaining -= length;
+        Ok(length)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+struct InteractiveObservation {
+    result: AppResult<()>,
+    diagnostic: Option<String>,
+    replies: String,
+    revision: u64,
+    minutes: u64,
+}
+
+fn interactive_case(
+    input: &[u8],
+    sync_only: bool,
+    structured: bool,
+    refuse_replies: bool,
+) -> InteractiveObservation {
+    let directory = Directory::new();
+    let path = directory.0.join("study.wdb");
+    let enrollment = Enrollment::new("a", COLLECTION).unwrap();
+    initialize(&path, enrollment).unwrap();
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    let peer = directory.0.join("peer");
+    Credentials::generate().unwrap().write_fixture(&peer);
+    let tls = Tls::new(
+        &Credentials::generate().unwrap(),
+        fs::read(peer.join("cert.der")).unwrap().into(),
+    )
+    .unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let ready = format!("ready {address}\n");
+    let network = Network {
+        listener,
+        peer: address,
+        tls,
+    };
+    let options = RunOptions {
+        pushing: false,
+        sync_only,
+    };
+    let mut output = LimitedOutput {
+        remaining: if refuse_replies {
+            ready.len()
+        } else {
+            usize::MAX
+        },
+        bytes: Vec::new(),
+    };
+    let mut arguments = Vec::new();
+    if structured {
+        arguments.push("--diagnostics=json".into());
+    }
+    let settings = diagnostics::settings_from_args(diagnostics::App::Study, &mut arguments);
+    let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+        run_with_io(
+            &db,
+            enrollment,
+            network,
+            options,
+            |stream| stream,
+            io::Cursor::new(input),
+            &mut output,
+        )
+    });
+    // A returned command result owns no listener. Reopening also checks the
+    // committed state through the actual file adapter.
+    let rebound = TcpListener::bind(address).unwrap();
+    drop(rebound);
+    drop(db);
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    let replica = StudyReplica::open(
+        &db,
+        db.collection_id(COLLECTION_ROW),
+        enrollment.policy,
+        enrollment.actor,
+    )
+    .unwrap();
+    let replies = String::from_utf8(output.bytes).unwrap();
+    InteractiveObservation {
+        result,
+        diagnostic: diagnostic.map(|value| value.json(settings).to_string()),
+        replies: replies.strip_prefix(&ready).unwrap().into(),
+        revision: db.snapshot().revision(),
+        minutes: replica.read().unwrap().practice_minutes.total(),
+    }
+}
+
+fn with_interactive_deadline(test: impl FnOnce() + Send + 'static) {
+    let (finish, completed) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        test();
+        finish.send(()).unwrap();
+    });
+    assert!(
+        completed.recv_timeout(Duration::from_secs(20)) != Err(mpsc::RecvTimeoutError::Timeout),
+        "interactive service did not shut down"
+    );
+    worker.join().unwrap();
+}
+
+#[test]
+fn interactive_io_errors_stop_workers_and_preserve_commits() {
+    with_interactive_deadline(|| {
+        let invalid = interactive_case(b"peer\n\xff\n", false, true, false);
+        assert_eq!(
+            invalid
+                .result
+                .unwrap_err()
+                .downcast_ref::<io::Error>()
+                .map(io::Error::kind),
+            Some(io::ErrorKind::InvalidData)
+        );
+        assert!(
+            invalid.diagnostic.unwrap().contains(
+                "\"phase\":\"local_command\",\"category\":\"io\",\"code\":\"invalid_data\""
+            )
+        );
+        assert_eq!(invalid.replies, "peer 0 idle\n");
+        assert_eq!((invalid.revision, invalid.minutes), (2, 0));
+
+        for (input, sync_only, structured, revision, minutes) in [
+            (&b"push off\n"[..], false, true, 2, 0),
+            (&b"peer\n"[..], false, true, 2, 0),
+            (&b"incoming\n"[..], false, true, 2, 0),
+            (&b"practice 3\n"[..], true, true, 2, 0),
+            (&b"practice 3\n"[..], true, false, 2, 0),
+            (&b"practice 3\n"[..], false, true, 3, 3),
+            (&b"unknown\n"[..], false, true, 2, 0),
+            (&b"unknown\n"[..], false, false, 2, 0),
+        ] {
+            let observed = interactive_case(input, sync_only, structured, true);
+            assert_eq!(
+                observed
+                    .result
+                    .unwrap_err()
+                    .downcast_ref::<io::Error>()
+                    .map(io::Error::kind),
+                Some(io::ErrorKind::BrokenPipe)
+            );
+            if structured {
+                assert!(observed.diagnostic.unwrap().contains(
+                    "\"phase\":\"local_command\",\"category\":\"io\",\"code\":\"broken_pipe\""
+                ));
+            } else {
+                assert!(observed.diagnostic.is_none());
+            }
+            assert!(observed.replies.is_empty());
+            assert_eq!((observed.revision, observed.minutes), (revision, minutes));
+        }
+    });
+}
+
+#[test]
+fn interactive_modes_report_selected_replies_and_stop_at_quit() {
+    with_interactive_deadline(|| {
+        let eof = interactive_case(b"", false, true, false);
+        eof.result.unwrap();
+        assert!(eof.diagnostic.is_none());
+        assert!(eof.replies.is_empty());
+        assert_eq!((eof.revision, eof.minutes), (2, 0));
+
+        for structured in [false, true] {
+            for sync_only in [false, true] {
+                let observed = interactive_case(
+                    b"\npeer\nincoming\npush off\npractice 3\nunknown\nquit\npractice 99\n",
+                    sync_only,
+                    structured,
+                    false,
+                );
+                observed.result.unwrap();
+                assert!(observed.diagnostic.is_none());
+                let lines = observed.replies.lines().collect::<Vec<_>>();
+                assert_eq!(lines.len(), 5);
+                assert_eq!(lines[0], "peer 0 idle");
+                assert_eq!(lines[2], "push off");
+                if structured {
+                    assert!(
+                        lines[1].contains(
+                            "\"phase\":\"incoming\",\"served\":0,\"failed\":0,\"busy\":0"
+                        )
+                    );
+                    assert!(lines[4].contains("\"phase\":\"local_command\""));
+                } else {
+                    assert_eq!(lines[1], "incoming served=0 failed=0 busy=0");
+                    assert!(lines[4].starts_with("error unknown command"));
+                }
+                if sync_only {
+                    assert_eq!((observed.revision, observed.minutes), (2, 0));
+                    if structured {
+                        assert!(lines[3].contains("\"phase\":\"local_command\",\"category\":\"engine\",\"code\":\"Invalid\""));
+                    } else {
+                        assert_eq!(lines[3], "error local edits are disabled during staging");
+                    }
+                } else {
+                    assert_eq!(lines[3], "local 3");
+                    assert_eq!((observed.revision, observed.minutes), (3, 3));
+                }
+            }
+        }
+    });
+}
+
 struct Worker {
     child: Child,
     input: ChildStdin,
