@@ -633,3 +633,10 @@ Both mutants failed the designated test in every campaign. The four campaigns
 produced 44 command reports. The local proof SHA-256 is
 `1136ed15fded883e479f2f694a3bc78d7891c8e1e7e3bc8b2691069f30926fa8`.
 Reconciliation leaves 1,875 runtime, 26 driver and 7,384 tooling gaps.
+
+For the Unix descriptor controls, a child libtest failure now appears as
+indented diagnostic text inside the parent's result. The original source
+and target duplicate failures on hosted Linux both showed the expected
+`Busy` versus `Io` assertion. At `e8066ab` all six descriptor controls
+passed in debug and release on arm64 macOS and Docker Linux under the
+unchanged strict transcript verifier.
