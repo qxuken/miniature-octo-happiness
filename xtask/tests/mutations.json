@@ -12964,6 +12964,89 @@
       "matches": 1,
       "target": "--lib",
       "test": "engine::tests::mutex_poison_preserves_reads_and_blocks_all_writer_gates"
+    },
+    {
+      "name": "r1-engine-constructor-budget",
+      "file": "src/engine.rs",
+      "old": "Memory::with_allocator(options.limits, options.allocator)?",
+      "new": "Memory::with_allocator(options.limits, options.allocator).map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "durability",
+      "exact_test": "creation_allocation_failures_precede_writes_and_release_the_lease"
+    },
+    {
+      "name": "r1-engine-constructor-identity",
+      "file": "src/engine.rs",
+      "old": "NEXT_STORE\n            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))\n            .map_err(|_| Error::Exhausted)?",
+      "new": "NEXT_STORE\n            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))\n            .map_err(|_| Error::Exhausted).map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--lib",
+      "test": "engine::tests::store_identity_exhaustion_is_isolated_in_a_subprocess"
+    },
+    {
+      "name": "r1-engine-constructor-head",
+      "file": "src/engine.rs",
+      "old": "mem.shared(Head {\n            revision: 0,\n            data_revision: 0,\n            collections: Map::new(),\n        })?",
+      "new": "mem.shared(Head {\n            revision: 0,\n            data_revision: 0,\n            collections: Map::new(),\n        }).map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "durability",
+      "exact_test": "creation_allocation_failures_precede_writes_and_release_the_lease"
+    },
+    {
+      "name": "r1-engine-constructor-create-initialize",
+      "file": "src/engine.rs",
+      "old": "Self::with_options(options)?;\n        let storage = {",
+      "new": "Self::with_options(options).map_err(|_| Error::Invalid)?;\n        let storage = {",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "durability",
+      "exact_test": "creation_allocation_failures_precede_writes_and_release_the_lease"
+    },
+    {
+      "name": "r1-engine-constructor-create-image",
+      "file": "src/engine.rs",
+      "old": "Storage::create(\n                backend,\n                &db.mem,\n                &state.head,\n                state.next_collection,\n                identity,\n                &state.retention,\n            )?",
+      "new": "Storage::create(\n                backend,\n                &db.mem,\n                &state.head,\n                state.next_collection,\n                identity,\n                &state.retention,\n            ).map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "durability",
+      "exact_test": "creation_allocation_failures_precede_writes_and_release_the_lease"
+    },
+    {
+      "name": "r1-engine-constructor-open-initialize",
+      "file": "src/engine.rs",
+      "old": "Self::with_options(options)?;\n        let (storage, head, next_collection, retention) = Storage::open(backend, &db.mem)?;",
+      "new": "Self::with_options(options).map_err(|_| Error::Invalid)?;\n        let (storage, head, next_collection, retention) = Storage::open(backend, &db.mem)?;",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "retention",
+      "exact_test": "reopen_allocator_refusal_releases_the_lease_and_partial_graph"
+    },
+    {
+      "name": "r1-engine-constructor-open-image",
+      "file": "src/engine.rs",
+      "old": "Storage::open(backend, &db.mem)?",
+      "new": "Storage::open(backend, &db.mem).map_err(|_| Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "retention",
+      "exact_test": "reopen_allocator_refusal_releases_the_lease_and_partial_graph"
     }
   ]
 }

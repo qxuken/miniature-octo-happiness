@@ -297,7 +297,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "17f44f38a3165a769da000de76b2b16e5ed6d5c208cb365908d733d15e918769",
+    "xtask/tests/mutations.json": "22ef65dc1712fcbe143dac0d76615b8000d2b1e1835a1cff17bbfbf7c37e5aae",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -23323,6 +23323,160 @@
           ],
           "outcome": true
         }
+      ]
+    },
+    {
+      "name": "ENGINE-CONSTRUCTOR-BUDGET",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "Memory::with_allocator(options.limits, options.allocator)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "creation_allocation_failures_precede_writes_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-engine-constructor-budget"
+      ]
+    },
+    {
+      "name": "ENGINE-CONSTRUCTOR-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "NEXT_STORE\n            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))\n            .map_err(|_| Error::Exhausted)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/engine.rs",
+          "name": "store_identity_exhaustion_is_isolated_in_a_subprocess"
+        }
+      ],
+      "mutations": [
+        "r1-engine-constructor-identity"
+      ]
+    },
+    {
+      "name": "ENGINE-CONSTRUCTOR-HEAD",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "mem.shared(Head {\n            revision: 0,\n            data_revision: 0,\n            collections: Map::new(),\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "creation_allocation_failures_precede_writes_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-engine-constructor-head"
+      ]
+    },
+    {
+      "name": "ENGINE-CONSTRUCTOR-CREATE-INITIALIZE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "create_on_with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::with_options(options)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "creation_allocation_failures_precede_writes_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-engine-constructor-create-initialize"
+      ]
+    },
+    {
+      "name": "ENGINE-CONSTRUCTOR-CREATE-IMAGE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "create_on_with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "Storage::create(\n                backend,\n                &db.mem,\n                &state.head,\n                state.next_collection,\n                identity,\n                &state.retention,\n            )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/durability.rs",
+          "name": "creation_allocation_failures_precede_writes_and_release_the_lease"
+        }
+      ],
+      "mutations": [
+        "r1-engine-constructor-create-image"
+      ]
+    },
+    {
+      "name": "ENGINE-CONSTRUCTOR-OPEN-INITIALIZE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "open_on_with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::with_options(options)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "reopen_allocator_refusal_releases_the_lease_and_partial_graph"
+        }
+      ],
+      "mutations": [
+        "r1-engine-constructor-open-initialize"
+      ]
+    },
+    {
+      "name": "ENGINE-CONSTRUCTOR-OPEN-IMAGE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/engine.rs",
+        "owner": "open_on_with_options",
+        "kind": "try_propagation",
+        "conditions": [
+          "Storage::open(backend, &db.mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/retention.rs",
+          "name": "reopen_allocator_refusal_releases_the_lease_and_partial_graph"
+        }
+      ],
+      "mutations": [
+        "r1-engine-constructor-open-image"
       ]
     }
   ],
