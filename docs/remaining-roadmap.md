@@ -742,3 +742,22 @@ release on arm64 macOS and Docker Linux. Review confirmed the exact
 The 56 command reports and transcripts are in `catalog-read-12f6b81.tar.gz`,
 SHA-256 `fbc15318013ee037a451f9382bf2218637c08fe38c8ac4b0d888e294594db78c`.
 Reconciliation leaves 1,858 runtime, 26 driver and 7,388 tooling gaps.
+
+### Hosted package artifacts at the PR #82 test merge
+
+Both hosted x64 delivery jobs used Rust 1.100.0 and clean source
+`4a37229e1b3be3835e79a346dc325df9357a0c3e`. A fresh download and
+extraction matched the GitHub archive digest and every file in each
+job's recorded artifact inventory.
+
+| Download | SHA-256 | Files checked |
+| --- | --- | ---: |
+| [Linux x64](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45604499033/artifacts/15019070168) | `c6733c662d8659e0e1e1f40503ce5ca87936ad34444456d0f2fe118df1194330` | 4,034 |
+| [Windows x64](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45604499033/artifacts/15018521638) | `dbd2ca096c5d3484d6b6b704c6bf8ed63863134b30b2dfc340e933b8a20fdabd` | 2,287 |
+
+The combined, base, CRDT-only and replication-only packages on each
+platform contained 60, 5, 16 and 23 files respectively under
+`notices/`. Their relative paths and contents matched the corresponding
+[previously reviewed packages](locked-dependency-review-afffd2d.md),
+including the inventories themselves. The local proof retains both ZIPs,
+the complete tested Git bundle and the hosted fuzz ZIP for the same merge.
