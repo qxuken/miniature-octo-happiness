@@ -1681,3 +1681,21 @@ full. Freeing space allowed the exact captured image to install at revision
 before and after logs, source bundle and reconciliation. The
 [decision ledger](decisions/snapshot-maintenance-output-current.md) leaves
 715 unclassified runtime records and 7,428 tooling records.
+
+### Timed soak evidence replay
+
+At `4474f27`, the soak driver writes per-round compaction, reopen, backup,
+restore and concurrent-write timings. The controller checks those timings
+against both round and workload clocks and reports nearest-rank percentiles.
+The eight soak-related tests passed in debug and release on macOS arm64 and
+Docker Linux arm64. One-hour runs on the same development host are collecting
+the timed workload evidence separately.
+
+At `c5b671f`, `cargo xtask soak-verify` rechecked a nine-round macOS
+capture after fresh extraction. The verifier checked the archived payloads
+and recomputed timing summaries from raw records. Changing only the
+reported restore p99 caused rejection. The nine macOS debug controls passed.
+The [archive manifest](decisions/soak-replay-c5b671f.sha256) binds both
+checks and the tested evidence. The verifier supports timed proofs, and
+the deployment-device run and agreed service budgets remain open. The
+source inventory has 715 runtime gaps and 7,447 tooling gaps.
