@@ -137,6 +137,14 @@ fn malformed_attributes_fail_in_downstream_compilation() {
             "struct Bad { #[resolve] #[resolve] a:u64 }",
             "duplicate",
         ),
+        ("Resolution", "enum Bad { Item }", "supports structs only"),
+        ("Resolution", "union Bad { a:u64 }", "supports structs only"),
+        (
+            "Resolution",
+            "struct Bad(#[resolve] u64);",
+            "requires named fields",
+        ),
+        ("Resolution", "struct Bad;", "requires named fields"),
     ];
     for (derive, source, expected) in cases {
         fs::write(
