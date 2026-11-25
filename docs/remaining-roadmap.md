@@ -1553,3 +1553,13 @@ passed (68 per run). The [source ledger](decisions/service-diagnostics-current.m
 reconciles 50 records per binary. The [local archive manifest](decisions/service-diagnostics-8c3c76a.sha256)
 covers all four runs and source. There are 758 unclassified runtime decisions
 and 7,398 tooling decisions. Generated code and compiler MC/DC remain open.
+
+### Core compiler coverage refresh
+
+The November 25 nightly on macOS arm64 rejected MC/DC instrumentation and
+passed the three condition-calibration controls. At `36c065d` the core
+library ran 234 tests and measured 1,384 of 1,553 branch outcomes. Both
+coverage report paths now reject missing, unbound and duplicate files.
+The [measurement and scope](coverage.md#core-library-measurement-on-november-25-2026)
+record the toolchain, source checks and denominators. Compiler MC/DC remains
+open. Reconciliation lists 758 runtime gaps and 7,400 tooling gaps.
