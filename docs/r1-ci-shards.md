@@ -227,3 +227,45 @@ runs have independent run IDs. Bounded fuzzing runs on every PR, relevant
 pushes to main and tag pushes. An ordinary topic-branch push gets its
 automatic fuzz run when a PR is open. Manual runs remain available before
 opening a PR.
+
+## Grouping pristine baselines within a shard
+
+On Linux merge source `4a37229`, the nine shards across debug and release
+spent a combined 191.7 minutes running pristine baseline commands, 216.5
+minutes running mutant tests and 2.7 minutes cleaning packages. These
+sums describe supervised command time across parallel jobs. They exclude
+setup and artifact transfer.
+
+Starting with `23c97c7`, a shard runs each distinct baseline command against
+the pristine source copy before it edits any files. Cargo can reuse the
+same test binary when several commands select different tests. Each command
+still has its own log, deadline and test-outcome check. A baseline failure
+stops the campaign before its first mutation. The second pass applies each
+selected mutation in registry order, cleans the package, checks the intended
+test failure, restores the original bytes and cleans again. This keeps
+compiled objects from one mutation out of the next test.
+
+The 14 collection-lifecycle controls provide a before/after comparison on
+arm64 with Rust 1.100.0. Each campaign used a fresh Cargo test target. Times
+are seconds summed from individual supervisor receipts. Each cell is one
+observation. Host load varied, so these are workload measurements rather
+than estimates for an entire hosted shard.
+
+| Host and profile | Baselines before | Baselines after | All test and clean commands before | All test and clean commands after |
+|---|---:|---:|---:|---:|
+| macOS debug | 14.19 | 7.32 | 48.56 | 43.29 |
+| macOS release | 29.59 | 13.18 | 87.89 | 83.22 |
+| Docker Linux debug | 12.24 | 5.43 | 39.72 | 28.57 |
+| Docker Linux release | 20.94 | 8.25 | 67.08 | 46.11 |
+
+macOS reused the archived `e73afbd` comparison. Its engine, selected tests
+and mutation registry match `23c97c7`. Linux ran `d200de5` and `23c97c7`
+sequentially on ext4. Review of the extracted receipts matched the selected
+cases, command arguments and exit statuses. Each campaign ran five distinct
+passing baselines, detected all 14 mutations with the intended failing test
+and executed 28 clean commands. A macOS negative control substituted an
+unrelated passing test for the fifth baseline. Despite a zero process exit,
+the runner rejected it with zero mutations or clean commands, and the
+isolated engine source still matched the original.
+The [checksum manifest](r1-baseline-batching-23c97c7.sha256) pins the
+two evidence archives and source bundle.

@@ -1074,3 +1074,15 @@ macOS and Docker Linux both passed the full Study upgrade to PR head
 `2e9f717` with controller `855573c`. Freshly extracted evidence matched
 all 45 worker artifact hashes on each platform. The [checksum manifest](windows-compat-1029d2c.sha256)
 pins all four Windows downloads and both follow-up archives.
+
+### Reducing repeated builds in R1 campaigns
+
+The [shard scheduling change](r1-ci-shards.md#grouping-pristine-baselines-within-a-shard)
+groups pristine baselines inside each job. Reconciliation of `23c97c7`
+counts 10,640 source decisions, including one additional tooling loop.
+The open counts are 1,836 runtime, 26 driver and 7,397 tooling records.
+All 14 catalog-lifecycle controls were caught in debug and release on
+both macOS and Linux. Five distinct baselines per campaign now share
+compilation work. Each of the four comparisons retained all 47 test
+and clean commands and reduced total supervised time. A wrong-test
+negative control stopped before the first mutation.
