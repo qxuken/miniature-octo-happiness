@@ -383,7 +383,7 @@
     "docs/decisions/admin-dispatch-current.md": "f0945c5d8501bfa90b352e8c43d86d18d1a0bee5dd5418cb4c63a491f08c1bfe",
     "docs/decisions/typed-store-current.md": "4a908d642fd6f9d85e5004f3dadc06c94de429816e8e4649848352529a20879c",
     "docs/decisions/typed-catalog-current.md": "5e498217efc23dcd2e299041a945ede86752ab62b773a1ef6cadd52d7b805fee",
-    "docs/decisions/typed-lookup-current.md": "935aaed0ac898fcaf441f6dd97ce9027c7b9c2e72c7f09f0b1718b3c3ebd2c0e"
+    "docs/decisions/typed-lookup-current.md": "5737b59d961037bc7a8d703e740f41b0b441ebaf1228c8835408312b4fee8f71"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
