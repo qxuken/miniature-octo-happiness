@@ -367,7 +367,7 @@
     "crates/weekend-db-macros/tests/compile_fail.rs": "f63027e2d7834f35ab4843f20c5f2461fa9e09ab2a04fcb97b328bc98e50ac13",
     "crates/weekend-db-macros/tests/expansion_guards.rs": "1eb8cf76b217e64fa96b3ea299af98cfff748b8e0be7b10fc628bf7f71b61cd2",
     "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
-    "docs/decisions/resolution-derive-current.md": "c74d6c62fe3750fdf885b39c1f55839a482dd1b7f14d266c661ca0e5d17d628f",
+    "docs/decisions/resolution-derive-current.md": "a794a1f9316f92210eecb68eb77d3e48705aa3d6ec5f63bf9e678a2638ab6a88",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
     "xtask/src/mutations.rs": "3e2cc0c4940ccc2624e76d48b5a17bd5075b069eb5e21a8896d46d0dc401f4af",
     "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",

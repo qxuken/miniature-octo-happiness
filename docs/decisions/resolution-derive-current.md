@@ -46,3 +46,57 @@ stable repeat sync.
 These rows apply to the proc-macro target. The separately compiled fuzz
 context, dependency parsing internals and other generated configurations
 retain their own obligations.
+
+## Verification
+
+Frozen source `9813c75bdec7a30ab02bb56d669a08709673736e` passed with locked
+Rust 1.100.0 on arm64 macOS and offline arm64 Docker Linux with ext4 build
+and runtime directories. Each debug and release run passed 100 macro and
+typed crate tests with one existing skip, and all 14 CRDT integration tests.
+The CRDT suite includes two resolved fields in one commit and read-only
+repeat sync. Strict Clippy passed on both hosts.
+
+Each campaign detected all 14 Resolution mutations, including the four
+earlier controls. The particular expansion test passed on pristine source
+and failed under its mutation. Fresh extraction matched all 942 copied
+files per campaign against the frozen Git tree and verified each isolated
+source restoration, exact test result and process cleanup. The
+[archive checksums](resolution-derive-9813c75.sha256) bind 236 command
+reports, the runners and the replay inputs.
+
+The macOS `expansion_guards` executable built with nightly `739adecd4`
+and `-C instrument-coverage -Z coverage-options=condition` passed 22 tests.
+Both outcomes appear at every reported condition in the expander. Replaying
+the extracted profile with the saved executable reproduced the LLVM export
+byte for byte.
+
+| Condition in `resolution.rs` | True | False |
+| --- | ---: | ---: |
+| 9, struct marker | 1 | 22 |
+| 12, struct crate directive | 19 | 3 |
+| 14, unknown option | 1 | 19 |
+| 17, repeated crate option | 3 | 16 |
+| 49, field crate directive | 2 | 32 |
+| 55, field marker | 28 | 4 |
+| 56, invalid marker form | 4 | 24 |
+| 59, repeated field marker | 1 | 23 |
+| 64, recorded field marker | 21 | 5 |
+| 68, empty selection | 2 | 19 |
+
+The inventory still has 10,770 records. This batch accounts for 16 runtime
+records with six predicate pairs, four propagation controls, five scoped
+executions and one coupled pattern. Reconciliation leaves 630 runtime and
+7,514 tooling gaps. The compiler counts apply to the macOS expansion test
+binary. Native Windows execution and the separate fuzz target remain open.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p weekend-db-macros -p weekend-db-typed
+cargo test --offline --locked --all-features -p weekend-db --test crdt
+cargo xtask mutations --toolchain 1.100.0 --case r1-derive-resolution- \
+  --output "$OUTPUT/debug"
+cargo xtask mutations --toolchain 1.100.0 --case r1-derive-resolution- \
+  --release --output "$OUTPUT/release"
+```
+
+Repeat the test commands with `--release` for optimized test execution.

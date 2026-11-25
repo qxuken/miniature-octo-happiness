@@ -1965,3 +1965,14 @@ accepted budgets.
 
 Reconciliation covers 10,770 decisions across 223 files and leaves 646 runtime
 and 7,514 tooling gaps.
+
+### Resolution derive admission and propagation
+
+At `9813c75`, the [Resolution derive ledger](decisions/resolution-derive-current.md)
+accounts for 16 runtime records covering crate overrides, marker selection,
+declaration shape and parser diagnostics. All 14 named controls pass on
+macOS and Docker Linux in debug and release, and the macOS compiler records
+both outcomes of ten conditions. Fresh extraction verifies the exact
+mutation results and compiler profile. Reconciliation leaves 630 runtime and
+7,514 tooling gaps. The other derives, separate fuzz context and native
+Windows execution remain open.
