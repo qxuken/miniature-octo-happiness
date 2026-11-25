@@ -190,3 +190,33 @@ Individual commands retain their 120-second deadline. Both profiles, all
 control selections and the Windows reconciliation limit of 20 minutes remain
 in place. Hosted completion under the new deadline is pending.
 [Linux shard 1](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45277738443/job/138053801390)
+
+## Pull request and release matrices
+
+Pull requests and pushes to `main` use the following Engine checks matrix.
+Version tags matching `v*` and manual runs of Engine checks use the full
+release qualification matrix on the selected source.
+
+| Run | Linux jobs | macOS jobs | Windows jobs |
+| --- | ---: | ---: | ---: |
+| Pull request or push to `main` | 18 | 3 | 6 |
+| Version tag or manual qualification | 16 | 16 | 6 |
+
+The three macOS PR jobs run native durability and relocated dylib checks, the
+Darwin R1 campaign, and the calibrated Darwin ThreadSanitizer workspace. Linux
+runs the complete Linux R1 selection in both profiles, general engine coverage,
+workspace AddressSanitizer, and the portable recovery and helper campaigns.
+Windows retains its existing native, allocator, quota and exact-DLL checks.
+
+The Darwin selection currently contains 126 controls per profile. It includes
+all 12 macOS-tagged controls, plus shared controls for the Unix file adapter,
+namespace publication order, native FFI path and file factories, and native
+snapshot file factories. The job checks the exact registry selection against
+the runner's list before executing it. It uploads both lists and both profiles
+with the decision inventory. The job has a 120-minute ceiling for the combined
+campaign. The individual command deadlines stay at 120 seconds.
+
+Release qualification runs all nine macOS R1 shards and both profiles, plus
+native macOS coverage, AddressSanitizer, recovery, and helper jobs. Its Unix
+shards keep the 90-minute ceiling. A tag or a manual run collects CI evidence
+for that candidate. Crate publication has a separate release decision.
