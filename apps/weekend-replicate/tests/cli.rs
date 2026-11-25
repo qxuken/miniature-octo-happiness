@@ -739,3 +739,128 @@ fn native_authenticated_follower_backup_restore_and_reseed_keep_old_receipt() {
     assert_eq!(fs::read(&backup).unwrap(), backup_bytes);
     assert_eq!(fs::read(&restored).unwrap(), restored_bytes);
 }
+
+#[test]
+fn native_dispatch_checks_command_names_and_options_before_creating_files() {
+    let dir = directory("dispatch");
+    let root = dir.0.to_str().unwrap();
+    let missing = dir.0.join("missing").join("requested");
+    let missing = missing.to_str().unwrap();
+    let export = dir.0.join("export");
+    let export = export.to_str().unwrap();
+    let descriptor = dir.0.join("descriptor");
+    let descriptor = descriptor.to_str().unwrap();
+    let stream = "aabb334455661122aabb334455661122";
+    let identity = "aabb334455661122aabb334455661133";
+    let address = "127.0.0.1:0";
+    let before = files(&dir.0);
+    let usage = "weekend-replicate keygen <new-credentials-dir>";
+    let reject = |verb: &str, args: &[&str], field: &str, structured: bool| {
+        let mut command = Command::new(BIN);
+        if structured {
+            command.arg("--diagnostics=json");
+        }
+        let output = command.arg(verb).args(args).output().unwrap();
+        assert!(!output.status.success(), "{verb} {args:?}");
+        assert!(output.stdout.is_empty(), "{verb} {args:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(stderr.contains(field), "{verb} {args:?}: {stderr}");
+        assert_eq!(files(&dir.0), before, "{verb} {args:?}");
+    };
+
+    for (verb, arguments, phase) in [
+        ("keygen", &[missing][..], "credentials_load"),
+        ("describe", &[missing, stream][..], "storage_verify"),
+        (
+            "follower-init",
+            &[missing, stream, identity][..],
+            "storage_create",
+        ),
+        ("status", &[missing, stream, identity][..], "storage_open"),
+        (
+            "cleanup-inactive",
+            &[missing, stream, identity][..],
+            "storage_open",
+        ),
+        (
+            "compact-manifest",
+            &[missing, stream, identity][..],
+            "storage_open",
+        ),
+        (
+            "capture",
+            &[missing, stream, export, descriptor][..],
+            "storage_open",
+        ),
+        (
+            "serve",
+            &[root, stream, identity, address, missing, missing][..],
+            "credentials_load",
+        ),
+        (
+            "ship",
+            &[missing, stream, export, address, missing, missing][..],
+            "credentials_load",
+        ),
+        (
+            "ship-captured",
+            &[
+                missing, stream, export, descriptor, address, missing, missing,
+            ][..],
+            "credentials_load",
+        ),
+        (
+            "poll",
+            &[missing, stream, address, missing, missing][..],
+            "credentials_load",
+        ),
+    ] {
+        reject("unrecognized", arguments, usage, false);
+        if cfg!(windows) && verb == "compact-manifest" {
+            reject(
+                verb,
+                arguments,
+                "compact-manifest unsupported on Windows",
+                false,
+            );
+        } else {
+            reject(verb, arguments, &format!("\"phase\":\"{phase}\""), true);
+        }
+    }
+
+    for (verb, args, flag) in [
+        (
+            "serve",
+            &[root, stream, identity, address, missing, missing][..],
+            "--max-exchanges",
+        ),
+        (
+            "ship",
+            &[missing, stream, export, address, missing, missing][..],
+            "--attempts",
+        ),
+        (
+            "ship-captured",
+            &[
+                missing, stream, export, descriptor, address, missing, missing,
+            ][..],
+            "--attempts",
+        ),
+    ] {
+        let mut extended = args.to_vec();
+        extended.extend([flag, "0"]);
+        reject(verb, &extended, "option outside bounds", false);
+        *extended.last_mut().unwrap() = "invalid";
+        reject(verb, &extended, "invalid digit found in string", false);
+        extended.pop();
+        reject(verb, &extended, usage, false);
+        extended.pop();
+        extended.extend(["--wrong", "1"]);
+        reject(verb, &extended, usage, false);
+        if flag == "--attempts" {
+            extended.truncate(args.len());
+            extended.extend([flag, "4"]);
+            reject(verb, &extended, "option outside bounds", false);
+        }
+    }
+}

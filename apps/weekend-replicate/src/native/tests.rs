@@ -863,3 +863,100 @@ fn capture_output_and_durable_acknowledgment_fail_independently() {
     assert_eq!(polled.unwrap(), Some(ack));
     assert_eq!(reopened.status().unwrap().manifest_bytes, manifest);
 }
+
+#[test]
+fn export_preparation_reports_the_first_error_and_preserves_existing_files() {
+    let dir = Directory::new();
+    let primary = source(&dir);
+    let missing = dir.0.join("absent");
+    let image = dir.0.join("image");
+    let record = dir.0.join("record");
+    let existing = dir.0.join("existing");
+    fs::write(&existing, b"preserve this file").unwrap();
+
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "capture".into()],
+    );
+    let observe = |result: AppResult<Prepared>,
+                   diagnostic: Option<diagnostics::Diagnostic>,
+                   expected: Error,
+                   phase: &str| {
+        let error = result.err().expect("preparation passed unexpectedly");
+        assert_eq!(error.downcast_ref::<Error>(), Some(&expected));
+        let json = diagnostic.unwrap().json(settings).to_string();
+        assert!(json.contains(&format!("\"phase\":\"{phase}\"")), "{json}");
+    };
+
+    let stream = [1; 16];
+    for (source, stream, output, expected, phase) in [
+        (&missing, stream, &image, Error::NotFound, "storage_open"),
+        (&primary, [0; 16], &image, Error::Invalid, "replication"),
+        (&primary, stream, &existing, Error::AlreadyExists, "export"),
+    ] {
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            prepare(source, stream, output)
+        });
+        observe(result, detail, expected, phase);
+        assert!(!image.exists());
+    }
+    assert_eq!(fs::read(&existing).unwrap(), b"preserve this file");
+
+    let prepared = prepare(&primary, stream, &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    capture_record::store(&record, descriptor).unwrap();
+    drop(prepared);
+    let before = [&primary, &image, &record].map(|path| fs::read(path).unwrap());
+    let corrupt = dir.0.join("corrupt-record");
+    fs::write(&corrupt, b"not a database").unwrap();
+    for (source, stream, export, descriptor_path, expected, phase) in [
+        (
+            &missing,
+            stream,
+            &image,
+            &corrupt,
+            Error::Corrupt,
+            "storage_open",
+        ),
+        (
+            &missing,
+            stream,
+            &image,
+            &record,
+            Error::NotFound,
+            "storage_open",
+        ),
+        (
+            &primary,
+            [0; 16],
+            &image,
+            &record,
+            Error::Invalid,
+            "replication",
+        ),
+        (
+            &primary,
+            stream,
+            &missing,
+            &record,
+            Error::NotFound,
+            "storage_verify",
+        ),
+    ] {
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            prepare_saved(source, stream, export, descriptor_path)
+        });
+        observe(result, detail, expected, phase);
+        assert_eq!(
+            [&primary, &image, &record].map(|path| fs::read(path).unwrap()),
+            before
+        );
+    }
+    assert_eq!(
+        prepare_saved(&primary, stream, &image, &record)
+            .unwrap()
+            .export
+            .descriptor(),
+        descriptor
+    );
+}

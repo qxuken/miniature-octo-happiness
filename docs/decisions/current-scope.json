@@ -228,8 +228,8 @@
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "eab0715df7bfb966af651040b584a5b56845a6ea4d1a9d1504f8e8f1d1d34ff2",
     "apps/study-peer/tests/cli.rs": "6e3ad714e6102cb4545fcaa16e30e57734a2eb1bcc0e38c6c1388a3dca6d9f8d",
-    "apps/weekend-replicate/src/native/tests.rs": "8b087498203c4c331107c1fbe378e6da9af0726e02dd127ff302d0944c9d470e",
-    "apps/weekend-replicate/tests/cli.rs": "798bd5de0e4c7c53b09a70c2b4a5c5588cd8f9c861ad1f82ed1e8d6c3ec0224c",
+    "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
+    "apps/weekend-replicate/tests/cli.rs": "cc36ddad6ecaa0fe446aaa882fce7670309e22b5b89800f775229c3cae311d00",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "9269b5b471af98fc8c54c1b30a3f462d88a8554fdbf7c28ad245ba6f00936941",
+    "xtask/tests/mutations.json": "f95879be4c8ddaa420bb2308628fffa10a689f555148787328fd44b3ff4d199f",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -395,7 +395,10 @@
     "docs/decisions/journal-cli-current.md": "2f820ee2db5c43b9393fdc1cb94f14cf22045542899f5e419c255b2e3a8c86f9",
     "docs/decisions/service-diagnostics-current.md": "6e1fefc7b06a3ee3a25158288e2568aee38ca530076c3f0b3ac646b5efa0fc42",
     "docs/decisions/capture-record-current.md": "89e1d03816322b7e74ccee14e044f4019d794c969ea74a8ddc8d0629f71d6e2c",
-    "docs/decisions/snapshot-output-current.md": "6440475871ddab6a8064da9733355e8eef78b2e3968add647d8b6104fe865152"
+    "docs/decisions/snapshot-output-current.md": "6440475871ddab6a8064da9733355e8eef78b2e3968add647d8b6104fe865152",
+    "docs/decisions/snapshot-dispatch-current.md": "56ed212c3b6de7f219adfc6e58f0a4b515777d20051bc7fa4ff834167bb4cfad",
+    "apps/weekend-replicate/tests/audit_cli.rs": "48e2b3cb7a742a7dfc4b24a7e51499cb3a4ae6e74ee050127a99a076089ee3bd",
+    "apps/weekend-replicate/src/native/pin_tests.rs": "76b408cae4f5a780ecbedf28352d118893d22f60ec1c7f6cf9ba39bbd11f748c"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -873,7 +876,8 @@
         "apps/weekend-replicate/src/native/tests.rs",
         "apps/weekend-replicate/tests/cli.rs",
         "docs/decisions/capture-record-current.md",
-        "docs/decisions/snapshot-output-current.md"
+        "docs/decisions/snapshot-output-current.md",
+        "docs/decisions/snapshot-dispatch-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },
@@ -25181,6 +25185,102 @@
         },
         {
           "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-HELP-ALIASES",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "match_guard",
+        "start_byte": 3734,
+        "conditions": [
+          "c == \"--help\"",
+          "c == \"-h\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/tests/audit_cli.rs",
+          "name": "cli_help_and_wrong_dispatch_shapes_have_controls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-dispatch-help-long",
+        "r1-snapshot-dispatch-help-short"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ATTEMPT-BOUNDS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "option",
+        "kind": "if",
+        "start_byte": 3436,
+        "conditions": [
+          "n == 0",
+          "n > maximum"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/tests/cli.rs",
+          "name": "native_dispatch_checks_command_names_and_options_before_creating_files"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-dispatch-option-zero",
+        "r1-snapshot-dispatch-option-upper"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
             true
           ],
           "outcome": true

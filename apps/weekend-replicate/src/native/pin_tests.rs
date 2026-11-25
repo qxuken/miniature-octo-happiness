@@ -138,10 +138,19 @@ fn cli_identity_option_and_permanent_retry_controls() {
         );
     }
     #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStrExt;
-        assert!(text(OsStr::from_bytes(&[255])).is_err());
-    }
+    let invalid_argument = <OsString as std::os::unix::ffi::OsStringExt>::from_vec(vec![0xff]);
+    #[cfg(windows)]
+    let invalid_argument = <OsString as std::os::windows::ffi::OsStringExt>::from_wide(&[0xd800]);
+    assert_eq!(
+        identity(&invalid_argument).unwrap_err().to_string(),
+        "expected UTF-8 argument"
+    );
+    assert_eq!(
+        option(&["--attempts".into(), invalid_argument], "--attempts", 3, 3)
+            .unwrap_err()
+            .to_string(),
+        "expected UTF-8 argument"
+    );
     let dir = Directory::new();
     let source = dir.0.join("source");
     drop(Database::create_file(&source, Limits::default()).unwrap());

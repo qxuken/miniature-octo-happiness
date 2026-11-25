@@ -14109,6 +14109,54 @@
       "exact_test": "native::tests::capture_record_has_exact_bytes_and_rejects_incomplete_or_malformed_rows",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-snapshot-dispatch-help-long",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "c == \"--help\" || c == \"-h\"",
+      "new": "c == \"-h\"",
+      "package": "weekend-replicate",
+      "target": "--test",
+      "test": "audit_cli",
+      "exact_test": "cli_help_and_wrong_dispatch_shapes_have_controls",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-snapshot-dispatch-help-short",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "c == \"--help\" || c == \"-h\"",
+      "new": "c == \"--help\"",
+      "package": "weekend-replicate",
+      "target": "--test",
+      "test": "audit_cli",
+      "exact_test": "cli_help_and_wrong_dispatch_shapes_have_controls",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-snapshot-dispatch-option-zero",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "n == 0 || n > maximum",
+      "new": "n > maximum",
+      "package": "weekend-replicate",
+      "target": "--test",
+      "test": "cli",
+      "exact_test": "native_dispatch_checks_command_names_and_options_before_creating_files",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-snapshot-dispatch-option-upper",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "n == 0 || n > maximum",
+      "new": "n == 0",
+      "package": "weekend-replicate",
+      "target": "--test",
+      "test": "cli",
+      "exact_test": "native_dispatch_checks_command_names_and_options_before_creating_files",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }
