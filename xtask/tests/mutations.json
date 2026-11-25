@@ -16929,6 +16929,18 @@
       "matches": 1,
       "package": "study-peer",
       "exact_test": "native::admission::tests::shutdown_joins_active_workers_and_preserves_the_first_failure"
+    },
+    {
+      "name": "r1-study-incoming-worker-launch",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "})?);",
+      "new": "}).map_err(|_| Error::Invalid)?);",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::failed_worker_launch_closes_the_new_socket_and_joins_the_active_worker"
     }
   ]
 }

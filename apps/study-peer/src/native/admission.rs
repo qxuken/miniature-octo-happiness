@@ -73,16 +73,25 @@ pub(super) fn receive(
     status: &Mutex<Status>,
     serve: impl Fn(Incoming) -> AppResult<()> + Sync,
 ) -> AppResult<()> {
-    receive_with_accept(listener, tls, stop, status, serve, TcpListener::accept)
+    receive_with(
+        listener,
+        tls,
+        stop,
+        status,
+        serve,
+        TcpListener::accept,
+        || Ok(thread::Builder::new()),
+    )
 }
 
-fn receive_with_accept(
+fn receive_with(
     listener: TcpListener,
     tls: &Tls,
     stop: &Arc<AtomicBool>,
     status: &Mutex<Status>,
     serve: impl Fn(Incoming) -> AppResult<()> + Sync,
     mut accept: impl FnMut(&TcpListener) -> io::Result<(TcpStream, SocketAddr)>,
+    mut new_worker: impl FnMut() -> io::Result<thread::Builder>,
 ) -> AppResult<()> {
     let merge = Mutex::new(());
     let serve = &serve;
@@ -117,25 +126,27 @@ fn receive_with_accept(
                 let accepted = Instant::now();
                 let cancellation = Arc::clone(stop);
                 let merge = &merge;
-                workers.push(thread::Builder::new().spawn_scoped(scope, move || {
-                    let (result, diagnostic) =
-                        diagnostics::capture(settings, Phase::TlsHandshake, || {
-                            tls.accept_at(socket, accepted, Some(cancellation))
-                        });
-                    match result {
-                        Ok(channel) => {
-                            if let Ok(_guard) = merge.try_lock() {
-                                let (outcome, diagnostic) =
-                                    diagnostics::capture(settings, Phase::Replication, || {
-                                        serve(channel)
-                                    });
-                                status.lock().unwrap().record(outcome, diagnostic);
-                            } else {
-                                status.lock().unwrap().refuse();
+                workers.push(new_worker().and_then(|builder| {
+                    builder.spawn_scoped(scope, move || {
+                        let (result, diagnostic) =
+                            diagnostics::capture(settings, Phase::TlsHandshake, || {
+                                tls.accept_at(socket, accepted, Some(cancellation))
+                            });
+                        match result {
+                            Ok(channel) => {
+                                if let Ok(_guard) = merge.try_lock() {
+                                    let (outcome, diagnostic) =
+                                        diagnostics::capture(settings, Phase::Replication, || {
+                                            serve(channel)
+                                        });
+                                    status.lock().unwrap().record(outcome, diagnostic);
+                                } else {
+                                    status.lock().unwrap().refuse();
+                                }
                             }
+                            Err(error) => status.lock().unwrap().record(Err(error), diagnostic),
                         }
-                        Err(error) => status.lock().unwrap().record(Err(error), diagnostic),
-                    }
+                    })
                 })?);
             }
             Ok(())
@@ -193,7 +204,7 @@ mod tests {
             io::ErrorKind::PermissionDenied,
         ]
         .into_iter();
-        let result = receive_with_accept(
+        let result = receive_with(
             listener,
             &server,
             &stop,
@@ -205,6 +216,7 @@ mod tests {
                     .expect("listener continued after fatal error")
                     .into())
             },
+            || Ok(thread::Builder::new()),
         );
         assert_eq!(
             result
@@ -241,7 +253,7 @@ mod tests {
                 let server = &server;
                 let run = scope.spawn(move || {
                     let mut admitted = false;
-                    receive_with_accept(
+                    receive_with(
                         listener,
                         server,
                         stop_worker,
@@ -270,6 +282,7 @@ mod tests {
                                 Err(io::ErrorKind::WouldBlock.into())
                             }
                         },
+                        || Ok(thread::Builder::new()),
                     )
                 });
                 let _shutdown = Stop(&stop);
@@ -300,6 +313,85 @@ mod tests {
                 }
             });
         }
+    }
+
+    #[test]
+    fn failed_worker_launch_closes_the_new_socket_and_joins_the_active_worker() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let client = Tls::new(&a, b.certificate()).unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let status = Mutex::new(Status::default());
+        let stop = Arc::new(AtomicBool::new(false));
+        let (entered, enter) = mpsc::channel();
+        let (finished, finish) = mpsc::channel();
+        thread::scope(|scope| {
+            let run = scope.spawn(|| {
+                let mut launches = 0;
+                let result = receive_with(
+                    listener,
+                    &server,
+                    &stop,
+                    &status,
+                    |_| {
+                        entered.send(())?;
+                        let deadline = Instant::now() + Duration::from_secs(4);
+                        while !stop.load(Relaxed) {
+                            assert!(Instant::now() < deadline, "worker did not observe stop");
+                            thread::sleep(Duration::from_millis(5));
+                        }
+                        Ok(())
+                    },
+                    TcpListener::accept,
+                    || {
+                        launches += 1;
+                        if launches == 1 {
+                            Ok(thread::Builder::new())
+                        } else {
+                            Err(io::Error::new(
+                                io::ErrorKind::WouldBlock,
+                                "worker launch refused",
+                            ))
+                        }
+                    },
+                );
+                finished.send((result, launches)).unwrap();
+            });
+            let _shutdown = Stop(&stop);
+            let active = client.connect(address).unwrap();
+            enter.recv_timeout(Duration::from_secs(4)).unwrap();
+            let mut refused = TcpStream::connect_timeout(&address, Duration::from_secs(2)).unwrap();
+            refused
+                .set_read_timeout(Some(Duration::from_secs(4)))
+                .unwrap();
+            let (result, launches) = finish.recv_timeout(Duration::from_secs(4)).unwrap();
+            run.join().unwrap();
+            assert_eq!(launches, 2);
+            let error = result.unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::WouldBlock)
+            );
+            assert_eq!(error.to_string(), "worker launch refused");
+            match refused.read(&mut [0]) {
+                Ok(0) => {}
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                    ) => {}
+                result => panic!("refused session socket stayed open: {result:?}"),
+            }
+            drop(active);
+            assert!(stop.load(Relaxed));
+            assert_eq!(
+                status.lock().unwrap().report(),
+                "incoming served=1 failed=0 busy=0"
+            );
+        });
     }
 
     #[test]
