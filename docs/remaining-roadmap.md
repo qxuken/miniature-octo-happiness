@@ -888,3 +888,22 @@ and candidate source tar hashes and exclude private keys. The source
 bundle, exact workflow step, logs and filtered archives are pinned in the
 [compatibility manifest](candidate-compatibility-63eed2c.sha256). Hosted
 release and native Windows qualification remain open for this revision.
+
+### Release fuzz workflow and stable replay
+
+Previously only the weekly schedule selected the extended ASan campaign.
+Manual qualification runs and tags now request 100,000 executions or 120
+seconds per target, whichever bound is reached first. They use the pinned
+`nightly-2026-11-12` compiler. Weekly runs retain rolling nightly at the same
+bounds. Pull requests and ordinary main pushes retain 1,000 executions or
+20 seconds per target. Extended jobs have a 90-minute outer timeout and
+replay the stable library tests in both debug and release. Each replay
+retains Cargo's transcript in the workflow artifact.
+
+At source `4a37229` the workflow replay step passed all 33 tests in each
+profile on native macOS arm64 using Rust 1.100.0. The
+[checkpoint manifest](delivery-checkpoint-4a37229.sha256) pins both logs.
+An invocation check confirmed all three toolchain/budget combinations and
+verified that an injected nonzero status from either replay fails the shell
+step despite transcript capture. Actionlint 1.7.12 passed. Hosted extended
+qualification requires its own restored campaign receipt.
