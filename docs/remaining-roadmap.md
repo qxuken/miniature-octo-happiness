@@ -780,3 +780,27 @@ lockfile copies and all 305 recorded artifact entries. The local proof
 `delivery-4a37229/compat-macos.tar.gz` has SHA-256
 `b95d620afaa9819c6b0867e583136a3c158348b9eeffd08df6d3312ed999cec8`.
 R4 still requires an agreed support window and its release endpoints.
+
+### Restored four-platform delivery at 4a37229
+
+The arm64 macOS/APFS and Docker Linux/ext4 delivery runs completed at
+the same PR #82 test merge as the hosted x64 packages. All four lanes
+passed their Rust 1.100.0 debug/release workspace checks and delivered
+consumer traces. The local Linux setup initially lacked the linker driver
+for Odin. The successful run used the image with Clang, an ext4 build and
+runtime directory, and networking disabled.
+
+A fresh extraction verified all 16 packages together with three 17-case
+macOS benchmark samples and all 22 targets in the hosted fuzz archive.
+The newly restored arm64 inventories contained 4,039 files on macOS and
+4,042 on Linux. Across the full matrix a separate audit checked 132
+dependency entries and matched all 272 recorded package notice files to
+their sources.
+
+An offline Linux container then checked the saved input hashes, cloned
+the saved Git bundle, rebuilt the verifier, extracted the four package
+lanes, benchmark and fuzz evidence, and reproduced the macOS report.
+Only the verifier executable hash differed. The [checkpoint checksums](delivery-checkpoint-4a37229.sha256)
+identify the raw archives, notice audit and both verification receipts.
+The restore ran on the development host. Off-machine custody, deployment
+acceptance and final release qualification remain open.
