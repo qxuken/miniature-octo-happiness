@@ -229,7 +229,7 @@
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "96f1fd12d877e16bff818a88dcd8697c33ca9c2f532fae221c1525eca75325a8",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
-    "apps/weekend-replicate/src/native/tests.rs": "e0c373d7e0801509dd9cd8cea7293be1647d56b5a4dfeb0c3b94c86fe17ac401",
+    "apps/weekend-replicate/src/native/tests.rs": "342311c2d69ab570e4d08881711ddd12626f6f19790f7300877350f28dd6042c",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "66f32e10c0c20f6736c96137abb7af9aa55ed54d39d4cfb9bd32b06c2f3813ea",
-    "xtask/tests/mutations.json": "bcdafabd9233b42c20b9d57a68c01b15a652823a34b0af6d923b02b2cd43d94a",
+    "xtask/tests/mutations.json": "11a02974ffd34106ccbf9711dc70c0bd6df4689c96ce2fa73ec411aafd7b8145",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -433,7 +433,8 @@
     "docs/decisions/coordinator-legacy-receipts-current.md": "ce45c3172123a6c8275376d39619c0b83bc83bfcc530f49f385c0311e1c37afb",
     "docs/decisions/apfs-detach-current.md": "031d9abf45e92bc3625a5cef3c7082ecb6b503f1867b6e8f1d3664f36c1a6ffd",
     "docs/decisions/coordinator-legacy-commit-current.md": "f98506d9ec744ca4b1230603f2e62dc5a40d245ffc569d2a4e9c8c33d3b7cb14",
-    "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1"
+    "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1",
+    "docs/decisions/snapshot-network-admission-current.md": "96842780412dfb9a5a9df530b2243efc0fecb07ddb1cfd6d76db9163d50d7da5"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -940,7 +941,8 @@
         "docs/decisions/snapshot-command-output-current.md",
         "docs/decisions/snapshot-retry-current.md",
         "docs/decisions/snapshot-listener-current.md",
-        "docs/decisions/snapshot-offline-maintenance-current.md"
+        "docs/decisions/snapshot-offline-maintenance-current.md",
+        "docs/decisions/snapshot-network-admission-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },
@@ -35234,6 +35236,581 @@
       "mutations": [
         "r1-snapshot-offline-compact-after",
         "r1-snapshot-offline-compact-after-phase"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHARED-CREDENTIALS",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "transport",
+        "kind": "try_propagation",
+        "start_byte": 3307,
+        "conditions": [
+          "diagnostics::at(Phase::CredentialsLoad, || Credentials::load(Path::new(dir)))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-shared-credentials"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHARED-PIN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "transport",
+        "kind": "try_propagation",
+        "start_byte": 3419,
+        "conditions": [
+          "diagnostics::at(Phase::CredentialsLoad, || {\n        bounded_file(Path::new(pin), 65536)\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-shared-pin"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SERVE-ENROLLMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 7039,
+        "conditions": [
+          "enrollment(stream, file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-serve-enrollment"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SERVE-ADDRESS-ENCODING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 7081,
+        "conditions": [
+          "text(address)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-serve-address-encoding"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SERVE-ADDRESS-SYNTAX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 7090,
+        "conditions": [
+          "text(address)?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-serve-address-syntax"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SERVE-OPTIONS",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 7173,
+        "conditions": [
+          "option(options, \"--max-exchanges\", usize::MAX, usize::MAX)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-serve-options"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SERVE-TRANSPORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 7225,
+        "conditions": [
+          "transport(credentials, pin)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-serve-transport"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SERVE-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 7373,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n                Follower::open(dir, e, Limits::default())\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-serve-open"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 8448,
+        "conditions": [
+          "identity(stream)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-identity"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-ADDRESS-ENCODING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 8490,
+        "conditions": [
+          "text(address)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-address-encoding"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-ADDRESS-SYNTAX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 8499,
+        "conditions": [
+          "text(address)?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-address-syntax"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-OPTIONS",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 8564,
+        "conditions": [
+          "option(options, \"--attempts\", 3, 3)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-options"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-TRANSPORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 8616,
+        "conditions": [
+          "transport(credentials, pin)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-transport"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-PREPARE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 8695,
+        "conditions": [
+          "prepare(source.as_ref(), stream, export.as_ref())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-prepare"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-CAPTURED-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 9255,
+        "conditions": [
+          "identity(stream)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-captured-identity"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-CAPTURED-ADDRESS-ENCODING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 9297,
+        "conditions": [
+          "text(address)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-captured-address-encoding"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-CAPTURED-ADDRESS-SYNTAX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 9306,
+        "conditions": [
+          "text(address)?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-captured-address-syntax"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-CAPTURED-OPTIONS",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 9371,
+        "conditions": [
+          "option(options, \"--attempts\", 3, 3)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-captured-options"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-CAPTURED-TRANSPORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 9423,
+        "conditions": [
+          "transport(credentials, pin)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-captured-transport"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-SHIP-CAPTURED-PREPARE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 9608,
+        "conditions": [
+          "prepare_saved(\n                source.as_ref(),\n                stream,\n                export.as_ref(),\n                descriptor.as_ref(),\n            )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-ship-captured-prepare"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-POLL-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 9983,
+        "conditions": [
+          "identity(stream)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-poll-identity"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-POLL-ADDRESS-ENCODING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 10025,
+        "conditions": [
+          "text(address)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-poll-address-encoding"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-POLL-ADDRESS-SYNTAX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 10034,
+        "conditions": [
+          "text(address)?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-poll-address-syntax"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-POLL-TRANSPORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 10086,
+        "conditions": [
+          "transport(credentials, pin)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-poll-transport"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-NETWORK-ADMISSION-POLL-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 10233,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n                Database::open_file(source, Limits::default())\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "network_commands_preserve_admission_errors"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-network-admission-poll-open"
       ]
     }
   ],

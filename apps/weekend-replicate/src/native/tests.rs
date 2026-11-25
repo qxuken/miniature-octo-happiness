@@ -1309,19 +1309,177 @@ fn installed_follower(dir: &Directory) -> (Follower, Enrollment, DurableAck) {
     (follower, enrollment, ack)
 }
 
+fn invalid_native_argument() -> std::ffi::OsString {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        std::ffi::OsString::from_vec(vec![0xff])
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStringExt;
+        std::ffi::OsString::from_wide(&[0xd800])
+    }
+}
+
+#[test]
+fn network_commands_preserve_admission_errors() {
+    use std::ffi::OsString;
+
+    let dir = Directory::new();
+    let (follower, enrollment, ack) = installed_follower(&dir);
+    let follower_path = dir.0.join("follower");
+    let manifest = follower_path.join("replica-manifest.wdb");
+    let image = follower_path.join(format!(
+        "replica-{}.wdb",
+        follower.status().unwrap().selected_slot.unwrap()
+    ));
+    drop(follower);
+    let files = [&manifest, &image];
+    let original = files.map(|p| fs::read(p).unwrap());
+
+    let stream = hex(&enrollment.stream_id);
+    let file = hex(&enrollment.file_identity);
+    let missing = dir.0.join("missing");
+    let export = dir.0.join("new-export.wdb");
+    let credentials = dir.0.join("credentials");
+    let peer_credentials = dir.0.join("peer-credentials");
+    Credentials::create(&credentials).unwrap();
+    Credentials::create(&peer_credentials).unwrap();
+    let pin = peer_credentials.join("cert.der");
+    let malformed_pin = dir.0.join("wrong-pin.der");
+    fs::write(&malformed_pin, b"incomplete certificate").unwrap();
+
+    for (verb, inputs, option) in [
+        (
+            "serve",
+            vec![missing.as_os_str(), stream.as_ref(), file.as_ref()],
+            Some("--max-exchanges"),
+        ),
+        (
+            "ship",
+            vec![missing.as_os_str(), stream.as_ref(), export.as_os_str()],
+            Some("--attempts"),
+        ),
+        (
+            "ship-captured",
+            vec![
+                missing.as_os_str(),
+                stream.as_ref(),
+                export.as_os_str(),
+                missing.as_os_str(),
+            ],
+            Some("--attempts"),
+        ),
+        ("poll", vec![missing.as_os_str(), stream.as_ref()], None),
+    ] {
+        let mut args = vec![OsString::from(verb)];
+        args.extend(inputs.into_iter().map(OsString::from));
+        let address = args.len();
+        args.extend([
+            OsString::from("127.0.0.1:0"),
+            credentials.clone().into(),
+            pin.clone().into(),
+        ]);
+
+        let check_failure = |mut input: Vec<OsString>,
+                             phase: &str,
+                             code: &str,
+                             message: Option<&str>| {
+            input.insert(0, "--diagnostics=json".into());
+            let settings = diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut input);
+            let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || main(input));
+            let error = result.expect_err(verb);
+            if let Some(message) = message {
+                assert_eq!(error.to_string(), message, "{verb}");
+            }
+            match code {
+                "NotFound" => assert_eq!(error.downcast_ref::<Error>(), Some(&Error::NotFound)),
+                "not_found" => assert_eq!(
+                    error.downcast_ref::<io::Error>().map(io::Error::kind),
+                    Some(io::ErrorKind::NotFound)
+                ),
+                "invalid_certificate" => assert!(matches!(
+                    error.downcast_ref::<rustls::Error>(),
+                    Some(rustls::Error::InvalidCertificate(_))
+                )),
+                _ => {}
+            }
+            let detail = detail.unwrap().json(settings).to_string();
+            assert!(
+                detail.contains(&format!(r#""phase":"{phase}""#)),
+                "{verb}: {detail}"
+            );
+            assert!(
+                detail.contains(&format!(r#""code":"{code}""#)),
+                "{verb}: {detail}"
+            );
+            assert!(!export.exists(), "{verb} created an export");
+        };
+        let changed = |index, value: OsString| {
+            let mut input = args.clone();
+            input[index] = value;
+            input
+        };
+        check_failure(
+            changed(2, "0".into()),
+            "arguments",
+            "unclassified",
+            Some("identity must be 32 hexadecimal digits"),
+        );
+        check_failure(
+            changed(address, invalid_native_argument()),
+            "arguments",
+            "unclassified",
+            Some("expected UTF-8 argument"),
+        );
+        check_failure(
+            changed(address, "invalid".into()),
+            "arguments",
+            "invalid_input",
+            Some("invalid socket address syntax"),
+        );
+        if let Some(option) = option {
+            let mut input = args.clone();
+            input.extend([OsString::from(option), OsString::from("0")]);
+            check_failure(
+                input,
+                "arguments",
+                "unclassified",
+                Some("option outside bounds"),
+            );
+        }
+        check_failure(
+            changed(address + 1, missing.clone().into()),
+            "credentials_load",
+            "not_found",
+            None,
+        );
+        check_failure(
+            changed(address + 2, missing.clone().into()),
+            "credentials_load",
+            "not_found",
+            None,
+        );
+        check_failure(
+            changed(address + 2, malformed_pin.clone().into()),
+            "tls_config",
+            "invalid_certificate",
+            None,
+        );
+        check_failure(args, "storage_open", "NotFound", None);
+    }
+    assert_eq!(files.map(|p| fs::read(p).unwrap()), original);
+    check(
+        &Follower::open(&follower_path, enrollment, Limits::default()).unwrap(),
+        ack,
+        2,
+    );
+}
+
 #[test]
 fn snapshot_identity_errors_preserve_each_argument() {
-    use std::ffi::OsString;
-    #[cfg(unix)]
-    let broken = {
-        use std::os::unix::ffi::OsStringExt;
-        OsString::from_vec(vec![0xff])
-    };
-    #[cfg(windows)]
-    let broken = {
-        use std::os::windows::ffi::OsStringExt;
-        OsString::from_wide(&[0xd800])
-    };
+    let broken = invalid_native_argument();
     let valid = OsStr::new("aB112233445566778899aabbccddeeff");
     assert_eq!(
         identity(valid).unwrap(),
