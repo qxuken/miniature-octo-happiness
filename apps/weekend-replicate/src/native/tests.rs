@@ -589,3 +589,140 @@ fn credential_fifo_rejects_before_open_and_keygen_uses_private_modes() {
     .unwrap();
     assert!(Credentials::load(&credentials).is_ok());
 }
+
+#[test]
+fn capture_record_has_exact_bytes_and_rejects_incomplete_or_malformed_rows() {
+    use weekend_db::replication::ExportDescriptor;
+
+    let dir = Directory::new();
+    let path = dir.0.join("capture-record.wdb");
+    let descriptor = ExportDescriptor {
+        enrollment: Enrollment {
+            stream_id: std::array::from_fn(|i| i as u8),
+            file_identity: std::array::from_fn(|i| 16 + i as u8),
+        },
+        revision: 0x2726_2524_2322_2120,
+        length: 0x2f2e_2d2c_2b2a_2928,
+        digest: std::array::from_fn(|i| 48 + i as u8),
+    };
+    let mut golden = b"WDBCAP01".to_vec();
+    golden.extend(0..80);
+    let key = b"snapshot-capture";
+    assert_eq!(capture_record::load(&path), Err(Error::NotFound));
+    capture_record::store(&path, descriptor).unwrap();
+    let original = fs::read(&path).unwrap();
+    assert_eq!(
+        capture_record::store(&path, descriptor),
+        Err(Error::AlreadyExists)
+    );
+    assert_eq!(fs::read(&path).unwrap(), original);
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    let row = db
+        .snapshot()
+        .get(db.collection_id(1), key)
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.as_bytes().unwrap(), golden);
+    assert_eq!(capture_record::load(&path), Err(Error::Busy));
+    drop(db);
+    assert_eq!(capture_record::load(&path), Ok(descriptor));
+
+    let path = dir.0.join("partial-record.wdb");
+    drop(Database::create_file(&path, Limits::default()).unwrap());
+    assert_eq!(capture_record::load(&path), Err(Error::UnsupportedFormat));
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    db.create_collection().unwrap();
+    drop(db);
+    assert_eq!(capture_record::load(&path), Err(Error::UnsupportedFormat));
+    let mut wrong_format = golden.clone();
+    wrong_format[7] = b'2';
+    for bytes in [
+        None,
+        Some(Vec::new()),
+        Some(golden[..87].to_vec()),
+        Some([golden.as_slice(), &[0]].concat()),
+        Some(wrong_format),
+        Some(golden.clone()),
+    ] {
+        let db = Database::open_file(&path, Limits::default()).unwrap();
+        let value = match &bytes {
+            None => db.unsigned(7).unwrap(),
+            Some(bytes) => db.bytes(bytes).unwrap(),
+        };
+        let mut tx = db.begin();
+        tx.put(db.collection_id(1), key, &value).unwrap();
+        tx.commit().unwrap();
+        drop(tx);
+        drop(db);
+        let expected = if bytes.as_ref() == Some(&golden) {
+            Ok(descriptor)
+        } else {
+            Err(Error::Corrupt)
+        };
+        assert_eq!(capture_record::load(&path), expected);
+    }
+}
+
+#[test]
+fn saved_capture_checks_lineage_revision_length_and_digest_before_delivery() {
+    let dir = Directory::new();
+    let path = source(&dir);
+    let image = dir.0.join("export");
+    let stream = [1; 16];
+    let prepared = prepare(&path, stream, &image).unwrap();
+    let original = prepared.export.descriptor();
+    drop(prepared);
+    let image_bytes = fs::read(&image).unwrap();
+    let primary_bytes = fs::read(&path).unwrap();
+    let mut wrong = original;
+    wrong.enrollment.stream_id[0] ^= 1;
+    let mut foreign_file = original;
+    foreign_file.enrollment.file_identity[0] ^= 1;
+    let mut digest = original;
+    digest.digest[0] ^= 1;
+    for (name, descriptor, expected) in [
+        ("stream", wrong, Error::ForeignStore),
+        ("file", foreign_file, Error::ForeignStore),
+        (
+            "future",
+            weekend_db::replication::ExportDescriptor {
+                revision: original.revision + 1,
+                ..original
+            },
+            Error::ForeignStore,
+        ),
+        (
+            "past",
+            weekend_db::replication::ExportDescriptor {
+                revision: original.revision - 1,
+                ..original
+            },
+            Error::Corrupt,
+        ),
+        (
+            "length",
+            weekend_db::replication::ExportDescriptor {
+                length: 0,
+                ..original
+            },
+            Error::Limit,
+        ),
+        ("digest", digest, Error::Corrupt),
+    ] {
+        let record = dir.0.join(name);
+        capture_record::store(&record, descriptor).unwrap();
+        let before = fs::read(&record).unwrap();
+        let error = prepare_saved(&path, stream, &image, &record)
+            .err()
+            .expect(name);
+        assert_eq!(error.downcast_ref::<Error>(), Some(&expected), "{name}");
+        assert_eq!(fs::read(&record).unwrap(), before);
+    }
+    let record = dir.0.join("valid");
+    capture_record::store(&record, original).unwrap();
+    let reopened = prepare_saved(&path, stream, &image, &record).unwrap();
+    assert_eq!(reopened.export.descriptor(), original);
+    drop(reopened);
+    assert_eq!(fs::read(&image).unwrap(), image_bytes);
+    assert_eq!(fs::read(&path).unwrap(), primary_bytes);
+}

@@ -14073,6 +14073,42 @@
       "exact_test": "native::journal::tests::journal_admission_preserves_the_prior_receipt_until_an_intent_is_eligible",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-capture-record-width",
+      "file": "apps/weekend-replicate/src/native/capture_record.rs",
+      "old": "bytes.len() != 88",
+      "new": "bytes.len() < 88",
+      "package": "weekend-replicate",
+      "target": "--bin",
+      "test": "weekend-replicate",
+      "exact_test": "native::tests::capture_record_has_exact_bytes_and_rejects_incomplete_or_malformed_rows",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-capture-record-format",
+      "file": "apps/weekend-replicate/src/native/capture_record.rs",
+      "old": "&bytes[..8] != FORMAT",
+      "new": "false",
+      "package": "weekend-replicate",
+      "target": "--bin",
+      "test": "weekend-replicate",
+      "exact_test": "native::tests::capture_record_has_exact_bytes_and_rejects_incomplete_or_malformed_rows",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-capture-record-field-order",
+      "file": "apps/weekend-replicate/src/native/capture_record.rs",
+      "old": "descriptor.revision.to_le_bytes()",
+      "new": "descriptor.length.to_le_bytes()",
+      "package": "weekend-replicate",
+      "target": "--bin",
+      "test": "weekend-replicate",
+      "exact_test": "native::tests::capture_record_has_exact_bytes_and_rejects_incomplete_or_malformed_rows",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

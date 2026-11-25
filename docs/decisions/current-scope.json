@@ -228,7 +228,7 @@
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "eab0715df7bfb966af651040b584a5b56845a6ea4d1a9d1504f8e8f1d1d34ff2",
     "apps/study-peer/tests/cli.rs": "6e3ad714e6102cb4545fcaa16e30e57734a2eb1bcc0e38c6c1388a3dca6d9f8d",
-    "apps/weekend-replicate/src/native/tests.rs": "8ff9f70dcc1d0eac115a62ee6a39459c6ed402bd0cb5e12665d84575ba515cee",
+    "apps/weekend-replicate/src/native/tests.rs": "e8add383bdf9c758a2f144731051854c09d30e58fe82af191e11e63065346c01",
     "apps/weekend-replicate/tests/cli.rs": "5bc1f316b556d389e376d3918b1e7544e32871f61f63d974802e3765917c0528",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "ac49da63f92aa187f3e237f45dc34abb6a031ef62d758c38172fd5fb9c2af24f",
+    "xtask/tests/mutations.json": "9269b5b471af98fc8c54c1b30a3f462d88a8554fdbf7c28ad245ba6f00936941",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -393,7 +393,8 @@
     "docs/decisions/journal-admission-current.md": "4632b71c2b0e9de89d2acfe1b21c377a0f738342d164b0159e2e61a075a36456",
     "docs/decisions/journal-state-current.md": "87c03e39f11595528de2bdf7b740ce9b31b7e4f54f61eb424e09918d74e1a489",
     "docs/decisions/journal-cli-current.md": "2f820ee2db5c43b9393fdc1cb94f14cf22045542899f5e419c255b2e3a8c86f9",
-    "docs/decisions/service-diagnostics-current.md": "6e1fefc7b06a3ee3a25158288e2568aee38ca530076c3f0b3ac646b5efa0fc42"
+    "docs/decisions/service-diagnostics-current.md": "6e1fefc7b06a3ee3a25158288e2568aee38ca530076c3f0b3ac646b5efa0fc42",
+    "docs/decisions/capture-record-current.md": "89e1d03816322b7e74ccee14e044f4019d794c969ea74a8ddc8d0629f71d6e2c"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -869,7 +870,8 @@
         "docs/decisions/current.md",
         "docs/decisions/snapshot-cli.md",
         "apps/weekend-replicate/src/native/tests.rs",
-        "apps/weekend-replicate/tests/cli.rs"
+        "apps/weekend-replicate/tests/cli.rs",
+        "docs/decisions/capture-record-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },
