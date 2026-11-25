@@ -1491,3 +1491,21 @@ The three ordinary journal process tests passed in both profiles on macOS
 arm64 and Docker Linux arm64. The [archive manifest](decisions/journal-handshake-2aab66f.sha256)
 covers those runs and the updated reconciliation. Twenty-five journal records
 and 883 runtime records overall remain unclassified.
+
+### Journal output failure after a durable write
+
+At `24f7900`, set committed revision 4 and saved its receipt before reporting
+a broken stdout pipe. Check and resume also reported the native write error.
+Reopening and resuming with working stdout returned the original revision 4.
+The local journal bytes, coordinator value and receipt confirmed that the
+retry performed no second write. Initialization with a closed stdout likewise
+left a readable journal. The argument tests also verified lease errors,
+connection setup errors, invalid slots and refusal to overwrite an existing
+journal for another slot.
+
+All 24 unit tests and 16 ordinary process tests passed per profile in debug
+and release on macOS arm64 and Docker Linux arm64. The extended tests remained
+opt-in in these runs. The [archive manifest](decisions/journal-output-24f7900.sha256)
+covers all four suites, the reconciliation and the source bundle. Of the 861
+unclassified runtime decisions, three are in the journal: printing the second
+and third status lines, and propagating a failed initial state commit.
