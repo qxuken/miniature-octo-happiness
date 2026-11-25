@@ -50,3 +50,14 @@ cargo xwin test --offline --locked --all-features -p study-peer \
 ```
 
 Repeat the commands with `--release` and a fresh mutation output path.
+
+## Native Windows confirmation
+
+The minimum-Rust Windows job passed for PR #82 head `fc05d80` at GitHub
+test merge `d90bc483ad933000eef6d4e1578530a93a280298`. Both formerly
+failing Study tests passed in debug and release with Rust 1.100.0. The
+downloaded artifact matches SHA-256
+`af5e7aa27a69af79d9ad5cd529893192b2dbbdb02a670f19511fc0dc602d4afc`.
+Its packaged test fixture matched the exact bytes of the merge and PR
+head.
+[Native Windows minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45696024354/job/139493770789)

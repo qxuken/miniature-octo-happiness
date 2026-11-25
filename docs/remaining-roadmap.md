@@ -2108,7 +2108,9 @@ connection refusal. At `45ad8f2`, the test verifies the Windows keygen
 refusal. The retry probe uses one retained listener and a controlled EOF
 before retrying with normal authenticated exchanges. Both local platforms
 passed the tests and eight selected controls in both profiles. The
-Windows tests also cross-linked in both profiles.
+Windows tests also cross-linked in both profiles. Native Windows on PR
+#82 head `fc05d80` confirmed that both previously failing tests pass in
+debug and release with the minimum Rust toolchain.
 [Windows fixture ledger](decisions/study-windows-fixtures-current.md)
 
 ### Study authenticated receive interruption
@@ -2121,3 +2123,17 @@ Both receive controls and all seven existing outgoing controls were
 detected on macOS and Docker Linux in debug and release. The Windows
 debug tests cross-linked. Reconciliation leaves 438 runtime and 7,514
 tooling gaps. [Authenticated receive ledger](decisions/study-receive-current.md)
+
+### Coordinator connection handoff
+
+At `c4bab48`, closing the request queue, missing the admission deadline,
+losing the admission sender and losing the reply sender each preserve
+their I/O outcome and send no reply. A live dispatcher can still deliver
+one complete response. The existing queue capacity test continues to
+verify the `Busy` response and preserves the pending requests.
+
+Both coordinator profiles passed all 43 ordinary tests and seven
+selected controls on macOS and Docker Linux. The Windows oracle still
+checks the 32 established controls. Both new Windows debug test targets
+cross-linked. Reconciliation leaves 434 runtime and 7,514 tooling gaps.
+[Connection handoff ledger](decisions/coordinator-connection-handoff-current.md)

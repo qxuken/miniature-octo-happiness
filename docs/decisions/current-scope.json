@@ -419,9 +419,9 @@
     "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591",
     "docs/decisions/study-service-launch-current.md": "d271a3fcbcfeefc1ec3871c3f3b6b5e7c0bc60b8cf028a47a19bafb147874ca7",
     "docs/decisions/study-service-shutdown-current.md": "f30d9f7b68de9ffe6037ed386e8779adbee16b2af41661ba9812cb6b83588330",
-    "docs/decisions/study-windows-fixtures-current.md": "781c8656ab00cefbf06f0e5538e5cf20a53a423deb7153a7860c3a1b5483f6fa",
+    "docs/decisions/study-windows-fixtures-current.md": "b049d3cf81047f03aabba5ad882b657e24aec4333e729703ab136fb094783791",
     "docs/decisions/study-receive-current.md": "c5b3e1e268936240cd70ba66d470a94bc1bae2086e5235811371ab3ed97cab59",
-    "docs/decisions/coordinator-connection-handoff-current.md": "965367a552ac0acbfbd2bb0195b5cb916de543f0ad216f800520e3a405572187"
+    "docs/decisions/coordinator-connection-handoff-current.md": "c82b333c26f1e9f1cf0369127eadcb6f1206dfc7d891e5f8b81a08cc686cefa5"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
