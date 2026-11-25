@@ -79,16 +79,21 @@ fn fixture(helpers: &str, scenario: &str, windows: bool) -> Result<String> {
         .replace(old, "        (log, binary): (&Log, &str),\n    ) -> Self {")
         .replace("Command::new(BIN)", "Command::new(binary)");
     if windows {
+        moved = replace_fixture_once(
+            &moved,
+            "std::env::temp_dir().join",
+            "PathBuf::from(std::env::var_os(\"STUDY_UPGRADE_RUNTIME\").unwrap()).join",
+        )?;
+    }
+    if windows
+        && !moved.starts_with("#![cfg(any(target_os = \"macos\", target_os = \"linux\", windows))]")
+    {
         for (before, after) in [
             (
                 "#![cfg(any(target_os = \"macos\", target_os = \"linux\"))]",
                 "#![cfg(windows)]",
             ),
             ("    os::unix::fs::{DirBuilderExt, PermissionsExt},\n", ""),
-            (
-                "std::env::temp_dir().join",
-                "PathBuf::from(std::env::var_os(\"STUDY_UPGRADE_RUNTIME\").unwrap()).join",
-            ),
             (
                 "fs::DirBuilder::new().mode(0o700).create(&path).unwrap();",
                 "fs::create_dir(&path).unwrap();",
@@ -128,9 +133,24 @@ fn source_locks(source: &Path) -> Result<()> {
         );
     }
     ensure!(
-        inventory(&source.join("old/src/crdt"), &[])?
-            == inventory(&source.join("new/src/crdt"), &[])?,
+        inventory(&source.join("old/src/crdt"), &["decisions.rs"])?
+            == inventory(&source.join("new/src/crdt"), &["decisions.rs"])?,
         "unqualified CRDT container change"
+    );
+    Ok(())
+}
+
+// Cargo's binary depfile includes transitive workspace sources. Check the
+// release build on both endpoints before exempting the CRDT test module.
+fn verify_crdt_inputs(depfile: &str) -> Result<()> {
+    let paths = depfile.replace('\\', "/");
+    ensure!(
+        paths.contains("/src/crdt.rs") && paths.contains("/src/crdt/multi_value_register.rs"),
+        "study binary dependency report is missing CRDT runtime inputs"
+    );
+    ensure!(
+        !paths.contains("/src/crdt/decisions.rs"),
+        "study binary depends on the CRDT test module"
     );
     Ok(())
 }
@@ -240,6 +260,9 @@ fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
                 .join(format!("study-peer{EXE_SUFFIX}"));
             let copied = c.output.join(format!("{label}-study-peer{EXE_SUFFIX}"));
             fs::copy(&binary, &copied)?;
+            let depfile = fs::read_to_string(target.join("release/study-peer.d"))?;
+            verify_crdt_inputs(&depfile)?;
+            fs::write(c.output.join(format!("{label}-study-peer.d")), depfile)?;
             let binary_hash = sha(&binary)?;
             ensure!(
                 sha(&copied)? == binary_hash,
@@ -344,6 +367,9 @@ fn verify_copy(result: &Path, source: &Value, fixture_hash: &str) -> Result<Stri
         "copied artifact inventory differs"
     );
     for label in LABELS {
+        verify_crdt_inputs(&fs::read_to_string(
+            result.join(format!("{label}-study-peer.d")),
+        )?)?;
         let observed = &proof["sources"][label];
         ensure!(
             observed["files"] == source[label]["files"]
@@ -556,6 +582,9 @@ mod tests {
         );
         assert!(generated.contains("Command::new(binary)"));
         assert!(!generated.contains("Command::new(BIN)"));
+        let native_windows = fixture(helper, scenario, true).unwrap();
+        assert!(native_windows.contains("STUDY_UPGRADE_RUNTIME"));
+        assert!(!native_windows.contains("std::env::temp_dir().join"));
         assert!(generated.contains("STUDY_OLD_BINARY"));
         assert!(generated.contains("core(root, \"a\")"));
         assert!(fixture("changed helper", scenario, false).is_err());
@@ -570,6 +599,14 @@ mod tests {
     }
 
     #[test]
+    fn release_dependencies_must_include_runtime_and_exclude_the_test_module() {
+        let runtime = r"C:\repo\src\crdt.rs C:\repo\src\crdt\multi_value_register.rs";
+        assert!(verify_crdt_inputs(runtime).is_ok());
+        assert!(verify_crdt_inputs("").is_err());
+        assert!(verify_crdt_inputs(&format!("{runtime} /repo/src/crdt/decisions.rs")).is_err());
+    }
+
+    #[test]
     fn copied_study_evidence_rejects_mutated_artifact_source_or_fixture() {
         let tmp = Scratch::new(&std::env::temp_dir(), "study-copy").unwrap();
         let root = tmp.path();
@@ -578,6 +615,11 @@ mod tests {
         for label in LABELS {
             let binary = root.join(format!("{label}-study-peer{EXE_SUFFIX}"));
             fs::write(&binary, label.as_bytes()).unwrap();
+            fs::write(
+                root.join(format!("{label}-study-peer.d")),
+                "/repo/src/crdt.rs /repo/src/crdt/multi_value_register.rs",
+            )
+            .unwrap();
             let lock = root.join(format!("{label}-Cargo.lock"));
             fs::write(&lock, b"frozen lock").unwrap();
             let lock_hash = sha(&lock).unwrap();
