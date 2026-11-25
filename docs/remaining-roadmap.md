@@ -1430,3 +1430,20 @@ The [growth ledger](decisions/memory-growth-current.md) reconciles the final
 two dependent context guards. Reconciliation at `9313bcb` leaves zero gaps
 in either module, 968 runtime gaps overall and 7,398 tooling gaps. Compiler
 MC/DC and off-machine custody remain outstanding.
+
+### Journal replay after a later writer advances
+
+On `ae9441f`, the coordinator committed revision 4, lost the reply and accepted
+another writer at revision 5. After both databases reopened, journal check
+reported the current value at revision 5, while resume confirmed the original
+receipt at revision 4. The coordinator image stayed byte-identical during
+check and replay. A further client restart returned revision 4 without sending
+another request. The [decision table](decisions/journal-replay-current.md)
+distinguishes a valid historical receipt from an inconsistent head receipt.
+
+All nine journal unit tests and the native process lost-reply/restore test
+passed in debug and release on macOS arm64 and Docker Linux arm64. All six
+mutations failed the intended tests in each run. The [archive manifest](decisions/journal-replay-ae9441f.sha256)
+covers 24 detections, 96 command receipts, both platform suites and the
+source bundle. There are 75 unclassified journal records, 933 runtime gaps
+overall and 7,398 tooling gaps. Off-machine custody remains outstanding.
