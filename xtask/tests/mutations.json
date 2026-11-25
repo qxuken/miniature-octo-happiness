@@ -13494,6 +13494,66 @@
       "occurrence": 1,
       "target": "--lib",
       "test": "storage::inspection::decisions::backup_releases_copy_graph_before_verification_but_keeps_source_leased"
+    },
+    {
+      "name": "r1-admin-current-lock-error",
+      "file": "tools/admin.rs",
+      "old": "file.lock()?",
+      "new": "file.lock().map_err(|_| weekend_db::Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--bin",
+      "test": "weekend-admin",
+      "exact_test": "export_decisions::errors_stop_at_the_first_failed_stage"
+    },
+    {
+      "name": "r1-admin-current-write-error",
+      "file": "tools/admin.rs",
+      "old": "file.write(offset as u64, &bytes[offset..])?",
+      "new": "file.write(offset as u64, &bytes[offset..]).map_err(|_| weekend_db::Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--bin",
+      "test": "weekend-admin",
+      "exact_test": "export_decisions::errors_stop_at_the_first_failed_stage"
+    },
+    {
+      "name": "r1-admin-current-deny-compact",
+      "file": "tools/admin.rs",
+      "old": "[command, path] if command == \"compact\" =>",
+      "new": "[command, path] if false =>",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "compaction",
+      "exact_test": "files::admin_compaction_respects_the_lease_and_publishes_the_same_bytes_as_the_api"
+    },
+    {
+      "name": "r1-admin-current-accept-unknown",
+      "file": "tools/admin.rs",
+      "old": "[command, path] if command == \"compact\" =>",
+      "new": "[command, path] if true =>",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "admin_decisions",
+      "exact_test": "invalid_admin_commands_do_not_touch_paths_and_errors_do_not_print_records"
+    },
+    {
+      "name": "r1-admin-current-compact-error",
+      "file": "tools/admin.rs",
+      "old": "weekend_db::Database::compact_file(path, Limits::default())?",
+      "new": "weekend_db::Database::compact_file(path, Limits::default()).map_err(|_| weekend_db::Error::Invalid)?",
+      "package": "weekend-db",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "compaction",
+      "exact_test": "files::admin_compaction_respects_the_lease_and_publishes_the_same_bytes_as_the_api"
     }
   ]
 }
