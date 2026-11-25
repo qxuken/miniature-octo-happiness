@@ -13375,6 +13375,125 @@
       "matches": 1,
       "target": "--lib",
       "test": "storage::logical::decisions::nested_map_iteration_charges_the_logical_writer_and_preserves_wire_order"
+    },
+    {
+      "name": "r1-inspection-current-inspect-length",
+      "file": "src/storage/inspection.rs",
+      "old": "        physical_bytes: source.backend.length()?,",
+      "new": "        physical_bytes: source.backend.length().map_err(|_| crate::Error::Invalid)?,",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "inspection_and_backup_source_read_faults_release_lease_without_writes"
+    },
+    {
+      "name": "r1-inspection-current-inspect-lease",
+      "file": "src/storage/inspection.rs",
+      "old": "pub fn inspect_on<B: ByteStore + 'static>(source: B, limits: Limits) -> Result<ImageInfo> {\n    let mem = Memory::new(limits)?;\n    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    information(&mut source, &recovered, &mem)",
+      "new": "pub fn inspect_on<B: ByteStore + 'static>(source: B, limits: Limits) -> Result<ImageInfo> {\n    let mem = Memory::new(limits)?;\n    let mut source = Storage::locked(source, &mem).map_err(|_| crate::Error::Invalid)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    information(&mut source, &recovered, &mem)",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "backup_preserves_history_and_rejects_busy_or_nonempty_stores"
+    },
+    {
+      "name": "r1-inspection-current-inspect-graph",
+      "file": "src/storage/inspection.rs",
+      "old": "    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    information(&mut source, &recovered, &mem)",
+      "new": "    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem).map_err(|_| crate::Error::Invalid)?;\n    information(&mut source, &recovered, &mem)",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "inspection_and_backup_source_read_faults_release_lease_without_writes"
+    },
+    {
+      "name": "r1-inspection-current-backup-length",
+      "file": "src/storage/inspection.rs",
+      "old": "    let before_bytes = source.backend.length()?;",
+      "new": "    let before_bytes = source.backend.length().map_err(|_| crate::Error::Invalid)?;",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "inspection_and_backup_source_read_faults_release_lease_without_writes"
+    },
+    {
+      "name": "r1-inspection-current-destination-create",
+      "file": "src/storage/inspection.rs",
+      "old": "Storage::create(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n        )?",
+      "new": "Storage::create(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n        ).map_err(|_| crate::Error::Io)?",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "backup_preserves_history_and_rejects_busy_or_nonempty_stores"
+    },
+    {
+      "name": "r1-inspection-current-verify-read",
+      "file": "src/storage/inspection.rs",
+      "old": "destination.verify(mem)?",
+      "new": "destination.verify(mem).map_err(|_| crate::Error::Invalid)?",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "backup_verification_read_failure_returns_no_receipt_for_a_durable_copy"
+    },
+    {
+      "name": "r1-inspection-current-skip-verification",
+      "file": "src/storage/inspection.rs",
+      "old": "destination.verify(mem)?;",
+      "new": "if false { destination.verify(mem)?; }",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "backup_verification_read_failure_returns_no_receipt_for_a_durable_copy"
+    },
+    {
+      "name": "r1-inspection-current-backup-lease",
+      "file": "src/storage/inspection.rs",
+      "old": ") -> Result<CompactionStats> {\n    let mem = Memory::new(limits)?;\n    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    copy_verified(&mut source, recovered, destination, &mem)",
+      "new": ") -> Result<CompactionStats> {\n    let mem = Memory::new(limits)?;\n    let mut source = Storage::locked(source, &mem).map_err(|_| crate::Error::Invalid)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    copy_verified(&mut source, recovered, destination, &mem)",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "backup_preserves_history_and_rejects_busy_or_nonempty_stores"
+    },
+    {
+      "name": "r1-inspection-current-backup-graph",
+      "file": "src/storage/inspection.rs",
+      "old": "    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem)?;\n    copy_verified(&mut source, recovered, destination, &mem)",
+      "new": "    let mut source = Storage::locked(source, &mem)?;\n    let recovered = codec::recover(&mut *source.backend, &mem).map_err(|_| crate::Error::Invalid)?;\n    copy_verified(&mut source, recovered, destination, &mem)",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--test",
+      "test": "inspection",
+      "exact_test": "inspection_and_backup_source_read_faults_release_lease_without_writes"
+    },
+    {
+      "name": "r1-inspection-current-retain-cache",
+      "file": "src/storage/inspection.rs",
+      "old": "destination.release_serialization_caches();",
+      "new": "if false { destination.release_serialization_caches(); }",
+      "package": "weekend-db",
+      "matches": 1,
+      "occurrence": 1,
+      "target": "--lib",
+      "test": "storage::inspection::decisions::backup_releases_copy_graph_before_verification_but_keeps_source_leased"
     }
   ]
 }

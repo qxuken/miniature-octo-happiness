@@ -280,7 +280,7 @@
     "tests/durability.rs": "dfefb8f8abdc5c6613bd3b80947769f31a2cba5892046437748a7c2d2aa65f79",
     "tests/engine_decisions.rs": "602a92e910290944be5b441b665ac3bd4547b9d6f00a174c51a549cf51a1ded7",
     "tests/files.rs": "539b7ce0697059082c9240f49ab56c131a25891d3dff0bfa72b3201e51882769",
-    "tests/inspection.rs": "6aabcd94dfd612e319ec36afa78dc58420d0a6ae77da7b32986a4452b439da31",
+    "tests/inspection.rs": "02aaed4526353dbbb1d880c72531678d553a83d7216e0e06a6c78b60812f40c9",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
     "tests/retention.rs": "19c377d14d73e0cf58502f13374a1bd837d280b352daf52a70c62af98f3fd14d",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "d5e5b563a9ceb6f7fb46b2dfead3ad5fcb3e316607abcd91036e0074d84526d0",
+    "xtask/tests/mutations.json": "45466596cd1a018d37e1bcb249743e1c26792adce37127fc2438ccb0717853fc",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -378,7 +378,8 @@
     "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7",
     "docs/decisions/replica-decode-current.md": "1648af39c4a87c40f7a03096befeaafa780e4753decb50f16875fff56b54d5a7",
     "docs/decisions/logical-storage-current.md": "b8fb96c3a29b62d45ce3e43d56c5af5b6608471612dfb34f069308d2291964b0",
-    "src/storage/logical/decisions.rs": "b3bd8042e68a4f4e56455998d19d579d39d87529b63303d36768ff9f15959bf8"
+    "src/storage/logical/decisions.rs": "b3bd8042e68a4f4e56455998d19d579d39d87529b63303d36768ff9f15959bf8",
+    "docs/decisions/inspection-backup-current.md": "7e43d86dc40a5858c09a0f87cd4d7f2def6fdee4027191618b24d2f7a5a71e6d"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -707,7 +708,8 @@
         "tests/salvage.rs",
         "docs/decisions/rust-output-allocation.md",
         "docs/decisions/logical-storage-current.md",
-        "src/storage/logical/decisions.rs"
+        "src/storage/logical/decisions.rs",
+        "docs/decisions/inspection-backup-current.md"
       ],
       "residual": "Complete-root salvage and known format/version profiles do not imply arbitrary partial salvage/conversion."
     },
@@ -24118,6 +24120,183 @@
       ],
       "mutations": [
         "r1-logical-current-restore-size"
+      ]
+    },
+    {
+      "name": "INSPECTION-CURRENT-INSPECT-LENGTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/inspection.rs",
+        "owner": "information",
+        "kind": "try_propagation",
+        "conditions": [
+          "source.backend.length()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/inspection.rs",
+          "name": "inspection_and_backup_source_read_faults_release_lease_without_writes"
+        }
+      ],
+      "mutations": [
+        "r1-inspection-current-inspect-length"
+      ]
+    },
+    {
+      "name": "INSPECTION-CURRENT-INSPECT-LEASE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/inspection.rs",
+        "owner": "inspect_on",
+        "kind": "try_propagation",
+        "conditions": [
+          "Storage::locked(source, &mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/inspection.rs",
+          "name": "backup_preserves_history_and_rejects_busy_or_nonempty_stores"
+        }
+      ],
+      "mutations": [
+        "r1-inspection-current-inspect-lease"
+      ]
+    },
+    {
+      "name": "INSPECTION-CURRENT-INSPECT-GRAPH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/inspection.rs",
+        "owner": "inspect_on",
+        "kind": "try_propagation",
+        "conditions": [
+          "codec::recover(&mut *source.backend, &mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/inspection.rs",
+          "name": "inspection_and_backup_source_read_faults_release_lease_without_writes"
+        }
+      ],
+      "mutations": [
+        "r1-inspection-current-inspect-graph"
+      ]
+    },
+    {
+      "name": "INSPECTION-CURRENT-BACKUP-LENGTH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/inspection.rs",
+        "owner": "copy_verified",
+        "kind": "try_propagation",
+        "conditions": [
+          "source.backend.length()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/inspection.rs",
+          "name": "inspection_and_backup_source_read_faults_release_lease_without_writes"
+        }
+      ],
+      "mutations": [
+        "r1-inspection-current-backup-length"
+      ]
+    },
+    {
+      "name": "INSPECTION-CURRENT-DESTINATION-CREATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/inspection.rs",
+        "owner": "copy_verified",
+        "kind": "try_propagation",
+        "conditions": [
+          "Storage::create(\n            destination,\n            mem,\n            &head,\n            next_collection,\n            identity,\n            &retention,\n        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/inspection.rs",
+          "name": "backup_preserves_history_and_rejects_busy_or_nonempty_stores"
+        }
+      ],
+      "mutations": [
+        "r1-inspection-current-destination-create"
+      ]
+    },
+    {
+      "name": "INSPECTION-CURRENT-VERIFY-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/inspection.rs",
+        "owner": "copy_verified",
+        "kind": "try_propagation",
+        "conditions": [
+          "destination.verify(mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/inspection.rs",
+          "name": "backup_verification_read_failure_returns_no_receipt_for_a_durable_copy"
+        }
+      ],
+      "mutations": [
+        "r1-inspection-current-verify-read",
+        "r1-inspection-current-skip-verification"
+      ]
+    },
+    {
+      "name": "INSPECTION-CURRENT-BACKUP-LEASE",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/inspection.rs",
+        "owner": "backup_on",
+        "kind": "try_propagation",
+        "conditions": [
+          "Storage::locked(source, &mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/inspection.rs",
+          "name": "backup_preserves_history_and_rejects_busy_or_nonempty_stores"
+        }
+      ],
+      "mutations": [
+        "r1-inspection-current-backup-lease"
+      ]
+    },
+    {
+      "name": "INSPECTION-CURRENT-BACKUP-GRAPH",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/inspection.rs",
+        "owner": "backup_on",
+        "kind": "try_propagation",
+        "conditions": [
+          "codec::recover(&mut *source.backend, &mem)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/inspection.rs",
+          "name": "inspection_and_backup_source_read_faults_release_lease_without_writes"
+        }
+      ],
+      "mutations": [
+        "r1-inspection-current-backup-graph"
       ]
     }
   ],
