@@ -9,9 +9,17 @@ account for the source edits. Delegated rows keep their original limits.
 Four changed propagation sites have individual mutation controls. The map
 writer borrows ordered entries using encoder scratch, then writes each key
 and value. The restore preflight encodes a fresh physical image to check
-representability before creating a destination. The final transfer of the
-export buffer to the caller can also fail. It is a returned result and has
-its own mutation and allocator-refusal test outside the AST decision count.
+representability before creating a destination.
+
+The exported buffer uses Global. `export_logical_on` constructs its own
+`Memory::new(limits)`; the default allocator handle has no custom provider.
+For this case `ChargedVec::into_external` transfers the existing pointer,
+length and capacity directly into the returned vector. The fallible copy
+inside that helper is reachable for a custom provider in other callers.
+An exploratory mutation that translated a transfer error survived the
+Global refusal sweep on both hosts, consistent with this caller invariant.
+Earlier allocation failures are still exercised by the read-only export
+test. The transfer is outside the AST decision count.
 
 | Source | SHA-256 |
 | --- | --- |

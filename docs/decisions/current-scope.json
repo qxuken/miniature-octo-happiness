@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "0db9aec759036bfe551da205250f2641d16d6b8041b992271aac13b559cec478",
+    "xtask/tests/mutations.json": "d5e5b563a9ceb6f7fb46b2dfead3ad5fcb3e316607abcd91036e0074d84526d0",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -377,7 +377,7 @@
     "docs/decisions/coordinator-service-current.md": "147ac14a4580140c553a7d7a22c653c05f274c1e787f657f7b14ed12d6d3ff6c",
     "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7",
     "docs/decisions/replica-decode-current.md": "1648af39c4a87c40f7a03096befeaafa780e4753decb50f16875fff56b54d5a7",
-    "docs/decisions/logical-storage-current.md": "787264495f948f02beae4928841ce2a4f7b1d199da7bf88ebf06612506e4f91a",
+    "docs/decisions/logical-storage-current.md": "b8fb96c3a29b62d45ce3e43d56c5af5b6608471612dfb34f069308d2291964b0",
     "src/storage/logical/decisions.rs": "b3bd8042e68a4f4e56455998d19d579d39d87529b63303d36768ff9f15959bf8"
   },
   "target_records": {
