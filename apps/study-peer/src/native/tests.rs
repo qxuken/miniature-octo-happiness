@@ -849,10 +849,6 @@ fn interactive_case(
             &mut output,
         )
     });
-    // A returned command result owns no listener. Reopening also checks the
-    // committed state through the actual file adapter.
-    let rebound = TcpListener::bind(address).unwrap();
-    drop(rebound);
     drop(db);
     let db = Database::open_file(&path, Limits::default()).unwrap();
     let replica = StudyReplica::open(

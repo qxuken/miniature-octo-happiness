@@ -234,6 +234,37 @@ mod tests {
     }
 
     #[test]
+    fn receiver_stop_closes_a_queued_connection() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        peer.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+
+        // Stop before accept leaves this connection queued on this listener.
+        receive(
+            listener,
+            &server,
+            &Arc::new(AtomicBool::new(true)),
+            &Mutex::new(Status::default()),
+            |_| panic!("a stopped receiver must not serve a session"),
+        )
+        .unwrap();
+
+        let mut byte = [0];
+        match peer.read(&mut byte) {
+            Ok(0) => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                ) => {}
+            result => panic!("stopped receiver left the queued connection open: {result:?}"),
+        }
+    }
+
+    #[test]
     fn shutdown_joins_active_workers_and_preserves_the_first_failure() {
         let a = Credentials::generate().unwrap();
         let b = Credentials::generate().unwrap();

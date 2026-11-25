@@ -17265,6 +17265,18 @@
       "matches": 1,
       "package": "weekend-replicate",
       "exact_test": "native::tls::implementation::audit_admission_tests::self_pin_empty_file_and_public_private_mode_controls"
+    },
+    {
+      "name": "r1-study-queued-listener-close",
+      "file": "apps/study-peer/src/native/admission.rs",
+      "old": "        drop(listener);",
+      "new": "        std::mem::forget(listener);",
+      "test": "study-peer",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "study-peer",
+      "exact_test": "native::admission::tests::receiver_stop_closes_a_queued_connection"
     }
   ]
 }

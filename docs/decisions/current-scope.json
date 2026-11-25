@@ -4,7 +4,7 @@
   "source_files": {
     "apps/study-peer/src/main.rs": "784a39bdfdd83760cc707a2e6b3b87e083f37e648bc7e086988b34fec0ca0d6b",
     "apps/study-peer/src/native.rs": "31436dd88779d36821eaf7008cb203c70bc0dbc6be214e882dfab3dda14f1def",
-    "apps/study-peer/src/native/admission.rs": "adfe170e38702c1845b7eb56a2d69d5d0ae9bfbb4b104467b3cb6f43d7864959",
+    "apps/study-peer/src/native/admission.rs": "45f09848e1f7aa738a5030bd444454162c1d7a73b2bf3d9fce31076995cd344d",
     "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
@@ -227,7 +227,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "9fe60fa621329a94c61d224a1c05d9b651173cb9ecd3075ff57439bff73ac119",
+    "apps/study-peer/src/native/tests.rs": "bd7c40db227e7a6b9999f98e242639e974a9ae0744464936ffa36a59156905db",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
     "apps/weekend-replicate/tests/cli.rs": "7c5058e3bc08b609ed5ce52e1d88ad7ae5c7d0e16afec25b25ced819742dff99",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "41883b49d8d6f6dd5dfe3d90e16cbcc78d2586282e522abccab248649da8be34",
-    "xtask/tests/mutations.json": "c516c97cbf84a8114d2b2b53fc7722e6f0472a39dd3c4b707cda673624d37fc6",
+    "xtask/tests/mutations.json": "967dadede01adb69a9929058c2f500a60792c92a52a22e287891b8308217f9bf",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
