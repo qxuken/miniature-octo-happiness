@@ -425,3 +425,287 @@ fn record_attribute_on_a_field_rejects_with_unrelated_attribute_control() {
         "put #[record(...)] on the struct",
     );
 }
+
+const MODEL_META: &str = "type_id=7,version=2";
+
+fn model_source(meta: &str, fields: &str) -> String {
+    format!("#[weekend({meta})] struct A {{ {fields} }}")
+}
+
+#[test]
+fn model_metadata_and_fields_emit_the_selected_schema() {
+    use quote::quote;
+
+    for (crate_path, emitted_path) in [
+        ("", quote!(::weekend_db_typed)),
+        (",crate=\"crate::typed\"", quote!(crate::typed)),
+    ] {
+        let source = model_source(
+            &format!("{MODEL_META},reserved(8,9){crate_path}"),
+            "#[allow(dead_code)] #[weekend(id=1,unique,name=\"lookup\")] a:String,
+             #[weekend(id=2,default)] r#type:u64, #[weekend(id=3,default=17)] b:u64",
+        );
+        let input = syn::parse_str(&format!("#[allow(dead_code)] {source}")).unwrap();
+        let output = model::expand(input).unwrap().to_string();
+        for expected in [
+            quote!(impl #emitted_path::Model for A),
+            quote!(
+                const TYPE_ID: u64 = 7u64;
+            ),
+            quote!(
+                const VERSION: u64 = 2u64;
+            ),
+            quote!(pub const A: #emitted_path::Index<Self, String> = #emitted_path::Index::new(1u64);),
+            quote!(
+                pub const TYPE: u64 = 2u64;
+            ),
+            quote!(
+                const UNIQUE_FIELDS: &'static [u64] = &[1u64];
+            ),
+            quote!(name: "lookup"),
+            quote!(name: "type"),
+            quote!(encode_field(&(::core::default::Default::default()), db)),
+            quote!(encode_field(&(17), db)),
+            quote!(&[8u64, 9u64]),
+        ] {
+            let fragment = expected.to_string();
+            assert!(output.contains(&fragment), "missing {fragment} in {output}");
+        }
+    }
+    for (source, expected) in [
+        (
+            model_source(&format!("{MODEL_META},unknown"), ""),
+            "expected type_id, version, reserved(...), or crate",
+        ),
+        (
+            model_source(MODEL_META, "#[weekend(id=1,unknown)] a:u64"),
+            "expected id, unique, default, or name",
+        ),
+    ] {
+        rejected(model::expand, &source, expected);
+    }
+}
+
+#[test]
+fn model_rejects_each_duplicate_struct_option() {
+    valid(
+        model::expand,
+        &model_source(
+            &format!("{MODEL_META},reserved(),crate=\"crate::typed\""),
+            "",
+        ),
+    );
+    valid(
+        model::expand,
+        "#[weekend(type_id=7)] #[weekend(version=2)] struct A {}",
+    );
+    for (option, expected) in [
+        ("version=2", "duplicate version"),
+        ("reserved(9,9)", "duplicate reserved field ID"),
+        (
+            "crate=\"crate::typed\",crate=\"crate::typed\"",
+            "duplicate crate path",
+        ),
+    ] {
+        rejected(
+            model::expand,
+            &model_source(&format!("{MODEL_META},{option}"), ""),
+            expected,
+        );
+    }
+}
+
+#[test]
+fn model_rejects_each_duplicate_field_option() {
+    let field = |options| model_source(MODEL_META, &format!("#[weekend({options})] a:u64"));
+    valid(
+        model::expand,
+        &field("id=1,unique,default=17,name=\"stored\""),
+    );
+    valid(
+        model::expand,
+        &model_source(
+            MODEL_META,
+            "#[weekend(id=1)] #[weekend(name=\"stored\")] a:u64",
+        ),
+    );
+    for (options, expected) in [
+        ("id=1,id=1", "duplicate field ID"),
+        ("id=1,unique,unique", "duplicate unique"),
+        ("id=1,default,default=17", "duplicate default"),
+        ("id=1,name=\"stored\",name=\"stored\"", "duplicate name"),
+    ] {
+        rejected(model::expand, &field(options), expected);
+    }
+}
+
+#[test]
+fn model_rejects_empty_repeated_and_colliding_field_names() {
+    valid(
+        model::expand,
+        &model_source(
+            MODEL_META,
+            "#[weekend(id=1,name=\"first\")] a:u64, #[weekend(id=2,name=\"second\")] b:u64",
+        ),
+    );
+    for (fields, expected) in [
+        (
+            "#[weekend(id=1,name=\"\")] a:u64",
+            "field name cannot be empty",
+        ),
+        (
+            "#[weekend(id=1,name=\"first\")] a:u64, #[weekend(id=2,name=\"first\")] b:u64",
+            "duplicate stored field name",
+        ),
+        (
+            "#[weekend(id=1,name=\"first\")] a:u64, #[weekend(id=2,name=\"second\")] A:u64",
+            "generated field constant names collide",
+        ),
+    ] {
+        rejected(model::expand, &model_source(MODEL_META, fields), expected);
+    }
+}
+
+#[test]
+fn model_requires_each_id_and_schema_version() {
+    let fields = "#[weekend(id=1)] a:u64";
+    valid(model::expand, &model_source(MODEL_META, fields));
+    rejected(
+        model::expand,
+        "struct A {}",
+        "add #[weekend(type_id = ..., version = ...)]",
+    );
+    rejected(
+        model::expand,
+        &model_source("version=2", fields),
+        "add #[weekend(type_id = ..., version = ...)]",
+    );
+    rejected(
+        model::expand,
+        &model_source("type_id=7", fields),
+        "missing explicit schema version",
+    );
+    rejected(
+        model::expand,
+        &model_source(MODEL_META, "a:u64"),
+        "each field needs #[weekend(id = ...)]",
+    );
+}
+
+#[test]
+fn model_numeric_options_preserve_separator_literal_and_zero_diagnostics() {
+    let fields = "#[weekend(id=1)] a:u64";
+    valid(
+        model::expand,
+        &model_source(&format!("{MODEL_META},reserved(9)"), fields),
+    );
+    for (meta, fields, expected) in [
+        ("version=2,type_id", fields, "expected `=`"),
+        ("version=2,type_id=true", fields, "expected integer literal"),
+        (
+            "version=2,type_id=0",
+            fields,
+            "stable IDs and versions must be nonzero",
+        ),
+        ("type_id=7,version", fields, "expected `=`"),
+        ("type_id=7,version=true", fields, "expected integer literal"),
+        (
+            "type_id=7,version=0",
+            fields,
+            "stable IDs and versions must be nonzero",
+        ),
+        (
+            "type_id=7,version=2,reserved(true)",
+            fields,
+            "expected integer literal",
+        ),
+        (
+            "type_id=7,version=2,reserved(0)",
+            fields,
+            "stable IDs and versions must be nonzero",
+        ),
+        (MODEL_META, "#[weekend(id)] a:u64", "expected `=`"),
+        (
+            MODEL_META,
+            "#[weekend(id=true)] a:u64",
+            "expected integer literal",
+        ),
+        (
+            MODEL_META,
+            "#[weekend(id=0)] a:u64",
+            "stable IDs and versions must be nonzero",
+        ),
+    ] {
+        rejected(model::expand, &model_source(meta, fields), expected);
+    }
+}
+
+#[test]
+fn model_numeric_conversion_reports_overflow() {
+    const MAX: &str = "type_id=18446744073709551615,version=2";
+    valid(model::expand, &model_source(MAX, ""));
+    rejected(
+        model::expand,
+        &model_source("type_id=18446744073709551616,version=2", ""),
+        "number too large to fit in target type",
+    );
+}
+
+#[test]
+fn model_crate_name_and_default_parsers_preserve_diagnostics() {
+    valid(
+        model::expand,
+        &model_source(
+            &format!("{MODEL_META},crate=\"crate::typed\""),
+            "#[weekend(id=1,name=\"stored\",default=17)] a:u64",
+        ),
+    );
+    for (option, expected) in [
+        ("crate", "expected `=`"),
+        ("crate=true", "expected string literal"),
+        ("crate=\"crate::typed!\"", "unexpected token"),
+    ] {
+        rejected(
+            model::expand,
+            &model_source(&format!("{MODEL_META},{option}"), ""),
+            expected,
+        );
+    }
+    for (option, expected) in [
+        ("name", "expected `=`"),
+        ("name=true", "expected string literal"),
+        (
+            "default=",
+            "unexpected end of input, expected an expression",
+        ),
+    ] {
+        rejected(
+            model::expand,
+            &model_source(MODEL_META, &format!("#[weekend(id=1,{option})] a:u64")),
+            expected,
+        );
+    }
+}
+
+#[test]
+fn model_struct_attribute_requires_parentheses() {
+    valid(model::expand, &model_source(MODEL_META, ""));
+    rejected(
+        model::expand,
+        "#[weekend=\"invalid\"] struct A {}",
+        "expected parentheses: #[weekend(...)]",
+    );
+}
+
+#[test]
+fn model_field_attribute_requires_parentheses() {
+    valid(
+        model::expand,
+        &model_source(MODEL_META, "#[weekend(id=1)] a:u64"),
+    );
+    rejected(
+        model::expand,
+        &model_source(MODEL_META, "#[weekend=\"invalid\"] a:u64"),
+        "expected parentheses: #[weekend(...)]",
+    );
+}

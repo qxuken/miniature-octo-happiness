@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "f8a4df1683ee86ffa57d5e3aa87d84bf5fbe971f8c3f8946b3da57aa3c811d41",
+    "xtask/tests/mutations.json": "712b49563b87a1d6d278ba516984b9c62356f1d31b6a4903c37e8e67a8cc5aba",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -364,11 +364,12 @@
     "docs/decisions/typed-unique-claims-current.md": "524965db8c78e505a08ba4dfbcf617d0b7b1dc58323f19f7bc565e2474a141fc",
     "docs/decisions/typed-index-allocator-current.md": "378c8a341252aba5a761a99da8e92ce6fcd33bca15d2fb19fc7c9db551795cb1",
     "docs/decisions/typed-migration-recovery-current.md": "2079c473658a94d7542796b2a2fd2d871d4652f7b020ab33dac6320bad7bd908",
-    "crates/weekend-db-macros/tests/compile_fail.rs": "5d5ece34dc1105dafa1981a4e4936d21164f3f0c943be104bdf019d748b28742",
-    "crates/weekend-db-macros/tests/expansion_guards.rs": "e485be0635ec69304c0237d67f82612769443f7e049515f518148805227262c6",
+    "crates/weekend-db-macros/tests/compile_fail.rs": "f4ca6defd9fd6d02223e0862df2ccae6e0a3905a26db17dfd772e7568e6562c5",
+    "crates/weekend-db-macros/tests/expansion_guards.rs": "99faf75170cda407b4a88a86fddd9db025e70a48790ed7b3cb9167f1f72d2eec",
     "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
     "docs/decisions/resolution-derive-current.md": "a794a1f9316f92210eecb68eb77d3e48705aa3d6ec5f63bf9e678a2638ab6a88",
     "docs/decisions/record-derive-current.md": "aeaebc7fefbf270bb253d89a5e597f81dca25c21ff44fc7d4fab0871cd307f6a",
+    "docs/decisions/model-derive-current.md": "2a2654e01b9e49c82a5eb32f4301c79b6e7744c2383b21d2ea5c5f0a4a4dda24",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
     "xtask/src/mutations.rs": "3e2cc0c4940ccc2624e76d48b5a17bd5075b069eb5e21a8896d46d0dc401f4af",
     "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
@@ -814,7 +815,8 @@
         "crates/weekend-db-macros/tests/expansion_guards.rs",
         "crates/weekend-db-macros/tests/compile_fail.rs",
         "docs/decisions/resolution-derive-current.md",
-        "docs/decisions/record-derive-current.md"
+        "docs/decisions/record-derive-current.md",
+        "docs/decisions/model-derive-current.md"
       ],
       "residual": "Quote bodies and every possible generated compilation/instantiation are outside the pre-expansion denominator."
     },
@@ -18232,6 +18234,1386 @@
       ],
       "mutations": [
         "r1-derive-model-type-id"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-NUMERIC-OVERFLOW",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "nonzero",
+        "kind": "try_propagation",
+        "start_byte": 209,
+        "conditions": [
+          "lit.base10_parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_conversion_reports_overflow"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-numeric-overflow"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-ZERO-ID",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "nonzero",
+        "kind": "if",
+        "start_byte": 216,
+        "conditions": [
+          "n == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-zero-id"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-STRUCT-ATTRIBUTE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 922,
+        "conditions": [
+          "attr.path().is_ident(\"weekend\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-struct-attribute"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-TYPE-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 1019,
+        "conditions": [
+          "meta.path.is_ident(\"type_id\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-type-option"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-TYPE-ID-SEPARATOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 1243,
+        "conditions": [
+          "meta.value()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-type-id-separator"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-TYPE-ID-LITERAL",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 1252,
+        "conditions": [
+          "meta.value()?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-type-id-literal"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-TYPE-ID-NONZERO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 1254,
+        "conditions": [
+          "nonzero(meta.value()?.parse()?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-type-id-nonzero"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-VERSION-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 1281,
+        "conditions": [
+          "meta.path.is_ident(\"version\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-version-option"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DUPLICATE-VERSION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 1336,
+        "conditions": [
+          "version.is_some()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_each_duplicate_struct_option"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-duplicate-version"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-VERSION-SEPARATOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 1505,
+        "conditions": [
+          "meta.value()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-version-separator"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-VERSION-LITERAL",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 1514,
+        "conditions": [
+          "meta.value()?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-version-literal"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-VERSION-NONZERO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 1516,
+        "conditions": [
+          "nonzero(meta.value()?.parse()?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-version-nonzero"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-RESERVED-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 1543,
+        "conditions": [
+          "meta.path.is_ident(\"reserved\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-reserved-option"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-RESERVED-LIST",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 1762,
+        "conditions": [
+          "content.parse_terminated(LitInt::parse, syn::Token![,])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-reserved-list"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-RESERVED-ID-NONZERO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 1811,
+        "conditions": [
+          "nonzero(lit)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-reserved-id-nonzero"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DUPLICATE-RESERVED",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 1838,
+        "conditions": [
+          "retired.contains(&id)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_each_duplicate_struct_option"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-duplicate-reserved"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-CRATE-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 2061,
+        "conditions": [
+          "meta.path.is_ident(\"crate\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-crate-option"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DUPLICATE-CRATE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 2114,
+        "conditions": [
+          "crate_seen"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_each_duplicate_struct_option"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-duplicate-crate"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-CRATE-SEPARATOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 2302,
+        "conditions": [
+          "meta.value()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_crate_name_and_default_parsers_preserve_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-crate-separator"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-CRATE-LITERAL",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 2321,
+        "conditions": [
+          "meta.value()?.parse::<LitStr>()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_crate_name_and_default_parsers_preserve_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-crate-literal"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-CRATE-PATH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 2330,
+        "conditions": [
+          "meta.value()?.parse::<LitStr>()?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_crate_name_and_default_parsers_preserve_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-crate-path"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-STRUCT-ATTRIBUTE-PARSER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 2511,
+        "conditions": [
+          "attr.parse_nested_meta(|meta| {\n                if meta.path.is_ident(\"type_id\") {\n                    if type_id.is_some() {\n                        return Err(meta.error(\"duplicate type_id\"));\n                    }\n                    type_id = Some(nonzero(meta.value()?.parse()?)?);\n                } else if meta.path.is_ident(\"version\") {\n                    if version.is_some() {\n                        return Err(meta.error(\"duplicate version\"));\n                    }\n                    version = Some(nonzero(meta.value()?.parse()?)?);\n                } else if meta.path.is_ident(\"reserved\") {\n                    let content;\n                    syn::parenthesized!(content in meta.input);\n                    for lit in content.parse_terminated(LitInt::parse, syn::Token![,])? {\n                        let id = nonzero(lit)?;\n                        if retired.contains(&id) {\n                            return Err(meta.error(\"duplicate reserved field ID\"));\n                        }\n                        retired.push(id);\n                    }\n                } else if meta.path.is_ident(\"crate\") {\n                    if crate_seen {\n                        return Err(meta.error(\"duplicate crate path\"));\n                    }\n                    crate_seen = true;\n                    path = meta.value()?.parse::<LitStr>()?.parse()?;\n                } else {\n                    return Err(meta.error(\"expected type_id, version, reserved(...), or crate\"));\n                }\n                Ok(())\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_struct_attribute_requires_parentheses"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-struct-attribute-parser"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-FIELD-ATTRIBUTE-PARSER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 5767,
+        "conditions": [
+          "attr.parse_nested_meta(|meta| {\n                    if meta.path.is_ident(\"id\") {\n                        if id.is_some() {\n                            return Err(meta.error(\"duplicate field ID\"));\n                        }\n                        id = Some(nonzero(meta.value()?.parse()?)?);\n                    } else if meta.path.is_ident(\"unique\") {\n                        if unique {\n                            return Err(meta.error(\"duplicate unique\"));\n                        }\n                        unique = true;\n                    } else if meta.path.is_ident(\"default\") {\n                        if default.is_some() {\n                            return Err(meta.error(\"duplicate default\"));\n                        }\n                        default = Some(if meta.input.peek(syn::Token![=]) {\n                            meta.value()?.parse()?\n                        } else {\n                            syn::parse_quote!(::core::default::Default::default())\n                        });\n                    } else if meta.path.is_ident(\"name\") {\n                        if label_seen {\n                            return Err(meta.error(\"duplicate name\"));\n                        }\n                        label_seen = true;\n                        label = meta.value()?.parse::<LitStr>()?.value();\n                        if label.is_empty() {\n                            return Err(meta.error(\"field name cannot be empty\"));\n                        }\n                    } else {\n                        return Err(meta.error(\"expected id, unique, default, or name\"));\n                    }\n                    Ok(())\n                })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_field_attribute_requires_parentheses"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-field-attribute-parser"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-REQUIRED-TYPE-ID",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 2705,
+        "conditions": [
+          "type_id.ok_or_else(|| {\n        syn::Error::new(\n            input.ident.span(),\n            \"add #[weekend(type_id = ..., version = ...)]\",\n        )\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_requires_each_id_and_schema_version"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-required-type-id"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-REQUIRED-VERSION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 2828,
+        "conditions": [
+          "version\n        .ok_or_else(|| syn::Error::new(input.ident.span(), \"missing explicit schema version\"))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_requires_each_id_and_schema_version"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-required-version"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-FIELD-ATTRIBUTE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 4057,
+        "conditions": [
+          "attr.path().is_ident(\"weekend\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-field-attribute"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-ID-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 4162,
+        "conditions": [
+          "meta.path.is_ident(\"id\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-id-option"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DUPLICATE-FIELD-ID",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 4216,
+        "conditions": [
+          "id.is_some()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_each_duplicate_field_option"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-duplicate-field-id"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-FIELD-ID-SEPARATOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 4388,
+        "conditions": [
+          "meta.value()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-field-id-separator"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-FIELD-ID-LITERAL",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 4397,
+        "conditions": [
+          "meta.value()?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-field-id-literal"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-FIELD-ID-NONZERO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 4399,
+        "conditions": [
+          "nonzero(meta.value()?.parse()?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_numeric_options_preserve_separator_literal_and_zero_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-field-id-nonzero"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-UNIQUE-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 4430,
+        "conditions": [
+          "meta.path.is_ident(\"unique\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-unique-option"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DUPLICATE-UNIQUE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 4488,
+        "conditions": [
+          "unique"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_each_duplicate_field_option"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-duplicate-unique"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DEFAULT-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 4664,
+        "conditions": [
+          "meta.path.is_ident(\"default\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-default-option"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DUPLICATE-DEFAULT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 4723,
+        "conditions": [
+          "default.is_some()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_each_duplicate_field_option"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-duplicate-default"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-EXPLICIT-DEFAULT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 4884,
+        "conditions": [
+          "meta.input.peek(syn::Token![=])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-explicit-default"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DEFAULT-EXPRESSION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 4970,
+        "conditions": [
+          "meta.value()?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_crate_name_and_default_parsers_preserve_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-default-expression"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-NAME-OPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 5143,
+        "conditions": [
+          "meta.path.is_ident(\"name\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-name-option"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-DUPLICATE-NAME",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 5199,
+        "conditions": [
+          "label_seen"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_each_duplicate_field_option"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-duplicate-name"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-NAME-SEPARATOR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 5398,
+        "conditions": [
+          "meta.value()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_crate_name_and_default_parsers_preserve_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-name-separator"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-NAME-LITERAL",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 5417,
+        "conditions": [
+          "meta.value()?.parse::<LitStr>()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_crate_name_and_default_parsers_preserve_diagnostics"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-name-literal"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-EMPTY-NAME",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 5452,
+        "conditions": [
+          "label.is_empty()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_empty_repeated_and_colliding_field_names"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-empty-name"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-REQUIRED-FIELD-ID",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "try_propagation",
+        "start_byte": 5923,
+        "conditions": [
+          "id.ok_or_else(|| {\n            syn::Error::new(ident.span(), \"each field needs #[weekend(id = ...)]\")\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_requires_each_id_and_schema_version"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-required-field-id"
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-REPEATED-STORED-NAME",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 6172,
+        "conditions": [
+          "names.contains(&label)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_empty_repeated_and_colliding_field_names"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-repeated-stored-name"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-CONSTANT-COLLISION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 6476,
+        "conditions": [
+          "constants.iter().any(|(name, _)| name == &constant)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_rejects_empty_repeated_and_colliding_field_names"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-constant-collision"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "DERIVE-MODEL-UNIQUE-CONSTANT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "crates/weekend-db-macros/src/model.rs",
+        "target": "weekend-db-macros::weekend_db_macros",
+        "owner": "expand",
+        "kind": "if",
+        "start_byte": 6713,
+        "conditions": [
+          "unique"
+        ]
+      },
+      "tests": [
+        {
+          "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
+          "name": "model_metadata_and_fields_emit_the_selected_schema"
+        }
+      ],
+      "mutations": [
+        "r1-derive-model-unique-constant"
       ],
       "table": [
         {
