@@ -1998,3 +1998,15 @@ dependency parser invariants and the compiler profile's 28 conditions.
 The proc-macro target's individual runtime queue is empty. The project
 inventory has 550 runtime and 7,514 tooling gaps. Native Windows execution
 and separately compiled contexts remain open.
+
+### Study roster enrollment and seed publication
+
+At `cacdacb`, the [roster seed ledger](decisions/study-seed-pair-current.md)
+records simulator faults during either enrollment, at the first seed I/O
+and at the final seed sync. An error before seed publication reopens both defaults at
+revision 2. A final sync that persists all pending writes and reports an
+error returns `OutcomeUnknown`. A reopens at seeded revision 3 and B at
+default revision 2. All 72 roster mutations were detected on macOS and
+Docker Linux in debug and release. Reconciliation accounts for the remaining
+21 roster gaps and leaves 529 runtime and 7,514 tooling gaps across the
+project. Native late-sync injection remains open.

@@ -50,3 +50,39 @@ regressions continue to check partial creation and receipt output.
 | I | study-peer::study-peer | apps/study-peer/src/native/roster.rs:242:21– | 7398..7399 | try_propagation | stage | The optional staged receipt uses the two newly created byte-backed identities and fixed-width encoder. The guarded and unguarded native cases cover both option states. |
 | I | study-peer::study-peer | apps/study-peer/src/native/roster.rs:266:38– | 8245..8246 | try_propagation | seed_pair | After a successful update, the fresh private A store holds a locally encoded row in the expected collection. Reading the published snapshot uses cached state and the same codec. The final-flush error exits before this read. |
 | I | study-peer::study-peer | apps/study-peer/src/native/roster.rs:285:39– | 8849..8850 | try_propagation | verify | Agreed sources supply a decoded StudyProgress. The fixed-domain planned set guarantees the same projection invariant. |
+
+## Verification
+
+Frozen source `cacdacbe69246a90037c7ffea2e1c105b79e52fb` passed with Rust
+1.100.0 on arm64 macOS and offline arm64 Docker Linux on ext4. Each debug
+and release configuration passed all 49 Study tests and the 14 core CRDT
+tests. Strict Clippy passed on both hosts.
+
+All 72 roster mutations were detected in each configuration. Fresh
+extraction verified the exact tests and process outcomes across 940
+command reports, including the seven new controls. Each isolated source
+copy matched all 948 files in the frozen Git tree. The saved macOS
+compiler profile recorded one true and 15 false evaluations of the
+visible-projection mismatch guard. LLVM export reproduced byte for byte
+with the extracted executable and profile. The
+[archive checksums](study-seed-pair-cacdacb.sha256) bind the source,
+outputs, tool runners and replay inputs.
+
+The refactor removed the two fallible literal slot lookups and added
+one delegated seed result. The roster inventory contains 79 records with
+seven new named controls and 13 new scoped dispositions. Reconciliation
+leaves 529 runtime gaps across the project and 7,514 tooling gaps.
+The late-sync schedules qualify simulated storage. Native late-sync
+injection remains open.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p study-peer
+cargo test --offline --locked --all-features -p weekend-db --test crdt
+cargo xtask mutations --toolchain 1.100.0 \
+  --case r1-study-roster- --case r1-study-receipt- --case r1-study-pair-io- \
+  --case r1-study-seeding- --case r1-study-output- --case r1-study-seed-pair- \
+  --output "$OUTPUT/debug"
+```
+
+Repeat all three commands with `--release` and a fresh mutation output path.

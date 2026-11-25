@@ -410,7 +410,7 @@
     "docs/decisions/native-compaction-setup-current.md": "3d69b238c78fceeb39b20798a0b31b62e988b25f1313df2fc7108506d986384f",
     "src/storage/file.rs": "a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f",
     "apps/study-peer/tests/service_diagnostics.rs": "f50407f139602cf13316b8390ae5284f0381c6ac3089bd655c0d18eefe1fa8c1",
-    "docs/decisions/study-seed-pair-current.md": "7786f6ecee75cc50cab4cc09a41d47c217fbd6885253af71683112fdde6e7379"
+    "docs/decisions/study-seed-pair-current.md": "0a78ae4c18d91c23a8361dce28ea35b41fea270802987b94f4b9bf6f7951d4d6"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
