@@ -1447,3 +1447,24 @@ mutations failed the intended tests in each run. The [archive manifest](decision
 covers 24 detections, 96 command receipts, both platform suites and the
 source bundle. There are 75 unclassified journal records, 933 runtime gaps
 overall and 7,398 tooling gaps. Off-machine custody remains outstanding.
+
+### Journal write admission and durable intent
+
+A client with a receipt at revision 4 rejects a coordinator at revision 3
+before writing a new intent. It also rejects a requested revision ahead of
+the coordinator. The local floor check makes one comparison in the remote
+check redundant. The admission regression passed before and after removing
+that comparison. It verifies the prior receipt, the entire local image on
+rejection, the commands sent and the pending intent after a lost reply.
+The [decision table](decisions/journal-admission-current.md) covers each case.
+
+At `c0e3463`, all 37 ordinary coordinator tests passed in debug and release
+on macOS arm64 and Docker Linux arm64. The extended maintenance and restore
+tests also passed in both profiles. Linux additionally exercised journal
+ENOSPC and replay on a separate 8 MiB tmpfs, bringing the totals per profile
+to 39 on macOS and 40 on Linux. Each of five mutations failed its intended
+test in all four runs. The [local archive manifest](decisions/journal-admission-c0e3463.sha256)
+covers 20 detections, 80 supervised commands, the suites and source bundle.
+
+Reconciliation at `470aa78` leaves 44 journal gaps, 902 runtime gaps overall
+and 7,398 tooling gaps. Compiler MC/DC and off-machine proof custody remain open.
