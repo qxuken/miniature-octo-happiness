@@ -761,3 +761,22 @@ platform contained 60, 5, 16 and 23 files respectively under
 [previously reviewed packages](locked-dependency-review-afffd2d.md),
 including the inventories themselves. The local proof retains both ZIPs,
 the complete tested Git bundle and the hosted fuzz ZIP for the same merge.
+
+### macOS compatibility at the PR #82 test merge
+
+Three native arm64 macOS/APFS compatibility runs built both endpoint
+consumers from their original lockfiles with Rust 1.100.0. The current
+endpoint in every pair was `4a37229e1b3be3835e79a346dc325df9357a0c3e`.
+
+| Profile | Historical endpoint | Verified behavior |
+| --- | --- | --- |
+| Storage | `a7dc343` | Each reader opened both writers' images at revision 4 with retained revision 2. Reading and rejecting an unsupported format preserved the respective image bytes. |
+| Snapshot | `dcd2402` | Each sender shipped revision 4 to the opposite follower, which reopened with retained revision 2 and repeated the durable receipt. The primary independently reached revision 5. |
+| Typed | `1ca5e5a` | A staged migration exited before committing. Reopen preserved the original bytes. The historical client preserved unknown fields on edit, and rollback from the pre-upgrade backup allowed historical writes without changing the upgraded database. |
+
+The three reports passed, with 86 command records. Review independently
+rehashed the six consumer binaries, six identity probes, six original
+lockfile copies and all 305 recorded artifact entries. The local proof
+`delivery-4a37229/compat-macos.tar.gz` has SHA-256
+`b95d620afaa9819c6b0867e583136a3c158348b9eeffd08df6d3312ed999cec8`.
+R4 still requires an agreed support window and its release endpoints.
