@@ -167,9 +167,21 @@ fn local_startup_dispatch_checks_arguments_before_opening_paths() {
         USAGE
     );
     assert!(!keys.exists());
-    invoke("keygen", &[keys.as_os_str()]).unwrap();
-    for name in ["cert.der", "key.der"] {
-        assert!(fs::metadata(keys.join(name)).unwrap().len() > 0);
+    let keygen = invoke("keygen", &[keys.as_os_str()]);
+    #[cfg(unix)]
+    {
+        keygen.unwrap();
+        for name in ["cert.der", "key.der"] {
+            assert!(fs::metadata(keys.join(name)).unwrap().len() > 0);
+        }
+    }
+    #[cfg(windows)]
+    {
+        assert_eq!(
+            keygen.unwrap_err().to_string(),
+            "keygen requires Unix private-file modes; provision PKCS#8 key.der and cert.der in an ACL-protected directory on Windows"
+        );
+        assert!(!keys.exists());
     }
     let rejected = args(&database, "c");
     assert_eq!(
@@ -1416,55 +1428,88 @@ fn peer_reports_connect_failure_then_acknowledges_retry() {
             Credentials::generate().unwrap().write_fixture(&identity);
             initialize(&path, enrollment).unwrap();
         }
-        let (follower, _, _, _) = config(&dir.0, "b");
+        let (follower, identity, pin, enrollment) = config(&dir.0, "b");
+        let server = Tls::new(
+            &Credentials::load(&identity).unwrap(),
+            fs::read(pin).unwrap().into(),
+        )
+        .unwrap();
         let before = fs::read(&follower).unwrap();
         let dynamic = "127.0.0.1:0".parse().unwrap();
-        let reserved = TcpListener::bind(dynamic).unwrap();
-        let b_address = reserved.local_addr().unwrap();
+        let listener = TcpListener::bind(dynamic).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let b_address = listener.local_addr().unwrap();
+        let accept = || {
+            let deadline = Instant::now() + Duration::from_secs(6);
+            loop {
+                match listener.accept() {
+                    Ok((connection, _)) => return connection,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline, "outgoing worker did not connect");
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("test listener failed: {error}"),
+                }
+            }
+        };
         let mut a = Worker::start(&dir.0, "a", dynamic, b_address, false, structured);
-        let a_address = a.ready();
+        a.ready();
         assert_eq!(a.command("practice 7"), "local 3");
         assert_eq!(a.command("peer"), "peer 0 idle");
-        drop(reserved);
-        let refused =
-            std::net::TcpStream::connect_timeout(&b_address, Duration::from_secs(2)).unwrap_err();
-        assert_eq!(refused.kind(), io::ErrorKind::ConnectionRefused);
         assert_eq!(a.command("push on"), "push on");
 
+        // Keep the socket open while the send half ends. The client sees EOF
+        // before the handshake finishes, even if it has already sent bytes.
+        let refused = accept();
+        refused.shutdown(std::net::Shutdown::Write).unwrap();
         let failure = a.wait_for("peer", |line| line != "peer 0 idle");
         if structured {
             assert!(
                 failure.contains(
-                    "\"phase\":\"connect\",\"category\":\"io\",\"code\":\"connection_refused\""
+                    "\"phase\":\"connect\",\"category\":\"io\",\"code\":\"unexpected_eof\""
                 ),
                 "unexpected structured connection result: {failure}"
             );
         } else {
-            assert_eq!(failure, format!("peer 0 error {refused}"));
+            let eof = io::Error::from(io::ErrorKind::UnexpectedEof);
+            assert_eq!(failure, format!("peer 0 error {eof}"));
         }
-        assert_eq!(a.command("push off"), "push off");
+        drop(refused);
         assert_eq!(fs::read(&follower).unwrap(), before);
 
-        let mut b = Worker::start(&dir.0, "b", b_address, a_address, false, structured);
-        assert_eq!(b.ready(), b_address);
-        assert_eq!(b.command("show"), "state 2 0 [] [] []");
-        assert_eq!(a.command("push on"), "push on");
-        let ack = a.wait_for("peer", |line| line.contains(" ack "));
-        let first = ack_count(&ack, 7);
-        assert!(
-            first > 0,
-            "successful retry did not advance acknowledgments"
-        );
-        assert_eq!(b.command("show"), "state 3 7 [] [] []");
-        a.wait_for("peer", |line| {
-            line.contains(" ack ") && ack_count(line, 7) > first
-        });
-        assert_eq!(b.command("show"), "state 3 7 [] [] []");
+        {
+            let db = Database::open_file(&follower, Limits::default()).unwrap();
+            let replica = StudyReplica::open(
+                &db,
+                db.collection_id(COLLECTION_ROW),
+                enrollment.policy,
+                enrollment.actor,
+            )
+            .unwrap();
+            let serve = || {
+                let channel = server.accept(accept()).unwrap();
+                replica.serve_authenticated(channel).unwrap();
+            };
+            assert_eq!(db.snapshot().revision(), 2);
+            serve();
+            let ack = a.wait_for("peer", |line| line.contains(" ack "));
+            let first = ack_count(&ack, 7);
+            assert!(
+                first > 0,
+                "successful retry did not advance acknowledgments"
+            );
+            assert_eq!(db.snapshot().revision(), 3);
+            assert_eq!(replica.read().unwrap().practice_minutes.total(), 7);
+            serve();
+            a.wait_for("peer", |line| {
+                line.contains(" ack ") && ack_count(line, 7) > first
+            });
+            assert_eq!(db.snapshot().revision(), 3);
+        }
         assert_eq!(a.command("push off"), "push off");
+        drop(listener);
         a.quit();
-        b.quit();
 
-        let (_, _, _, enrollment) = config(&dir.0, "b");
         let db = Database::open_file(&follower, Limits::default()).unwrap();
         assert_eq!(db.snapshot().revision(), 3);
         let replica = StudyReplica::open(

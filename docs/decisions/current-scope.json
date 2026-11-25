@@ -227,7 +227,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "3920bc92b11510f75923abbc09dccfe87b59ea94f632e6694b06ff6cd1438b55",
+    "apps/study-peer/src/native/tests.rs": "eeb8b5dbbac4e29105e19840913324487f65818fadf4ba1a3c3eec917f8857de",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
     "apps/weekend-replicate/tests/cli.rs": "7c5058e3bc08b609ed5ce52e1d88ad7ae5c7d0e16afec25b25ced819742dff99",
@@ -418,7 +418,8 @@
     "docs/decisions/study-incoming-worker-current.md": "f94f0d11e3bd22ae1df89ae4574953425ec3a07b591c5dc86988b6749339b5bb",
     "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591",
     "docs/decisions/study-service-launch-current.md": "d271a3fcbcfeefc1ec3871c3f3b6b5e7c0bc60b8cf028a47a19bafb147874ca7",
-    "docs/decisions/study-service-shutdown-current.md": "f30d9f7b68de9ffe6037ed386e8779adbee16b2af41661ba9812cb6b83588330"
+    "docs/decisions/study-service-shutdown-current.md": "f30d9f7b68de9ffe6037ed386e8779adbee16b2af41661ba9812cb6b83588330",
+    "docs/decisions/study-windows-fixtures-current.md": "fec70e35146e7d30da65516e3838d040ddfdf7180afd34d635929249970efc8d"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -897,7 +898,8 @@
         "docs/decisions/study-incoming-worker-current.md",
         "docs/decisions/study-worker-launch-current.md",
         "docs/decisions/study-service-launch-current.md",
-        "docs/decisions/study-service-shutdown-current.md"
+        "docs/decisions/study-service-shutdown-current.md",
+        "docs/decisions/study-windows-fixtures-current.md"
       ],
       "residual": "Fixed-roster deployment, raw reserved rows and native stream errors remain explicit application obligations."
     },
