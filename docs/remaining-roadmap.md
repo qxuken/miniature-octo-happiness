@@ -1343,3 +1343,21 @@ tables at `6512770` account for 52 additional source records. There are
 78 outstanding in the typed store, 1,306 across runtime targets and 7,397 in
 tooling. Off-machine custody is still open. The [checksums](decisions/typed-catalog-51d3301.sha256)
 identify both platform archives, the source bundle and reconciliation report.
+
+### Typed lookup admission and repair
+
+On `9cfbac2`, macOS arm64 and Docker Linux arm64 each passed 68 typed
+tests in debug and release, with one ignored documentation example. An
+unindexed field rejected lookup before application encoding. On an indexed
+field the same encoder returned its application error, and catching that
+error still aborted earlier draft edits. Both the current and retained root
+were checked. Seven mutations failed their intended tests in each run,
+including removal of the physical field check and the owner-key comparison.
+
+The [lookup ledger](decisions/typed-lookup-current.md) and five named controls
+cover the last 78 unclassified source records in the typed store. Reconciliation
+at `903757b` leaves 1,228 runtime and 7,397 tooling records unclassified. The
+source dispositions distinguish named pairs, execution and delegated errors.
+The [archive manifest](decisions/typed-lookup-9cfbac2.sha256) identifies both
+platform runs, 116 supervised command receipts, reconciliation and the source
+bundle. Off-machine custody remains open.
