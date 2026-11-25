@@ -227,7 +227,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "bd7c40db227e7a6b9999f98e242639e974a9ae0744464936ffa36a59156905db",
+    "apps/study-peer/src/native/tests.rs": "16095a3a2f18ce9f7d66fad33923194417e3c37a0ab1fddb8b69b25e29e483ea",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
     "apps/weekend-replicate/tests/cli.rs": "48fa2123d45f9f658caa44292e60c3101e41d64272294520b708936abb811d74",

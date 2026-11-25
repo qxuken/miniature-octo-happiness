@@ -1552,7 +1552,7 @@ fn peer_reports_connect_failure_then_acknowledges_retry() {
 
 #[test]
 fn incoming_peer_disconnect_preserves_the_error_and_allows_a_retry() {
-    for structured in [false, true] {
+    for (structured, retry) in [(false, false), (true, false), (false, true), (true, true)] {
         let dir = Directory::new();
         for actor in ["a", "b"] {
             let (path, identity, _, enrollment) = config(&dir.0, actor);
@@ -1594,7 +1594,11 @@ fn incoming_peer_disconnect_preserves_the_error_and_allows_a_retry() {
             assert_eq!(failed, "incoming served=0 failed=1 busy=0 error Io");
         }
         assert_eq!(b.command("show"), "state 2 0 [] [] []");
-        assert_eq!(fs::read(&receiver).unwrap(), original);
+        if !retry {
+            b.quit();
+            assert_eq!(fs::read(&receiver).unwrap(), original);
+            continue;
+        }
 
         let db = Database::open_file(&sender, Limits::default()).unwrap();
         let replica = StudyReplica::open(
