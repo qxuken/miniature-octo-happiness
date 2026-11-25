@@ -13626,6 +13626,78 @@
       "target": "--test",
       "test": "models",
       "exact_test": "every_core_allocation_failure_aborts_primary_and_index_updates"
+    },
+    {
+      "name": "r1-typed-catalog-id-type",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": " .as_u64()\n                .map_err(|_| Error::InvalidCatalog)?",
+      "new": " .as_u64()\n                .map_err(|_| Error::InvalidId)?",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "catalog_identity_unique_and_name_guards_have_independent_controls"
+    },
+    {
+      "name": "r1-typed-catalog-duplicate",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "id == 0 || unique.contains(&id)",
+      "new": "id == 0",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "catalog_identity_unique_and_name_guards_have_independent_controls"
+    },
+    {
+      "name": "r1-typed-catalog-zero-id",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "id == 0 || unique.contains(&id)",
+      "new": "unique.contains(&id)",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "catalog_identity_unique_and_name_guards_have_independent_controls"
+    },
+    {
+      "name": "r1-typed-catalog-collection-range",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "entry.records <= 3",
+      "new": "entry.records < 3",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "catalog_identity_unique_and_name_guards_have_independent_controls"
+    },
+    {
+      "name": "r1-typed-catalog-type-zero",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "entry.records <= 3 || entry.type_id == 0 || entry.version == 0",
+      "new": "entry.records <= 3 || entry.version == 0",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "catalog_identity_unique_and_name_guards_have_independent_controls"
+    },
+    {
+      "name": "r1-typed-catalog-version-zero",
+      "file": "crates/weekend-db-typed/src/store.rs",
+      "old": "entry.records <= 3 || entry.type_id == 0 || entry.version == 0",
+      "new": "entry.records <= 3 || entry.type_id == 0",
+      "package": "weekend-db-typed",
+      "occurrence": 1,
+      "matches": 1,
+      "target": "--test",
+      "test": "runtime_decisions",
+      "exact_test": "catalog_identity_unique_and_name_guards_have_independent_controls"
     }
   ]
 }

@@ -267,7 +267,7 @@ fn catalog_identity_unique_and_name_guards_have_independent_controls() -> Result
             assert_eq!(store.database().snapshot().revision(), before);
         }
     }
-    for case in 0..8 {
+    for case in 0..9 {
         let mut store = Store::memory()?;
         store.table::<Row>("rows")?;
         let db = store.database();
@@ -286,7 +286,8 @@ fn catalog_identity_unique_and_name_guards_have_independent_controls() -> Result
                     .list_push(&db.unsigned(1)?)?,
             )?,
             6 => base.map_set(b"unique", &db.boolean(true)?)?,
-            _ => base.map_set(b"records", &db.bytes(b"wrong-kind")?)?,
+            7 => base.map_set(b"records", &db.bytes(b"wrong-kind")?)?,
+            _ => base.map_set(b"unique", &db.list()?.list_push(&db.boolean(true)?)?)?,
         };
         let mut tx = db.begin();
         tx.put(catalog, b"table/rows", &altered)?;
