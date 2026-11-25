@@ -281,3 +281,34 @@ The retained raw reports have SHA-256
 `52e26c8cccc2db9b549bf459f08f6559f765ae94bceb1bd616149bff24daf80b`
 (macOS) and `7b75d886aa3300ae85b985a735258bba7f035bb368f3be13bd273df81b5b8dd0`
 (Linux).
+
+### Resident memory with four and 64 retained roots
+
+Controller `7f74949` repeated the 128-key workload above against the
+same archived engine. The four-root runs pinned every 32nd commit and
+the 64-root runs pinned every second commit. Adding `--sample-rss` to
+the command recorded each worker's RSS during the full round. All 24
+workers passed the current/retained byte checks, including maintenance.
+The four-root digest was `16897395541532850317` on both platforms.
+
+| Platform and engine | Four roots, largest observed RSS by round (KiB) | 64 roots, largest observed RSS by round (KiB) |
+| --- | --- | --- |
+| macOS, weekend-db | 6,048 / 5,872 / 6,176 | 14,704 / 14,512 / 14,688 |
+| macOS, SQLite | 3,200 / 4,080 / 3,360 | 6,320 / 6,752 / 6,368 |
+| Docker Linux, weekend-db | 4,840 / 4,840 / 4,844 | 6,840 / 6,844 / 10,812 |
+| Docker Linux, SQLite | 308 / 292 / 4,264 | 6,556 / 6,556 / 6,888 |
+
+Two short Linux SQLite rounds supplied only one sample apiece. Their
+308 and 292 KiB observations give little information about memory use
+after startup. All sampled peaks are lower bounds on whole-process peak
+RSS. The harness measures the worker and its verification code together.
+Use the separate timing-only run above for latency.
+
+The development proof directory `retained-baseline-49ddab5` holds all
+four reports. Their SHA-256 digests in four-root, then 64-root order are
+`7fac5020742be61299a79f726c97450dffc20d73e35f205257aab4e1060cf44f`
+and `d34a4ef515ae40c4d60b853ef0d9d7a5bf415b9d9c6a15cefd30030a953d288c`
+for macOS, and
+`e1be1c98064aff2b335bd6428801a161c82cca0c64b8e45014c8cf59a6d32269`
+and `2f063d82e1fe224beacdf0a6432134024a9d7da84ad6df4ee7254cc3754a2125`
+for Linux.
