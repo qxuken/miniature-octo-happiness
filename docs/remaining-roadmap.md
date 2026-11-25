@@ -1086,3 +1086,31 @@ both macOS and Linux. Five distinct baselines per campaign now share
 compilation work. Each of the four comparisons retained all 47 test
 and clean commands and reduced total supervised time. A wrong-test
 negative control stopped before the first mutation.
+
+### Writer recovery and primary enrollment
+
+Four engine inventory records now have controls on `2c5a95f`. The two
+records for the optional storage use the same state transition because
+the inventory records both the conditional and its pattern.
+
+| Source decision | Passing control | Alternative and observable outcome |
+|---|---|---|
+| Propagate writer lock error | A healthy mutex admits collection creation | A poisoned mutex returns `RecoveryRequired` and the acknowledged snapshot stays readable |
+| Enter the optional storage branch | A memory-only writer admits collection creation | A byte-backed writer checks storage health before enrolling a primary |
+| Match the storage pattern | A memory-only writer skips the storage guard | A present storage object with an injected publication failure rejects enrollment before any further I/O |
+| Match the mutex result in `requires_recovery` | A healthy memory writer reports false | The same writer reports true after mutex poison |
+
+The existing retention fault test continued to pass when a mutation
+bypassed the first storage guard. Later publication checks still blocked
+the write. The added regression exercises `Primary::new`, which needs a
+healthy source before creating an enrollment. It checks a healthy durable
+source, a memory-only source, failure at the first publication I/O, and a
+crash and reopen at the acknowledged revision with the original enrollment.
+
+All four mutations were caught on macOS and Docker Linux in both debug and
+release. Review of the extracted evidence checked the 16 named failures,
+72 supervised command receipts and copied source hashes. The regular macOS
+replication suite passed 10 tests and skipped its separately scheduled
+native manifest-growth workload. Reconciliation leaves 1,832 runtime,
+26 driver and 7,397 tooling gaps. The [evidence manifest](decisions/writer-recovery-2c5a95f.sha256)
+pins the source bundle and both archives.
