@@ -67,6 +67,16 @@ impl Report {
             && self.cleanup_failure.is_none()
             && self.cleanup_verified
     }
+    pub(crate) fn exited_with_error(&self, code: i32) -> bool {
+        code > 0
+            && self.returncode == Some(code)
+            && self.cleanup_verified
+            && self.cleanup_failure.is_none()
+            && !self.timed_out
+            && !self.cancelled
+            && !self.stopped
+            && self.failure.as_deref() == Some(&format!("child exit Some({code})"))
+    }
     pub(crate) fn stopped_cleanly(&self) -> bool {
         self.stopped
             && self.returncode == Some(-libc::SIGKILL)

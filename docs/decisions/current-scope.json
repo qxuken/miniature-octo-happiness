@@ -156,7 +156,7 @@
     "xtask/src/abi.rs": "f7f089dfd602962861fe05505d6e0938c64cbc85098ef1677f555fb118a7df7a",
     "xtask/src/apfs_exhaustion.rs": "9f27265733bb1d83bbc4319ea5f349a59241af6e4d0a9af02067f84872f2c19e",
     "xtask/src/artifact_trace.rs": "899305af29cb96b63e6bc848afb8dccbe742c6ba6a18be8d11ae67d904f48006",
-    "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
+    "xtask/src/assurance.rs": "a905e07220d815c4655344f95e88ff9db10d0ff69e4b0e8309d9d19b0f082dee",
     "xtask/src/atomic_model.rs": "50448779f151c6fa1e422f2cb26b4c849d97bdaacfbfb0384af531fe33da7084",
     "xtask/src/benchmark.rs": "c3dfaf2482c1ba1395768580a580ab8604c36845777e493b58d8939e65726a04",
     "xtask/src/c_sanitizers.rs": "3382c0606e6bf6190b6f2899a9daee640f05ee981f08806644c6207f313bdb21",
@@ -164,7 +164,7 @@
     "xtask/src/clean.rs": "6f6ee36687033547a9c1e1e47b1ba89091a51a76a0691a2a2b185866980bd241",
     "xtask/src/compatibility.rs": "036b3da70dc40dcbce45d4d0fe61894591c0674c180824fef40c7e89abfc37f4",
     "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
-    "xtask/src/coverage.rs": "a02c2f2e18eba60046ebcf87b6520c38e80cc0dd9de4c4eae919e1949ec0b008",
+    "xtask/src/coverage.rs": "3d07d03d270d14d16c4c9d960635c958dddb4e96a7ea17438da69a21e71fa5b6",
     "xtask/src/coverage_executables.rs": "62d803c6f98fc3f477b962dbd8deca6f765d7f7033f213322002b76591dee96b",
     "xtask/src/delivered_faults.rs": "adb0c3f9e44844324ba67e6550123424b4b6fd2231605c3c39dd23d01c795861",
     "xtask/src/delivery.rs": "6fd257af131db1925e24b1ed44752d824be5e615f5f59e8361b184fb372f0d63",
@@ -213,7 +213,7 @@
     "xtask/src/sqlite_baseline.rs": "2edb8f5f19c8bfd7917c90fd0da10fde1e1937748c05dbe43c502e7bc0d5b247",
     "xtask/src/study_soak.rs": "430b55111e7145ab89fe9ce1ec5cfe94280dbb18b11087c4164a78e818cf650b",
     "xtask/src/study_upgrade.rs": "85934f92de2681263e1fc7c756432a29fbb7eaa537e4222bc8a9610804597e89",
-    "xtask/src/supervise.rs": "d066164f1cf2d9e9efc473c539199af501acd37c7e455b9410708c70bd33e6be",
+    "xtask/src/supervise.rs": "bea23e39a6f4141c8347cdd6b318da11fedf397cbe3126933b9df099fe8fbf03",
     "xtask/src/support.rs": "ab81f996e6e6e19a44180b3a350176859a343b4a5b34f04bbf24789b62c67dd1",
     "xtask/src/toolchain.rs": "a0e44e9f90a3d893fa9402a64e4c860e44f0e3029020ce9f8395978fa92fa7b5",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
@@ -292,7 +292,7 @@
     "tests/value_decisions.rs": "605fd7d6147b1cbf504cdecc5d3f2d76181ada66b8d9d81c199d4b2fd0f77934",
     "tests/values.rs": "c93575a92084db933f4a51713e91af598c85efdebcaf9f1ccf6e0d1c2c98306f",
     "tools/incident-recovery/src/main.rs": "81995d6a7ade96e89cc1068e41b724fbab2508798a67a5b6cd96792bd0fa5431",
-    "xtask/src/assurance.rs": "da62482c8d72f6adc84b6ec56edbc8734fa8bd9935aa95e228f033c4fd60a69c",
+    "xtask/src/assurance.rs": "a905e07220d815c4655344f95e88ff9db10d0ff69e4b0e8309d9d19b0f082dee",
     "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
@@ -462,7 +462,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 342,
-    "xtask::xtask": 5256
+    "xtask::xtask": 5271
   },
   "groups": [
     {

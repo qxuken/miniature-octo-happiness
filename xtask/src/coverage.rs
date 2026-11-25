@@ -196,6 +196,47 @@ pub fn validate_calibration(totals: &Value, mode: Mode, case: &str) -> Result<()
     }
     Ok(())
 }
+fn unsupported_instrumentation(
+    mode: Mode,
+    report: &crate::supervise::Report,
+    stderr: &str,
+) -> bool {
+    if !report.exited_with_error(1) {
+        return false;
+    }
+    let first = stderr.lines().next().unwrap_or_default();
+    if mode == Mode::Line {
+        return first == "error: unknown codegen option: `instrument-coverage`";
+    }
+    first == "error: the option `Z` is only accepted on the nightly compiler"
+        || first == "error: unknown unstable option: `coverage-options`"
+        || first.starts_with(&format!(
+            "error: incorrect value `{}` for unstable option `coverage-options` - ",
+            mode.name()
+        ))
+}
+
+fn check_instrumentation(
+    c: &mut Campaign<'_>,
+    probe: Vec<std::ffi::OsString>,
+    mode: Mode,
+) -> Result<()> {
+    if let Err(e) = c.command(probe, "instrumentation-probe", None, 30.) {
+        // A missing tool, interrupted child or unrelated compiler error cannot
+        // establish that this compiler lacks the requested instrumentation.
+        if let Some(receipt) = c.evidence["commands"].as_array().and_then(|all| all.last())
+            && receipt["name"] == "instrumentation-probe"
+            && let Ok(report) = serde_json::from_value(receipt["supervision"].clone())
+            && let Ok(stderr) =
+                fs::read_to_string(c.output.join("instrumentation-probe.stderr.log"))
+            && unsupported_instrumentation(mode, &report, &stderr)
+        {
+            c.evidence["status"] = json!("unsupported");
+        }
+        return Err(e);
+    }
+    Ok(())
+}
 pub fn llvm_diagnostics(stderr: &str) -> bool {
     stderr.to_ascii_lowercase().contains("warning:")
 }
@@ -343,10 +384,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         let mut probe = rustc.clone();
         probe.extend(flags.iter().map(path));
         probe.extend(cmd(["--print", "cfg"]));
-        if let Err(e) = c.command(probe, "instrumentation-probe", None, 30.) {
-            c.evidence["status"] = json!("unsupported");
-            return Err(e);
-        }
+        check_instrumentation(&mut c, probe, options.mode)?;
         let mut command = rustc.clone();
         command.extend(cmd(["--print", "sysroot"]));
         let sysroot = PathBuf::from(c.command(command, "sysroot", None, 30.)?);
@@ -639,6 +677,59 @@ mod tests {
                 &sources
             )
             .is_err()
+        );
+    }
+    #[test]
+    fn unsupported_requires_the_requested_flag_diagnostic_and_a_clean_compiler_exit() {
+        let mut report = crate::supervise::Report {
+            returncode: Some(1),
+            failure: Some("child exit Some(1)".into()),
+            cleanup_verified: true,
+            ..Default::default()
+        };
+        let message = "error: incorrect value `mcdc` for unstable option `coverage-options` - `block` | `branch` | `condition` was expected";
+        assert!(unsupported_instrumentation(Mode::Mcdc, &report, message));
+        assert!(!unsupported_instrumentation(
+            Mode::Condition,
+            &report,
+            message
+        ));
+        assert!(!unsupported_instrumentation(
+            Mode::Mcdc,
+            &report,
+            "error: toolchain unavailable"
+        ));
+        report.cancelled = true;
+        assert!(!unsupported_instrumentation(Mode::Mcdc, &report, message));
+        report.cancelled = false;
+        report.cleanup_verified = false;
+        assert!(!unsupported_instrumentation(Mode::Mcdc, &report, message));
+    }
+    #[test]
+    fn unrelated_probe_failure_is_recorded_as_rejected() {
+        let dir = crate::support::Scratch::new(&std::env::temp_dir(), "probe-failure").unwrap();
+        let run = Run::new(dir.path().to_owned());
+        let output = dir.path().join("evidence");
+        let mut c = Campaign::detached(&run, &output, "probe exit control").unwrap();
+        c.evidence["status"] = json!("incomplete");
+        let result = check_instrumentation(
+            &mut c,
+            cmd([
+                "/bin/sh",
+                "-c",
+                "echo 'error: temporary compiler failure' >&2; exit 1",
+            ]),
+            Mode::Mcdc,
+        );
+        assert!(c.finish(result).is_err());
+        let receipt: Value =
+            serde_json::from_slice(&fs::read(output.join("evidence.json")).unwrap()).unwrap();
+        assert_eq!(receipt["passed"], false);
+        assert_eq!(receipt["status"], "rejected");
+        assert_eq!(receipt["commands"][0]["exit_code"], 1);
+        assert_eq!(
+            receipt["commands"][0]["supervision"]["cleanup_verified"],
+            true
         );
     }
     #[test]
