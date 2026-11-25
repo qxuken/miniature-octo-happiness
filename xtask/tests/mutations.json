@@ -14212,6 +14212,72 @@
       "test": "replication::tests::reopened_exports_require_the_saved_identity_and_keep_the_original_bytes",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-native-compact-setup-default-budget",
+      "file": "src/storage/file.rs",
+      "old": "&Memory::new(limits)?, Observer::default()",
+      "new": "&Memory::new(limits).map_err(|_| Error::Io)?, Observer::default()",
+      "target": "--lib",
+      "package": "weekend-db",
+      "test": "storage::file::decision_tests::compaction_setup_errors_leave_the_image_and_allocator_unchanged",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-native-compact-setup-observer-budget",
+      "file": "src/storage/file.rs",
+      "old": "Memory::with_allocator(limits, allocator.clone())?",
+      "new": "Memory::with_allocator(limits, allocator.clone()).map_err(|_| Error::Io)?",
+      "target": "--lib",
+      "package": "weekend-db",
+      "test": "storage::file::decision_tests::compaction_setup_errors_leave_the_image_and_allocator_unchanged",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-native-compact-setup-box",
+      "file": "src/storage/file.rs",
+      "old": "mem.boxed(hook)?",
+      "new": "mem.boxed(hook).map_err(|_| Error::Io)?",
+      "target": "--lib",
+      "package": "weekend-db",
+      "test": "storage::file::decision_tests::compaction_setup_errors_leave_the_image_and_allocator_unchanged",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-native-compact-setup-shared",
+      "file": "src/storage/file.rs",
+      "old": "mem.shared(std::sync::Mutex::new(hook))?",
+      "new": "mem.shared(std::sync::Mutex::new(hook)).map_err(|_| Error::Io)?",
+      "target": "--lib",
+      "package": "weekend-db",
+      "test": "storage::file::decision_tests::compaction_setup_errors_leave_the_image_and_allocator_unchanged",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-native-compact-setup-copy-budget",
+      "file": "src/storage/file.rs",
+      "old": "&Memory::with_allocator(limits, allocator)?, observer",
+      "new": "&Memory::with_allocator(limits, allocator).map_err(|_| Error::Io)?, observer",
+      "target": "--lib",
+      "package": "weekend-db",
+      "test": "storage::file::decision_tests::compaction_setup_errors_leave_the_image_and_allocator_unchanged",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-native-compact-setup-poison",
+      "file": "src/storage/file.rs",
+      "old": "hook.lock().map_err(|_| Error::Panic)?",
+      "new": "hook.lock().map_err(|_| Error::Io)?",
+      "target": "--lib",
+      "package": "weekend-db",
+      "test": "storage::file::decision_tests::poisoned_compaction_observer_prevents_the_next_operation",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

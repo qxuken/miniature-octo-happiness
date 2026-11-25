@@ -23,7 +23,7 @@ calls. The kernel's metadata-error behavior remains a deployment gate.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `cfcc5d7b40eadd689b34a717825cd59cdd62171a09c8397671c63e43f61c2756` |
+| `src/storage/file.rs` | `0584ba7e5eb42f5d949ceb6408f17c04059c53403d10ee9534efb53e4f212390` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ calls. The kernel's metadata-error behavior remains a deployment gate.
 | E | weekend-db::weekend_db | src/storage/file.rs:278:43– | 9559..9560 | try_propagation | check_lease | Refusal on the held file releases the failed claim. |
 | E | weekend-db::weekend_db | src/storage/file.rs:312:49– | 10666..10667 | try_propagation | matches | Refuse named-file metadata independently for the canonical and the scratch location. |
 | E | weekend-db::weekend_db | src/storage/file.rs:313:43– | 10711..10712 | try_propagation | matches | Refuse held-file metadata independently for both locations. |
-| E | weekend-db::weekend_db | src/storage/file.rs:484:32– | 16002..16003 | try_propagation | compact_file_impl | An unreadable source link count stops compaction before creating its scratch. |
+| E | weekend-db::weekend_db | src/storage/file.rs:494:32– | 16451..16452 | try_propagation | compact_file_impl | An unreadable source link count stops compaction before creating its scratch. |
 
 ## Verification
 

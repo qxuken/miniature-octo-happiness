@@ -469,12 +469,22 @@ pub fn compact_file_with_hook(
     limits: Limits,
     hook: impl FnMut(CompactionEvent) -> Result<()> + Send + 'static,
 ) -> Result<CompactionStats> {
-    let mem = Memory::new(limits)?;
+    compact_file_with_hook_on(path, limits, AllocatorHandle::default(), hook)
+}
+#[cfg(any(test, feature = "fault-injection"))]
+fn compact_file_with_hook_on(
+    path: &Path,
+    limits: Limits,
+    allocator: AllocatorHandle,
+    hook: impl FnMut(CompactionEvent) -> Result<()> + Send + 'static,
+) -> Result<CompactionStats> {
+    let mem = Memory::with_allocator(limits, allocator.clone())?;
     let hook: Hook = mem.boxed(hook)?;
     let observer = Observer {
         hook: Some(mem.shared(std::sync::Mutex::new(hook))?),
     };
-    compact_file_impl(path, &Memory::new(limits)?, observer)
+    // Keep instrumentation allocations out of the compaction budget.
+    compact_file_impl(path, &Memory::with_allocator(limits, allocator)?, observer)
 }
 fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
     let original = Location::new(path)?;
@@ -735,6 +745,91 @@ mod decision_tests {
         };
         compact_file_impl(&path, &memory, observer).unwrap();
         assert_eq!(verifications.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn compaction_setup_errors_leave_the_image_and_allocator_unchanged() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::fs;
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        let fixture = PathFixture::new("compaction-setup");
+        let path = fixture.0.join("store");
+        let limits = Limits::default();
+        let db = crate::Database::create_file(&path, limits).unwrap();
+        db.create_collection().unwrap();
+        drop(db);
+        let before = fs::read(&path).unwrap();
+        let invalid = Limits {
+            max_depth: 0,
+            ..limits
+        };
+        assert!(matches!(compact_file(&path, invalid), Err(Error::Invalid)));
+
+        let allocator = Arc::new(TestAllocator::default());
+        let handle = allocator.handle();
+        let baseline = allocator.live_bytes();
+        let callbacks = Arc::new(AtomicUsize::new(0));
+        let compact = |limits| {
+            let count = callbacks.clone();
+            compact_file_with_hook_on(&path, limits, handle.clone(), move |_| {
+                count.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        };
+        assert!(matches!(compact(invalid), Err(Error::Invalid)));
+        for allowed in 0..4 {
+            let (result, requests) = allocator.count_with_refusal(allowed, || compact(limits));
+            assert_eq!(requests, allowed + 1);
+            assert!(
+                matches!(result, Err(Error::OutOfMemory)),
+                "allowed {allowed}"
+            );
+            assert_eq!(callbacks.load(Ordering::Relaxed), 0);
+            assert_eq!(allocator.live_bytes(), baseline);
+            assert_eq!(fs::read(&path).unwrap(), before);
+            assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 1);
+        }
+        assert!(matches!(
+            compact(Limits {
+                max_live_bytes: 0,
+                ..limits
+            }),
+            Err(Error::Limit)
+        ));
+        assert_eq!(allocator.live_bytes(), baseline);
+        assert_eq!(fs::read(&path).unwrap(), before);
+
+        compact(limits).unwrap();
+        assert!(callbacks.load(Ordering::Relaxed) > 0);
+        assert_eq!(allocator.live_bytes(), baseline);
+        let db = crate::Database::open_file(&path, limits).unwrap();
+        assert_eq!(db.snapshot().revision(), 1);
+    }
+
+    #[test]
+    fn poisoned_compaction_observer_prevents_the_next_operation() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let hook: Hook = mem.boxed(|_: CompactionEvent| Ok(())).unwrap();
+        let hook = mem.shared(std::sync::Mutex::new(hook)).unwrap();
+        let poisoned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = hook.lock().unwrap();
+            panic!("test observer poison");
+        }));
+        assert!(poisoned.is_err());
+        let observer = Observer { hook: Some(hook) };
+        let operation = || panic!("the observer must stop the operation");
+        assert_eq!(
+            observer.call::<()>(CompactionStep::SourceLength, operation),
+            Err(Error::Panic)
+        );
+        assert_eq!(
+            Observer::default().call(CompactionStep::SourceLength, || Ok(7)),
+            Ok(7)
+        );
     }
 
     #[test]
@@ -1089,7 +1184,13 @@ mod decision_tests {
         let competing = FileStore::open_read_only(&path).unwrap();
         assert_eq!(first.lock(), Err(Error::Busy));
         reject_io(&mut first);
-        assert!(matches!(FileStore::open(&path), Err(Error::Busy)));
+        let failure = FileStore::open_with_diagnostics(&path).err().unwrap();
+        assert_eq!(failure.error, Error::Busy);
+        let operation = failure.native.unwrap().operation;
+        #[cfg(target_os = "linux")]
+        assert_eq!(operation, NativeIoOperation::Lock);
+        #[cfg(target_os = "macos")]
+        assert_eq!(operation, NativeIoOperation::Open);
         drop(competing);
         first.lock().unwrap();
         assert_eq!(first.length(), Ok(1));
