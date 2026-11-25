@@ -2110,3 +2110,14 @@ before retrying with normal authenticated exchanges. Both local platforms
 passed the tests and eight selected controls in both profiles. The
 Windows tests also cross-linked in both profiles.
 [Windows fixture ledger](decisions/study-windows-fixtures-current.md)
+
+### Study authenticated receive interruption
+
+At `32a232d`, an authenticated disconnect before the offer preserves
+the receiver's revision 2 bytes and reports the original replication
+error. The same service accepts a later authenticated retry and
+acknowledges seven minutes at revision 3. Reopening confirms that state.
+Both receive controls and all seven existing outgoing controls were
+detected on macOS and Docker Linux in debug and release. The Windows
+debug tests cross-linked. Reconciliation leaves 438 runtime and 7,514
+tooling gaps. [Authenticated receive ledger](decisions/study-receive-current.md)
