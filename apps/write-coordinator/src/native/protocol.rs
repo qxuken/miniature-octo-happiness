@@ -149,15 +149,17 @@ mod decisions {
     use super::*;
     use weekend_db::{
         Limits,
-        storage::{Fault, SimulatedDisk},
+        storage::{Crash, Fault, IoKind, SimulatedDisk},
     };
-    fn database() -> Database {
-        let db = Database::new().unwrap();
+    fn seed_counter(db: &Database) {
         let c = db.create_collection().unwrap();
         let mut t = db.begin();
         t.put(c, KEY, &db.unsigned(0).unwrap()).unwrap();
-        t.commit().unwrap();
-        drop(t);
+        assert_eq!(t.commit(), Ok(2));
+    }
+    fn database() -> Database {
+        let db = Database::new().unwrap();
+        seed_counter(&db);
         db
     }
     #[test]
@@ -233,6 +235,184 @@ mod decisions {
             handle(&mut db, "set-id uncertain 2 7"),
             Err(Error::RecoveryRequired)
         );
+    }
+
+    #[test]
+    fn legacy_commands_preserve_missing_rows_and_parse_errors() {
+        let mut db = Database::new().unwrap();
+        for missing in ["collection", "counter"] {
+            if missing == "counter" {
+                db.create_collection().unwrap();
+            }
+            let before = db.snapshot().revision();
+            for command in ["get", "set 1 20", "set-id next 1 20"] {
+                assert_eq!(
+                    handle(&mut db, command),
+                    Err(Error::NotFound),
+                    "{missing}: {command}"
+                );
+                assert_eq!(db.snapshot().revision(), before);
+            }
+        }
+        let mut db = database();
+        let key = db.collection_id(COLLECTION);
+        for command in [
+            "set invalid 20",
+            "set 2 invalid",
+            "set-id next invalid 20",
+            "set-id next 2 invalid",
+        ] {
+            assert_eq!(handle(&mut db, command), Err(Error::Invalid), "{command}");
+            assert_eq!(state(&db), Ok((2, 0)));
+            assert_eq!(db.snapshot().count(key), Ok(1));
+        }
+        assert_eq!(handle(&mut db, "set 1 20"), Ok("conflict 2 0".into()));
+        assert_eq!(state(&db), Ok((2, 0)));
+        assert_eq!(handle(&mut db, "set 2 20"), Ok("committed 3".into()));
+        assert_eq!(handle(&mut db, "get"), Ok("value 3 20".into()));
+    }
+
+    #[test]
+    fn legacy_draft_budget_failures_preserve_counter_and_receipt() {
+        let disk = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(disk.clone(), [1; 16], Limits::default()).unwrap();
+        seed_counter(&db);
+        drop(db);
+        let mut plain = Database::open_on(
+            disk,
+            Limits {
+                max_transaction_bytes: 0,
+                ..Limits::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(handle(&mut plain, "set 2 20"), Err(Error::Limit));
+        assert_eq!(state(&plain), Ok((2, 0)));
+        let request = "set-id next 2 20";
+        for (stage, limits) in [
+            (
+                "observe counter",
+                Limits {
+                    max_observations: 1,
+                    ..Limits::default()
+                },
+            ),
+            (
+                "build receipt bytes",
+                Limits {
+                    max_bytes: 24,
+                    ..Limits::default()
+                },
+            ),
+            (
+                "insert receipt",
+                Limits {
+                    max_writes: 1,
+                    ..Limits::default()
+                },
+            ),
+        ] {
+            let mut db = Database::with_limits(limits).unwrap();
+            seed_counter(&db);
+            let collection = db.collection_id(COLLECTION);
+            assert_eq!(handle(&mut db, request), Err(Error::Limit), "{stage}");
+            assert_eq!(state(&db), Ok((2, 0)), "{stage}");
+            let snapshot = db.snapshot();
+            assert_eq!(snapshot.count(collection), Ok(1), "{stage}");
+            assert!(snapshot.get(collection, b"receipt/next").unwrap().is_none());
+        }
+    }
+
+    #[test]
+    fn legacy_receipt_commit_faults_reopen_atomically_and_retry_once() {
+        let original = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(original.clone(), [1; 16], Limits::default()).unwrap();
+        seed_counter(&db);
+        assert_eq!(
+            handle(&mut db, "set-id prior 2 12"),
+            Ok("committed 3".into())
+        );
+        let retained_id = db.retain_snapshot(&db.snapshot()).unwrap();
+        assert_eq!(state(&db), Ok((4, 12)));
+        let collection = db.collection_id(COLLECTION);
+        let prior_receipt = db
+            .snapshot()
+            .get(collection, b"receipt/prior")
+            .unwrap()
+            .unwrap()
+            .as_bytes()
+            .unwrap()
+            .to_vec();
+        drop(db);
+        let image = original.durable_image().unwrap();
+
+        let next = "set-id next 4 30";
+        let open =
+            |disk: &SimulatedDisk| Database::open_on(disk.clone(), Limits::default()).unwrap();
+        let mut control = open(&original);
+        original.arm(usize::MAX, Fault::Error);
+        assert_eq!(handle(&mut control, next), Ok("committed 5".into()));
+        let trace = original.trace().unwrap();
+        let syncs: Vec<_> = trace
+            .iter()
+            .enumerate()
+            .filter_map(|(step, event)| (event.kind == IoKind::Sync).then_some(step))
+            .collect();
+        let [append, root, _]: [usize; 3] = syncs.try_into().unwrap();
+        drop(control);
+
+        for step in 0..trace.len() {
+            for crash in [Crash::DropAll, Crash::PersistAll] {
+                let disk = SimulatedDisk::from_image(&image).unwrap();
+                let mut db = open(&disk);
+                disk.arm(step, Fault::Error);
+                let expected = if step <= append {
+                    Error::Io
+                } else {
+                    Error::OutcomeUnknown
+                };
+                assert_eq!(handle(&mut db, next), Err(expected), "step {step}");
+                assert_eq!(disk.trace().unwrap(), trace[..=step]);
+                assert_eq!(state(&db), Ok((4, 12)));
+                assert_eq!(handle(&mut db, "get"), Err(Error::RecoveryRequired));
+                drop(db);
+                disk.crash(crash).unwrap();
+
+                let mut reopened = open(&disk);
+                let published = step > root || (step == root && matches!(crash, Crash::PersistAll));
+                assert_eq!(
+                    state(&reopened),
+                    if published { Ok((5, 30)) } else { Ok((4, 12)) }
+                );
+                let c = reopened.collection_id(COLLECTION);
+                assert_eq!(
+                    reopened
+                        .snapshot()
+                        .get(c, b"receipt/next")
+                        .unwrap()
+                        .is_some(),
+                    published
+                );
+                assert_eq!(
+                    handle(&mut reopened, "set-id prior 2 12"),
+                    Ok("committed 3".into())
+                );
+                assert_eq!(handle(&mut reopened, next), Ok("committed 5".into()));
+                drop(reopened);
+                disk.crash(Crash::DropAll).unwrap();
+                let mut reopened = open(&disk);
+                assert_eq!(state(&reopened), Ok((5, 30)));
+                assert_eq!(handle(&mut reopened, next), Ok("committed 5".into()));
+                assert_eq!(state(&reopened), Ok((5, 30)));
+                let c = reopened.collection_id(COLLECTION);
+                let retained = reopened.retained_snapshot(retained_id).unwrap();
+                assert_eq!(retained.revision(), 3);
+                assert_eq!(counter_at(&retained, c), Ok(12));
+                let record = retained.get(c, b"receipt/prior").unwrap().unwrap();
+                assert_eq!(record.as_bytes().unwrap(), prior_receipt);
+                assert!(retained.get(c, b"receipt/next").unwrap().is_none());
+            }
+        }
     }
 
     #[test]
