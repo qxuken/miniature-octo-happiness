@@ -12435,6 +12435,28 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-replica-decode-limits",
+      "file": "src/engine.rs",
+      "old": "Self::with_limits(limits)?",
+      "new": "Self::with_limits(limits).map_err(|_| Error::Io)?",
+      "test": "replication::follower::tests::replica_decode_preserves_the_first_error_and_both_roots",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-replica-decode-recovery",
+      "file": "src/engine.rs",
+      "old": "crate::storage::recover_replica(backend, &db.mem, identity, revision, length)?",
+      "new": "crate::storage::recover_replica(backend, &db.mem, identity, revision, length).map_err(|_| Error::Invalid)?",
+      "test": "replication::follower::tests::replica_decode_preserves_the_first_error_and_both_roots",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }

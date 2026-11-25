@@ -268,7 +268,7 @@
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
     "docs/tls-handshake-decisions.md": "8642a290a1922b2056270d750e6cbb32a54f966e54807f865f71b48757825a78",
     "include/weekend_db.h": "615e635bd99076fa2781a23ee04ca5083bf4c38332f45b6d37f2fb17774d524c",
-    "src/replication/follower/tests.rs": "938f1be96350299f4aa60411639b11d3f25fdc3ddbcddea3eebe824572e1b620",
+    "src/replication/follower/tests.rs": "5e8afbd69178077862bee3d44a1560fa462d58d8f256d4e0340686a1febf3492",
     "src/replication/tests.rs": "4752d275a9781684266d0da0db6985a3416c73ab83e0096f9f2e2161c5143235",
     "tests/admin_decisions.rs": "6a7cf5fb64e4c8c9fdd1ecad6aacf4171f14ac8096c775b53093e08fba5570ed",
     "tests/allocation.rs": "b2546afd7e746c8fefc5d12f0df66d27f84d2a9eaca19fb50a8286fe255dbc31",
@@ -297,7 +297,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "e29013653bfaab45413fbacbcdf71c8989eefa6123330ef46374223ee89d8510",
+    "xtask/tests/mutations.json": "11b9b0d9fb6ef2c841c1cc2bb3ffca0be0e9c4c532f7fe17034b80db58db54e1",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -374,7 +374,8 @@
     "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
     "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12",
     "docs/decisions/coordinator-service-current.md": "c0907b9cedbf7bd5cf9b6bb281139b25efbcdb25cf19bf4051a2cf6142df76f0",
-    "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7"
+    "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7",
+    "docs/decisions/replica-decode-current.md": "1648af39c4a87c40f7a03096befeaafa780e4753decb50f16875fff56b54d5a7"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -465,7 +466,8 @@
         "docs/decisions/transaction-observation-scan-current.md",
         "docs/decisions/transaction-assignment-commit-current.md",
         "docs/decisions/compact-copy-current.md",
-        "docs/decisions/typed-index-allocator-current.md"
+        "docs/decisions/typed-index-allocator-current.md",
+        "docs/decisions/replica-decode-current.md"
       ],
       "residual": "Native/callback error combinations and implicit/library branches retain their scoped dispositions."
     },
@@ -22209,6 +22211,50 @@
           ],
           "outcome": true
         }
+      ]
+    },
+    {
+      "name": "REPLICA-DECODE-LIMITS",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode_replica",
+        "kind": "try_propagation",
+        "conditions": [
+          "Self::with_limits(limits)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/follower/tests.rs",
+          "name": "replica_decode_preserves_the_first_error_and_both_roots"
+        }
+      ],
+      "mutations": [
+        "r1-replica-decode-limits"
+      ]
+    },
+    {
+      "name": "REPLICA-DECODE-RECOVERY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "src/engine.rs",
+        "target": "weekend-db::weekend_db",
+        "owner": "decode_replica",
+        "kind": "try_propagation",
+        "conditions": [
+          "crate::storage::recover_replica(backend, &db.mem, identity, revision, length)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "src/replication/follower/tests.rs",
+          "name": "replica_decode_preserves_the_first_error_and_both_roots"
+        }
+      ],
+      "mutations": [
+        "r1-replica-decode-recovery"
       ]
     }
   ],

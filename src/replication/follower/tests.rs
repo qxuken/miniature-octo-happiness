@@ -200,6 +200,68 @@ fn check_retained(receiver: &Receiver<Slots>, ack: DurableAck, value: u64) {
 }
 
 #[test]
+fn replica_decode_preserves_the_first_error_and_both_roots() {
+    let mut fixture = Fixture::with_exports(true);
+    let (mut receiver, manifest, slots, selected) = fixture.start();
+    let ack = Exchange::offer(&mut fixture.next)
+        .serve(&mut receiver)
+        .unwrap()
+        .unwrap();
+    check_retained(&receiver, ack, 2);
+    drop(receiver);
+    let before = selected.durable_image().unwrap();
+    let manifest_before = manifest.durable_image().unwrap();
+    let defaults = Limits::default();
+
+    // An armed first I/O distinguishes failing database construction from
+    // failing recovery. The lease is held just as it is on follower reopen.
+    for (limits, expected_error, expects_io) in [
+        (
+            Limits {
+                max_depth: 0,
+                ..defaults
+            },
+            Error::Invalid,
+            false,
+        ),
+        (
+            Limits {
+                max_live_bytes: 0,
+                ..defaults
+            },
+            Error::Limit,
+            false,
+        ),
+        (defaults, Error::Io, true),
+    ] {
+        let mut image = Lease::new(selected.clone()).unwrap();
+        selected.arm(0, Fault::Error);
+        let result = Database::decode_replica(
+            &mut image.0,
+            fixture.enrollment.file_identity,
+            ack.revision,
+            before.len() as u64,
+            limits,
+        );
+        assert_eq!(result.err(), Some(expected_error));
+        assert_eq!(selected.trace().unwrap().len(), usize::from(expects_io));
+        assert_eq!(selected.durable_image().unwrap(), before);
+    }
+    selected.arm(usize::MAX, Fault::Error);
+    let reopened = fixture.reopen(&manifest, &slots);
+    check_retained(&reopened, ack, 2);
+    assert!(
+        selected
+            .trace()
+            .unwrap()
+            .iter()
+            .all(|event| matches!(event.kind, IoKind::Read | IoKind::Length))
+    );
+    assert_eq!(selected.durable_image().unwrap(), before);
+    assert_eq!(manifest.durable_image().unwrap(), manifest_before);
+}
+
+#[test]
 fn torn_staging_sync_keeps_the_exact_old_receipt() {
     let mut fixture = Fixture::with_exports(true);
     let (mut receiver, _, _, candidate) = fixture.start();
