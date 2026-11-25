@@ -1509,3 +1509,29 @@ opt-in in these runs. The [archive manifest](decisions/journal-output-24f7900.sh
 covers all four suites, the reconciliation and the source bundle. Of the 861
 unclassified runtime decisions, three are in the journal: printing the second
 and third status lines, and propagating a failed initial state commit.
+
+### Interrupted journal creation and partial status output
+
+At `fd37a1b`, the simulator failed each I/O operation during journal
+creation, then reopened after dropping or persisting the pending writes.
+The two root barriers distinguish revision 0 (no collection, journal load
+returns NotFound), revision 1 (empty collection, UnsupportedFormat) and
+revision 2 (exact initial identity, slot and empty receipt). The
+[operator guide](../apps/write-coordinator/README.md#durable-client-journal)
+covers a partially initialized file. The status test bounded its output
+at each line boundary and verified the exact prefix, propagated write error
+and unchanged durable image. All 26 unit tests and 16 ordinary process tests
+passed per profile in debug and release on macOS arm64 and Docker Linux
+arm64. The [local archive manifest](decisions/journal-initial-fd37a1b.sha256)
+covers these runs and source. Reconciliation at `7ea6e28` leaves zero
+unclassified journal records, 858 runtime gaps and 7,398 tooling gaps.
+Compiler measurement, delegated cases and off-machine custody remain open.
+
+### Native Windows compact dispatch
+
+The Windows job ran the same-arity unknown command and the unsupported
+compact command in both debug and release. Each returned its expected error
+and preserved its input. The tested merge commit `afcdb16` has the same
+Git tree as PR head `c8beb0e`. The [job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45635931513/job/139281231969)
+and [archive manifest](decisions/windows-admin-c8beb0e.sha256) identify the
+runner logs and checkout metadata for both outcomes.
