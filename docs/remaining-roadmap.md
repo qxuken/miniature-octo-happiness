@@ -1751,3 +1751,36 @@ their named tests in all four runs. The
 44 process receipts and reconciliation. There are zero unclassified
 source decisions in the shared Unix file adapter, 698 runtime gaps overall
 and 7,447 tooling gaps. The device and platform residuals remain tracked.
+
+### Study roster policy and cutover admission
+
+At `2956dd8`, the roster policy reads an actual configuration file. The
+syntax test distinguishes missing and oversize files, malformed UTF-8,
+wrong version, missing or trailing words, invalid identities, and an
+overflowing generation. The configuration returns the original I/O,
+encoding or parse error where appropriate.
+
+| Decision | One-predicate change from the accepted row | Result |
+| --- | --- | --- |
+| Identity text | Length differs from 32, or a byte is nonhexadecimal | Rejects each identity position with the same identity diagnostic. |
+| Parsed policy | Zero collection, zero generation, zero first actor, or unordered actors | Each independently returns Invalid. |
+| Roster change | Same collection, same generation, or an overlapping actor | Each independently returns Invalid before creating either destination. |
+
+The stage test holds the same old database pair throughout, with a
+retained root in each. It compares both original files byte-for-byte
+after each refused change and after a valid change. Both new files
+reopen under their assigned actors and policy. The existing CLI suite
+also runs the full checkpoint, staged-pair and resumed-sync workflow.
+
+Rust 1.100.0 passed all 37 Study tests per profile on macOS arm64
+and Docker Linux arm64/ext4. Strict Clippy passed on both. All 17
+named mutations failed their intended test in debug and release on
+both platforms. A fresh extraction checks all 930 source hashes,
+68 detections and 232 supervised command receipts against the
+[archive manifest](decisions/study-roster-2956dd8.sha256).
+Reproduce the controls with `cargo +1.100.0 xtask mutations --case
+r1-study-roster- --toolchain 1.100.0` and repeat with `--release`.
+
+The reconciliation classifies 16 decisions in this batch. It leaves
+57 roster decisions, including receipt construction and stage error
+propagation, among the 682 runtime and 7,447 tooling gaps.
