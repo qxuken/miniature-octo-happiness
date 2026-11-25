@@ -12457,6 +12457,52 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db"
+    },
+    {
+      "name": "r1-retain-admission-owner",
+      "file": "src/engine.rs",
+      "old": "!std::ptr::eq(self, snapshot.db)",
+      "new": "std::ptr::eq(self, snapshot.db)",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "retention_limit_foreign_roots_and_monotonic_ids"
+    },
+    {
+      "name": "r1-retain-admission-capacity",
+      "file": "src/engine.rs",
+      "old": "state.retention.entries.len() >= MAX_RETAINED_SNAPSHOTS",
+      "new": "state.retention.entries.len() >= MAX_RETAINED_SNAPSHOTS - 1",
+      "test": "retention",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db",
+      "exact_test": "retention_limit_foreign_roots_and_monotonic_ids"
+    },
+    {
+      "name": "r1-retain-admission-revision",
+      "file": "src/engine.rs",
+      "old": "state.head.revision.checked_add(1).ok_or(Error::Exhausted)?;\n        let id = state.retention.next_id;",
+      "new": "state.head.revision.checked_add(1).ok_or(Error::Limit)?;\n        let id = state.retention.next_id;",
+      "test": "engine::tests::every_revision_increment_accepts_last_revision_then_rejects_wrap",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
+    },
+    {
+      "name": "r1-retain-admission-id",
+      "file": "src/engine.rs",
+      "old": "id.checked_add(1).ok_or(Error::Exhausted)?;\n        let mut retention",
+      "new": "id.checked_add(1).ok_or(Error::Limit)?;\n        let mut retention",
+      "test": "engine::tests::final_catalog_and_retention_ids_are_assigned_once",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-db"
     }
   ]
 }
