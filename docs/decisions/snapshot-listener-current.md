@@ -69,3 +69,33 @@ earlier command and retry rows keep their current source bindings.
 | E | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:212:49– | 8623..8624 | try_propagation | main | Closing stdout prevents the first capture line and reports an I/O diagnostic. A normal capture prints both exact lines. |
 | C | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:232:14– | 9109..9120 | match_guard | main | The exact verb reaches its phase. Changing only the verb returns usage and preserves the directory. |
 | C | weekend-replicate::weekend-replicate | apps/weekend-replicate/src/native.rs:257:14– | 9907..9927 | match_guard | main | The exact verb reaches its phase. Changing only the verb returns usage and preserves the directory. |
+
+## Verification
+
+Frozen source `0e633ce36e37132e1517ad166eef98f31eec2823` passed debug
+and release on arm64 macOS and arm64 Docker Linux/ext4 with Rust 1.100.0.
+Each profile passed 54 snapshot CLI tests on macOS, 55 on Linux and
+11 core replication tests on both. The long manifest and Linux
+exhaustion cases remained opt-in. Strict Clippy passed on both hosts.
+Five Windows x64 MSVC debug targets cross-linked.
+
+Both new controls replace the original error with Other. Each fails
+the expected error-kind assertion. All 17 selected controls reached
+their intended assertions in every campaign, including the earlier
+bind and readiness controls. Fresh extraction checked 244 command
+reports and 984 copied source files per campaign.
+[Archive checksums](snapshot-listener-0e633ce.sha256)
+
+Reconciliation closes the two remaining snapshot listener setup
+propagation records and leaves 412 runtime and 7,514 tooling gaps.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p weekend-replicate
+cargo test --offline --locked --all-features -p weekend-db --test replication
+cargo xtask mutations --toolchain 1.100.0 --case r1-snapshot-listener- \
+  --case r1-snapshot-retry- --case r1-snapshot-command-output- \
+  --case r1-snapshot-startup- --case r1-snapshot-dispatch- --output "$OUTPUT/debug"
+```
+
+Repeat with `--release` and a fresh mutation output path.

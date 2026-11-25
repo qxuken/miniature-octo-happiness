@@ -118,3 +118,12 @@ in both profiles. The closed readiness pipe and native bind error checks
 were part of that regression. The downloaded artifact matches the exact
 snapshot CLI source and test bytes at the test merge and PR head.
 [Native minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45706498857/job/139529935557), [Archive checksums](windows-msrv-06fb27c.sha256)
+
+The full native Windows workspace job at the same merge also passed
+the snapshot readiness regression in debug and release. Its archived
+logs retain both profiles and identify the tested checkout.
+[Native Windows workspace job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45706498857/job/139529936126), [Workspace log checksums](windows-native-06fb27c.sha256)
+
+Follow-up coverage injects failed nonblocking setup and bound-address
+lookup on a real listener with a queued client.
+[Listener setup ledger](snapshot-listener-current.md)

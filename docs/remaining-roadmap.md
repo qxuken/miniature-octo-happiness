@@ -2213,3 +2213,19 @@ PR #82 head `06fb27c` passed the minimum-Rust Windows job. Artifact
 logs confirm the revised Study receive and listener-retirement tests
 and the snapshot readiness regression in debug and release at the
 exact tested merge. [Windows proof checksums](decisions/windows-msrv-06fb27c.sha256)
+
+### Snapshot listener setup faults
+
+At `0e633ce`, injected nonblocking and address-lookup failures retain
+their listen diagnostics. Both close a queued TCP client, leave
+readiness empty and preserve the selected image and manifest bytes.
+Reopening confirms the same durable receipt and retained root.
+macOS and Docker Linux/ext4 passed both profiles and 17 controls per
+campaign. The Windows debug targets cross-linked. Reconciliation
+leaves 412 runtime and 7,514 tooling gaps.
+[Listener setup ledger](decisions/snapshot-listener-current.md)
+
+The earlier Windows fix at `06fb27c` passed both the full workspace
+and minimum-Rust jobs. The workspace log independently confirms the
+Study receive, queued-listener and snapshot readiness tests in both
+profiles. [Native workspace proof checksums](decisions/windows-native-06fb27c.sha256)

@@ -81,3 +81,9 @@ contains the passing corrected disconnect/retry test and queued-listener
 test in both debug and release. The packaged source matches the exact
 fixture bytes in the tested merge and PR head.
 [Native minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45706498857/job/139529935557), [Archive checksums](windows-msrv-06fb27c.sha256)
+
+The full native Windows workspace job also passed at the same merge.
+Its debug and release logs each include the corrected disconnect/retry
+and queued-listener tests. The archive records the PR head, checkout
+commit and exact workspace step.
+[Native Windows workspace job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45706498857/job/139529936126), [Workspace log checksums](windows-native-06fb27c.sha256)
