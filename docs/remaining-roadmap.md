@@ -1114,3 +1114,28 @@ replication suite passed 10 tests and skipped its separately scheduled
 native manifest-growth workload. Reconciliation leaves 1,832 runtime,
 26 driver and 7,397 tooling gaps. The [evidence manifest](decisions/writer-recovery-2c5a95f.sha256)
 pins the source bundle and both archives.
+
+### Packaged coordinator recovery on native Linux and Windows
+
+[Hosted run 45616580373](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45616580373)
+exercised private packages built from merge source `1029d2c` on x86-64
+Linux and Windows. Both runners built debug and release coordinator tools
+from the package and ran them from a relocated directory. Each runner
+then downloaded its uploaded package and repeated both profiles. The four
+archive digests match the [local custody manifest](coordinator-recovery-1029d2c.sha256).
+
+An independent archive read matched all 942 Linux and 949 Windows payload
+hashes and all 865 source pins per package against the Git tree. All four
+campaigns recorded the same package-manifest digest before and after
+recovery on their respective platform. The review checked 40 command
+receipts, 116 campaign artifact hashes and the retained coordinator and
+driver executables against the hashes recorded for their profile.
+
+Each of the eight profile runs restored both journal prefixes, with and
+without forwarding the pending write. The empty prefix finished at
+revision 5 with value 42 and receipt sequence 1. The populated prefix
+finished at revision 6 with value 99 and receipt sequence 2. All 32 cases
+lost the second reply, replayed locally with a stable result, preserved
+the two retained roots and left the original files intact. Qualification
+under the intended deployment account and on the selected release source
+remains open.
