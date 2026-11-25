@@ -2,8 +2,8 @@
 
 The previous service used the scoped spawn convenience method twice.
 If the second creation panics, unwinding joins the receiving worker
-while its stop flag is still false. The receiver cannot exit its accept
-loop from that flag. Rust documents the panic and implicit join behavior.
+while its stop flag is still false. That join can wait indefinitely.
+Rust documents the panic and implicit join behavior.
 [Scoped spawn](https://doc.rust-lang.org/std/thread/struct.Scope.html#method.spawn)
 
 Both launches now use the fallible thread builder. A receiving-worker
@@ -41,3 +41,35 @@ returns.
 The nine carried rows retain the original evidence for command admission,
 interactive I/O and outgoing status. The edit remaps their spans in the
 startup caller. [Interactive I/O ledger](study-interactive-io-current.md) · [Outgoing peer status ledger](study-peer-status-current.md)
+
+## Verification
+
+Frozen source `2b3420f11751e9cc55a29149c275424c431d53f1` passed with Rust
+1.100.0 on arm64 macOS and offline arm64 Docker Linux on ext4. Debug and
+release each passed 64 Study tests and 14 core CRDT tests on both hosts.
+Strict Clippy passed on both hosts.
+
+The four launch controls detect a substituted I/O error, a changed
+receiving phase, a receiver left running and an implicit join that
+would let a receiver panic replace the launch error. All seven existing
+outgoing-status controls passed in the same four configurations. Fresh
+extraction checked the exact assertions, runner identities, all 160
+supervised commands and 962 copied files per campaign.
+[Archive checksums](study-service-launch-2b3420f.sha256)
+
+The pinned macOS nightly `739adecd4` reran both outcomes at the four
+outgoing status conditions and the focused launch test. The archived
+executable and raw profiles reproduced the LLVM report byte for byte.
+Actual OS thread exhaustion remains unobserved. Reconciliation retains
+the 444 runtime and 7,514 tooling gaps.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p study-peer
+cargo test --offline --locked --all-features -p weekend-db --test crdt
+cargo xtask mutations --toolchain 1.100.0 \
+  --case r1-study-service-launch- --case r1-study-peer-status- \
+  --output "$OUTPUT/debug"
+```
+
+Repeat the commands with `--release` and a fresh mutation output path.

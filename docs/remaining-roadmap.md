@@ -2077,3 +2077,13 @@ Reconciliation records scoped evidence for all 17 admission decisions
 and leaves 444 runtime and 7,514 tooling gaps. Native OS thread exhaustion
 remains unobserved.
 [Session worker launch ledger](decisions/study-worker-launch-current.md)
+
+### Study service worker startup
+
+At `2b3420f`, the two service workers start through the fallible thread
+builder. If the outgoing launch fails, startup signals, wakes and joins the
+receiver before returning the original error. The worker test also covers a
+receiver panic during cleanup. Four new launch controls and seven existing
+outgoing controls pass on macOS and Docker Linux in debug and release.
+Reconciliation accounts for three new source records and leaves 444 runtime
+and 7,514 tooling gaps. [Service worker launch ledger](decisions/study-service-launch-current.md)
