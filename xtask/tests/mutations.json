@@ -17277,6 +17277,42 @@
       "matches": 1,
       "package": "study-peer",
       "exact_test": "native::admission::tests::receiver_stop_closes_a_queued_connection"
+    },
+    {
+      "name": "r1-snapshot-startup-bind-error",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "TcpListener::bind(address)?",
+      "new": "TcpListener::bind(address).map_err(|_| io::Error::from(io::ErrorKind::PermissionDenied))?",
+      "test": "cli",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+    },
+    {
+      "name": "r1-snapshot-startup-listen-phase",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "diagnostics::at(Phase::Listen, || {",
+      "new": "diagnostics::at(Phase::LocalCommand, || {",
+      "test": "cli",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
+    },
+    {
+      "name": "r1-snapshot-startup-ready-output",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "print_report(format_args!(\"ready {address}\"))?;",
+      "new": "println!(\"ready {address}\");",
+      "test": "cli",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime"
     }
   ]
 }

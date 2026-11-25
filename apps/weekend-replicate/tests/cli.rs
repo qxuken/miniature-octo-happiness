@@ -3,7 +3,7 @@ use std::{
     collections::BTreeMap,
     fs,
     io::Read,
-    net::TcpStream,
+    net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
@@ -40,12 +40,26 @@ fn run(args: &[&str]) -> String {
 fn run_with_closed_stdout(mut command: Command) {
     let (reader, writer) = std::io::pipe().unwrap();
     drop(reader);
-    let failed_output = command.stdout(writer).output().unwrap();
-    assert!(!failed_output.status.success());
-    let error = String::from_utf8(failed_output.stderr).unwrap();
+    let mut child = Server(
+        command
+            .stdout(writer)
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let status = child.exit_status();
+    let mut error = String::new();
+    child
+        .0
+        .stderr
+        .take()
+        .unwrap()
+        .read_to_string(&mut error)
+        .unwrap();
+    assert_eq!(status.code(), Some(1), "{error}");
     assert_eq!(error.lines().count(), 1, "{error}");
     assert!(
-        error.contains(r#""phase":"local_command","category":"io""#),
+        error.contains(r#""phase":"local_command","category":"io","code":"broken_pipe""#),
         "{error}"
     );
 }
@@ -202,6 +216,62 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     assert!(ack.contains("digest="));
     let status = run(&["status", follower, stream, identity]);
     assert!(status.lines().any(|l| l == ack));
+    let follower_path = Path::new(follower);
+    let manifest = follower_path.join("replica-manifest.wdb");
+    assert!(status.contains("selected_slot=Some(0)"));
+    let selected = follower_path.join("replica-0.wdb");
+    let selected_bytes = fs::read(&selected).unwrap();
+    let manifest_bytes = fs::read(&manifest).unwrap();
+    let check_receipt = || {
+        assert_eq!(fs::read(&manifest).unwrap(), manifest_bytes);
+        assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+        assert_eq!(run(&["status", follower, stream, identity]), status);
+    };
+
+    let occupied = TcpListener::bind("127.0.0.1:0").unwrap();
+    let occupied_address = occupied.local_addr().unwrap().to_string();
+    let native = TcpListener::bind(&occupied_address).unwrap_err();
+    let mut busy_server = server_args;
+    busy_server[4] = &occupied_address;
+    let mut child = Server(
+        Command::new(BIN)
+            .arg("--diagnostics=json")
+            .args(busy_server)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    assert_eq!(child.exit_status().code(), Some(1));
+    drop(occupied);
+    assert_eq!(child.0.stdout.take().unwrap().read(&mut [0]).unwrap(), 0);
+    let mut error = String::new();
+    child
+        .0
+        .stderr
+        .take()
+        .unwrap()
+        .read_to_string(&mut error)
+        .unwrap();
+    assert_eq!(error.lines().count(), 1, "{error}");
+    assert!(
+        error.contains(r#""phase":"listen","category":"io""#),
+        "{error}"
+    );
+
+    let os_code = native.raw_os_error().unwrap();
+    assert!(
+        error.contains(&format!(r#""os_code":{os_code}}}"#)),
+        "{error}"
+    );
+
+    check_receipt();
+
+    let mut closed_server = Command::new(BIN);
+    closed_server.arg("--diagnostics=json").args(server_args);
+    run_with_closed_stdout(closed_server);
+    check_receipt();
+
     let mut server_args = server_args;
     server_args[8] = "2";
     let (mut server, address) = Server::start(&dir.0, &server_args);
@@ -253,12 +323,7 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("option outside bounds"));
     assert!(!forbidden_export.exists());
     // Offline maintenance: all process/file leases are closed before raw reads.
-    let follower_path = Path::new(follower);
-    let manifest = follower_path.join("replica-manifest.wdb");
-    assert!(status.contains("selected_slot=Some(0)"));
-    let selected = follower_path.join("replica-0.wdb");
     let inactive = follower_path.join("replica-1.wdb");
-    let selected_bytes = fs::read(&selected).unwrap();
     fs::write(&inactive, b"abandoned incomplete image").unwrap();
     fs::write(follower_path.join("operator-note"), b"keep").unwrap();
     let before = fs::read(&manifest).unwrap();
