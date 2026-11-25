@@ -419,7 +419,7 @@
     "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591",
     "docs/decisions/study-service-launch-current.md": "d271a3fcbcfeefc1ec3871c3f3b6b5e7c0bc60b8cf028a47a19bafb147874ca7",
     "docs/decisions/study-service-shutdown-current.md": "f30d9f7b68de9ffe6037ed386e8779adbee16b2af41661ba9812cb6b83588330",
-    "docs/decisions/study-windows-fixtures-current.md": "fec70e35146e7d30da65516e3838d040ddfdf7180afd34d635929249970efc8d"
+    "docs/decisions/study-windows-fixtures-current.md": "781c8656ab00cefbf06f0e5538e5cf20a53a423deb7153a7860c3a1b5483f6fa"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

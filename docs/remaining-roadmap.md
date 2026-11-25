@@ -2098,3 +2098,15 @@ test with a scoped-thread panic. The five shutdown controls and all four
 launch controls passed debug and release on macOS and Docker Linux.
 Reconciliation leaves 439 runtime and 7,514 tooling gaps.
 [Service shutdown ledger](decisions/study-service-shutdown-current.md)
+
+### Study Windows fixture corrections
+
+The two Windows jobs at PR #82 head `e990a9f` found the same failures.
+The startup fixture had assumed Unix credential creation, and the
+outgoing fixture had assumed a closed-port probe always returned
+connection refusal. At `45ad8f2`, the test verifies the Windows keygen
+refusal. The retry probe uses one retained listener and a controlled EOF
+before retrying with normal authenticated exchanges. Both local platforms
+passed the tests and eight selected controls in both profiles. The
+Windows tests also cross-linked in both profiles.
+[Windows fixture ledger](decisions/study-windows-fixtures-current.md)
