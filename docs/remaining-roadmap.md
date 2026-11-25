@@ -1864,3 +1864,32 @@ mutant results against the corresponding executables and exact test
 reports, as well as 265 process receipts. The TSan proof passes its
 runtime calibrations and full workspace run. These artifacts qualify
 their tested tree and platforms.
+
+### Study roster seeding and counter admission
+
+At `7dd2c5b`, a converged old pair at `u64::MAX / 2` stages
+successfully. Actor A reopens with that total in its own counter
+component, the completed topic, both live plans and the two effective
+register values. The removed plan stays absent. Actor B reopens with
+the default record and reaches A's exact state after an exchange.
+Both source images remain byte-for-byte intact during staging.
+
+One extra minute in the second old actor's component makes the
+converged total exceed the single-component limit. Staging returns
+Limit before either destination exists and preserves both source
+files. Independent seeder cases vary minutes, goal and session limit
+one at a time and distinguish an unset register from a value of zero.
+A direct seeding attempt at limit plus one also preserves the counter
+error and leaves its value zero.
+
+Rust 1.100.0 passed 44 Study tests, 14 core CRDT tests and strict
+Clippy on macOS arm64 and Docker Linux arm64/ext4. Both profiles on
+both platforms detected all nine controls. Fresh extraction checks
+935 inputs, 36 detections and 132 process receipts against the
+[archive manifest](decisions/study-seeding-7dd2c5b.sha256).
+Reproduce with `cargo +1.100.0 xtask mutations --case r1-study-seeding-
+--toolchain 1.100.0` and repeat with `--release`.
+
+Nine source decisions reconcile here. The roster retains 22 open
+decisions, including failure propagation from enrollment, staging
+publication and output, among 647 runtime and 7,447 tooling gaps.

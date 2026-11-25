@@ -125,8 +125,9 @@ study-policy-v1 0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a 8 03030303030303030303030303030
    Each old-pair command holds both old leases and requires exact equality
    of the causal payloads. Guarded staging checks the checkpoint before
    creating either destination and checks that the practice total fits in
-   one actor component. It seeds the total, completed and currently planned
-   topics and effective register values on actor A only. Old causal dots
+   one actor component (`u64::MAX / 2`). A larger agreed total returns
+   `Limit` before creating either destination. It seeds the total, completed
+   and currently planned topics and effective register values on actor A only. Old causal dots
    and tombstones stay in the old files. Save the report with the checkpoint
    and receipt. An error may leave one or both partial destinations. Keep old
    routes frozen and use fresh paths for a retry after inspecting the failed
