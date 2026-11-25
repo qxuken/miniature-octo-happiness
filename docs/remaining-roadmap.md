@@ -1468,3 +1468,16 @@ covers 20 detections, 80 supervised commands, the suites and source bundle.
 
 Reconciliation at `470aa78` leaves 44 journal gaps, 902 runtime gaps overall
 and 7,398 tooling gaps. Compiler MC/DC and off-machine proof custody remain open.
+
+### Journal command dispatch and occupied slots
+
+At `62e5989`, the native CLI committed through slot 1023, rejected slot 1024
+and rejected attempts to initialize an occupied slot at an existing or fresh
+path. Invalid actions, options and numeric arguments preserved the local file
+and coordinator receipt. The new regression passed on macOS arm64 and Docker
+Linux arm64 in debug and release. The [dispatch ledger](decisions/journal-cli-current.md)
+records 14 decisions using these runs and the existing lost-reply test.
+The [archive manifest](decisions/journal-cli-62e5989.sha256) identifies the
+logs, source bundle and reconciliation. Thirty journal gaps remain, including
+the all-zero identity response. There are 888 runtime gaps overall and 7,398
+tooling gaps. These counts track source review; compiler MC/DC remains open.
