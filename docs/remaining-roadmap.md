@@ -1813,3 +1813,15 @@ The reconciliation classifies 15 source decisions here. The other
 controls verify receipt fields and ordering. The outstanding queue
 has 42 roster decisions, including stage storage and seeding errors,
 among 667 runtime and 7,447 tooling gaps.
+
+### One-hour native lifecycle soaks
+
+Frozen `4474f27` completed the requested hour on macOS arm64/APFS and
+Docker Linux arm64/ext4, with 3,696 and 10,700 complete rounds respectively.
+Fresh extraction independently reproduced the latency tables and checked
+the current root and all eight retained roots in both final database
+images. The [soak report](soak.md#same-source-one-hour-runs-at-4474f27)
+records p50/p95/p99 for contention, compaction, reopen, backup and restore,
+plus measured memory and disk use. The same-host four-key workload closes
+this duration check. Deployment service budgets, hardware and representative
+per-operation queue latency remain R3 requirements.

@@ -232,3 +232,49 @@ A short zero-exit child with consistent round records and a child claiming
 60 seconds of work both failed the new controls. A real two-second macOS
 run passed below the round limit. The deployment-device soak and agreed
 operating budgets remain open.
+
+## Same-source one-hour runs at 4474f27
+
+The native workload completed a requested hour on each platform at frozen
+engine and driver `4474f271f633caac176923f12fbe7bc003ee2dfb`, using Rust
+1.100.0. The launcher tests passed eight cases per platform and profile.
+Each run crossed the deadline on both the child and launcher clocks,
+exited zero, and reaped the child. Each round verified the current and
+retained data after compaction, backup and restore. Both campaigns ran
+on the same development host and overlapped other qualification work.
+
+| Platform | Wall time (s) | Rounds | Writer commits | Reader iterations | Final revision | Retained roots | Peak RSS (KiB) | Peak core bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64 / APFS | 3600.838 | 3696 | 236544 | 11244670141 | 243930 | 8 | 3568 | 74368 |
+| Docker Linux arm64 / ext4 | 3600.015 | 10700 | 684800 | 12885737600 | 706194 | 8 | 2880 | 74080 |
+
+| Stage | macOS p50 / p95 / p99 (ms) | Docker Linux p50 / p95 / p99 (ms) |
+| --- | ---: | ---: |
+| Whole round | 951.079 / 1229.864 / 1669.686 | 308.600 / 563.713 / 1084.850 |
+| 64 commits with readers | 802.575 / 1047.029 / 1471.100 | 279.782 / 511.535 / 1015.307 |
+| Compact | 48.950 / 63.246 / 92.035 | 4.879 / 10.968 / 32.972 |
+| Reopen and verify | 7.980 / 12.008 / 18.293 | 3.569 / 9.951 / 19.453 |
+| Backup | 21.174 / 28.116 / 43.099 | 4.231 / 8.229 / 18.018 |
+| Restore | 21.002 / 28.005 / 43.131 | 3.854 / 6.760 / 15.909 |
+
+On both runs, the pre-compaction image was at most 917,504 bytes and the
+compacted image was 122,880 bytes. Maximum live core bytes were 32,504 on
+each platform. The concurrent timing covers a group of 64 commits with
+readers running. These measurements describe the four-key lifecycle
+workload and the host's observed latency during the runs. Production
+service limits still require the agreed deployment hardware, queue and
+per-commit measurements, heavier histories, and the matched release
+workload.
+
+Verify the [archive manifest](decisions/hour-soak-4474f27.sha256), extract
+each platform archive, and copy its recorded `weekend-native-soak` binary
+to `build/release/weekend-native-soak` inside the extraction. Both the
+Rust verifier and the independent JSONL parser checked the 923 archived
+sources, the terminal report and every timing percentile. A separate
+reader linked to the frozen macOS engine reopened each extracted final
+`data/live.db`. It checked all four key values and revisions in the
+current root and each of the eight retained roots, rejected a one-round
+offset in the expected revision, and checked that both images retained
+their original SHA-256 digests. The archives retain the binary, reports,
+raw rounds, original logs, reader and source bundle. Local custody is under
+`target/archived-proof/hour-soak-4474f27`.
