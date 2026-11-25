@@ -1825,3 +1825,42 @@ records p50/p95/p99 for contention, compaction, reopen, backup and restore,
 plus measured memory and disk use. The same-host four-key workload closes
 this duration check. Deployment service budgets, hardware and representative
 per-operation queue latency remain R3 requirements.
+
+### Study roster storage failure and retry
+
+At `c269449`, checkpoint, stage and verify preserve the NotFound result
+from either missing source and Conflict when both files open but their
+causal states disagree. Staging creates neither destination in those
+cases. An occupied first destination prevents creation of the second.
+An occupied second destination leaves an empty revision-zero first file
+with no retained roots. The occupied bytes and both source files are
+unchanged. Removing that empty fixture allows a successful retry and
+reopen of the new pair.
+
+All 42 Study tests and strict Clippy passed on macOS arm64 and Docker
+Linux arm64/ext4. Both debug and release detected all 11 controls on
+each platform. Fresh extraction checks 933 inputs, 44 detections and
+156 process receipts against the
+[archive manifest](decisions/study-pair-io-c269449.sha256).
+Reconciliation leaves 31 roster gaps among 656 runtime and 7,447 tooling
+gaps.
+
+### Hosted R1 and TSan evidence at 0a5f7f0
+
+PR #82's [engine run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45651468063)
+passed its 27 scheduled checks, with release-only compatibility skipped.
+The [bounded fuzz run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45651468124)
+also passed. The hosted merge `c6e39e9` and pushed head `0a5f7f0`
+have the same tree.
+
+Twelve original downloaded ZIPs match the GitHub byte lengths and
+SHA-256 digests. Their [archive manifest](decisions/hosted-r1-0a5f7f0.sha256)
+includes the source bundle and independent verifier. The verifier checks
+all 927 copied files, matches eleven reconciliation reports byte-for-byte,
+and recomputes the Linux nine-shard selection of 1,178 cases per profile
+and the 128 Darwin cases per profile. It verifies 10,032 Unix process
+receipts. For the native Windows coordinator it checks 128 baseline and
+mutant results against the corresponding executables and exact test
+reports, as well as 265 process receipts. The TSan proof passes its
+runtime calibrations and full workspace run. These artifacts qualify
+their tested tree and platforms.
