@@ -1269,3 +1269,24 @@ checked 20 catches and 84 supervised commands. Each profile passed all
 12 integration tests and the output-refusal test. The selected storage
 unit suite passed 122 tests on macOS and 132 on Linux. Reconciliation
 leaves 1,479 runtime, 26 driver and 7,397 tooling gaps.
+
+### Inspection and verified backup copies
+
+A backup may have synced a complete destination image when its independent
+verification read fails. On `159791b` the regression injects an I/O failure
+at the first header read after the destination's final sync. The caller
+receives `Io` instead of size statistics. After a simulated crash, the
+destination matches the clean backup byte for byte and reopens with the
+current and retained values. A retry to a fresh destination returns the
+expected sizes. The source remains byte-identical throughout.
+
+The [inspection ledger](decisions/inspection-backup-current.md) records
+eight named propagation controls among its eighteen source decisions.
+Two additional mutations skip verification or retain the destination's
+serialization caches into the verification read. All ten were caught
+on macOS and Docker Linux in debug and release. Each run also passed
+all six inspection integration tests and both unit tests. The
+[archive manifest](decisions/inspection-backup-159791b.sha256) pins
+the source and both campaigns. Review verified 40 catches and 152
+supervised command receipts. Reconciliation leaves 1,462 runtime,
+26 driver and 7,397 tooling gaps.
