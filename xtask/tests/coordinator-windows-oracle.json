@@ -1,0 +1,43 @@
+{
+  "source_commit": "b0db5d6c03f110766351293482de7163a6e5c7e1",
+  "source_sha256": {
+    "apps/write-coordinator/src/native/journal.rs": "6171f632f8128161e0ee0e26585ebcb8075d95c2a8a41269df5c66af936b5a46",
+    "apps/write-coordinator/src/native/protocol.rs": "3a5caa03af98054871ce6a4e535b18350af19a6a587464b6ac523a0bb44b1da7",
+    "apps/write-coordinator/src/native/sequenced.rs": "cfb7566de7deb025b272c3ef77a2eb2827dbd27a685ebe2b17938a6f47e37bd6",
+    "apps/write-coordinator/src/native/service.rs": "b1bd1006b17a6262d1272b8c742365e0c213f7802057716e6d33fbdac1960f84"
+  },
+  "assertions": {
+    "r1-coordinator-auth-length": "assertion `left == right` failed",
+    "r1-coordinator-auth-value": "assertion `left == right` failed",
+    "r1-coordinator-line-limit": "assertion `left == right` failed",
+    "r1-coordinator-queue-deadline": "assertion `left == right` failed",
+    "r1-coordinator-queue-disconnected": "assertion `left == right` failed",
+    "r1-coordinator-queue-stopping": "assertion failed: matches!(queued.recv_timeout(wait), Err(mpsc::RecvTimeoutError::Disconnected))",
+    "r1-coordinator-receipt-length": "assertion `left == right` failed",
+    "r1-coordinator-receipt-version": "assertion `left == right` failed",
+    "r1-coordinator-receipt-sequence": "assertion `left == right` failed",
+    "r1-coordinator-receipt-expected": "assertion `left == right` failed",
+    "r1-coordinator-receipt-prefix": "assertion `left == right` failed",
+    "r1-coordinator-receipt-head": "assertion `left == right` failed",
+    "r1-coordinator-slot-capacity": "assertion `left == right` failed: set-seq 1024 1 6 70",
+    "r1-coordinator-store-identity": "assertion `left == right` failed",
+    "r1-coordinator-journal-predecessor-sequence": "assertion `left == right` failed: journal-set 07070707070707070707070707070707 0 3 01010000000000000003000000000000000c000000000000000400000000000000 6 70",
+    "r1-coordinator-journal-predecessor-revision": "assertion `left == right` failed: journal-set 07070707070707070707070707070707 0 3 01020000000000000005000000000000001e000000000000000600000000000000 5 70",
+    "r1-coordinator-replay-expected": "assertion `left == right` failed: journal-set 07070707070707070707070707070707 0 2 01010000000000000003000000000000000c000000000000000400000000000000 4 30",
+    "r1-coordinator-replay-value": "assertion `left == right` failed: journal-set 07070707070707070707070707070707 0 2 01010000000000000003000000000000000c000000000000000400000000000000 5 31",
+    "r1-coordinator-next-sequence": "assertion `left == right` failed: set-seq 0 4 6 70",
+    "r1-coordinator-predecessor-equality": "assertion `left == right` failed",
+    "r1-coordinator-revision-conflict": "assertion `left == right` failed",
+    "r1-coordinator-state-length": "assertion failed: matches!(State::decode(&oversized), Err(Error::Corrupt))",
+    "r1-coordinator-state-magic": "magic",
+    "r1-coordinator-state-flags": "reserved flag",
+    "r1-coordinator-state-identity": "zero identity",
+    "r1-coordinator-state-slot": "slot past capacity",
+    "r1-coordinator-state-absent-receipt": "absent receipt has payload",
+    "r1-coordinator-state-absent-intent": "absent intent has payload",
+    "r1-coordinator-state-intent-floor": "intent below receipt floor",
+    "r1-coordinator-state-intent-revision": "exhausted intent revision",
+    "r1-coordinator-resume-confirmation": "assertion failed: journal.resume(&mut |_| Ok(response.into())).is_err()",
+    "r1-coordinator-resume-stale-conflict": "assertion failed: journal.resume(&mut |_| Ok(response.into())).is_err()"
+  }
+}

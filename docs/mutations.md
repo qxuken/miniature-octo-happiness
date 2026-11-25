@@ -196,3 +196,26 @@ coordinator mutations on native Windows remains open.
 The local archive of both new campaigns' reports and logs,
 `exact-coordinator-7d8cf21.tar.gz`, has SHA-256
 `3378c2eb24c4125b6cc4113d12d7f4529fe06fe3d55f8daad983cd48125b6987`.
+
+### Windows coordinator campaign
+
+On Windows x64/MSVC, run the private controller from a clean checkout with
+the workspace dependencies cached. One invocation tests both profiles.
+
+```sh
+cargo +1.100.0 xtask mutations --case r1-coordinator- --toolchain 1.100.0 --output target/r1/mutations-coordinator
+```
+
+The 32 mutation definitions and seven designated tests come from the shared
+registry. The Windows oracle pins four coordinator source files and the
+expected diagnostic for each mutant. The runner saves the Cargo-selected
+binary test executable and its digest for each baseline and mutant. It
+cleans the coordinator package before every run while retaining the profile's
+dependency cache. All 128 invocations must return the expected test result,
+and every mutant must emit its designated diagnostic exactly once.
+
+The existing Windows decision-inventory job runs this campaign for PRs that
+change its inputs and for manual and release qualification. Debug and
+release controller tests exercise the source pins, assertion checks, binary
+selection and Cargo arguments on macOS. Native campaign status belongs to
+the Windows job for the tested Git revision.

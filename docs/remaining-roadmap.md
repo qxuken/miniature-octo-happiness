@@ -613,3 +613,10 @@ verified 701 macOS and 3,202 Docker Linux rounds through backup and restore.
 The month report now includes per-peer commit and reopen tails. Qualification
 on the intended deployment, owner-approved budgets and off-machine proof
 custody remain open.
+
+The [Windows coordinator campaign](mutations.md#windows-coordinator-campaign)
+now selects the same 32 cases as the Unix controller. Its source pins and
+per-case assertion diagnostics are checked locally. Native execution and
+the resulting artifact review are pending. The reconciled inventory includes
+10,627 source records across 222 files after the workload and controller
+changes.

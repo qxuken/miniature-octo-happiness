@@ -154,7 +154,7 @@ jobs:
           - os: windows-latest
             shard: 8
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || matrix.mode == 'darwin' && 120 || 90 }}
+    timeout-minutes: ${{ matrix.mode == 'darwin' && 120 || 90 }}
     defaults:
       run:
         shell: bash
@@ -162,6 +162,8 @@ jobs:
       - name: Preserve committed file bytes
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - name: Install the pinned compiler and cache locked inputs
         run: |
           rustup toolchain install 1.100.0 --profile minimal --component clippy
@@ -201,6 +203,14 @@ jobs:
           cmp target/r1/darwin-cases.txt target/r1/darwin-selected.txt
           cargo +1.100.0 xtask mutations "${cases[@]}" --toolchain 1.100.0 --output target/r1/mutations-debug
           cargo +1.100.0 xtask mutations "${cases[@]}" --release --toolchain 1.100.0 --output target/r1/mutations-release
+      - name: Check exact coordinator mutations on native Windows
+        if: runner.os == 'Windows' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag')
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            git diff --name-only HEAD^1 HEAD -- apps/write-coordinator xtask/src/mutations.rs xtask/src/mutations_windows.rs xtask/tests/mutations.json xtask/tests/coordinator-windows-oracle.json > target/r1/coordinator-input-changes.txt
+            [[ -s target/r1/coordinator-input-changes.txt ]] || exit 0
+          fi
+          cargo +1.100.0 xtask mutations --case r1-coordinator- --toolchain 1.100.0 --output target/r1/mutations-coordinator
       - name: Retain the source-bound reconciliation and mutation evidence
         if: always()
         uses: actions/upload-artifact@v7
