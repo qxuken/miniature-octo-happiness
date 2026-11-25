@@ -48,3 +48,27 @@ cargo xtask mutations --toolchain 1.100.0 \
 ```
 
 Repeat the commands with `--release` and a fresh mutation output path.
+
+## Windows lease regression
+
+The native minimum-Rust job for PR #82 head `f513546` failed the
+byte comparison while the receiver still owned its exclusive file
+lease. The archived Windows artifact records sharing violation 32
+and binds the fixture to test merge `6573cd2525d785e53899e2afbc4f7bf5336b21a1`.
+[Failed Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45704523143/job/139522942007)
+
+The corrected fixture covers four combinations. In both text and JSON
+modes it verifies revision 2 after the disconnect. One run stops the
+receiver and compares the file bytes after lease release. The other
+keeps the receiver running, accepts a fresh authenticated retry and
+reopens at revision 3 with seven minutes.
+
+Frozen source `bbe1fcd363ec5e553c112c8c8fbb71b494c8fbc9` passed
+117 macOS and 118 ext4 Docker Linux tests per profile, with one
+opt-in Linux case outside this run. All six selected Study
+and snapshot startup controls were detected in both profiles.
+Strict Clippy passed on both hosts. Fresh extraction verified 100
+command reports and all 977 copied files per campaign. Nine Windows
+x64 MSVC test targets cross-linked in each profile. The next hosted
+run will exercise the corrected regression on Windows.
+[Archive checksums](study-receive-lease-bbe1fcd.sha256)

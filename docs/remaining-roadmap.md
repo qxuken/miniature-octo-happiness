@@ -2166,3 +2166,18 @@ on macOS and ext4 Docker Linux. Both hosts detected seven controls
 in each profile. Windows debug targets cross-linked. Reconciliation
 leaves 420 runtime and 7,514 tooling gaps.
 [Snapshot startup ledger](decisions/snapshot-readiness-current.md)
+
+### Study receive and Windows file lease
+
+PR #82 at `f513546` failed the online raw-file comparison on Windows
+with sharing violation 32 while the receiver held its exclusive lease.
+At `bbe1fcd`, the fixture compares bytes after shutdown and independently
+verifies that the live receiver accepts an authenticated retry.
+macOS and Docker Linux/ext4 passed the application tests and six selected
+controls in both profiles. Windows debug and release targets cross-linked.
+The runtime ledger remains at 420 gaps.
+[Study receive ledger](decisions/study-receive-current.md#windows-lease-regression)
+
+The full native Windows workspace job reproduced the same test and
+sharing violation on that head.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45704523143/job/139522941821)
