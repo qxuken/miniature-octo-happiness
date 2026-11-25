@@ -1309,3 +1309,21 @@ for `1029d2c`, which passed the existing unsupported-compaction test in
 debug and release. The Windows compact guard remains partially verified
 until the new same-arity case runs natively. The inventory now has zero
 unclassified driver records, 1,462 runtime gaps and 7,397 tooling gaps.
+
+### Typed store and physical index keys
+
+On `2c75210`, the typed suite passed 67 tests in each of debug and release
+on macOS arm64 and Docker Linux arm64. Each run listed the same 67 tests and
+one ignored documentation example. The raw lookup checked all five scalar
+claims after one insert. Six mutations changed collection byte order, field
+byte order, the kind tag, Boolean width, float byte order or the error returned
+after a refused allocation. Each mutation failed its intended test in all four
+runs. The archived logs verify 24 catches and 96 supervised commands.
+
+The [current typed store ledger](decisions/typed-store-current.md) binds
+97 decisions in unchanged functions and seven decisions in the index encoder.
+Source reconciliation at `7b465ab` leaves 1,358 runtime and 7,397 tooling
+records unclassified, including 130 in the typed store. Driver gaps remain
+at zero. The [archive checksums](decisions/typed-key-2c75210.sha256) cover
+the source bundle, reconciliation and both platform runs. These are local
+proof copies pending off-machine custody.
