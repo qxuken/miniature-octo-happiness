@@ -22,7 +22,7 @@
     "apps/weekend-tasks/src/main.rs": "c30b765061790065812d268281f5d6f7c54113d91977f48692635f8045003f46",
     "apps/write-coordinator/src/main.rs": "0baa2da45ecc666867adbf652fc95958edefe1ac0523c76d96934b69e7b5517b",
     "apps/write-coordinator/src/native.rs": "314c33dde1358ed55acae915f9dd9504e291dc40e1c3ca8ad8a188a0a4d8b3b2",
-    "apps/write-coordinator/src/native/journal.rs": "6171f632f8128161e0ee0e26585ebcb8075d95c2a8a41269df5c66af936b5a46",
+    "apps/write-coordinator/src/native/journal.rs": "cfed6dae622427a4bcde92e7c4e51160da68b5f795a0f3157b4a7e8ad673ea96",
     "apps/write-coordinator/src/native/protocol.rs": "3a5caa03af98054871ce6a4e535b18350af19a6a587464b6ac523a0bb44b1da7",
     "apps/write-coordinator/src/native/sequenced.rs": "cfb7566de7deb025b272c3ef77a2eb2827dbd27a685ebe2b17938a6f47e37bd6",
     "apps/write-coordinator/src/native/service.rs": "b1bd1006b17a6262d1272b8c742365e0c213f7802057716e6d33fbdac1960f84",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "1c3037036dc1fc7dd68fa18dfe22478bedea98039c70b98c21b382d9c75dbbb8",
+    "xtask/tests/mutations.json": "e65a7e1fbba14c3b58b215255f2f3855ad7d4aec26ef4b6166ca40f0547b746b",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -388,7 +388,8 @@
     "tests/bytestore.rs": "63241a465b5cdf73e83baddd8d0fee4eb00bd067cc00bb5cfc21c38b9e4c020b",
     "docs/decisions/codec-crc-current.md": "86f5c8ac361be7c5832a232bc2ca37a683f204eab861b1ccfd8905bf31f97bee",
     "docs/decisions/codec-recovery-offsets-current.md": "242563ede2264b216cbba326d7dc4e0d14e86a3608a4374be2232bd28ee79ba5",
-    "docs/decisions/memory-growth-current.md": "ed7001d955f500ec2f49cb24053803a25d3ee70c2d3c5a054462b07e8e2a2229"
+    "docs/decisions/memory-growth-current.md": "ed7001d955f500ec2f49cb24053803a25d3ee70c2d3c5a054462b07e8e2a2229",
+    "docs/decisions/journal-replay-current.md": "f5587aa6974814654ae86c8cb10bf927c0e9d90e750a19ee53d0ee90826ad9d7"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -880,7 +881,8 @@
         "apps/write-coordinator/tests/writers.rs",
         "apps/write-coordinator/tests/writers/pending_restore.rs",
         "docs/coordinator-pending-restore.md",
-        "docs/decisions/coordinator-service-current.md"
+        "docs/decisions/coordinator-service-current.md",
+        "docs/decisions/journal-replay-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -24963,6 +24965,54 @@
             true
           ],
           "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "JOURNAL-CHECK-HEAD-RECEIPT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/journal.rs",
+        "target": "write-coordinator::write-coordinator",
+        "kind": "if",
+        "owner": "check",
+        "start_byte": 7939,
+        "conditions": [
+          "receipt.revision == revision",
+          "receipt.value != value"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/journal.rs",
+          "name": "lost_reply_after_commit_replays_the_receipt_after_another_writer_advances"
+        }
+      ],
+      "mutations": [
+        "r1-journal-replay-head-revision",
+        "r1-journal-replay-head-value"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
         }
       ]
     }

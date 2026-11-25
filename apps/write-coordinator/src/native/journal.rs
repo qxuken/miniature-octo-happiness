@@ -761,6 +761,83 @@ mod tests {
     }
 
     #[test]
+    fn lost_reply_after_commit_replays_the_receipt_after_another_writer_advances() {
+        let local = SimulatedDisk::new().unwrap();
+        let medium = SimulatedDisk::new().unwrap();
+        let mut journal = create(&local);
+        let mut remote = Database::create_on(medium.clone(), IDENTITY, Limits::default()).unwrap();
+        sequenced::initialize(&remote).unwrap();
+        let result = journal.set(INTENT, &mut |command| {
+            let reply = sequenced::handle(&mut remote, command)?;
+            if command.starts_with("journal-set ") {
+                assert_eq!(reply, "committed 4");
+                return Err("reply lost".into());
+            }
+            Ok(reply)
+        });
+        assert_eq!(result.unwrap_err().to_string(), "reply lost");
+        let check = |reply: &str| journal.check(&mut |_| Ok(reply.to_owned()));
+        let receipt = hex(&Receipt {
+            sequence: 1,
+            expected: 3,
+            value: 20,
+            revision: 4,
+        }
+        .encode());
+        assert_eq!(
+            check(&format!("checkpoint 4 20 {receipt}")).unwrap(),
+            "pending-committed 4 20"
+        );
+        assert_eq!(
+            check(&format!("checkpoint 4 99 {receipt}"))
+                .unwrap_err()
+                .to_string(),
+            "coordinator checkpoint value disagrees with its head receipt"
+        );
+        assert_eq!(
+            sequenced::handle(&mut remote, "set-seq 6 1 4 99").unwrap(),
+            "committed 5"
+        );
+        drop(journal);
+        drop(remote);
+        local.crash(Crash::DropAll).unwrap();
+        medium.crash(Crash::DropAll).unwrap();
+
+        let mut journal = open(&local);
+        let mut remote = Database::open_on(medium.clone(), Limits::default()).unwrap();
+        let before_local = local.durable_image().unwrap();
+        let before_remote = medium.durable_image().unwrap();
+        let mut send =
+            |command: &str| -> AppResult<String> { Ok(sequenced::handle(&mut remote, command)?) };
+        assert_eq!(journal.check(&mut send).unwrap(), "pending-committed 5 99");
+        assert_eq!(local.durable_image().unwrap(), before_local);
+        assert_eq!(journal.resume(&mut send).unwrap(), "committed 4");
+        assert_eq!(journal.check(&mut send).unwrap(), "aligned 5 99");
+        assert_eq!(medium.durable_image().unwrap(), before_remote);
+
+        drop(journal);
+        local.crash(Crash::DropAll).unwrap();
+        let mut journal = open(&local);
+        let receipt = journal.state.last.unwrap();
+        assert_eq!(
+            (
+                receipt.sequence,
+                receipt.expected,
+                receipt.value,
+                receipt.revision
+            ),
+            (1, 3, 20, 4)
+        );
+        assert!(journal.state.pending.is_none());
+        assert_eq!(
+            journal
+                .resume(&mut |_| panic!("completed intent was resent"))
+                .unwrap(),
+            "committed 4"
+        );
+    }
+
+    #[test]
     fn guarded_request_fits_the_authentication_and_line_limits() {
         let local = SimulatedDisk::new().unwrap();
         let mut journal = create(&local);

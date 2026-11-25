@@ -13941,6 +13941,78 @@
       "test": "memory::live_budget_tests::geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-journal-replay-head-revision",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "receipt.revision == revision && receipt.value != value",
+      "new": "receipt.value != value",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::lost_reply_after_commit_replays_the_receipt_after_another_writer_advances",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-replay-head-value",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "receipt.revision == revision && receipt.value != value",
+      "new": "false",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::lost_reply_after_commit_replays_the_receipt_after_another_writer_advances",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-replay-pending-receipt",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "remote == Some(intended)",
+      "new": "false",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::lost_reply_after_commit_replays_the_receipt_after_another_writer_advances",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-replay-checkpoint-status",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "format!(\"pending-committed {revision} {value}\")",
+      "new": "format!(\"pending-committed {} {}\", intended.revision, intended.value)",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::lost_reply_after_commit_replays_the_receipt_after_another_writer_advances",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-replay-previous-receipt",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "format!(\"committed {}\", receipt.revision)",
+      "new": "format!(\"committed {}\", receipt.expected)",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::lost_reply_after_commit_replays_the_receipt_after_another_writer_advances",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-journal-replay-eligible",
+      "file": "apps/write-coordinator/src/native/journal.rs",
+      "old": "Some(intent) if revision == intent.expected",
+      "new": "Some(intent) if revision != intent.expected",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::journal::tests::journal_check_observes_without_resolving_an_intent",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }
