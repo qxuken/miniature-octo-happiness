@@ -127,11 +127,11 @@ study-policy-v1 0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a 8 03030303030303030303030303030
    creating either destination and checks that the practice total fits in
    one actor component (`u64::MAX / 2`). A larger agreed total returns
    `Limit` before creating either destination. It seeds the total, completed
-   and currently planned topics and effective register values on actor A only. Old causal dots
-   and tombstones stay in the old files. Save the report with the checkpoint
-   and receipt. An error may leave one or both partial destinations. Keep old
-   routes frozen and use fresh paths for a retry after inspecting the failed
-   pair.
+   and currently planned topics and effective register values on actor A only.
+   Old causal dots and tombstones stay in the old files. Save the report with
+   the checkpoint and receipt. A report write or flush failure returns an I/O
+   error after staging the pair. Inspect any destinations left by a failed
+   command, keep the old routes frozen, and use fresh paths for a retry.
 3. Provision and pin fresh TLS identities for the new actors. Start both
    new stores with `run-policy` and `--sync-only` on staging routes, using
    their respective policy slot and peer address.

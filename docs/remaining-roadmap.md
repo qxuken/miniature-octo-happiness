@@ -1893,3 +1893,31 @@ Reproduce with `cargo +1.100.0 xtask mutations --case r1-study-seeding-
 Nine source decisions reconcile here. The roster retains 22 open
 decisions, including failure propagation from enrollment, staging
 publication and output, among 647 runtime and 7,447 tooling gaps.
+
+### Study roster output errors
+
+With the new CLI regression applied to `8fb9152`, a closed stdout
+pipe reproduced the panic exit 101. At `7a9a209`, checkpoint,
+stage and verify exit 1 and report the structured `local_command`
+I/O error `broken_pipe` on stderr. The staged pair reopens and
+verifies after the failed report. The test compares both source
+images and both newly staged images with their original bytes.
+
+The writer fixture separately refuses the stage heading, visible
+state, receipt and final flush. Report generation stops at the
+first rejected write. A rejected final flush returns an error
+even when all report bytes reached the writer. Each failed stage
+report leaves an openable pair with the expected seeded state.
+The same fixture verifies that a failed verify heading stops the
+report. Guarded staging emits the exact selected receipt, and
+unguarded staging emits the two summary lines.
+
+Rust 1.100.0 passed all 46 Study tests per profile and strict Clippy
+on macOS arm64 and Docker Linux arm64/ext4. All eight named controls
+were detected in every campaign. Fresh extraction checks 936 inputs,
+32 detections and 124 supervised process receipts against the
+[archive manifest](decisions/study-output-7a9a209.sha256).
+Six earlier receipt and cutoff controls also detected their mutations in both macOS profiles.
+Eight decisions reconcile, including the new write and flush
+propagation and the two receipt-selection records. The ledger
+contains 646 runtime and 7,447 tooling gaps.
