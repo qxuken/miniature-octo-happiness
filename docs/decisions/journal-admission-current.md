@@ -23,7 +23,7 @@ the stored sequence plus the positive initial revision must fit in u64.
 
 | Source | SHA-256 |
 | --- | --- |
-| `apps/write-coordinator/src/native/journal.rs` | `5c4153f888d12a15975f7699e8bdaee03daf613f8f7c3f184df3aeca2f3e3df9` |
+| `apps/write-coordinator/src/native/journal.rs` | `76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c` |
 
 | Status | Target | Position | Bytes | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |

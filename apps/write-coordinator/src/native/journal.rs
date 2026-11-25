@@ -284,8 +284,7 @@ impl Journal {
         Ok(format!("{status} {revision} {value}"))
     }
 
-    fn status(&self) -> AppResult<()> {
-        let mut stdout = io::stdout().lock();
+    fn status(&self, mut stdout: impl Write) -> AppResult<()> {
         writeln!(
             stdout,
             "journal {} {}",
@@ -345,7 +344,9 @@ fn sender(port: &OsStr, secret: &OsStr) -> AppResult<impl FnMut(&str) -> AppResu
 
 pub(super) fn run(args: &[OsString]) -> AppResult<()> {
     match args {
-        [action, path] if action == "status" => Journal::open(Path::new(path))?.status(),
+        [action, path] if action == "status" => {
+            Journal::open(Path::new(path))?.status(io::stdout().lock())
+        }
         [action, path, port, slot, flag, secret] if action == "init" && flag == "--secret-file" => {
             let slot = number(slot)?;
             if slot >= MAX_SLOTS {
@@ -374,7 +375,7 @@ pub(super) fn run(args: &[OsString]) -> AppResult<()> {
                     pending: None,
                 },
             )?
-            .status()
+            .status(io::stdout().lock())
         }
         [action, path, port, flag, secret] if action == "resume" && flag == "--secret-file" => {
             let mut journal = Journal::open(Path::new(path))?;
@@ -960,5 +961,81 @@ mod tests {
                 Ok(format!("committed {}", u64::MAX - 2))
             })
             .unwrap();
+    }
+
+    #[test]
+    fn interrupted_creation_reopens_only_a_fully_published_journal() {
+        let state = State {
+            identity: IDENTITY,
+            slot: 7,
+            last: None,
+            pending: None,
+        };
+        let disk = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(disk.clone(), [33; 16], Limits::default()).unwrap();
+        let empty = disk.durable_image().unwrap();
+        disk.arm(usize::MAX, Fault::Error);
+        let journal = Journal::create(db, state).unwrap();
+        let trace = disk.trace().unwrap();
+        let syncs: Vec<_> = trace
+            .iter()
+            .enumerate()
+            .filter_map(|(step, event)| (event.kind == IoKind::Sync).then_some(step))
+            .collect();
+        let [_, collection_root, _, _, state_root, _]: [usize; 6] = syncs.try_into().unwrap();
+        let final_revision = journal.db.snapshot().revision();
+        assert_eq!(final_revision, 2);
+        for step in 0..trace.len() {
+            for crash in [Crash::DropAll, Crash::PersistAll] {
+                let disk = SimulatedDisk::from_image(&empty).unwrap();
+                let db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+                disk.arm(step, Fault::Error);
+                assert!(Journal::create(db, state).is_err(), "step {step}");
+                assert_eq!(disk.trace().unwrap(), trace[..=step]);
+                disk.clear_fault();
+                disk.crash(crash).unwrap();
+                let db = Database::open_on(disk, Limits::default()).unwrap();
+                let visible =
+                    |root| step > root || (step == root && matches!(crash, Crash::PersistAll));
+                let expected_revision =
+                    u64::from(visible(collection_root)) + u64::from(visible(state_root));
+                assert_eq!(db.snapshot().revision(), expected_revision, "step {step}");
+                match expected_revision {
+                    0 => assert!(matches!(Journal::load(db), Err(Error::NotFound))),
+                    1 => assert!(matches!(Journal::load(db), Err(Error::UnsupportedFormat))),
+                    2 => assert_eq!(Journal::load(db).unwrap().state.encode(), state.encode()),
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn status_propagates_output_failure_at_each_line_boundary() {
+        let disk = SimulatedDisk::new().unwrap();
+        let mut journal = create(&disk);
+        journal
+            .save(State {
+                pending: Some(INTENT),
+                ..journal.state
+            })
+            .unwrap();
+        let image = disk.durable_image().unwrap();
+        let header = format!("journal {} 7\n", hex(&IDENTITY));
+        let receipt = "receipt 0\n";
+        let expected = format!("{header}{receipt}pending 1 3 20\n");
+        for length in [0, header.len(), header.len() + receipt.len()] {
+            let mut output = vec![0; length];
+            let error = journal.status(output.as_mut_slice()).unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<io::Error>().unwrap().kind(),
+                io::ErrorKind::WriteZero
+            );
+            assert_eq!(output, expected.as_bytes()[..length]);
+        }
+        let mut output = Vec::new();
+        journal.status(&mut output).unwrap();
+        assert_eq!(output, expected.as_bytes());
+        assert_eq!(disk.durable_image().unwrap(), image);
     }
 }

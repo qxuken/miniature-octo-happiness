@@ -25,7 +25,7 @@ part of the coordinator receipt.
 
 | Source | SHA-256 |
 | --- | --- |
-| `apps/write-coordinator/src/native/journal.rs` | `5c4153f888d12a15975f7699e8bdaee03daf613f8f7c3f184df3aeca2f3e3df9` |
+| `apps/write-coordinator/src/native/journal.rs` | `76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c` |
 
 | Status | Target | Position | Bytes | Kind | Owner | Evidence |
 |---|---|---|---|---|---|---|
@@ -57,9 +57,9 @@ part of the coordinator receipt.
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:272:9– | 8905..8907 | if | check | Divergent receipt reports mismatch. |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:279:22– | 9215..9220 | match | check | Aligned, pending-eligible and pending-stale fixtures. |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:281:29– | 9296..9323 | match_guard | check | Compare the eligible revision with a newer revision from another writer. |
-| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:317:5– | 10277..10280 | let_else | parse_state | Exact word count required for value or conflict. |
-| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:322:5– | 10479..10481 | if | parse_state | Response kind must match the requested operation. |
-| D | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:325:35– | 10601..10602 | try_propagation | parse_state | Both numeric fields use the canonical decimal parser. |
-| D | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:325:61– | 10627..10628 | try_propagation | parse_state | Both numeric fields use the canonical decimal parser. |
-| D | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:329:35– | 10720..10721 | try_propagation | canonical_number | Integer parse errors propagate. |
-| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:330:5– | 10727..10729 | if | canonical_number | Decimal text must round-trip without signs or leading zeros. |
+| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:316:5– | 10255..10258 | let_else | parse_state | Exact word count required for value or conflict. |
+| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:321:5– | 10457..10459 | if | parse_state | Response kind must match the requested operation. |
+| D | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:324:35– | 10579..10580 | try_propagation | parse_state | Both numeric fields use the canonical decimal parser. |
+| D | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:324:61– | 10605..10606 | try_propagation | parse_state | Both numeric fields use the canonical decimal parser. |
+| D | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:328:35– | 10698..10699 | try_propagation | canonical_number | Integer parse errors propagate. |
+| E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:329:5– | 10705..10707 | if | canonical_number | Decimal text must round-trip without signs or leading zeros. |

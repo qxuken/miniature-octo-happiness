@@ -17,7 +17,7 @@ underlying allocation and engine error paths keep their delegated scope.
 
 | Source | SHA-256 |
 | --- | --- |
-| `apps/write-coordinator/src/native/journal.rs` | `5c4153f888d12a15975f7699e8bdaee03daf613f8f7c3f184df3aeca2f3e3df9` |
+| `apps/write-coordinator/src/native/journal.rs` | `76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c` |
 
 | Status | Target | Position | Bytes | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -25,7 +25,7 @@ underlying allocation and engine error paths keep their delegated scope.
 | C | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:49:12– | 1194..1197 | pattern_test | encode | Receipt payload is present or absent. |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:53:9– | 1334..1336 | if | encode | Pending expected revision and value are present or absent. |
 | C | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:53:12– | 1337..1340 | pattern_test | encode | Pending expected revision and value are present or absent. |
-| C | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:62:12– | 1637..1678 | short_circuit_or | decode | Part of the independently varied length, magic and reserved-bit header guard. |
+| C | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:62:12– | 1637..1701 | short_circuit_or | decode | Part of the independently varied length, magic and reserved-bit header guard. |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:70:20– | 2019..2021 | if | decode | Receipt flag selects present or absent layout. |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:71:63– | 2105..2106 | try_propagation | decode | Version or receipt-field validation can reject the payload. |
 | E | write-coordinator::write-coordinator | apps/write-coordinator/src/native/journal.rs:78:23– | 2275..2277 | if | decode | Pending flag selects present or absent layout. |
