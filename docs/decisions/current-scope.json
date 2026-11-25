@@ -360,7 +360,7 @@
     "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419",
     "docs/decisions/ffi-transaction-reads-current.md": "f53aa2b9a3476efa8dd308c9433209c395c915e154dc0e8fb269c752343fc5c9",
     "docs/decisions/typed-unique-claims-current.md": "524965db8c78e505a08ba4dfbcf617d0b7b1dc58323f19f7bc565e2474a141fc",
-    "docs/decisions/typed-index-allocator-current.md": "51c08786ef8337dc8c7b5a212ecbd5701d4eb35b95dcab42e28b9c2312e1789f",
+    "docs/decisions/typed-index-allocator-current.md": "378c8a341252aba5a761a99da8e92ce6fcd33bca15d2fb19fc7c9db551795cb1",
     "docs/decisions/typed-migration-recovery-current.md": "2079c473658a94d7542796b2a2fd2d871d4652f7b020ab33dac6320bad7bd908",
     "crates/weekend-db-macros/tests/expansion_guards.rs": "9d7c328c45270f4526402e806231eb56cf04d1d42a8d97e4e92a2e3b82557e55",
     "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",

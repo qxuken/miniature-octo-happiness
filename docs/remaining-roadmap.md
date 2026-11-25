@@ -1172,3 +1172,26 @@ the parent. Breaking the last-identity assertion also failed the parent
 and exposed the child's actual identity value in its diagnostic.
 The [negative-control checksums](decisions/identity-child-7b37843.sha256)
 pin the logs, reproduction script and source.
+
+### Native file constructor admission
+
+Five propagation controls exercise validation, entropy and backend errors
+during file creation and validation and backend errors during reopen.
+The invalid-limits test now supplies a path that panics if accessed on
+reopen. The valid control creates and reopens revision 0 with a known
+identity. The native file tests also check that an attempted duplicate
+creation preserves the original bytes and that a second opener respects
+the writer lease.
+
+On `79cb0ef`, all five mutations triggered the intended failure in debug
+and release on macOS and Docker Linux. The [proof manifest](decisions/native-ctor-79cb0ef.sha256)
+pins the four campaigns (20 catches, 84 supervised commands) and the
+allocation, transaction and engine decision suites (31 named tests per
+host and profile). Windows execution of this batch remains pending.
+
+Editing the engine test module changed the full-file hash at `7b37843`.
+That temporarily returned 15 historically classified engine records to
+the open queue. The [source comparison](decisions/typed-index-allocator-current.md#engine-source-binding-after-constructor-test-changes)
+verified the unchanged production bytes and all 150 engine inventory
+records before restoring those classifications.
+Reconciliation leaves 1,820 runtime, 26 driver and 7,397 tooling gaps.

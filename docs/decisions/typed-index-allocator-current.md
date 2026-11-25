@@ -105,3 +105,18 @@ cargo +1.100.0 xtask mutations --case r1-typed-index-allocator- \
 ```
 
 Repeat with `--release` and a separate mutation output directory.
+
+### Engine source binding after constructor test changes
+
+| Source | SHA-256 |
+| --- | --- |
+| `src/engine.rs` | `105601d113f1cc7ec74299d33f0c2aecc5edb46bcb86c4982da145593efc1266` |
+
+Compared `cb2202e` with `79cb0ef`. All edits in this file are inside its
+unit-test module. The 36,877 bytes before that module match, with SHA-256
+`03a577e687d8bc834547e1b45c1004a2b807583bf6e986f7b8c4c440625bc91d`.
+The two inventories also match on all 150 engine decision records,
+including their byte ranges, conditions and alternatives. This binding
+carries the fifteen engine rows above forward with their original
+classifications: eight exercised rows, five invariants and two shared
+decisions. The typed implementation retains its separate source binding.
