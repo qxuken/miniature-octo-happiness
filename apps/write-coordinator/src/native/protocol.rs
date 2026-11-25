@@ -234,4 +234,95 @@ mod decisions {
             Err(Error::RecoveryRequired)
         );
     }
+
+    #[test]
+    fn malformed_receipts_cannot_acknowledge_or_change_state() {
+        for (scenario, size, version, expected, acknowledged, result) in [
+            ("valid", 25, 1, 2, 3u64, Ok("committed 3")),
+            ("short", 24, 1, 2, 3, Err(Error::Corrupt)),
+            ("long", 26, 1, 2, 3, Err(Error::Corrupt)),
+            ("version", 25, 2, 2, 3, Err(Error::Corrupt)),
+            ("sequence", 25, 1, 1, 3, Err(Error::Corrupt)),
+            ("ahead", 25, 1, 9, 10, Err(Error::Corrupt)),
+            ("overflow", 25, 1, u64::MAX, 0, Err(Error::Corrupt)),
+            ("nonbytes", 25, 1, 2, 3, Err(Error::Corrupt)),
+        ] {
+            let mut db = database();
+            let collection = db.collection_id(COLLECTION);
+            let key = b"receipt/test";
+            let mut bytes = [0u8; 26];
+            bytes[0] = version;
+            bytes[1..9].copy_from_slice(&expected.to_le_bytes());
+            bytes[17..25].copy_from_slice(&acknowledged.to_le_bytes());
+            {
+                let mut tx = db.begin();
+                let value = if scenario == "nonbytes" {
+                    db.unsigned(0).unwrap()
+                } else {
+                    db.bytes(&bytes[..size]).unwrap()
+                };
+                tx.put(collection, key, &value).unwrap();
+                tx.commit().unwrap();
+            }
+            assert_eq!(
+                handle(&mut db, &format!("set-id test {expected} 0")),
+                result.map(str::to_owned),
+                "{scenario}"
+            );
+            assert_eq!(state(&db), Ok((3, 0)), "{scenario}");
+            let snapshot = db.snapshot();
+            let receipt = snapshot.get(collection, key).unwrap().unwrap();
+            if scenario == "nonbytes" {
+                assert_eq!(receipt.as_u64(), Ok(0));
+            } else {
+                assert_eq!(receipt.as_bytes().unwrap(), &bytes[..size]);
+            }
+        }
+    }
+
+    #[test]
+    fn receipts_replay_original_ack_and_never_expire_at_capacity() {
+        let mut db = database();
+        assert_eq!(handle(&mut db, "set-id first 2 10").unwrap(), "committed 3");
+        assert_eq!(handle(&mut db, "set 3 20").unwrap(), "committed 4");
+        assert_eq!(handle(&mut db, "set-id first 2 10").unwrap(), "committed 3");
+        assert_eq!(
+            handle(&mut db, "set-id fresh 3 20"),
+            Ok("conflict 4 20".into())
+        );
+        let snapshot = db.snapshot();
+        assert!(
+            snapshot
+                .get(db.collection_id(COLLECTION), b"receipt/fresh")
+                .unwrap()
+                .is_none()
+        );
+        drop(snapshot);
+        assert_eq!(handle(&mut db, "set-id first 2 11"), Err(Error::Invalid));
+        assert_eq!(handle(&mut db, "set-id first 4 10"), Err(Error::Invalid));
+        assert_eq!(state(&db), Ok((4, 20)));
+        // Fill the remaining receipt slots using the same real request path.
+        for n in 1..MAX_RECEIPTS {
+            let revision = db.snapshot().revision();
+            assert_eq!(
+                handle(&mut db, &format!("set-id r{n} {revision} {n}")).unwrap(),
+                format!("committed {}", revision + 1)
+            );
+        }
+        let revision = db.snapshot().revision();
+        assert_eq!(
+            handle(&mut db, &format!("set-id full {revision} 8")),
+            Err(Error::Limit)
+        );
+        assert_eq!(handle(&mut db, "set-id first 2 10").unwrap(), "committed 3");
+        assert_eq!(db.snapshot().revision(), revision);
+        for bad in [
+            "set-id x/y 1 2",
+            "set-id a 1 2 extra",
+            "set-id a -1 2",
+            "set-id a 1 nope",
+        ] {
+            assert_eq!(handle(&mut db, bad), Err(Error::Invalid));
+        }
+    }
 }

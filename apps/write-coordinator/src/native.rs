@@ -3,8 +3,6 @@ mod protocol;
 mod service;
 mod stop;
 use protocol::{COLLECTION, KEY, sequenced};
-#[cfg(test)]
-use protocol::{MAX_RECEIPTS, handle, state};
 use service::serve;
 use std::{
     ffi::OsStr,
@@ -174,81 +172,6 @@ fn request(address: SocketAddr, secret: Option<&Secret>, command: &str) -> AppRe
         writeln!(stream, "{command}")?;
     }
     Ok(read_line(&stream, Instant::now() + TIMEOUT)?)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn malformed_receipts_cannot_acknowledge_or_change_state() {
-        for (size, version, expected, acknowledged) in [
-            (24, 1, 2, 3u64),
-            (25, 2, 2, 3),
-            (25, 1, 2, 4),
-            (25, 1, 9, 10),
-            (25, 1, u64::MAX, 0),
-        ] {
-            let mut db = Database::new().unwrap();
-            let c = db.create_collection().unwrap();
-            let mut bytes = vec![0; 25];
-            bytes[0] = version;
-            bytes[1..9].copy_from_slice(&expected.to_le_bytes());
-            bytes[17..25].copy_from_slice(&acknowledged.to_le_bytes());
-            bytes.truncate(size);
-            let mut setup = db.begin();
-            setup.put(c, KEY, &db.unsigned(0).unwrap()).unwrap();
-            setup
-                .put(c, b"receipt/bad", &db.bytes(&bytes).unwrap())
-                .unwrap();
-            setup.commit().unwrap();
-            drop(setup);
-            assert_eq!(
-                handle(&mut db, &format!("set-id bad {expected} 0")),
-                Err(Error::Corrupt)
-            );
-            assert_eq!(state(&db), Ok((2, 0)));
-        }
-    }
-
-    #[test]
-    fn receipts_replay_original_ack_and_never_expire_at_capacity() {
-        let mut db = Database::new().unwrap();
-        let c = db.create_collection().unwrap();
-        let mut setup = db.begin();
-        setup.put(c, KEY, &db.unsigned(0).unwrap()).unwrap();
-        setup.commit().unwrap();
-        drop(setup);
-        assert_eq!(handle(&mut db, "set-id first 2 10").unwrap(), "committed 3");
-        assert_eq!(handle(&mut db, "set 3 20").unwrap(), "committed 4");
-        assert_eq!(handle(&mut db, "set-id first 2 10").unwrap(), "committed 3");
-        assert_eq!(handle(&mut db, "set-id first 2 11"), Err(Error::Invalid));
-        assert_eq!(handle(&mut db, "set-id first 4 10"), Err(Error::Invalid));
-        assert_eq!(state(&db), Ok((4, 20)));
-        // Fill the remaining receipt slots using the same real request path.
-        for n in 1..MAX_RECEIPTS {
-            let revision = db.snapshot().revision();
-            assert_eq!(
-                handle(&mut db, &format!("set-id r{n} {revision} {n}")).unwrap(),
-                format!("committed {}", revision + 1)
-            );
-        }
-        let revision = db.snapshot().revision();
-        assert_eq!(
-            handle(&mut db, &format!("set-id full {revision} 8")),
-            Err(Error::Limit)
-        );
-        assert_eq!(handle(&mut db, "set-id first 2 10").unwrap(), "committed 3");
-        assert_eq!(db.snapshot().revision(), revision);
-        for bad in [
-            "set-id x/y 1 2",
-            "set-id a 1 2 extra",
-            "set-id a -1 2",
-            "set-id a 1 nope",
-        ] {
-            assert_eq!(handle(&mut db, bad), Err(Error::Invalid));
-        }
-    }
 }
 
 #[cfg(test)]
