@@ -312,3 +312,60 @@ for macOS, and
 `e1be1c98064aff2b335bd6428801a161c82cca0c64b8e45014c8cf59a6d32269`
 and `2f063d82e1fe224beacdf0a6432134024a9d7da84ad6df4ee7254cc3754a2125`
 for Linux.
+
+### Fixed writer arrivals with 64 retained roots
+
+Checkpoint `b07977a79292e18f4197e826e58f9523ee77ab34` repeated the
+64-root workload with one writer offering 40 and 1,000 requests per second.
+Each rate used three fresh-file rounds per engine and platform, alternating
+engine order. Rust 1.100.0 built the locked fixtures on arm64 macOS/APFS and
+offline arm64 Docker Linux/ext4 (two vCPUs and 2 GiB). The native SQLite
+versions were 3.54.0 and 3.40.1, respectively. The comparator retained the
+same WAL, FULL and fullfsync settings, with RSS sampling disabled.
+
+Arrivals start immediately after seeding. Each deadline is its zero-based
+request number times the selected interval. A request is ready at the later
+of its deadline and the previous request's finish. Queue time covers the
+deadline to the ready time. Dispatch covers ready time to worker start,
+including timer and scheduler delay. Service covers start through payload
+preparation, the durable transaction and any separately durable pin. Response
+covers the deadline through service completion. The original commit and pin
+measurements still time their own calls. The driver checks each request's
+ordering and measured transaction and pin durations before accepting a round.
+
+| Platform and engine | Offered writes/s | Queued / 384 | Response p50 / p95 / p99 (ms) | Queue p99 (ms) | Dispatch p99 (ms) | Commit / pin p99 (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS, weekend-db | 40 | 46 | 15.968 / 26.011 / 26.975 | 1.975 | 8.072 | 10.181 / 15.831 |
+| macOS, SQLite | 40 | 0 | 7.688 / 11.314 / 12.368 | 0.000 | 10.024 | 2.440 / 1.439 |
+| macOS, weekend-db | 1,000 | 381 | 777.113 / 1491.031 / 1561.037 | 1543.053 | 0.001 | 10.098 / 9.998 |
+| macOS, SQLite | 1,000 | 219 | 1.072 / 2.446 / 4.034 | 3.034 | 0.315 | 1.626 / 1.064 |
+| Docker Linux, weekend-db | 40 | 0 | 7.896 / 13.607 / 14.690 | 0.000 | 10.201 | 4.162 / 1.886 |
+| Docker Linux, SQLite | 40 | 0 | 8.015 / 12.281 / 13.526 | 0.000 | 10.242 | 3.207 / 1.304 |
+| Docker Linux, weekend-db | 1,000 | 132 | 0.876 / 1.260 / 1.915 | 0.915 | 0.828 | 1.062 / 0.857 |
+| Docker Linux, SQLite | 1,000 | 62 | 0.675 / 1.199 / 1.753 | 0.753 | 0.830 | 0.952 / 1.100 |
+
+Quantiles pool 384 data writes and 192 pins per engine, platform and rate.
+The macOS weekend-db worker completed about 75 requests per second while
+draining the 1,000/s burst. Dispatch was the largest measured source of
+delay in the 40/s SQLite runs on both platforms, with zero queued requests.
+The Linux 1,000/s results cover a 128-request burst. Sustained service rates
+and production-device budgets remain open.
+
+```sh
+for period in 25000 1000; do
+  cargo +1.100.0 xtask sqlite-baseline \
+    --revision b07977a79292e18f4197e826e58f9523ee77ab34 \
+    --commits 128 --keys 128 --batch 8 --payload 256 --retain-every 2 \
+    --reopens 8 --rounds 3 --write-period-us "$period" --output "$OUTPUT-$period"
+done
+```
+
+Both platforms passed the four controller and four standalone SQLite tests
+in debug and release, plus a small unpaced run. Fresh extraction reproduced
+all 3,072 paced samples and their quantiles. A separate native verifier
+opened 72 paced and 12 unpaced compacted, backup and restored images, and
+compared every current and retained value against a forward replay of the
+workload. It queried SQLite's integrity check and rechecked the Weekend DB
+revision and retained IDs. The paced rounds all reported digest
+`414107962869247620`. The [proof checksums](decisions/sqlite-arrivals-b07977a.sha256)
+bind the local archive's exact sources, workers, raw logs and replay tools.

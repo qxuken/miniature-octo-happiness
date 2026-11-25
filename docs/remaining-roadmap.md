@@ -1950,3 +1950,18 @@ representative workloads and accepted budgets remain R3 gates.
 
 This source adds 21 tooling decisions. Reconciliation leaves 646
 runtime and 7,485 tooling gaps.
+
+### Fixed writer arrivals against SQLite
+
+At `b07977a`, [matched single-writer workloads](sqlite-baseline.md#fixed-writer-arrivals-with-64-retained-roots)
+compare 40 and 1,000 offered writes/s on macOS/APFS and Docker Linux/ext4.
+The 1,000/s macOS weekend-db burst recorded 1,561 ms p99 arrival-to-completion
+with 1,543 ms p99 queue delay and a 10.098 ms p99 durable commit. On Docker
+Linux the same checkpoint recorded 1.915 ms p99 completion for weekend-db and
+1.753 ms for SQLite. Fresh native replay verified all current and retained
+values in 84 compacted, backup and restored images, including the unpaced
+controls. R3 still requires sustained tests on the intended deployment and
+accepted budgets.
+
+Reconciliation covers 10,770 decisions across 223 files and leaves 646 runtime
+and 7,514 tooling gaps.
