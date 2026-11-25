@@ -107,6 +107,7 @@ fn observe(
     c: &mut Campaign<'_>,
     request: &Request,
     round_limit: u64,
+    seconds: u64,
     execute: impl FnOnce(&Request) -> Result<Report>,
 ) -> Result<()> {
     ensure!(!c.cancelled(), "campaign cancelled before soak");
@@ -139,7 +140,15 @@ fn observe(
         result.failure,
         result.cleanup_failure
     );
-    c.evidence["last_record"] = summary(BufReader::new(File::open(&request.stdout)?), round_limit)?;
+    let last = summary(BufReader::new(File::open(&request.stdout)?), round_limit)?;
+    if integer(&last, "rounds")? < round_limit {
+        ensure!(
+            integer(&last, "elapsed_ms")? >= seconds * 1000
+                && result.elapsed_seconds >= seconds as f64,
+            "soak ended before reaching its round or duration limit"
+        );
+    }
+    c.evidence["last_record"] = last;
     Ok(())
 }
 
@@ -229,7 +238,13 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         )?;
         request.stdout = output.join("rounds.jsonl");
         request.stderr = output.join("stderr.log");
-        observe(&mut c, &request, opts.rounds, supervise::run_peak_rss)?;
+        observe(
+            &mut c,
+            &request,
+            opts.rounds,
+            opts.seconds,
+            supervise::run_peak_rss,
+        )?;
         ensure!(
             sha(&binary)? == binary_hash && inventory(&source, &[])? == source_hashes,
             "frozen soak source or binary changed during execution"
@@ -374,9 +389,15 @@ mod tests {
     fn real_children_need_complete_rounds_and_successful_exit() {
         let tmp = Scratch::new(&std::env::temp_dir(), "soak-control").unwrap();
         let full = jsonl(&records(9));
+        let early = jsonl(&records(1));
+        let mut claimed = records(1);
+        claimed.last_mut().unwrap()["elapsed_ms"] = json!(60_000);
+        let claimed = jsonl(&claimed);
         let run = Run::new(tmp.path().to_owned());
         for (name, contents, code, pass) in [
             ("full", full.as_str(), "0", true),
+            ("early", early.as_str(), "0", false),
+            ("claimed-duration", claimed.as_str(), "0", false),
             ("incomplete", "{\"complete\":true}", "0", false),
             ("malformed", "invalid-json", "0", false),
             ("nonzero", full.as_str(), "1", false),
@@ -398,7 +419,7 @@ mod tests {
                     tmp.path(),
                 )
                 .unwrap();
-            let result = observe(&mut c, &process, 9, supervise::run_peak_rss);
+            let result = observe(&mut c, &process, 9, 60, supervise::run_peak_rss);
             assert_eq!(c.finish(result).is_ok(), pass);
             let proof = delivery::read_json(&output.join("evidence.json")).unwrap();
             assert_eq!(proof["passed"], pass);

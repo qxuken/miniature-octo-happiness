@@ -217,3 +217,32 @@ the same final state and 30 retained roots per peer after 60 conflicts,
 60 retries, eight process interruptions and 120 sync sessions.
 Each row represents one run. Production hardware, a sustained soak and
 owner-approved latency and resource budgets remain open under R3.
+
+Rechecking the recorded daily transaction and verify-phase reopen samples gave
+the following tails. Times are milliseconds. The runner sorts observations and
+uses zero-based index `floor(p × count / 100)` for percentile `p`. With 60
+reopens, p99 is the slowest observation. These values describe the measured
+runs and carry no service-level commitment.
+
+| Server and client | Core cap | Transaction p50 / p95 / p99 | Reopen p50 / p95 / p99 |
+| --- | --- | ---: | ---: |
+| macOS / macOS | Default | 9.014 / 9.976 / 10.172 | 9.394 / 11.973 / 12.374 |
+| macOS / macOS | 16 MiB | 8.997 / 9.972 / 10.285 | 9.546 / 12.351 / 12.576 |
+| Docker Linux / macOS | 16 MiB | 6.110 / 9.079 / 9.955 | 6.915 / 12.116 / 16.911 |
+
+The review verified the summary hash and every listed artifact hash for each
+run (1,330, 1,330 and 1,311 artifacts respectively) before recalculating these
+values from the phase logs. Future runner summaries also include p99.
+
+The cross-platform run recorded 56 transaction and 30 reopen timings on
+each peer. On the Docker Linux server the transaction p50/p95/p99 was
+0.576/1.077/1.352 ms and reopen was 3.856/7.194/7.332 ms. On the macOS client
+the corresponding values were 8.928/9.157/10.031 ms and 9.420/12.423/16.911 ms.
+Both files grew from 729,088 bytes at the first daily checkpoint to 6,668,288
+bytes at the thirtieth.
+
+The local proof archive `workload-5f49a59.tar.gz` has SHA-256
+`527468422207982e265c6942e2d00c092551eb66f4273a5b934f1402e5d06adc`.
+A fresh extraction reproduced all 3,971 workload artifact hashes and all 88
+artifact hashes for the accompanying SQLite comparison. Off-machine custody
+remains open.

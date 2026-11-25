@@ -47,7 +47,9 @@ retained count, strictly increasing read progress, monotonic elapsed time, core
 accounting and file bounds, and matching final counts. A completion flag alone
 is insufficient. A nonzero exit, malformed/inconsistent output or timeout fails
 and preserves `verified: false` with terminal status and failure context. A lower round bound may finish before the requested
-wall duration. Round duration may overshoot the deadline; the runner enforces a
+wall duration. When the child finishes below that round bound, the controller
+requires both the final child clock and its own observed runtime to reach the
+requested duration. Round duration may overshoot the deadline; the runner enforces a
 120-second grace and kills a stuck child. Defaults allow at most 100,000 rounds;
 accepted wall duration is 1–86,400 seconds. At four tiny records this is a bounded
 small-state lifecycle/concurrency workload, not a throughput benchmark.
@@ -172,3 +174,35 @@ archive launcher under the container's older Python. Both records preserve
 their own tool, filesystem and resource boundaries. Neither qualifies Windows,
 physical-device power loss, network replication, larger cardinality or a month
 of wall-clock production operation.
+
+## Workload checkpoint at 5f49a59
+
+Two 600-second runs used Rust 1.100.0 and the same committed controller,
+driver and engine (`5f49a590bd7048e5ba6dea79c5544eb7e7264b70`). They ran
+concurrently on one development host. Each round checked the current and
+retained views after compaction, reopen, backup and restore.
+
+| Observation | macOS arm64 | Docker Linux aarch64, ext4 volume |
+| --- | ---: | ---: |
+| Driver / observer elapsed seconds | 600.738 / 601.054 | 600.007 / 600.023 |
+| Completed rounds | 701 | 3,202 |
+| Paired-key writer commits | 44,864 | 204,928 |
+| Reader observations | 1,788,323,587 | 2,131,891,361 |
+| Final revision / retained roots | 46,260 / 8 | 211,326 / 8 |
+| Maximum live / peak core bytes | 32,504 / 73,616 | 32,504 / 73,424 |
+| Sampled peak RSS (KiB) | 3,264 | 2,880 |
+| Maximum before / after compaction (bytes) | 917,504 / 122,880 | 917,504 / 122,880 |
+
+Independent review of each freshly extracted local proof checked both clocks,
+the full sequence of revisions, retention and resource bounds, all 858 source
+hashes, 38 output hashes and the separately saved executable. The SHA-256 of
+`soak-macos-5f49a59.tar.gz` is
+`d67c154dbf28b1ce1c4884ae977c474bfd9ef3d28f7e4700fe089e0e22fac733`.
+For `soak-linux-5f49a59.tar.gz` it is
+`7896913439fa829d7438771198eee592966b8ea8bd8e590f26ba01c78175ea86`.
+
+The controller now applies the two-clock duration check on future runs.
+A short zero-exit child with consistent round records and a child claiming
+60 seconds of work both failed the new controls. A real two-second macOS
+run passed below the round limit. The deployment-device soak and agreed
+operating budgets remain open.

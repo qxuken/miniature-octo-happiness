@@ -605,3 +605,9 @@ authorized. Project naming and publication can be decided independently later.
 The [accelerated month at 5f49a59](monthly-workload.md#recovery-checkpoint-at-5f49a59)
 adds three same-source workload runs to R3, including Docker Linux/ext4 with
 a macOS client. The supported deployment and its sustained soak remain open.
+
+The [600-second native soaks at 5f49a59](soak.md#workload-checkpoint-at-5f49a59)
+verified 701 macOS and 3,202 Docker Linux rounds through backup and restore.
+The month report now includes per-peer commit and reopen tails. Qualification
+on the intended deployment, owner-approved budgets and off-machine proof
+custody remain open.
