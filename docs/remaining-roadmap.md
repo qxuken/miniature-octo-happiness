@@ -2303,7 +2303,9 @@ Reconciliation leaves 381 runtime and 7,468 tooling gaps.
 
 PR #82 head `9e660e4` finished with 27 passes, one skip and the
 known APFS cleanup failure. The APFS repair and coordinator proof
-share the next push. [Completed CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45714156600)
+were pushed together at `d6feb73`, whose native macOS and Windows jobs passed.
+[Earlier CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45714156600)
+[Repair CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45720630585)
 
 ### Snapshot follower offline maintenance
 
@@ -2319,3 +2321,18 @@ controls caught in each campaign. Five Windows x64 test binaries
 cross-linked in each profile. Native Windows execution remains open.
 Reconciliation leaves 362 runtime and 7,468 tooling gaps.
 [Snapshot offline maintenance ledger](decisions/snapshot-offline-maintenance-current.md)
+
+### Snapshot network command admission
+
+At `32c695e`, the tests cover 25 propagation sites across `serve`,
+`ship`, `ship-captured`, `poll`, and their shared credential loader.
+Identity, native address encoding, socket syntax, option, credential,
+pin and storage failures preserve their expected diagnostics. Fresh
+open verifies the same durable receipt at revision 4 and retained
+revision 2, with exact manifest and selected image bytes.
+
+The macOS and Docker Linux/ext4 debug and release campaigns caught
+all 25 controls in each profile. Five Windows x64 binaries cross-linked
+per profile. Native Windows execution remains open for this source.
+Reconciliation leaves 337 runtime and 7,468 tooling gaps.
+[Snapshot network admission ledger](decisions/snapshot-network-admission-current.md)

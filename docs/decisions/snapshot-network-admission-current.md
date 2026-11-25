@@ -25,3 +25,22 @@ separate local capture and follower durability output.
 Each named mutation substitutes a different error at one propagation site.
 The exact test checks the returned error and diagnostic phase. These controls
 cover the listed argument, filesystem and configuration paths.
+
+## Qualification
+
+Frozen source `32c695ec4f28243f9ed52b5a2198663f026cb7dd` ran with
+locked dependencies and Rust 1.100.0. Docker Linux ran on ext4, including
+the source, build, fixture and temporary paths.
+
+| Platform | Debug and release, per profile |
+| --- | --- |
+| macOS arm64 | 58 snapshot CLI tests passed and 11 core replication tests passed with one ignored. All 25 named controls changed the expected assertion. |
+| Docker Linux arm64/ext4 | 59 snapshot CLI tests passed with one ignored and 11 core replication tests passed with one ignored. All 25 named controls changed the expected assertion. |
+| Windows x64/MSVC | Five CLI test binaries cross-linked. Native execution of this source remains open. |
+
+Clippy with warnings denied passed on macOS and Linux. In each mutation
+campaign the independent verifier checked 80 supervised commands, the
+exact failed assertion for every control and the restoration of all
+1,001 copied inputs. Reconciliation closes the 25 named propagation
+records and leaves 337 runtime and 7,468 tooling gaps.
+[Frozen campaign checksums](snapshot-network-admission-32c695e.sha256)
