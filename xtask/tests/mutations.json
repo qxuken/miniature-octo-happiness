@@ -13897,6 +13897,50 @@
       "target": "--lib",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-memory-growth-cap",
+      "file": "src/memory.rs",
+      "old": "if needed > maximum {",
+      "new": "if needed >= maximum {",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "memory::live_budget_tests::geometric_growth_is_bounded_and_uses_logarithmic_allocation_requests",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-memory-growth-fallback",
+      "file": "src/memory.rs",
+      "old": "Err(Error::Limit) if capacity != needed",
+      "new": "Err(Error::Limit) if capacity == needed",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "memory::live_budget_tests::geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-memory-growth-provider-refusal",
+      "file": "src/memory.rs",
+      "old": "Err(Error::Limit) if capacity != needed",
+      "new": "Err(Error::Limit | Error::OutOfMemory) if capacity != needed",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "memory::live_budget_tests::geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-memory-growth-exact-size",
+      "file": "src/memory.rs",
+      "old": "self.reserve(mem, extra),",
+      "new": "self.reserve(mem, extra + 1),",
+      "package": "weekend-db",
+      "target": "--lib",
+      "test": "memory::live_budget_tests::geometric_growth_exact_fallback_preserves_budget_and_failure_atomicity",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }
