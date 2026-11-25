@@ -1511,3 +1511,95 @@ fn secret_fifo_is_rejected_before_opening_database_or_waiting_for_input() {
         assert_eq!(fs::read(&file).unwrap(), b"database must remain untouched");
     }
 }
+
+#[test]
+fn journal_cli_rejects_invalid_arguments_and_claimed_slots_without_writing() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let primary = dir.0.join("primary.db");
+    let journal = dir.0.join("writer.db");
+    let second = dir.0.join("second.db");
+    let key = dir.0.join("secret");
+    let token = "4".repeat(64);
+    write_secret(&key, &token);
+    assert!(
+        Command::new(BIN)
+            .arg("init-sequenced")
+            .arg(&primary)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let key = key.to_str().unwrap();
+    let (_service, client) =
+        configured_service("serve-sequenced", primary.to_str().unwrap(), key, &token);
+    let port = client.address.port().to_string();
+    let run = |action: &str, path: &std::path::Path, tail: &[&str]| {
+        Command::new(BIN)
+            .args(["journal", action])
+            .arg(path)
+            .args(tail)
+            .output()
+            .unwrap()
+    };
+    let rejected = |action, path: &std::path::Path, tail: &[&str], message: &str| {
+        let output = run(action, path, tail);
+        assert!(
+            !output.status.success() && output.stdout.is_empty(),
+            "{output:?}"
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(message),
+            "{output:?}"
+        );
+    };
+
+    rejected(
+        "init",
+        &journal,
+        &[&port, "1024", "--secret-file", key],
+        "Invalid",
+    );
+    assert!(!journal.exists());
+    let init = run("init", &journal, &[&port, "1023", "--secret-file", key]);
+    assert!(init.status.success(), "{init:?}");
+    let written = run("set", &journal, &[&port, "3", "42", "--secret-file", key]);
+    assert!(written.status.success(), "{written:?}");
+    let image = fs::read(&journal).unwrap();
+
+    let usage = "write-coordinator journal status <file>";
+    for (action, tail) in [
+        ("init", &[port.as_str(), "1023", "--wrong", key][..]),
+        ("resume", &[port.as_str(), "--wrong", key][..]),
+        ("check", &[port.as_str(), "--wrong", key][..]),
+        ("set", &[port.as_str(), "4", "43", "--wrong", key][..]),
+        ("other", &[][..]),
+        ("other", &[port.as_str(), "--secret-file", key][..]),
+        ("other", &[port.as_str(), "1023", "--secret-file", key][..]),
+        (
+            "other",
+            &[port.as_str(), "4", "43", "--secret-file", key][..],
+        ),
+    ] {
+        rejected(action, &journal, tail, usage);
+    }
+    for (expected, value) in [("bad", "43"), ("4", "bad")] {
+        rejected(
+            "set",
+            &journal,
+            &[&port, expected, value, "--secret-file", key],
+            "invalid digit",
+        );
+    }
+    for destination in [&journal, &second] {
+        rejected(
+            "init",
+            destination,
+            &[&port, "1023", "--secret-file", key],
+            "empty assigned slot",
+        );
+    }
+    assert!(!second.exists());
+    assert_eq!(fs::read(&journal).unwrap(), image);
+    assert_eq!(client.request("receipt 1023"), "receipt 1 3 42 4");
+}
