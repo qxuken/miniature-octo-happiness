@@ -715,3 +715,30 @@ ZIP matched GitHub's SHA-256
 Review matched 863 tracked files, original and mutated source, executable
 and transcript hashes, exact assertion text and cleanup for all 128 test
 outcomes. This Windows run covers the coordinator controls only.
+
+### Reading a retained catalog under allocator refusal
+
+The catalog-read fixture at `12f6b81` opens a durable database with one
+historical root and a different current value. It refuses every request
+to the database allocator while exercising these cases.
+
+| Call | Observed result |
+| --- | --- |
+| Look up missing ID 2 | `NotFound` |
+| Look up retained ID 1 | The snapshot reads the historical value |
+| List IDs while the selected allocator refuses the catalog buffer | `OutOfMemory`, propagated through both the buffer reservation and public listing call |
+| List IDs after clearing the refusal | The caller receives exactly ID 1 |
+
+The fixture observes one refused allocation across the three calls under
+refusal, unchanged live bytes, revision and durable image, and zero additional
+byte-store operations through the successful retry. After close the custom
+allocator has no outstanding allocations. A fresh open reads the original
+catalog and current value. The allocation failure covers the engine's
+catalog buffer. Conversion into the caller-owned Rust vector occurs later.
+
+All three named controls caught their designated mutation in debug and
+release on arm64 macOS and Docker Linux. Review confirmed the exact
+`NotFound` and `OutOfMemory` assertion diagnostics and process cleanup.
+The 56 command reports and transcripts are in `catalog-read-12f6b81.tar.gz`,
+SHA-256 `fbc15318013ee037a451f9382bf2218637c08fe38c8ac4b0d888e294594db78c`.
+Reconciliation leaves 1,858 runtime, 26 driver and 7,388 tooling gaps.
