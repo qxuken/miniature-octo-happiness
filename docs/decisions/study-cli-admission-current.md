@@ -44,3 +44,51 @@ collection creation in the shared enrollment helper.
 
 The three short-circuit records share the named source pairs for the
 enclosing option and help decisions.
+
+## Verification
+
+Frozen source `60b973afbc5bd493437ee0ba78b3ae1296abd4f4` passed with Rust
+1.100.0 on arm64 macOS and offline arm64 Docker Linux on ext4. Each debug
+and release configuration passed all 53 Study tests and 14 core CRDT tests.
+Strict Clippy passed on both hosts.
+
+All 23 mutations were detected in each of the four configurations. Fresh
+extraction checked the named assertion failures, 320 process reports,
+exact runner hashes and all 950 copied files per campaign. The
+[archive checksums](study-cli-admission-60b973a.sha256) bind these inputs
+and outputs to the frozen source.
+
+On macOS, four unit probes and a separately instrumented CLI built with
+nightly `739adecd4` exercised both outcomes at the following conditions.
+Both extracted executable and profile pairs reproduced their LLVM exports
+byte for byte.
+
+| Condition in `native.rs` | True | False |
+| --- | ---: | ---: |
+| 61, no-push token | 8 | 10 |
+| 61, pushing still enabled | 6 | 2 |
+| 63, sync-only token | 8 | 4 |
+| 63, sync-only still disabled | 6 | 2 |
+| 76, expected receipt flag | 5 | 2 |
+| 87, long help spelling | 1 | 2 |
+| 87, short help spelling | 1 | 1 |
+| 91, keygen dispatch | 1 | 1 |
+| 94, init dispatch | 4 | 4 |
+| 97, checkpoint dispatch | 1 | 3 |
+| 105, stage dispatch | 3 | 3 |
+| 120, verify dispatch | 2 | 5 |
+
+Twenty named decisions, three coupled expressions and four scoped rows
+account for 27 runtime records. The project now has 502 runtime and
+7,514 tooling gaps. Native failure injection after initialization creates
+the file, and the other startup and service-loop records, remain open.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p study-peer
+cargo test --offline --locked --all-features -p weekend-db --test crdt
+cargo xtask mutations --toolchain 1.100.0 --case r1-study-cli- \
+  --output "$OUTPUT/debug"
+```
+
+Repeat the commands with `--release` and a fresh mutation output path.

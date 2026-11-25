@@ -2010,3 +2010,13 @@ default revision 2. All 72 roster mutations were detected on macOS and
 Docker Linux in debug and release. Reconciliation accounts for the remaining
 21 roster gaps and leaves 529 runtime and 7,514 tooling gaps across the
 project. Native late-sync injection remains open.
+
+### Study local command admission
+
+At `60b973a`, the [Study command ledger](decisions/study-cli-admission-current.md)
+accounts for 27 runtime records covering flag uniqueness, receipt handling,
+local dispatch, configuration errors and initialization. All 23 mutations
+were detected on macOS and Docker Linux in debug and release. Tests confirm
+that rejected preflight inputs preserve the source bytes and leave both
+stage destinations absent. Compiler evidence observes both outcomes at
+12 conditions. The project now has 502 runtime and 7,514 tooling gaps.
