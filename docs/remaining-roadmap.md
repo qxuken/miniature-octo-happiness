@@ -1699,3 +1699,21 @@ The [archive manifest](decisions/soak-replay-c5b671f.sha256) binds both
 checks and the tested evidence. The verifier supports timed proofs, and
 the deployment-device run and agreed service budgets remain open. The
 source inventory has 715 runtime gaps and 7,447 tooling gaps.
+
+### Replica envelope, build identity and Windows path decoding
+
+At `1a9cb6b`, the replica recovery test changed the expected identity,
+revision, end and witness independently. Each failure preserved the
+image, and the read-failure sweep propagated Io without an acknowledgment.
+All five mutations failed their named tests in debug and release on
+macOS arm64 and Docker Linux arm64.
+
+The same two platforms loaded ordinary and stamped base shared libraries.
+The C ABI reported `unknown` for the ordinary build and the exact frozen
+revision for the stamped build. The mismatched expectation failed on both.
+Native Windows ran the UTF-8 path tests in debug and release on the Git
+tree of `0940c22`. The FFI source matches the current revision. The
+[archive manifest](decisions/replica-envelope-1a9cb6b.sha256) covers 20
+mutation catches, 84 command receipts, the shared libraries, Windows logs
+and both reconciliations. There are 708 unclassified runtime decisions
+and 7,447 tooling decisions.

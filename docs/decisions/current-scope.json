@@ -400,7 +400,8 @@
     "apps/weekend-replicate/tests/audit_cli.rs": "273b5711541e219ca03885c66cca8addc8cd60eb0bd9031cbe90d1e7a7c5d056",
     "apps/weekend-replicate/src/native/pin_tests.rs": "76b408cae4f5a780ecbedf28352d118893d22f60ec1c7f6cf9ba39bbd11f748c",
     "docs/decisions/snapshot-maintenance-output-current.md": "a1e0d8119f0a4784f7ef6f0b09718da3bbf5bfed12d37da16b1ee01b3ecce5d6",
-    "docs/decisions/replica-envelope-current.md": "b324cbf3360151880dd016c42733c2acdff027f31ade2cad51677ecb1c38c641"
+    "docs/decisions/replica-envelope-current.md": "b324cbf3360151880dd016c42733c2acdff027f31ade2cad51677ecb1c38c641",
+    "docs/decisions/runtime-identity-current.md": "1fa85fa316980a6ab55f2bd73f7890d879d1bc62cfc0d6f74d8a471c849ca00c"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -589,7 +590,8 @@
         "examples/support/allocator_contract.h",
         "docs/decisions/ffi-file-factories-current.md",
         "examples/support/file_allocator_contract.h",
-        "docs/decisions/ffi-transaction-reads-current.md"
+        "docs/decisions/ffi-transaction-reads-current.md",
+        "docs/decisions/runtime-identity-current.md"
       ],
       "residual": "Generated export templates, pointer/lifetime contracts and per-ABI outcomes retain supplemental scope."
     },
@@ -763,7 +765,8 @@
       "references": [
         "docs/decisions/current.md",
         "docs/release-contract.md",
-        "docs/decisions/ffi.md"
+        "docs/decisions/ffi.md",
+        "docs/decisions/runtime-identity-current.md"
       ],
       "residual": "Build identity, derived traits and conditional exports require their exact delivered configurations."
     },
