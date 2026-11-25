@@ -19,6 +19,10 @@ and binary data containing a zero byte. The allocation sweep
 error kind, unchanged revision, primary rows and index rows after a refusal.
 The named reserve control is bound separately in the scope manifest.
 
+| Source | SHA-256 |
+| --- | --- |
+| `crates/weekend-db-typed/src/store.rs` | `1ba12c605448cd6fbf5b718f6920f189ec334f0d5d0e054603256d626f05d217` |
+
 | Status | Target | Location | Bytes | Kind | Owner | Evidence |
 |---|---|---|---|---|---|---|
 | C | weekend-db-typed::weekend_db_typed | crates/weekend-db-typed/src/store.rs:108:9– | 2532..2571 | short_circuit_and | is_consistent | T1/T4/T5 |

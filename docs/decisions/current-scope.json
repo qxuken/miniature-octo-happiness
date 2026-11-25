@@ -381,7 +381,7 @@
     "src/storage/logical/decisions.rs": "b3bd8042e68a4f4e56455998d19d579d39d87529b63303d36768ff9f15959bf8",
     "docs/decisions/inspection-backup-current.md": "7e43d86dc40a5858c09a0f87cd4d7f2def6fdee4027191618b24d2f7a5a71e6d",
     "docs/decisions/admin-dispatch-current.md": "f0945c5d8501bfa90b352e8c43d86d18d1a0bee5dd5418cb4c63a491f08c1bfe",
-    "docs/decisions/typed-store-current.md": "99ac2ad0a3586f3dfa3140de1fe248d74928fc9ac6645b81042e79b025e5aecc"
+    "docs/decisions/typed-store-current.md": "4a908d642fd6f9d85e5004f3dadc06c94de429816e8e4649848352529a20879c"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
