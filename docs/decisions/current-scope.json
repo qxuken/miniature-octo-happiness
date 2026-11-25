@@ -14,7 +14,7 @@
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
-    "apps/weekend-replicate/src/native.rs": "5475ce5eb5c847329b54d9353ccc0b19df50ed92f331ed8a3433932670a1773e",
+    "apps/weekend-replicate/src/native.rs": "08bb98c0d40140e247b1560d73289c416538db846157b0cfb288935ebbbe802d",
     "apps/weekend-replicate/src/native/admission.rs": "7144c0e040b9955bf64fe857361653378d3e01fb784639da5c8eae125ad312c3",
     "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
     "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
@@ -229,7 +229,7 @@
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "16095a3a2f18ce9f7d66fad33923194417e3c37a0ab1fddb8b69b25e29e483ea",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
-    "apps/weekend-replicate/src/native/tests.rs": "c757a6331a61e586295222eb8028d00bac0bdff42cb8cca6bd69dcb2fa302e12",
+    "apps/weekend-replicate/src/native/tests.rs": "75bb6991bf10f7bcf4cb301725c06399a50386ee2f45c2fa2914ce56c61f5779",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "41883b49d8d6f6dd5dfe3d90e16cbcc78d2586282e522abccab248649da8be34",
-    "xtask/tests/mutations.json": "b25f4101b576e8cd420918c8f2d25717ba29d7b155fdf14d2af2b120f743404e",
+    "xtask/tests/mutations.json": "bf0d22f2e81be0fef7d1cfef50f2ffce20c12104d7b9356d02eb4a2226e075e2",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -426,7 +426,8 @@
     "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403",
     "docs/decisions/snapshot-readiness-current.md": "9251f7f597712c3e86073a96df9e584384cabe3cf2991fd57f4eb87dfe395b3d",
     "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719",
-    "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679"
+    "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679",
+    "docs/decisions/snapshot-listener-current.md": "77b87f80d7efc283e3dfa213ef4d67f3c12b2d0fe99c8f8b01d592749a91f1d5"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -929,7 +930,8 @@
         "docs/decisions/snapshot-maintenance-output-current.md",
         "docs/decisions/snapshot-readiness-current.md",
         "docs/decisions/snapshot-command-output-current.md",
-        "docs/decisions/snapshot-retry-current.md"
+        "docs/decisions/snapshot-retry-current.md",
+        "docs/decisions/snapshot-listener-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },
@@ -32497,9 +32499,9 @@
       "selector": {
         "file": "apps/weekend-replicate/src/native.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "serve",
+        "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 16620,
+        "start_byte": 17103,
         "conditions": [
           "TcpListener::bind(address)"
         ]
@@ -32520,11 +32522,11 @@
       "selector": {
         "file": "apps/weekend-replicate/src/native.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "serve",
+        "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 16748,
+        "start_byte": 17226,
         "conditions": [
-          "diagnostics::at(Phase::Listen, || {\n        let listener = TcpListener::bind(address)?;\n        listener.set_nonblocking(true)?;\n        let address = listener.local_addr()?;\n        Ok((listener, address))\n    })"
+          "diagnostics::at(Phase::Listen, || {\n        let listener = TcpListener::bind(address)?;\n        nonblocking(&listener)?;\n        let address = bound_address(&listener)?;\n        Ok((listener, address))\n    })"
         ]
       },
       "tests": [
@@ -32543,11 +32545,11 @@
       "selector": {
         "file": "apps/weekend-replicate/src/native.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "serve",
+        "owner": "serve_with",
         "kind": "try_propagation",
-        "start_byte": 16800,
+        "start_byte": 17286,
         "conditions": [
-          "print_report(format_args!(\"ready {address}\"))"
+          "write_report(output, format_args!(\"ready {address}\"))"
         ]
       },
       "tests": [
@@ -32652,6 +32654,52 @@
       "mutations": [
         "r1-snapshot-retry-permanent",
         "r1-snapshot-retry-exhausted"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-LISTENER-NONBLOCKING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "serve_with",
+        "kind": "try_propagation",
+        "start_byte": 17136,
+        "conditions": [
+          "nonblocking(&listener)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "listener_setup_failure_preserves_the_receipt_and_closes_queued_clients"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-listener-mode"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-LISTENER-BOUND-ADDRESS",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "serve_with",
+        "kind": "try_propagation",
+        "start_byte": 17185,
+        "conditions": [
+          "bound_address(&listener)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/tests.rs",
+          "name": "listener_setup_failure_preserves_the_receipt_and_closes_queued_clients"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-listener-address"
       ]
     }
   ],

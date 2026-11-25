@@ -17305,7 +17305,7 @@
     {
       "name": "r1-snapshot-startup-ready-output",
       "file": "apps/weekend-replicate/src/native.rs",
-      "old": "print_report(format_args!(\"ready {address}\"))?;",
+      "old": "write_report(output, format_args!(\"ready {address}\"))?;",
       "new": "println!(\"ready {address}\");",
       "test": "cli",
       "target": "--test",
@@ -17409,6 +17409,30 @@
       "matches": 1,
       "package": "weekend-replicate",
       "exact_test": "native::tests::retry_preserves_terminal_errors_and_tolerates_a_closed_notice_pipe"
+    },
+    {
+      "name": "r1-snapshot-listener-mode",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "nonblocking(&listener)?",
+      "new": "nonblocking(&listener).map_err(|_| io::Error::from(io::ErrorKind::Other))?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::listener_setup_failure_preserves_the_receipt_and_closes_queued_clients"
+    },
+    {
+      "name": "r1-snapshot-listener-address",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "bound_address(&listener)?",
+      "new": "bound_address(&listener).map_err(|_| io::Error::from(io::ErrorKind::Other))?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::listener_setup_failure_preserves_the_receipt_and_closes_queued_clients"
     }
   ]
 }

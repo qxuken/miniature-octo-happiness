@@ -439,13 +439,32 @@ fn serve_one(follower: &mut Follower, tls: &Tls, socket: TcpStream) -> Result<()
         .map_err(SessionError::Replication)
 }
 fn serve(follower: Follower, address: SocketAddr, tls: &Tls, maximum: usize) -> AppResult<()> {
+    serve_with(
+        follower,
+        address,
+        tls,
+        maximum,
+        |listener| listener.set_nonblocking(true),
+        TcpListener::local_addr,
+        &mut io::stdout(),
+    )
+}
+fn serve_with(
+    follower: Follower,
+    address: SocketAddr,
+    tls: &Tls,
+    maximum: usize,
+    nonblocking: impl FnOnce(&TcpListener) -> io::Result<()>,
+    bound_address: impl FnOnce(&TcpListener) -> io::Result<SocketAddr>,
+    output: &mut impl Write,
+) -> AppResult<()> {
     let (listener, address) = diagnostics::at(Phase::Listen, || {
         let listener = TcpListener::bind(address)?;
-        listener.set_nonblocking(true)?;
-        let address = listener.local_addr()?;
+        nonblocking(&listener)?;
+        let address = bound_address(&listener)?;
         Ok((listener, address))
     })?;
-    print_report(format_args!("ready {address}"))?;
+    write_report(output, format_args!("ready {address}"))?;
     diagnostics::at(Phase::Replication, || {
         admission::serve(listener, follower, tls, maximum)
     })

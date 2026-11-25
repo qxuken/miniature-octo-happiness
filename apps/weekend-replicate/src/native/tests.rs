@@ -1190,3 +1190,108 @@ fn interrupted_authenticated_exchange_retries_the_same_export() {
     .unwrap();
     check(&reopened, ack, 2);
 }
+
+#[test]
+fn listener_setup_failure_preserves_the_receipt_and_closes_queued_clients() {
+    use std::cell::Cell;
+
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "serve".into()],
+    );
+    for (mode_fails, kind, code, detail) in [
+        (
+            true,
+            io::ErrorKind::PermissionDenied,
+            "permission_denied",
+            "set nonblocking",
+        ),
+        (
+            false,
+            io::ErrorKind::InvalidInput,
+            "invalid_input",
+            "read local address",
+        ),
+    ] {
+        let dir = Directory::new();
+        let path = source(&dir);
+        let image = dir.0.join("export.wdb");
+        let mut prepared = prepare(&path, [1; 16], &image).unwrap();
+        let enrollment = prepared.export.descriptor().enrollment;
+        let mut follower = follower(&dir, enrollment);
+        let (client, tls) = pair();
+        let (sent, served) = exchange(&mut follower, &tls, |address| {
+            ship(&mut prepared, &client, address, 1)
+        });
+        let receipt = sent.unwrap();
+        served.unwrap();
+        let slot = follower.status().unwrap().selected_slot.unwrap();
+        drop(follower);
+
+        let follower_path = dir.0.join("follower");
+        let manifest = follower_path.join("replica-manifest.wdb");
+        let before = fs::read(&manifest).unwrap();
+        let image = follower_path.join(format!("replica-{slot}.wdb"));
+        let image_before = fs::read(&image).unwrap();
+        let follower = Follower::open(&follower_path, enrollment, Limits::default()).unwrap();
+        let mut queued = None;
+        let queried = Cell::new(false);
+        let mut output = Vec::new();
+        let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+            serve_with(
+                follower,
+                "127.0.0.1:0".parse().unwrap(),
+                &tls,
+                1,
+                |listener| {
+                    let peer = TcpStream::connect(listener.local_addr()?)?;
+                    peer.set_read_timeout(Some(Duration::from_secs(2)))?;
+                    queued = Some(peer);
+                    if mode_fails {
+                        Err(io::Error::new(kind, detail))
+                    } else {
+                        listener.set_nonblocking(true)
+                    }
+                },
+                |_| {
+                    queried.set(true);
+                    Err(io::Error::new(kind, detail))
+                },
+                &mut output,
+            )
+        });
+
+        let error = result.unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(kind)
+        );
+        assert_eq!(error.to_string(), detail);
+        assert!(
+            diagnostic
+                .unwrap()
+                .json(settings)
+                .to_string()
+                .contains(&format!(
+                    r#""phase":"listen","category":"io","code":"{code}""#
+                ))
+        );
+        assert_eq!(queried.get(), !mode_fails);
+        assert!(output.is_empty());
+
+        let mut queued = queued.unwrap();
+        match queued.read(&mut [0]) {
+            Ok(0) => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                ) => {}
+            other => panic!("listener setup left a queued connection open: {other:?}"),
+        }
+        assert_eq!(fs::read(&manifest).unwrap(), before);
+        assert_eq!(fs::read(&image).unwrap(), image_before);
+        let reopened = Follower::open(&follower_path, enrollment, Limits::default()).unwrap();
+        check(&reopened, receipt, 2);
+    }
+}
