@@ -18,11 +18,12 @@ const HDIUTIL: &str = "/usr/bin/hdiutil";
 const PLUTIL: &str = "/usr/bin/plutil";
 const SIZE: u64 = 256 * 1024 * 1024;
 const BLOCK: u64 = 4096;
-const DETACH_ATTEMPTS: usize = 5;
+const DETACH_RETRY_DELAY_MS: [u64; 7] = [250, 500, 1_000, 1_500, 2_000, 3_000, 4_000];
+const DETACH_ATTEMPTS: usize = DETACH_RETRY_DELAY_MS.len() + 1;
 
 fn retry_detach(
     mut attempt: impl FnMut(usize) -> Result<crate::trace_process::Report>,
-    mut on_busy: impl FnMut(),
+    mut on_busy: impl FnMut(u64),
 ) -> Result<()> {
     for number in 0..DETACH_ATTEMPTS {
         let report = attempt(number)?;
@@ -32,7 +33,7 @@ fn retry_detach(
         );
         match report.exit {
             Some(0) => return Ok(()),
-            Some(16) if number + 1 < DETACH_ATTEMPTS => on_busy(),
+            Some(16) if number + 1 < DETACH_ATTEMPTS => on_busy(DETACH_RETRY_DELAY_MS[number]),
             _ => anyhow::bail!(
                 "owned APFS detach failed on attempt {}: {report:?}",
                 number + 1
@@ -239,9 +240,9 @@ fn detach_owned(
                 true,
             )
         },
-        || {
+        |delay_ms| {
             on_busy();
-            std::thread::sleep(std::time::Duration::from_millis(250));
+            std::thread::sleep(std::time::Duration::from_millis(delay_ms));
         },
     )
 }
@@ -339,11 +340,12 @@ mod tests {
         for (exits, success, waits) in [
             (vec![0], true, 0),
             (vec![16, 0], true, 1),
+            (vec![16, 16, 16, 16, 16, 0], true, 5),
             (vec![16; DETACH_ATTEMPTS], false, DETACH_ATTEMPTS - 1),
             (vec![1], false, 0),
         ] {
             let mut calls = 0;
-            let mut pauses = 0;
+            let mut pauses = Vec::new();
             let result = retry_detach(
                 |number| {
                     calls += 1;
@@ -353,11 +355,11 @@ mod tests {
                         ..Default::default()
                     })
                 },
-                || pauses += 1,
+                |delay| pauses.push(delay),
             );
             assert_eq!(result.is_ok(), success);
             assert_eq!(calls, exits.len());
-            assert_eq!(pauses, waits);
+            assert_eq!(pauses, DETACH_RETRY_DELAY_MS[..waits]);
         }
         for (cleanup, failure, exit) in [
             (false, None, Some(0)),
@@ -375,7 +377,7 @@ mod tests {
                         ..Default::default()
                     })
                 },
-                || panic!("failed supervision cannot retry"),
+                |_| panic!("failed supervision cannot retry"),
             );
             assert!(result.is_err());
             assert_eq!(calls, 1);
@@ -393,8 +395,12 @@ mod tests {
         let mut proof = json!({"commands":[]});
         let result = with_volume(&mut proof, &output, &run.env, |proof, data| {
             let mut held = Some(fs::File::open(data)?);
+            let mut busy = 0;
             let result = detach_owned(proof, &output, &run.env, "controlled-detach", || {
-                drop(held.take());
+                busy += 1;
+                if busy == 5 {
+                    drop(held.take());
+                }
             });
             drop(held.take());
             result?;
@@ -406,8 +412,8 @@ mod tests {
                 .map(|row| row["report"]["exit"].as_i64().unwrap())
                 .collect::<Vec<_>>();
             ensure!(
-                exits.first() == Some(&16) && exits.last() == Some(&0),
-                "control must observe Busy before successful detach"
+                exits.len() >= 6 && exits[..5] == [16; 5] && exits.last() == Some(&0),
+                "control must observe five busy detaches before success: {exits:?}"
             );
             Ok(())
         });
