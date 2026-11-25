@@ -13842,6 +13842,61 @@
       "target": "--test",
       "test": "bytestore",
       "exact_test": "consecutive_failed_syncs_preserve_pending_writes_until_successful_retry"
+    },
+    {
+      "name": "r1-codec-crc-bit-rounds",
+      "file": "src/storage/codec.rs",
+      "old": "while bit < 8 {",
+      "new": "while bit < 7 {",
+      "package": "weekend-db",
+      "test": "storage::codec::tests::crc_words_and_incremental_tails_match_the_bit_recurrence",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-codec-crc-high-bit",
+      "file": "src/storage/codec.rs",
+      "old": "if crc & (1 << 63) != 0 {",
+      "new": "if crc & (1 << 62) != 0 {",
+      "package": "weekend-db",
+      "test": "storage::codec::tests::crc_words_and_incremental_tails_match_the_bit_recurrence",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-codec-crc-last-row",
+      "file": "src/storage/codec.rs",
+      "old": "while row < tables.len() {",
+      "new": "while row < tables.len() - 1 {",
+      "package": "weekend-db",
+      "test": "storage::codec::tests::crc_words_and_incremental_tails_match_the_bit_recurrence",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-codec-crc-word-order",
+      "file": "src/storage/codec.rs",
+      "old": "crc ^ u64::from_be_bytes(*word)",
+      "new": "crc ^ u64::from_le_bytes(*word)",
+      "package": "weekend-db",
+      "test": "storage::codec::tests::crc_words_and_incremental_tails_match_the_bit_recurrence",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-codec-crc-tail-state",
+      "file": "src/storage/codec.rs",
+      "old": "((crc >> 56) as u8) ^ byte",
+      "new": "((crc >> 48) as u8) ^ byte",
+      "package": "weekend-db",
+      "test": "storage::codec::tests::crc_words_and_incremental_tails_match_the_bit_recurrence",
+      "target": "--lib",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

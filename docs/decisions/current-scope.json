@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "c5febb639812fc31a833c2ab2ab04efe0982de3a8a0122f68847db881757bc45",
-    "xtask/tests/mutations.json": "74b2498898b7f0d201fdcaee0c9f7e8451da92e88b298b3f68d50a1b21b138f0",
+    "xtask/tests/mutations.json": "84f8b334f540cbd6f54367d831eab0aad99d1ad14aced50df33537f9e5c295fc",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -385,7 +385,8 @@
     "docs/decisions/typed-catalog-current.md": "5e498217efc23dcd2e299041a945ede86752ab62b773a1ef6cadd52d7b805fee",
     "docs/decisions/typed-lookup-current.md": "5737b59d961037bc7a8d703e740f41b0b441ebaf1228c8835408312b4fee8f71",
     "docs/decisions/simulator-survival-current.md": "9b731edf4d3bb656a0aafca2c16e5a1b1126d9d580147cba2e55501559625af2",
-    "tests/bytestore.rs": "63241a465b5cdf73e83baddd8d0fee4eb00bd067cc00bb5cfc21c38b9e4c020b"
+    "tests/bytestore.rs": "63241a465b5cdf73e83baddd8d0fee4eb00bd067cc00bb5cfc21c38b9e4c020b",
+    "docs/decisions/codec-crc-current.md": "86f5c8ac361be7c5832a232bc2ca37a683f204eab861b1ccfd8905bf31f97bee"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -620,7 +621,8 @@
         "docs/decisions/codec-encode-data-current.md",
         "docs/decisions/codec-encode-commit-current.md",
         "docs/decisions/codec-cache-index-current.md",
-        "tests/allocator_routing.rs"
+        "tests/allocator_routing.rs",
+        "docs/decisions/codec-crc-current.md"
       ],
       "residual": "Checked/implicit arithmetic, delegated primitives and compiler-expanded records remain separate. Cursor conversion is scoped to qualified 64-bit ABIs; narrower targets remain delegated."
     },
