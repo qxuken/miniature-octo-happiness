@@ -23,7 +23,7 @@
     "apps/write-coordinator/src/main.rs": "0baa2da45ecc666867adbf652fc95958edefe1ac0523c76d96934b69e7b5517b",
     "apps/write-coordinator/src/native.rs": "b53799c3670a6d60d81c648649e7b3839e29d45d492b1692f21faf8dcb6db119",
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
-    "apps/write-coordinator/src/native/protocol.rs": "e92395560eeb7e168c993059b15771d8a93c358d942136e31cbb14ed30ef73a3",
+    "apps/write-coordinator/src/native/protocol.rs": "a4a86e7cfc549405c55cdce86a33c9ff10751e91aae1ecb65c402d466b6e9f36",
     "apps/write-coordinator/src/native/sequenced.rs": "cfb7566de7deb025b272c3ef77a2eb2827dbd27a685ebe2b17938a6f47e37bd6",
     "apps/write-coordinator/src/native/service.rs": "a5c5dd34ac9de1685f58631f3ccde36e15771baca3a5e3871e86d8869a2bbaf6",
     "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
@@ -298,8 +298,8 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/coordinator-windows-oracle.json": "3603c3188a66d0c21281f85288a9cf4d68cfbfb83171f94c21277a8a46262b63",
-    "xtask/tests/mutations.json": "d1dc4293f36a1f2c321ebe19248b23dfeb050223b3b76021140e9a4bd7f3cf99",
+    "xtask/tests/coordinator-windows-oracle.json": "66f32e10c0c20f6736c96137abb7af9aa55ed54d39d4cfb9bd32b06c2f3813ea",
+    "xtask/tests/mutations.json": "607ea0c417e1f2b54b960eee0d8693a966b1628d2b39a34170418376b1e0d7ae",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -431,7 +431,8 @@
     "docs/decisions/study-listener-current.md": "1042959f13fc8b745f0bfeff0f6076a420a3bfee6d8df51776509176de540b0e",
     "docs/decisions/study-protocol-current.md": "f64491f0ba1600aa1aa3e192e58be8e53f18fa4f1c07b9a638b881c46eb7aa35",
     "docs/decisions/coordinator-legacy-receipts-current.md": "ce45c3172123a6c8275376d39619c0b83bc83bfcc530f49f385c0311e1c37afb",
-    "docs/decisions/apfs-detach-current.md": "6d7b0a32cd016f9c916c2778b36b69ba2e0cc42f276e6ee7560d2934bf8a9a79"
+    "docs/decisions/apfs-detach-current.md": "6d7b0a32cd016f9c916c2778b36b69ba2e0cc42f276e6ee7560d2934bf8a9a79",
+    "docs/decisions/coordinator-legacy-commit-current.md": "e71b11237e0325136b1673daee78bde0572b61f4a8cbcdcbcb01df623af0c51e"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -959,7 +960,8 @@
         "docs/decisions/journal-state-current.md",
         "docs/decisions/journal-cli-current.md",
         "docs/decisions/coordinator-connection-handoff-current.md",
-        "docs/decisions/coordinator-legacy-receipts-current.md"
+        "docs/decisions/coordinator-legacy-receipts-current.md",
+        "docs/decisions/coordinator-legacy-commit-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -33884,6 +33886,844 @@
           ],
           "outcome": true
         }
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-STATE-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "state_in",
+        "kind": "try_propagation",
+        "start_byte": 1672,
+        "conditions": [
+          "counter_at(&snapshot, db.collection_id(collection))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-state-read"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-COUNTER-COLLECTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "counter_at",
+        "kind": "try_propagation",
+        "start_byte": 1811,
+        "conditions": [
+          "snapshot\n        .get(collection, KEY)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-counter-collection"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-COUNTER-MEMBER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "counter_at",
+        "kind": "try_propagation",
+        "start_byte": 1844,
+        "conditions": [
+          "snapshot\n        .get(collection, KEY)?\n        .ok_or(Error::NotFound)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-counter-member"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-GET-STATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2178,
+        "conditions": [
+          "state(db)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-get-state"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-SET-STATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2647,
+        "conditions": [
+          "state(db)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-set-state"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-IDENTIFIED-STATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 4614,
+        "conditions": [
+          "state(db)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-identified-state"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-RECEIPT-LOOKUP",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 3791,
+        "conditions": [
+          "tx.get(collection, key.as_bytes())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-receipt-lookup"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-REQUIRES-RECOVERY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "if",
+        "start_byte": 1945,
+        "conditions": [
+          "db.requires_recovery()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_receipt_commit_faults_reopen_atomically_and_retry_once"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-requires-recovery"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-SET-CONFLICT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "if",
+        "start_byte": 2662,
+        "conditions": [
+          "revision != expected"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-set-conflict"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-SET-EXPECTED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2359,
+        "conditions": [
+          "expected.parse::<u64>().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-set-expected"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-SET-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2434,
+        "conditions": [
+          "value.parse::<u64>().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-set-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-IDENTIFIED-EXPECTED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 3073,
+        "conditions": [
+          "expected.parse::<u64>().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-identified-expected"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-IDENTIFIED-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 3148,
+        "conditions": [
+          "value.parse::<u64>().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-identified-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-SET-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2883,
+        "conditions": [
+          "tx.put(db.collection_id(COLLECTION), KEY, &db.unsigned(value)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_draft_budget_failures_preserve_counter_and_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-set-draft"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-IDENTIFIED-COUNTER-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 5283,
+        "conditions": [
+          "tx.put(collection, KEY, &db.unsigned(value)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_draft_budget_failures_preserve_counter_and_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-identified-counter-draft"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-RECEIPT-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 5344,
+        "conditions": [
+          "db.bytes(&receipt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_draft_budget_failures_preserve_counter_and_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-receipt-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-APP-RECEIPT-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 5346,
+        "conditions": [
+          "tx.put(collection, key.as_bytes(), &db.bytes(&receipt)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_draft_budget_failures_preserve_counter_and_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-app-receipt-draft"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-STATE-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "state_in",
+        "kind": "try_propagation",
+        "start_byte": 1672,
+        "conditions": [
+          "counter_at(&snapshot, db.collection_id(collection))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-state-read"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-COUNTER-COLLECTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "counter_at",
+        "kind": "try_propagation",
+        "start_byte": 1811,
+        "conditions": [
+          "snapshot\n        .get(collection, KEY)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-counter-collection"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-COUNTER-MEMBER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "counter_at",
+        "kind": "try_propagation",
+        "start_byte": 1844,
+        "conditions": [
+          "snapshot\n        .get(collection, KEY)?\n        .ok_or(Error::NotFound)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-counter-member"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-GET-STATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2178,
+        "conditions": [
+          "state(db)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-get-state"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-SET-STATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2647,
+        "conditions": [
+          "state(db)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-set-state"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-IDENTIFIED-STATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 4614,
+        "conditions": [
+          "state(db)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-identified-state"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-RECEIPT-LOOKUP",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 3791,
+        "conditions": [
+          "tx.get(collection, key.as_bytes())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-receipt-lookup"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-REQUIRES-RECOVERY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "if",
+        "start_byte": 1945,
+        "conditions": [
+          "db.requires_recovery()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_receipt_commit_faults_reopen_atomically_and_retry_once"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-requires-recovery"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-SET-CONFLICT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "if",
+        "start_byte": 2662,
+        "conditions": [
+          "revision != expected"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-set-conflict"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-SET-EXPECTED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2359,
+        "conditions": [
+          "expected.parse::<u64>().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-set-expected"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-SET-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2434,
+        "conditions": [
+          "value.parse::<u64>().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-set-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-IDENTIFIED-EXPECTED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 3073,
+        "conditions": [
+          "expected.parse::<u64>().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-identified-expected"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-IDENTIFIED-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 3148,
+        "conditions": [
+          "value.parse::<u64>().map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_commands_preserve_missing_rows_and_parse_errors"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-identified-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-SET-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 2883,
+        "conditions": [
+          "tx.put(db.collection_id(COLLECTION), KEY, &db.unsigned(value)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_draft_budget_failures_preserve_counter_and_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-set-draft"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-IDENTIFIED-COUNTER-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 5283,
+        "conditions": [
+          "tx.put(collection, KEY, &db.unsigned(value)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_draft_budget_failures_preserve_counter_and_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-identified-counter-draft"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-RECEIPT-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 5344,
+        "conditions": [
+          "db.bytes(&receipt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_draft_budget_failures_preserve_counter_and_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-receipt-value"
+      ]
+    },
+    {
+      "name": "COORDINATOR-LEGACY-COMMIT-FUZZ-RECEIPT-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/protocol.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit_identified",
+        "kind": "try_propagation",
+        "start_byte": 5346,
+        "conditions": [
+          "tx.put(collection, key.as_bytes(), &db.bytes(&receipt)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/protocol.rs",
+          "name": "legacy_draft_budget_failures_preserve_counter_and_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-legacy-coordinator-commit-fuzz-receipt-draft"
       ]
     }
   ],
