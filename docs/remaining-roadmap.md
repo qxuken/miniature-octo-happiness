@@ -863,3 +863,13 @@ release trace entries and all 170 PR trace entries. The
 [archive manifest](delivery-checkpoint-4a37229.sha256) pins both package
 and trace downloads. These are native ABI results for this checkpoint.
 The Windows distributed CLI upgrade gate remains open.
+
+A checkout control for the five-profile candidate workflow reproduced a
+different fixture digest with Git automatic CRLF conversion enabled. The
+same setting changed every historical lock during the independent prefetch
+step. With the Windows checkout setting applied, the Study fixture matched
+its committed blob. With the archive settings applied, all five locks
+matched their historical blobs, even when the surrounding Git configuration
+still requested CRLF conversion. The workflow checks those lock identities
+before fetching dependencies. Actionlint 1.7.12 passed. This control ran
+on macOS and covers Git byte conversion only.

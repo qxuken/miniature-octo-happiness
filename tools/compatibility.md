@@ -130,3 +130,8 @@ and passes the checked-out commit to each offline qualification. The
 `candidate-compatibility` artifacts retain the endpoint identities, locks,
 consumer binaries, test files and command transcripts. Pull requests
 continue to run the existing fixed-endpoint controls.
+
+The Windows candidate job disables automatic CRLF conversion before checkout
+so the controller reads the committed fixture bytes. On every host the
+prefetch step extracts each historical lock with LF preserved and compares
+its unfiltered Git blob ID with the historical commit before invoking Cargo.

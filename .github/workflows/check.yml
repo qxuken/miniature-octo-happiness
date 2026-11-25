@@ -593,6 +593,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
+      - name: Preserve committed fixture bytes on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - name: Install the qualification compiler
         run: rustup toolchain install 1.100.0 --profile minimal --component clippy
@@ -614,7 +617,8 @@ jobs:
             esac
             git fetch --no-tags --depth=1 origin "$historical"
             inputs=$(mktemp -d)
-            git archive "$historical" | tar -x -C "$inputs"
+            git -c core.autocrlf=false -c core.eol=lf archive "$historical" | tar -x -C "$inputs"
+            test "$(git hash-object --no-filters "$inputs/Cargo.lock")" = "$(git rev-parse "$historical:Cargo.lock")"
             cargo +1.100.0 fetch --locked --manifest-path "$inputs/Cargo.toml"
             case "$profile" in
               snapshot-cli) args=(snapshot-cli-upgrade --historical "$historical" --current "$candidate") ;;
