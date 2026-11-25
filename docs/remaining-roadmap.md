@@ -1018,3 +1018,28 @@ Docker Linux restoration bound the results to the checkpoint's 16 packages
 and three benchmark runs. The candidate operator workflow now also
 [rehearses debug and optimized recovery](r2-qualification.md#candidate-operator-recovery)
 on manual and tagged runs.
+
+### R1 collection creation and removal at e73afbd
+
+Fourteen source records in `check_collection`, `create_collection` and
+`drop_collection` now have named controls. Two are single-condition
+decisions and twelve are error-propagation sites.
+
+| Operation | Passing case | Error case and observation |
+|---|---|---|
+| Validate collection ownership | The local collection ID resolves | The same numeric ID from another database returns `ForeignStore` |
+| Remove a collection | An existing collection is removed and its pinned snapshot remains readable | A missing collection returns `NotFound` |
+| Admit create or drop | A writable database accepts the operation | After a publication I/O error both operations return `RecoveryRequired` |
+| Increment revisions or allocate the next collection ID | The final representable revision or assignable ID succeeds | Exhaustion returns `Exhausted` without advancing the revision |
+| Prepare the catalog tree and head | With sufficient allocations, the current revision advances once | Selected-allocator refusal during insertion, removal or head allocation preserves current and pinned collections and both live-byte counts |
+| Publish create or drop | After reopening, the next ID can be created and the original collection dropped | A simulated first I/O failure returns `Io`. After a discard crash, both the current and retained roots reopen with the original two records |
+
+All fourteen mutants failed their designated test in debug and release on
+macOS arm64 and Docker Linux arm64. Fresh extraction rechecked all 204
+process receipts, named baseline and mutant outcomes, cleanup, source
+bindings and transcript lengths. All twelve mutation registry tests and
+strict Clippy for the affected integration test passed. The
+[archive manifest](decisions/catalog-lifecycle-e73afbd.sha256) pins both
+campaign archives and the tested source. Reconciliation recorded 10,639
+decisions, zero binding failures, and 1,836 runtime, 26 driver and 7,396
+tooling gaps.
