@@ -41,6 +41,58 @@ fn structured_errors_keep_categories_without_echoing_private_inputs() {
 }
 
 #[test]
+fn both_service_startup_commands_reach_the_same_reopened_state() {
+    use std::ffi::OsStr;
+
+    let root = Root::new("study-startup");
+    let database = root.0.join("study.wdb");
+    let policy = root.0.join("policy");
+    fs::write(
+        &policy,
+        format!(
+            "study-policy-v1 {ID} 7 {} {}\n",
+            "01".repeat(16),
+            "02".repeat(16)
+        ),
+    )
+    .unwrap();
+    let mut init = command(true);
+    init.arg("init").arg(&database).args(["a", ID]);
+    Process::start(&root.0, "init", init).finish(true);
+    let original = fs::read(&database).unwrap();
+    let local = root.credentials("local");
+    let pin = root.credentials("peer").join("cert.der");
+    let start = |verb: &str, config: &OsStr| {
+        let mut process = command(true);
+        process
+            .arg(verb)
+            .arg(&database)
+            .arg("a")
+            .arg(config)
+            .args(["127.0.0.1:0", "127.0.0.1:1"])
+            .arg(&local)
+            .arg(&pin)
+            .arg("--no-push");
+        Process::start(&root.0, verb, process)
+    };
+
+    let logs = start("unknown", OsStr::new(ID)).finish(false);
+    safe(&logs);
+    assert!(logs.0.is_empty());
+    for (verb, config) in [("run", OsStr::new(ID)), ("run-policy", policy.as_os_str())] {
+        let mut service = start(verb, config);
+        service.until(|stdout| stdout.lines().any(|line| line.starts_with("ready ")));
+        service.input("show\n");
+        service.until(|stdout| stdout.lines().any(|line| line == "state 2 0 [] [] []"));
+        service.input("quit\n");
+        let logs = service.finish(true);
+        safe(&logs);
+        assert!(logs.1.is_empty());
+        assert_eq!(fs::read(&database).unwrap(), original);
+    }
+}
+
+#[test]
 fn closed_ready_pipe_is_a_local_command_error() {
     let root = Root::new("study-ready");
     let database = root.0.join("study.wdb");

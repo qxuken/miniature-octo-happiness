@@ -235,6 +235,207 @@ fn local_startup_dispatch_checks_arguments_before_opening_paths() {
 }
 
 #[test]
+fn service_startup_preserves_native_errors_and_releases_resources() {
+    #[derive(Clone, Copy)]
+    struct Startup<'a> {
+        database: &'a Path,
+        actor: &'a OsStr,
+        config: &'a OsStr,
+        listen: &'a OsStr,
+        peer: &'a OsStr,
+        credentials: &'a Path,
+        pin: &'a Path,
+    }
+
+    let directory = Directory::new();
+    let [
+        database,
+        policy,
+        credentials,
+        peer_credentials,
+        missing,
+        malformed,
+    ] = [
+        "study.wdb",
+        "policy",
+        "local",
+        "peer",
+        "missing",
+        "malformed",
+    ]
+    .map(|name| directory.0.join(name));
+    let enrollment = Enrollment::new("a", COLLECTION).unwrap();
+    initialize(&database, enrollment).unwrap();
+    write_roster_policy(&policy, enrollment.policy);
+    Credentials::generate().unwrap().write_fixture(&credentials);
+    Credentials::generate()
+        .unwrap()
+        .write_fixture(&peer_credentials);
+    fs::write(&malformed, [0]).unwrap();
+    let original = fs::read(&database).unwrap();
+    let id = hex_identity(COLLECTION);
+    let pin = peer_credentials.join("cert.der");
+    let direct = Startup {
+        database: &database,
+        actor: OsStr::new("a"),
+        config: OsStr::new(&id),
+        listen: OsStr::new("127.0.0.1:0"),
+        peer: OsStr::new("127.0.0.1:1"),
+        credentials: &credentials,
+        pin: &pin,
+    };
+    let configured = Startup {
+        config: policy.as_os_str(),
+        ..direct
+    };
+    let reject = |command: &str, args: Startup<'_>| {
+        let error = invoke(
+            command,
+            &[
+                args.database.as_os_str(),
+                args.actor,
+                args.config,
+                args.listen,
+                args.peer,
+                args.credentials.as_os_str(),
+                args.pin.as_os_str(),
+                OsStr::new("--no-push"),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(fs::read(&database).unwrap(), original);
+        let db = Database::open_file(&database, Limits::default()).unwrap();
+        assert_eq!(db.snapshot().revision(), 2);
+        error
+    };
+    let run = |args| reject("run", args);
+    let run_policy = |args| reject("run-policy", args);
+    let actor = OsStr::new("c");
+    assert_eq!(
+        run(Startup { actor, ..direct }).to_string(),
+        "actor must be a or b"
+    );
+    assert_eq!(
+        run_policy(Startup {
+            actor,
+            ..configured
+        })
+        .to_string(),
+        "actor must be a or b"
+    );
+    #[cfg(unix)]
+    let invalid_utf8 = {
+        use std::os::unix::ffi::OsStringExt;
+        OsString::from_vec(vec![0xff])
+    };
+    #[cfg(windows)]
+    let invalid_utf8 = {
+        use std::os::windows::ffi::OsStringExt;
+        OsString::from_wide(&[0xd800])
+    };
+    for error in [
+        run_policy(Startup {
+            actor: &invalid_utf8,
+            config: missing.as_os_str(),
+            ..configured
+        }),
+        run(Startup {
+            listen: &invalid_utf8,
+            ..direct
+        }),
+        run(Startup {
+            peer: &invalid_utf8,
+            ..direct
+        }),
+    ] {
+        assert_eq!(error.to_string(), "expected a UTF-8 argument");
+    }
+    for error in [
+        run_policy(Startup {
+            config: missing.as_os_str(),
+            ..configured
+        }),
+        run(Startup {
+            credentials: &missing,
+            pin: &malformed,
+            ..direct
+        }),
+        run(Startup {
+            pin: &missing,
+            ..direct
+        }),
+    ] {
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(io::ErrorKind::NotFound)
+        );
+    }
+    assert_eq!(
+        run_policy(Startup {
+            config: malformed.as_os_str(),
+            ..configured
+        })
+        .downcast_ref::<Error>(),
+        Some(&Error::UnsupportedFormat)
+    );
+    assert!(
+        run(Startup {
+            pin: &malformed,
+            database: &missing,
+            ..direct
+        })
+        .is::<rustls::Error>()
+    );
+    assert_eq!(
+        run(Startup {
+            database: &missing,
+            listen: OsStr::new("bad address"),
+            ..direct
+        })
+        .downcast_ref::<Error>(),
+        Some(&Error::NotFound)
+    );
+
+    let bad_address = OsStr::new("bad address");
+    assert!(
+        run(Startup {
+            listen: bad_address,
+            ..direct
+        })
+        .is::<std::net::AddrParseError>()
+    );
+    let held = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = held.local_addr().unwrap();
+    let listen = address.to_string();
+    let listen = OsStr::new(&listen);
+    let refusal = TcpListener::bind(address).unwrap_err();
+    let bind_error = run(Startup { listen, ..direct });
+    let bind_error = bind_error.downcast_ref::<io::Error>().unwrap();
+    assert_eq!(bind_error.kind(), refusal.kind());
+    assert_eq!(bind_error.raw_os_error(), refusal.raw_os_error());
+    drop(held);
+    assert!(
+        run(Startup {
+            listen,
+            peer: bad_address,
+            ..direct
+        })
+        .is::<std::net::AddrParseError>()
+    );
+    let rebound = TcpListener::bind(address).unwrap();
+    drop(rebound);
+    assert_eq!(
+        run_policy(Startup {
+            actor: OsStr::new("b"),
+            ..configured
+        })
+        .downcast_ref::<Error>(),
+        Some(&Error::ForeignStore)
+    );
+    assert!(!missing.exists());
+}
+
+#[test]
 fn roster_dispatch_preserves_configuration_and_receipt_errors() {
     let directory = Directory::new();
     let [a, b, old, new, bad, new_a, new_b, missing] =

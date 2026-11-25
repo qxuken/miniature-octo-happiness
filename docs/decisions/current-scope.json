@@ -227,7 +227,7 @@
     "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "d7c12ed40ae4756bc88af619d5d76b07e203610c812dc9a989e0c886b4f066ed",
+    "apps/study-peer/src/native/tests.rs": "a6ae95be93d68a4239fa8c38ff241acc1b8f2d390e2535701a0854f50d23d7af",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
     "apps/weekend-replicate/src/native/tests.rs": "a7be99a51cd0a218d6c3d02dda0bcc571b4e1082cd39cf2592b3aa30bc09bdb1",
     "apps/weekend-replicate/tests/cli.rs": "7c5058e3bc08b609ed5ce52e1d88ad7ae5c7d0e16afec25b25ced819742dff99",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "dd660aa6350a13ba46cf7c98221c8bdc5d3d9d7ecc65b11d4df47a9a83c483f4",
+    "xtask/tests/mutations.json": "c3e48162c4e50b8ac49b665338d9c1c99b800a73a9c0e261045d2e891e97c7da",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -409,10 +409,11 @@
     "docs/decisions/runtime-identity-current.md": "1fa85fa316980a6ab55f2bd73f7890d879d1bc62cfc0d6f74d8a471c849ca00c",
     "docs/decisions/native-compaction-setup-current.md": "3d69b238c78fceeb39b20798a0b31b62e988b25f1313df2fc7108506d986384f",
     "src/storage/file.rs": "a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f",
-    "apps/study-peer/tests/service_diagnostics.rs": "d10f545565e3b99a8c9e5c4ff5bb0f746cdeed725b9445e3e7e484d2fa948db5",
+    "apps/study-peer/tests/service_diagnostics.rs": "bd7790b20933e411bed5778836f2c0ceb8db3aaaadd001efd0fe304481f1deb0",
     "docs/decisions/study-seed-pair-current.md": "0a78ae4c18d91c23a8361dce28ea35b41fea270802987b94f4b9bf6f7951d4d6",
     "docs/decisions/study-cli-admission-current.md": "ce52224f8a52a09cf0c353c04c21207c3bc5be3ce6ce599a83520337bfd49d15",
-    "docs/decisions/study-interactive-io-current.md": "033cf798c68c87fe2f4ec560d5adf70d1d16cfa95daa18b3dc46ccbbda3d6627"
+    "docs/decisions/study-interactive-io-current.md": "033cf798c68c87fe2f4ec560d5adf70d1d16cfa95daa18b3dc46ccbbda3d6627",
+    "docs/decisions/study-service-startup-current.md": "f567f3ab20427a6bcfdc21241100d6009bbe228983adfc40c4c5b5ea87096958"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -885,7 +886,8 @@
         "apps/study-peer/tests/cli.rs",
         "docs/decisions/study-seed-pair-current.md",
         "docs/decisions/study-cli-admission-current.md",
-        "docs/decisions/study-interactive-io-current.md"
+        "docs/decisions/study-interactive-io-current.md",
+        "docs/decisions/study-service-startup-current.md"
       ],
       "residual": "Fixed-roster deployment, raw reserved rows and native stream errors remain explicit application obligations."
     },
@@ -30886,6 +30888,436 @@
           ],
           "outcome": true
         }
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-SERVICE-VERB",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "match_guard",
+        "start_byte": 4730,
+        "conditions": [
+          "command == \"run\"",
+          "command == \"run-policy\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/tests/service_diagnostics.rs",
+          "name": "both_service_startup_commands_reach_the_same_reopened_state"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-run-token",
+        "r1-study-startup-run-policy-token"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-DIRECT-ENROLLMENT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "if",
+        "start_byte": 4808,
+        "conditions": [
+          "command == \"run\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/tests/service_diagnostics.rs",
+          "name": "both_service_startup_commands_reach_the_same_reopened_state"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-direct-enrollment"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-DIRECT-PARSE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 4878,
+        "conditions": [
+          "Enrollment::parse(actor, config)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-direct-parse"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-ACTOR-UTF8",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 4968,
+        "conditions": [
+          "utf8(actor)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-actor-utf8"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-POLICY-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5123,
+        "conditions": [
+          "diagnostics::at(Phase::ConfigurationLoad, || {\n                        roster::policy_file(Path::new(config))\n                    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-policy-read"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-POLICY-ENROLL",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5143,
+        "conditions": [
+          "roster::enrollment(\n                    utf8(actor)?,\n                    diagnostics::at(Phase::ConfigurationLoad, || {\n                        roster::policy_file(Path::new(config))\n                    })?,\n                )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-policy-enroll"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-CREDENTIAL-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5362,
+        "conditions": [
+          "diagnostics::at(Phase::CredentialsLoad, || {\n                Credentials::load(Path::new(credentials))\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-credential-read"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-PIN-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5498,
+        "conditions": [
+          "diagnostics::at(Phase::CredentialsLoad, || {\n                bounded_file(Path::new(pin), 65536)\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-pin-read"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-TLS-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5595,
+        "conditions": [
+          "diagnostics::at(Phase::TlsConfig, || Tls::new(&credentials, pin.into()))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-tls-config"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-FILE-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5740,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n                Database::open_file(path, Limits::default())\n            })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-file-open"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-LISTEN-UTF8",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5853,
+        "conditions": [
+          "utf8(listen)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-listen-utf8"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-LISTEN-PARSE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5876,
+        "conditions": [
+          "utf8(listen)?.parse::<SocketAddr>()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-listen-parse"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-LISTEN-BIND-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5962,
+        "conditions": [
+          "TcpListener::bind(address)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-listen-bind-io"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-LISTEN-BIND",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 5965,
+        "conditions": [
+          "diagnostics::at(Phase::Listen, || Ok(TcpListener::bind(address)?))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-listen-bind"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-PEER-UTF8",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 6018,
+        "conditions": [
+          "utf8(peer)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-peer-utf8"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-PEER-PARSE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "main",
+        "kind": "try_propagation",
+        "start_byte": 6027,
+        "conditions": [
+          "utf8(peer)?.parse()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-peer-parse"
+      ]
+    },
+    {
+      "name": "STUDY-STARTUP-REPLICA-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/study-peer/src/native.rs",
+        "target": "study-peer::study-peer",
+        "owner": "run_with_io",
+        "kind": "try_propagation",
+        "start_byte": 8515,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n        StudyReplica::open(\n            db,\n            db.collection_id(COLLECTION_ROW),\n            enrollment.policy,\n            enrollment.actor,\n        )\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/tests.rs",
+          "name": "service_startup_preserves_native_errors_and_releases_resources"
+        }
+      ],
+      "mutations": [
+        "r1-study-startup-replica-open"
       ]
     }
   ],
