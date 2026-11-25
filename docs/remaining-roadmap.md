@@ -1195,3 +1195,30 @@ the open queue. The [source comparison](decisions/typed-index-allocator-current.
 verified the unchanged production bytes and all 150 engine inventory
 records before restoring those classifications.
 Reconciliation leaves 1,820 runtime, 26 driver and 7,397 tooling gaps.
+
+### Publication, snapshot capture and owned scans
+
+Thirteen decisions in `src/engine.rs` now have named controls on `74644aa`.
+
+| Path | Outcomes checked |
+|---|---|
+| Publish a revision | A memory database advances without a backend. A durable database persists before installing the new head. A failed write propagates its I/O error and preserves the acknowledged revision and retained snapshot. |
+| Inspect storage space and enroll a primary | A healthy byte store succeeds. A memory-only database returns `Invalid` and a writer requiring recovery returns `RecoveryRequired`. |
+| Capture a live replication snapshot | The same source checks apply. A capture budget too small to copy the retained entries returns `Limit`. A retry captures the acknowledged revision. |
+| Copy the retained catalog | The allocation sweep checks both successful preparation and allocator refusal before publication. |
+| Iterate an owned snapshot scan | The iterator succeeds for a valid empty collection and distinguishes a foreign ID from a missing local collection. |
+
+All thirteen mutations triggered their named failures on macOS and Docker
+Linux in both profiles. The [checksum manifest](decisions/engine-handoff-74644aa.sha256)
+pins the archives and the source bundle. Review checked 52 catches and
+196 supervised commands. The first macOS release run detected that the
+checkout changed while it was running. Its replacement ran from a detached
+checkout and passed the source-identity check.
+
+The follow-up test on `0b0352c` recorded zero destination I/O for the
+rejected captures and observed writes on the successful retry. It passed
+on both platforms in debug and release. All 150 inventory records in
+`src/engine.rs` now have a disposition: 134 have named controls, 15 retain
+their historical scoped classification and one shares an enclosing
+decision. Across the project, 1,807 runtime, 26 driver and 7,397 tooling
+gaps remain. Compiler MC/DC remains open.
