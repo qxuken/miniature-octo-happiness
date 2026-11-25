@@ -22,6 +22,8 @@ order, error propagation and the option to run automatic resolution.
 Each propagation control changes the diagnostic at one return. The valid
 control supplies the key, format and complete wire list. Additional success
 controls exercise a valid custom crate path and more than one attribute.
+The outer parser has a separate test so the mutation reaches the
+attribute-shape assertion directly.
 
 | Return | Input showing the original diagnostic |
 | --- | --- |

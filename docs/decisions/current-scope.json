@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "ceb60fd67d006026f6add2435ea2c70c0610ac1e991e99d7d599769a7fbec71f",
+    "xtask/tests/mutations.json": "f8a4df1683ee86ffa57d5e3aa87d84bf5fbe971f8c3f8946b3da57aa3c811d41",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -365,10 +365,10 @@
     "docs/decisions/typed-index-allocator-current.md": "378c8a341252aba5a761a99da8e92ce6fcd33bca15d2fb19fc7c9db551795cb1",
     "docs/decisions/typed-migration-recovery-current.md": "2079c473658a94d7542796b2a2fd2d871d4652f7b020ab33dac6320bad7bd908",
     "crates/weekend-db-macros/tests/compile_fail.rs": "5d5ece34dc1105dafa1981a4e4936d21164f3f0c943be104bdf019d748b28742",
-    "crates/weekend-db-macros/tests/expansion_guards.rs": "e9d09518c014f83e04e0027470d1d5694d14e98b99155dee531d368e97d38ff5",
+    "crates/weekend-db-macros/tests/expansion_guards.rs": "e485be0635ec69304c0237d67f82612769443f7e049515f518148805227262c6",
     "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
     "docs/decisions/resolution-derive-current.md": "a794a1f9316f92210eecb68eb77d3e48705aa3d6ec5f63bf9e678a2638ab6a88",
-    "docs/decisions/record-derive-current.md": "e17f13227c5fb1571c25ddc1806365c80aacb05a21f83f04b2bbb8a7720d45fc",
+    "docs/decisions/record-derive-current.md": "8cb60068a642432da4ed084ad369fc43a520c7404b8cda54622626c166e473da",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
     "xtask/src/mutations.rs": "3e2cc0c4940ccc2624e76d48b5a17bd5075b069eb5e21a8896d46d0dc401f4af",
     "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
@@ -18832,7 +18832,7 @@
       "tests": [
         {
           "file": "crates/weekend-db-macros/tests/expansion_guards.rs",
-          "name": "record_propagates_each_option_parser_error"
+          "name": "record_attribute_requires_parentheses"
         }
       ],
       "mutations": [

@@ -10838,7 +10838,7 @@
       "occurrence": 1,
       "matches": 1,
       "package": "weekend-db-macros",
-      "exact_test": "record_propagates_each_option_parser_error"
+      "exact_test": "record_attribute_requires_parentheses"
     },
     {
       "name": "r1-derive-record-required-key",

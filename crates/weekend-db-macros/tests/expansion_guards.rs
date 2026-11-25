@@ -403,6 +403,11 @@ fn record_propagates_each_option_parser_error() {
             message,
         );
     }
+}
+
+#[test]
+fn record_attribute_requires_parentheses() {
+    valid(record::expand, &record_source(RECORD_OPTIONS));
     rejected(
         record::expand,
         "#[record=\"invalid\"] struct A { a:u64 }",
