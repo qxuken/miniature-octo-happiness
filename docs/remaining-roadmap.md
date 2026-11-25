@@ -1641,3 +1641,21 @@ for 265 commands. The [Windows job](https://github.com/qxuken/miniature-octo-hap
 and [local archive manifest](decisions/windows-coordinator-0940c22.sha256)
 identify the artifacts. This run confirms the refreshed oracle pin on the
 native platform.
+
+### Snapshot command dispatch and preparation
+
+At `4829f65`, the CLI exercised each recognized verb against an
+unrecognized verb at the same argument count. A recognized command reached
+its expected phase. A bad verb, bad option, or rejected input preserved
+the directory. The preparation tests verified the first diagnostic for
+missing or corrupt inputs and an existing destination. The accepted paths
+preserved the original descriptor and export bytes.
+
+All 48 ordinary tests per macOS arm64 profile and 49 per Docker Linux
+arm64 profile passed. The opt-in Linux exhaustion test was excluded.
+Both help aliases and both bounds operands have named mutations. Each
+was detected in debug and release on both platforms. The
+[archive manifest](decisions/snapshot-dispatch-4829f65.sha256) covers 16
+detections, 72 supervised commands and the test and reconciliation logs.
+The [decision ledger](decisions/snapshot-dispatch-current.md) reduces the
+runtime gap count to 717. There are 7,428 tooling gaps.
