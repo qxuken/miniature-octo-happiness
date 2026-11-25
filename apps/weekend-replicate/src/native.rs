@@ -191,18 +191,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let prepared = prepare(source.as_ref(), stream, export.as_ref())?;
             let capture = prepared.export.descriptor();
             capture_record::store(Path::new(descriptor), capture)?;
-            let mut output = io::stdout().lock();
-            diagnostics::at(Phase::LocalCommand, || {
-                announce(&prepared, &mut output)?;
-                writeln!(
-                    output,
-                    "local export_length={} export_digest={}",
-                    capture.length,
-                    hex(&capture.digest),
-                )?;
-                output.flush()?;
-                Ok(())
-            })
+            report_capture(&prepared, &mut io::stdout().lock())
         }
         [
             c,
@@ -337,6 +326,18 @@ fn announce(prepared: &Prepared, output: &mut impl Write) -> AppResult<()> {
     )?;
     output.flush()?;
     Ok(())
+}
+fn report_capture(prepared: &Prepared, output: &mut impl Write) -> AppResult<()> {
+    diagnostics::at(Phase::LocalCommand, || announce(prepared, output))?;
+    let capture = prepared.export.descriptor();
+    write_report(
+        output,
+        format_args!(
+            "local export_length={} export_digest={}",
+            capture.length,
+            hex(&capture.digest)
+        ),
+    )
 }
 fn prepare(source: &Path, stream: [u8; 16], destination: &Path) -> AppResult<Prepared> {
     let mut db = diagnostics::storage(Phase::StorageOpen, || {

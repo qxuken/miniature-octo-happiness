@@ -452,6 +452,8 @@ fn structured_connect_refusal_after_lost_reply_does_not_deny_a_durable_install()
     let mut prepared = prepare(&path, [1; 16], &image).unwrap();
     let descriptor = prepared.export.descriptor();
     let enrollment = enrollment_of(&prepared);
+    let record = dir.0.join("descriptor");
+    capture_record::store(&record, descriptor).unwrap();
     let mut receiver = follower(&dir, enrollment);
     let folder = dir.0.join("follower");
     let (client, server) = pair();
@@ -501,7 +503,56 @@ fn structured_connect_refusal_after_lost_reply_does_not_deny_a_durable_install()
     assert_eq!(recovered.revision, 4);
     assert_eq!(recovered.digest, descriptor.digest);
     assert!(image.is_file());
+
+    let manifest_path = folder.join("replica-manifest.wdb");
+    let manifest_before = fs::read(&manifest_path).unwrap();
+    let context = "Export and descriptor retained. Retry with ship-captured.";
+    drop(prepared);
+    for enabled in [false, true] {
+        let mut arguments = vec!["ship-captured".into()];
+        if enabled {
+            arguments.insert(0, "--diagnostics=json".into());
+        }
+        let settings = diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut arguments);
+        let prepared = prepare_saved(&path, enrollment.stream_id, &image, &record).unwrap();
+        let mut output = Vec::new();
+        let (sent, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            deliver(prepared, &client, address, 1, &mut output, context)
+        });
+        let error = sent.unwrap_err();
+        if enabled {
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::ConnectionRefused)
+            );
+            let json = detail.unwrap().json(settings).to_string();
+            assert!(
+                json.contains(r#""phase":"connect","category":"io","code":"connection_refused""#)
+            );
+            assert!(json.contains(r#""follower_outcome":"unconfirmed""#));
+        } else {
+            assert!(detail.is_none());
+            let message = error.to_string();
+            assert!(
+                message.starts_with("transfer not confirmed; follower outcome may be uncertain:"),
+                "{message}"
+            );
+            assert!(message.ends_with(context), "{message}");
+        }
+        assert_eq!(
+            output,
+            format!(
+                "local captured_revision=4 stream={} file_identity={}\n",
+                hex(&enrollment.stream_id),
+                hex(&enrollment.file_identity)
+            )
+            .as_bytes()
+        );
+        assert_eq!(fs::read(&manifest_path).unwrap(), manifest_before);
+        assert_eq!(capture_record::load(&record).unwrap(), descriptor);
+    }
     let mut receiver = Follower::open(&folder, enrollment, Limits::default()).unwrap();
+    let mut prepared = prepare_saved(&path, enrollment.stream_id, &image, &record).unwrap();
     let manifest_bytes = receiver.status().unwrap().manifest_bytes;
     let (polled, served) = exchange(&mut receiver, &server, |address| {
         Ok(prepared.primary.poll(client.connect(address)?)?.unwrap())
@@ -933,6 +984,53 @@ fn poll_output_preserves_local_revision_and_follower_receipt() {
         listener.accept().unwrap_err().kind(),
         io::ErrorKind::WouldBlock
     );
+
+    let address = listener.local_addr().unwrap();
+    drop(listener);
+    let mut output = Vec::new();
+    let (refused, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+        poll(&mut primary, &client, address, revision, &mut output)
+    });
+    assert_eq!(
+        refused
+            .unwrap_err()
+            .downcast_ref::<io::Error>()
+            .map(io::Error::kind),
+        Some(io::ErrorKind::ConnectionRefused)
+    );
+    assert!(
+        detail
+            .unwrap()
+            .json(settings)
+            .to_string()
+            .contains(r#""phase":"connect","category":"io","code":"connection_refused""#)
+    );
+    assert_eq!(output, local.as_bytes());
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    output.clear();
+    let (interrupted, detail) = thread::scope(|scope| {
+        scope.spawn(|| {
+            let mut channel = server.accept(listener.accept().unwrap().0).unwrap();
+            channel.read_exact(&mut [0]).unwrap();
+        });
+        diagnostics::capture(settings, Phase::Arguments, || {
+            poll(&mut primary, &client, address, revision, &mut output)
+        })
+    });
+    assert_eq!(
+        interrupted.unwrap_err().downcast_ref::<Error>(),
+        Some(&Error::Io)
+    );
+    assert!(
+        detail
+            .unwrap()
+            .json(settings)
+            .to_string()
+            .contains(r#""phase":"replication","category":"engine","code":"Io""#)
+    );
+    assert_eq!(output, local.as_bytes());
 
     let mut output = FailingFlush {
         bytes: Vec::new(),
@@ -1507,6 +1605,131 @@ fn snapshot_identity_errors_preserve_each_argument() {
     let e = enrollment(valid, OsStr::new("11111111111111111111111111111111")).unwrap();
     assert_eq!(e.stream_id, identity(valid).unwrap());
     assert_eq!(e.file_identity, [0x11; 16]);
+    assert_eq!(
+        identity(OsStr::new("00000000000000000000000000000001")).unwrap(),
+        1_u128.to_be_bytes()
+    );
+    assert_eq!(
+        identity(OsStr::new("ffffffffffffffffffffffffffffffff")).unwrap(),
+        u128::MAX.to_be_bytes()
+    );
+}
+
+#[test]
+fn capture_command_refusals_preserve_the_source_and_existing_descriptor() {
+    let dir = Directory::new();
+    let primary = source(&dir);
+    let missing = dir.0.join("missing");
+    let image = dir.0.join("export");
+    let descriptor = dir.0.join("existing-descriptor");
+    let original = fs::read(&primary).unwrap();
+    fs::write(&descriptor, b"descriptor sentinel").unwrap();
+    let stream = hex(&[1; 16]);
+    let capture = |source: &Path, stream: &str| {
+        let mut args = vec![
+            "--diagnostics=json".into(),
+            "capture".into(),
+            source.into(),
+            stream.into(),
+            image.clone().into(),
+            descriptor.clone().into(),
+        ];
+        let settings = diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut args);
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || main(args));
+        (
+            result.unwrap_err(),
+            detail.unwrap().json(settings).to_string(),
+        )
+    };
+    let (error, report) = capture(&primary, "1");
+    assert_eq!(error.to_string(), "identity must be 32 hexadecimal digits");
+    assert!(report.contains(r#""phase":"arguments""#));
+    assert!(!image.exists());
+
+    let (error, report) = capture(&missing, &stream);
+    assert_eq!(error.downcast_ref::<Error>(), Some(&Error::NotFound));
+    assert!(report.contains(r#""phase":"storage_open","category":"engine","code":"NotFound""#));
+    assert!(!image.exists());
+
+    let (error, report) = capture(&primary, &stream);
+    assert_eq!(error.downcast_ref::<Error>(), Some(&Error::AlreadyExists));
+    assert!(
+        report.contains(r#""phase":"storage_create","category":"engine","code":"AlreadyExists""#)
+    );
+    assert_eq!(fs::read(&descriptor).unwrap(), b"descriptor sentinel");
+    assert_eq!(fs::read(&primary).unwrap(), original);
+    let exported = Database::open_file(image, Limits::default()).unwrap();
+    let revision = exported.snapshot().revision();
+    let primary = Database::open_file(primary, Limits::default()).unwrap();
+    let enrollment = Primary::new(&primary, [1; 16]).unwrap().enrollment();
+    assert_eq!(
+        Primary::new(&exported, [1; 16]).unwrap().enrollment(),
+        enrollment
+    );
+    assert_eq!(revision, 4);
+    assert_eq!(exported.retained_ids().unwrap(), [1]);
+    assert_eq!(exported.retained_snapshot(1).unwrap().revision(), 2);
+}
+
+#[test]
+fn capture_report_preserves_the_first_output_failure() {
+    let dir = Directory::new();
+    let prepared = prepare(&source(&dir), [1; 16], &dir.0.join("export")).unwrap();
+    let descriptor = prepared.export.descriptor();
+    let enrollment = descriptor.enrollment;
+    let local = format!(
+        "local captured_revision=4 stream={} file_identity={}\n",
+        hex(&enrollment.stream_id),
+        hex(&enrollment.file_identity)
+    );
+    let complete = format!(
+        "{local}local export_length={} export_digest={}\n",
+        descriptor.length,
+        hex(&descriptor.digest)
+    );
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "capture".into()],
+    );
+    let check_failure =
+        |error: AppResult<()>, detail: Option<diagnostics::Diagnostic>, kind, code| {
+            assert_eq!(
+                error
+                    .unwrap_err()
+                    .downcast_ref::<io::Error>()
+                    .map(io::Error::kind),
+                Some(kind)
+            );
+            assert!(
+                detail
+                    .unwrap()
+                    .json(settings)
+                    .to_string()
+                    .contains(&format!(
+                        r#""phase":"local_command","category":"io","code":"{code}""#
+                    ))
+            );
+        };
+    for (remaining_flushes, expected) in [(0, &local), (1, &complete)] {
+        let mut output = FailingFlush {
+            bytes: Vec::new(),
+            remaining_flushes,
+        };
+        let (error, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            report_capture(&prepared, &mut output)
+        });
+        check_failure(error, detail, io::ErrorKind::BrokenPipe, "broken_pipe");
+        assert_eq!(output.bytes, expected.as_bytes());
+    }
+    let mut first_line = vec![0; local.len()];
+    let (error, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+        report_capture(&prepared, &mut first_line.as_mut_slice())
+    });
+    check_failure(error, detail, io::ErrorKind::WriteZero, "other");
+    assert_eq!(first_line, local.as_bytes());
+    let mut output = Vec::new();
+    report_capture(&prepared, &mut output).unwrap();
+    assert_eq!(output, complete.as_bytes());
 }
 
 #[test]

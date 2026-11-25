@@ -19004,6 +19004,126 @@
       "matches": 1,
       "package": "weekend-replicate",
       "exact_test": "native::tests::network_commands_preserve_admission_errors"
+    },
+    {
+      "name": "r1-snapshot-command-effects-capture-identity",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "identity(stream)?",
+      "new": "identity(stream).map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 3,
+      "matches": 6,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::capture_command_refusals_preserve_the_source_and_existing_descriptor"
+    },
+    {
+      "name": "r1-snapshot-command-effects-capture-prepare",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "prepare(source.as_ref(), stream, export.as_ref())?",
+      "new": "prepare(source.as_ref(), stream, export.as_ref()).map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 2,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::capture_command_refusals_preserve_the_source_and_existing_descriptor"
+    },
+    {
+      "name": "r1-snapshot-command-effects-capture-store",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "capture_record::store(Path::new(descriptor), capture)?",
+      "new": "capture_record::store(Path::new(descriptor), capture).map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::capture_command_refusals_preserve_the_source_and_existing_descriptor"
+    },
+    {
+      "name": "r1-snapshot-command-effects-capture-heading",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "diagnostics::at(Phase::LocalCommand, || announce(prepared, output))?",
+      "new": "diagnostics::at(Phase::LocalCommand, || announce(prepared, output)).map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::capture_report_preserves_the_first_output_failure"
+    },
+    {
+      "name": "r1-snapshot-command-effects-capture-details-write",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "writeln!(output, \"{args}\")?",
+      "new": "writeln!(output, \"{args}\").map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::capture_report_preserves_the_first_output_failure"
+    },
+    {
+      "name": "r1-snapshot-command-effects-capture-details-flush",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "output.flush()?",
+      "new": "output.flush().map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 3,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::capture_report_preserves_the_first_output_failure"
+    },
+    {
+      "name": "r1-snapshot-command-effects-poll-connect",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "diagnostics::at(Phase::Connect, || tls.connect(address))?",
+      "new": "diagnostics::at(Phase::Connect, || tls.connect(address)).map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::poll_output_preserves_local_revision_and_follower_receipt"
+    },
+    {
+      "name": "r1-snapshot-command-effects-poll-reply",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "diagnostics::storage(Phase::Replication, || primary.poll(channel))?",
+      "new": "diagnostics::storage(Phase::Replication, || primary.poll(channel)).map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::poll_output_preserves_local_revision_and_follower_receipt"
+    },
+    {
+      "name": "r1-snapshot-command-effects-deliver-mode",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "if diagnostics::settings().enabled { error } else {",
+      "new": "if !diagnostics::settings().enabled { error } else {",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::structured_connect_refusal_after_lost_reply_does_not_deny_a_durable_install"
+    },
+    {
+      "name": "r1-snapshot-command-effects-deliver-error",
+      "file": "apps/weekend-replicate/src/native.rs",
+      "old": "ship(&mut prepared, tls, address, attempts).map_err(|error| {\n        if diagnostics::settings().enabled { error } else {\n            format!(\"transfer not confirmed; follower outcome may be uncertain: {error}. Poll on a fresh authenticated connection. {context}\").into()\n        }\n    })?",
+      "new": "ship(&mut prepared, tls, address, attempts).map_err(|error| {\n        if diagnostics::settings().enabled { error } else {\n            format!(\"transfer not confirmed; follower outcome may be uncertain: {error}. Poll on a fresh authenticated connection. {context}\").into()\n        }\n    }).map_err(|_| Error::Invalid)?",
+      "test": "weekend-replicate",
+      "target": "--bin",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "weekend-replicate",
+      "exact_test": "native::tests::structured_connect_refusal_after_lost_reply_does_not_deny_a_durable_install"
     }
   ]
 }
