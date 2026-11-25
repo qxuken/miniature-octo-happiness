@@ -2032,3 +2032,14 @@ and Docker Linux in debug and release. The macOS compiler records both
 outcomes for all four selected command conditions. The final
 reconciliation leaves 486 runtime and 7,514 tooling gaps. Worker startup,
 native worker failures and the full peer status outcome matrix remain open.
+
+### Study service startup
+
+At `1d4bb13`, both Study startup modes observe the same reopened state.
+The failure probes check the exact errors, preserved database bytes and
+immediate lease reacquisition. After a peer-address parse failure, the
+listener port can be bound again immediately. All 18 mutation controls
+were detected in debug and release on macOS and Docker Linux.
+Reconciliation leaves 468 runtime and 7,514 tooling gaps. The startup
+ledger keeps worker lifecycle and the peer status outcome matrix open.
+[Study service startup ledger](decisions/study-service-startup-current.md)
