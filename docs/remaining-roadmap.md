@@ -846,3 +846,20 @@ profiles against candidate `4a37229`.
 The five-profile release workflow shell step also passed in a fresh shallow
 macOS checkout at `9554b4c`. Hosted release execution and native Windows
 results for the selected endpoints remain open.
+
+### Windows delivered DLL traces at 4a37229
+
+Two Windows x64 builds of the same source produced distinct DLL bytes.
+Each trace matched its own original package manifest, DLL and loaded-module
+attestations. The release-matrix package (DLL SHA-256 beginning
+`d45cc978`) passed 30 cases across C, C++ and Odin. The private package
+from PR #82 run 45604499033 (`1596fd13`) passed 20 across C and C++.
+For each consumer, all 134 full-trace lines matched the frozen source
+oracle byte for byte. All five success cases matched expected output and
+reported the same process and DLL before and after execution. Each of
+the five rejection cases exited unsuccessfully without trace output or
+a completion attestation. Post-download verification rehashed all 1,129
+release trace entries and all 170 PR trace entries. The
+[archive manifest](delivery-checkpoint-4a37229.sha256) pins both package
+and trace downloads. These are native ABI results for this checkpoint.
+The Windows distributed CLI upgrade gate remains open.
