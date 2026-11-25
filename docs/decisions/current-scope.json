@@ -182,7 +182,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "908c0003f5d40873e75f5f2a573826f9abe91818f21370fd4ec1765910ce90fe",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "bbe1f13990839136f6b004ae1147d90b23b1bc249edb29f44b373577d721cfbe",
+    "xtask/src/mutations.rs": "35264339554180eefa7eed8dd45b04d663cb8af9ee902965d897c95fd6f59db0",
     "xtask/src/mutations_windows.rs": "a51f73211e0c0db1df2f13522c3eadf7956619ec05447aa99a1a02dafbe24c5d",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -365,7 +365,7 @@
     "crates/weekend-db-macros/tests/expansion_guards.rs": "9d7c328c45270f4526402e806231eb56cf04d1d42a8d97e4e92a2e3b82557e55",
     "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
-    "xtask/src/mutations.rs": "bbe1f13990839136f6b004ae1147d90b23b1bc249edb29f44b373577d721cfbe",
+    "xtask/src/mutations.rs": "35264339554180eefa7eed8dd45b04d663cb8af9ee902965d897c95fd6f59db0",
     "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
     "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
     "tests/replication.rs": "8a7ec4206552563e6758eb59fd98948f9820032b9972507ec346c7869882668c",
@@ -444,7 +444,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5253
+    "xtask::xtask": 5254
   },
   "groups": [
     {

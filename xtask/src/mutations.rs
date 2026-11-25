@@ -401,9 +401,10 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         let checkout = c.output.join("source");
         c.env = instrumentation::environment(&run.env, &c.output.join("build"), &[]);
         let mut baselines = BTreeSet::new();
-        let mut failed = false;
-        for case in selected {
-            let args = command(&case, options.toolchain.as_deref(), options.release);
+        // Run baselines on the pristine copy so Cargo can reuse the test binaries
+        // across named assertions before the first mutant invalidates a package.
+        for case in &selected {
+            let args = command(case, options.toolchain.as_deref(), options.release);
             if baselines.insert(args.clone()) {
                 let name = format!("{}-baseline", case.name);
                 c.command_at(cmd(&args), &name, None, 120., &checkout)?;
@@ -412,7 +413,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                         .clone(),
                 )?;
                 let mut log = fs::read(c.output.join(format!("{name}.stdout.log")))?;
-                let selected_passed = expected_test_outcome(&case, &log, "ok");
+                let selected_passed = expected_test_outcome(case, &log, "ok");
                 log.extend(fs::read(c.output.join(format!("{name}.stderr.log")))?);
                 ensure!(
                     selected_passed && baseline(&report, &String::from_utf8_lossy(&log)),
@@ -420,6 +421,10 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                     case.name
                 );
             }
+        }
+        let mut failed = false;
+        for case in selected {
+            let args = command(&case, options.toolchain.as_deref(), options.release);
             let file = checkout.join(&case.file);
             let original = fs::read_to_string(&file)?;
             let changed = apply(&case, &original)?;
