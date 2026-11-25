@@ -1327,3 +1327,19 @@ records unclassified, including 130 in the typed store. Driver gaps remain
 at zero. The [archive checksums](decisions/typed-key-2c75210.sha256) cover
 the source bundle, reconciliation and both platform runs. These are local
 proof copies pending off-machine custody.
+
+### Typed catalog and registration
+
+The catalog test on `51d3301` distinguishes a scalar replacing the unique-ID
+list from a scalar of the wrong kind inside a valid list. Both return
+`InvalidCatalog` and preserve the revision. A valid entry and five independent
+changes cover zero and duplicate IDs, reserved collection IDs, zero type and
+zero version. All six mutations failed in the named test on macOS arm64 and
+Docker Linux arm64, in debug and release. All four unchanged runs passed the
+same 24 runtime-decision tests. The archived receipts cover 92 commands.
+
+The [catalog ledger](decisions/typed-catalog-current.md) and decision-pair
+tables at `6512770` account for 52 additional source records. There are
+78 outstanding in the typed store, 1,306 across runtime targets and 7,397 in
+tooling. Off-machine custody is still open. The [checksums](decisions/typed-catalog-51d3301.sha256)
+identify both platform archives, the source bundle and reconciliation report.
