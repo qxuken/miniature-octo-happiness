@@ -21,7 +21,7 @@ The decision manifest binds the named source pairs. Additional controls cover
 the credential comparison, exact predecessor equality and the stale-conflict
 boundary. The delivered-artifact and operator checks keep their earlier source
 and deployment scope. Local commit and follower durability remain separate.
-Deployed operator acceptance, the Windows mutation campaign and the remaining
+Deployed operator acceptance and the remaining
 R1 source and compiler gaps are still open for this batch.
 
 ## Verification
@@ -59,7 +59,7 @@ revision 5, value 42, receipt sequence 1 for prefix 0 and revision 6, value
 99, receipt sequence 2 for prefix 1. All 32 schedule records confirmed the
 second lost reply, stable local replay, two retained roots and preserved
 originals. The Windows runner used its hosted administrator account.
-Ordinary-account deployment and the 32 Windows mutation controls remain open.
+Ordinary-account deployment remains open.
 
 | Platform | Original package campaign | Download and rerun | Listed output hashes rechecked per archive |
 | --- | --- | --- | ---: |
@@ -70,6 +70,16 @@ Independent review reproduced GitHub's four ZIP digests, checked the debug
 and release recovery logs, and matched the package manifest digest between
 each original campaign and its rerun. Each run retired the Cargo build paths
 before invoking the saved CLI and driver.
+
+The native Windows x64 campaign later detected all 32 coordinator controls on
+the PR #82 test merge `a5d2ea15d88b71520223b676e6ad35a96ddbe10e` (same tree
+as `5efa36d`). Debug and release each executed 32 passing baselines and 32
+expected failures. Independent archive review matched the 859 copied source
+hashes to the Git tree, verified every modified source and all 128 retained
+test executables, and checked each command's actual arguments, exit, cleanup,
+named test result and expected diagnostic. The ZIP SHA-256 is
+`84a6692aaa48a0abac7bc5942fcf124f2c990678345eacde3d8b247f62999544`.
+[Windows campaign and evidence](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45599897332/artifacts/15016951779)
 
 ## Reproduce
 

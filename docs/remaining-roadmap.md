@@ -569,8 +569,8 @@ durable image. All 32 named controls pass in debug and release on macOS and
 Docker Linux. The R1 queue is 9,262 records (1,877 runtime / 26 driver /
 7,359 tooling). Hosted Windows passed the debug and release suites, and
 Windows and Linux both passed the packaged pending-restore replay after
-download. Native Windows mutation controls and deployed operator
-qualification remain open. Subsequent work follows the
+download. The subsequent native Windows mutation campaign passed. Deployed
+operator qualification remains open. Subsequent work follows the
 [grouped roadmap](production-pr-roadmap.md#stack-order) through candidate freeze.
 
 The [compound recovery batch](decisions/compound-recovery-current.md) exercises
@@ -616,8 +616,8 @@ custody remain open.
 
 The [Windows coordinator campaign](mutations.md#windows-coordinator-campaign)
 now selects the same 32 cases as the Unix controller. Its source pins and
-per-case assertion diagnostics are checked locally. Native execution and
-the resulting artifact review are pending. The reconciled inventory includes
+per-case assertion diagnostics passed native Windows debug and release.
+Independent review verified all 128 outcomes and saved test binaries. The reconciled inventory includes
 10,627 source records across 222 files after the workload and controller
 changes.
 

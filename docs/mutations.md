@@ -190,8 +190,9 @@ all 32 coordinator mutations in debug and release. Each run checked seven
 distinct baselines and retained 107 command reports. Replaying the final
 parser against four earlier coordinator campaigns accepted all 156 exact
 test transcripts. All eight original native Windows RNG transcripts also
-passed. The x64 Windows MSVC test targets compiled. Running the 32
-coordinator mutations on native Windows remains open.
+passed. The x64 Windows MSVC test targets compiled. The subsequent
+[native Windows campaign](decisions/coordinator-service-current.md#hosted-windows-and-packaged-recovery)
+detected all 32 controls in both profiles.
 
 The local archive of both new campaigns' reports and logs,
 `exact-coordinator-7d8cf21.tar.gz`, has SHA-256

@@ -28,8 +28,9 @@ pub(crate) fn run_worker(test: &str, setting: (&str, &str), cwd: &Path, receipt:
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         output.status.success() && stdout.contains(receipt),
-        "{receipt}: {stdout}\n{}",
-        String::from_utf8_lossy(&output.stderr)
+        "{receipt}\n  child stdout: {}\n  child stderr: {}",
+        stdout.replace('\n', "\n    "),
+        String::from_utf8_lossy(&output.stderr).replace('\n', "\n    ")
     );
     println!("{receipt}");
 }
