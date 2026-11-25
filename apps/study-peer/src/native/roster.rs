@@ -273,6 +273,11 @@ mod tests {
         generation: 0x0102_0304_0506_0708,
         actors: [[1; 16], [2; 16]],
     };
+    const NEW_POLICY: Policy = Policy {
+        collection: [10; 16],
+        generation: POLICY.generation + 1,
+        actors: [[3; 16], [4; 16]],
+    };
 
     #[test]
     fn receipt_preimage_binds_policy_ordered_store_ids_and_state() {
@@ -379,11 +384,7 @@ mod tests {
         let next = ["new-a", "new-b"].map(|name| root.0.join(name));
         let from = old.each_ref().map(|path| path.as_path());
         let to = next.each_ref().map(|path| path.as_path());
-        let new = Policy {
-            collection: [10; 16],
-            generation: POLICY.generation + 1,
-            actors: [[3; 16], [4; 16]],
-        };
+
         let state = StudyProgress::default();
         let [a, b] = from.map(|path| Database::create_file(path, Limits::default()).unwrap());
         enroll(&a, enrollment("a", POLICY).unwrap()).unwrap();
@@ -395,20 +396,96 @@ mod tests {
         assert_ne!(stale, current);
         drop((a, b));
         let original = from.map(|path| fs::read(path).unwrap());
-        let error = stage(from, POLICY, to, new, Some(stale.as_bytes())).unwrap_err();
+        let error = stage(from, POLICY, to, NEW_POLICY, Some(stale.as_bytes())).unwrap_err();
         assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Conflict));
         assert!(to.iter().all(|path| !path.exists()));
         let error = verify(from, POLICY, Some(current.as_bytes())).unwrap_err();
         assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Conflict));
         verify(from, POLICY, Some(staged.as_bytes())).unwrap();
         verify(from, POLICY, None).unwrap();
-        stage(from, POLICY, to, new, None).unwrap();
-        verify(to, new, None).unwrap();
+        stage(from, POLICY, to, NEW_POLICY, None).unwrap();
+        verify(to, NEW_POLICY, None).unwrap();
         for path in to {
             fs::remove_file(path).unwrap();
         }
-        stage(from, POLICY, to, new, Some(current.as_bytes())).unwrap();
-        verify(to, new, None).unwrap();
+        stage(from, POLICY, to, NEW_POLICY, Some(current.as_bytes())).unwrap();
+        verify(to, NEW_POLICY, None).unwrap();
+        assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
+    }
+
+    #[test]
+    fn roster_commands_preserve_source_open_and_disagreement_errors() {
+        let root = Directory::new();
+        let [a, b, different, missing, new_a, new_b] =
+            ["a", "b", "different", "missing", "new-a", "new-b"].map(|name| root.0.join(name));
+        let from = [a.as_path(), b.as_path()];
+        let to = [new_a.as_path(), new_b.as_path()];
+
+        for (name, path) in ["a", "b", "b"].into_iter().zip([&a, &b, &different]) {
+            let db = Database::create_file(path, Limits::default()).unwrap();
+            let replica = enroll(&db, enrollment(name, POLICY).unwrap()).unwrap();
+            if path == &different {
+                replica
+                    .update(|state, _| {
+                        state.completed.insert(42)?;
+                        Ok(())
+                    })
+                    .unwrap();
+            }
+            db.retain_snapshot(&db.snapshot()).unwrap();
+        }
+        let original = from.map(|path| fs::read(path).unwrap());
+        for (pair, expected) in [
+            ([missing.as_path(), b.as_path()], Error::NotFound),
+            ([a.as_path(), missing.as_path()], Error::NotFound),
+            ([a.as_path(), different.as_path()], Error::Conflict),
+        ] {
+            for result in [
+                checkpoint(pair, POLICY),
+                verify(pair, POLICY, None),
+                stage(pair, POLICY, to, NEW_POLICY, None),
+            ] {
+                assert_eq!(result.unwrap_err().downcast_ref::<Error>(), Some(&expected));
+            }
+            assert!(to.iter().all(|path| !path.exists()));
+        }
+        checkpoint(from, POLICY).unwrap();
+        verify(from, POLICY, None).unwrap();
+        stage(from, POLICY, to, NEW_POLICY, None).unwrap();
+        verify(to, NEW_POLICY, None).unwrap();
+        assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
+    }
+
+    #[test]
+    fn stage_stops_at_destination_creation_failure_and_can_retry() {
+        let root = Directory::new();
+        let [a, b, new_a, new_b, occupied] =
+            ["a", "b", "new-a", "new-b", "occupied"].map(|name| root.0.join(name));
+        let from = [a.as_path(), b.as_path()];
+        let to = [new_a.as_path(), new_b.as_path()];
+
+        for (name, path) in ["a", "b"].into_iter().zip(from) {
+            let db = Database::create_file(path, Limits::default()).unwrap();
+            enroll(&db, enrollment(name, POLICY).unwrap()).unwrap();
+            db.retain_snapshot(&db.snapshot()).unwrap();
+        }
+        let original = from.map(|path| fs::read(path).unwrap());
+        let sentinel = b"existing destination";
+        fs::write(&occupied, sentinel).unwrap();
+        for pair in [[occupied.as_path(), to[1]], [to[0], occupied.as_path()]] {
+            let error = stage(from, POLICY, pair, NEW_POLICY, None).unwrap_err();
+            assert_eq!(error.downcast_ref::<Error>(), Some(&Error::AlreadyExists));
+            assert_eq!(fs::read(&occupied).unwrap(), sentinel);
+            assert!(!to[1].exists());
+        }
+        let partial = Database::open_file(to[0], Limits::default()).unwrap();
+        assert_eq!(partial.snapshot().revision(), 0);
+        assert!(partial.retained_ids().unwrap().is_empty());
+        drop(partial);
+        assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
+        fs::remove_file(to[0]).unwrap();
+        stage(from, POLICY, to, NEW_POLICY, None).unwrap();
+        verify(to, NEW_POLICY, None).unwrap();
         assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
     }
 }

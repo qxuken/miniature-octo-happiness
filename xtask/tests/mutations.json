@@ -14733,6 +14733,138 @@
       "exact_test": "native::roster::tests::stage_and_verify_check_receipts_before_admitting_the_pair",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-study-pair-io-checkpoint-source-a",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[0], Limits::default())\n    })?",
+      "new": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[0], Limits::default())\n    }).map_err(|_| Error::Invalid)?",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 1,
+      "matches": 2
+    },
+    {
+      "name": "r1-study-pair-io-checkpoint-source-b",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[1], Limits::default())\n    })?",
+      "new": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[1], Limits::default())\n    }).map_err(|_| Error::Invalid)?",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 1,
+      "matches": 2
+    },
+    {
+      "name": "r1-study-pair-io-checkpoint-agreement",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "agreed(&a, &b, policy)?",
+      "new": "agreed(&a, &b, policy).unwrap_or_default()",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 1,
+      "matches": 2
+    },
+    {
+      "name": "r1-study-pair-io-stage-source-a",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(old_files[0], Limits::default())\n    })?",
+      "new": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(old_files[0], Limits::default())\n    }).map_err(|_| Error::Invalid)?",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-pair-io-stage-source-b",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(old_files[1], Limits::default())\n    })?",
+      "new": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(old_files[1], Limits::default())\n    }).map_err(|_| Error::Invalid)?",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-pair-io-stage-agreement",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "agreed(&a, &b, old)?",
+      "new": "agreed(&a, &b, old).unwrap_or_default()",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-pair-io-verify-source-a",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[0], Limits::default())\n    })?",
+      "new": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[0], Limits::default())\n    }).map_err(|_| Error::Invalid)?",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 2,
+      "matches": 2
+    },
+    {
+      "name": "r1-study-pair-io-verify-source-b",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[1], Limits::default())\n    })?",
+      "new": "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[1], Limits::default())\n    }).map_err(|_| Error::Invalid)?",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 2,
+      "matches": 2
+    },
+    {
+      "name": "r1-study-pair-io-verify-agreement",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "agreed(&a, &b, policy)?",
+      "new": "agreed(&a, &b, policy).unwrap_or_default()",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::roster_commands_preserve_source_open_and_disagreement_errors",
+      "occurrence": 2,
+      "matches": 2
+    },
+    {
+      "name": "r1-study-pair-io-stage-destination-a",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::storage(Phase::StorageCreate, || {\n        Database::create_file(new_files[0], Limits::default())\n    })?",
+      "new": "diagnostics::storage(Phase::StorageCreate, || {\n        Database::create_file(new_files[0], Limits::default())\n    }).or_else(|_| Database::new())?",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::stage_stops_at_destination_creation_failure_and_can_retry",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-pair-io-stage-destination-b",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "diagnostics::storage(Phase::StorageCreate, || {\n        Database::create_file(new_files[1], Limits::default())\n    })?",
+      "new": "diagnostics::storage(Phase::StorageCreate, || {\n        Database::create_file(new_files[1], Limits::default())\n    }).or_else(|_| Database::new())?",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::stage_stops_at_destination_creation_failure_and_can_retry",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

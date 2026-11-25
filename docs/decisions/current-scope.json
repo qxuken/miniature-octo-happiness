@@ -6,7 +6,7 @@
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
     "apps/study-peer/src/native/admission.rs": "0d01bb5355a7b420f9cad80a7fa5fea02d09adaf7a92cce91cf6029750469dab",
     "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
-    "apps/study-peer/src/native/roster.rs": "52e0b17d9a5fc2c3e3aa5cf97876dbfe131941225b4a2a3ef95118a266ff8950",
+    "apps/study-peer/src/native/roster.rs": "98f8af05cabcef834979a3845caaa9dbd2ba455246be7f4aedd2f7edd880e900",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
     "apps/support/pinned_tls.rs": "3772645837b8f2f4e8ba8b1c743902538a2541f781999724a59de98395706b53",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "fc7ad17afb3b6afbab883b223e975d9e8293b66cca974bf130398376990fb333",
+    "xtask/tests/mutations.json": "8f84c6eda9cc31957003fb6a69c6432678d515bac938680bded0e3344f6a1937",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -26605,6 +26605,259 @@
       ],
       "mutations": [
         "r1-study-receipt-verify-rejection"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-CHECKPOINT-SOURCE-A",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "checkpoint",
+        "kind": "try_propagation",
+        "start_byte": 5139,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[0], Limits::default())\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-checkpoint-source-a"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-CHECKPOINT-SOURCE-B",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "checkpoint",
+        "kind": "try_propagation",
+        "start_byte": 5263,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[1], Limits::default())\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-checkpoint-source-b"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-CHECKPOINT-AGREEMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "checkpoint",
+        "kind": "try_propagation",
+        "start_byte": 5304,
+        "conditions": [
+          "agreed(&a, &b, policy)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-checkpoint-agreement"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-STAGE-SOURCE-A",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "start_byte": 5887,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(old_files[0], Limits::default())\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-stage-source-a"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-STAGE-SOURCE-B",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "start_byte": 6015,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(old_files[1], Limits::default())\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-stage-source-b"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-STAGE-AGREEMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "start_byte": 6053,
+        "conditions": [
+          "agreed(&a, &b, old)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-stage-agreement"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-VERIFY-SOURCE-A",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "verify",
+        "kind": "try_propagation",
+        "start_byte": 7574,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[0], Limits::default())\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-verify-source-a"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-VERIFY-SOURCE-B",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "verify",
+        "kind": "try_propagation",
+        "start_byte": 7698,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageOpen, || {\n        Database::open_file(files[1], Limits::default())\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-verify-source-b"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-VERIFY-AGREEMENT",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "verify",
+        "kind": "try_propagation",
+        "start_byte": 7739,
+        "conditions": [
+          "agreed(&a, &b, policy)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "roster_commands_preserve_source_open_and_disagreement_errors"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-verify-agreement"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-STAGE-DESTINATION-A",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "start_byte": 6435,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageCreate, || {\n        Database::create_file(new_files[0], Limits::default())\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_stops_at_destination_creation_failure_and_can_retry"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-stage-destination-a"
+      ]
+    },
+    {
+      "name": "STUDY-PAIR-IO-STAGE-DESTINATION-B",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "try_propagation",
+        "start_byte": 6571,
+        "conditions": [
+          "diagnostics::storage(Phase::StorageCreate, || {\n        Database::create_file(new_files[1], Limits::default())\n    })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_stops_at_destination_creation_failure_and_can_retry"
+        }
+      ],
+      "mutations": [
+        "r1-study-pair-io-stage-destination-b"
       ]
     }
   ],
