@@ -2229,3 +2229,14 @@ The earlier Windows fix at `06fb27c` passed both the full workspace
 and minimum-Rust jobs. The workspace log independently confirms the
 Study receive, queued-listener and snapshot readiness tests in both
 profiles. [Native workspace proof checksums](decisions/windows-native-06fb27c.sha256)
+
+### Study listener setup faults
+
+Study at `002973f` reports nonblocking setup and bound-address failures
+under the listen phase with their original I/O errors. The regression
+checks connection retirement, readiness and local command input, exact
+database bytes and an independent reopen at revision 2. Debug and release
+passed on macOS and Docker Linux/ext4, with 21 controls caught in each
+campaign. Nine Windows x64 targets cross-linked in each profile, with
+native execution pending. Reconciliation leaves 410 runtime and 7,514
+tooling gaps. [Study listener ledger](decisions/study-listener-current.md)

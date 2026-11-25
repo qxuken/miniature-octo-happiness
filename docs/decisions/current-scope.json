@@ -428,7 +428,7 @@
     "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719",
     "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679",
     "docs/decisions/snapshot-listener-current.md": "c3c093517f84a542dd684b40ce34f819363f3d8d48533f6175a84abb5f29d7e6",
-    "docs/decisions/study-listener-current.md": "a8481c7e892de18534415a0e681644a44c5ca3854745d311fac1fb48a3ea1aaf"
+    "docs/decisions/study-listener-current.md": "b63b2f1262b807a5d2fe0d670cf238d871935017c592834569bf07c11ae58234"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

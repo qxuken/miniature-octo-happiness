@@ -40,3 +40,27 @@ their operations into the shared listener setup function.
 | E | study-peer::study-peer | apps/study-peer/src/native.rs:86:5– | 2706..2711 | match | main | Local dispatch and usage tests exercise the local commands. Native service tests enter both run modes. |
 | D | study-peer::study-peer | apps/study-peer/src/native.rs:178:75– | 6454..6455 | try_propagation | initialize | Native initialization reaches the shared enrollment helper and reopens the record. The roster simulator tests the helper's collection-creation error. Native fault injection after successful file creation remains open. |
 | D | study-peer::study-peer | apps/study-peer/src/native.rs:291:7– | 9744..9745 | try_propagation | run_with_listener_ops | The shared diagnostic wrapper returns the readiness write result. A closed stdout pipe reports its local I/O phase and preserves the original bytes. |
+
+## Verification
+
+Rust 1.100.0 ran the complete Study and snapshot CLI suites at
+`002973fe6d6d2991c7aa7e63b47807776d9a9f38`. Both profiles
+passed on macOS arm64 and Docker Linux arm64 with all Linux files on
+ext4. Clippy passed with warnings denied on both hosts.
+
+| Host | Tests passed per profile | Ignored per profile | Controls caught per profile |
+| --- | ---: | ---: | ---: |
+| macOS arm64 | 122 | 0 | 21 |
+| Docker Linux arm64 / ext4 | 123 | 1 | 21 |
+
+The ignored Linux test requires its own small tmpfs. Each campaign
+caught changes to the two I/O error kinds and to the diagnostic phase.
+It also reran the 15 interactive, two receive and one listener-retirement
+controls. The verifier extracted the archives afresh and checked 987
+source file hashes, the exact failed assertions, and 73 supervised
+command outcomes per campaign. Reconciliation preserves unrelated
+decisions and leaves 410 runtime and 7,514 tooling gaps.
+
+Nine Windows x64 test targets cross-linked in each profile. Native
+Windows execution of this change is pending.
+[Campaign checksums](study-listener-002973f.sha256)
