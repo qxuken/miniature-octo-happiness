@@ -804,3 +804,19 @@ Only the verifier executable hash differed. The [checkpoint checksums](delivery-
 identify the raw archives, notice audit and both verification receipts.
 The restore ran on the development host. Off-machine custody, deployment
 acceptance and final release qualification remain open.
+
+The same three historical endpoints also passed against `4a37229` on
+arm64 Linux/ext4 in a network-disabled container. After extraction on
+macOS, the review checked the Linux consumer binaries, identity probes,
+original lockfiles and all 305 artifact entries. Each pair used the same
+source archives, fixture and original lockfile hashes on both platforms.
+The Linux report contains 30 storage, 24 snapshot and 32 typed command
+records. The [checksum manifest](delivery-checkpoint-4a37229.sha256)
+includes the Linux compatibility archive.
+
+The release workflow now qualifies the selected checkout against these
+historical endpoints on macOS, Linux and Windows during manual and tag
+runs. The exact workflow shell step passed all three profiles in a fresh
+shallow macOS checkout, including retrieval of the historical objects.
+Actionlint 1.7.12 passed. The new hosted release job still needs its first
+execution, including native Windows.

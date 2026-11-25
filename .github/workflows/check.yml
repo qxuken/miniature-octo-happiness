@@ -583,6 +583,50 @@ jobs:
       - name: Enforce the macOS maintenance fault result
         if: always() && runner.os == 'macOS' && steps.macos_maintenance_space.outcome == 'failure'
         run: exit 1
+  candidate-compatibility:
+    name: Candidate compatibility (${{ matrix.os }})
+    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the qualification compiler
+        run: rustup toolchain install 1.100.0 --profile minimal
+      - name: Check historical consumers against the selected candidate
+        shell: bash
+        run: |
+          rustup override set 1.100.0
+          cargo fetch --locked
+          candidate=$(git rev-parse HEAD)
+          test "$candidate" = "$(git rev-parse "$GITHUB_SHA^{commit}")"
+          result=0
+          for profile in storage snapshot typed; do
+            case "$profile" in
+              storage) historical=a7dc34309a8841ab3ee72fd88b9cae9281507b7c ;;
+              snapshot) historical=dcd2402adeb034f15a5293c52238524ace9c4070 ;;
+              typed) historical=1ca5e5ab63a2772f679c7186e2d84fba3ac0a534 ;;
+            esac
+            git fetch --no-tags --depth=1 origin "$historical"
+            inputs=$(mktemp -d)
+            git archive "$historical" | tar -x -C "$inputs"
+            cargo +1.100.0 fetch --locked --manifest-path "$inputs/Cargo.toml"
+            cargo xtask compatibility --profile "$profile" --historical "$historical" --current "$candidate" --output "target/candidate-compatibility/$profile" || result=1
+          done
+          exit "$result"
+      - name: Retain compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidate-compatibility-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: error
+          path: |
+            target/candidate-compatibility/**
+            !target/candidate-compatibility/*/source/**
+            !target/candidate-compatibility/*/build/**
   windows-maintenance-quota:
     name: Native Windows maintenance owner quota
     runs-on: windows-latest
