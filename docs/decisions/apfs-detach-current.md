@@ -33,7 +33,21 @@ and Clippy with warnings denied also passed.
 
 All three private images detached and were removed. The verifier
 binds the failed hosted artifact, frozen source, exact runner and
-fixture binaries, phase evidence and local test logs. The hosted
-retry on the repaired source is pending. The identity of the holder
-on the hosted runner remains unknown.
+fixture binaries, phase evidence and local test logs. The identity of
+the holder in the original hosted failure remains unknown.
 [Campaign checksums](apfs-detach-087f4a9.sha256)
+
+## Hosted confirmation
+
+PR #82 head `d6feb733bb6f297ee64f3e5539294904ac4a6f93` ran the
+maintenance checks at merge commit `ab5f2bf430728a557ac669582420c261d3b79fee`.
+The source hashes of the detach and maintenance controllers and the
+exchange fixture match the repaired source. The independent verifier
+checked the three uploaded artifact digests against GitHub's metadata.
+Near-cap backup, restore and compact preserved revision 212 and all
+64 retained roots under kernel ENOSPC. Exchange preserved its complete
+scratch and succeeded after retry. The exchange image returned busy
+once during detach, then detached successfully and was removed. Near-cap
+and cleanup also detached and removed their images.
+[Hosted macOS job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45720630585/job/139577753476)
+[Hosted artifact checksums](macos-apfs-d6feb73.sha256)

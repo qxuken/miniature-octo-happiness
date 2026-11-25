@@ -2278,7 +2278,10 @@ detach attempts with status 16. At `087f4a9`, the private-image probe
 reproduces the old failure and succeeds after releasing the holder.
 Both local profiles pass the retry and ballast tests. The local
 near-cap copy, exchange and cleanup workflows pass and retire all
-three images. Hosted confirmation of the repair is pending.
+three images. On hosted macOS at `d6feb73` the exchange image returned
+busy once during detach, then detached successfully and was removed.
+The near-cap and cleanup artifacts also confirmed image removal and
+the expected state after kernel ENOSPC.
 Reconciliation leaves 398 runtime and 7,485 tooling gaps after removal
 of the superseded retry guard.
 [APFS detach ledger](decisions/apfs-detach-current.md)
@@ -2301,3 +2304,18 @@ Reconciliation leaves 381 runtime and 7,468 tooling gaps.
 PR #82 head `9e660e4` finished with 27 passes, one skip and the
 known APFS cleanup failure. The APFS repair and coordinator proof
 share the next push. [Completed CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45714156600)
+
+### Snapshot follower offline maintenance
+
+At `16ad28e`, a manifest metadata failure reports `storage_verify`
+from `status` or `storage_maintenance` from compaction. Pre-compaction
+failure skips replacement. Post-compaction failure suppresses the CLI
+receipt even after the manifest is successfully shortened. The
+regressions verify exact current image bytes, the revision 4 durable
+receipt and retained revision 2 after reopening.
+
+macOS and Docker Linux/ext4 passed debug and release, with all 22 named
+controls caught in each campaign. Five Windows x64 test binaries
+cross-linked in each profile. Native Windows execution remains open.
+Reconciliation leaves 362 runtime and 7,468 tooling gaps.
+[Snapshot offline maintenance ledger](decisions/snapshot-offline-maintenance-current.md)

@@ -18,6 +18,24 @@ the fixture and checks the exact selected image, revision 4 receipt
 and retained revision 2. Admission refusals preserve both original files.
 Normal status and compaction retain the existing report format.
 
+## Qualification
+
+Frozen source `16ad28e3662a2b5e5f48d3b09e2c7f300b710a9b` ran with
+locked dependencies and Rust 1.100.0. Docker Linux kept the source,
+build, fixture and temporary files on ext4.
+
+| Platform | Debug and release, per profile |
+| --- | --- |
+| macOS arm64 | 57 snapshot CLI tests passed and 11 core replication tests passed with one ignored. All 22 named mutations reached the expected assertion. |
+| Docker Linux arm64/ext4 | 58 snapshot CLI tests passed with one ignored and 11 core replication tests passed with one ignored. All 22 named mutations reached the expected assertion. |
+| Windows x64/MSVC | Five snapshot CLI test binaries cross-linked. Native execution of this source remains open. |
+
+Clippy with warnings denied passed on macOS and Linux. Each mutation
+campaign ran 73 supervised commands, checked the expected test failure
+and preserved the 998 copied source inputs byte for byte. Reconciliation
+preserves the 37 historical decisions below and leaves 362 runtime and
+7,468 tooling gaps. [Frozen campaign checksums](snapshot-maintenance-16ad28e.sha256)
+
 ## Preserved source decisions
 
 | Source | SHA-256 |
