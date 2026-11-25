@@ -109,6 +109,9 @@ mod tests {
 
     #[test]
     fn recovery_budget_and_io_faults_replay_in_order() {
+        commit_crash(include_bytes!(
+            "../seeds/commit_crash/recovery-budget-exact-growth"
+        ));
         let mut schedule = *include_bytes!("../seeds/commit_crash/witness-repair-budget");
         commit_crash(&schedule);
         for parity in 0..2 {

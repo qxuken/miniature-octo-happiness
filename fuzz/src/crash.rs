@@ -181,24 +181,38 @@ fn interrupt_recovery(
         .unwrap();
     drop(control);
 
-    // One byte below the successful open's peak forces a budget refusal.
-    // Calibrate on a second copy so this probe cannot stabilize the test disk.
+    // Geometric reservations can retry with exact capacity. Find a cap that
+    // actually refuses this graph, using a fresh disk for every successful probe.
     let capped = (capped_attempts != 0).then(|| {
-        let limits = Limits {
+        let mut limits = Limits {
             max_live_bytes: peak - 1,
             ..Limits::default()
         };
-        let calibration = SimulatedDisk::from_image(image).unwrap();
-        calibration.arm(usize::MAX, Fault::Error);
-        assert!(matches!(
-            Database::open_on(calibration.clone(), limits),
-            Err(Error::Limit)
-        ));
-        let reads = calibration.trace().unwrap();
-        assert!(reads.len() <= stabilize);
-        assert_eq!(reads, trace[..reads.len()]);
-        assert!(calibration.durable_image().unwrap() == image);
-        (limits, reads.len())
+        loop {
+            let calibration = SimulatedDisk::from_image(image).unwrap();
+            calibration.arm(usize::MAX, Fault::Error);
+            match Database::open_on(calibration.clone(), limits) {
+                Err(Error::Limit) => {
+                    let reads = calibration.trace().unwrap();
+                    assert!(reads.len() <= stabilize);
+                    assert_eq!(reads, trace[..reads.len()]);
+                    assert!(calibration.durable_image().unwrap() == image);
+                    break (limits, reads.len());
+                }
+                Ok(db) => {
+                    assert_eq!(db.snapshot().revision(), revision);
+                    assert!(db.memory_usage().peak_bytes <= limits.max_live_bytes);
+                    assert_eq!(calibration.trace().unwrap(), trace);
+                    let bytes = calibration.durable_image().unwrap();
+                    assert_eq!(&bytes[..witness], &image[..witness]);
+                    assert_eq!(&bytes[range.clone()], expected_witness);
+                    assert_eq!(&bytes[range.end..], &image[range.end..]);
+                    assert!(limits.max_live_bytes > 0);
+                    limits.max_live_bytes /= 2;
+                }
+                Err(error) => panic!("unexpected budget calibration error: {error:?}"),
+            }
+        }
     });
 
     for (attempt, &[cut, mode, power, arg]) in faults.iter().enumerate() {

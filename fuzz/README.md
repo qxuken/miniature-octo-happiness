@@ -83,8 +83,9 @@ number of four-byte recovery faults before the key/value edits. Each
 recovery fault supplies the cut, fault mode, crash policy and parameter.
 Cuts select the first read, last read, stabilization sync, witness write
 or witness sync. Flag bits 4–6 can also cap the live-byte budget of the
-corresponding recovery attempts at one byte below the successful open's
-peak. A separate copy measures where that limit stops the reads. The
+corresponding recovery attempts starting one byte below the successful open's
+peak. If exact-capacity growth permits reopening, a fresh copy tries half
+the previous cap until a refusal identifies the read prefix. The
 oracle compares the I/O fault position with this prefix to predict
 `Io` or `Limit`, and checks that a refused attempt leaves durable bytes
 unchanged. The remaining bytes provide up to twelve key/value edits.
