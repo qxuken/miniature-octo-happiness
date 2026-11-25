@@ -14865,6 +14865,114 @@
       "exact_test": "native::roster::tests::stage_stops_at_destination_creation_failure_and_can_retry",
       "occurrence": 1,
       "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-read-planned-items",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "for id in state.planned.iter() {",
+      "new": "for id in state.planned.iter().skip(1) {",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::stage_seeds_the_exact_component_limit_and_rejects_the_next_total",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-seed-planned-items",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "for id in self.planned.iter() {",
+      "new": "for id in self.planned.iter().skip(1) {",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::stage_seeds_the_exact_component_limit_and_rejects_the_next_total",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-minutes-guard",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "self.minutes != 0",
+      "new": "self.minutes == 0",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::seed_independently_copies_minutes_goal_and_limit",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-minutes-error",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "state.practice_minutes.increment(actor, self.minutes)?;",
+      "new": "let _ = state.practice_minutes.increment(actor, self.minutes);",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::seed_independently_copies_minutes_goal_and_limit",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-goal-presence",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "let Some(goal) = self.goal {",
+      "new": "let Some(goal) = self.goal.filter(|_| false) {",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::seed_independently_copies_minutes_goal_and_limit",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-limit-presence",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "let Some(limit) = self.limit {",
+      "new": "let Some(limit) = self.limit.filter(|_| false) {",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::seed_independently_copies_minutes_goal_and_limit",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-stage-cap-equality",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "visible.minutes > u64::MAX / 2",
+      "new": "visible.minutes >= u64::MAX / 2",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::stage_seeds_the_exact_component_limit_and_rejects_the_next_total",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-stage-cap-omitted",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "if visible.minutes > u64::MAX / 2 {",
+      "new": "if false {",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::stage_seeds_the_exact_component_limit_and_rejects_the_next_total",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-study-seeding-completed-copy",
+      "file": "apps/study-peer/src/native/roster.rs",
+      "old": "state.completed = self.completed;",
+      "new": "state.completed = GrowSet::default();",
+      "target": "--bin",
+      "package": "study-peer",
+      "test": "study-peer",
+      "exact_test": "native::roster::tests::stage_seeds_the_exact_component_limit_and_rejects_the_next_total",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

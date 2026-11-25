@@ -265,7 +265,11 @@ pub(super) fn verify(
 mod tests {
     use super::*;
     use crate::native::tests::Directory;
-    use std::fs;
+    use std::{
+        fs,
+        net::{TcpListener, TcpStream},
+        time::Duration,
+    };
     use weekend_db::storage::MemoryStore;
 
     const POLICY: Policy = Policy {
@@ -487,5 +491,155 @@ mod tests {
         stage(from, POLICY, to, NEW_POLICY, None).unwrap();
         verify(to, NEW_POLICY, None).unwrap();
         assert_eq!(from.map(|path| fs::read(path).unwrap()), original);
+    }
+
+    fn exchange(sender: &StudyReplica<'_>, receiver: &StudyReplica<'_>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (server, _) = listener.accept().unwrap();
+        for stream in [&client, &server] {
+            let timeout = Some(Duration::from_secs(5));
+            stream.set_read_timeout(timeout).unwrap();
+            stream.set_write_timeout(timeout).unwrap();
+        }
+        std::thread::scope(|threads| {
+            let reply = threads.spawn(move || receiver.serve_authenticated(server));
+            sender.push_authenticated(client).unwrap();
+            reply.join().unwrap().unwrap();
+        });
+    }
+
+    #[test]
+    fn stage_seeds_the_exact_component_limit_and_rejects_the_next_total() {
+        let root = Directory::new();
+        let [old_a, old_b, new_a, new_b, refused_a, refused_b] =
+            ["a", "b", "new-a", "new-b", "refused-a", "refused-b"].map(|x| root.0.join(x));
+        let from = [old_a.as_path(), old_b.as_path()];
+        let to = [new_a.as_path(), new_b.as_path()];
+        let ceiling = u64::MAX / 2;
+        {
+            let [db_a, db_b] =
+                from.map(|path| Database::create_file(path, Limits::default()).unwrap());
+            let a = enroll(&db_a, enrollment("a", POLICY).unwrap()).unwrap();
+            let b = enroll(&db_b, enrollment("b", POLICY).unwrap()).unwrap();
+            a.update(|state, actor| {
+                state.practice_minutes.increment(actor, ceiling)?;
+                state.completed.insert(7)?;
+                state.planned.insert(11, actor)?;
+                state.planned.insert(63, actor)?;
+                state.planned.insert(22, actor)?;
+                assert!(state.planned.remove(22)?);
+                state.weekly_goal.assign(actor, 30)?;
+                state.session_limit.assign(actor, 15)
+            })
+            .unwrap();
+            exchange(&a, &b);
+            assert_eq!(a.read().unwrap(), b.read().unwrap());
+            for db in [&db_a, &db_b] {
+                db.retain_snapshot(&db.snapshot()).unwrap();
+            }
+        }
+        let bytes = from.map(|path| fs::read(path).unwrap());
+        stage(from, POLICY, to, NEW_POLICY, None).unwrap();
+        assert_eq!(from.map(|path| fs::read(path).unwrap()), bytes);
+        {
+            let [db_a, db_b] = to.map(|path| Database::open_file(path, Limits::default()).unwrap());
+            let [a, b] = [&db_a, &db_b].map(|db| db.collection_id(COLLECTION_ROW));
+            let a = StudyReplica::open(&db_a, a, NEW_POLICY, NEW_POLICY.actors[0]).unwrap();
+            let b = StudyReplica::open(&db_b, b, NEW_POLICY, NEW_POLICY.actors[1]).unwrap();
+            let seed = a.read().unwrap();
+            let components: [u8; 16] = [ceiling.to_le_bytes(), 0u64.to_le_bytes()]
+                .concat()
+                .try_into()
+                .unwrap();
+            assert_eq!(seed.practice_minutes.to_le_bytes(), components);
+            assert_eq!(seed.completed.iter().collect::<Vec<_>>(), [7]);
+            assert_eq!(seed.planned.iter().collect::<Vec<_>>(), [11, 63]);
+            assert_eq!(seed.weekly_goal.effective_value(), Some(30));
+            assert_eq!(seed.session_limit.effective_value(), Some(15));
+            assert_eq!(b.read().unwrap(), StudyProgress::default());
+            exchange(&a, &b);
+            assert_eq!(b.read().unwrap(), seed);
+        }
+        verify(to, NEW_POLICY, None).unwrap();
+        {
+            let [db_a, db_b] =
+                from.map(|path| Database::open_file(path, Limits::default()).unwrap());
+            let a = StudyReplica::open(
+                &db_a,
+                db_a.collection_id(COLLECTION_ROW),
+                POLICY,
+                POLICY.actors[0],
+            )
+            .unwrap();
+            let b = StudyReplica::open(
+                &db_b,
+                db_b.collection_id(COLLECTION_ROW),
+                POLICY,
+                POLICY.actors[1],
+            )
+            .unwrap();
+            b.update(|state, actor| state.practice_minutes.increment(actor, 1))
+                .unwrap();
+            exchange(&b, &a);
+            let over = a.read().unwrap();
+            assert_eq!(over, b.read().unwrap());
+            assert_eq!(over.practice_minutes.total(), ceiling + 1);
+        }
+        let over_bytes = from.map(|path| fs::read(path).unwrap());
+        let refused = [&refused_a as &Path, &refused_b as &Path];
+        let error = stage(from, POLICY, refused, NEW_POLICY, None).unwrap_err();
+        assert_eq!(error.downcast_ref::<Error>(), Some(&Error::Limit));
+        assert!(refused.iter().all(|path| !path.exists()));
+        assert_eq!(from.map(|path| fs::read(path).unwrap()), over_bytes);
+    }
+
+    #[test]
+    fn seed_independently_copies_minutes_goal_and_limit() {
+        let db = Database::new().unwrap();
+        let replica = enroll(&db, enrollment("a", POLICY).unwrap()).unwrap();
+        replica
+            .update(|_, actor| {
+                for (minutes, goal, limit) in [
+                    (0, None, None),
+                    (1, None, None),
+                    (0, Some(0), None),
+                    (0, None, Some(0)),
+                ] {
+                    let visible = Visible {
+                        minutes,
+                        completed: GrowSet::default(),
+                        planned: GrowSet::default(),
+                        goal,
+                        limit,
+                    };
+                    let mut seeded = StudyProgress::default();
+                    visible.seed(&mut seeded, actor).unwrap();
+                    assert_eq!(seeded.practice_minutes.total(), minutes);
+                    assert_eq!(seeded.weekly_goal.effective_value(), goal);
+                    assert_eq!(seeded.session_limit.effective_value(), limit);
+                    assert!(seeded.planned.iter().next().is_none());
+                    assert!(
+                        Visible::read(seeded)
+                            .unwrap()
+                            .planned
+                            .iter()
+                            .next()
+                            .is_none()
+                    );
+                }
+                let over = Visible {
+                    minutes: u64::MAX / 2 + 1,
+                    completed: GrowSet::default(),
+                    planned: GrowSet::default(),
+                    goal: None,
+                    limit: None,
+                };
+                let mut seeded = StudyProgress::default();
+                assert_eq!(over.seed(&mut seeded, actor), Err(Error::Limit));
+                assert_eq!(seeded.practice_minutes.total(), 0);
+                Ok(())
+            })
+            .unwrap();
     }
 }

@@ -6,7 +6,7 @@
     "apps/study-peer/src/native.rs": "7592846d6dff0b18e40808bf491412a832790adb521ca7675136c0e0652305d9",
     "apps/study-peer/src/native/admission.rs": "0d01bb5355a7b420f9cad80a7fa5fea02d09adaf7a92cce91cf6029750469dab",
     "apps/study-peer/src/native/protocol.rs": "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
-    "apps/study-peer/src/native/roster.rs": "98f8af05cabcef834979a3845caaa9dbd2ba455246be7f4aedd2f7edd880e900",
+    "apps/study-peer/src/native/roster.rs": "017694a49c4dd0c753052a38204f090906544644283a71a89c28eed5b7cf9aaf",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
     "apps/support/pinned_tls.rs": "3772645837b8f2f4e8ba8b1c743902538a2541f781999724a59de98395706b53",
@@ -298,7 +298,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "f84505da4436050e3701113c889ac6c600afd2b057fb6a2d3b0e890911e6486d",
-    "xtask/tests/mutations.json": "8f84c6eda9cc31957003fb6a69c6432678d515bac938680bded0e3344f6a1937",
+    "xtask/tests/mutations.json": "3c0357a844d6a71f6f0e5c4089545adf00cb29b2ea8a94e233bb85a4d720d940",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -26858,6 +26858,334 @@
       ],
       "mutations": [
         "r1-study-pair-io-stage-destination-b"
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-READ-PLANS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "read",
+        "kind": "for_iteration",
+        "start_byte": 2023,
+        "conditions": [
+          "state.planned.iter()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_seeds_the_exact_component_limit_and_rejects_the_next_total"
+        },
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "seed_independently_copies_minutes_goal_and_limit"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-read-planned-items"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-SEED-PLANS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "seed",
+        "kind": "for_iteration",
+        "start_byte": 2488,
+        "conditions": [
+          "self.planned.iter()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_seeds_the_exact_component_limit_and_rejects_the_next_total"
+        },
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "seed_independently_copies_minutes_goal_and_limit"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-seed-planned-items"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-MINUTES-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "seed",
+        "kind": "if",
+        "start_byte": 2584,
+        "conditions": [
+          "self.minutes != 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "seed_independently_copies_minutes_goal_and_limit"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-minutes-guard"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-MINUTES-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "seed",
+        "kind": "try_propagation",
+        "start_byte": 2672,
+        "conditions": [
+          "state.practice_minutes.increment(actor, self.minutes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "seed_independently_copies_minutes_goal_and_limit"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-minutes-error"
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-GOAL-BRANCH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "seed",
+        "kind": "if",
+        "start_byte": 2693,
+        "conditions": [
+          "let Some(goal) = self.goal"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "seed_independently_copies_minutes_goal_and_limit"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-goal-presence"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-GOAL-PATTERN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "seed",
+        "kind": "pattern_test",
+        "start_byte": 2696,
+        "conditions": [
+          "self.goal"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "seed_independently_copies_minutes_goal_and_limit"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-goal-presence"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-LIMIT-BRANCH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "seed",
+        "kind": "if",
+        "start_byte": 2795,
+        "conditions": [
+          "let Some(limit) = self.limit"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "seed_independently_copies_minutes_goal_and_limit"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-limit-presence"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-LIMIT-PATTERN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "seed",
+        "kind": "pattern_test",
+        "start_byte": 2798,
+        "conditions": [
+          "self.limit"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "seed_independently_copies_minutes_goal_and_limit"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-limit-presence"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "STUDY-SEEDING-STAGE-CAP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "study-peer::study-peer",
+        "file": "apps/study-peer/src/native/roster.rs",
+        "owner": "stage",
+        "kind": "if",
+        "start_byte": 6220,
+        "conditions": [
+          "visible.minutes > u64::MAX / 2"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/study-peer/src/native/roster.rs",
+          "name": "stage_seeds_the_exact_component_limit_and_rejects_the_next_total"
+        }
+      ],
+      "mutations": [
+        "r1-study-seeding-stage-cap-equality",
+        "r1-study-seeding-stage-cap-omitted"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
       ]
     }
   ],
