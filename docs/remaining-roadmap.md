@@ -640,3 +640,13 @@ and target duplicate failures on hosted Linux both showed the expected
 `Busy` versus `Io` assertion. At `e8066ab` all six descriptor controls
 passed in debug and release on arm64 macOS and Docker Linux under the
 unchanged strict transcript verifier.
+
+The [hosted fuzz campaign](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45604498847)
+tested merge commit `4a37229e1b3be3835e79a346dc325df9357a0c3e`.
+The downloaded ZIP matched GitHub's SHA-256
+`81f7984f935fe13b73c676b6aeeddcf38f0a1df1342f3c91cc56ae2749a3441a`.
+Replaying its tar archive against that commit verified all 22 targets and
+20,918 completed executions. As a negative control, replaying the earlier
+loose-file download against its own commit failed at the missing
+`open_image_bytes/artifacts` directory. This qualifies restoration of
+this bounded CI campaign. The release-duration fuzz gate remains open.

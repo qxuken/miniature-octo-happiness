@@ -466,3 +466,20 @@ runtime directory on ext4 and binds each target's `TMPDIR`; also set
 fuzzing remains available without this profile option. The native-file test
 rejects zero progress, and the captured interrupted-upload sequence remains
 a stable replay. See the [failure analysis and results](../docs/snapshot-flush-filesystem.md).
+
+## Verify a downloaded campaign
+
+The hosted artifact includes `ci.tar`, which preserves the empty failure
+directory for each target. Extract it into a fresh directory, then run the
+private verifier from a checkout containing the tested commit. For a PR,
+use the full Git test-merge commit ID from the Actions checkout step.
+
+```sh
+mkdir restored
+tar -xf ci.tar -C restored
+cargo xtask verify-fuzz --source "$TESTED_COMMIT" --evidence restored/ci
+```
+
+The command checks the complete campaign against that commit's manifest,
+inputs and seeds. It returns the per-target completed count and log hash.
+The hosted workflow runs the same check on the extracted tar before upload.

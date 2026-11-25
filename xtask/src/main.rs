@@ -245,6 +245,14 @@ enum Task {
     /// Run discovered fuzz targets with bounded ASan execution and evidence.
     #[cfg(unix)]
     Fuzz(fuzz::Options),
+    /// Verify an extracted complete fuzz campaign against the exact Git commit.
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    VerifyFuzz {
+        #[arg(long)]
+        source: String,
+        #[arg(long)]
+        evidence: std::path::PathBuf,
+    },
     /// Rehearse offline administrative restore and isolated journal reconciliation.
     #[cfg(any(unix, windows))]
     IncidentRecovery(incident_recovery::Options),
@@ -404,6 +412,10 @@ fn execute(cli: Cli) -> Result<()> {
         Task::AtomicModel(options) => atomic_model::run(&run, options),
         #[cfg(unix)]
         Task::Fuzz(options) => fuzz::run(&run, options),
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+        Task::VerifyFuzz { source, evidence } => {
+            fuzz::verify_campaign(&mut run, &source, &evidence)
+        }
         #[cfg(any(unix, windows))]
         Task::IncidentRecovery(options) => incident_recovery::run(&run, options),
         #[cfg(any(unix, windows))]

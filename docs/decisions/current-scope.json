@@ -171,13 +171,13 @@
     "xtask/src/delivery_matrix.rs": "0dc8cdb7bc1391df4da16436626f2912c5695ae701ea254debde705c6274ca6a",
     "xtask/src/faults.rs": "0c9fa8a9b335557b4ed3605a16fcf90a96cd891ba845d03a0f4c60adc47c5b9c",
     "xtask/src/follower_backup.rs": "27635ce94ecaebc27c6ba86dc3ec6d7ef63761bcaa260300522b734c4dfbc713",
-    "xtask/src/fuzz.rs": "4ead6868462757555c71f051383530c9b73bc5d3c60d6894ea654e8d41fb4d76",
+    "xtask/src/fuzz.rs": "a93fc5442090299ae8057e4a3a890409a0d659b5060cde26a043ad739b6d21e5",
     "xtask/src/helper_controls.rs": "69397de68528b9eb0051b2cc901d54ee9d7f0ac621f8e0e2821a6ce5949ee5ed",
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/instrumentation.rs": "3854dbf5a03081fa56d57c1ca385054b5d6c2a4468e7cb26b87bd0d885d1632d",
     "xtask/src/interactive.rs": "a7f1b446652b9ee1f5acdaae4c6d3bc5294fbf03c26cfbc65ebf0c66d569975f",
     "xtask/src/macos_volume.rs": "9b9dab701a7336aa5e645cd09bfa71f5c66958f5ca46e648bb71a0c4d80bdf97",
-    "xtask/src/main.rs": "63441c23ddfad00c196a1a90137d1de9ff648f7214d5c4b6a8457283bf58cd78",
+    "xtask/src/main.rs": "6eda82b2c6722b75facabbe42a2ffb5b13ba2742d71fdd28d0a883863ef2a45b",
     "xtask/src/maintenance_space.rs": "402ec5e967227f12fc6e901e393fdedb253bef1bb235b510a94f8948753b43a0",
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "908c0003f5d40873e75f5f2a573826f9abe91818f21370fd4ec1765910ce90fe",
@@ -444,7 +444,7 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 343,
-    "xtask::xtask": 5241
+    "xtask::xtask": 5245
   },
   "groups": [
     {
