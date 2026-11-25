@@ -416,7 +416,7 @@
     "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
     "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f",
     "docs/decisions/study-incoming-worker-current.md": "f94f0d11e3bd22ae1df89ae4574953425ec3a07b591c5dc86988b6749339b5bb",
-    "docs/decisions/study-worker-launch-current.md": "22b81351f8bea4112adc6899402b5c6fd30775a132913a8de3af14619b6e6fd2"
+    "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

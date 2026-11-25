@@ -29,3 +29,32 @@ the current spans. [Original incoming worker ledger](study-incoming-worker-curre
 | E | study-peer::study-peer | apps/study-peer/src/native/admission.rs:135:25– | 4390..4395 | match | receive_with | The capacity test checks a pinned peer admission and exact counts for dropped handshakes. |
 | E | study-peer::study-peer | apps/study-peer/src/native/admission.rs:137:36– | 4485..4488 | pattern_test | receive_with | One authenticated session enters the merge and holds its guard while the next valid peer reaches the busy outcome. |
 | E | study-peer::study-peer | apps/study-peer/src/native/admission.rs:158:9– | 5465..5468 | for_iteration | receive_with | A fatal listener error with no sessions retires cleanly. The active-session cases join healthy and panicked workers. |
+
+## Verification
+
+Frozen source `edc0ae4717863de1d5980680b640d37af6fb2c94` passed with
+Rust 1.100.0 on arm64 macOS and offline arm64 Docker Linux on ext4.
+Debug and release passed 63 Study tests and 14 core CRDT tests on each host.
+Each profile detected all ten incoming-worker mutation controls, including
+the new substitution of the launch error. Strict Clippy passed on both
+hosts. Fresh extraction checked the named assertions, the exact runners,
+156 command reports and 960 copied files per campaign.
+[Archive checksums](study-launch-edc0ae4.sha256)
+
+Five macOS probes with nightly `739adecd4` reran the listener and join
+conditions. The extracted executable and raw profiles reproduced the
+LLVM export byte for byte. The launch error is a deterministic refusal
+at the builder boundary. Native OS thread exhaustion remains unobserved.
+
+The current inventory has 444 runtime and 7,514 tooling gaps. All 17
+records in the incoming admission file now have scoped evidence.
+
+```sh
+export RUSTUP_TOOLCHAIN=1.100.0
+cargo test --offline --locked --all-features -p study-peer
+cargo test --offline --locked --all-features -p weekend-db --test crdt
+cargo xtask mutations --toolchain 1.100.0 --case r1-study-incoming- \
+  --output "$OUTPUT/debug"
+```
+
+Repeat the commands with `--release` and a fresh mutation output path.

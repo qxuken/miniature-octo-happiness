@@ -2066,3 +2066,14 @@ mutation controls in debug and release on macOS and Docker Linux.
 Reconciliation leaves 445 runtime and 7,514 tooling gaps. Native thread
 creation failure remains open.
 [Incoming worker ledger](decisions/study-incoming-worker-current.md)
+
+### Study session worker launch refusal
+
+At `edc0ae4`, a scripted refusal at the session thread builder closes the
+newly accepted socket and stops admission. The active session finishes
+before return, and the original error survives. All ten incoming-worker
+controls were detected in debug and release on macOS and Docker Linux.
+Reconciliation records scoped evidence for all 17 admission decisions
+and leaves 444 runtime and 7,514 tooling gaps. Native OS thread exhaustion
+remains unobserved.
+[Session worker launch ledger](decisions/study-worker-launch-current.md)
