@@ -1735,3 +1735,19 @@ mutation detections, 96 process receipts and reconciliation. That
 reconciliation leaves 699 runtime gaps and 7,447 tooling gaps. Linux also
 replayed the nine-round macOS soak proof and returned the same verified
 summary.
+
+### Unix unlock failure and retry
+
+At `2f999cd`, a separate invalid descriptor supplied EBADF to the unlock
+result path while the store's owned descriptor remained valid. The adapter
+reported the Unlock diagnostic, disabled I/O and kept the lease available
+for cleanup. Explicit retry and drop both released it. The next opener
+saw the original bytes while a duplicate descriptor remained open.
+
+All 42 macOS arm64 and 44 Docker Linux arm64 native and integration tests
+passed per profile in debug and release. The two unlock mutations failed
+their named tests in all four runs. The
+[archive manifest](decisions/unix-unlock-2f999cd.sha256) covers eight detections,
+44 process receipts and reconciliation. There are zero unclassified
+source decisions in the shared Unix file adapter, 698 runtime gaps overall
+and 7,447 tooling gaps. The device and platform residuals remain tracked.
