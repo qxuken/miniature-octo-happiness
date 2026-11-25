@@ -30,3 +30,28 @@ The local archive `dependencies-afffd2d.tar.gz` contains the lockfiles,
 scanner, advisory snapshot and Git tree list, registry records, crate
 archives, raw scan reports and package-notice review summary. Its SHA-256
 is `e7d2774886a087118c8071886d389c4e0e0fa351296e96e10e9e216918815c10`.
+
+## Standard-library and Odin notices
+
+The four Rust 1.100.0 compiler archives for the delivery checkpoint matched
+the SHA-256 entries in the upstream channel manifest. Each contained the
+same 1,512,515-byte `COPYRIGHT-library.html`. All 16 delivered copies matched
+it byte for byte (SHA-256 `626556344c12679d7cab2c1aa2ce80de01937b62c2c88c62f0650a469be18799`).
+[Upstream Rust 1.100.0 channel manifest](https://static.rust-lang.org/dist/channel-rust-1.100.0.toml)
+
+For Linux arm64, Linux x64 and Windows x64, each Odin release archive matched
+GitHub's release-asset digest. Its compiler executable matched the compiler
+hash recorded in all four package manifests for that platform. Its license
+matched the four delivered copies. The Windows archive uses CRLF line endings
+and the Windows packages preserved them. [Odin dev-2026-10 release](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10)
+
+The macOS lane used a locally built Odin compiler. Its executable hash matched
+all four recorded compiler hashes, and the four delivered notices matched the
+license from its recorded source commit. Rebuilding that compiler from source
+remains outside this evidence. [macOS Odin source license](https://github.com/odin-lang/Odin/blob/a22aa1984f008545f0bd8bf9ecce5066717563ef/LICENSE)
+
+The local archive `toolchain-notices-49ddab5.tar` has SHA-256
+`541bfc0564a357d8d2735c7f8939efeb120316578699e9dc8c98943effe0e16a`.
+Rereading it verified seven upstream archive digests, the local compiler,
+and the notice hashes across all sixteen package profiles. Legal approval and
+rechecking the final release's toolchains remain open.
