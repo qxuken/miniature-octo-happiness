@@ -9,7 +9,7 @@
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "0ea50472dbdbf0a26d98252bf93909e4b090fb675024d12ccc206f9de79c8dd9",
-    "apps/support/pinned_tls.rs": "c96c908c2d18af6ebf31d4dbaf0d3bcf56cfd395cf6b5ee29fe2b73f0416192c",
+    "apps/support/pinned_tls.rs": "056b374b234ba260a66cfe1916300838d5861594a61a53bc9c1b8cc0ac889e3c",
     "apps/support/service_diagnostics.rs": "fb80728e4368315a21775a33e08081f321717c05066f9a06f49107c84c6bf4a9",
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
@@ -300,7 +300,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "0aed466874a37f1e05c390f3fa543c64fca7c8d7367e6eb1ddcc64442ba5fbfc",
+    "xtask/tests/mutations.json": "d3f7be5940ae760b387f8c05c76c77c91844af26c61164ab7d0e126680a09818",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -440,7 +440,7 @@
     "apps/weekend-replicate/src/native/admission.rs": "1f8a4b980720e8fa5fee5aa7325af7390597dcb0f021ed990b40691677a0ad5a",
     "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
     "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
-    "apps/support/pinned_tls.rs": "c96c908c2d18af6ebf31d4dbaf0d3bcf56cfd395cf6b5ee29fe2b73f0416192c",
+    "apps/support/pinned_tls.rs": "056b374b234ba260a66cfe1916300838d5861594a61a53bc9c1b8cc0ac889e3c",
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
     "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
@@ -470,7 +470,8 @@
     "docs/decisions/windows-open-flow-current.md": "3ffb4b681b95a4f3676f5f92b3e1054118efc16c7ccf95fff30214e7de3d4931",
     "docs/decisions/windows-open-flow-ee67459.sha256": "0010a04678335a378e44dad73309a7e91ff0adca4a1cd367b0d176b29b8e5269",
     "docs/decisions/supervisor-result-pairs-current.md": "dc575ecee8bf53af16f4c7b5c4b70dc0d9eb8f89bfab629fab8d3ce8f1b40d48",
-    "docs/decisions/supervisor-result-pairs-24b6e34.sha256": "f3fb6df47cf29d6882eb91d4144f7095ef88ea9d2769c0ea76effb07be7ff0b9"
+    "docs/decisions/supervisor-result-pairs-24b6e34.sha256": "f3fb6df47cf29d6882eb91d4144f7095ef88ea9d2769c0ea76effb07be7ff0b9",
+    "docs/decisions/tls-connect-refusal-current.md": "4486c9d67e738e28185d48e8a718470f6240e4decfd5ea39a0ea2874b8d1c2d7"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -1039,7 +1040,8 @@
         "docs/decisions/coordinator-platform-signals-current.md",
         "docs/decisions/shared-tls-credential-io-current.md",
         "docs/decisions/shared-tls-handshake-current.md",
-        "docs/decisions/shared-tls-transport-current.md"
+        "docs/decisions/shared-tls-transport-current.md",
+        "docs/decisions/tls-connect-refusal-current.md"
       ],
       "residual": "TLS dependency/native outcomes and generated logging/error branches are not inferred covered for every binary."
     },
@@ -32073,7 +32075,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12647,
+        "start_byte": 12890,
         "conditions": [
           "fs::metadata(path)"
         ]
@@ -32096,7 +32098,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12625,
+        "start_byte": 12868,
         "conditions": [
           "!fs::metadata(path)?.is_file()"
         ]
@@ -32133,7 +32135,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12980,
+        "start_byte": 13223,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32181,7 +32183,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "short_circuit_and",
-        "start_byte": 12983,
+        "start_byte": 13226,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32229,7 +32231,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 13271,
+        "start_byte": 13514,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32277,7 +32279,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "short_circuit_or",
-        "start_byte": 13274,
+        "start_byte": 13517,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32325,7 +32327,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12647,
+        "start_byte": 12890,
         "conditions": [
           "fs::metadata(path)"
         ]
@@ -32348,7 +32350,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12625,
+        "start_byte": 12868,
         "conditions": [
           "!fs::metadata(path)?.is_file()"
         ]
@@ -32385,7 +32387,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12980,
+        "start_byte": 13223,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32433,7 +32435,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "short_circuit_and",
-        "start_byte": 12983,
+        "start_byte": 13226,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32481,7 +32483,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 13271,
+        "start_byte": 13514,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32529,7 +32531,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "short_circuit_or",
-        "start_byte": 13274,
+        "start_byte": 13517,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -36704,7 +36706,7 @@
         "target": "study-peer::study-peer",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 8557,
+        "start_byte": 8800,
         "conditions": [
           "stream.sock.remaining()"
         ]
@@ -36727,7 +36729,7 @@
         "target": "study-peer::study-peer",
         "owner": "read",
         "kind": "try_propagation",
-        "start_byte": 9053,
+        "start_byte": 9296,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36750,7 +36752,7 @@
         "target": "study-peer::study-peer",
         "owner": "write",
         "kind": "try_propagation",
-        "start_byte": 9267,
+        "start_byte": 9510,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36773,7 +36775,7 @@
         "target": "study-peer::study-peer",
         "owner": "flush",
         "kind": "try_propagation",
-        "start_byte": 9378,
+        "start_byte": 9621,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36796,7 +36798,7 @@
         "target": "study-peer::study-peer",
         "owner": "remaining",
         "kind": "if",
-        "start_byte": 9938,
+        "start_byte": 10181,
         "conditions": [
           "remaining.is_zero()"
         ]
@@ -36833,7 +36835,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "try_propagation",
-        "start_byte": 10275,
+        "start_byte": 10518,
         "conditions": [
           "self.remaining()"
         ]
@@ -36856,7 +36858,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "if",
-        "start_byte": 10290,
+        "start_byte": 10533,
         "conditions": [
           "let Some(canceled) = &self.cancellation"
         ]
@@ -36893,7 +36895,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "if",
-        "start_byte": 10351,
+        "start_byte": 10594,
         "conditions": [
           "canceled.load(Relaxed)"
         ]
@@ -36930,7 +36932,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "match_guard",
-        "start_byte": 10649,
+        "start_byte": 10892,
         "conditions": [
           "self.cancellation.is_some()",
           "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
@@ -36980,7 +36982,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 8557,
+        "start_byte": 8800,
         "conditions": [
           "stream.sock.remaining()"
         ]
@@ -37003,7 +37005,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "read",
         "kind": "try_propagation",
-        "start_byte": 9053,
+        "start_byte": 9296,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37026,7 +37028,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "write",
         "kind": "try_propagation",
-        "start_byte": 9267,
+        "start_byte": 9510,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37049,7 +37051,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "flush",
         "kind": "try_propagation",
-        "start_byte": 9378,
+        "start_byte": 9621,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37072,7 +37074,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "remaining",
         "kind": "if",
-        "start_byte": 9938,
+        "start_byte": 10181,
         "conditions": [
           "remaining.is_zero()"
         ]
@@ -37109,7 +37111,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "try_propagation",
-        "start_byte": 10275,
+        "start_byte": 10518,
         "conditions": [
           "self.remaining()"
         ]
@@ -37132,7 +37134,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "if",
-        "start_byte": 10290,
+        "start_byte": 10533,
         "conditions": [
           "let Some(canceled) = &self.cancellation"
         ]
@@ -37169,7 +37171,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "if",
-        "start_byte": 10351,
+        "start_byte": 10594,
         "conditions": [
           "canceled.load(Relaxed)"
         ]
@@ -37206,7 +37208,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "match_guard",
-        "start_byte": 10649,
+        "start_byte": 10892,
         "conditions": [
           "self.cancellation.is_some()",
           "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
@@ -37406,11 +37408,11 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "connect",
+        "owner": "connect_with",
         "kind": "try_propagation",
-        "start_byte": 4474,
+        "start_byte": 4717,
         "conditions": [
-          "TcpStream::connect_timeout(&address, TIMEOUT)"
+          "dial(&address, TIMEOUT)"
         ]
       },
       "tests": [
@@ -37431,7 +37433,7 @@
         "target": "study-peer::study-peer",
         "owner": "check_pin",
         "kind": "if",
-        "start_byte": 8160,
+        "start_byte": 8403,
         "conditions": [
           "chain.and_then(|certs| certs.first()) == Some(&self.peer)"
         ]
@@ -37618,11 +37620,11 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "connect",
+        "owner": "connect_with",
         "kind": "try_propagation",
-        "start_byte": 4474,
+        "start_byte": 4717,
         "conditions": [
-          "TcpStream::connect_timeout(&address, TIMEOUT)"
+          "dial(&address, TIMEOUT)"
         ]
       },
       "tests": [
@@ -37643,7 +37645,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "check_pin",
         "kind": "if",
-        "start_byte": 8160,
+        "start_byte": 8403,
         "conditions": [
           "chain.and_then(|certs| certs.first()) == Some(&self.peer)"
         ]
@@ -42549,7 +42551,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12647,
+        "start_byte": 12890,
         "conditions": [
           "fs::metadata(path)"
         ]
@@ -42572,7 +42574,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12625,
+        "start_byte": 12868,
         "conditions": [
           "!fs::metadata(path)?.is_file()"
         ]
@@ -42609,7 +42611,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12980,
+        "start_byte": 13223,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -42657,7 +42659,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "short_circuit_and",
-        "start_byte": 12983,
+        "start_byte": 13226,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -42705,7 +42707,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 13271,
+        "start_byte": 13514,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -42753,7 +42755,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "short_circuit_or",
-        "start_byte": 13274,
+        "start_byte": 13517,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -42985,7 +42987,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12756,
+        "start_byte": 12999,
         "conditions": [
           "open(path)"
         ]
@@ -43008,7 +43010,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12800,
+        "start_byte": 13043,
         "conditions": [
           "opened_metadata(&file)"
         ]
@@ -43031,7 +43033,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 13264,
+        "start_byte": 13507,
         "conditions": [
           "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
         ]
@@ -43054,7 +43056,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12807,
+        "start_byte": 13050,
         "conditions": [
           "!metadata.is_file()"
         ]
@@ -43206,7 +43208,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12756,
+        "start_byte": 12999,
         "conditions": [
           "open(path)"
         ]
@@ -43229,7 +43231,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12800,
+        "start_byte": 13043,
         "conditions": [
           "opened_metadata(&file)"
         ]
@@ -43252,7 +43254,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 13264,
+        "start_byte": 13507,
         "conditions": [
           "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
         ]
@@ -43275,7 +43277,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12807,
+        "start_byte": 13050,
         "conditions": [
           "!metadata.is_file()"
         ]
@@ -43427,7 +43429,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12756,
+        "start_byte": 12999,
         "conditions": [
           "open(path)"
         ]
@@ -43450,7 +43452,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 12800,
+        "start_byte": 13043,
         "conditions": [
           "opened_metadata(&file)"
         ]
@@ -43473,7 +43475,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 13264,
+        "start_byte": 13507,
         "conditions": [
           "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
         ]
@@ -43496,7 +43498,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 12807,
+        "start_byte": 13050,
         "conditions": [
           "!metadata.is_file()"
         ]
@@ -43533,7 +43535,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5680,
+        "start_byte": 5923,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43581,7 +43583,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 5683,
+        "start_byte": 5926,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43629,7 +43631,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5503,
+        "start_byte": 5746,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -43652,7 +43654,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5843,
+        "start_byte": 6086,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -43675,7 +43677,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5854,
+        "start_byte": 6097,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -43712,7 +43714,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 7783,
+        "start_byte": 8026,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43760,7 +43762,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 7786,
+        "start_byte": 8029,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43808,7 +43810,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 7606,
+        "start_byte": 7849,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -43831,7 +43833,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 7946,
+        "start_byte": 8189,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -43854,7 +43856,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 7957,
+        "start_byte": 8200,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -43891,7 +43893,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5680,
+        "start_byte": 5923,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43939,7 +43941,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 5683,
+        "start_byte": 5926,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43987,7 +43989,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5503,
+        "start_byte": 5746,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -44010,7 +44012,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5843,
+        "start_byte": 6086,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -44033,7 +44035,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5854,
+        "start_byte": 6097,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -44070,7 +44072,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 7783,
+        "start_byte": 8026,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44118,7 +44120,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 7786,
+        "start_byte": 8029,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44166,7 +44168,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 7606,
+        "start_byte": 7849,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -44189,7 +44191,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 7946,
+        "start_byte": 8189,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -44212,7 +44214,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 7957,
+        "start_byte": 8200,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -44249,7 +44251,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5680,
+        "start_byte": 5923,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44297,7 +44299,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 5683,
+        "start_byte": 5926,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44345,7 +44347,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5503,
+        "start_byte": 5746,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -44368,7 +44370,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5843,
+        "start_byte": 6086,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -44391,7 +44393,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5854,
+        "start_byte": 6097,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -44428,7 +44430,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 7783,
+        "start_byte": 8026,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44476,7 +44478,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 7786,
+        "start_byte": 8029,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44524,7 +44526,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 7606,
+        "start_byte": 7849,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -44547,7 +44549,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 7946,
+        "start_byte": 8189,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -44570,7 +44572,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 7957,
+        "start_byte": 8200,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -44607,7 +44609,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 8557,
+        "start_byte": 8800,
         "conditions": [
           "stream.sock.remaining()"
         ]
@@ -44630,7 +44632,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "read",
         "kind": "try_propagation",
-        "start_byte": 9053,
+        "start_byte": 9296,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -44653,7 +44655,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "write",
         "kind": "try_propagation",
-        "start_byte": 9267,
+        "start_byte": 9510,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -44676,7 +44678,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "flush",
         "kind": "try_propagation",
-        "start_byte": 9378,
+        "start_byte": 9621,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -44699,7 +44701,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "remaining",
         "kind": "if",
-        "start_byte": 9938,
+        "start_byte": 10181,
         "conditions": [
           "remaining.is_zero()"
         ]
@@ -44736,7 +44738,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "io",
         "kind": "try_propagation",
-        "start_byte": 10275,
+        "start_byte": 10518,
         "conditions": [
           "self.remaining()"
         ]
@@ -44759,7 +44761,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "io",
         "kind": "if",
-        "start_byte": 10290,
+        "start_byte": 10533,
         "conditions": [
           "let Some(canceled) = &self.cancellation"
         ]
@@ -44796,7 +44798,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "io",
         "kind": "if",
-        "start_byte": 10351,
+        "start_byte": 10594,
         "conditions": [
           "canceled.load(Relaxed)"
         ]
@@ -44833,7 +44835,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "io",
         "kind": "match_guard",
-        "start_byte": 10649,
+        "start_byte": 10892,
         "conditions": [
           "self.cancellation.is_some()",
           "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
@@ -44964,11 +44966,11 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::live_month",
-        "owner": "connect",
+        "owner": "connect_with",
         "kind": "try_propagation",
-        "start_byte": 4474,
+        "start_byte": 4717,
         "conditions": [
-          "TcpStream::connect_timeout(&address, TIMEOUT)"
+          "dial(&address, TIMEOUT)"
         ]
       },
       "tests": [
@@ -44989,7 +44991,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "check_pin",
         "kind": "if",
-        "start_byte": 8160,
+        "start_byte": 8403,
         "conditions": [
           "chain.and_then(|certs| certs.first()) == Some(&self.peer)"
         ]
@@ -45052,7 +45054,7 @@
         "conditions": [
           "set_nonblocking(&socket, false)"
         ],
-        "start_byte": 6718
+        "start_byte": 6961
       },
       "tests": [
         {
@@ -45075,7 +45077,7 @@
         "conditions": [
           "set_timeout(stream, Some(remaining))"
         ],
-        "start_byte": 11895
+        "start_byte": 12138
       },
       "tests": [
         {
@@ -45098,7 +45100,7 @@
         "conditions": [
           "ClientConnection::new(self.client.clone(), name)"
         ],
-        "start_byte": 5214
+        "start_byte": 5457
       },
       "tests": [
         {
@@ -45121,7 +45123,7 @@
         "conditions": [
           "self.client_handshake(&mut tls, &mut socket)"
         ],
-        "start_byte": 5269
+        "start_byte": 5512
       },
       "tests": [
         {
@@ -45144,7 +45146,7 @@
         "conditions": [
           "finish(StreamOwned::new(tls, socket))"
         ],
-        "start_byte": 5320
+        "start_byte": 5563
       },
       "tests": [
         {
@@ -45167,7 +45169,7 @@
         "conditions": [
           "ServerConnection::new(self.server.clone())"
         ],
-        "start_byte": 7281
+        "start_byte": 7524
       },
       "tests": [
         {
@@ -45190,7 +45192,7 @@
         "conditions": [
           "self.server_handshake(&mut tls, &mut socket)"
         ],
-        "start_byte": 7336
+        "start_byte": 7579
       },
       "tests": [
         {
@@ -45213,7 +45215,7 @@
         "conditions": [
           "finish(StreamOwned::new(tls, socket))"
         ],
-        "start_byte": 7423
+        "start_byte": 7666
       },
       "tests": [
         {
@@ -45259,7 +45261,7 @@
         "conditions": [
           "set_nonblocking(&socket, false)"
         ],
-        "start_byte": 6718
+        "start_byte": 6961
       },
       "tests": [
         {
@@ -45282,7 +45284,7 @@
         "conditions": [
           "set_timeout(stream, Some(remaining))"
         ],
-        "start_byte": 11895
+        "start_byte": 12138
       },
       "tests": [
         {
@@ -45305,7 +45307,7 @@
         "conditions": [
           "ClientConnection::new(self.client.clone(), name)"
         ],
-        "start_byte": 5214
+        "start_byte": 5457
       },
       "tests": [
         {
@@ -45328,7 +45330,7 @@
         "conditions": [
           "self.client_handshake(&mut tls, &mut socket)"
         ],
-        "start_byte": 5269
+        "start_byte": 5512
       },
       "tests": [
         {
@@ -45351,7 +45353,7 @@
         "conditions": [
           "finish(StreamOwned::new(tls, socket))"
         ],
-        "start_byte": 5320
+        "start_byte": 5563
       },
       "tests": [
         {
@@ -45374,7 +45376,7 @@
         "conditions": [
           "ServerConnection::new(self.server.clone())"
         ],
-        "start_byte": 7281
+        "start_byte": 7524
       },
       "tests": [
         {
@@ -45397,7 +45399,7 @@
         "conditions": [
           "self.server_handshake(&mut tls, &mut socket)"
         ],
-        "start_byte": 7336
+        "start_byte": 7579
       },
       "tests": [
         {
@@ -45420,7 +45422,7 @@
         "conditions": [
           "finish(StreamOwned::new(tls, socket))"
         ],
-        "start_byte": 7423
+        "start_byte": 7666
       },
       "tests": [
         {
@@ -45466,7 +45468,7 @@
         "conditions": [
           "set_nonblocking(&socket, false)"
         ],
-        "start_byte": 6718
+        "start_byte": 6961
       },
       "tests": [
         {
@@ -45489,7 +45491,7 @@
         "conditions": [
           "set_timeout(stream, Some(remaining))"
         ],
-        "start_byte": 11895
+        "start_byte": 12138
       },
       "tests": [
         {
@@ -45512,7 +45514,7 @@
         "conditions": [
           "ClientConnection::new(self.client.clone(), name)"
         ],
-        "start_byte": 5214
+        "start_byte": 5457
       },
       "tests": [
         {
@@ -45535,7 +45537,7 @@
         "conditions": [
           "self.client_handshake(&mut tls, &mut socket)"
         ],
-        "start_byte": 5269
+        "start_byte": 5512
       },
       "tests": [
         {
@@ -45558,7 +45560,7 @@
         "conditions": [
           "finish(StreamOwned::new(tls, socket))"
         ],
-        "start_byte": 5320
+        "start_byte": 5563
       },
       "tests": [
         {
@@ -45581,7 +45583,7 @@
         "conditions": [
           "ServerConnection::new(self.server.clone())"
         ],
-        "start_byte": 7281
+        "start_byte": 7524
       },
       "tests": [
         {
@@ -45604,7 +45606,7 @@
         "conditions": [
           "self.server_handshake(&mut tls, &mut socket)"
         ],
-        "start_byte": 7336
+        "start_byte": 7579
       },
       "tests": [
         {
@@ -45627,7 +45629,7 @@
         "conditions": [
           "finish(StreamOwned::new(tls, socket))"
         ],
-        "start_byte": 7423
+        "start_byte": 7666
       },
       "tests": [
         {

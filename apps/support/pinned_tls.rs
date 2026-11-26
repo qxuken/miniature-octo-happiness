@@ -127,8 +127,16 @@ impl Tls {
         &self,
         address: SocketAddr,
     ) -> AppResult<DeadlineStream<ClientConnection>> {
+        self.connect_with(address, TcpStream::connect_timeout)
+    }
+
+    fn connect_with(
+        &self,
+        address: SocketAddr,
+        dial: impl FnOnce(&SocketAddr, Duration) -> io::Result<TcpStream>,
+    ) -> AppResult<DeadlineStream<ClientConnection>> {
         let deadline = Instant::now() + TIMEOUT;
-        let stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
+        let stream = dial(&address, TIMEOUT)?;
         self.client_session(DeadlineSocket {
             stream,
             deadline,
@@ -1569,16 +1577,22 @@ mod credential_boundary_tests {
         let local = Credentials::generate().unwrap();
         let peer = Credentials::generate().unwrap();
         let tls = Tls::new(&local, peer.certificate()).unwrap();
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        drop(listener);
+        let address = "127.0.0.1:1".parse().unwrap();
         let error = tls
-            .connect(address)
+            .connect_with(address, |actual, timeout| {
+                assert_eq!(*actual, address);
+                assert_eq!(timeout, TIMEOUT);
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionRefused,
+                    "fixture refused connection",
+                ))
+            })
             .err()
-            .expect("closed endpoint accepted a connection");
-        assert_eq!(
-            error.downcast_ref::<io::Error>().map(io::Error::kind),
-            Some(io::ErrorKind::ConnectionRefused)
+            .expect("refused connection was admitted");
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::ConnectionRefused,
+            "fixture refused connection",
         );
     }
 }
