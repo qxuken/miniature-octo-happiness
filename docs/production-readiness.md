@@ -235,6 +235,10 @@ qualification is a separate release-candidate requirement.
   The accelerated Mac-to-Linux month checks live writes, durable receipt
   reconciliation and retained history with the regular TLS follower.
   [Workload and measured resource costs](live-replication-month.md)
+  The [Linux-primary rehearsal](live-replication-month.md#linux-primary-and-macos-follower-at-9f942db)
+  also verifies that a restored macOS follower returns the same durable receipt
+  across restart and duplicate delivery, with a byte-identical database and
+  manifest.
   Fresh-image staging limits individual append buffers to 64 KiB. Measure
   repeated-copy memory and check exact bytes and durability boundaries.
   [Fresh-image staging qualification](fresh-image-staging.md)

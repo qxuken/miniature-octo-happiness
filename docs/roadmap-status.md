@@ -20,6 +20,12 @@ every retained root. The run measures fresh-process open and publication
 latency plus core heap and process RSS. Sustained deployment evidence
 and service budget approval remain open.
 
+The [Linux-primary snapshot rehearsal](live-replication-month.md#linux-primary-and-macos-follower-at-9f942db)
+passes the 30-day schedule against the native macOS follower. Fresh restores
+verify all 31 retained views on APFS and ext4. After follower restart and
+duplicate delivery, both polls report revision 93 with the same digest and
+all durable files match their original bytes.
+
 The [2026-11-18 dependency snapshot](locked-dependency-review-3de695f.md)
 scans all fourteen lockfiles at `3de695f` against frozen RustSec `233155b`
 (1,527 parsed advisories): zero reported vulnerabilities and warnings.

@@ -2760,3 +2760,15 @@ source decisions, with 7,368 tooling gaps and zero unresolved runtime
 source records. Representative deployment workloads and accepted budgets
 remain R3 gates.
 [Restored archive checksums](decisions/cache-forks-7aebd5d.sha256)
+
+### Linux primary and restored macOS follower
+
+The [reverse snapshot lane](live-replication-month.md#linux-primary-and-macos-follower-at-9f942db)
+runs 66 authenticated exchanges, including four lost-reply reconciliations
+and three commands against a fresh copy of the follower. The restored
+macOS service returns the same revision-93 receipt before and after a
+duplicate shipment. Both native filesystems verify all 31 retained views
+and the exact exported image. The rehearsal covers the proposed direction
+on one development host. Intended operator accounts, deployment hardware
+and off-machine evidence custody remain open.
+[Restored archive checksums](decisions/snapshot-linux-primary-9f942db.sha256)
