@@ -442,7 +442,7 @@
     "apps/support/pinned_tls.rs": "c27bb3e2158dd15c2fd3ba5242459ac61aaa68059bf05f7d98bbd6d39b786fd5",
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
-    "docs/decisions/coordinator-sequenced-startup-current.md": "addc5e721063bdc81cebc51fb4e06958bc5ab97ce0fd196df782f3689051585e"
+    "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

@@ -2423,3 +2423,18 @@ The review accounts for 20 runtime records. The later entropy-dependent
 server key setup and unmeasured native file and socket failures retain
 their open records. Repository reconciliation leaves 253 runtime and
 7,468 tooling gaps. [Shared TLS configuration ledger](decisions/shared-tls-config-current.md)
+
+### Sequenced coordinator startup and admission
+
+At `e9e3c34`, every simulated initialization I/O failure checks the original
+error, the acknowledged revision and the durable revision after reopen.
+Startup accepts revision 3 with both seeded rows. Revisions 0–2 and invalid
+markers or counters preserve specific errors and exact durable bytes. Three
+independent limit failures leave both collections empty at revision 2.
+
+Each macOS and Docker Linux/ext4 profile passed 33 unit tests, 16 integration
+tests and all 12 named controls. The standalone coordinator replay also passed
+15 tests per profile on macOS. Two Windows x64 unit and integration executables
+cross-linked per profile. Native execution remains open for this source.
+Reconciliation covers 12 runtime records and leaves 241 runtime and 7,468
+tooling gaps. [Sequenced startup ledger](decisions/coordinator-sequenced-startup-current.md)
