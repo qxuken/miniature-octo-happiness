@@ -15,6 +15,29 @@ deadline controls against its own Cargo target. The native socket fixtures
 use connected loopback endpoints. The setup failure fixtures inject errors
 at the private call boundary.
 
+## Qualification
+
+Frozen source `0cd752bbdf77147b9c4182258c41735c78e5e9a0` used Rust 1.100.0 and locked
+dependencies. Counts are per profile.
+
+| Platform | Study | Snapshot | Live-month example | Named mutations caught |
+| --- | ---: | ---: | ---: | ---: |
+| macOS arm64 | 85 | 84 | 27 | 46 |
+| Docker Linux arm64/ext4 | 85 | 85 | 27 | 46 |
+
+One additional Linux storage test remained opt-in. Both packages passed
+strict Clippy. Ten Windows MSVC x64 test executables linked in each profile.
+Native execution remains pending for this source. The 46 controls include the existing reaper
+control with its corrected readiness fixture.
+
+Fresh extraction verified 173 supervised commands per Unix platform
+and profile, 1,041 restored source hashes per campaign, the passing
+baselines and each named failure. Sharing timeout setup removes one
+duplicated source decision in each target. All shared TLS source records
+have dispositions. The audit leaves 18 runtime gaps in Windows storage
+and 7,384 tooling gaps.
+[Frozen source and evidence checksums](shared-tls-transport-0cd752b.sha256)
+
 ## Carried source records
 
 | Source | SHA-256 |

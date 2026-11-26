@@ -103,9 +103,17 @@ At `0fe8b54`, both TLS endpoint roles have directed handshake and first
 transport-error evidence in all three targets. Each profile passed 181
 tests on macOS and 182 on Docker Linux/ext4 and detected all 30 named
 mutations on both platforms. Ten Windows x64 test executables linked per
-profile. Native execution remains pending. The current audit leaves 38
+profile. Native execution remains pending. That audit left 38
 runtime and 7,413 tooling gaps.
 [Handshake admission qualification](decisions/shared-tls-handshake-current.md)
+
+At `0cd752b`, Rustls setup, both session roles and socket timeout setup have
+directed source evidence. Each profile passed 196 tests on macOS and 197
+on Docker Linux/ext4 and caught all 46 named mutations on both platforms.
+Ten Windows x64 test executables linked per profile. Native execution
+remains pending. The audit leaves 18 runtime gaps in Windows storage and
+7,384 tooling gaps.
+[Session and transport qualification](decisions/shared-tls-transport-current.md)
 
 | Gate | Progress and remaining evidence |
 |---|---|

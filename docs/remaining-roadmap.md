@@ -2627,3 +2627,17 @@ linked per profile. Native Windows execution is pending. The batch
 reconciles 20 runtime and 10 tooling records. The current audit leaves
 38 runtime and 7,413 tooling gaps.
 [Handshake admission ledger](decisions/shared-tls-handshake-current.md)
+
+### Shared TLS session and socket setup
+
+At `0cd752b`, both roles preserve errors from the Rustls constructor, socket
+I/O before the handshake and the final deadline after the handshake. The
+server also preserves configuration and blocking-mode errors. Read and
+write use the same tested timeout setup before their socket operation.
+
+Each profile passed 196 tests on macOS and 197 on Docker Linux/ext4.
+Both hosts caught all 46 mutations. Ten Windows x64 test executables
+linked per profile. Native Windows execution is pending. The audit
+reconciles all shared TLS source records and leaves 18 runtime gaps in
+Windows storage and 7,384 tooling gaps.
+[Session and transport ledger](decisions/shared-tls-transport-current.md)

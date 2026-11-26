@@ -463,8 +463,9 @@
     "docs/decisions/shared-tls-credential-io-c6869a2.sha256": "c80b5745bdd81dcee5e202c3cbc083f4a6ec4c1a1262cab65545299048f6354b",
     "docs/decisions/shared-tls-handshake-current.md": "e643c26ab4850d287963fb9ba1d558d92a9fbf96b190297f3edcd9352a35955f",
     "docs/decisions/shared-tls-handshake-0fe8b54.sha256": "ff29e6f007d4a2a3e1caa4cb89dc115ac7b44287b18b0d012023c1351bcb49eb",
-    "docs/decisions/shared-tls-transport-current.md": "4b98226730df3d869b77c3a518770a746584f81cce242f18e5dd72aaae1cc874",
-    "docs/decisions/snapshot-reaper-fixture-current.md": "3a22f607854fc718b61412880e14ac4647fe0557a0e437be5b2cf6289a9b099c"
+    "docs/decisions/shared-tls-transport-current.md": "4d423e21c442164262dffe518464eeb67a7639e70d64bf2362e27a1f1b44a9bd",
+    "docs/decisions/snapshot-reaper-fixture-current.md": "3a22f607854fc718b61412880e14ac4647fe0557a0e437be5b2cf6289a9b099c",
+    "docs/decisions/shared-tls-transport-0cd752b.sha256": "d64b956dbdef18cbb8ed339adad784f9e60bddd4a40954775ced926c3879f0f3"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
