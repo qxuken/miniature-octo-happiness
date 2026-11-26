@@ -118,6 +118,7 @@
     "src/storage/windows.rs": "e15440da569ded3c2da401382ca1cc0895f52df7cc83a8a3980e971b7cf52710",
     "src/storage/windows_admission.rs": "6313b98e035f9b32d5f3c2c7dd9ef7dd657e47cb49123d23a65d931ff34052a7",
     "src/storage/windows_io.rs": "93f7e139d6d8e9436e8b18edefe7cf887e23a8d83316a607d6631e54bd354fc3",
+    "src/storage/windows_open.rs": "a0ce130f6509e1acff24be7a4e926c5a37068364ded03cfe4f5f0ce9f69c3a51",
     "src/storage/windows_path.rs": "74eab9df1d4c9aa0314f79e75bd68986429d7863079af68df3795a5b2e35f9fe",
     "src/storage/windows_rng.rs": "80fe6d4649e03e6c54ca8e2049800a7733b87cbdcb560b4412a23cdeb8e883d6",
     "src/tree.rs": "f2b4099a101747b657f8990d223710cbd176f8ef9e251b5799fa4744ccd8c8b3",
@@ -147,6 +148,7 @@
     "tools/resource-envelope/src/quota_token.rs": "011249b28caeecd91e3fa785960539f2859dc98c0b68a70cc8fe323779bc2ffe",
     "tools/resource-envelope/src/resilience.rs": "9968790397356be1f0c0f79136abf65de9bbd89983eb57165605372cbfc28b50",
     "tools/resource-envelope/src/space.rs": "f30a72044aa4a9aa98ca0c17e49b416bfdfc011e6b34f5f9c414bd11749b9da5",
+    "tools/serialization-scale/examples/cache-forks.rs": "8e10068975f96cd52cfaa27f13ebb57522816311edc39aaf985a285f365dd6a0",
     "tools/serialization-scale/src/main.rs": "0909b8979b84c66038abec340e86539bf10ada0df1f3d72e65672fc7708c01e8",
     "tools/snapshot-test-keygen.rs": "65ba364c6b8eecdb7a2449531002d2c7d61638ce34efc5807b9f68bcdd6d9456",
     "tools/soak/src/main.rs": "ceb9f10dcadcfef69d552a722cedef808364e2779e67f4a40c045b470dd12e14",
@@ -224,8 +226,7 @@
     "xtask/src/windows_process.rs": "89549e971c4e51a4f9ef2a8c177107cb7da04144dac73f0e9d5c0d3ee439698d",
     "xtask/src/windows_quota.rs": "a94ff2b36494652e075060f4c815dd941c6e45d65ef50d1fd3b8888ed080572e",
     "xtask/src/windows_trace.rs": "4f34977a84b584686fd4182f4bac0e59a1aadcd9fba7419d991cf9214e7770d2",
-    "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af",
-    "src/storage/windows_open.rs": "a0ce130f6509e1acff24be7a4e926c5a37068364ded03cfe4f5f0ce9f69c3a51"
+    "xtask/src/windows_volume.rs": "669cfff7beb41d95341691f8f333085767b494e23a8216754247d60b812ec9af"
   },
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "c9176b2e22c85e2b6f121d98a970ad52908abc39d275c668e4d4c75880ce4d6e",
@@ -302,7 +303,7 @@
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
     "xtask/tests/mutations.json": "754e184d283e882c712549fa0eb79c90add676f9af94e1e5ed37b84d1c13331e",
     "xtask/tests/supervise.rs": "c246ea1294e470f8a32271209c961da00c116bbf8c6ad3811154a0d00e2067d8",
-    "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
+    "docs/decision-inventory-catalog.md": "11471d8d8bf0710deec26e38a242e59990be95932851dd44f26c210bd0248af1",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "docs/decisions/codec-arithmetic-current.md": "b5db51c831e6c224fe13c7858187536ad6ecf34c9266778d700c36436716bffd",
     "docs/decisions/codec-metadata-current.md": "4055bdaa6c5396f1cfd930e34a4dc130923256563109bbeea2488c6f8cd10edc",
@@ -553,7 +554,8 @@
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
     "write-coordinator::write-coordinator": 344,
-    "xtask::xtask": 5339
+    "xtask::xtask": 5339,
+    "weekend-serialization-scale::cache-forks": 28
   },
   "groups": [
     {
@@ -1189,6 +1191,7 @@
         "tools/resource-envelope/src/quota_token.rs",
         "tools/resource-envelope/src/resilience.rs",
         "tools/resource-envelope/src/space.rs",
+        "tools/serialization-scale/examples/cache-forks.rs",
         "tools/serialization-scale/src/main.rs",
         "tools/snapshot-test-keygen.rs",
         "tools/soak/src/main.rs",
@@ -49430,6 +49433,18 @@
       "workspace_manifest": "tools/resource-envelope/Cargo.toml"
     },
     {
+      "entry": "tools/serialization-scale/examples/cache-forks.rs",
+      "kinds": [
+        "example"
+      ],
+      "name": "cache-forks",
+      "package": "weekend-serialization-scale",
+      "package_manifest": "tools/serialization-scale/Cargo.toml",
+      "required_features": [],
+      "target": "weekend-serialization-scale::cache-forks",
+      "workspace_manifest": "tools/serialization-scale/Cargo.toml"
+    },
+    {
       "entry": "tools/serialization-scale/src/main.rs",
       "kinds": [
         "bin"
@@ -49601,6 +49616,7 @@
     "weekend-tasks::weekend_tasks": "runtime",
     "write-coordinator::write-coordinator": "runtime",
     "xtask::xtask": "tooling",
-    "weekend-resource-envelope::build-script-build": "tooling"
+    "weekend-resource-envelope::build-script-build": "tooling",
+    "weekend-serialization-scale::cache-forks": "tooling"
   }
 }

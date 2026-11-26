@@ -165,6 +165,11 @@ qualification is a separate release-candidate requirement.
   With the writer and acknowledged-state locks split, fresh snapshot and
   retained-root acquisition also proceed during publication I/O.
   [Near-cap acquisition results](compound-resource-envelope.md#fresh-snapshots-during-durable-publication)
+  The [fresh-open and cache fork checkpoint](serialization-cache-forks.md)
+  checks two near-cap graph shapes with 64 data revisions, verifies every
+  root after publication, and reproduces exact image bytes across macOS
+  and Linux from the same seed. Sustained deployment schedules and agreed
+  service budgets remain release requirements.
   Windows compact copy is an existing capability.
   Qualify in-place Windows replacement independently if it becomes part
   of the release.

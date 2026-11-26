@@ -12,6 +12,14 @@ for e2d2268. Older entries below retain their historical source and scope.
 The project name is provisional. Baseline `1e883c8` checkpoints the prior
 decision tests and first four fuzz targets.
 
+The [R3 fresh-open and cache fork checkpoint](serialization-cache-forks.md)
+checks 96 native publications on shared and independent near-cap graphs
+using macOS/APFS and Docker Linux/ext4. All 12 cross-platform replays
+reproduce exact files from identical seeds and reopen revision 139 with
+every retained root. The run measures fresh-process open and publication
+latency plus core heap and process RSS. Sustained deployment evidence
+and service budget approval remain open.
+
 The [2026-11-18 dependency snapshot](locked-dependency-review-3de695f.md)
 scans all fourteen lockfiles at `3de695f` against frozen RustSec `233155b`
 (1,527 parsed advisories): zero reported vulnerabilities and warnings.
