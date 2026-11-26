@@ -19,6 +19,38 @@ normal test paths still exercise real filesystem metadata, local TCP
 and the production stdout pipe. Native socket fault qualification on
 the declared deployment remains open.
 
+## Qualification
+
+Frozen source `bce6c3b342fea5c8fe7ad98ec6e8450e3f863c22` used Rust 1.100.0.
+Each debug and release profile on arm64 macOS and Docker Linux/ext4
+passed 56 coordinator unit tests, 22 coordinator integration tests
+and 55 standalone fuzz-library tests. Two macOS and three Linux
+workloads remained opt-in. Both Cargo targets passed strict Clippy.
+The coordinator unit and integration binaries and the fuzz-library
+test binary linked for Windows MSVC x64 in both profiles. Native
+Windows execution remains pending for this source.
+
+Each profile detected all 57 named mutations. This includes eight new
+I/O controls, 48 prior CLI controls and the readiness-output control
+that exercises the shared test watchdog. Fresh extraction verified the
+named assertions, 187 supervised commands and 1,030 restored source
+hashes per campaign. The audit closes all eight remaining native CLI
+source records. The repository retains 99 runtime and 7,441 tooling
+gaps, with 5,070 blind spots.
+[Frozen source and evidence checksums](coordinator-client-io-bce6c3b.sha256)
+
+## Hosted Windows evidence for earlier batches
+
+The Windows MSVC minimum-Rust job passed on PR #82 head
+`908f3c528728afe835ce98c75330ca00f5f68446`. The archived debug
+and release workspace commands each passed the nine lifecycle tests
+and five legacy protocol tests selected by their named controls.
+The tested merge `2993a148f02f5e65ed234fb74bc2fa4b25e664d3` has the
+same tree as the PR head. The evidence ZIP SHA-256 is
+`3fa61aa506d65560bfc681a91d56528b977ae3a295b97bfd0a23a581666968f2`.
+[Windows minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45744882703/job/139658414497)
+and [verified evidence ZIP](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45744882703/artifacts/15083352925).
+
 ## Coordinator source records
 
 | Source | SHA-256 |

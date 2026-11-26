@@ -80,14 +80,14 @@ rerun then exposed overlapping coordinator storage fixtures and real socket
 deadlines; the corrected fixture passes native Windows in both profiles, as
 recorded in the R1 report. Each hosted result retains its exact source.
 
-All legacy coordinator protocol records have source dispositions in
-both Cargo targets. The subsequent `8040d89` initializer audit passed
-131 tests and caught all 48 CLI mutations per profile on macOS and
-Docker Linux/ext4. The current audit leaves 107 runtime and 7,441
-tooling gaps. Native Windows execution for this source and the
-compiler and delegated coverage obligations remain open.
-[Legacy protocol qualification](decisions/coordinator-legacy-boundaries-current.md)
-and [initializer qualification](decisions/coordinator-initialization-current.md).
+All legacy protocol and native coordinator CLI records have source
+dispositions. The latest `bce6c3b` audit passed 133 tests and caught all
+57 mutations per profile on macOS and Docker Linux/ext4. The current
+audit leaves 99 runtime and 7,441 tooling gaps. Native Windows execution
+for this source and the compiler and delegated coverage obligations remain
+open. Earlier lifecycle and legacy coordinator tests passed on the native
+Windows minimum-Rust lane at `908f3c5`.
+[Coordinator I/O and hosted follow-up](decisions/coordinator-client-io-current.md)
 
 | Gate | Progress and remaining evidence |
 |---|---|

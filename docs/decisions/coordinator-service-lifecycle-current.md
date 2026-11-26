@@ -36,7 +36,9 @@ passed 51 unit and 20 integration tests in debug and release, with two
 opt-in tests ignored on macOS and three on Linux. All-target Clippy
 passed with warnings denied on both platforms. Windows MSVC x64 linked
 the unit and integration test executables in both profiles. Native
-Windows execution remains pending for this source.
+Windows execution of the nine scoped coordinator tests subsequently passed in
+both profiles on PR #82 head `908f3c5`.
+[Hosted Windows evidence](coordinator-client-io-current.md#hosted-windows-evidence-for-earlier-batches)
 
 The runner detected all 24 named mutations in each Unix campaign. The
 selection contains 13 lifecycle controls and 11 existing queue, handoff

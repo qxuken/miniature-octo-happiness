@@ -2508,8 +2508,9 @@ writer reopens revision 2 with the same image bytes.
 
 Each macOS and Docker Linux/ext4 profile passed 71 coordinator tests and
 caught all 24 named controls. Both Windows x64 test executables linked
-per profile. Native execution of this batch remains pending. The audit
-accounts for 20 runtime records, including three introduced by the
+per profile. The nine scoped lifecycle tests later passed on native
+Windows at PR #82 head `908f3c5`. The audit accounts for 20 runtime
+records, including three introduced by the
 refactor, and leaves 127 runtime and 7,458 tooling gaps.
 [Coordinator lifecycle ledger](decisions/coordinator-service-lifecycle-current.md)
 
@@ -2525,8 +2526,10 @@ receipt.
 Each macOS and Docker Linux/ext4 profile passed 73 coordinator tests,
 55 standalone fuzz-library tests and all 40 mutation controls across
 both targets. Three Windows x64 test executables linked in each profile.
-Native execution remains pending. The audit closes 15 runtime and 17
-tooling records, leaving 112 runtime and 7,441 tooling gaps.
+The five scoped coordinator protocol tests later passed on native
+Windows at PR #82 head `908f3c5`. Standalone native execution remains
+pending. The audit closes 15 runtime and 17 tooling records, leaving
+112 runtime and 7,441 tooling gaps.
 [Legacy protocol ledger](decisions/coordinator-legacy-boundaries-current.md)
 
 ### Coordinator initialization and incomplete image admission
@@ -2549,3 +2552,18 @@ PR #82 head `0f15e45` completed 28 successful checks and one skip before
 the legacy protocol batch was pushed.
 [Engine checks](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241636)
 and [bounded fuzzing](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241641).
+
+### Coordinator credential and client I/O
+
+At `bce6c3b`, open, opened-handle metadata, bounded read, write-timeout
+setup and both request writes preserve the injected native error kind
+and diagnostic. A handle reporting a directory is refused before
+reading. A real closed stdout pipe stops the client before its second
+command reaches the server. The exact database bytes reopen at revision 2.
+
+Each macOS and Docker Linux/ext4 profile passed 133 tests and caught all
+57 named mutations. Three Windows x64 test executables linked per profile.
+Native execution for this source remains pending. All native CLI source
+records now have dispositions. The audit leaves 99 runtime and 7,441
+tooling gaps across the repository.
+[Coordinator I/O ledger](decisions/coordinator-client-io-current.md)

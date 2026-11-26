@@ -29,7 +29,10 @@ passed 53 coordinator unit tests, 20 coordinator integration tests and
 tests remained opt-in. Strict Clippy passed for both Cargo targets.
 The coordinator unit and integration binaries and the fuzz-library
 test binary linked for Windows MSVC x64 in both profiles. Native
-Windows execution remains pending for this source.
+Windows execution of the five scoped coordinator tests subsequently passed in
+both profiles on PR #82 head `908f3c5`. The standalone fuzz-library tests
+still require native Windows execution.
+[Hosted Windows evidence](coordinator-client-io-current.md#hosted-windows-evidence-for-earlier-batches)
 
 Each profile detected 20 mutations per target, including 30 new
 and ten existing controls across both targets. Fresh extraction
