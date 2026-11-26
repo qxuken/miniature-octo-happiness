@@ -1439,6 +1439,45 @@ fn paused_peer_reports_idle_errors_and_quits_cleanly() {
 
 #[test]
 fn peer_reports_connect_failure_then_acknowledges_retry() {
+    // The replica maps channel and storage failures to the same public error.
+    struct Observed<T> {
+        channel: T,
+        read: usize,
+        written: usize,
+        eof: bool,
+        error: Option<(&'static str, io::ErrorKind, Option<i32>)>,
+    }
+    impl<T: Read> Read for Observed<T> {
+        fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+            let result = self.channel.read(bytes);
+            match &result {
+                Ok(count) => {
+                    self.read += count;
+                    self.eof |= *count == 0 && !bytes.is_empty();
+                }
+                Err(error) => self.error = Some(("read", error.kind(), error.raw_os_error())),
+            }
+            result
+        }
+    }
+    impl<T: Write> Write for Observed<T> {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            let result = self.channel.write(bytes);
+            match &result {
+                Ok(count) => self.written += count,
+                Err(error) => self.error = Some(("write", error.kind(), error.raw_os_error())),
+            }
+            result
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            let result = self.channel.flush();
+            if let Err(error) = &result {
+                self.error = Some(("flush", error.kind(), error.raw_os_error()));
+            }
+            result
+        }
+    }
+
     for structured in [false, true] {
         let dir = Directory::new();
         for actor in ["a", "b"] {
@@ -1513,12 +1552,30 @@ fn peer_reports_connect_failure_then_acknowledges_retry() {
                 enrollment.actor,
             )
             .unwrap();
-            let serve = || {
+            let serve = |attempt| {
                 let channel = server.accept(accept()).unwrap();
-                replica.serve_authenticated(channel).unwrap();
+                let mut observed = Observed {
+                    channel,
+                    read: 0,
+                    written: 0,
+                    eof: false,
+                    error: None,
+                };
+                let result = weekend_db::storage::with_storage_diagnostics(|| {
+                    replica.serve_authenticated(&mut observed)
+                });
+                assert!(
+                    result.is_ok(),
+                    "retry attempt {attempt}, structured={structured}: {result:?}, read={}, written={}, eof={}, transport={:?}, revision={}",
+                    observed.read,
+                    observed.written,
+                    observed.eof,
+                    observed.error,
+                    db.snapshot().revision()
+                );
             };
             assert_eq!(db.snapshot().revision(), 2);
-            serve();
+            serve(1);
             let ack = a.wait_for("peer", |line| line.contains(" ack "));
             let first = ack_count(&ack, 7);
             assert!(
@@ -1527,7 +1584,7 @@ fn peer_reports_connect_failure_then_acknowledges_retry() {
             );
             assert_eq!(db.snapshot().revision(), 3);
             assert_eq!(replica.read().unwrap().practice_minutes.total(), 7);
-            serve();
+            serve(2);
             a.wait_for("peer", |line| {
                 line.contains(" ack ") && ack_count(line, 7) > first
             });

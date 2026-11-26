@@ -228,7 +228,7 @@
     "src/storage/windows_open.rs": "a0ce130f6509e1acff24be7a4e926c5a37068364ded03cfe4f5f0ce9f69c3a51"
   },
   "reference_files": {
-    "apps/study-peer/src/native/tests.rs": "96f1fd12d877e16bff818a88dcd8697c33ca9c2f532fae221c1525eca75325a8",
+    "apps/study-peer/src/native/tests.rs": "c9176b2e22c85e2b6f121d98a970ad52908abc39d275c668e4d4c75880ce4d6e",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
     "apps/weekend-replicate/src/native/tests.rs": "a50bfdb8d5cb0af1d20d178f8e7f640bcd59ba3900b070a576595553865fc7e1",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
