@@ -1442,8 +1442,10 @@ fn network_commands_preserve_admission_errors() {
     let export = dir.0.join("new-export.wdb");
     let credentials = dir.0.join("credentials");
     let peer_credentials = dir.0.join("peer-credentials");
-    Credentials::create(&credentials).unwrap();
-    Credentials::create(&peer_credentials).unwrap();
+    Credentials::generate().unwrap().write_fixture(&credentials);
+    Credentials::generate()
+        .unwrap()
+        .write_fixture(&peer_credentials);
     let pin = peer_credentials.join("cert.der");
     let malformed_pin = dir.0.join("wrong-pin.der");
     fs::write(&malformed_pin, b"incomplete certificate").unwrap();
