@@ -183,7 +183,17 @@ mod decisions {
         ));
         std::fs::create_dir(&root).unwrap();
         let path = root.join("secret");
-        assert!(Secret::load(&root).is_err());
+        let missing = Secret::load(&path)
+            .err()
+            .expect("missing secret was accepted");
+        assert_eq!(
+            missing.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::NotFound
+        );
+        assert_eq!(
+            Secret::load(&root).err().unwrap().to_string(),
+            "secret must be a regular file"
+        );
         for (bytes, good) in [
             (vec![b'a'; 64], true),
             ([vec![b'A'; 64], vec![b'\n']].concat(), true),
@@ -197,25 +207,103 @@ mod decisions {
                 use std::os::unix::fs::PermissionsExt;
                 std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
             }
-            assert_eq!(Secret::load(&path).is_ok(), good);
+            let diagnostic = Secret::load(&path).err().map(|error| error.to_string());
+            assert_eq!(
+                diagnostic.as_deref(),
+                (!good).then_some("secret must contain 64 hexadecimal characters")
+            );
         }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::write(&path, vec![b'a'; 64]).unwrap();
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
-            assert!(Secret::load(&path).is_err());
+            assert_eq!(
+                Secret::load(&path).err().unwrap().to_string(),
+                "secret file must have owner-only permissions"
+            );
         }
         assert_eq!(address(OsStr::new("0")).unwrap().ip(), Ipv4Addr::LOCALHOST);
         assert_eq!(address(OsStr::new("65535")).unwrap().port(), 65535);
         for port in ["65536", "-1", "nope"] {
-            assert!(address(OsStr::new(port)).is_err());
+            let error = address(OsStr::new(port)).unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                port.parse::<u16>().unwrap_err().to_string()
+            );
+            assert!(error.downcast_ref::<std::num::ParseIntError>().is_some());
         }
         #[cfg(unix)]
-        {
+        let non_unicode = {
             use std::os::unix::ffi::OsStrExt;
-            assert!(address(OsStr::from_bytes(&[255])).is_err());
-        }
+            OsStr::from_bytes(&[255]).to_owned()
+        };
+        #[cfg(windows)]
+        let non_unicode = {
+            use std::os::windows::ffi::OsStringExt;
+            std::ffi::OsString::from_wide(&[0xd800])
+        };
+        assert_eq!(
+            address(&non_unicode).unwrap_err().to_string(),
+            "expected a port number"
+        );
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reply_deadline_preserves_the_unconsumed_socket_line() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (socket, _) = listener.accept().unwrap();
+        peer.write_all(b"value 2 0\n").unwrap();
+        let error = read_line(&socket, Instant::now()).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(error.to_string(), "coordinator deadline exceeded");
+        assert_eq!(
+            read_line(&socket, Instant::now() + TIMEOUT).unwrap(),
+            "value 2 0"
+        );
+    }
+
+    #[test]
+    fn connection_preserves_request_bytes_and_incomplete_reply_error() {
+        use std::io::BufReader;
+
+        let secret = Secret([b'a'; 64]);
+        for (secret, reply) in [
+            (None, b"value 2 0\n".as_slice()),
+            (Some(&secret), b"value 2 0".as_slice()),
+        ] {
+            let address = SocketAddr::from((Ipv4Addr::LOCALHOST, 0));
+            let listener = std::net::TcpListener::bind(address).unwrap();
+            let address = listener.local_addr().unwrap();
+            std::thread::scope(|scope| {
+                let server = scope.spawn(|| {
+                    let (socket, _) = listener.accept().unwrap();
+                    socket.set_read_timeout(Some(TIMEOUT)).unwrap();
+                    let mut input = BufReader::new(socket);
+                    let mut line = String::new();
+                    input.read_line(&mut line).unwrap();
+                    if secret.is_some() {
+                        assert_eq!(line, format!("auth {} get\n", "a".repeat(64)));
+                    } else {
+                        assert_eq!(line, "get\n");
+                    }
+                    input.get_mut().write_all(reply).unwrap();
+                });
+                let actual = request(address, secret, "get");
+                server.join().unwrap();
+                if reply.ends_with(b"\n") {
+                    assert_eq!(actual.unwrap(), "value 2 0");
+                } else {
+                    let error = actual.unwrap_err();
+                    assert_eq!(
+                        error.downcast_ref::<io::Error>().unwrap().kind(),
+                        io::ErrorKind::InvalidData
+                    );
+                    assert_eq!(error.to_string(), "missing or oversized line");
+                }
+            });
+        }
     }
 }

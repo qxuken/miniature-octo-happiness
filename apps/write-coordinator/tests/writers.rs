@@ -1430,14 +1430,13 @@ fn configured_secret_authenticates_before_writes_and_receipt_lookup() {
 #[test]
 fn command_line_dispatch_and_clean_client_exit() {
     for args in [vec!["--help"], vec!["-h"]] {
+        let output = Command::new(BIN).args(&args).output().unwrap();
+        assert!(output.status.success(), "{args:?}");
         assert!(
-            Command::new(BIN)
-                .args(args)
-                .output()
-                .unwrap()
-                .status
-                .success()
+            output.stdout.starts_with(b"write-coordinator init <file>"),
+            "{args:?}"
         );
+        assert!(output.stderr.is_empty(), "{args:?}");
     }
     for args in [
         vec![],
@@ -1446,26 +1445,191 @@ fn command_line_dispatch_and_clean_client_exit() {
         vec!["wrong", "path", "0"],
         vec!["wrong", "p", "0", "--secret-file", "s"],
         vec!["serve", "p", "0", "--bad", "s"],
+        vec!["serve-sequenced", "p", "0", "--bad", "s"],
         vec!["wrong", "0", "--secret-file", "s"],
         vec!["client", "0", "--bad", "s"],
     ] {
+        let output = Command::new(BIN).args(&args).output().unwrap();
+        assert!(!output.status.success(), "{args:?}");
+        assert!(output.stdout.is_empty(), "{args:?}");
         assert!(
-            !Command::new(BIN)
-                .args(args)
-                .output()
-                .unwrap()
-                .status
-                .success()
+            output.stderr.starts_with(b"write-coordinator init <file>"),
+            "{args:?}"
         );
     }
+    let eof = Command::new(BIN).args(["client", "0"]).output().unwrap();
+    assert!(eof.status.success());
+    assert!(eof.stdout.is_empty());
+    assert!(eof.stderr.is_empty());
     let mut client = Command::new(BIN)
         .args(["client", "0"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    client.stdin.take().unwrap().write_all(b"\nquit\n").unwrap();
+    client
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"\n  quit  \nget\n")
+        .unwrap();
     assert!(client.wait().unwrap().success());
+}
+
+#[test]
+fn command_line_preserves_port_and_configuration_errors() {
+    let dir = Directory::new();
+    let database = dir.0.join("database");
+    let database = database.to_str().unwrap();
+    let secret = dir.0.join("missing-secret");
+    let secret_path = secret.to_str().unwrap();
+    let bad_port = "invalid-port";
+    let parse_error = bad_port.parse::<u16>().unwrap_err().to_string();
+    let file_error = fs::metadata(&secret).unwrap_err().to_string();
+    for (args, expected) in [
+        (vec!["serve", database, bad_port], parse_error.as_str()),
+        (vec!["client", bad_port], parse_error.as_str()),
+        (
+            vec!["serve", database, bad_port, "--secret-file", secret_path],
+            parse_error.as_str(),
+        ),
+        (
+            vec![
+                "serve-sequenced",
+                database,
+                bad_port,
+                "--secret-file",
+                secret_path,
+            ],
+            parse_error.as_str(),
+        ),
+        (
+            vec!["client", bad_port, "--secret-file", secret_path],
+            parse_error.as_str(),
+        ),
+        (
+            vec!["serve", database, "0", "--secret-file", secret_path],
+            file_error.as_str(),
+        ),
+        (
+            vec![
+                "serve-sequenced",
+                database,
+                "0",
+                "--secret-file",
+                secret_path,
+            ],
+            file_error.as_str(),
+        ),
+        (
+            vec!["client", "0", "--secret-file", secret_path],
+            file_error.as_str(),
+        ),
+    ] {
+        let output = Command::new(BIN).args(&args).output().unwrap();
+        assert!(!output.status.success(), "{args:?}");
+        assert!(output.stdout.is_empty(), "{args:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert_eq!(stderr.lines().last(), Some(expected), "{args:?}");
+    }
+    assert!(!std::path::Path::new(database).exists());
+}
+
+#[test]
+fn command_line_checks_file_and_profile_before_binding() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let legacy = dir.0.join("legacy.db");
+    let sequenced = dir.0.join("sequenced.db");
+    let missing = dir.0.join("missing.db");
+    let secret = dir.0.join("secret");
+    write_secret(&secret, &"a".repeat(64));
+    let secret = secret.to_str().unwrap();
+    for (command, file) in [("init", &legacy), ("init-sequenced", &sequenced)] {
+        let path = file.to_str().unwrap();
+        let fresh = Command::new(BIN).args([command, path]).output().unwrap();
+        assert!(fresh.status.success(), "{command}");
+        assert!(fresh.stdout.is_empty(), "{command}");
+        let before = fs::read(file).unwrap();
+        let existing = Command::new(BIN).args([command, path]).output().unwrap();
+        assert!(!existing.status.success(), "{command}");
+        assert_eq!(
+            String::from_utf8(existing.stderr).unwrap().trim(),
+            weekend_db::Error::AlreadyExists.to_string()
+        );
+        assert_eq!(fs::read(file).unwrap(), before);
+    }
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let bound = listener.local_addr().unwrap();
+    let port = bound.port().to_string();
+    let bind_error = std::net::TcpListener::bind(bound).unwrap_err().to_string();
+    let before = fs::read(&sequenced).unwrap();
+    for (command, file, expected) in [
+        ("serve", &missing, weekend_db::Error::NotFound.to_string()),
+        (
+            "serve-sequenced",
+            &legacy,
+            weekend_db::Error::UnsupportedFormat.to_string(),
+        ),
+        ("serve", &sequenced, weekend_db::Error::NotFound.to_string()),
+        ("serve", &legacy, bind_error.clone()),
+        ("serve-sequenced", &sequenced, bind_error),
+    ] {
+        let output = Command::new(BIN)
+            .args([
+                command,
+                file.to_str().unwrap(),
+                &port,
+                "--secret-file",
+                secret,
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{command} {file:?}");
+        assert!(output.stdout.is_empty(), "{command} {file:?}");
+        assert_eq!(
+            String::from_utf8(output.stderr).unwrap().trim(),
+            expected,
+            "{command} {file:?}"
+        );
+    }
+    assert_eq!(fs::read(&sequenced).unwrap(), before);
+    let result = Command::new(BIN)
+        .args(["journal", "status", missing.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(result.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(result.stderr).unwrap().trim(),
+        weekend_db::Error::NotFound.to_string()
+    );
+}
+
+#[test]
+fn client_preserves_bad_input_and_refused_connection() {
+    let address = std::net::SocketAddr::from(([127, 0, 0, 1], 0));
+    let connect_error = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(3))
+        .unwrap_err()
+        .to_string();
+    for (input, expected) in [
+        (b"\xff\n".as_slice(), "stream did not contain valid UTF-8"),
+        (b"get\n".as_slice(), connect_error.as_str()),
+    ] {
+        let mut child = Command::new(BIN)
+            .args(["client", "0"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(input).unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert_eq!(String::from_utf8(output.stderr).unwrap().trim(), expected);
+    }
 }
 
 #[cfg(unix)]

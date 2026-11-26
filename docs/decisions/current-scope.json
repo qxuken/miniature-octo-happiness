@@ -21,7 +21,7 @@
     "apps/weekend-tasks/src/lib.rs": "887d9ce8c80ae6b4d92166e5c6947dce64dbf0611fd393559b8510d23d1980c6",
     "apps/weekend-tasks/src/main.rs": "c30b765061790065812d268281f5d6f7c54113d91977f48692635f8045003f46",
     "apps/write-coordinator/src/main.rs": "0baa2da45ecc666867adbf652fc95958edefe1ac0523c76d96934b69e7b5517b",
-    "apps/write-coordinator/src/native.rs": "b53799c3670a6d60d81c648649e7b3839e29d45d492b1692f21faf8dcb6db119",
+    "apps/write-coordinator/src/native.rs": "1891fbd97bff686d9486424a69be983ad9c5d92bec2aee161fbc77f073f667f0",
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "a4a86e7cfc549405c55cdce86a33c9ff10751e91aae1ecb65c402d466b6e9f36",
     "apps/write-coordinator/src/native/sequenced.rs": "4c8b7d2c5408e5b19d57943f317d3bad7efa1da3188cb6538027d9c259f4f2c5",
@@ -232,7 +232,7 @@
     "apps/weekend-replicate/src/native/tests.rs": "a50bfdb8d5cb0af1d20d178f8e7f640bcd59ba3900b070a576595553865fc7e1",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
-    "apps/write-coordinator/tests/writers.rs": "5c523d781b8cf19af27d954daf34710396c8b88e0fc88f72159df95844df162e",
+    "apps/write-coordinator/tests/writers.rs": "172001556048a4ab65f5611eabecb3d722aab15281279a96691d187be647b2f9",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/migration_allocator.rs": "970fba9fe1555a04d807a069cd56e6e3315f636361584042f60c3ccbe37eba0c",
     "crates/weekend-db-typed/tests/models.rs": "f080864d86f8e5fc63a18c282d3910bd706f23a191b9ee870fcb6647bcefc703",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "8c7047bc069a53dbfc83f941c1c03f08cada121f7fb342cee24a862dd8c5a7de",
-    "xtask/tests/mutations.json": "90b9347117686419c3553fd73544033d15018d963ee156120fd5958c631ced97",
+    "xtask/tests/mutations.json": "1478e5c813b6ea7777d29bb86e3c6d48e18e7b380ffbea28df9dcfd2a26e554e",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -445,7 +445,8 @@
     "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
     "docs/decisions/coordinator-sequenced-submit-current.md": "d2d516950f76552b81d27add5a65dfd08dbfad70a30c84671b4ec47ec0540293",
     "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6",
-    "docs/decisions/coordinator-sequenced-requests-current.md": "f7831f501b18e1bfcd7b25321153d90eec58a2ee50ff4fd6f5989aea938dd3bf"
+    "docs/decisions/coordinator-sequenced-requests-current.md": "f7831f501b18e1bfcd7b25321153d90eec58a2ee50ff4fd6f5989aea938dd3bf",
+    "docs/decisions/coordinator-cli-native-current.md": "e2cbcc5c3d5fecfa2cdd9a8fd0b68d3e8b0e6abf5256c645ba34906fcd683e29"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -980,7 +981,8 @@
         "docs/decisions/coordinator-legacy-commit-current.md",
         "docs/decisions/coordinator-sequenced-startup-current.md",
         "docs/decisions/coordinator-sequenced-submit-current.md",
-        "docs/decisions/coordinator-sequenced-requests-current.md"
+        "docs/decisions/coordinator-sequenced-requests-current.md",
+        "docs/decisions/coordinator-cli-native-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -39117,6 +39119,1222 @@
       ],
       "mutations": [
         "r1-sequenced-coordinator-requests-plain-value"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-HELP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 1557,
+        "conditions": [
+          "command == \"--help\"",
+          "command == \"-h\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-help-long",
+        "r1-native-coordinator-cli-help-short"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-LEGACY-INIT-COMMAND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 1690,
+        "conditions": [
+          "command == \"init\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-legacy-init-command"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-LEGACY-INIT-RESULT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 1741,
+        "conditions": [
+          "initialize(Path::new(path))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-legacy-init-result"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-SEQUENCED-INIT-COMMAND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 1772,
+        "conditions": [
+          "command == \"init-sequenced\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-sequenced-init-command"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-SEQUENCED-CREATE-FILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 1899,
+        "conditions": [
+          "Database::create_file(Path::new(path), Limits::default())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-sequenced-create-file"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-LOOPBACK-SERVE-COMMAND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 1948,
+        "conditions": [
+          "command == \"serve\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "two_processes_edit_one_record_and_the_stale_writer_conflicts"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-loopback-serve-command"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-LOOPBACK-SERVE-PORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 2081,
+        "conditions": [
+          "address(port)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-loopback-serve-port"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-LOOPBACK-CLIENT-COMMAND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 2144,
+        "conditions": [
+          "command == \"client\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "two_processes_edit_one_record_and_the_stale_writer_conflicts"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-loopback-client-command"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-LOOPBACK-CLIENT-PORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 2187,
+        "conditions": [
+          "address(port)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-loopback-client-port"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CONFIGURED-SERVE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 2244,
+        "conditions": [
+          "command == \"serve\"",
+          "flag == \"--secret-file\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "configured_secret_authenticates_before_writes_and_receipt_lookup"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-configured-serve-command",
+        "r1-native-coordinator-cli-configured-serve-flag"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CONFIGURED-SERVE-PORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 2376,
+        "conditions": [
+          "address(port)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-configured-serve-port"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CONFIGURED-SERVE-FILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 2431,
+        "conditions": [
+          "Secret::load(Path::new(secret))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-configured-serve-file"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-SEQUENCED-SERVE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 2551,
+        "conditions": [
+          "command == \"serve-sequenced\"",
+          "flag == \"--secret-file\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "sequenced_clients_preserve_receipts_through_restart_and_restore"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-sequenced-serve-command",
+        "r1-native-coordinator-cli-sequenced-serve-flag"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-SEQUENCED-SERVE-PORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 2701,
+        "conditions": [
+          "address(port)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-sequenced-serve-port"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-SEQUENCED-SERVE-FILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 2756,
+        "conditions": [
+          "Secret::load(Path::new(secret))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-sequenced-serve-file"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CONFIGURED-CLIENT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 2861,
+        "conditions": [
+          "command == \"client\"",
+          "flag == \"--secret-file\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "configured_secret_authenticates_before_writes_and_receipt_lookup"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-configured-client-command",
+        "r1-native-coordinator-cli-configured-client-flag"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CONFIGURED-CLIENT-PORT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 2945,
+        "conditions": [
+          "address(port)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-configured-client-port"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CONFIGURED-CLIENT-FILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "try_propagation",
+        "start_byte": 2984,
+        "conditions": [
+          "Secret::load(Path::new(secret))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_preserves_port_and_configuration_errors"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-configured-client-file"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-JOURNAL-COMMAND",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "run",
+        "kind": "match_guard",
+        "start_byte": 3038,
+        "conditions": [
+          "command == \"journal\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        },
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-journal-command"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-REGULAR-FILE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "load",
+        "kind": "if",
+        "start_byte": 3377,
+        "conditions": [
+          "!std::fs::metadata(path)?.is_file()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "secret_file_and_loopback_address_admission"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-regular-file"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-MISSING-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "load",
+        "kind": "try_propagation",
+        "start_byte": 3404,
+        "conditions": [
+          "std::fs::metadata(path)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "secret_file_and_loopback_address_admission"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-missing-metadata"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-OWNER-PERMISSIONS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "load",
+        "kind": "if",
+        "start_byte": 3781,
+        "conditions": [
+          "metadata.permissions().mode() & 0o077 != 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "secret_file_and_loopback_address_admission"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-owner-permissions"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-TRAILING-NEWLINE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "load",
+        "kind": "if",
+        "start_byte": 4028,
+        "conditions": [
+          "bytes.last() == Some(&b'\\n')"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "secret_file_and_loopback_address_admission"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-trailing-newline"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-SECRET-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "load",
+        "kind": "if",
+        "start_byte": 4105,
+        "conditions": [
+          "bytes.len() != 64",
+          "!bytes.iter().all(u8::is_ascii_hexdigit)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "secret_file_and_loopback_address_admission"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-secret-shape-width",
+        "r1-native-coordinator-cli-secret-shape-alphabet"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-PORT-UNICODE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "address",
+        "kind": "try_propagation",
+        "start_byte": 4564,
+        "conditions": [
+          "port\n        .to_str()\n        .ok_or(\"expected a port number\")"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "secret_file_and_loopback_address_admission"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-port-unicode"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-PORT-NUMBER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "address",
+        "kind": "try_propagation",
+        "start_byte": 4589,
+        "conditions": [
+          "port\n        .to_str()\n        .ok_or(\"expected a port number\")?\n        .parse::<u16>()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "secret_file_and_loopback_address_admission"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-port-number"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-LEGACY-CREATE-FILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "initialize",
+        "kind": "try_propagation",
+        "start_byte": 4753,
+        "conditions": [
+          "Database::create_file(path, Limits::default())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-legacy-create-file"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-REPLY-DEADLINE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "read_line",
+        "kind": "try_propagation",
+        "start_byte": 5420,
+        "conditions": [
+          "time_remaining(deadline)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "reply_deadline_preserves_the_unconsumed_socket_line"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-reply-deadline"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CLIENT-INPUT-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "client",
+        "kind": "try_propagation",
+        "start_byte": 5576,
+        "conditions": [
+          "line"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "client_preserves_bad_input_and_refused_connection"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-client-input-read"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CLIENT-QUIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "client",
+        "kind": "if",
+        "start_byte": 5622,
+        "conditions": [
+          "command == \"quit\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-client-quit"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CLIENT-EMPTY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "client",
+        "kind": "if",
+        "start_byte": 5682,
+        "conditions": [
+          "command.is_empty()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_dispatch_and_clean_client_exit"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-client-empty"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CLIENT-REQUEST-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "client",
+        "kind": "try_propagation",
+        "start_byte": 5800,
+        "conditions": [
+          "request(address, secret.as_ref(), command)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "client_preserves_bad_input_and_refused_connection"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-client-request-error"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-CONNECT-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "request",
+        "kind": "try_propagation",
+        "start_byte": 6035,
+        "conditions": [
+          "TcpStream::connect_timeout(&address, TIMEOUT)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "client_preserves_bad_input_and_refused_connection"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-connect-error"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-REQUEST-SECRET",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "request",
+        "kind": "if",
+        "start_byte": 6088,
+        "conditions": [
+          "let Some(secret) = secret"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "connection_preserves_request_bytes_and_incomplete_reply_error"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-request-secret"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-REQUEST-REPLY-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "request",
+        "kind": "try_propagation",
+        "start_byte": 6310,
+        "conditions": [
+          "read_line(&stream, Instant::now() + TIMEOUT)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "connection_preserves_request_bytes_and_incomplete_reply_error"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-request-reply-error"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-STARTUP-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve",
+        "kind": "try_propagation",
+        "start_byte": 2027,
+        "conditions": [
+          "Database::open_file(path, Limits::default())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-startup-open"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-STARTUP-LEGACY-PROFILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve",
+        "kind": "try_propagation",
+        "start_byte": 2171,
+        "conditions": [
+          "protocol::state(&db)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-startup-legacy-profile"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-STARTUP-SEQUENCED-PROFILE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve",
+        "kind": "try_propagation",
+        "start_byte": 2288,
+        "conditions": [
+          "protocol::sequenced::admit(&db)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-startup-sequenced-profile"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-CLI-STARTUP-BIND",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve",
+        "kind": "try_propagation",
+        "start_byte": 2393,
+        "conditions": [
+          "TcpListener::bind(address)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "command_line_checks_file_and_profile_before_binding"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-startup-bind"
       ]
     }
   ],
