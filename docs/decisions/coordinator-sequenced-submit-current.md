@@ -61,6 +61,7 @@ and 7,458 tooling gaps.
 | Source | SHA-256 |
 | --- | --- |
 | `apps/write-coordinator/src/native/sequenced.rs` | `7c0ded9fd3380747be331b51a468a4d17254017fb438a6a1c5f8293bc31deebb` |
+| `apps/write-coordinator/src/native/sequenced.rs` | `4c8b7d2c5408e5b19d57943f317d3bad7efa1da3188cb6538027d9c259f4f2c5` |
 
 | Status | Target | Position | Bytes | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |

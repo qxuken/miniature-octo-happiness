@@ -24,7 +24,7 @@
     "apps/write-coordinator/src/native.rs": "b53799c3670a6d60d81c648649e7b3839e29d45d492b1692f21faf8dcb6db119",
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "a4a86e7cfc549405c55cdce86a33c9ff10751e91aae1ecb65c402d466b6e9f36",
-    "apps/write-coordinator/src/native/sequenced.rs": "7c0ded9fd3380747be331b51a468a4d17254017fb438a6a1c5f8293bc31deebb",
+    "apps/write-coordinator/src/native/sequenced.rs": "4c8b7d2c5408e5b19d57943f317d3bad7efa1da3188cb6538027d9c259f4f2c5",
     "apps/write-coordinator/src/native/service.rs": "a5c5dd34ac9de1685f58631f3ccde36e15771baca3a5e3871e86d8869a2bbaf6",
     "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
     "crates/weekend-db-macros/src/lib.rs": "5d0708c15d60b2cdd679fbc0a08a6504caf6f136b90bb32be1c271a63753b9f4",
@@ -298,8 +298,8 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/coordinator-windows-oracle.json": "6ccdab9f135651da074483bd592c9b030ffd973550f661e6e0c9cb94f0e136c3",
-    "xtask/tests/mutations.json": "4c6fc92cb5f7b042ec95572c1501c1057415c4e647f5aff8bee622123b2fc337",
+    "xtask/tests/coordinator-windows-oracle.json": "8c7047bc069a53dbfc83f941c1c03f08cada121f7fb342cee24a862dd8c5a7de",
+    "xtask/tests/mutations.json": "90b9347117686419c3553fd73544033d15018d963ee156120fd5958c631ced97",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -443,8 +443,9 @@
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
     "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
-    "docs/decisions/coordinator-sequenced-submit-current.md": "7eeb7cdaffd07a14a763a7800bd2bbeaac9eb5da84ab54309082b788767a4d41",
-    "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6"
+    "docs/decisions/coordinator-sequenced-submit-current.md": "5ce9a9248edac234a7962c77514bf12f284eead9d2eb552048ac930bded3c92b",
+    "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6",
+    "docs/decisions/coordinator-sequenced-requests-current.md": "0cfef28f9c2ae525ef0de615100edbf48231ad3e32d428012f06e7e3fd5e0293"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -978,7 +979,8 @@
         "docs/decisions/coordinator-legacy-receipts-current.md",
         "docs/decisions/coordinator-legacy-commit-current.md",
         "docs/decisions/coordinator-sequenced-startup-current.md",
-        "docs/decisions/coordinator-sequenced-submit-current.md"
+        "docs/decisions/coordinator-sequenced-submit-current.md",
+        "docs/decisions/coordinator-sequenced-requests-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -38443,6 +38445,678 @@
       ],
       "mutations": [
         "r1-sequenced-coordinator-submit-fuzz-receipt-draft"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-SLOT-NUMBER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "slot_key",
+        "kind": "try_propagation",
+        "start_byte": 1316,
+        "conditions": [
+          "number(slot)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_reads_preserve_dispatch_and_storage_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-slot-number"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-STORED-RECEIPT-TYPE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "decode",
+        "kind": "try_propagation",
+        "start_byte": 1830,
+        "conditions": [
+          "value.as_bytes().map_err(|_| Error::Corrupt)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_reads_preserve_dispatch_and_storage_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-stored-receipt-type"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-HEX-WIDTH",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "unhex",
+        "kind": "if",
+        "start_byte": 3611,
+        "conditions": [
+          "word.len() != 2 * N"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_hex_checks_width_and_both_digits"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-hex-width"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-HEX-HIGH-DIGIT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "unhex",
+        "kind": "try_propagation",
+        "start_byte": 4022,
+        "conditions": [
+          "digit(pair[0])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_hex_checks_width_and_both_digits"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-hex-high-digit"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-HEX-LOW-DIGIT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "unhex",
+        "kind": "try_propagation",
+        "start_byte": 4045,
+        "conditions": [
+          "digit(pair[1])"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_hex_checks_width_and_both_digits"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-hex-low-digit"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-PARSE-STORE-ID",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "require_identity",
+        "kind": "try_propagation",
+        "start_byte": 4168,
+        "conditions": [
+          "unhex::<16>(identity)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_requests_check_store_identity_before_operands"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-parse-store-id"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-READ-STORE-ID",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "require_identity",
+        "kind": "try_propagation",
+        "start_byte": 4194,
+        "conditions": [
+          "db.storage_identity()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_requests_check_store_identity_before_operands"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-read-store-id"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-RECEIPT-SLOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "receipt_at",
+        "kind": "try_propagation",
+        "start_byte": 4565,
+        "conditions": [
+          "slot_key(slot)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_reads_preserve_dispatch_and_storage_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-receipt-slot"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-RECEIPT-LOOKUP",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "receipt_at",
+        "kind": "try_propagation",
+        "start_byte": 4611,
+        "conditions": [
+          "snapshot\n        .get(collection, &key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_reads_preserve_dispatch_and_storage_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-receipt-lookup"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-RECEIPT-REPLY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "receipt_reply",
+        "kind": "try_propagation",
+        "start_byte": 4870,
+        "conditions": [
+          "receipt_at(&db.snapshot(), db.collection_id(DATA_COLLECTION), slot)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_reads_preserve_dispatch_and_storage_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-receipt-reply"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-CHECKPOINT-COUNTER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "checkpoint_reply",
+        "kind": "try_propagation",
+        "start_byte": 5204,
+        "conditions": [
+          "counter_at(&snapshot, collection)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_reads_preserve_dispatch_and_storage_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-checkpoint-counter"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-CHECKPOINT-RECEIPT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "checkpoint_reply",
+        "kind": "try_propagation",
+        "start_byte": 5264,
+        "conditions": [
+          "receipt_at(&snapshot, collection, slot)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_reads_preserve_dispatch_and_storage_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-checkpoint-receipt"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-JOURNAL-GET-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 5964,
+        "conditions": [
+          "require_identity(db, identity)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_requests_check_store_identity_before_operands"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-journal-get-identity"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-JOURNAL-RECEIPT-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 6096,
+        "conditions": [
+          "require_identity(db, identity)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_requests_check_store_identity_before_operands"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-journal-receipt-identity"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-JOURNAL-CHECK-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 6234,
+        "conditions": [
+          "require_identity(db, identity)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_requests_check_store_identity_before_operands"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-journal-check-identity"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-JOURNAL-SET-IDENTITY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 6505,
+        "conditions": [
+          "require_identity(db, identity)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_requests_check_store_identity_before_operands"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-journal-set-identity"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-PREDECESSOR-SENTINEL",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "if",
+        "start_byte": 6535,
+        "conditions": [
+          "*previous == \"-\""
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-predecessor-sentinel"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-PREDECESSOR-HEX",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 6648,
+        "conditions": [
+          "unhex::<33>(previous)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-predecessor-hex"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-PREDECESSOR-RECEIPT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 6737,
+        "conditions": [
+          "Receipt::from_bytes(&bytes, u64::MAX).map_err(|_| Error::Invalid)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-predecessor-receipt"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-JOURNAL-SEQUENCE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 6798,
+        "conditions": [
+          "number(sequence)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-journal-sequence"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-JOURNAL-REVISION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 6844,
+        "conditions": [
+          "number(expected)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-journal-revision"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-JOURNAL-SLOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 7140,
+        "conditions": [
+          "slot_key(slot)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-journal-slot"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-JOURNAL-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 7224,
+        "conditions": [
+          "number(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-journal-value"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-INITIAL-COUNTER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "initialize",
+        "kind": "try_propagation",
+        "start_byte": 725,
+        "conditions": [
+          "db.unsigned(0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "initialization_counter_allocation_refusal_keeps_the_seed_unpublished"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-initial-counter"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-PLAIN-SLOT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 7404,
+        "conditions": [
+          "slot_key(slot)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-plain-slot"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-PLAIN-SEQUENCE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 7435,
+        "conditions": [
+          "number(sequence)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-plain-sequence"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-PLAIN-REVISION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 7466,
+        "conditions": [
+          "number(expected)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-plain-revision"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-REQUESTS-PLAIN-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "handle",
+        "kind": "try_propagation",
+        "start_byte": 7494,
+        "conditions": [
+          "number(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_write_fields_reject_invalid_operands_before_submission"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-requests-plain-value"
       ]
     }
   ],
