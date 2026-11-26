@@ -26,6 +26,24 @@ the snapshot read before Primary::new only observes the revision. The
 broader library still checks missing storage, recovery and invalid
 enrollment. The two I rows bind these caller invariants.
 
+## Qualification
+
+Frozen source `f9ba262e9dc2c80aeb5329d3827f756ad21cd884` ran with
+Rust 1.100.0 and locked dependencies.
+
+| Platform | Debug and release, per profile |
+| --- | --- |
+| macOS arm64 | 60 snapshot CLI tests passed and 11 core replication tests passed with one ignored. The exact tests detected all 10 controls. |
+| Docker Linux arm64/ext4 | 61 snapshot CLI tests passed with one ignored and 11 core replication tests passed with one ignored. The exact tests detected all 10 controls. |
+| Windows x64/MSVC | Five CLI test executables cross-linked. Native execution of this source remains open. |
+
+Clippy with warnings denied passed on macOS and Linux. Fresh extraction
+verified the exact failed assertions, 38 supervised commands and 1,003
+restored source inputs per campaign. The source review accounts for all
+103 records in `apps/weekend-replicate/src/native.rs`. The full inventory
+still has 326 runtime and 7,468 tooling gaps.
+[Frozen campaign checksums](snapshot-command-effects-f9ba262.sha256)
+
 ## Exact source rows
 
 | Source | SHA-256 |

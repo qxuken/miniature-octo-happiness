@@ -2303,7 +2303,8 @@ Reconciliation leaves 381 runtime and 7,468 tooling gaps.
 
 PR #82 head `9e660e4` finished with 27 passes, one skip and the
 known APFS cleanup failure. The APFS repair and coordinator proof
-were pushed together at `d6feb73`, whose native macOS and Windows jobs passed.
+were pushed together at `d6feb73`. Native macOS, native Windows and
+ThreadSanitizer passed at that head.
 [Earlier CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45714156600)
 [Repair CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45720630585)
 
@@ -2336,3 +2337,19 @@ all 25 controls in each profile. Five Windows x64 binaries cross-linked
 per profile. Native Windows execution remains open for this source.
 Reconciliation leaves 337 runtime and 7,468 tooling gaps.
 [Snapshot network admission ledger](decisions/snapshot-network-admission-current.md)
+
+### Snapshot capture, poll and delivery results
+
+At `f9ba262`, capture reuses the shared report writer and preserves both
+output lines and I/O error phases. The regression covers an occupied
+descriptor and a reopenable export with both roots, refused connections,
+interrupted authenticated polls and the two delivery diagnostic modes.
+Reopening after a lost reply verifies the original durable receipt.
+
+macOS and Docker Linux/ext4 passed debug and release and caught all
+10 controls in each campaign. Five Windows x64 executables cross-linked
+per profile. Native Windows execution remains open for this source.
+The review accounts for all 103 source records in the native CLI
+dispatcher, including two caller invariants. Reconciliation leaves
+326 runtime and 7,468 tooling gaps across the repository.
+[Snapshot command effects ledger](decisions/snapshot-command-effects-current.md)
