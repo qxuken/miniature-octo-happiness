@@ -178,41 +178,68 @@ mod decisions {
         ] {
             assert_eq!(authorize(&secret, &request), None);
         }
+        let longest = "a".repeat(255);
         for (bytes, expected) in [
-            (b"\n".to_vec(), true),
-            (b"get\n".to_vec(), true),
-            ([vec![b'a'; 255], vec![b'\n']].concat(), true),
-            ([vec![b'a'; 256], vec![b'\n']].concat(), false),
-            (b"get".to_vec(), false),
-            (vec![255, b'\n'], false),
+            (b"\n".to_vec(), Ok("")),
+            (b"get\n".to_vec(), Ok("get")),
+            (
+                [vec![b'a'; 255], vec![b'\n']].concat(),
+                Ok(longest.as_str()),
+            ),
+            (
+                [vec![b'a'; 256], vec![b'\n']].concat(),
+                Err("missing or oversized line"),
+            ),
+            (b"get".to_vec(), Err("missing or oversized line")),
+            (vec![255, b'\n'], Err("invalid text")),
         ] {
             assert_eq!(
-                read_line_from(&mut bytes.as_slice(), || Ok(())).is_ok(),
-                expected
+                read_line_from(&mut bytes.as_slice(), || Ok(()))
+                    .as_deref()
+                    .map_err(|error| {
+                        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+                        error.to_string()
+                    }),
+                expected.map_err(str::to_owned)
             );
         }
+        let mut frames = &b"get\nset 2 20\n"[..];
+        assert_eq!(read_line_from(&mut frames, || Ok(())).unwrap(), "get");
+        assert_eq!(frames, b"set 2 20\n");
+        let mut polls = 0;
+        let error = read_line_from(&mut &b"get"[..], || {
+            polls += 1;
+            Ok(())
+        })
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(polls, 4);
         let mut calls = 0;
-        let error = read_line_from(&mut &b"get\n"[..], || {
+        let mut unread = &b"get\n"[..];
+        let error = read_line_from(&mut unread, || {
             calls += 1;
             Err(io::ErrorKind::TimedOut.into())
         })
         .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::TimedOut);
         assert_eq!(calls, 1);
+        assert_eq!(unread, b"get\n");
         struct Broken;
         impl Read for Broken {
             fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
-                Err(io::ErrorKind::ConnectionReset.into())
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionReset,
+                    "fixture read failure",
+                ))
             }
         }
-        assert_eq!(
-            read_line_from(&mut Broken, || Ok(())).unwrap_err().kind(),
-            io::ErrorKind::ConnectionReset
-        );
+        let error = read_line_from(&mut (&b"ge"[..]).chain(Broken), || Ok(())).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::ConnectionReset);
+        assert_eq!(error.to_string(), "fixture read failure");
     }
     #[test]
     fn request_identifier_and_recovery_admission() {
-        for id in ["a", "-", "_", &"x".repeat(32)] {
+        for id in ["A0z", "-", "_", &"x".repeat(32)] {
             let db = database();
             assert_eq!(submit_identified(&db, id, 2, 4).unwrap(), "committed 3");
         }
@@ -257,6 +284,10 @@ mod decisions {
         let mut db = database();
         let key = db.collection_id(COLLECTION);
         for command in [
+            "",
+            "unrecognized",
+            "get extra",
+            "set 2",
             "set invalid 20",
             "set 2 invalid",
             "set-id next invalid 20",
@@ -270,6 +301,110 @@ mod decisions {
         assert_eq!(state(&db), Ok((2, 0)));
         assert_eq!(handle(&mut db, "set 2 20"), Ok("committed 3".into()));
         assert_eq!(handle(&mut db, "get"), Ok("value 3 20".into()));
+        assert_eq!(
+            handle(&mut db, "set-id next 3 21"),
+            Ok("committed 4".into())
+        );
+    }
+
+    #[test]
+    fn legacy_selected_allocator_refusals_preserve_image_and_retry() {
+        use super::allocator::TestAllocator;
+        use std::sync::Arc;
+        use weekend_db::Validation;
+
+        let allocator = Arc::new(TestAllocator::default());
+        let disk = SimulatedDisk::new().unwrap();
+        let mut db =
+            Database::create_on_with_options(disk.clone(), [5; 16], allocator.options()).unwrap();
+        seed_counter(&db);
+        assert_eq!(
+            handle(&mut db, "set-id prior 2 12"),
+            Ok("committed 3".into())
+        );
+
+        let collection = db.collection_id(COLLECTION);
+        let start = allocator.requests();
+        let mut probe = db.begin_with_validation(Validation::WholeDatabase);
+        assert!(probe.get(collection, b"receipt/next").unwrap().is_none());
+        let before_count = allocator.requests() - start;
+        assert_eq!(probe.count(collection), Ok(2));
+        let before_unsigned = allocator.requests() - start;
+        assert!(before_count > 0);
+        assert!(before_unsigned > before_count);
+        drop(probe);
+
+        let image = disk.durable_image().unwrap();
+        let live_bytes = allocator.live_bytes();
+        let next = "set-id next 3 30";
+        for (stage, request, allowance) in [
+            ("plain counter value", "set 3 30", 0),
+            ("receipt capacity count", next, before_count),
+            ("identified counter value", next, before_unsigned),
+        ] {
+            let (result, requests) =
+                allocator.count_with_refusal(allowance, || handle(&mut db, request));
+            assert_eq!(requests, allowance + 1, "{stage}");
+            assert_eq!(result, Err(Error::OutOfMemory), "{stage}");
+            assert_eq!(allocator.live_bytes(), live_bytes);
+            assert_eq!(state(&db), Ok((3, 12)));
+            assert!(
+                db.snapshot()
+                    .get(collection, b"receipt/next")
+                    .unwrap()
+                    .is_none()
+            );
+            assert_eq!(
+                handle(&mut db, "set-id prior 2 12"),
+                Ok("committed 3".into())
+            );
+            assert_eq!(disk.durable_image().unwrap(), image);
+        }
+        assert_eq!(handle(&mut db, next), Ok("committed 4".into()));
+        drop(db);
+        let mut db = Database::open_on(disk, Limits::default()).unwrap();
+        assert_eq!(state(&db), Ok((4, 30)));
+        assert_eq!(handle(&mut db, next), Ok("committed 4".into()));
+        assert_eq!(state(&db), Ok((4, 30)));
+    }
+
+    #[test]
+    fn legacy_identified_write_refuses_exhausted_revision() {
+        use weekend_db::storage::{export_logical_on, import_logical_on};
+
+        let limits = Limits::default();
+        let seed = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(seed.clone(), [5; 16], limits).unwrap();
+        seed_counter(&db);
+        assert_eq!(
+            handle(&mut db, "set-id prior 2 12"),
+            Ok("committed 3".into())
+        );
+        drop(db);
+        let mut logical = export_logical_on(seed, limits).unwrap();
+        assert_eq!(logical[..8], *b"WDBLOG01");
+        assert_eq!(logical[32..40], 3u64.to_le_bytes());
+        logical[32..40].copy_from_slice(&u64::MAX.to_le_bytes());
+        super::logical_checksum::sign(&mut logical);
+        let disk = SimulatedDisk::new().unwrap();
+        import_logical_on(&logical, disk.clone(), limits).unwrap();
+        let mut db = Database::open_on(disk.clone(), limits).unwrap();
+        let image = disk.durable_image().unwrap();
+        let next = format!("set-id next {} 30", u64::MAX);
+        assert_eq!(handle(&mut db, &next), Err(Error::Exhausted));
+        assert_eq!(state(&db), Ok((u64::MAX, 12)));
+        let collection = db.collection_id(COLLECTION);
+        assert!(
+            db.snapshot()
+                .get(collection, b"receipt/next")
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            handle(&mut db, "set-id prior 2 12"),
+            Ok("committed 3".into())
+        );
+        assert_eq!(disk.durable_image().unwrap(), image);
     }
 
     #[test]
@@ -506,3 +641,13 @@ mod decisions {
         }
     }
 }
+
+#[cfg(test)]
+use weekend_db as allocator_engine;
+#[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../../../tests/support/allocator.rs"]
+mod allocator;
+#[cfg(test)]
+#[path = "../../../../tests/support/logical_checksum.rs"]
+mod logical_checksum;
