@@ -8,7 +8,7 @@
     "apps/study-peer/src/native/protocol.rs": "4517dfe5c848f7033f8b7c80c5a9c0a85b771f1fb6cd9fa28495e7d835e2518a",
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
-    "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
+    "apps/support/listener_ready.rs": "0ea50472dbdbf0a26d98252bf93909e4b090fb675024d12ccc206f9de79c8dd9",
     "apps/support/pinned_tls.rs": "c27bb3e2158dd15c2fd3ba5242459ac61aaa68059bf05f7d98bbd6d39b786fd5",
     "apps/support/service_diagnostics.rs": "fb80728e4368315a21775a33e08081f321717c05066f9a06f49107c84c6bf4a9",
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
@@ -26,7 +26,7 @@
     "apps/write-coordinator/src/native/protocol.rs": "e8d3019808a1ba5b676ecbf6ed4724a14e16cf02a534ab43c4f0d3d76cdae952",
     "apps/write-coordinator/src/native/sequenced.rs": "05b48dac35ba15d3dd70ccb32c39cfec7913f3ae81d25e8792af52738cfa7ad2",
     "apps/write-coordinator/src/native/service.rs": "0d69b2daf8815791a76e3c1374530f343317f2009001adf23f8f599296874a34",
-    "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
+    "apps/write-coordinator/src/native/stop.rs": "ceb965a764f6bb90386fff7d031918c390e66fa1d72919e860836da0ee54cfc5",
     "crates/weekend-db-macros/src/lib.rs": "5d0708c15d60b2cdd679fbc0a08a6504caf6f136b90bb32be1c271a63753b9f4",
     "crates/weekend-db-macros/src/model.rs": "fa796e2ebcfbf9acfea6354b9b0ea7533b948c4a2252b5163e8d09b9a6e5c5f9",
     "crates/weekend-db-macros/src/record.rs": "328a45d7cfe315b3f1ff23e0627a8216ade91dcd265f62fae95a0c1b918e5ee8",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "34e5037caf41d1d158723906ed22a7038d5316add442238289c8c4fa79680def",
+    "xtask/tests/mutations.json": "4aeefe0ca8ca8dd97b0d6abf39d85c39556e4e0c1703bb7fe0f1776028166a02",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -456,7 +456,8 @@
     "docs/decisions/coordinator-client-io-current.md": "26d39453123777a648199a556985bceb624b9a81f5ccd877145e51917701246e",
     "docs/decisions/coordinator-client-io-bce6c3b.sha256": "e20aee8e523a90bac9ee306514208752183261e11edf11ddef1776fbed7b4a21",
     "docs/decisions/coordinator-service-errors-current.md": "31140d2f3257739156e33e331e0a752fc25a94bd63feb19c2333d64e84e91f07",
-    "docs/decisions/coordinator-service-errors-9a403fa.sha256": "767e74cabb0c5a8ade2fc83b2d4b7cfb0b8823b6fabd38717ca4167ea7f84428"
+    "docs/decisions/coordinator-service-errors-9a403fa.sha256": "767e74cabb0c5a8ade2fc83b2d4b7cfb0b8823b6fabd38717ca4167ea7f84428",
+    "docs/decisions/coordinator-platform-signals-current.md": "e8be90cc4a513f4ec0fa74177d6c4d6a37679b5b78eb38de706e391b554de91d"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -997,7 +998,8 @@
         "docs/decisions/coordinator-legacy-boundaries-current.md",
         "docs/decisions/coordinator-initialization-current.md",
         "docs/decisions/coordinator-client-io-current.md",
-        "docs/decisions/coordinator-service-errors-current.md"
+        "docs/decisions/coordinator-service-errors-current.md",
+        "docs/decisions/coordinator-platform-signals-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -1016,7 +1018,8 @@
         "docs/decisions/service-diagnostics-current.md",
         "docs/decisions/credential-file-admission-current.md",
         "docs/decisions/shared-tls-deadline-current.md",
-        "docs/decisions/shared-tls-config-current.md"
+        "docs/decisions/shared-tls-config-current.md",
+        "docs/decisions/coordinator-platform-signals-current.md"
       ],
       "residual": "TLS dependency/native outcomes and generated logging/error branches are not inferred covered for every binary."
     },
@@ -42220,6 +42223,300 @@
       ],
       "mutations": [
         "r1-native-coordinator-service-error-admission-deadline"
+      ]
+    },
+    {
+      "name": "PLATFORM-LISTENER-COORDINATOR-UNIX-ERROR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/listener_ready.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "poll_result",
+        "kind": "if",
+        "start_byte": 620,
+        "conditions": [
+          "ready < 0"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/listener_ready.rs",
+          "name": "poll_result_preserves_an_error_and_reads_it_only_on_failure"
+        }
+      ],
+      "mutations": [
+        "r1-platform-listener-coordinator-unix-error"
+      ]
+    },
+    {
+      "name": "PLATFORM-LISTENER-COORDINATOR-WINSOCK-ERROR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/listener_ready.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "winsock_poll_result",
+        "kind": "if",
+        "start_byte": 1643,
+        "conditions": [
+          "ready == socket_error"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/listener_ready.rs",
+          "name": "winsock_poll_result_preserves_raw_error_and_skips_it_on_success"
+        }
+      ],
+      "mutations": [
+        "r1-platform-listener-coordinator-winsock-error"
+      ]
+    },
+    {
+      "name": "PLATFORM-LISTENER-REPLICATION-UNIX-ERROR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/listener_ready.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "poll_result",
+        "kind": "if",
+        "start_byte": 620,
+        "conditions": [
+          "ready < 0"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/listener_ready.rs",
+          "name": "poll_result_preserves_an_error_and_reads_it_only_on_failure"
+        }
+      ],
+      "mutations": [
+        "r1-platform-listener-replication-unix-error"
+      ]
+    },
+    {
+      "name": "PLATFORM-LISTENER-REPLICATION-WINSOCK-ERROR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/listener_ready.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "winsock_poll_result",
+        "kind": "if",
+        "start_byte": 1643,
+        "conditions": [
+          "ready == socket_error"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/listener_ready.rs",
+          "name": "winsock_poll_result_preserves_raw_error_and_skips_it_on_success"
+        }
+      ],
+      "mutations": [
+        "r1-platform-listener-replication-winsock-error"
+      ]
+    },
+    {
+      "name": "PLATFORM-STOP-UNIX-PROPAGATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/stop.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "register_with",
+        "kind": "try_propagation",
+        "start_byte": 995,
+        "conditions": [
+          "register(signal, stop.requested.clone())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/stop.rs",
+          "name": "unix_stop_rolls_back_partial_registration_and_unregisters_on_drop"
+        }
+      ],
+      "mutations": [
+        "r1-platform-stop-unix-propagate"
+      ]
+    },
+    {
+      "name": "PLATFORM-STOP-CONSOLE-REGISTRATION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/stop.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "register_console",
+        "kind": "if",
+        "start_byte": 3196,
+        "conditions": [
+          "attached",
+          "register() == 0"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/stop.rs",
+          "name": "console_registration_requires_attachment_and_preserves_the_failure"
+        }
+      ],
+      "mutations": [
+        "r1-platform-stop-console-attachment",
+        "r1-platform-stop-console-registration"
+      ]
+    },
+    {
+      "name": "PLATFORM-STOP-CONSOLE-EVENT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/stop.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "request_console_stop",
+        "kind": "if",
+        "start_byte": 1935,
+        "conditions": [
+          "stop_events.contains(&event)"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/stop.rs",
+          "name": "console_callback_marks_only_interrupt_and_break_and_tears_down_registration"
+        }
+      ],
+      "mutations": [
+        "r1-platform-stop-console-interrupt",
+        "r1-platform-stop-console-break"
+      ]
+    },
+    {
+      "name": "PLATFORM-STOP-CONSOLE-CLEANUP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/stop.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "unregister_console",
+        "kind": "if",
+        "start_byte": 3383,
+        "conditions": [
+          "registered"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/stop.rs",
+          "name": "console_callback_marks_only_interrupt_and_break_and_tears_down_registration"
+        }
+      ],
+      "mutations": [
+        "r1-platform-stop-console-cleanup"
       ]
     }
   ],
