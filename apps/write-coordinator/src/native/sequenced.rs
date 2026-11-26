@@ -295,14 +295,7 @@ fn submit(
 }
 
 #[cfg(test)]
-use weekend_db as allocator_engine;
-#[cfg(test)]
-#[allow(dead_code)]
-#[path = "../../../../tests/support/allocator.rs"]
-mod allocator;
-#[cfg(test)]
-#[path = "../../../../tests/support/logical_checksum.rs"]
-mod logical_checksum;
+use super::{allocator, logical_checksum};
 
 #[cfg(test)]
 mod tests {
