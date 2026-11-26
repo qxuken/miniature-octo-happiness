@@ -28,6 +28,33 @@ actual stdout error path. Injection of native socket setter and thread launch
 errors, the final admission-time check, and stop registration retain their
 own open records.
 
+## Qualification
+
+The frozen revision `b3a2a18ab8058fcf0ed916940a297f28ff0a6dc1` was
+tested with Rust 1.100.0. Arm64 macOS and arm64 Docker Linux/ext4 each
+passed 51 unit and 20 integration tests in debug and release, with two
+opt-in tests ignored on macOS and three on Linux. All-target Clippy
+passed with warnings denied on both platforms. Windows MSVC x64 linked
+the unit and integration test executables in both profiles. Native
+Windows execution remains pending for this source.
+
+The runner detected all 24 named mutations in each Unix campaign. The
+selection contains 13 lifecycle controls and 11 existing queue, handoff
+and startup controls. Archived verification checked the exact passing and
+failing named tests, process cleanup, 89 supervised commands and 1,024
+restored source hashes per campaign. Reconciliation inventoried 10,776
+decisions across 223 files with zero failures. This slice accounts for
+20 additional runtime source records. The refactor added three records,
+bringing the open runtime count from 144 to 127. The tooling count
+remains 7,458.
+
+Two earlier freezes failed the mutation runner's preflight. Moving the
+stop guard made the older queue selector match twice. The new admission
+selector then expected 24 occurrences of `command` and found nine in
+the production part of the file. The corrected selectors each match a
+complete guard once. The registry's production-source test passed.
+[Frozen source and evidence checksums](coordinator-service-lifecycle-b3a2a18.sha256)
+
 ## Coordinator source records
 
 | Source | SHA-256 |

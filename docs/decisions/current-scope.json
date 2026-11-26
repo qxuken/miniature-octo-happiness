@@ -447,7 +447,8 @@
     "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6",
     "docs/decisions/coordinator-sequenced-requests-current.md": "f7831f501b18e1bfcd7b25321153d90eec58a2ee50ff4fd6f5989aea938dd3bf",
     "docs/decisions/coordinator-cli-native-current.md": "b428a1fd22001f7beef09ba97fb5224bbcd9c3979dd4d43c6018f1fee328ecf5",
-    "docs/decisions/coordinator-service-lifecycle-current.md": "06ec42df7b150ce066e02953e769e08de13b86c3dc30d78b083733bb2bd1e06b"
+    "docs/decisions/coordinator-service-lifecycle-current.md": "813a06ebded9626181dd8374ed72e22df1f8d68acb18081337d4ac69b7176239",
+    "docs/decisions/coordinator-service-lifecycle-b3a2a18.sha256": "a2ac828f8b2c09fb2990384b18383f963e7a9d4b4d4cc0062e5a31e0afdad3b8"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

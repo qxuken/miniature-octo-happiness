@@ -2496,3 +2496,18 @@ controls. Two Windows x64 test executables linked per profile. Native
 execution of this batch remains pending. Another 48 runtime records have
 source dispositions, leaving 144 runtime and 7,458 tooling gaps.
 [Coordinator native CLI ledger](decisions/coordinator-cli-native-current.md)
+
+### Coordinator connection lifecycle and shutdown
+
+At `b3a2a18`, the coordinator tests readiness and accept retries,
+shutdown before and after readiness, worker reaping and join error
+precedence, and capacity and framing boundaries. A closed readiness pipe
+returns the original error and releases the database lease. The next
+writer reopens revision 2 with the same image bytes.
+
+Each macOS and Docker Linux/ext4 profile passed 71 coordinator tests and
+caught all 24 named controls. Both Windows x64 test executables linked
+per profile. Native execution of this batch remains pending. The audit
+accounts for 20 runtime records, including three introduced by the
+refactor, and leaves 127 runtime and 7,458 tooling gaps.
+[Coordinator lifecycle ledger](decisions/coordinator-service-lifecycle-current.md)
