@@ -267,6 +267,23 @@ impl Cancellation {
     }
 }
 
+#[cfg(unix)]
+fn write_response(value: &impl Serialize) -> Result<()> {
+    use std::os::fd::AsFd;
+
+    // Rust's Stdout ignores EBADF. A duplicate preserves the delivery error
+    // and keeps stdout's lifetime independent of the writer's lifetime.
+    let stdout = std::io::stdout().lock();
+    let fd = stdout
+        .as_fd()
+        .try_clone_to_owned()
+        .context("duplicate stdout")?;
+    let mut output = std::io::BufWriter::new(File::from(fd));
+    serde_json::to_writer(&mut output, value)?;
+    output.flush().context("flush supervisor response")
+}
+
+#[cfg(unix)]
 pub fn cli() -> Result<()> {
     let mut data = Vec::new();
     std::io::stdin()
@@ -277,14 +294,12 @@ pub fn cli() -> Result<()> {
         "oversized supervisor request"
     );
     let request: Request = serde_json::from_slice(&data)?;
-    serde_json::to_writer(std::io::stdout(), &run(&request)?)?;
-    Ok(())
+    write_response(&run(&request)?)
 }
 pub fn table_cli() -> Result<()> {
     #[cfg(unix)]
     {
-        serde_json::to_writer(std::io::stdout(), &process_table()?)?;
-        Ok(())
+        write_response(&process_table()?)
     }
     #[cfg(not(unix))]
     {

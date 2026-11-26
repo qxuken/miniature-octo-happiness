@@ -24372,6 +24372,30 @@
       "target": "--bin",
       "package": "xtask",
       "os": "linux"
+    },
+    {
+      "name": "r1-supervisor-cli-response-stdio-adapter",
+      "file": "xtask/src/supervise.rs",
+      "old": "    use std::os::fd::AsFd;\n\n    // Rust's Stdout ignores EBADF. A duplicate preserves the delivery error\n    // and keeps stdout's lifetime independent of the writer's lifetime.\n    let stdout = std::io::stdout().lock();\n    let fd = stdout\n        .as_fd()\n        .try_clone_to_owned()\n        .context(\"duplicate stdout\")?;\n    let mut output = std::io::BufWriter::new(File::from(fd));",
+      "new": "    let mut output = std::io::stdout().lock();",
+      "test": "supervise",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "xtask",
+      "exact_test": "supervisor_reports_response_delivery_failure_after_verified_cleanup"
+    },
+    {
+      "name": "r1-supervisor-cli-response-discard-flush",
+      "file": "xtask/src/supervise.rs",
+      "old": "output.flush().context(\"flush supervisor response\")",
+      "new": "Ok(())",
+      "test": "supervise",
+      "target": "--test",
+      "occurrence": 1,
+      "matches": 1,
+      "package": "xtask",
+      "exact_test": "supervisor_reports_response_delivery_failure_after_verified_cleanup"
     }
   ]
 }

@@ -104,6 +104,56 @@ fn malformed_request_and_unknown_fields_do_not_launch() {
     assert!(!out.status.success());
     assert_eq!(fs::read_dir(&owned.0).unwrap().count(), 0);
 }
+
+#[test]
+fn supervisor_reports_response_delivery_failure_after_verified_cleanup() {
+    let owned = Fixture::new();
+    let read_only = owned.0.join("read-only-stdout");
+    fs::write(&read_only, b"preserve").unwrap();
+    let req = request(&owned.0, "printf worked".into());
+    let mut child = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .arg("supervise")
+        .stdin(Stdio::piped())
+        .stdout(fs::File::open(&read_only).unwrap())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&serde_json::to_vec(&req).unwrap())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        !output.status.success(),
+        "unwritable stdout produced success"
+    );
+    let error = std::io::Error::from_raw_os_error(libc::EBADF);
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.contains(&error.to_string()), "{diagnostic}");
+    assert_eq!(fs::read(&read_only).unwrap(), b"preserve");
+    assert_eq!(fs::read(owned.0.join("stdout")).unwrap(), b"worked");
+    let saved: Value =
+        serde_json::from_slice(&fs::read(owned.0.join("report.json")).unwrap()).unwrap();
+    assert_eq!(saved["returncode"], 0);
+    assert_eq!(saved["cleanup_verified"], true);
+    assert_eq!(saved["failure"], Value::Null);
+
+    let table = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .arg("process-table")
+        .stdout(fs::File::open(&read_only).unwrap())
+        .output()
+        .unwrap();
+    assert!(
+        !table.status.success(),
+        "unwritable table stdout produced success"
+    );
+    let diagnostic = String::from_utf8_lossy(&table.stderr);
+    assert!(diagnostic.contains(&error.to_string()), "{diagnostic}");
+    assert_eq!(fs::read(read_only).unwrap(), b"preserve");
+}
+
 #[test]
 fn fault_admission_rejects_all_existing_outputs_before_external_work() {
     let owned = Fixture::new();
