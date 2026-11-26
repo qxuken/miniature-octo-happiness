@@ -434,11 +434,11 @@
     "docs/decisions/apfs-detach-current.md": "031d9abf45e92bc3625a5cef3c7082ecb6b503f1867b6e8f1d3664f36c1a6ffd",
     "docs/decisions/coordinator-legacy-commit-current.md": "f98506d9ec744ca4b1230603f2e62dc5a40d245ffc569d2a4e9c8c33d3b7cb14",
     "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1",
-    "docs/decisions/snapshot-network-admission-current.md": "2c6a468dbd4aa9e72a554b8444d557ea6bd36f4bf5c7a932990a9ce655e11660",
+    "docs/decisions/snapshot-network-admission-current.md": "68b80dba0fb1d55c5401f9467b87342497c088943e13147772ea56fe9717045d",
     "docs/decisions/snapshot-command-effects-current.md": "d7b27490c1622ad5f9e2e8eda55f787b136dd2c3e8bfde25bdaf61072aa6b1c9",
     "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
     "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
-    "docs/decisions/snapshot-admission-retirement-current.md": "6808dfbd8fdb52ca7e2536ac477bde9de788f1d099890bd4cbbdc0d5fc335030"
+    "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

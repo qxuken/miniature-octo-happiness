@@ -2303,8 +2303,9 @@ Reconciliation leaves 381 runtime and 7,468 tooling gaps.
 
 PR #82 head `9e660e4` finished with 27 passes, one skip and the
 known APFS cleanup failure. The APFS repair and coordinator proof
-were pushed together at `d6feb73`. Native macOS, native Windows and
-ThreadSanitizer passed at that head.
+were pushed together at `d6feb73`. The full check rollup at that head
+finished with 28 passes and one skip, including native macOS, native
+Windows, ThreadSanitizer and bounded fuzzing.
 [Earlier CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45714156600)
 [Repair CI run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45720630585)
 
@@ -2367,3 +2368,29 @@ The review reconciles 18 of the 29 listener admission records. The remaining
 11 track specific scheduler interleavings and the native follower recovery
 path. Reconciliation leaves 308 runtime and 7,468 tooling gaps across the
 repository. [Snapshot listener admission ledger](decisions/snapshot-admission-scheduling-current.md)
+
+### Snapshot admission drain and recovery exit
+
+At `f2eaaa6`, real scoped threads exercise follower exit during readiness,
+accept-loop and drain panic propagation, and the independent conditions
+for draining, pausing and cancellation. Both macOS and Docker Linux/ext4
+profiles caught all 28 portable controls. A separate native Linux ENOSPC
+run caught the omitted recovery exit in both profiles. It verified exact
+bytes and the retained root at the old revision 4 receipt, then retry and
+repeat delivery at revision 5 after space was freed.
+
+All 29 listener admission decisions have a source disposition. The full
+snapshot CLI runtime group has no individually unclassified records.
+Across the repository, 297 runtime and 7,468 tooling gaps remain.
+[Snapshot admission retirement ledger](decisions/snapshot-admission-retirement-current.md)
+
+### Portable snapshot credentials in the Windows test fixture
+
+The `4f6359c` batch reached PR #82 after the preceding head cleared its
+checks. Its Windows MSVC job exposed a Unix-only keygen call in the
+network admission fixture. The repair at `718f8f5` uses the existing
+portable fixture helper. macOS and Docker Linux/ext4 passed in both
+profiles and caught all 25 affected controls per campaign. Five Windows
+x64 test executables cross-linked per profile. Native execution on the
+corrected source remains open.
+[Snapshot network admission ledger](decisions/snapshot-network-admission-current.md#windows-fixture-correction)

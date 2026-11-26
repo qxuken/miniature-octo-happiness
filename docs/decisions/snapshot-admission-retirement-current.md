@@ -24,6 +24,35 @@ delivery after space is freed. An omission control of the same source
 site must fail the original server-exit assertion. This control uses the
 opt-in native fixture and runs separately from the portable registry.
 
+## Qualification
+
+Frozen source `f2eaaa6aada3c10cab4289350bf6f8eae9695e7b` ran with
+Rust 1.100.0 and locked dependencies.
+
+| Platform | Debug and release, per profile |
+| --- | --- |
+| macOS arm64 | 66 snapshot CLI and 11 core replication tests passed. One core test was ignored. All 28 portable mutations were detected. |
+| Docker Linux arm64/ext4 | 67 snapshot CLI and 11 core replication tests passed. One CLI test and one core test were ignored in the standard suite. All 28 portable mutations were detected. |
+| Windows x64/MSVC | Five CLI test executables cross-linked per profile. |
+
+Clippy with warnings denied passed on macOS and Linux. Fresh extraction
+verified 97 supervised commands, all failed assertions and the restoration
+of 1,007 copied source inputs in each portable campaign.
+
+The opt-in Linux test passed separately in both profiles. With no space
+left for the next write, staging stopped at 151,552 of 307,200 bytes.
+The selection case wrote the entire 307,200-byte export before ENOSPC
+on the manifest. Both diagnosis modes reopened at durable revision 4,
+retained revision 2 and confirmed revision 5 only after freeing space.
+Repeating delivery preserved the installed bytes. Suppressing the recovery
+exit failed the exact server exit assertion with status 101 in each profile.
+The source was restored and its digest verified after each omission control.
+
+All 29 listener admission rows have source dispositions. The runtime snapshot
+CLI group has no individually unclassified rows. Repository reconciliation
+leaves 297 runtime and 7,468 tooling gaps.
+[Frozen campaign checksums](snapshot-admission-retirement-f2eaaa6.sha256)
+
 ## Exact source rows
 
 | Source | SHA-256 |
