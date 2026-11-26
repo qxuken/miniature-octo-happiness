@@ -91,30 +91,13 @@ pub(super) fn serve(
                 dispatch_requests(pending, stopping, |command| dispatch(&mut db, command));
             })?;
         let mut connections = Vec::with_capacity(MAX_CONNECTIONS);
-        let mut result: AppResult<()> = (|| {
+        let result: AppResult<()> = (|| {
             writeln!(io::stdout().lock(), "ready {}", listener.local_addr()?)?;
-            while !stopping.load(Relaxed) {
-                match wait_for_connection(&listener) {
-                    Ok(true) => {}
-                    Ok(false) => continue,
-                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(error) => return Err(error.into()),
-                }
-                if stopping.load(Relaxed) {
-                    break;
-                }
-                let mut stream = match listener.accept() {
-                    Ok((stream, _)) => stream,
-                    Err(error)
-                        if matches!(
-                            error.kind(),
-                            io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
-                        ) =>
-                    {
-                        continue;
-                    }
-                    Err(error) => return Err(error.into()),
-                };
+            while let Some(mut stream) = next_connection(
+                stopping,
+                || wait_for_connection(&listener),
+                || listener.accept().map(|(stream, _)| stream),
+            )? {
                 let deadline = Instant::now() + TIMEOUT;
                 reap_connections(&mut connections)?;
                 if connections.len() == MAX_CONNECTIONS {
@@ -142,13 +125,7 @@ pub(super) fn serve(
         stopping.store(true, Relaxed);
         drop(listener);
         drop(requests);
-        for worker in connections.into_iter().chain([database]) {
-            if worker.join().is_err() && result.is_ok() {
-                result =
-                    Err(io::Error::other("coordinator worker panicked during shutdown").into());
-            }
-        }
-        result
+        join_workers(connections.into_iter().chain([database]), result)
     })
 }
 
@@ -192,25 +169,255 @@ fn serve_connection(
     stream.write_all(format!("{reply}\n").as_bytes())
 }
 
+fn next_connection<T>(
+    stopping: &AtomicBool,
+    mut wait: impl FnMut() -> io::Result<bool>,
+    mut accept: impl FnMut() -> io::Result<T>,
+) -> io::Result<Option<T>> {
+    while !stopping.load(Relaxed) {
+        match wait() {
+            Ok(true) => {}
+            Ok(false) => continue,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+        if stopping.load(Relaxed) {
+            break;
+        }
+        match accept() {
+            Ok(connection) => return Ok(Some(connection)),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                ) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(None)
+}
+
+fn join_workers<'a>(
+    workers: impl IntoIterator<Item = ScopedJoinHandle<'a, ()>>,
+    mut result: AppResult<()>,
+) -> AppResult<()> {
+    for worker in workers {
+        if worker.join().is_err() && result.is_ok() {
+            result = Err(io::Error::other("coordinator worker panicked during shutdown").into());
+        }
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
     use std::io::{BufRead, BufReader, Read};
     use std::sync::mpsc::TryRecvError;
     use std::time::Duration;
 
+    fn wait_for_worker(worker: &ScopedJoinHandle<'_, ()>) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !worker.is_finished() {
+            assert!(Instant::now() < deadline, "worker did not finish");
+            thread::yield_now();
+        }
+    }
+
     #[test]
     fn a_released_connection_slot_can_be_reused() {
         thread::scope(|scope| {
-            let mut connections = vec![scope.spawn(|| {})];
-            let deadline = Instant::now() + Duration::from_secs(5);
-            while !connections[0].is_finished() {
-                assert!(Instant::now() < deadline);
-                thread::yield_now();
-            }
+            let (release, resume) = mpsc::channel();
+            let live = scope.spawn(move || {
+                let _ = resume.recv_timeout(Duration::from_secs(15));
+            });
+            let first = scope.spawn(|| {});
+            let second = scope.spawn(|| {});
+            wait_for_worker(&first);
+            wait_for_worker(&second);
+            let mut connections = vec![first, live, second];
+            reap_connections(&mut connections).unwrap();
+            assert_eq!(connections.len(), 1);
+            assert!(!connections[0].is_finished());
+            release.send(()).unwrap();
+            wait_for_worker(&connections[0]);
             reap_connections(&mut connections).unwrap();
             assert!(connections.is_empty());
         });
+    }
+
+    #[test]
+    fn reap_reports_a_panicked_connection_worker() {
+        thread::scope(|scope| {
+            let worker = scope.spawn(|| panic!("connection test worker"));
+            wait_for_worker(&worker);
+            let mut workers = vec![worker];
+            let error = reap_connections(&mut workers).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::Other);
+            assert_eq!(error.to_string(), "coordinator connection worker panicked");
+            assert!(workers.is_empty());
+        });
+    }
+
+    #[test]
+    fn readiness_and_accept_retry_only_their_transient_outcomes() {
+        use io::ErrorKind::{Interrupted, WouldBlock};
+
+        enum Step {
+            Wait(io::Result<bool>),
+            Accept(io::Result<u8>),
+        }
+        let schedule = RefCell::new(
+            [
+                Step::Wait(Ok(false)),
+                Step::Wait(Err(Interrupted.into())),
+                Step::Wait(Ok(true)),
+                Step::Accept(Err(WouldBlock.into())),
+                Step::Wait(Ok(true)),
+                Step::Accept(Err(Interrupted.into())),
+                Step::Wait(Ok(true)),
+                Step::Accept(Ok(42)),
+            ]
+            .into_iter(),
+        );
+        let stopping = AtomicBool::new(false);
+        let connection = next_connection(
+            &stopping,
+            || match schedule.borrow_mut().next().expect("extra readiness wait") {
+                Step::Wait(result) => result,
+                Step::Accept(_) => panic!("accept must follow readiness"),
+            },
+            || match schedule.borrow_mut().next().expect("extra accept") {
+                Step::Accept(result) => result,
+                Step::Wait(_) => panic!("accept before readiness"),
+            },
+        );
+        assert_eq!(connection.unwrap(), Some(42));
+        assert!(schedule.borrow_mut().next().is_none());
+
+        let error = next_connection::<u8>(
+            &stopping,
+            || Err(io::Error::new(WouldBlock, "readiness refusal")),
+            || panic!("readiness failure must not accept"),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), WouldBlock);
+        assert_eq!(error.to_string(), "readiness refusal");
+
+        let error = next_connection::<u8>(
+            &stopping,
+            || Ok(true),
+            || {
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "accept refusal",
+                ))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::ConnectionAborted);
+        assert_eq!(error.to_string(), "accept refusal");
+    }
+
+    #[test]
+    fn stopping_before_wait_or_after_readiness_avoids_accept() {
+        for stop_during_wait in [false, true] {
+            let stopping = AtomicBool::new(!stop_during_wait);
+            let mut waits = 0;
+            let connection = next_connection::<u8>(
+                &stopping,
+                || {
+                    waits += 1;
+                    stopping.store(true, Relaxed);
+                    Ok(true)
+                },
+                || panic!("shutdown must not accept another client"),
+            );
+            assert_eq!(connection.unwrap(), None);
+            assert_eq!(waits, usize::from(stop_during_wait));
+        }
+    }
+
+    #[test]
+    fn worker_joins_preserve_the_first_service_error() {
+        for (panics, prior_failure, expected) in [
+            (false, false, None),
+            (
+                true,
+                false,
+                Some("coordinator worker panicked during shutdown"),
+            ),
+            (false, true, Some("earlier service error")),
+            (true, true, Some("earlier service error")),
+        ] {
+            let survivor_finished = AtomicBool::new(false);
+            thread::scope(|scope| {
+                let first = scope.spawn(move || assert!(!panics, "worker fixture panic"));
+                let last = scope.spawn(|| survivor_finished.store(true, Relaxed));
+                let previous: AppResult<()> = if prior_failure {
+                    Err(io::Error::new(io::ErrorKind::BrokenPipe, "earlier service error").into())
+                } else {
+                    Ok(())
+                };
+                let actual = join_workers([first, last], previous);
+                assert!(survivor_finished.load(Relaxed));
+                assert_eq!(
+                    actual
+                        .as_ref()
+                        .err()
+                        .map(|error| error.to_string())
+                        .as_deref(),
+                    expected
+                );
+                if prior_failure {
+                    assert_eq!(
+                        actual
+                            .unwrap_err()
+                            .downcast_ref::<io::Error>()
+                            .unwrap()
+                            .kind(),
+                        io::ErrorKind::BrokenPipe
+                    );
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn connection_rejects_bad_input_or_expiry_before_dispatch() {
+        use std::net::Shutdown;
+
+        let secret = Secret([b'a'; 64]);
+        for (line, expired, expected) in [
+            (b"get".as_slice(), false, Some(io::ErrorKind::InvalidData)),
+            (b"get\n".as_slice(), true, Some(io::ErrorKind::TimedOut)),
+            (b"get\n".as_slice(), false, None),
+        ] {
+            let (requests, pending) = mpsc::sync_channel(1);
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let mut peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+            peer.set_read_timeout(Some(TIMEOUT)).unwrap();
+            peer.write_all(line).unwrap();
+            peer.shutdown(Shutdown::Write).unwrap();
+            let (socket, _) = listener.accept().unwrap();
+            let deadline = Instant::now() + if expired { Duration::ZERO } else { TIMEOUT };
+            let result = serve_connection(socket, deadline, Some(&secret), &requests);
+            let mut reply = String::new();
+            match peer.read_to_string(&mut reply) {
+                Ok(_) => {}
+                Err(error) if expired && error.kind() == io::ErrorKind::ConnectionReset => {}
+                Err(error) => panic!("unexpected peer read result: {error}"),
+            }
+            if let Some(kind) = expected {
+                assert_eq!(result.unwrap_err().kind(), kind);
+                assert!(reply.is_empty());
+            } else {
+                result.unwrap();
+                assert_eq!(reply, "error Unauthorized\n");
+            }
+            assert!(matches!(pending.try_recv(), Err(TryRecvError::Empty)));
+        }
     }
 
     #[test]
@@ -466,5 +673,14 @@ mod tests {
             assert!(worker.join().is_err());
         });
         assert!(stopping.load(Relaxed));
+    }
+
+    #[test]
+    fn dispatcher_returns_when_the_empty_queue_closes() {
+        let (requests, pending) = mpsc::sync_channel(MAX_QUEUED_COMMANDS);
+        drop(requests);
+        dispatch_requests(pending, &AtomicBool::new(false), |_| {
+            panic!("a closed queue must not dispatch")
+        });
     }
 }

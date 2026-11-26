@@ -1608,6 +1608,54 @@ fn command_line_checks_file_and_profile_before_binding() {
 }
 
 #[test]
+fn readiness_write_error_releases_the_database_lease() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let path = dir.0.join("coordinator.db");
+    assert!(
+        Command::new(BIN)
+            .arg("init")
+            .arg(&path)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let before = fs::read(&path).unwrap();
+    let (reader, mut writer) = std::io::pipe().unwrap();
+    drop(reader);
+    let expected = writer.write_all(b"probe\n").unwrap_err().to_string();
+    let mut child = Command::new(BIN)
+        .arg("serve")
+        .arg(&path)
+        .arg("0")
+        .stdout(Stdio::from(writer))
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("startup did not exit after losing its readiness pipe");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let output = child.wait_with_output().unwrap();
+    assert!(!output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().lines().last(),
+        Some(expected.as_str())
+    );
+    assert_eq!(fs::read(&path).unwrap(), before);
+    let reopened = weekend_db::Database::open_file(&path, weekend_db::Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), 2);
+}
+
+#[test]
 fn client_preserves_bad_input_and_refused_connection() {
     let address = std::net::SocketAddr::from(([127, 0, 0, 1], 0));
     let connect_error = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(3))
