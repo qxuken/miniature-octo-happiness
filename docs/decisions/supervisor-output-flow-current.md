@@ -29,3 +29,21 @@ any observed exit. A missing exit fails in both modes.
 | C | xtask::xtask | xtask/src/supervise.rs:250:12– | 7362..7365 | pattern_test | run_controlled | The same Some or None input drives the terminal-report guard. |
 | C | xtask::xtask | xtask/src/supervise.rs:243:12– | 7097..7100 | pattern_test | run_controlled | The same Ok or Err input drives the recorded launch error. |
 | E | xtask::xtask | xtask/src/supervise.rs:214:9– | 5925..5928 | for_iteration | run_controlled | Preflight inspects both outputs and the optional report. A rejected third path prevents both log acquisitions and preserves the existing report. |
+
+## Qualification
+
+Frozen source `52605e480883931c83f5c61d775ca7b3d81225b7` used Rust 1.100.0.
+Each debug and release run passed 20 supervisor unit tests, three trace
+tests and five supervisor integration tests on macOS and Docker Linux
+arm64/ext4. Both hosts detected all 12 mutations. Strict Clippy passed
+on macOS, Linux and Windows MSVC x64. The Windows unit-test executable
+linked in both profiles.
+
+Fresh extraction verified the intended failure for every mutation,
+45 supervised commands and 1,052 restored source files per campaign.
+The first Linux release mutation run exhausted the Docker volume during
+compilation. The complete serial rerun used the same source and passed
+after generated build files were reclaimed. That attempt's logs are
+included in the evidence. This batch reconciles 13 tooling records and
+leaves 7,357 open tooling records.
+[Frozen source and evidence checksums](supervisor-output-flow-52605e4.sha256)

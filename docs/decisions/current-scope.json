@@ -475,7 +475,10 @@
     "docs/decisions/tls-connect-refusal-9e50334.sha256": "0d507bee1d8e475f53563e8de7f0f8af1562f6db50e27b1f4eb0899cd3fed411",
     "docs/decisions/windows-native-path-entry-current.md": "c638e6b0287b1bc196e19545c8589fca90b79b69f1dceadaf7bf1ce16a66e014",
     "docs/decisions/windows-native-path-entry-c44c26d.sha256": "537f54fdbf78fc30d22ed0a979b0577486109df1fc490a933963cd7cb7736c34",
-    "docs/decisions/supervisor-output-flow-current.md": "9aca853c2428f2826aa463792ca459bc1b83a0e82543eb68e22fecf3bef9f89f"
+    "docs/decisions/supervisor-output-flow-current.md": "d9dc1e132d48a69ecc3ff3488601b0a4372026dd18e8829371371c743d58f5c5",
+    "docs/decisions/supervisor-output-flow-52605e4.sha256": "0813f3adf79087127899c4364bdf75231a9ed84021369e10443d8924164a2e9f",
+    "docs/decisions/study-retry-diagnostic-1ec259c.sha256": "1107a15e59443a11f7099e167a68b4e12dd65f573aff14d2f7d1162bb788bee4",
+    "docs/decisions/study-retry-diagnostic-current.md": "269829306be8806db1ba30ba420473e3e55cb8b6459715ce020e16916da44d8f"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

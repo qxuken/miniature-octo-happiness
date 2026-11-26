@@ -148,6 +148,15 @@ The verified minimum-Rust artifact leaves the failing operation unresolved.
 [Minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45756615197/job/139696612818)
 [Original evidence checksums](decisions/windows-msrv-retry-c44c26d.sha256)
 
+At `52605e4`, macOS and Docker Linux passed all 28 supervisor and trace
+tests and caught all 12 named controls per profile. The batch closes 13
+tooling records and leaves 7,357 open. [Supervisor output qualification](decisions/supervisor-output-flow-current.md)
+
+At `1ec259c`, the Study retry assertion distinguishes transport and
+storage failures. Both Unix hosts passed 85 Study tests and caught all
+six retry controls per profile. Native Windows follow-up remains pending.
+[Study retry diagnostics](decisions/study-retry-diagnostic-current.md)
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |

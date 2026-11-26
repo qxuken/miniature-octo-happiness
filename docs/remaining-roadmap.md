@@ -2686,3 +2686,17 @@ This closes the six open native path-entry records and reconciles all
 runtime source records. The remaining assurance gates include tooling,
 compiler MC/DC, generated code and release qualification.
 [Windows path-entry ledger](decisions/windows-native-path-entry-current.md)
+
+### Supervisor output and Study retry diagnostics
+
+The supervisor output and trace batch exercises initial and final
+reports, shared and distinct output paths, spawn errors and trace
+qualification. All 12 controls pass in both profiles on macOS and Docker
+Linux. The source reconciliation leaves 7,357 tooling gaps.
+[Supervisor output ledger](decisions/supervisor-output-flow-current.md)
+
+The separate Study batch records socket and storage context when an
+authenticated retry fails. Both Unix test matrices and all six named
+controls pass. The original Windows minimum-Rust release failure still
+requires native follow-up.
+[Study retry ledger](decisions/study-retry-diagnostic-current.md)
