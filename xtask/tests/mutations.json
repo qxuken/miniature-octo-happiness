@@ -21361,20 +21361,20 @@
     {
       "name": "r1-native-coordinator-lifecycle-admission-shape",
       "file": "apps/write-coordinator/src/native/service.rs",
-      "old": "command",
-      "new": "command.filter(|_| false)",
+      "old": "let Some(command) = command else {",
+      "new": "let Some(command) = command.filter(|_| false) else {",
       "package": "write-coordinator",
       "target": "--test",
       "test": "writers",
       "exact_test": "configured_secret_authenticates_before_writes_and_receipt_lookup",
-      "occurrence": 7,
-      "matches": 24
+      "occurrence": 1,
+      "matches": 1
     },
     {
       "name": "r1-native-coordinator-lifecycle-stopped-before-wait",
       "file": "apps/write-coordinator/src/native/service.rs",
-      "old": "!stopping.load(Relaxed)",
-      "new": "true",
+      "old": "while !stopping.load(Relaxed) {",
+      "new": "loop {",
       "package": "write-coordinator",
       "target": "--bin",
       "test": "write-coordinator",
@@ -21397,14 +21397,14 @@
     {
       "name": "r1-native-coordinator-lifecycle-stopped-after-ready",
       "file": "apps/write-coordinator/src/native/service.rs",
-      "old": "stopping.load(Relaxed)",
-      "new": "!stopping.load(Relaxed)",
+      "old": "        if stopping.load(Relaxed) {\n            break;\n        }\n        match accept()",
+      "new": "        if !stopping.load(Relaxed) {\n            break;\n        }\n        match accept()",
       "package": "write-coordinator",
       "target": "--bin",
       "test": "write-coordinator",
       "exact_test": "native::service::tests::stopping_before_wait_or_after_readiness_avoids_accept",
-      "occurrence": 3,
-      "matches": 4
+      "occurrence": 1,
+      "matches": 1
     },
     {
       "name": "r1-native-coordinator-lifecycle-accept-retry-block",
