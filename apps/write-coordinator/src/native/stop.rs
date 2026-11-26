@@ -179,13 +179,17 @@ mod tests {
 
     #[test]
     fn console_registration_requires_attachment_and_preserves_the_failure() {
+        let calls = Cell::new(0);
         register_console(
             false,
-            || panic!("detached console registered a callback"),
+            || {
+                calls.set(calls.get() + 1);
+                0
+            },
             || panic!("detached console fetched an OS error"),
         )
         .unwrap();
-        let calls = Cell::new(0);
+        assert_eq!(calls.get(), 0);
         register_console(
             true,
             || {
