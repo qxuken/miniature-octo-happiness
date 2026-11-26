@@ -269,6 +269,40 @@ mod tests {
         })
         .unwrap()
     }
+
+    #[test]
+    fn trace_qualification_requires_an_exit_and_verified_cleanup() {
+        for (exit, any_exit, accepted) in [
+            (Some(0), false, true),
+            (Some(2), false, false),
+            (Some(2), true, true),
+            (None, true, false),
+        ] {
+            let report = Report {
+                exit,
+                cleanup_verified: true,
+                ..Report::default()
+            };
+            assert_eq!(
+                report.qualifies(any_exit),
+                accepted,
+                "exit {exit:?} with any_exit={any_exit}"
+            );
+        }
+        let unverified = Report {
+            exit: Some(0),
+            ..Report::default()
+        };
+        assert!(!unverified.qualifies(false), "unverified cleanup qualified");
+        let failed = Report {
+            exit: Some(0),
+            cleanup_verified: true,
+            failure: Some("fixture".into()),
+            ..Report::default()
+        };
+        assert!(!failed.qualifies(false), "a failed trace qualified");
+    }
+
     #[test]
     fn real_success_and_nonzero_status_preserve_cleanup() {
         let t = Scratch::new(&std::env::temp_dir(), "trace-process-status").unwrap();

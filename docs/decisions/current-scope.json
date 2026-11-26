@@ -214,11 +214,11 @@
     "xtask/src/sqlite_baseline.rs": "f09c50fade656d716ecbf14643a7a9bceb9433059b95c3a7fb2eabaa9f94b00d",
     "xtask/src/study_soak.rs": "430b55111e7145ab89fe9ce1ec5cfe94280dbb18b11087c4164a78e818cf650b",
     "xtask/src/study_upgrade.rs": "85934f92de2681263e1fc7c756432a29fbb7eaa537e4222bc8a9610804597e89",
-    "xtask/src/supervise.rs": "0b6849f66b44b118eac23b836feb5e855054cad5cf5dc8f65f83e2d9abf2374a",
+    "xtask/src/supervise.rs": "42643cd3bb9502d938b47af99dd8940fac642e57097c53b7728bc8d6f87021c2",
     "xtask/src/support.rs": "ab81f996e6e6e19a44180b3a350176859a343b4a5b34f04bbf24789b62c67dd1",
     "xtask/src/toolchain.rs": "a0e44e9f90a3d893fa9402a64e4c860e44f0e3029020ce9f8395978fa92fa7b5",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
-    "xtask/src/trace_process.rs": "4aec4b243ed658df90b82504583cb1827c2eafac553dfdfe4594eb809f9e300e",
+    "xtask/src/trace_process.rs": "670d7c9fc682e0e4c1f93ee9e5f64a5156b79dea3ca6e1c616b077d9e78fbd1a",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/src/windows_faults.rs": "442b5030ecd61fe492f2d52fddb10c5f30bc93a0003d90fec4cf044cbec5a9c4",
     "xtask/src/windows_process.rs": "89549e971c4e51a4f9ef2a8c177107cb7da04144dac73f0e9d5c0d3ee439698d",
@@ -300,7 +300,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "d3f7be5940ae760b387f8c05c76c77c91844af26c61164ab7d0e126680a09818",
+    "xtask/tests/mutations.json": "d8d2b4c4a537ab068179d01a280aca4ba764cd7c4959ca320d12a2eb82e72cd3",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -474,7 +474,8 @@
     "docs/decisions/tls-connect-refusal-current.md": "3f626f862cefaec86370e53c1af828085ee6c7459ec5bfbec56e8411020c0c4b",
     "docs/decisions/tls-connect-refusal-9e50334.sha256": "0d507bee1d8e475f53563e8de7f0f8af1562f6db50e27b1f4eb0899cd3fed411",
     "docs/decisions/windows-native-path-entry-current.md": "c638e6b0287b1bc196e19545c8589fca90b79b69f1dceadaf7bf1ce16a66e014",
-    "docs/decisions/windows-native-path-entry-c44c26d.sha256": "537f54fdbf78fc30d22ed0a979b0577486109df1fc490a933963cd7cb7736c34"
+    "docs/decisions/windows-native-path-entry-c44c26d.sha256": "537f54fdbf78fc30d22ed0a979b0577486109df1fc490a933963cd7cb7736c34",
+    "docs/decisions/supervisor-output-flow-current.md": "9aca853c2428f2826aa463792ca459bc1b83a0e82543eb68e22fecf3bef9f89f"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -1094,7 +1095,8 @@
         "docs/decisions/derive-admission-current.md",
         "xtask/tests/fixtures/failing-cargo.sh",
         "docs/decisions/apfs-detach-current.md",
-        "docs/decisions/supervisor-result-pairs-current.md"
+        "docs/decisions/supervisor-result-pairs-current.md",
+        "docs/decisions/supervisor-output-flow-current.md"
       ],
       "residual": "Helper and native negative controls remain scoped evidence, not individual independence pairs for all tooling records. Standalone workspaces and consumers are now inventoried in their own target contexts; their records and macro/compiled boundaries remain explicit obligations."
     },
@@ -47061,6 +47063,389 @@
         "r1-supervisor-result-stopped-cleanly-worker-failure",
         "r1-supervisor-result-stopped-cleanly-cleanup-failure",
         "r1-supervisor-result-stopped-cleanly-cleanup-proof"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-OUTPUT-INITIAL-REPORT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "run_controlled",
+        "kind": "if",
+        "start_byte": 6497,
+        "conditions": [
+          "let Some(f) = &mut report_file"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "child_observes_incomplete_report_before_verified_finalization"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-initial-report"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-OUTPUT-TERMINAL-REPORT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "run_controlled",
+        "kind": "if",
+        "start_byte": 7359,
+        "conditions": [
+          "let Some(file) = &mut report_file"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "child_observes_incomplete_report_before_verified_finalization"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-terminal-report"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-OUTPUT-SHARED-FILE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "run_controlled",
+        "kind": "if",
+        "start_byte": 6844,
+        "conditions": [
+          "request.stdout == request.stderr"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "supervisor_handles_shared_and_distinct_output_paths"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-shared-file"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-OUTPUT-SHARED-PIPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "execute_with",
+        "kind": "if",
+        "start_byte": 33818,
+        "conditions": [
+          "merged"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "supervisor_handles_shared_and_distinct_output_paths"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-shared-pipe"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-OUTPUT-LAUNCH-ERROR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "run_controlled",
+        "kind": "if",
+        "start_byte": 7094,
+        "conditions": [
+          "let Err(error) = result"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "spawn_error_persists_terminal_report"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-launch-error"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-OUTPUT-NO-CHILD-CLEANUP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/supervise.rs",
+        "target": "xtask::xtask",
+        "owner": "run_controlled",
+        "kind": "if",
+        "start_byte": 7205,
+        "conditions": [
+          "report.pid.is_none()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "spawn_error_persists_terminal_report"
+        },
+        {
+          "file": "xtask/src/supervise.rs",
+          "name": "malformed_journal_fails_after_direct_worker_cleanup"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-no-child-cleanup"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-TRACE-OUTCOME-2",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/trace_process.rs",
+        "target": "xtask::xtask",
+        "owner": "qualifies",
+        "kind": "short_circuit_and",
+        "start_byte": 1082,
+        "conditions": [
+          "self.exit.is_some_and(|n| any_exit || n == 0)",
+          "self.cleanup_verified"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/trace_process.rs",
+          "name": "trace_qualification_requires_an_exit_and_verified_cleanup"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-trace-exit",
+        "r1-supervisor-output-trace-cleanup"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-TRACE-OUTCOME-3",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/trace_process.rs",
+        "target": "xtask::xtask",
+        "owner": "qualifies",
+        "kind": "short_circuit_and",
+        "start_byte": 1082,
+        "conditions": [
+          "self.exit.is_some_and(|n| any_exit || n == 0)",
+          "self.cleanup_verified",
+          "self.failure.is_none()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            true,
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/trace_process.rs",
+          "name": "trace_qualification_requires_an_exit_and_verified_cleanup"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-trace-exit",
+        "r1-supervisor-output-trace-cleanup",
+        "r1-supervisor-output-trace-failure"
+      ]
+    },
+    {
+      "name": "SUPERVISOR-TRACE-EXIT-MODE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/trace_process.rs",
+        "target": "xtask::xtask",
+        "owner": "qualifies",
+        "kind": "short_circuit_or",
+        "start_byte": 1108,
+        "conditions": [
+          "any_exit",
+          "n == 0"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "xtask/src/trace_process.rs",
+          "name": "trace_qualification_requires_an_exit_and_verified_cleanup"
+        }
+      ],
+      "mutations": [
+        "r1-supervisor-output-trace-any-exit",
+        "r1-supervisor-output-trace-zero-exit"
       ]
     }
   ],

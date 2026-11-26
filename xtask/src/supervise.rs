@@ -1617,6 +1617,105 @@ mod tests {
         };
         (scratch, request)
     }
+
+    #[test]
+    fn child_observes_incomplete_report_before_verified_finalization() {
+        for saved in [true, false] {
+            let (_owned, mut request) = fixture("printf 'unsaved'");
+            let expected_path = request.report.clone().unwrap();
+            if saved {
+                request.argv = vec!["/bin/cat".into(), expected_path.to_str().unwrap().into()];
+            } else {
+                request.report = None;
+            }
+            let report = run(&request).unwrap();
+            assert!(report.success(), "{report:?}");
+            if saved {
+                assert_eq!(
+                    fs::read(&request.stdout).unwrap(),
+                    b"{\"cleanup_verified\":false,\"failure\":\"supervision incomplete\"}\n"
+                );
+                let finalized = fs::read(&expected_path).unwrap();
+                let decoded: Report = serde_json::from_slice(&finalized).unwrap();
+                assert!(decoded.success(), "{decoded:?}");
+                assert_eq!(decoded.pid, report.pid);
+                assert_eq!(decoded.stdout_bytes, report.stdout_bytes);
+                assert_eq!(decoded.stderr_bytes, report.stderr_bytes);
+                assert_eq!(finalized.last(), Some(&b'\n'));
+            } else {
+                assert_eq!(fs::read(&request.stdout).unwrap(), b"unsaved");
+                assert!(!expected_path.exists());
+            }
+        }
+    }
+
+    #[test]
+    fn supervisor_handles_shared_and_distinct_output_paths() {
+        for shared in [true, false] {
+            let (_owned, mut request) = fixture("printf O; printf E >&2");
+            if shared {
+                request.stderr = request.stdout.clone();
+            }
+            let report = run(&request).unwrap();
+            assert!(report.success(), "{report:?}");
+            assert_eq!(
+                (report.stdout_bytes, report.stderr_bytes),
+                if shared { (2, 0) } else { (1, 1) }
+            );
+            let mut stdout = fs::read(&request.stdout).unwrap();
+            if shared {
+                stdout.sort_unstable();
+                assert_eq!(stdout, b"EO");
+            } else {
+                assert_eq!(stdout, b"O");
+                assert_eq!(fs::read(&request.stderr).unwrap(), b"E");
+            }
+        }
+    }
+
+    #[test]
+    fn output_preflight_checks_the_report_before_acquiring_logs() {
+        for kind in [
+            "stdout alias",
+            "stderr alias",
+            "existing report",
+            "missing parent",
+        ] {
+            let (owned, mut request) = fixture("exit 9");
+            let marker = request.report.clone().unwrap();
+            let expected = match kind {
+                "stdout alias" => {
+                    request.report = Some(request.stdout.clone());
+                    "report aliases log"
+                }
+                "stderr alias" => {
+                    request.report = Some(request.stderr.clone());
+                    "report aliases log"
+                }
+                "existing report" => {
+                    fs::write(&marker, b"preserve").unwrap();
+                    "output already exists"
+                }
+                "missing parent" => {
+                    request.report = Some(owned.path().join("missing").join("report.json"));
+                    "output parent missing"
+                }
+                _ => unreachable!(),
+            };
+            assert!(
+                run(&request).unwrap_err().to_string().contains(expected),
+                "{kind}"
+            );
+            assert!(!request.stdout.exists());
+            assert!(!request.stderr.exists());
+            if kind == "existing report" {
+                assert_eq!(fs::read(marker).unwrap(), b"preserve");
+            } else {
+                assert!(!marker.exists());
+            }
+        }
+    }
+
     #[test]
     fn bounds_both_streams_and_exact_limit() {
         for stream in [1, 2] {
@@ -1641,13 +1740,21 @@ mod tests {
         let (_owned, mut request) = fixture("");
         request.argv = vec!["/definitely/missing/xtask-child".into()];
         let report = run(&request).unwrap();
-        assert!(report.failure.as_ref().unwrap().contains("spawn child"));
+        assert!(
+            report
+                .failure
+                .as_deref()
+                .is_some_and(|text| text.contains("spawn child")),
+            "spawn error was absent from the terminal report"
+        );
         assert!(report.pid.is_none());
         assert!(report.cleanup_failure.is_none());
+        assert!(report.cleanup_verified);
         let saved: Report =
             serde_json::from_slice(&fs::read(request.report.unwrap()).unwrap()).unwrap();
         assert!(saved.failure.is_some());
         assert!(saved.returncode.is_none());
+        assert!(saved.cleanup_verified);
     }
     #[test]
     fn timeout_reaps_leader_and_cleans_descendants() {
