@@ -140,6 +140,14 @@ the refusal fixture. The corrected source `9e50334` passed 196 macOS and
 mutations on both hosts. Hosted follow-up remains pending.
 [Socket-refusal qualification](decisions/tls-connect-refusal-current.md)
 
+The Windows minimum-Rust job for the same tree passed the debug retry
+regression, then failed in release after TLS admission when the follower
+returned `Io`. Its command exited with a test failure and verified cleanup.
+The separate native Windows job passed the same test in both profiles.
+The verified minimum-Rust artifact leaves the failing operation unresolved.
+[Minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45756615197/job/139696612818)
+[Original evidence checksums](decisions/windows-msrv-retry-c44c26d.sha256)
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |
