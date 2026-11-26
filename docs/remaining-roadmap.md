@@ -2677,3 +2677,12 @@ The corrected source passed 196 macOS and 197 Docker Linux tests per
 profile, including each binary and the live-month example. Both
 platforms caught all three refusal mutations in both profiles.
 [Socket-refusal ledger](decisions/tls-connect-refusal-current.md)
+
+### Native Windows path entry
+
+The exact `c44c26d` tree passed the drive-prefix and early-path
+regressions in debug and release on the hosted Windows x64 system.
+This closes the six open native path-entry records and reconciles all
+runtime source records. The remaining assurance gates include tooling,
+compiler MC/DC, generated code and release qualification.
+[Windows path-entry ledger](decisions/windows-native-path-entry-current.md)

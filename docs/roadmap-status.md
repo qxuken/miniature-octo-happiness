@@ -128,6 +128,12 @@ At `24b6e34`, both Unix hosts passed 22 supervisor tests and caught all
 leaves 7,370 tooling gaps.
 [Supervisor result qualification](decisions/supervisor-result-pairs-current.md)
 
+The hosted Windows x64 job tested the exact `c44c26d` tree in debug and
+release. Both profiles passed the drive-prefix and early-path guard test
+and the native open and reopen regression. All runtime source records now
+have dispositions. Tooling, compiler MC/DC and release gates remain open.
+[Native Windows path entry](decisions/windows-native-path-entry-current.md)
+
 The Ubuntu native `c44c26d` run caught a loopback port-reuse race in
 the refusal fixture. The corrected source `9e50334` passed 196 macOS and
 197 Docker Linux tests per profile and detected all three refusal
