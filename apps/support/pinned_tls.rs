@@ -363,6 +363,14 @@ impl Tls {
 #[cfg(test)]
 mod deadline_tests {
     use super::*;
+
+    fn connected_sockets() -> (TcpStream, TcpStream) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (peer, _) = listener.accept().unwrap();
+        (stream, peer)
+    }
+
     #[test]
     fn exact_leaf_pin_controls_are_distinct_from_chain_trust() {
         let a = Credentials::generate().unwrap();
@@ -375,11 +383,10 @@ mod deadline_tests {
     }
     #[test]
     fn absolute_deadline_is_not_renewed_by_progress() {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-        let (mut peer, _) = listener.accept().unwrap();
+        let (stream, mut peer) = connected_sockets();
         let mut socket = DeadlineSocket::new(stream);
         let deadline = socket.deadline;
+        assert!(socket.remaining().is_ok());
         peer.write_all(&[42]).unwrap();
         let mut byte = [0];
         socket.read_exact(&mut byte).unwrap();
@@ -389,6 +396,10 @@ mod deadline_tests {
         // timeout or a bound on filesystem verification/flush duration.
         socket.deadline = Instant::now() - Duration::from_millis(1);
         assert_eq!(
+            socket.remaining().unwrap_err().kind(),
+            io::ErrorKind::TimedOut
+        );
+        assert_eq!(
             socket.read(&mut byte).unwrap_err().kind(),
             io::ErrorKind::TimedOut
         );
@@ -396,6 +407,110 @@ mod deadline_tests {
             socket.write(&byte).unwrap_err().kind(),
             io::ErrorKind::TimedOut
         );
+    }
+
+    #[test]
+    fn stream_construction_preserves_an_expired_socket_deadline() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let server = Tls::new(&a, b.certificate()).unwrap();
+        for expired in [false, true] {
+            let (stream, _peer) = connected_sockets();
+            let mut socket = DeadlineSocket::new(stream);
+            if expired {
+                socket.deadline = Instant::now();
+            }
+            let deadline = socket.deadline;
+            let connection = ServerConnection::new(server.server.clone()).unwrap();
+            let result = DeadlineStream::new(StreamOwned::new(connection, socket));
+            if expired {
+                assert_eq!(
+                    result.err().expect("expired socket was admitted").kind(),
+                    io::ErrorKind::TimedOut
+                );
+            } else {
+                assert_eq!(result.unwrap().0.sock.deadline, deadline);
+            }
+        }
+    }
+
+    #[test]
+    fn socket_retries_only_slice_expiry_and_checks_cancel_before_reentry() {
+        let (stream, _peer) = connected_sockets();
+        let mut socket = DeadlineSocket::new(stream);
+        socket.deadline = Instant::now() + Duration::from_secs(30);
+        let original_deadline = socket.deadline;
+        let cancel = Arc::new(AtomicBool::new(false));
+
+        for kind in [io::ErrorKind::WouldBlock, io::ErrorKind::TimedOut] {
+            let mut called = false;
+            let error = socket
+                .io(|_, wait| {
+                    assert!(!called, "uncancelable socket retried a timeout");
+                    called = true;
+                    assert!(
+                        wait > CANCEL_POLL,
+                        "uncancelable socket used a polling slice"
+                    );
+                    Err(io::Error::new(kind, "original socket timeout"))
+                })
+                .unwrap_err();
+            assert!(called);
+            assert_eq!(error.kind(), kind);
+            assert_eq!(error.to_string(), "original socket timeout");
+        }
+
+        socket.cancellation = Some(cancel.clone());
+        let mut steps = [io::ErrorKind::WouldBlock, io::ErrorKind::TimedOut].into_iter();
+        let count = socket.io(|_, wait| {
+            assert_eq!(
+                wait, CANCEL_POLL,
+                "cancelable socket did not use a polling slice"
+            );
+            match steps.next() {
+                Some(kind) => Err(kind.into()),
+                None => Ok(7),
+            }
+        });
+        assert_eq!(
+            count.ok(),
+            Some(7),
+            "slice expiry did not resume the operation"
+        );
+        assert_eq!(socket.deadline, original_deadline);
+
+        let mut called = false;
+        let error = socket
+            .io(|_, _| {
+                assert!(!called, "cancelable socket retried a terminal error");
+                called = true;
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionReset,
+                    "original reset",
+                ))
+            })
+            .unwrap_err();
+        assert!(called);
+        assert_eq!(error.kind(), io::ErrorKind::ConnectionReset);
+        assert_eq!(error.to_string(), "original reset");
+
+        let mut called = false;
+        let error = socket
+            .io(|_, _| {
+                assert!(!called, "canceled socket began another operation");
+                called = true;
+                cancel.store(true, Relaxed);
+                Err(io::ErrorKind::TimedOut.into())
+            })
+            .unwrap_err();
+        assert!(called);
+        assert_eq!(error.kind(), io::ErrorKind::ConnectionAborted);
+
+        socket.deadline = Instant::now();
+        let error = socket
+            .io(|_, _| panic!("expired socket began an operation"))
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
     }
 
     #[test]

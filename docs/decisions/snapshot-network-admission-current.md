@@ -54,6 +54,11 @@ test called the Unix-only `keygen` implementation. The failure is in
 `fea42ed933f4c2e62defd3c860739b0a0af2a7bcfa676802ddb832983f96eff1`.
 [Hosted Windows MSVC job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45727730738/job/139601722079)
 
+The native Windows job at the same head failed the same admission test
+with the same credential error. Its snapshot binary test log reports
+51 passes and one failure, at the credential fixture call.
+[Hosted native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45727730738/job/139601722336)
+
 At `718f8f53950becf4c8867e7840a28fcac3ae2858`, the test generates
 and writes both credentials using the portable fixture helper. Both debug
 and release passed on macOS arm64 and Docker Linux arm64/ext4. The CLI

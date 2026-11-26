@@ -9,7 +9,7 @@
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "711b47bc82a36f80d390be538fe15b511cb35764292f6860efd79b1581b467a9",
-    "apps/support/pinned_tls.rs": "4c84d47c553b121d75081396a4831ebe37d7da71e10e52102eff46bf99983c40",
+    "apps/support/pinned_tls.rs": "9672f006452a4c4ab9fde75f7461f9d44cf98c37fb1099deba726442253e697b",
     "apps/support/service_diagnostics.rs": "fb80728e4368315a21775a33e08081f321717c05066f9a06f49107c84c6bf4a9",
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "66f32e10c0c20f6736c96137abb7af9aa55ed54d39d4cfb9bd32b06c2f3813ea",
-    "xtask/tests/mutations.json": "36b0ce30cc6c82f52b602ace1ee1824b8c3b12a1f94af7faf6eed5f629d84249",
+    "xtask/tests/mutations.json": "07d2b787e72e849861bf9d2b083ee90948ca42286c5b1973e1bb0d9caa67f23c",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -434,11 +434,13 @@
     "docs/decisions/apfs-detach-current.md": "031d9abf45e92bc3625a5cef3c7082ecb6b503f1867b6e8f1d3664f36c1a6ffd",
     "docs/decisions/coordinator-legacy-commit-current.md": "f98506d9ec744ca4b1230603f2e62dc5a40d245ffc569d2a4e9c8c33d3b7cb14",
     "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1",
-    "docs/decisions/snapshot-network-admission-current.md": "68b80dba0fb1d55c5401f9467b87342497c088943e13147772ea56fe9717045d",
+    "docs/decisions/snapshot-network-admission-current.md": "9e8ad4ed48298b6a311f35374d85e243b34e0d42a061aa3c2979649aad1e14a9",
     "docs/decisions/snapshot-command-effects-current.md": "d7b27490c1622ad5f9e2e8eda55f787b136dd2c3e8bfde25bdaf61072aa6b1c9",
     "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
     "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
-    "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be"
+    "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
+    "apps/support/pinned_tls.rs": "9672f006452a4c4ab9fde75f7461f9d44cf98c37fb1099deba726442253e697b",
+    "docs/decisions/shared-tls-deadline-current.md": "18dbc685a24d622dade4892adf4c1d743495390e6c882a393833d958dd708d43"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -987,7 +989,8 @@
         "docs/service-diagnostics.md",
         "docs/tls-handshake-decisions.md",
         "docs/decisions/service-diagnostics-current.md",
-        "docs/decisions/credential-file-admission-current.md"
+        "docs/decisions/credential-file-admission-current.md",
+        "docs/decisions/shared-tls-deadline-current.md"
       ],
       "residual": "TLS dependency/native outcomes and generated logging/error branches are not inferred covered for every binary."
     },
@@ -36636,6 +36639,558 @@
             true
           ],
           "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-CONSTRUCT-EXPIRED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "new",
+        "kind": "try_propagation",
+        "start_byte": 6562,
+        "conditions": [
+          "stream.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "stream_construction_preserves_an_expired_socket_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-construct-expired"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-STREAM-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "read",
+        "kind": "try_propagation",
+        "start_byte": 7058,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-stream-read"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-STREAM-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "write",
+        "kind": "try_propagation",
+        "start_byte": 7272,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-stream-write"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-STREAM-FLUSH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "flush",
+        "kind": "try_propagation",
+        "start_byte": 7383,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-stream-flush"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-REMAINING-ZERO",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "remaining",
+        "kind": "if",
+        "start_byte": 7943,
+        "conditions": [
+          "remaining.is_zero()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "absolute_deadline_is_not_renewed_by_progress"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-remaining-zero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-IO-EXPIRED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "io",
+        "kind": "try_propagation",
+        "start_byte": 8280,
+        "conditions": [
+          "self.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-io-expired"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-CANCELLATION-TOKEN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "io",
+        "kind": "if",
+        "start_byte": 8295,
+        "conditions": [
+          "let Some(canceled) = &self.cancellation"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-cancellation-token"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-CANCELED-FLAG",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "io",
+        "kind": "if",
+        "start_byte": 8356,
+        "conditions": [
+          "canceled.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-canceled-flag"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-STUDY-RETRY-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "io",
+        "kind": "match_guard",
+        "start_byte": 8654,
+        "conditions": [
+          "self.cancellation.is_some()",
+          "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-study-retry-requires-token",
+        "r1-shared-tls-deadline-study-retry-requires-timeout",
+        "r1-shared-tls-deadline-study-retry-would-block",
+        "r1-shared-tls-deadline-study-retry-timed-out"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-CONSTRUCT-EXPIRED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "new",
+        "kind": "try_propagation",
+        "start_byte": 6562,
+        "conditions": [
+          "stream.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "stream_construction_preserves_an_expired_socket_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-construct-expired"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-STREAM-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "read",
+        "kind": "try_propagation",
+        "start_byte": 7058,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-stream-read"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-STREAM-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "write",
+        "kind": "try_propagation",
+        "start_byte": 7272,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-stream-write"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-STREAM-FLUSH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "flush",
+        "kind": "try_propagation",
+        "start_byte": 7383,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-stream-flush"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-REMAINING-ZERO",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "remaining",
+        "kind": "if",
+        "start_byte": 7943,
+        "conditions": [
+          "remaining.is_zero()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "absolute_deadline_is_not_renewed_by_progress"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-remaining-zero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-IO-EXPIRED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "io",
+        "kind": "try_propagation",
+        "start_byte": 8280,
+        "conditions": [
+          "self.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-io-expired"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-CANCELLATION-TOKEN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "io",
+        "kind": "if",
+        "start_byte": 8295,
+        "conditions": [
+          "let Some(canceled) = &self.cancellation"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-cancellation-token"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-CANCELED-FLAG",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "io",
+        "kind": "if",
+        "start_byte": 8356,
+        "conditions": [
+          "canceled.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-canceled-flag"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-SNAPSHOT-RETRY-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "io",
+        "kind": "match_guard",
+        "start_byte": 8654,
+        "conditions": [
+          "self.cancellation.is_some()",
+          "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-shared-tls-deadline-snapshot-retry-requires-token",
+        "r1-shared-tls-deadline-snapshot-retry-requires-timeout",
+        "r1-shared-tls-deadline-snapshot-retry-would-block",
+        "r1-shared-tls-deadline-snapshot-retry-timed-out"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
         }
       ]
     }
