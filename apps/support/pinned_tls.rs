@@ -1358,6 +1358,134 @@ mod handshake_decision_tests {
     use super::*;
     use std::{collections::VecDeque, io::Cursor};
 
+    #[test]
+    fn both_endpoints_preserve_the_first_handshake_io_error() {
+        struct Refused;
+        impl Read for Refused {
+            fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionReset,
+                    "handshake read",
+                ))
+            }
+        }
+        impl Write for Refused {
+            fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+                Err(io::Error::new(io::ErrorKind::BrokenPipe, "handshake write"))
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                panic!("failed handshake reached flush");
+            }
+        }
+
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let client = Tls::new(&a, b.certificate()).unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+        let mut local_client = ClientConnection::new(
+            client.client.clone(),
+            ServerName::try_from(SERVER_NAME).unwrap(),
+        )
+        .unwrap();
+        let mut local_server = ServerConnection::new(server.server.clone()).unwrap();
+        for (error, kind, message) in [
+            (
+                client
+                    .client_handshake(&mut local_client, &mut Refused)
+                    .unwrap_err(),
+                io::ErrorKind::BrokenPipe,
+                "handshake write",
+            ),
+            (
+                server
+                    .server_handshake(&mut local_server, &mut Refused)
+                    .unwrap_err(),
+                io::ErrorKind::ConnectionReset,
+                "handshake read",
+            ),
+        ] {
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(kind)
+            );
+            assert_eq!(error.to_string(), message);
+        }
+    }
+
+    #[test]
+    fn both_finished_endpoints_require_the_exact_pin_and_alpn() {
+        const PIN_ERROR: &str = "peer certificate does not match the configured pin";
+        for local_is_client in [true, false] {
+            for (exact_pin, peer_alpn, expected_error) in [
+                (true, true, None),
+                (false, true, Some(PIN_ERROR)),
+                (true, false, Some(ALPN_ERROR)),
+            ] {
+                let a = Credentials::generate().unwrap();
+                let b = Credentials::generate().unwrap();
+                let mut client = Tls::new(&a, b.certificate()).unwrap();
+                let mut server = Tls::new(&b, a.certificate()).unwrap();
+                if !exact_pin {
+                    client.peer = a.certificate();
+                    server.peer = b.certificate();
+                }
+                if !peer_alpn {
+                    if local_is_client {
+                        Arc::make_mut(&mut server.server).alpn_protocols.clear();
+                    } else {
+                        Arc::make_mut(&mut client.client).alpn_protocols.clear();
+                    }
+                }
+                let client_conn = ClientConnection::new(
+                    client.client.clone(),
+                    ServerName::try_from(SERVER_NAME).unwrap(),
+                )
+                .unwrap();
+                let server_conn = ServerConnection::new(server.server.clone()).unwrap();
+                let (mut local, peer) = if local_is_client {
+                    (
+                        rustls::Connection::Client(client_conn),
+                        rustls::Connection::Server(server_conn),
+                    )
+                } else {
+                    (
+                        rustls::Connection::Server(server_conn),
+                        rustls::Connection::Client(client_conn),
+                    )
+                };
+                let mut io = PeerTransport {
+                    peer,
+                    incoming: VecDeque::new(),
+                    local_is_client,
+                    fault: Fault::None,
+                    sent_peer_flight: false,
+                    fault_hit: false,
+                };
+                let result = match &mut local {
+                    rustls::Connection::Client(conn) => client.client_handshake(conn, &mut io),
+                    rustls::Connection::Server(conn) => server.server_handshake(conn, &mut io),
+                };
+                assert!(!local.is_handshaking());
+                assert!(!local.wants_write());
+                assert_eq!(local.alpn_protocol(), peer_alpn.then_some(ALPN));
+                let expected_peer = if local_is_client {
+                    b.certificate()
+                } else {
+                    a.certificate()
+                };
+                assert_eq!(
+                    local.peer_certificates().and_then(|chain| chain.first()),
+                    Some(&expected_peer)
+                );
+                assert_eq!(
+                    result.err().map(|error| error.to_string()).as_deref(),
+                    expected_error,
+                    "client={local_is_client}, exact pin={exact_pin}, peer ALPN={peer_alpn}"
+                );
+            }
+        }
+    }
+
     #[derive(Clone, Copy)]
     enum Fault {
         None,

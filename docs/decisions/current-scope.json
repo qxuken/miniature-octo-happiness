@@ -9,7 +9,7 @@
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "0ea50472dbdbf0a26d98252bf93909e4b090fb675024d12ccc206f9de79c8dd9",
-    "apps/support/pinned_tls.rs": "8c90a079eb2242b292bf21f73e0f8a0ddda344169fa9382f1da40f34b55a3daa",
+    "apps/support/pinned_tls.rs": "309e4f892388147b5061652c30e11b4fb8bf3775458e01294f6744da2a6df39d",
     "apps/support/service_diagnostics.rs": "fb80728e4368315a21775a33e08081f321717c05066f9a06f49107c84c6bf4a9",
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "3d813c86c76f7ad058157d623369ead1252b909ae30d7be23fdb30242d6da75c",
+    "xtask/tests/mutations.json": "c169587020d1de544f9bc31caf30a1a72cce995311cf4afb081f0dc388c67921",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -439,7 +439,7 @@
     "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
     "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
     "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
-    "apps/support/pinned_tls.rs": "8c90a079eb2242b292bf21f73e0f8a0ddda344169fa9382f1da40f34b55a3daa",
+    "apps/support/pinned_tls.rs": "309e4f892388147b5061652c30e11b4fb8bf3775458e01294f6744da2a6df39d",
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
     "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
@@ -460,7 +460,8 @@
     "docs/decisions/coordinator-platform-signals-current.md": "79e545320c4c6ddd666885ae5f537ff8cb7c1cd0db5741e7363e3cfb91f8a1a2",
     "docs/decisions/coordinator-platform-signals-6855f58.sha256": "85c0d6ddfb3923cac4e8e1b58ed28c8f7ba185043faacc9800d06104b3019aee",
     "docs/decisions/shared-tls-credential-io-current.md": "be4b50c2945ceed5b6e373e412ed002746af7455aaf1b6a0018c9e2c6e2eba1d",
-    "docs/decisions/shared-tls-credential-io-c6869a2.sha256": "c80b5745bdd81dcee5e202c3cbc083f4a6ec4c1a1262cab65545299048f6354b"
+    "docs/decisions/shared-tls-credential-io-c6869a2.sha256": "c80b5745bdd81dcee5e202c3cbc083f4a6ec4c1a1262cab65545299048f6354b",
+    "docs/decisions/shared-tls-handshake-current.md": "58fbe2fca4e747033a6e23667497f2ca9545f71d3bab5f19cc7b30e1b5104fc6"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -1023,7 +1024,8 @@
         "docs/decisions/shared-tls-deadline-current.md",
         "docs/decisions/shared-tls-config-current.md",
         "docs/decisions/coordinator-platform-signals-current.md",
-        "docs/decisions/shared-tls-credential-io-current.md"
+        "docs/decisions/shared-tls-credential-io-current.md",
+        "docs/decisions/shared-tls-handshake-current.md"
       ],
       "residual": "TLS dependency/native outcomes and generated logging/error branches are not inferred covered for every binary."
     },
@@ -43505,6 +43507,1080 @@
       ],
       "mutations": [
         "r1-tls-credential-io-example-read-handle-type"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-CLIENT-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "client_handshake",
+        "kind": "if",
+        "start_byte": 4925,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-client-unfinished",
+        "r1-tls-handshake-study-client-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-CLIENT-GUARD-OR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "client_handshake",
+        "kind": "short_circuit_or",
+        "start_byte": 4928,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-client-unfinished",
+        "r1-tls-handshake-study-client-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-CLIENT-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "client_handshake",
+        "kind": "try_propagation",
+        "start_byte": 4748,
+        "conditions": [
+          "tls.complete_io(socket)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_preserve_the_first_handshake_io_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-client-io"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-CLIENT-PIN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "client_handshake",
+        "kind": "try_propagation",
+        "start_byte": 5088,
+        "conditions": [
+          "self.check_pin(tls.peer_certificates())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-client-pin"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-CLIENT-ALPN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "client_handshake",
+        "kind": "if",
+        "start_byte": 5099,
+        "conditions": [
+          "tls.alpn_protocol() != Some(ALPN)"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-client-alpn"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-SERVER-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "server_handshake",
+        "kind": "if",
+        "start_byte": 6425,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-server-unfinished",
+        "r1-tls-handshake-study-server-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-SERVER-GUARD-OR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "server_handshake",
+        "kind": "short_circuit_or",
+        "start_byte": 6428,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-server-unfinished",
+        "r1-tls-handshake-study-server-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-SERVER-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "server_handshake",
+        "kind": "try_propagation",
+        "start_byte": 6248,
+        "conditions": [
+          "tls.complete_io(socket)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_preserve_the_first_handshake_io_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-server-io"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-SERVER-PIN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "server_handshake",
+        "kind": "try_propagation",
+        "start_byte": 6588,
+        "conditions": [
+          "self.check_pin(tls.peer_certificates())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-server-pin"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-STUDY-SERVER-ALPN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "server_handshake",
+        "kind": "if",
+        "start_byte": 6599,
+        "conditions": [
+          "tls.alpn_protocol() != Some(ALPN)"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-study-server-alpn"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-CLIENT-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "client_handshake",
+        "kind": "if",
+        "start_byte": 4925,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-client-unfinished",
+        "r1-tls-handshake-snapshot-client-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-CLIENT-GUARD-OR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "client_handshake",
+        "kind": "short_circuit_or",
+        "start_byte": 4928,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-client-unfinished",
+        "r1-tls-handshake-snapshot-client-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-CLIENT-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "client_handshake",
+        "kind": "try_propagation",
+        "start_byte": 4748,
+        "conditions": [
+          "tls.complete_io(socket)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_preserve_the_first_handshake_io_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-client-io"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-CLIENT-PIN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "client_handshake",
+        "kind": "try_propagation",
+        "start_byte": 5088,
+        "conditions": [
+          "self.check_pin(tls.peer_certificates())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-client-pin"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-CLIENT-ALPN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "client_handshake",
+        "kind": "if",
+        "start_byte": 5099,
+        "conditions": [
+          "tls.alpn_protocol() != Some(ALPN)"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-client-alpn"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-SERVER-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "server_handshake",
+        "kind": "if",
+        "start_byte": 6425,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-server-unfinished",
+        "r1-tls-handshake-snapshot-server-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-SERVER-GUARD-OR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "server_handshake",
+        "kind": "short_circuit_or",
+        "start_byte": 6428,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-server-unfinished",
+        "r1-tls-handshake-snapshot-server-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-SERVER-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "server_handshake",
+        "kind": "try_propagation",
+        "start_byte": 6248,
+        "conditions": [
+          "tls.complete_io(socket)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_preserve_the_first_handshake_io_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-server-io"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-SERVER-PIN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "server_handshake",
+        "kind": "try_propagation",
+        "start_byte": 6588,
+        "conditions": [
+          "self.check_pin(tls.peer_certificates())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-server-pin"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-SNAPSHOT-SERVER-ALPN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "server_handshake",
+        "kind": "if",
+        "start_byte": 6599,
+        "conditions": [
+          "tls.alpn_protocol() != Some(ALPN)"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-snapshot-server-alpn"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-CLIENT-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "client_handshake",
+        "kind": "if",
+        "start_byte": 4925,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-client-unfinished",
+        "r1-tls-handshake-example-client-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-CLIENT-GUARD-OR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "client_handshake",
+        "kind": "short_circuit_or",
+        "start_byte": 4928,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-client-unfinished",
+        "r1-tls-handshake-example-client-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-CLIENT-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "client_handshake",
+        "kind": "try_propagation",
+        "start_byte": 4748,
+        "conditions": [
+          "tls.complete_io(socket)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_preserve_the_first_handshake_io_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-client-io"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-CLIENT-PIN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "client_handshake",
+        "kind": "try_propagation",
+        "start_byte": 5088,
+        "conditions": [
+          "self.check_pin(tls.peer_certificates())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-client-pin"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-CLIENT-ALPN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "client_handshake",
+        "kind": "if",
+        "start_byte": 5099,
+        "conditions": [
+          "tls.alpn_protocol() != Some(ALPN)"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-client-alpn"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-SERVER-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "server_handshake",
+        "kind": "if",
+        "start_byte": 6425,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-server-unfinished",
+        "r1-tls-handshake-example-server-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-SERVER-GUARD-OR",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "server_handshake",
+        "kind": "short_circuit_or",
+        "start_byte": 6428,
+        "conditions": [
+          "tls.is_handshaking()",
+          "tls.wants_write()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_reject_independent_unfinished_and_pending_write_states"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-server-unfinished",
+        "r1-tls-handshake-example-server-pending"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-SERVER-IO",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "server_handshake",
+        "kind": "try_propagation",
+        "start_byte": 6248,
+        "conditions": [
+          "tls.complete_io(socket)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_endpoints_preserve_the_first_handshake_io_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-server-io"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-SERVER-PIN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "server_handshake",
+        "kind": "try_propagation",
+        "start_byte": 6588,
+        "conditions": [
+          "self.check_pin(tls.peer_certificates())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-server-pin"
+      ]
+    },
+    {
+      "name": "TLS-HANDSHAKE-EXAMPLE-SERVER-ALPN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "server_handshake",
+        "kind": "if",
+        "start_byte": 6599,
+        "conditions": [
+          "tls.alpn_protocol() != Some(ALPN)"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_endpoints_require_the_exact_pin_and_alpn"
+        }
+      ],
+      "mutations": [
+        "r1-tls-handshake-example-server-alpn"
       ]
     }
   ],
