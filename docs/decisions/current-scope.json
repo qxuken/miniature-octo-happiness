@@ -459,7 +459,8 @@
     "docs/decisions/coordinator-service-errors-9a403fa.sha256": "767e74cabb0c5a8ade2fc83b2d4b7cfb0b8823b6fabd38717ca4167ea7f84428",
     "docs/decisions/coordinator-platform-signals-current.md": "79e545320c4c6ddd666885ae5f537ff8cb7c1cd0db5741e7363e3cfb91f8a1a2",
     "docs/decisions/coordinator-platform-signals-6855f58.sha256": "85c0d6ddfb3923cac4e8e1b58ed28c8f7ba185043faacc9800d06104b3019aee",
-    "docs/decisions/shared-tls-credential-io-current.md": "59f3f01793df4788a999243d5a3f53cc3be0d6ded1dc65da5ecb817984cc7398"
+    "docs/decisions/shared-tls-credential-io-current.md": "be4b50c2945ceed5b6e373e412ed002746af7455aaf1b6a0018c9e2c6e2eba1d",
+    "docs/decisions/shared-tls-credential-io-c6869a2.sha256": "c80b5745bdd81dcee5e202c3cbc083f4a6ec4c1a1262cab65545299048f6354b"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

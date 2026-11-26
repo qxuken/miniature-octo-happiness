@@ -14,6 +14,28 @@ fixtures hold the finished prefix on disk and check the later calls were
 skipped. This records the current failure behavior for the trusted
 credential directory.
 
+## Qualification
+
+Frozen source `c6869a245a6a4139feb510a0f87ab55f12943cbf` used Rust 1.100.0 and locked
+dependencies. Counts are per profile.
+
+| Platform | Study | Snapshot | Live-month example | Named mutations caught |
+| --- | ---: | ---: | ---: | ---: |
+| macOS arm64 | 78 | 77 | 20 | 54 |
+| Docker Linux arm64/ext4 | 78 | 78 | 20 | 54 |
+
+One additional Linux storage test remained opt-in. Both packages passed
+strict Clippy. Ten Windows MSVC x64 test executables linked in each profile.
+Native execution remains pending for this source.
+
+Fresh extraction verified all 192 supervised commands per Unix platform
+and profile, 1,036 restored source hashes per campaign, the passing
+baselines and each named failure. The credential batch reconciles
+18 runtime records and 18 live-month tooling records. Reconciliation
+leaves 58 runtime and 7,423 tooling gaps. Remaining runtime records are
+in TLS session/transport and Windows storage.
+[Frozen source and evidence checksums](shared-tls-credential-io-c6869a2.sha256)
+
 ## Carried source records
 
 | Source | SHA-256 |

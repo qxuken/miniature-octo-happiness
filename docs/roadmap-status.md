@@ -91,6 +91,14 @@ passed on the Windows minimum-Rust lane at `908f3c5`.
 [Platform stop and readiness qualification](decisions/coordinator-platform-signals-current.md)
 and [hosted follow-up](decisions/coordinator-client-io-current.md#hosted-windows-evidence-for-earlier-batches).
 
+At `c6869a2`, shared TLS credential failure paths have directed evidence
+in both binaries and the live-month example. macOS passed 175 tests and
+Docker Linux/ext4 passed 176 in each profile, with all 54 named mutations
+caught on both platforms. Ten Windows x64 test executables linked per
+profile. Native execution remains pending. The queue has 58 runtime and
+7,423 tooling gaps.
+[Credential I/O qualification](decisions/shared-tls-credential-io-current.md)
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |

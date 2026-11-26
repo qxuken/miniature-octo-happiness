@@ -2597,3 +2597,18 @@ Both hosts caught all 12 mutations. Seven Windows x64 test executables
 linked per profile. Native Windows execution is pending. The audit leaves
 76 runtime gaps in shared TLS and Windows storage, with 7,441 tooling gaps.
 [Platform signals ledger](decisions/coordinator-platform-signals-current.md)
+
+### Shared TLS credential file I/O
+
+At `c6869a2`, certificate generation, both credential reads and Unix
+key creation preserve injected errors. An opened nonregular handle is
+rejected before reading. Creation stops at the first failed file stage
+and leaves the verified on-disk prefix. The Study binary, snapshot binary
+and live-month example exercise the shared source independently.
+
+Each profile passed 175 tests on macOS and 176 on Docker Linux/ext4.
+Both hosts caught all 54 mutations. Ten Windows x64 test executables
+linked in both profiles. Native Windows execution is pending.
+The batch reconciles 18 runtime and 18 tooling records. The audit leaves
+58 runtime and 7,423 tooling gaps.
+[Credential I/O ledger](decisions/shared-tls-credential-io-current.md)
