@@ -26,6 +26,21 @@ The scripts qualify the source-level sequencing. The Windows path prefix
 and early input decisions still require native evidence. A native run also
 checks the actual Win32 calls, exclusive handles and the NTFS files.
 
+## Qualification
+
+Frozen source `ee67459b06f5895c41aab5dd35d0185a1d10bd43` used Rust 1.100.0 and locked
+dependencies. Each profile passed 291 tests on macOS arm64 and 301 on
+Docker Linux arm64/ext4. Both serialization fixtures matched their
+golden bytes. The registry and strict Clippy checks passed on both platforms.
+Windows x64 MSVC cross-Clippy passed and three test executables linked in
+each profile. Native execution remains pending.
+
+Both Unix platforms caught all 12 mutations in each profile. Fresh
+extraction verified each expected stage error, the 41 supervised commands
+and 1,044 source hashes per campaign. The audit leaves six runtime gaps
+at the native path entry and 7,384 tooling gaps.
+[Frozen source and evidence checksums](windows-open-flow-ee67459.sha256)
+
 ## Carried storage module records
 
 The new module declaration relocates these source positions.

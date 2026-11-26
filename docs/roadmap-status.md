@@ -115,6 +115,14 @@ remains pending. The audit leaves 18 runtime gaps in Windows storage and
 7,384 tooling gaps.
 [Session and transport qualification](decisions/shared-tls-transport-current.md)
 
+At `ee67459`, the Windows parent and leaf open flow exercises twelve
+failure stages and verifies handle cleanup. Each profile passed 291 tests
+on macOS and 301 on Docker Linux/ext4, including both golden images.
+Both hosts detected all 12 controls. Three Windows x64 test executables
+linked per profile. The audit leaves six native path-entry records and
+7,384 tooling gaps. Native Windows execution remains pending.
+[Windows open-flow qualification](decisions/windows-open-flow-current.md)
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |

@@ -2641,3 +2641,18 @@ linked per profile. Native Windows execution is pending. The audit
 reconciles all shared TLS source records and leaves 18 runtime gaps in
 Windows storage and 7,384 tooling gaps.
 [Session and transport ledger](decisions/shared-tls-transport-current.md)
+
+### Windows parent and leaf open flow
+
+At `ee67459`, the Windows adapter calls the tested open sequence for
+parent lookup, canonicalization, directory lease, volume admission and
+exclusive leaf open. Scripted cases preserve each stage error, record
+which calls run and release every handle acquired before the failure.
+The healthy paths check the access and share modes for all three factories.
+
+Each profile passed 291 tests on macOS and 301 on Docker Linux/ext4,
+including the two golden images. Both hosts caught all 12 mutations.
+Three Windows x64 test executables linked per profile. The six native
+path-entry records remain open until their tests run on Windows. The
+audit also retains 7,384 tooling gaps.
+[Windows open-flow ledger](decisions/windows-open-flow-current.md)
