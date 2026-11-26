@@ -15,7 +15,7 @@
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
     "apps/weekend-replicate/src/native.rs": "1bc1c4acbb9396680175062487e6eb8920faf843390084a0206e442dd6a64a22",
-    "apps/weekend-replicate/src/native/admission.rs": "7b26ee0b29a9cd70e955fec57b8eba0742e4fa66c7c8565751898ba8dc6dbd0f",
+    "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
     "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
     "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
     "apps/weekend-tasks/src/lib.rs": "887d9ce8c80ae6b4d92166e5c6947dce64dbf0611fd393559b8510d23d1980c6",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "66f32e10c0c20f6736c96137abb7af9aa55ed54d39d4cfb9bd32b06c2f3813ea",
-    "xtask/tests/mutations.json": "85bffa3091b70d629c68d46f17c6cb2a4928bc8e6e0a9e8976694e76e0cbb10b",
+    "xtask/tests/mutations.json": "36b0ce30cc6c82f52b602ace1ee1824b8c3b12a1f94af7faf6eed5f629d84249",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -436,8 +436,9 @@
     "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1",
     "docs/decisions/snapshot-network-admission-current.md": "2c6a468dbd4aa9e72a554b8444d557ea6bd36f4bf5c7a932990a9ce655e11660",
     "docs/decisions/snapshot-command-effects-current.md": "d7b27490c1622ad5f9e2e8eda55f787b136dd2c3e8bfde25bdaf61072aa6b1c9",
-    "apps/weekend-replicate/src/native/admission.rs": "7b26ee0b29a9cd70e955fec57b8eba0742e4fa66c7c8565751898ba8dc6dbd0f",
-    "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5"
+    "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
+    "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
+    "docs/decisions/snapshot-admission-retirement-current.md": "6808dfbd8fdb52ca7e2536ac477bde9de788f1d099890bd4cbbdc0d5fc335030"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -946,7 +947,7 @@
         "docs/decisions/snapshot-listener-current.md",
         "docs/decisions/snapshot-network-admission-current.md",
         "docs/decisions/snapshot-command-effects-current.md",
-        "docs/decisions/snapshot-admission-scheduling-current.md"
+        "docs/decisions/snapshot-admission-retirement-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },
@@ -36023,7 +36024,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "reap",
         "kind": "while",
-        "start_byte": 634,
+        "start_byte": 727,
         "conditions": [
           "let Some(done) = handshakes.iter().position(ScopedJoinHandle::is_finished)"
         ]
@@ -36060,7 +36061,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "reap",
         "kind": "try_propagation",
-        "start_byte": 861,
+        "start_byte": 954,
         "conditions": [
           "handshakes\n            .swap_remove(done)\n            .join()\n            .map_err(|_| io::Error::other(\"snapshot TLS worker panicked\"))"
         ]
@@ -36083,7 +36084,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "admit_with",
         "kind": "try_propagation",
-        "start_byte": 2893,
+        "start_byte": 3376,
         "conditions": [
           "(operations.worker)(\"snapshot-follower\").and_then(|worker| {\n            worker.spawn_scoped(scope, move || {\n                diagnostics::capture(settings, Phase::Replication, || consume(pending))\n            })\n        })"
         ]
@@ -36106,9 +36107,9 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "admit_with",
         "kind": "try_propagation",
-        "start_byte": 4824,
+        "start_byte": 5319,
         "conditions": [
-          "(operations.worker)(\"snapshot-tls\").and_then(|worker| {\n                    worker.spawn_scoped(scope, move || {\n                        if let Ok(channel) = tls.accept_at(socket, started, Some(cancel)) {\n                            // An overloaded connection closes without a protocol reply.\n                            let _ = ready.try_send(channel);\n                        }\n                    })\n                })"
+          "(operations.worker)(\"snapshot-tls\").and_then(|worker| {\n                    worker.spawn_scoped(scope, move || {\n                        if let Ok(channel) = handshake(tls, socket, started, Some(cancel)) {\n                            // An overloaded connection closes without a protocol reply.\n                            let _ = ready.try_send(channel);\n                        }\n                    })\n                })"
         ]
       },
       "tests": [
@@ -36129,7 +36130,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "admit_with",
         "kind": "match_guard",
-        "start_byte": 3386,
+        "start_byte": 3880,
         "conditions": [
           "error.kind() == io::ErrorKind::Interrupted"
         ]
@@ -36166,7 +36167,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "admit_with",
         "kind": "match_guard",
-        "start_byte": 3783,
+        "start_byte": 4277,
         "conditions": [
           "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted\n                        )"
         ]
@@ -36204,7 +36205,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "admit_with",
         "kind": "if",
-        "start_byte": 4190,
+        "start_byte": 4684,
         "conditions": [
           "handshakes.len() == handshake_limit"
         ]
@@ -36241,9 +36242,9 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "admit_with",
         "kind": "if",
-        "start_byte": 4539,
+        "start_byte": 5033,
         "conditions": [
-          "let Ok(channel) = tls.accept_at(socket, started, Some(cancel))"
+          "let Ok(channel) = handshake(tls, socket, started, Some(cancel))"
         ]
       },
       "tests": [
@@ -36283,7 +36284,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "join_handshakes",
         "kind": "if",
-        "start_byte": 5727,
+        "start_byte": 6522,
         "conditions": [
           "handshake.join().is_err()",
           "result.is_ok()"
@@ -36331,7 +36332,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "finish",
         "kind": "try_propagation",
-        "start_byte": 6241,
+        "start_byte": 7036,
         "conditions": [
           "worker.map_err(|_| io::Error::other(\"snapshot follower worker panicked\"))"
         ]
@@ -36354,7 +36355,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "finish",
         "kind": "try_propagation",
-        "start_byte": 6257,
+        "start_byte": 7052,
         "conditions": [
           "admission"
         ]
@@ -36367,6 +36368,275 @@
       ],
       "mutations": [
         "r1-snapshot-admission-scheduling-finish-native-error"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-RETIREMENT-ACCEPT-LOOP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "while",
+        "start_byte": 3601,
+        "conditions": [
+          "accepted < maximum",
+          "!follower.is_finished()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "listener_retries_temporary_readiness_and_accept_failures"
+        },
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "follower_exit_during_readiness_stops_accept_and_further_polls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-limit-exhausted",
+        "r1-snapshot-admission-retirement-accept-loop-follower"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-RETIREMENT-POST-READINESS",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "if",
+        "start_byte": 4023,
+        "conditions": [
+          "follower.is_finished()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "follower_exit_during_readiness_stops_accept_and_further_polls"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-retirement-post-readiness"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-RETIREMENT-ACCEPT-REAP",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "try_propagation",
+        "start_byte": 3692,
+        "conditions": [
+          "reap(&mut handshakes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "acceptance_propagates_a_reaped_handshake_panic"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-retirement-accept-reap"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-RETIREMENT-DRAIN-LOOP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "drain_handshakes",
+        "kind": "while",
+        "start_byte": 5991,
+        "conditions": [
+          "!handshakes.is_empty()",
+          "!follower.is_finished()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "draining_and_cancellation_follow_live_and_finished_workers"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-retirement-drain-loop-pending",
+        "r1-snapshot-admission-retirement-drain-loop-follower"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-RETIREMENT-DRAIN-REAP",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "drain_handshakes",
+        "kind": "try_propagation",
+        "start_byte": 6073,
+        "conditions": [
+          "reap(handshakes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "draining_and_cancellation_follow_live_and_finished_workers"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-retirement-drain-reap"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-RETIREMENT-DRAIN-PAUSE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "drain_handshakes",
+        "kind": "if",
+        "start_byte": 6084,
+        "conditions": [
+          "!handshakes.is_empty()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "draining_and_cancellation_follow_live_and_finished_workers"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-retirement-drain-pause-live",
+        "r1-snapshot-admission-retirement-drain-pause-empty"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-RETIREMENT-CANCELLATION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "cancel_handshakes",
+        "kind": "if",
+        "start_byte": 6288,
+        "conditions": [
+          "result.is_err()",
+          "follower.is_finished()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "draining_and_cancellation_follow_live_and_finished_workers"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-retirement-cancel-error",
+        "r1-snapshot-admission-retirement-cancel-follower"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
       ]
     }
   ],

@@ -22,6 +22,7 @@ mod listener_ready;
 const MAX_HANDSHAKES: usize = 4;
 const MAX_READY: usize = 4;
 const WAIT_MS: i32 = 10;
+type FollowerThread<'scope> = ScopedJoinHandle<'scope, (AppResult<()>, Option<Diagnostic>)>;
 
 fn reap(handshakes: &mut Vec<ScopedJoinHandle<'_, ()>>) -> io::Result<()> {
     while let Some(done) = handshakes.iter().position(ScopedJoinHandle::is_finished) {
@@ -66,17 +67,27 @@ fn admit(
         handshake_limit,
         consume,
         AdmissionIo {
-            wait: listener_ready::wait_for_connection,
+            wait: wait_for_connection,
             accept: TcpListener::accept,
             worker: |name: &str| Ok(thread::Builder::new().name(name.into())),
+            handshake: Tls::accept_at,
         },
     )
 }
 
-struct AdmissionIo<W, A, S> {
+fn wait_for_connection(
+    listener: &TcpListener,
+    wait_ms: i32,
+    _: &FollowerThread<'_>,
+) -> io::Result<bool> {
+    listener_ready::wait_for_connection(listener, wait_ms)
+}
+
+struct AdmissionIo<W, A, S, H> {
     wait: W,
     accept: A,
     worker: S,
+    handshake: H,
 }
 
 fn admit_with(
@@ -86,12 +97,14 @@ fn admit_with(
     handshake_limit: usize,
     consume: impl FnOnce(Receiver<Incoming>) -> AppResult<()> + Send,
     mut operations: AdmissionIo<
-        impl FnMut(&TcpListener, i32) -> io::Result<bool>,
+        impl FnMut(&TcpListener, i32, &FollowerThread<'_>) -> io::Result<bool>,
         impl FnMut(&TcpListener) -> io::Result<(TcpStream, SocketAddr)>,
         impl FnMut(&str) -> io::Result<thread::Builder>,
+        impl Fn(&Tls, TcpStream, Instant, Option<Arc<AtomicBool>>) -> AppResult<Incoming> + Sync,
     >,
 ) -> AppResult<()> {
     let settings = diagnostics::settings();
+    let handshake = &operations.handshake;
     thread::scope(|scope| {
         let (ready, pending) = mpsc::sync_channel(MAX_READY);
         let follower = (operations.worker)("snapshot-follower").and_then(|worker| {
@@ -105,7 +118,7 @@ fn admit_with(
             let mut accepted = 0;
             while accepted < maximum && !follower.is_finished() {
                 reap(&mut handshakes)?;
-                match (operations.wait)(&listener, WAIT_MS) {
+                match (operations.wait)(&listener, WAIT_MS, &follower) {
                     Ok(true) => {}
                     Ok(false) => continue,
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
@@ -135,7 +148,7 @@ fn admit_with(
                 let cancel = cancellation.clone();
                 let worker = (operations.worker)("snapshot-tls").and_then(|worker| {
                     worker.spawn_scoped(scope, move || {
-                        if let Ok(channel) = tls.accept_at(socket, started, Some(cancel)) {
+                        if let Ok(channel) = handshake(tls, socket, started, Some(cancel)) {
                             // An overloaded connection closes without a protocol reply.
                             let _ = ready.try_send(channel);
                         }
@@ -144,24 +157,40 @@ fn admit_with(
                 handshakes.push(worker);
             }
             drop(listener);
-
-            // A finite accept limit drains admitted work, unless the follower
-            // stops first. Keep checking for that while handshakes finish.
-            while !handshakes.is_empty() && !follower.is_finished() {
-                reap(&mut handshakes)?;
-                if !handshakes.is_empty() {
-                    thread::sleep(Duration::from_millis(WAIT_MS as u64));
-                }
-            }
-            Ok(())
+            drain_handshakes(&mut handshakes, &follower, || {
+                thread::sleep(Duration::from_millis(WAIT_MS as u64));
+            })
         })();
-        if result.is_err() || follower.is_finished() {
-            cancellation.store(true, Relaxed);
-        }
+        cancel_handshakes(&result, &follower, &cancellation);
         join_handshakes(handshakes, &mut result);
         drop(ready);
         finish(result, follower.join())
     })
+}
+
+// A finite accept limit drains admitted work while the follower remains live.
+fn drain_handshakes(
+    handshakes: &mut Vec<ScopedJoinHandle<'_, ()>>,
+    follower: &FollowerThread<'_>,
+    mut pause: impl FnMut(),
+) -> io::Result<()> {
+    while !handshakes.is_empty() && !follower.is_finished() {
+        reap(handshakes)?;
+        if !handshakes.is_empty() {
+            pause();
+        }
+    }
+    Ok(())
+}
+
+fn cancel_handshakes(
+    result: &io::Result<()>,
+    follower: &FollowerThread<'_>,
+    cancellation: &AtomicBool,
+) {
+    if result.is_err() || follower.is_finished() {
+        cancellation.store(true, Relaxed);
+    }
 }
 
 fn join_handshakes(handshakes: Vec<ScopedJoinHandle<'_, ()>>, result: &mut io::Result<()>) {
@@ -467,9 +496,12 @@ mod tests {
                 Ok(())
             },
             AdmissionIo {
-                wait: |_: &TcpListener, _| panic!("an exhausted accept limit polled the listener"),
+                wait: |_: &TcpListener, _, _: &FollowerThread<'_>| {
+                    panic!("an exhausted accept limit polled the listener")
+                },
                 accept: TcpListener::accept,
                 worker: |_: &str| Ok(thread::Builder::new()),
+                handshake: Tls::accept_at,
             },
         )
         .unwrap();
@@ -488,7 +520,7 @@ mod tests {
                     Ok(())
                 },
                 AdmissionIo {
-                    wait: |_: &TcpListener, wait| {
+                    wait: |_: &TcpListener, wait, _: &FollowerThread<'_>| {
                         assert_eq!(wait, WAIT_MS);
                         let index = next_wait.get();
                         next_wait.set(index + 1);
@@ -512,6 +544,7 @@ mod tests {
                         }
                     },
                     worker: |_: &str| Ok(thread::Builder::new()),
+                    handshake: Tls::accept_at,
                 },
             );
             assert_eq!(
@@ -552,7 +585,7 @@ mod tests {
                     Ok(())
                 },
                 AdmissionIo {
-                    wait: listener_ready::wait_for_connection,
+                    wait: wait_for_connection,
                     accept: TcpListener::accept,
                     worker: |name: &str| {
                         launches.push(name.to_owned());
@@ -562,6 +595,7 @@ mod tests {
                             Ok(thread::Builder::new().name(name.into()))
                         }
                     },
+                    handshake: Tls::accept_at,
                 },
             )
             .unwrap_err();
@@ -582,30 +616,164 @@ mod tests {
         }
     }
 
+    fn wait_for_thread<T>(worker: &ScopedJoinHandle<'_, T>) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !worker.is_finished() {
+            assert!(Instant::now() < deadline, "worker did not finish");
+            thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn follower_exit_during_readiness_stops_accept_and_further_polls() {
+        let (_, server) = pair();
+        for ready in [false, true] {
+            let (listener, _) = listener();
+            let (release, stop) = mpsc::channel();
+            let mut waited = false;
+            let error = admit_with(
+                listener,
+                &server,
+                1,
+                MAX_HANDSHAKES,
+                move |_| {
+                    stop.recv_timeout(Duration::from_secs(5))?;
+                    Err(Error::RecoveryRequired.into())
+                },
+                AdmissionIo {
+                    wait: |_: &TcpListener, _, worker: &FollowerThread<'_>| {
+                        assert!(!waited, "finished follower polled again");
+                        assert!(!worker.is_finished());
+                        waited = true;
+                        release.send(()).unwrap();
+                        wait_for_thread(worker);
+                        Ok(ready)
+                    },
+                    accept: |_: &TcpListener| panic!("finished follower accepted a socket"),
+                    worker: |_: &str| Ok(thread::Builder::new()),
+                    handshake: Tls::accept_at,
+                },
+            )
+            .unwrap_err();
+            assert!(waited);
+            assert_eq!(
+                error.downcast_ref::<Error>(),
+                Some(&Error::RecoveryRequired)
+            );
+        }
+    }
+
+    #[test]
+    fn acceptance_propagates_a_reaped_handshake_panic() {
+        let (_, server) = pair();
+        let (listener, address) = listener();
+        let connected = TcpStream::connect(address).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut first = true;
+        let error = admit_with(
+            listener,
+            &server,
+            2,
+            MAX_HANDSHAKES,
+            |pending| {
+                assert!(pending.into_iter().next().is_none());
+                Ok(())
+            },
+            AdmissionIo {
+                wait: |_: &TcpListener, _, _: &FollowerThread<'_>| {
+                    assert!(
+                        Instant::now() < deadline,
+                        "reaper left the listener running"
+                    );
+                    thread::yield_now();
+                    Ok(std::mem::take(&mut first))
+                },
+                accept: TcpListener::accept,
+                worker: |_: &str| Ok(thread::Builder::new()),
+                handshake: |_: &Tls, _: TcpStream, _, _| panic!("controlled acceptance panic"),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.to_string(), "snapshot TLS worker panicked");
+        assert_closed(connected);
+    }
+
+    #[test]
+    fn draining_and_cancellation_follow_live_and_finished_workers() {
+        thread::scope(|scope| {
+            let (stop_follower, stop) = mpsc::channel::<()>();
+            let live = scope.spawn(move || {
+                let _ = stop.recv_timeout(Duration::from_secs(5));
+                (Ok(()), None)
+            });
+            let done = scope.spawn(|| ());
+            wait_for_thread(&done);
+            let mut handshakes = vec![done];
+            drain_handshakes(&mut handshakes, &live, || panic!("empty drain paused")).unwrap();
+            assert!(handshakes.is_empty(), "completed handshake stayed pending");
+            drain_handshakes(&mut handshakes, &live, || panic!("empty drain paused")).unwrap();
+
+            let (release, stop) = mpsc::channel::<()>();
+            let mut release = Some(release);
+            handshakes.push(scope.spawn(move || {
+                let _ = stop.recv_timeout(Duration::from_secs(2));
+            }));
+            drain_handshakes(&mut handshakes, &live, || {
+                if let Some(release) = release.take() {
+                    release.send(()).unwrap();
+                }
+                thread::yield_now();
+            })
+            .unwrap();
+            assert!(release.is_none(), "live handshake drain never paused");
+            assert!(handshakes.is_empty());
+
+            let panicked = scope.spawn(|| panic!("controlled drain panic"));
+            wait_for_thread(&panicked);
+            handshakes.push(panicked);
+            let error = drain_handshakes(&mut handshakes, &live, || panic!("failed drain paused"))
+                .unwrap_err();
+            assert_eq!(error.to_string(), "snapshot TLS worker panicked");
+
+            let canceled = AtomicBool::new(false);
+            cancel_handshakes(&Ok(()), &live, &canceled);
+            assert!(!canceled.load(Relaxed), "successful live follower canceled");
+            cancel_handshakes(&Err(io::Error::other("test failure")), &live, &canceled);
+            assert!(canceled.load(Relaxed), "failed admission did not cancel");
+            stop_follower.send(()).unwrap();
+            wait_for_thread(&live);
+
+            let last = scope.spawn(|| ());
+            wait_for_thread(&last);
+            handshakes.push(last);
+            drain_handshakes(&mut handshakes, &live, || panic!("stopped follower paused")).unwrap();
+            assert_eq!(handshakes.len(), 1, "stopped follower drained a handshake");
+            let canceled = AtomicBool::new(false);
+            cancel_handshakes(&Ok(()), &live, &canceled);
+            assert!(canceled.load(Relaxed), "stopped follower did not cancel");
+            let mut joined = Ok(());
+            join_handshakes(handshakes, &mut joined);
+            joined.unwrap();
+            live.join().unwrap().0.unwrap();
+        });
+    }
+
     #[test]
     fn completed_workers_are_reaped_and_panics_keep_the_first_shutdown_error() {
-        fn finished(worker: &ScopedJoinHandle<'_, ()>) {
-            let deadline = Instant::now() + Duration::from_secs(5);
-            while !worker.is_finished() {
-                assert!(Instant::now() < deadline, "worker did not finish");
-                thread::yield_now();
-            }
-        }
-
         thread::scope(|scope| {
             let (release, pending) = mpsc::channel::<()>();
             let waiting = scope.spawn(move || {
                 let _ = pending.recv_timeout(Duration::from_secs(5));
             });
             let done = scope.spawn(|| ());
-            finished(&done);
+            wait_for_thread(&done);
             let mut handshakes = vec![waiting, done];
             reap(&mut handshakes).unwrap();
             assert_eq!(handshakes.len(), 1);
             assert!(!handshakes[0].is_finished());
 
             let doomed = scope.spawn(|| panic!("controlled reap panic"));
-            finished(&doomed);
+            wait_for_thread(&doomed);
             handshakes.push(doomed);
             let error = reap(&mut handshakes).unwrap_err();
             assert_eq!(error.kind(), io::ErrorKind::Other);
