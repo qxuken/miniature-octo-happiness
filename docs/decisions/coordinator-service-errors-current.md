@@ -20,6 +20,25 @@ real listener. Native coverage includes operator stop, short frames,
 service startup, queue saturation and the real stdout failure path.
 Platform stop-registration and readiness records remain open.
 
+## Qualification
+
+Frozen source `9a403fa1cfa3130931b598fd52b00cd37703d6a2` used Rust 1.100.0.
+Each debug and release profile on arm64 macOS and Docker Linux/ext4
+passed 63 coordinator unit tests, 23 integration tests and 55 standalone
+fuzz-library tests. Two macOS and three Linux workloads remained opt-in.
+Both Cargo targets passed strict Clippy. Three test executables linked
+for Windows MSVC x64 in each profile. Native execution remains pending
+for this source.
+
+Each profile detected all 35 mutations, including 11 new fault controls
+and 24 existing service, queue, handoff and startup controls. Fresh
+extraction verified named assertions, 129 supervised commands and
+1,032 restored source hashes for each campaign. The source audit
+closed 12 service decisions, including the pattern that selects the
+same error branch as the reporting conditional. The repository retains
+87 runtime and 7,441 tooling gaps.
+[Frozen source and evidence checksums](coordinator-service-errors-9a403fa.sha256)
+
 ## Coordinator source records
 
 | Source | SHA-256 |

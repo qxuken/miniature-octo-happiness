@@ -2567,3 +2567,19 @@ Native execution for this source remains pending. All native CLI source
 records now have dispositions. The audit leaves 99 runtime and 7,441
 tooling gaps across the repository.
 [Coordinator I/O ledger](decisions/coordinator-client-io-current.md)
+
+### Coordinator service setup, listener faults and shutdown
+
+At `9a403fa`, injected registration, setup and launch refusals preserve
+their diagnostics. The listener closes and joins live workers after an
+accept error, a worker panic or a refused connection launch. A failed
+nonblocking setter skips the Busy response. A deadline expiring after
+framing disconnects admission. The native process logs a malformed
+request, continues to serve, and preserves the exact database image.
+
+Each macOS and Docker Linux/ext4 profile passed 141 tests and caught
+all 35 service mutations. Three Windows x64 test executables linked
+per profile. Native execution remains pending. All source records in
+the service module have dispositions. The audit leaves 87 runtime and
+7,441 tooling gaps across the repository.
+[Service error ledger](decisions/coordinator-service-errors-current.md)

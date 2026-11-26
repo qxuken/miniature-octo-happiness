@@ -447,7 +447,7 @@
     "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6",
     "docs/decisions/coordinator-sequenced-requests-current.md": "9dc75c37459933ae5124c6091236ddb125ae406e5034c8ac78bc19b1ec1a65c3",
     "docs/decisions/coordinator-cli-native-current.md": "b428a1fd22001f7beef09ba97fb5224bbcd9c3979dd4d43c6018f1fee328ecf5",
-    "docs/decisions/coordinator-service-lifecycle-current.md": "3d1b3d2e407fca86aff56f520343730a3b097c8354320df28bcec0d277ebc669",
+    "docs/decisions/coordinator-service-lifecycle-current.md": "577e66695319e89af6da7e34a86c3714f3a85e3d187a467bef6cf90f40b8bae0",
     "docs/decisions/coordinator-service-lifecycle-b3a2a18.sha256": "a2ac828f8b2c09fb2990384b18383f963e7a9d4b4d4cc0062e5a31e0afdad3b8",
     "docs/decisions/coordinator-legacy-boundaries-current.md": "6c7167d807ff6fd82767aaf90e037c6acb26b0cb2ff4b9a5a60a0cb99710542d",
     "docs/decisions/coordinator-legacy-boundaries-e25f2f9.sha256": "58373d985cef1e89f26597aa7df9c7cde35a8b38b7ccabbfc7499b41442506df",
@@ -455,7 +455,8 @@
     "docs/decisions/coordinator-init-8040d89.sha256": "983b4d5289ad1b76a00897db71f93c14ee362f630a7bcffbe462c92e08129754",
     "docs/decisions/coordinator-client-io-current.md": "26d39453123777a648199a556985bceb624b9a81f5ccd877145e51917701246e",
     "docs/decisions/coordinator-client-io-bce6c3b.sha256": "e20aee8e523a90bac9ee306514208752183261e11edf11ddef1776fbed7b4a21",
-    "docs/decisions/coordinator-service-errors-current.md": "829317a0cc2354eb151799ef0c3fe6c12b598d779dfe83ec3a753a6beb4bf503"
+    "docs/decisions/coordinator-service-errors-current.md": "31140d2f3257739156e33e331e0a752fc25a94bd63feb19c2333d64e84e91f07",
+    "docs/decisions/coordinator-service-errors-9a403fa.sha256": "767e74cabb0c5a8ade2fc83b2d4b7cfb0b8823b6fabd38717ca4167ea7f84428"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

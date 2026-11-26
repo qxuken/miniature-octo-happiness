@@ -24,9 +24,10 @@ after requesting shutdown and dropping its listener and request sender.
 
 The existing commit-and-stop test reopens the dispatched revision and verifies
 that the queued slot remains empty. The readiness fixture exercises the
-actual stdout error path. Injection of native socket setter and thread launch
-errors, the final admission-time check, and stop registration retain their
-own open records.
+actual stdout error path. The follow-up covers socket setter and launch
+failures, the final admission cutoff, and stop registration at the service
+boundary.
+[Service fault and shutdown coverage](coordinator-service-errors-current.md)
 
 ## Qualification
 
