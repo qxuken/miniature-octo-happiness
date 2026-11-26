@@ -9,7 +9,7 @@
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "0ea50472dbdbf0a26d98252bf93909e4b090fb675024d12ccc206f9de79c8dd9",
-    "apps/support/pinned_tls.rs": "c27bb3e2158dd15c2fd3ba5242459ac61aaa68059bf05f7d98bbd6d39b786fd5",
+    "apps/support/pinned_tls.rs": "8c90a079eb2242b292bf21f73e0f8a0ddda344169fa9382f1da40f34b55a3daa",
     "apps/support/service_diagnostics.rs": "fb80728e4368315a21775a33e08081f321717c05066f9a06f49107c84c6bf4a9",
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
@@ -183,7 +183,7 @@
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "908c0003f5d40873e75f5f2a573826f9abe91818f21370fd4ec1765910ce90fe",
     "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
-    "xtask/src/mutations.rs": "0f313c8c1d711d1762b3c11d1ecc9e094ec79da32304d4b3900fd7249d91b28e",
+    "xtask/src/mutations.rs": "3f3e2c6cb9edf3007c1fbffa88bc94db38d6e37c8f67744ed3f057be70ffe801",
     "xtask/src/mutations_windows.rs": "a51f73211e0c0db1df2f13522c3eadf7956619ec05447aa99a1a02dafbe24c5d",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
     "xtask/src/odin.rs": "2163d0c80fdd26b1230fc3e37d814a7c978e653b52c6e7ff8811df6b6c7fc82a",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "4aeefe0ca8ca8dd97b0d6abf39d85c39556e4e0c1703bb7fe0f1776028166a02",
+    "xtask/tests/mutations.json": "3d813c86c76f7ad058157d623369ead1252b909ae30d7be23fdb30242d6da75c",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -371,7 +371,7 @@
     "docs/decisions/record-derive-current.md": "aeaebc7fefbf270bb253d89a5e597f81dca25c21ff44fc7d4fab0871cd307f6a",
     "docs/decisions/model-derive-current.md": "8a5d881b26348e0536014019a49423c36ee09e4eb038f98ce9285ca15999ec77",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
-    "xtask/src/mutations.rs": "0f313c8c1d711d1762b3c11d1ecc9e094ec79da32304d4b3900fd7249d91b28e",
+    "xtask/src/mutations.rs": "3f3e2c6cb9edf3007c1fbffa88bc94db38d6e37c8f67744ed3f057be70ffe801",
     "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
     "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
     "tests/replication.rs": "91cc5dc9e1e33f05657e58105c6f3ee4d15ba043dedc381350c04ae8a99a4dcc",
@@ -439,7 +439,7 @@
     "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
     "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
     "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
-    "apps/support/pinned_tls.rs": "c27bb3e2158dd15c2fd3ba5242459ac61aaa68059bf05f7d98bbd6d39b786fd5",
+    "apps/support/pinned_tls.rs": "8c90a079eb2242b292bf21f73e0f8a0ddda344169fa9382f1da40f34b55a3daa",
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
     "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
@@ -458,7 +458,8 @@
     "docs/decisions/coordinator-service-errors-current.md": "f4b39f4e307013c646523b2726ea4f33a071085e1aa2e9e2955477fc5a39ac13",
     "docs/decisions/coordinator-service-errors-9a403fa.sha256": "767e74cabb0c5a8ade2fc83b2d4b7cfb0b8823b6fabd38717ca4167ea7f84428",
     "docs/decisions/coordinator-platform-signals-current.md": "79e545320c4c6ddd666885ae5f537ff8cb7c1cd0db5741e7363e3cfb91f8a1a2",
-    "docs/decisions/coordinator-platform-signals-6855f58.sha256": "85c0d6ddfb3923cac4e8e1b58ed28c8f7ba185043faacc9800d06104b3019aee"
+    "docs/decisions/coordinator-platform-signals-6855f58.sha256": "85c0d6ddfb3923cac4e8e1b58ed28c8f7ba185043faacc9800d06104b3019aee",
+    "docs/decisions/shared-tls-credential-io-current.md": "59f3f01793df4788a999243d5a3f53cc3be0d6ded1dc65da5ecb817984cc7398"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -1020,7 +1021,8 @@
         "docs/decisions/credential-file-admission-current.md",
         "docs/decisions/shared-tls-deadline-current.md",
         "docs/decisions/shared-tls-config-current.md",
-        "docs/decisions/coordinator-platform-signals-current.md"
+        "docs/decisions/coordinator-platform-signals-current.md",
+        "docs/decisions/shared-tls-credential-io-current.md"
       ],
       "residual": "TLS dependency/native outcomes and generated logging/error branches are not inferred covered for every binary."
     },
@@ -32050,9 +32052,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 9863,
+        "start_byte": 10857,
         "conditions": [
           "fs::metadata(path)"
         ]
@@ -32073,9 +32075,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 9841,
+        "start_byte": 10835,
         "conditions": [
           "!fs::metadata(path)?.is_file()"
         ]
@@ -32110,9 +32112,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 10199,
+        "start_byte": 11190,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32158,9 +32160,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "short_circuit_and",
-        "start_byte": 10202,
+        "start_byte": 11193,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32206,9 +32208,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 10490,
+        "start_byte": 11481,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32254,9 +32256,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "short_circuit_or",
-        "start_byte": 10493,
+        "start_byte": 11484,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32302,9 +32304,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 9863,
+        "start_byte": 10857,
         "conditions": [
           "fs::metadata(path)"
         ]
@@ -32325,9 +32327,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 9841,
+        "start_byte": 10835,
         "conditions": [
           "!fs::metadata(path)?.is_file()"
         ]
@@ -32362,9 +32364,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 10199,
+        "start_byte": 11190,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32410,9 +32412,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "short_circuit_and",
-        "start_byte": 10202,
+        "start_byte": 11193,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32458,9 +32460,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 10490,
+        "start_byte": 11481,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32506,9 +32508,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "bounded",
+        "owner": "bounded_with",
         "kind": "short_circuit_or",
-        "start_byte": 10493,
+        "start_byte": 11484,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -36683,7 +36685,7 @@
         "target": "study-peer::study-peer",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 6562,
+        "start_byte": 7199,
         "conditions": [
           "stream.sock.remaining()"
         ]
@@ -36706,7 +36708,7 @@
         "target": "study-peer::study-peer",
         "owner": "read",
         "kind": "try_propagation",
-        "start_byte": 7058,
+        "start_byte": 7695,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36729,7 +36731,7 @@
         "target": "study-peer::study-peer",
         "owner": "write",
         "kind": "try_propagation",
-        "start_byte": 7272,
+        "start_byte": 7909,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36752,7 +36754,7 @@
         "target": "study-peer::study-peer",
         "owner": "flush",
         "kind": "try_propagation",
-        "start_byte": 7383,
+        "start_byte": 8020,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36775,7 +36777,7 @@
         "target": "study-peer::study-peer",
         "owner": "remaining",
         "kind": "if",
-        "start_byte": 7943,
+        "start_byte": 8580,
         "conditions": [
           "remaining.is_zero()"
         ]
@@ -36812,7 +36814,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "try_propagation",
-        "start_byte": 8280,
+        "start_byte": 8917,
         "conditions": [
           "self.remaining()"
         ]
@@ -36835,7 +36837,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "if",
-        "start_byte": 8295,
+        "start_byte": 8932,
         "conditions": [
           "let Some(canceled) = &self.cancellation"
         ]
@@ -36872,7 +36874,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "if",
-        "start_byte": 8356,
+        "start_byte": 8993,
         "conditions": [
           "canceled.load(Relaxed)"
         ]
@@ -36909,7 +36911,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "match_guard",
-        "start_byte": 8654,
+        "start_byte": 9291,
         "conditions": [
           "self.cancellation.is_some()",
           "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
@@ -36959,7 +36961,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 6562,
+        "start_byte": 7199,
         "conditions": [
           "stream.sock.remaining()"
         ]
@@ -36982,7 +36984,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "read",
         "kind": "try_propagation",
-        "start_byte": 7058,
+        "start_byte": 7695,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37005,7 +37007,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "write",
         "kind": "try_propagation",
-        "start_byte": 7272,
+        "start_byte": 7909,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37028,7 +37030,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "flush",
         "kind": "try_propagation",
-        "start_byte": 7383,
+        "start_byte": 8020,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37051,7 +37053,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "remaining",
         "kind": "if",
-        "start_byte": 7943,
+        "start_byte": 8580,
         "conditions": [
           "remaining.is_zero()"
         ]
@@ -37088,7 +37090,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "try_propagation",
-        "start_byte": 8280,
+        "start_byte": 8917,
         "conditions": [
           "self.remaining()"
         ]
@@ -37111,7 +37113,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "if",
-        "start_byte": 8295,
+        "start_byte": 8932,
         "conditions": [
           "let Some(canceled) = &self.cancellation"
         ]
@@ -37148,7 +37150,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "if",
-        "start_byte": 8356,
+        "start_byte": 8993,
         "conditions": [
           "canceled.load(Relaxed)"
         ]
@@ -37185,7 +37187,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "match_guard",
-        "start_byte": 8654,
+        "start_byte": 9291,
         "conditions": [
           "self.cancellation.is_some()",
           "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
@@ -37233,9 +37235,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "create",
+        "owner": "create_with",
         "kind": "try_propagation",
-        "start_byte": 1264,
+        "start_byte": 1918,
         "conditions": [
           "fs::DirBuilder::new().mode(0o700).create(dir)"
         ]
@@ -37258,7 +37260,7 @@
         "target": "study-peer::study-peer",
         "owner": "load",
         "kind": "try_propagation",
-        "start_byte": 1879,
+        "start_byte": 2516,
         "conditions": [
           "bounded_file(&dir.join(\"cert.der\"), 65536)"
         ]
@@ -37281,7 +37283,7 @@
         "target": "study-peer::study-peer",
         "owner": "load",
         "kind": "try_propagation",
-        "start_byte": 1973,
+        "start_byte": 2610,
         "conditions": [
           "bounded(&dir.join(\"key.der\"), 16384, true)"
         ]
@@ -37304,7 +37306,7 @@
         "target": "study-peer::study-peer",
         "owner": "new",
         "kind": "if",
-        "start_byte": 2304,
+        "start_byte": 2941,
         "conditions": [
           "peer == local.cert"
         ]
@@ -37341,7 +37343,7 @@
         "target": "study-peer::study-peer",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 2490,
+        "start_byte": 3127,
         "conditions": [
           "roots.add(peer.clone())"
         ]
@@ -37364,7 +37366,7 @@
         "target": "study-peer::study-peer",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 2676,
+        "start_byte": 3313,
         "conditions": [
           "ClientConfig::builder()\n            .with_root_certificates(roots.clone())\n            .with_client_auth_cert(vec![local.cert.clone()], local.key.clone_key())"
         ]
@@ -37387,7 +37389,7 @@
         "target": "study-peer::study-peer",
         "owner": "connect",
         "kind": "try_propagation",
-        "start_byte": 3415,
+        "start_byte": 4052,
         "conditions": [
           "TcpStream::connect_timeout(&address, TIMEOUT)"
         ]
@@ -37410,7 +37412,7 @@
         "target": "study-peer::study-peer",
         "owner": "check_pin",
         "kind": "if",
-        "start_byte": 6165,
+        "start_byte": 6802,
         "conditions": [
           "chain.and_then(|certs| certs.first()) == Some(&self.peer)"
         ]
@@ -37445,9 +37447,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "create",
+        "owner": "create_with",
         "kind": "try_propagation",
-        "start_byte": 1264,
+        "start_byte": 1918,
         "conditions": [
           "fs::DirBuilder::new().mode(0o700).create(dir)"
         ]
@@ -37470,7 +37472,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "load",
         "kind": "try_propagation",
-        "start_byte": 1879,
+        "start_byte": 2516,
         "conditions": [
           "bounded_file(&dir.join(\"cert.der\"), 65536)"
         ]
@@ -37493,7 +37495,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "load",
         "kind": "try_propagation",
-        "start_byte": 1973,
+        "start_byte": 2610,
         "conditions": [
           "bounded(&dir.join(\"key.der\"), 16384, true)"
         ]
@@ -37516,7 +37518,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "new",
         "kind": "if",
-        "start_byte": 2304,
+        "start_byte": 2941,
         "conditions": [
           "peer == local.cert"
         ]
@@ -37553,7 +37555,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 2490,
+        "start_byte": 3127,
         "conditions": [
           "roots.add(peer.clone())"
         ]
@@ -37576,7 +37578,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 2676,
+        "start_byte": 3313,
         "conditions": [
           "ClientConfig::builder()\n            .with_root_certificates(roots.clone())\n            .with_client_auth_cert(vec![local.cert.clone()], local.key.clone_key())"
         ]
@@ -37599,7 +37601,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "connect",
         "kind": "try_propagation",
-        "start_byte": 3415,
+        "start_byte": 4052,
         "conditions": [
           "TcpStream::connect_timeout(&address, TIMEOUT)"
         ]
@@ -37622,7 +37624,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "check_pin",
         "kind": "if",
-        "start_byte": 6165,
+        "start_byte": 6802,
         "conditions": [
           "chain.and_then(|certs| certs.first()) == Some(&self.peer)"
         ]
@@ -42518,6 +42520,990 @@
       ],
       "mutations": [
         "r1-platform-stop-console-cleanup"
+      ]
+    },
+    {
+      "name": "CREDENTIAL-FILE-EXAMPLE-MISSING-KIND",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 10857,
+        "conditions": [
+          "fs::metadata(path)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "self_pin_empty_file_and_public_private_mode_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-missing-kind"
+      ]
+    },
+    {
+      "name": "CREDENTIAL-FILE-EXAMPLE-FILE-TYPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "if",
+        "start_byte": 10835,
+        "conditions": [
+          "!fs::metadata(path)?.is_file()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "self_pin_empty_file_and_public_private_mode_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-file-type"
+      ]
+    },
+    {
+      "name": "CREDENTIAL-FILE-EXAMPLE-PUBLIC-MODE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "if",
+        "start_byte": 11190,
+        "conditions": [
+          "private",
+          "metadata.permissions().mode() & 0o077 != 0"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "self_pin_empty_file_and_public_private_mode_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-public-mode",
+        "r1-tls-credential-io-example-private-mode"
+      ]
+    },
+    {
+      "name": "CREDENTIAL-FILE-EXAMPLE-PUBLIC-MODE-SHORT-CIRCUIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "short_circuit_and",
+        "start_byte": 11193,
+        "conditions": [
+          "private",
+          "metadata.permissions().mode() & 0o077 != 0"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "self_pin_empty_file_and_public_private_mode_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-public-mode",
+        "r1-tls-credential-io-example-private-mode"
+      ]
+    },
+    {
+      "name": "CREDENTIAL-FILE-EXAMPLE-EMPTY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "if",
+        "start_byte": 11481,
+        "conditions": [
+          "bytes.is_empty()",
+          "bytes.len() > limit"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "self_pin_empty_file_and_public_private_mode_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-empty",
+        "r1-tls-credential-io-example-too-large"
+      ]
+    },
+    {
+      "name": "CREDENTIAL-FILE-EXAMPLE-EMPTY-SHORT-CIRCUIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "short_circuit_or",
+        "start_byte": 11484,
+        "conditions": [
+          "bytes.is_empty()",
+          "bytes.len() > limit"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "self_pin_empty_file_and_public_private_mode_controls"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-empty",
+        "r1-tls-credential-io-example-too-large"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-CONFIG-EXAMPLE-KEYGEN-DIRECTORY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 1918,
+        "conditions": [
+          "fs::DirBuilder::new().mode(0o700).create(dir)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "keygen_directory_failure_preserves_native_error_and_existing_files"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-keygen-directory"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-CONFIG-EXAMPLE-LOAD-CERTIFICATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "load",
+        "kind": "try_propagation",
+        "start_byte": 2516,
+        "conditions": [
+          "bounded_file(&dir.join(\"cert.der\"), 65536)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "load_bounds_and_regular_file_checks_precede_tls"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-load-certificate"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-CONFIG-EXAMPLE-LOAD-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "load",
+        "kind": "try_propagation",
+        "start_byte": 2610,
+        "conditions": [
+          "bounded(&dir.join(\"key.der\"), 16384, true)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "load_bounds_and_regular_file_checks_precede_tls"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-load-key"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-GENERATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "from_generated",
+        "kind": "try_propagation",
+        "start_byte": 1024,
+        "conditions": [
+          "generated"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "generation_preserves_the_original_certificate_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-generate"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-KEYGEN-GENERATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 1752,
+        "conditions": [
+          "generate()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-keygen-generate"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-KEYGEN-OPEN-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2032,
+        "conditions": [
+          "open_key(&key, &dir.join(\"key.der\"))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-keygen-open-key"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-KEYGEN-WRITE-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2067,
+        "conditions": [
+          "open_key(&key, &dir.join(\"key.der\"))?.write_all(creds.key.secret_der())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-keygen-write-key"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-KEYGEN-WRITE-CERT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2132,
+        "conditions": [
+          "write_cert(&dir.join(\"cert.der\"), creds.cert.as_ref())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-keygen-write-cert"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-READ-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 10966,
+        "conditions": [
+          "open(path)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-read-open"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-READ-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 11010,
+        "conditions": [
+          "opened_metadata(&file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-read-metadata"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-READ-BYTES",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 11474,
+        "conditions": [
+          "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-read-bytes"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-STUDY-READ-HANDLE-TYPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "bounded_with",
+        "kind": "if",
+        "start_byte": 11017,
+        "conditions": [
+          "!metadata.is_file()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-study-read-handle-type"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-GENERATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "from_generated",
+        "kind": "try_propagation",
+        "start_byte": 1024,
+        "conditions": [
+          "generated"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "generation_preserves_the_original_certificate_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-generate"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-KEYGEN-GENERATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 1752,
+        "conditions": [
+          "generate()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-keygen-generate"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-KEYGEN-OPEN-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2032,
+        "conditions": [
+          "open_key(&key, &dir.join(\"key.der\"))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-keygen-open-key"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-KEYGEN-WRITE-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2067,
+        "conditions": [
+          "open_key(&key, &dir.join(\"key.der\"))?.write_all(creds.key.secret_der())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-keygen-write-key"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-KEYGEN-WRITE-CERT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2132,
+        "conditions": [
+          "write_cert(&dir.join(\"cert.der\"), creds.cert.as_ref())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-keygen-write-cert"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-READ-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 10966,
+        "conditions": [
+          "open(path)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-read-open"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-READ-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 11010,
+        "conditions": [
+          "opened_metadata(&file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-read-metadata"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-READ-BYTES",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 11474,
+        "conditions": [
+          "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-read-bytes"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-SNAPSHOT-READ-HANDLE-TYPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "bounded_with",
+        "kind": "if",
+        "start_byte": 11017,
+        "conditions": [
+          "!metadata.is_file()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-snapshot-read-handle-type"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-GENERATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "from_generated",
+        "kind": "try_propagation",
+        "start_byte": 1024,
+        "conditions": [
+          "generated"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "generation_preserves_the_original_certificate_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-generate"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-KEYGEN-GENERATE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 1752,
+        "conditions": [
+          "generate()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-keygen-generate"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-KEYGEN-OPEN-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2032,
+        "conditions": [
+          "open_key(&key, &dir.join(\"key.der\"))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-keygen-open-key"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-KEYGEN-WRITE-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2067,
+        "conditions": [
+          "open_key(&key, &dir.join(\"key.der\"))?.write_all(creds.key.secret_der())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-keygen-write-key"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-KEYGEN-WRITE-CERT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "create_with",
+        "kind": "try_propagation",
+        "start_byte": 2132,
+        "conditions": [
+          "write_cert(&dir.join(\"cert.der\"), creds.cert.as_ref())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "failed_keygen_preserves_the_error_and_the_completed_file_prefix"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-keygen-write-cert"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-READ-OPEN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 10966,
+        "conditions": [
+          "open(path)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-read-open"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-READ-METADATA",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 11010,
+        "conditions": [
+          "opened_metadata(&file)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-read-metadata"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-READ-BYTES",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "try_propagation",
+        "start_byte": 11474,
+        "conditions": [
+          "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-read-bytes"
+      ]
+    },
+    {
+      "name": "TLS-CREDENTIAL-IO-EXAMPLE-READ-HANDLE-TYPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "bounded_with",
+        "kind": "if",
+        "start_byte": 11017,
+        "conditions": [
+          "!metadata.is_file()"
+        ]
+      },
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ],
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "opened_credential_failures_preserve_error_and_skip_later_reads"
+        }
+      ],
+      "mutations": [
+        "r1-tls-credential-io-example-read-handle-type"
       ]
     }
   ],

@@ -24,8 +24,14 @@ pub(crate) struct Credentials {
 impl Credentials {
     #[cfg(any(unix, test))]
     pub(crate) fn generate() -> AppResult<Self> {
-        let rcgen::CertifiedKey { cert, signing_key } =
-            rcgen::generate_simple_self_signed([SERVER_NAME.to_owned()])?;
+        Self::from_generated(rcgen::generate_simple_self_signed([SERVER_NAME.to_owned()]))
+    }
+
+    #[cfg(any(unix, test))]
+    fn from_generated(
+        generated: Result<rcgen::CertifiedKey<rcgen::KeyPair>, rcgen::Error>,
+    ) -> AppResult<Self> {
+        let rcgen::CertifiedKey { cert, signing_key } = generated?;
         Ok(Self {
             cert: cert.der().clone(),
             key: PrivatePkcs8KeyDer::from(signing_key.serialize_der()).into(),
@@ -34,16 +40,29 @@ impl Credentials {
 
     #[cfg(unix)]
     pub(crate) fn create(dir: &Path) -> AppResult<()> {
-        let creds = Self::generate()?;
+        Self::create_with(
+            dir,
+            Self::generate,
+            |options, path| options.open(path),
+            |path, bytes| fs::write(path, bytes),
+        )
+    }
+
+    #[cfg(unix)]
+    fn create_with<W: Write>(
+        dir: &Path,
+        generate: impl FnOnce() -> AppResult<Self>,
+        open_key: impl FnOnce(&fs::OpenOptions, &Path) -> io::Result<W>,
+        write_cert: impl FnOnce(&Path, &[u8]) -> io::Result<()>,
+    ) -> AppResult<()> {
+        let creds = generate()?;
         let mut key = fs::OpenOptions::new();
         use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
         fs::DirBuilder::new().mode(0o700).create(dir)?;
         key.mode(0o600);
-        key.write(true)
-            .create_new(true)
-            .open(dir.join("key.der"))?
-            .write_all(creds.key.secret_der())?;
-        fs::write(dir.join("cert.der"), creds.cert.as_ref())?;
+        key.write(true).create_new(true);
+        open_key(&key, &dir.join("key.der"))?.write_all(creds.key.secret_der())?;
+        write_cert(&dir.join("cert.der"), creds.cert.as_ref())?;
         Ok(())
     }
 
@@ -305,13 +324,29 @@ pub(crate) fn bounded_file(path: &Path, limit: usize) -> AppResult<Vec<u8>> {
     bounded(path, limit, false)
 }
 fn bounded(path: &Path, limit: usize, private: bool) -> AppResult<Vec<u8>> {
+    bounded_with(
+        path,
+        limit,
+        private,
+        |path| fs::File::open(path),
+        fs::File::metadata,
+    )
+}
+
+fn bounded_with<R: Read>(
+    path: &Path,
+    limit: usize,
+    private: bool,
+    open: impl FnOnce(&Path) -> io::Result<R>,
+    opened_metadata: impl FnOnce(&R) -> io::Result<fs::Metadata>,
+) -> AppResult<Vec<u8>> {
     // Configuration lives in a trusted directory. Reject special files before
     // opening (notably blocking FIFOs), then recheck the opened handle.
     if !fs::metadata(path)?.is_file() {
         return Err("credential must be a regular file".into());
     }
-    let file = fs::File::open(path)?;
-    let metadata = file.metadata()?;
+    let file = open(path)?;
+    let metadata = opened_metadata(&file)?;
     if !metadata.is_file() {
         return Err("credential must be a regular file".into());
     }
@@ -945,6 +980,226 @@ mod credential_boundary_tests {
     impl Drop for FixtureDirectory {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn assert_io_failure(
+        error: &(dyn std::error::Error + 'static),
+        kind: io::ErrorKind,
+        message: &str,
+    ) {
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(kind)
+        );
+        assert_eq!(error.to_string(), message);
+    }
+
+    #[test]
+    fn opened_credential_failures_preserve_error_and_skip_later_reads() {
+        use std::cell::Cell;
+
+        struct FailedRead<'a>(&'a Cell<usize>);
+        impl Read for FailedRead<'_> {
+            fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+                self.0.set(self.0.get() + 1);
+                Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "fixture credential read",
+                ))
+            }
+        }
+
+        let root = FixtureDirectory::new();
+        let path = root.0.join("credential");
+        fs::write(&path, b"credential data").unwrap();
+        let reads = Cell::new(0);
+        let error = bounded_with(
+            &path,
+            64,
+            false,
+            |_| {
+                Err::<FailedRead<'_>, _>(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "fixture credential open",
+                ))
+            },
+            |_| panic!("handle metadata requested after a failed open"),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::PermissionDenied,
+            "fixture credential open",
+        );
+
+        let error = bounded_with(
+            &path,
+            64,
+            false,
+            |_| Ok(FailedRead(&reads)),
+            |_| {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "fixture credential metadata",
+                ))
+            },
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::NotFound,
+            "fixture credential metadata",
+        );
+        let error = bounded_with(
+            &path,
+            64,
+            false,
+            |_| Ok(FailedRead(&reads)),
+            |_| fs::metadata(&root.0),
+        )
+        .unwrap_err();
+        assert_eq!(error.to_string(), "credential must be a regular file");
+        assert_eq!(reads.get(), 0);
+
+        let error = bounded_with(
+            &path,
+            64,
+            false,
+            |_| Ok((&b"ab"[..]).chain(FailedRead(&reads))),
+            |_| fs::metadata(&path),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::UnexpectedEof,
+            "fixture credential read",
+        );
+        assert_eq!(reads.get(), 1);
+        assert_eq!(fs::read(&path).unwrap(), b"credential data");
+    }
+
+    #[test]
+    fn generation_preserves_the_original_certificate_error() {
+        let error = Credentials::from_generated(Err(rcgen::Error::RingUnspecified))
+            .err()
+            .expect("failed certificate generation returned credentials");
+        assert!(matches!(
+            error.downcast_ref::<rcgen::Error>(),
+            Some(rcgen::Error::RingUnspecified)
+        ));
+        assert_eq!(error.to_string(), rcgen::Error::RingUnspecified.to_string());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_keygen_preserves_the_error_and_the_completed_file_prefix() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = FixtureDirectory::new();
+        let absent = root.0.join("generation");
+        let error = Credentials::create_with::<fs::File>(
+            &absent,
+            || Err(io::Error::new(io::ErrorKind::PermissionDenied, "fixture generation").into()),
+            |_, _| panic!("failed generation opened a key"),
+            |_, _| panic!("failed generation opened a certificate"),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::PermissionDenied,
+            "fixture generation",
+        );
+        assert!(!absent.exists());
+
+        let unopened = root.0.join("key-open");
+        let error = Credentials::create_with(
+            &unopened,
+            Credentials::generate,
+            |_, _| {
+                Err::<fs::File, _>(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "fixture key open",
+                ))
+            },
+            |_, _| panic!("failed key open started the certificate"),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::PermissionDenied,
+            "fixture key open",
+        );
+        assert_eq!(fs::read_dir(&unopened).unwrap().count(), 0);
+
+        struct PartialKey(fs::File, bool);
+        impl Write for PartialKey {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                if self.1 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::StorageFull,
+                        "fixture key write",
+                    ));
+                }
+                self.1 = true;
+                self.0.write(&bytes[..1])
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                self.0.flush()
+            }
+        }
+
+        let partial = root.0.join("key-write");
+        let error = Credentials::create_with(
+            &partial,
+            Credentials::generate,
+            |options, path| Ok(PartialKey(options.open(path)?, false)),
+            |_, _| panic!("failed key write started the certificate"),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::StorageFull,
+            "fixture key write",
+        );
+        let key_metadata = fs::metadata(partial.join("key.der")).unwrap();
+        assert_eq!(key_metadata.len(), 1);
+        assert_eq!(key_metadata.permissions().mode() & 0o777, 0o600);
+        assert!(!partial.join("cert.der").exists());
+
+        let written = root.0.join("certificate-write");
+        let credentials = Credentials::generate().unwrap();
+        let expected_key = credentials.key.secret_der().to_vec();
+        let error = Credentials::create_with(
+            &written,
+            || Ok(credentials),
+            |options, path| options.open(path),
+            |_, _| {
+                Err(io::Error::new(
+                    io::ErrorKind::StorageFull,
+                    "fixture certificate write",
+                ))
+            },
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::StorageFull,
+            "fixture certificate write",
+        );
+        assert!(
+            fs::read(written.join("key.der")).unwrap() == expected_key,
+            "completed key differs"
+        );
+        assert!(!written.join("cert.der").exists());
+        for dir in [unopened, partial, written] {
+            let error = Credentials::load(&dir)
+                .err()
+                .expect("incomplete credential pair loaded");
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::NotFound)
+            );
         }
     }
 

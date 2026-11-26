@@ -106,7 +106,10 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 && c.old != c.new
                 && c.occurrence > 0
                 && c.matches.is_none_or(|n| n > 0)
-                && matches!(c.target.as_str(), "--lib" | "--test" | "--bin" | "--bins")
+                && matches!(
+                    c.target.as_str(),
+                    "--lib" | "--test" | "--bin" | "--bins" | "--example"
+                )
                 && match (&c.manifest, c.package.as_str()) {
                     (
                         None,
@@ -123,7 +126,7 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
         );
         ensure!(
             c.exact_test.as_deref().is_none_or(|name| {
-                (matches!(c.target.as_str(), "--test" | "--bin")
+                (matches!(c.target.as_str(), "--test" | "--bin" | "--example")
                     || (c.target == "--lib" && c.test == name))
                     && name.split("::").all(|part| {
                         !part.is_empty()
