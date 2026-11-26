@@ -441,7 +441,7 @@
     "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
     "apps/support/pinned_tls.rs": "c27bb3e2158dd15c2fd3ba5242459ac61aaa68059bf05f7d98bbd6d39b786fd5",
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
-    "docs/decisions/shared-tls-config-current.md": "eebccb4c376e1933cedfe0cd1dba4e2ef69aaa266b4f1113c17d050f2fdbe196"
+    "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

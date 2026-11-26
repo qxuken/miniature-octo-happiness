@@ -20,6 +20,25 @@ ECDSA implementation can request entropy during a second key setup even
 after the client builder accepted the key. The Unix creation and file read
 faults beyond the measured calls retain separate records.
 
+## Qualification
+
+Frozen source `4255b32b3f604970ff02c7acb3b1368267b2164a` ran with
+Rust 1.100.0 and locked dependencies.
+
+| Platform | Debug and release, per profile |
+| --- | --- |
+| macOS arm64 | 71 snapshot CLI and 75 Study tests passed. All 16 mutation controls were caught. |
+| Docker Linux arm64/ext4 | 72 snapshot CLI and 75 Study tests passed. One opt-in snapshot test was ignored. All 16 mutation controls were caught. |
+| Windows x64/MSVC | The two CLI unit-test executables cross-linked. Native execution is pending. |
+
+The core replication suite passed 11 tests with one ignored on each Unix
+platform. Clippy with warnings denied passed for both applications on both
+platforms. Fresh extraction verified all intended failure assertions,
+62 supervised commands and 1,012 restored source inputs per campaign.
+The review accounts for eight measured records and two input invariants
+per binary. Repository reconciliation leaves 253 runtime and 7,468 tooling
+gaps. [Frozen campaign checksums](shared-tls-config-4255b32.sha256)
+
 ## Exact source rows
 
 | Source | SHA-256 |

@@ -2409,3 +2409,17 @@ The review reconciles 24 runtime records. The native timeout setters
 and the monthly-workload example retain their own open records.
 Repository reconciliation leaves 273 runtime and 7,468 tooling gaps.
 [Shared TLS deadline ledger](decisions/shared-tls-deadline-current.md)
+
+### Shared TLS configuration and credential loading
+
+At `4255b32`, both CLIs verify credential creation and loading errors,
+preservation of Rustls configuration errors, propagation of socket refusal,
+and rejection when the pinned certificate is present behind a different
+leaf. macOS and Docker Linux/ext4 passed debug and release and caught all
+16 controls per campaign. Both Windows x64 unit-test executables
+cross-linked per profile. Native execution remains open for this source.
+
+The review accounts for 20 runtime records. The later entropy-dependent
+server key setup and unmeasured native file and socket failures retain
+their open records. Repository reconciliation leaves 253 runtime and
+7,468 tooling gaps. [Shared TLS configuration ledger](decisions/shared-tls-config-current.md)
