@@ -2438,3 +2438,15 @@ tests and all 12 named controls. The standalone coordinator replay also passed
 cross-linked per profile. Native execution remains open for this source.
 Reconciliation covers 12 runtime records and leaves 241 runtime and 7,468
 tooling gaps. [Sequenced startup ledger](decisions/coordinator-sequenced-startup-current.md)
+
+### Native snapshot export overlap under delayed writes
+
+The Windows minimum-Rust run at `6f0b013` reached the first destination
+sync pause and timed out awaiting four source publications. The `f7d1db3`
+fixture uses a bounded watchdog and records source progress before release.
+A delayed writer reproduces the old timeout and passes with the revised
+fixture. A deliberately held source lock still makes the overlap assertion
+fail. Both macOS and Docker Linux/ext4 profiles passed 11 replication tests
+and caught all nine controls. The Windows x64 test executable linked per
+profile, with native execution pending.
+[Native overlap qualification](replication-operations.md#native-overlap-watchdog)

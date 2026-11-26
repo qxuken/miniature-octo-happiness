@@ -670,3 +670,35 @@ cargo test --locked -p weekend-db --all-features --test replication \
 The [authenticated Mac-to-Linux month workload](live-replication-month.md)
 exercises the embedded primary against the actual TLS follower CLI, including
 31 installs, four dropped replies and all 31 retained roots after reopen.
+
+### Native overlap watchdog
+
+At PR #82 head `6f0b013`, the Windows MSVC minimum-Rust job checked out
+PR merge `983cd7ee9d1f33e146ea7cbbe8f29ca327c891dc`, whose tree matches
+the PR head. The replication suite reached the destination's first durable
+sync. The writer's five-second watchdog fired before the four native source
+publications completed. This was the sole failing test in the captured
+debug command. The captured log leaves the cause of the delay unresolved.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45733450473/job/139620886656)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45733450473/artifacts/15077792394).
+
+At `f7d1db3`, the fixture allows 60 seconds for each wait and owns the
+release signal within the test scope. All four source publications must
+complete before that signal. On timeout the fixture records completed
+publications before releasing and joining the destination. The same test
+still compares exact export bytes, current and retained roots, and the
+reopened follower receipt.
+
+| Isolated macOS schedule | Result |
+| --- | --- |
+| Original fixture, normal execution | Pass |
+| Original fixture, 5.5-second delay before the source writer starts | Old timeout reproduced |
+| Updated fixture, same 5.5-second delay | Pass |
+| Updated fixture, source writer lock deliberately held across destination I/O | Fails with zero of four publications observed before release. This control uses a 750 ms watchdog. |
+
+The unmodified `f7d1db3` suite passed 11 tests per profile on macOS arm64
+and Docker Linux arm64/ext4, with one maintenance test ignored. Both
+profiles caught all nine linked replication integration mutations on each
+platform. Strict Clippy passed. The Windows x64 test executable cross-linked
+in both profiles. Native execution of this fixture is pending.
+[Frozen source and evidence checksums](decisions/native-export-overlap-f7d1db3.sha256)
