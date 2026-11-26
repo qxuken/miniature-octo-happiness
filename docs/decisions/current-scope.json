@@ -469,7 +469,8 @@
     "docs/decisions/shared-tls-transport-0cd752b.sha256": "d64b956dbdef18cbb8ed339adad784f9e60bddd4a40954775ced926c3879f0f3",
     "docs/decisions/windows-open-flow-current.md": "3ffb4b681b95a4f3676f5f92b3e1054118efc16c7ccf95fff30214e7de3d4931",
     "docs/decisions/windows-open-flow-ee67459.sha256": "0010a04678335a378e44dad73309a7e91ff0adca4a1cd367b0d176b29b8e5269",
-    "docs/decisions/supervisor-result-pairs-current.md": "9eb1b32f2b6e03c534337b7e77725d0a80326d77fe7abb4a4a040b767dec0152"
+    "docs/decisions/supervisor-result-pairs-current.md": "dc575ecee8bf53af16f4c7b5c4b70dc0d9eb8f89bfab629fab8d3ce8f1b40d48",
+    "docs/decisions/supervisor-result-pairs-24b6e34.sha256": "f3fb6df47cf29d6882eb91d4144f7095ef88ea9d2769c0ea76effb07be7ff0b9"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

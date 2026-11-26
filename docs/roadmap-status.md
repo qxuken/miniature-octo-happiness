@@ -123,6 +123,11 @@ linked per profile. The audit leaves six native path-entry records and
 7,384 tooling gaps. Native Windows execution remains pending.
 [Windows open-flow qualification](decisions/windows-open-flow-current.md)
 
+At `24b6e34`, both Unix hosts passed 22 supervisor tests and caught all
+17 result controls per profile. The audit closes 14 tooling records and
+leaves 7,370 tooling gaps.
+[Supervisor result qualification](decisions/supervisor-result-pairs-current.md)
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |

@@ -2656,3 +2656,11 @@ Three Windows x64 test executables linked per profile. The six native
 path-entry records remain open until their tests run on Windows. The
 audit also retains 7,384 tooling gaps.
 [Windows open-flow ledger](decisions/windows-open-flow-current.md)
+
+### Supervisor result classification
+
+At `24b6e34`, ordinary success, expected failure and clean stop
+each have independent predicate checks. Each profile passed 22 tests
+and detected all 17 mutations on macOS and Docker Linux/ext4.
+The audit closes 14 tooling records and leaves 7,370 tooling gaps.
+[Supervisor result ledger](decisions/supervisor-result-pairs-current.md)
