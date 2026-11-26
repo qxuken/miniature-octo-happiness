@@ -2612,3 +2612,18 @@ linked in both profiles. Native Windows execution is pending.
 The batch reconciles 18 runtime and 18 tooling records. The audit leaves
 58 runtime and 7,423 tooling gaps.
 [Credential I/O ledger](decisions/shared-tls-credential-io-current.md)
+
+### Shared TLS handshake admission
+
+At `0fe8b54`, both endpoints preserve the original first I/O failure.
+The unfinished handshake and pending-write conditions reject independently.
+A finished connection with the wrong application pin or absent ALPN returns
+the corresponding diagnostic. Each of the three TLS targets exercises both
+endpoint roles.
+
+Each profile passed 181 tests on macOS and 182 on Docker Linux/ext4.
+Both hosts caught all 30 mutations. Ten Windows x64 test executables
+linked per profile. Native Windows execution is pending. The batch
+reconciles 20 runtime and 10 tooling records. The current audit leaves
+38 runtime and 7,413 tooling gaps.
+[Handshake admission ledger](decisions/shared-tls-handshake-current.md)

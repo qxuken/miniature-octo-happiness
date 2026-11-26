@@ -83,7 +83,7 @@ recorded in the R1 report. Each hosted result retains its exact source.
 All legacy protocol, native coordinator CLI, service, stop and shared
 listener source records have dispositions. The latest `6855f58` audit
 passed 166 tests on macOS and 167 on Docker Linux/ext4 per profile, with
-all 12 controls detected. The current audit leaves 76 runtime gaps in
+all 12 controls detected. That audit left 76 runtime gaps in
 shared TLS and Windows storage, plus 7,441 tooling gaps. Native Windows
 execution for this source and the compiler and delegated coverage
 obligations remain open. Earlier lifecycle and legacy coordinator tests
@@ -98,6 +98,14 @@ caught on both platforms. Ten Windows x64 test executables linked per
 profile. Native execution remains pending. The queue has 58 runtime and
 7,423 tooling gaps.
 [Credential I/O qualification](decisions/shared-tls-credential-io-current.md)
+
+At `0fe8b54`, both TLS endpoint roles have directed handshake and first
+transport-error evidence in all three targets. Each profile passed 181
+tests on macOS and 182 on Docker Linux/ext4 and detected all 30 named
+mutations on both platforms. Ten Windows x64 test executables linked per
+profile. Native execution remains pending. The current audit leaves 38
+runtime and 7,413 tooling gaps.
+[Handshake admission qualification](decisions/shared-tls-handshake-current.md)
 
 | Gate | Progress and remaining evidence |
 |---|---|

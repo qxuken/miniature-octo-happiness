@@ -12,6 +12,27 @@ replication binary and live-month example. The transport passes actual
 Rustls records between two connections. The fixtures change peer
 configuration and inject I/O results at the private transport boundary.
 
+## Qualification
+
+Frozen source `0fe8b5468e9fe1f87f72f255df9aa308300b6ecc` used Rust 1.100.0 and locked
+dependencies. Counts are per profile.
+
+| Platform | Study | Snapshot | Live-month example | Named mutations caught |
+| --- | ---: | ---: | ---: | ---: |
+| macOS arm64 | 80 | 79 | 22 | 30 |
+| Docker Linux arm64/ext4 | 80 | 80 | 22 | 30 |
+
+One additional Linux storage test remained opt-in. Both packages passed
+strict Clippy. Ten Windows MSVC x64 test executables linked in each profile.
+Native execution remains pending for this source.
+
+Fresh extraction verified all 111 supervised commands per Unix platform
+and profile, 1,038 restored source hashes per campaign, the passing
+baselines and each named failure. The handshake batch reconciles 20
+runtime records and 10 live-month tooling records. Reconciliation leaves
+38 runtime and 7,413 tooling gaps.
+[Frozen source and evidence checksums](shared-tls-handshake-0fe8b54.sha256)
+
 ## Carried source records
 
 | Source | SHA-256 |
