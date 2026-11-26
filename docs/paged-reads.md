@@ -80,6 +80,28 @@ WDB_PAGING_CASE=million WDB_PAGING_ACTION=edit WDB_PAGING_FILE="$area/million.wd
     native_read_scaling -- --ignored --nocapture
 ```
 
+## Platform verification
+
+On commit `15047ef`, the macOS workspace passed 1,117 tests in each of debug and release. Docker Linux arm64/ext4 passed 294 release tests covering the core, allocation, durability, paging, retention and compatibility. C11 and C++17 consumers on both platforms loaded the release shared library. Refusing each of the 40 allocations during paged reopen preserved the exact source bytes and released the allocator context. Windows x64 MSVC passed a cross-target type check. Native Windows execution remains outstanding.
+
+Docker Linux used the same fixture encoder, reader budget, trial counts and lookup sequence on an ext4 volume. Timings describe this VM on the development host.
+
+| Fixture | Mode | Open ms | Full check ms | Point p50 / p95 µs | Peak MiB |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 64 distinct 768 KiB blobs | Eager | 36.11 | 35.33 | 0.04 / 0.29 | 48.89 |
+| | Strict paged | 34.83 | 34.41 | 537 / 606 | 1.60 |
+| | Read-only | 0.12 | 34.61 | 541 / 612 | 1.60 |
+| 10,000 distinct 16-byte values | Eager | 47.09 | 49.68 | 0.25 / 0.50 | 5.60 |
+| | Strict paged | 37.50 | 36.75 | 7.00 / 7.79 | 1.30 |
+| | Read-only | 37.26 | 37.18 | 7.00 / 7.79 | 2.01 |
+| 1,000,000 keys sharing one value | Eager | Limit | Limit | — | — |
+| | Strict paged | 47.23 | 47.08 | 6.96 / 8.00 | 27.62 |
+| | Read-only | 46.21 | 46.53 | 6.92 / 7.79 | 28.26 |
+
+The Linux million-key visit took 25 ms. The retained one-key update committed in 77 ms, peaked at 59.35 MiB and reopened at the expected current and retained values.
+
+The source inventory reconciled 11,002 decisions across 228 files. All 58 selected mutation controls were detected in debug and release, including independent tests for read-only admission and the matching witness, page integrity, and the existing validation and allocation paths that moved. Whole-project compiler MC/DC and a native Windows paging run remain separate qualification work.
+
 ## Capacity boundary
 
 V2 still has a 64 MiB physical image ceiling and a minimum 4 KiB aligned object per independently stored value. The million-key measurement exercises directory scaling and value sharing. A million independently stored values require a different durable layout. Strict verification also temporarily reads an entire DATA object. New edits remain resident until reopen. Persisted leaf-level copy-on-write, value packing, sparse high offsets and larger or unbounded files require a versioned format, migration and qualification across writers, maintenance and replication. The current change can be adopted on existing files without migration.
