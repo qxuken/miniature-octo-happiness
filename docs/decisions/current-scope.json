@@ -24,7 +24,7 @@
     "apps/write-coordinator/src/native.rs": "b53799c3670a6d60d81c648649e7b3839e29d45d492b1692f21faf8dcb6db119",
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "a4a86e7cfc549405c55cdce86a33c9ff10751e91aae1ecb65c402d466b6e9f36",
-    "apps/write-coordinator/src/native/sequenced.rs": "1efb15b1635802c7cd2f985b9b8a4e579ca6fb13094c3584af5ae84c474dd228",
+    "apps/write-coordinator/src/native/sequenced.rs": "7c0ded9fd3380747be331b51a468a4d17254017fb438a6a1c5f8293bc31deebb",
     "apps/write-coordinator/src/native/service.rs": "a5c5dd34ac9de1685f58631f3ccde36e15771baca3a5e3871e86d8869a2bbaf6",
     "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
     "crates/weekend-db-macros/src/lib.rs": "5d0708c15d60b2cdd679fbc0a08a6504caf6f136b90bb32be1c271a63753b9f4",
@@ -283,7 +283,7 @@
     "tests/files.rs": "539b7ce0697059082c9240f49ab56c131a25891d3dff0bfa72b3201e51882769",
     "tests/inspection.rs": "02aaed4526353dbbb1d880c72531678d553a83d7216e0e06a6c78b60812f40c9",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
-    "tests/logical.rs": "ff97aa6a964504df139749f5fb20799bcc5ee2733ea89181174cd8764d20db4b",
+    "tests/logical.rs": "ef4f3a09a7d51234e588f17f6d995904d681d5ba5ccae07f7a11e76ba7304c9e",
     "tests/retention.rs": "19c377d14d73e0cf58502f13374a1bd837d280b352daf52a70c62af98f3fd14d",
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
     "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
@@ -298,8 +298,8 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/coordinator-windows-oracle.json": "d3cd8c9db28d75402060977b156103721527da3d2256fed7ed568e3704b8eb7f",
-    "xtask/tests/mutations.json": "ba26be0542713806997a24e1e550dc97bf0e3cf1b28860912ce8a825301097ad",
+    "xtask/tests/coordinator-windows-oracle.json": "6ccdab9f135651da074483bd592c9b030ffd973550f661e6e0c9cb94f0e136c3",
+    "xtask/tests/mutations.json": "4c6fc92cb5f7b042ec95572c1501c1057415c4e647f5aff8bee622123b2fc337",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -442,7 +442,9 @@
     "apps/support/pinned_tls.rs": "c27bb3e2158dd15c2fd3ba5242459ac61aaa68059bf05f7d98bbd6d39b786fd5",
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
-    "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd"
+    "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
+    "docs/decisions/coordinator-sequenced-submit-current.md": "868222ae54c33cd1b38f41c36f728780c54201bcbf11c82e7d86285416365c8a",
+    "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -975,7 +977,8 @@
         "docs/decisions/coordinator-connection-handoff-current.md",
         "docs/decisions/coordinator-legacy-receipts-current.md",
         "docs/decisions/coordinator-legacy-commit-current.md",
-        "docs/decisions/coordinator-sequenced-startup-current.md"
+        "docs/decisions/coordinator-sequenced-startup-current.md",
+        "docs/decisions/coordinator-sequenced-submit-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -37924,6 +37927,522 @@
           ],
           "outcome": true
         }
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-ZERO",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "if",
+        "start_byte": 7743,
+        "conditions": [
+          "sequence == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-zero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-COUNTER-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 7989,
+        "conditions": [
+          "state_in(db, DATA_COLLECTION)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_submit_preserves_counter_read_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-counter-read"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-SLOT-OBSERVATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 8043,
+        "conditions": [
+          "tx\n        .get(collection, key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_draft_limits_leave_current_and_retained_rows_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-slot-observation"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-RECEIPT-DECODE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 8138,
+        "conditions": [
+          "tx\n        .get(collection, key)?\n        .as_ref()\n        .map(|bytes| Receipt::decode(bytes, revision))\n        .transpose()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "malformed_receipts_fail_closed_for_lookup_and_retry"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-receipt-decode"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-PRIOR-RECEIPT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "if",
+        "start_byte": 8208,
+        "conditions": [
+          "let Some(receipt) = previous"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-prior-receipt"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-REVISION-ADDITION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9170,
+        "conditions": [
+          "revision.checked_add(1).ok_or(Error::Exhausted)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_submit_refuses_an_exhausted_imported_revision"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-revision-addition"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-COUNTER-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9227,
+        "conditions": [
+          "db.unsigned(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_counter_allocation_failure_preserves_prior_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-counter-allocation"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-COUNTER-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9229,
+        "conditions": [
+          "tx.put(collection, KEY, &db.unsigned(value)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_draft_limits_leave_current_and_retained_rows_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-counter-draft"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-RECEIPT-BYTES",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9288,
+        "conditions": [
+          "db.bytes(&receipt.encode())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_draft_limits_leave_current_and_retained_rows_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-receipt-bytes"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-APP-RECEIPT-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9290,
+        "conditions": [
+          "tx.put(collection, key, &db.bytes(&receipt.encode())?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_draft_limits_leave_current_and_retained_rows_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-app-receipt-draft"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-ZERO",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "if",
+        "start_byte": 7743,
+        "conditions": [
+          "sequence == 0"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-zero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-COUNTER-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 7989,
+        "conditions": [
+          "state_in(db, DATA_COLLECTION)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_submit_preserves_counter_read_errors"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-counter-read"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-SLOT-OBSERVATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 8043,
+        "conditions": [
+          "tx\n        .get(collection, key)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_draft_limits_leave_current_and_retained_rows_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-slot-observation"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-RECEIPT-DECODE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 8138,
+        "conditions": [
+          "tx\n        .get(collection, key)?\n        .as_ref()\n        .map(|bytes| Receipt::decode(bytes, revision))\n        .transpose()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "malformed_receipts_fail_closed_for_lookup_and_retry"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-receipt-decode"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-PRIOR-RECEIPT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "if",
+        "start_byte": 8208,
+        "conditions": [
+          "let Some(receipt) = previous"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "reopened_replay_preserves_current_and_retained_receipts"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-prior-receipt"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-REVISION-ADDITION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9170,
+        "conditions": [
+          "revision.checked_add(1).ok_or(Error::Exhausted)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_submit_refuses_an_exhausted_imported_revision"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-revision-addition"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-COUNTER-ALLOCATION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9227,
+        "conditions": [
+          "db.unsigned(value)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_counter_allocation_failure_preserves_prior_receipt"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-counter-allocation"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-COUNTER-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9229,
+        "conditions": [
+          "tx.put(collection, KEY, &db.unsigned(value)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_draft_limits_leave_current_and_retained_rows_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-counter-draft"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-RECEIPT-BYTES",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9288,
+        "conditions": [
+          "db.bytes(&receipt.encode())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_draft_limits_leave_current_and_retained_rows_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-receipt-bytes"
+      ]
+    },
+    {
+      "name": "SEQUENCED-COORDINATOR-SUBMIT-FUZZ-RECEIPT-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/sequenced.rs",
+        "target": "weekend-db-fuzz::weekend_db_fuzz",
+        "owner": "submit",
+        "kind": "try_propagation",
+        "start_byte": 9290,
+        "conditions": [
+          "tx.put(collection, key, &db.bytes(&receipt.encode())?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/sequenced.rs",
+          "name": "sequenced_draft_limits_leave_current_and_retained_rows_unchanged"
+        }
+      ],
+      "mutations": [
+        "r1-sequenced-coordinator-submit-fuzz-receipt-draft"
       ]
     }
   ],
