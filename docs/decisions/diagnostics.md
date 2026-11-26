@@ -57,30 +57,32 @@ no broader panic contract is inferred. There are no new production changes.
 
 ### src/storage/diagnostics.rs
 
-SHA-256: `1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb`.
+| Source | SHA-256 |
+| --- | --- |
+| `src/storage/diagnostics.rs` | `1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb` |
 
-| Location | Kind / owner | Status | Evidence | Token hash |
-| --- | --- | --- | --- | --- |
-| 70:38 | `try_propagation` / `fmt` | E | D1 | `8a8de823d5ed` |
-| 71:9 | `if` / `fmt` | C | D1 | `935f68319d4f` |
-| 71:12 | `pattern_test` / `fmt` | P | D1 | `5654d4106d70` |
-| 76:14 | `try_propagation` / `fmt` | E | D1 | `8a8de823d5ed` |
-| 78:9 | `if` / `fmt` | C | D1 | `935f68319d4f` |
-| 78:12 | `pattern_test` / `fmt` | P | D1 | `5654d4106d70` |
-| 79:67 | `try_propagation` / `fmt` | E | D1 | `8a8de823d5ed` |
-| 80:13 | `if` / `fmt` | C | D1 | `935f68319d4f` |
-| 80:16 | `pattern_test` / `fmt` | P | D1 | `5654d4106d70` |
-| 81:59 | `try_propagation` / `fmt` | E | D1 | `8a8de823d5ed` |
-| 83:29 | `try_propagation` / `fmt` | E | D1 | `8a8de823d5ed` |
-| 125:9 | `if` / `record` | C | D2 | `935f68319d4f` |
-| 125:12 | `pattern_test` / `record` | C | D2 | `5654d4106d70` |
-| 125:12 | `short_circuit_and` / `record` | B | D2 | `1bb5ed3a1d4a` |
-| 128:28 | `match` / `record` | P | D2 | `4945a70fa7f9` |
-| 148:9 | `if` / `clear_verification` | C | D2 | `935f68319d4f` |
-| 148:12 | `pattern_test` / `clear_verification` | P | D2 | `5654d4106d70` |
-| 162:13 | `if` / `verify` | C | D2 | `935f68319d4f` |
-| 162:16 | `pattern_test` / `verify` | C | D2 | `5654d4106d70` |
-| 162:16 | `short_circuit_and` / `verify` | B | D2 | `d321ccb99078` |
+| Status | Target | Position | Bytes | Kind | Owner | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| E | weekend-db::weekend_db | src/storage/diagnostics.rs:70:38– | 1727..1728 | try_propagation | fmt | D1 |
+| C | weekend-db::weekend_db | src/storage/diagnostics.rs:71:9– | 1738..1740 | if | fmt | D1 |
+| P | weekend-db::weekend_db | src/storage/diagnostics.rs:71:12– | 1741..1744 | pattern_test | fmt | D1 |
+| E | weekend-db::weekend_db | src/storage/diagnostics.rs:76:14– | 1941..1942 | try_propagation | fmt | D1 |
+| C | weekend-db::weekend_db | src/storage/diagnostics.rs:78:9– | 1962..1964 | if | fmt | D1 |
+| P | weekend-db::weekend_db | src/storage/diagnostics.rs:78:12– | 1965..1968 | pattern_test | fmt | D1 |
+| E | weekend-db::weekend_db | src/storage/diagnostics.rs:79:67– | 2076..2077 | try_propagation | fmt | D1 |
+| C | weekend-db::weekend_db | src/storage/diagnostics.rs:80:13– | 2091..2093 | if | fmt | D1 |
+| P | weekend-db::weekend_db | src/storage/diagnostics.rs:80:16– | 2094..2097 | pattern_test | fmt | D1 |
+| E | weekend-db::weekend_db | src/storage/diagnostics.rs:81:59– | 2193..2194 | try_propagation | fmt | D1 |
+| E | weekend-db::weekend_db | src/storage/diagnostics.rs:83:29– | 2238..2239 | try_propagation | fmt | D1 |
+| C | weekend-db::weekend_db | src/storage/diagnostics.rs:125:9– | 3938..3940 | if | record | D2 |
+| C | weekend-db::weekend_db | src/storage/diagnostics.rs:125:12– | 3941..3944 | pattern_test | record | D2 |
+| B | weekend-db::weekend_db | src/storage/diagnostics.rs:125:12– | 3941..4016 | short_circuit_and | record | D2 |
+| P | weekend-db::weekend_db | src/storage/diagnostics.rs:128:28– | 4054..4059 | match | record | D2 |
+| C | weekend-db::weekend_db | src/storage/diagnostics.rs:148:9– | 4832..4834 | if | clear_verification | D2 |
+| P | weekend-db::weekend_db | src/storage/diagnostics.rs:148:12– | 4835..4838 | pattern_test | clear_verification | D2 |
+| C | weekend-db::weekend_db | src/storage/diagnostics.rs:162:13– | 5184..5186 | if | verify | D2 |
+| C | weekend-db::weekend_db | src/storage/diagnostics.rs:162:16– | 5187..5190 | pattern_test | verify | D2 |
+| B | weekend-db::weekend_db | src/storage/diagnostics.rs:162:16– | 5187..5272 | short_circuit_and | verify | D2 |
 
 Totals: B=2, C=8, E=5, P=5; **20 records**.
 

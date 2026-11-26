@@ -155,7 +155,7 @@ impl Journal {
         }
         let reply = send(&format!("journal-get {}", hex(&self.state.identity)))?;
         let (revision, value) = parse_state(&reply, "value")?;
-        if revision < self.state.floor() || intended.expected > revision {
+        if intended.expected > revision {
             return Err(
                 "coordinator is behind the expected revision; reconcile before writing".into(),
             );
@@ -284,8 +284,7 @@ impl Journal {
         Ok(format!("{status} {revision} {value}"))
     }
 
-    fn status(&self) -> AppResult<()> {
-        let mut stdout = io::stdout().lock();
+    fn status(&self, mut stdout: impl Write) -> AppResult<()> {
         writeln!(
             stdout,
             "journal {} {}",
@@ -345,7 +344,9 @@ fn sender(port: &OsStr, secret: &OsStr) -> AppResult<impl FnMut(&str) -> AppResu
 
 pub(super) fn run(args: &[OsString]) -> AppResult<()> {
     match args {
-        [action, path] if action == "status" => Journal::open(Path::new(path))?.status(),
+        [action, path] if action == "status" => {
+            Journal::open(Path::new(path))?.status(io::stdout().lock())
+        }
         [action, path, port, slot, flag, secret] if action == "init" && flag == "--secret-file" => {
             let slot = number(slot)?;
             if slot >= MAX_SLOTS {
@@ -374,7 +375,7 @@ pub(super) fn run(args: &[OsString]) -> AppResult<()> {
                     pending: None,
                 },
             )?
-            .status()
+            .status(io::stdout().lock())
         }
         [action, path, port, flag, secret] if action == "resume" && flag == "--secret-file" => {
             let mut journal = Journal::open(Path::new(path))?;
@@ -432,6 +433,67 @@ mod tests {
 
     fn open(disk: &SimulatedDisk) -> Journal {
         Journal::load(Database::open_on(disk.clone(), Limits::default()).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn journal_decode_rejects_each_noncanonical_field() {
+        let state = State {
+            identity: IDENTITY,
+            slot: (MAX_SLOTS - 1) as u16,
+            last: Some(Receipt {
+                sequence: 1,
+                expected: 3,
+                value: 12,
+                revision: 4,
+            }),
+            pending: Some(Pending {
+                expected: 4,
+                value: 20,
+            }),
+        };
+        let full = state.encode();
+        assert_eq!(State::decode(&full).unwrap().encode(), full);
+        let empty = State {
+            last: None,
+            pending: None,
+            ..state
+        }
+        .encode();
+        assert_eq!(State::decode(&empty).unwrap().encode(), empty);
+
+        let mut oversized = full.to_vec();
+        oversized.push(0);
+        assert!(matches!(State::decode(&oversized), Err(Error::Corrupt)));
+        assert!(matches!(State::decode(&full[..75]), Err(Error::Corrupt)));
+
+        for (label, original, offset, replacement) in [
+            ("magic", full, 0, &[0][..]),
+            ("reserved flag", full, 26, &[0b111]),
+            ("zero identity", full, 8, &[0; 16]),
+            (
+                "slot past capacity",
+                full,
+                24,
+                &(MAX_SLOTS as u16).to_le_bytes(),
+            ),
+            ("unknown receipt version", full, 27, &[2]),
+            ("absent receipt has payload", empty, 27, &[1]),
+            ("absent intent has payload", empty, 60, &[1]),
+            ("intent below receipt floor", full, 60, &3_u64.to_le_bytes()),
+            (
+                "exhausted intent revision",
+                full,
+                60,
+                &u64::MAX.to_le_bytes(),
+            ),
+        ] {
+            let mut bytes = original;
+            bytes[offset..offset + replacement.len()].copy_from_slice(replacement);
+            assert!(
+                matches!(State::decode(&bytes), Err(Error::Corrupt)),
+                "{label}"
+            );
+        }
     }
 
     #[test]
@@ -700,6 +762,179 @@ mod tests {
     }
 
     #[test]
+    fn lost_reply_after_commit_replays_the_receipt_after_another_writer_advances() {
+        let local = SimulatedDisk::new().unwrap();
+        let medium = SimulatedDisk::new().unwrap();
+        let mut journal = create(&local);
+        let mut remote = Database::create_on(medium.clone(), IDENTITY, Limits::default()).unwrap();
+        sequenced::initialize(&remote).unwrap();
+        let result = journal.set(INTENT, &mut |command| {
+            let reply = sequenced::handle(&mut remote, command)?;
+            if command.starts_with("journal-set ") {
+                assert_eq!(reply, "committed 4");
+                return Err("reply lost".into());
+            }
+            Ok(reply)
+        });
+        assert_eq!(result.unwrap_err().to_string(), "reply lost");
+        let check = |reply: &str| journal.check(&mut |_| Ok(reply.to_owned()));
+        let receipt = hex(&Receipt {
+            sequence: 1,
+            expected: 3,
+            value: 20,
+            revision: 4,
+        }
+        .encode());
+        assert_eq!(
+            check(&format!("checkpoint 4 20 {receipt}")).unwrap(),
+            "pending-committed 4 20"
+        );
+        assert_eq!(
+            check(&format!("checkpoint 4 99 {receipt}"))
+                .unwrap_err()
+                .to_string(),
+            "coordinator checkpoint value disagrees with its head receipt"
+        );
+        assert_eq!(
+            sequenced::handle(&mut remote, "set-seq 6 1 4 99").unwrap(),
+            "committed 5"
+        );
+        drop(journal);
+        drop(remote);
+        local.crash(Crash::DropAll).unwrap();
+        medium.crash(Crash::DropAll).unwrap();
+
+        let mut journal = open(&local);
+        let mut remote = Database::open_on(medium.clone(), Limits::default()).unwrap();
+        let before_local = local.durable_image().unwrap();
+        let before_remote = medium.durable_image().unwrap();
+        let mut send =
+            |command: &str| -> AppResult<String> { Ok(sequenced::handle(&mut remote, command)?) };
+        assert_eq!(journal.check(&mut send).unwrap(), "pending-committed 5 99");
+        assert_eq!(local.durable_image().unwrap(), before_local);
+        assert_eq!(journal.resume(&mut send).unwrap(), "committed 4");
+        assert_eq!(journal.check(&mut send).unwrap(), "aligned 5 99");
+        assert_eq!(medium.durable_image().unwrap(), before_remote);
+
+        drop(journal);
+        local.crash(Crash::DropAll).unwrap();
+        let mut journal = open(&local);
+        let receipt = journal.state.last.unwrap();
+        assert_eq!(
+            (
+                receipt.sequence,
+                receipt.expected,
+                receipt.value,
+                receipt.revision
+            ),
+            (1, 3, 20, 4)
+        );
+        assert!(journal.state.pending.is_none());
+        assert_eq!(
+            journal
+                .resume(&mut |_| panic!("completed intent was resent"))
+                .unwrap(),
+            "committed 4"
+        );
+    }
+
+    #[test]
+    fn journal_admission_preserves_the_prior_receipt_until_an_intent_is_eligible() {
+        let local = SimulatedDisk::new().unwrap();
+        let mut journal = create(&local);
+        let last = Receipt {
+            sequence: 1,
+            expected: 3,
+            value: 20,
+            revision: 4,
+        };
+        journal
+            .save(State {
+                last: Some(last),
+                ..journal.state
+            })
+            .unwrap();
+        let baseline = local.durable_image().unwrap();
+        let get = format!("journal-get {}", hex(&IDENTITY));
+        let intent = |expected| Pending {
+            expected,
+            value: 99,
+        };
+
+        for expected in [3, u64::MAX] {
+            let error = journal
+                .set(intent(expected), &mut |_| {
+                    panic!("inadmissible intent sent")
+                })
+                .unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                "expected revision is outside the journal's admissible range"
+            );
+            assert_eq!(local.durable_image().unwrap(), baseline);
+        }
+
+        for (expected, observed) in [(4, 3), (5, 4), (4, 5)] {
+            let mut requests = 0;
+            let result = journal.set(intent(expected), &mut |command| {
+                assert_eq!(command, get);
+                requests += 1;
+                Ok(format!("value {observed} 30"))
+            });
+            assert_eq!(requests, 1);
+            if expected < observed {
+                assert_eq!(result.unwrap(), "conflict 5 30");
+            } else {
+                assert_eq!(
+                    result.unwrap_err().to_string(),
+                    "coordinator is behind the expected revision; reconcile before writing"
+                );
+            }
+            assert_eq!(local.durable_image().unwrap(), baseline);
+        }
+
+        let mut sent = Vec::new();
+        let error = journal
+            .set(intent(4), &mut |command| {
+                sent.push(command.to_owned());
+                if command == get {
+                    Ok("value 4 20".to_owned())
+                } else {
+                    Err("reply unavailable".into())
+                }
+            })
+            .unwrap_err();
+        assert_eq!(error.to_string(), "reply unavailable");
+        assert_eq!(
+            sent,
+            [
+                get,
+                format!(
+                    "journal-set {} 7 2 {} 4 99",
+                    hex(&IDENTITY),
+                    hex(&last.encode())
+                )
+            ]
+        );
+
+        drop(journal);
+        local.crash(Crash::DropAll).unwrap();
+        let mut journal = open(&local);
+        let pending = journal.state.pending.unwrap();
+        assert_eq!((pending.expected, pending.value), (4, 99));
+        assert_eq!(journal.state.last.unwrap().encode(), last.encode());
+        let staged = local.durable_image().unwrap();
+        let error = journal
+            .set(intent(4), &mut |_| panic!("second intent sent"))
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "journal has a pending write; run journal resume"
+        );
+        assert_eq!(local.durable_image().unwrap(), staged);
+    }
+
+    #[test]
     fn guarded_request_fits_the_authentication_and_line_limits() {
         let local = SimulatedDisk::new().unwrap();
         let mut journal = create(&local);
@@ -726,5 +961,81 @@ mod tests {
                 Ok(format!("committed {}", u64::MAX - 2))
             })
             .unwrap();
+    }
+
+    #[test]
+    fn interrupted_creation_reopens_only_a_fully_published_journal() {
+        let state = State {
+            identity: IDENTITY,
+            slot: 7,
+            last: None,
+            pending: None,
+        };
+        let disk = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(disk.clone(), [33; 16], Limits::default()).unwrap();
+        let empty = disk.durable_image().unwrap();
+        disk.arm(usize::MAX, Fault::Error);
+        let journal = Journal::create(db, state).unwrap();
+        let trace = disk.trace().unwrap();
+        let syncs: Vec<_> = trace
+            .iter()
+            .enumerate()
+            .filter_map(|(step, event)| (event.kind == IoKind::Sync).then_some(step))
+            .collect();
+        let [_, collection_root, _, _, state_root, _]: [usize; 6] = syncs.try_into().unwrap();
+        let final_revision = journal.db.snapshot().revision();
+        assert_eq!(final_revision, 2);
+        for step in 0..trace.len() {
+            for crash in [Crash::DropAll, Crash::PersistAll] {
+                let disk = SimulatedDisk::from_image(&empty).unwrap();
+                let db = Database::open_on(disk.clone(), Limits::default()).unwrap();
+                disk.arm(step, Fault::Error);
+                assert!(Journal::create(db, state).is_err(), "step {step}");
+                assert_eq!(disk.trace().unwrap(), trace[..=step]);
+                disk.clear_fault();
+                disk.crash(crash).unwrap();
+                let db = Database::open_on(disk, Limits::default()).unwrap();
+                let visible =
+                    |root| step > root || (step == root && matches!(crash, Crash::PersistAll));
+                let expected_revision =
+                    u64::from(visible(collection_root)) + u64::from(visible(state_root));
+                assert_eq!(db.snapshot().revision(), expected_revision, "step {step}");
+                match expected_revision {
+                    0 => assert!(matches!(Journal::load(db), Err(Error::NotFound))),
+                    1 => assert!(matches!(Journal::load(db), Err(Error::UnsupportedFormat))),
+                    2 => assert_eq!(Journal::load(db).unwrap().state.encode(), state.encode()),
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn status_propagates_output_failure_at_each_line_boundary() {
+        let disk = SimulatedDisk::new().unwrap();
+        let mut journal = create(&disk);
+        journal
+            .save(State {
+                pending: Some(INTENT),
+                ..journal.state
+            })
+            .unwrap();
+        let image = disk.durable_image().unwrap();
+        let header = format!("journal {} 7\n", hex(&IDENTITY));
+        let receipt = "receipt 0\n";
+        let expected = format!("{header}{receipt}pending 1 3 20\n");
+        for length in [0, header.len(), header.len() + receipt.len()] {
+            let mut output = vec![0; length];
+            let error = journal.status(output.as_mut_slice()).unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<io::Error>().unwrap().kind(),
+                io::ErrorKind::WriteZero
+            );
+            assert_eq!(output, expected.as_bytes()[..length]);
+        }
+        let mut output = Vec::new();
+        journal.status(&mut output).unwrap();
+        assert_eq!(output, expected.as_bytes());
+        assert_eq!(disk.durable_image().unwrap(), image);
     }
 }

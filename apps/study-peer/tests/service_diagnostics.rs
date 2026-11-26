@@ -4,7 +4,7 @@ mod diagnostics;
 use diagnostics::{BUDGET, CREDENTIAL_CANARY, ID, PATH_CANARY, Process, RECORD_CANARY, Root, safe};
 use std::{
     fs,
-    io::Write,
+    io::{self, Write},
     net::{Shutdown, TcpStream},
     path::Path,
     process::Command,
@@ -39,6 +39,182 @@ fn operational_errors_do_not_echo_private_inputs() {
 fn structured_errors_keep_categories_without_echoing_private_inputs() {
     scenario(true);
 }
+
+#[test]
+fn both_service_startup_commands_reach_the_same_reopened_state() {
+    use std::ffi::OsStr;
+
+    let root = Root::new("study-startup");
+    let database = root.0.join("study.wdb");
+    let policy = root.0.join("policy");
+    fs::write(
+        &policy,
+        format!(
+            "study-policy-v1 {ID} 7 {} {}\n",
+            "01".repeat(16),
+            "02".repeat(16)
+        ),
+    )
+    .unwrap();
+    let mut init = command(true);
+    init.arg("init").arg(&database).args(["a", ID]);
+    Process::start(&root.0, "init", init).finish(true);
+    let original = fs::read(&database).unwrap();
+    let local = root.credentials("local");
+    let pin = root.credentials("peer").join("cert.der");
+    let start = |verb: &str, config: &OsStr| {
+        let mut process = command(true);
+        process
+            .arg(verb)
+            .arg(&database)
+            .arg("a")
+            .arg(config)
+            .args(["127.0.0.1:0", "127.0.0.1:1"])
+            .arg(&local)
+            .arg(&pin)
+            .arg("--no-push");
+        Process::start(&root.0, verb, process)
+    };
+
+    let logs = start("unknown", OsStr::new(ID)).finish(false);
+    safe(&logs);
+    assert!(logs.0.is_empty());
+    for (verb, config) in [("run", OsStr::new(ID)), ("run-policy", policy.as_os_str())] {
+        let mut service = start(verb, config);
+        service.until(|stdout| stdout.lines().any(|line| line.starts_with("ready ")));
+        service.input("show\n");
+        service.until(|stdout| stdout.lines().any(|line| line == "state 2 0 [] [] []"));
+        service.input("quit\n");
+        let logs = service.finish(true);
+        safe(&logs);
+        assert!(logs.1.is_empty());
+        assert_eq!(fs::read(&database).unwrap(), original);
+    }
+}
+
+#[test]
+fn closed_ready_pipe_is_a_local_command_error() {
+    let root = Root::new("study-ready");
+    let database = root.0.join("study.wdb");
+    let init = command(true)
+        .arg("init")
+        .arg(&database)
+        .args(["a", ID])
+        .output()
+        .unwrap();
+    assert!(init.status.success());
+    let original = fs::read(&database).unwrap();
+    let local = root.credentials("local");
+    let pin = root.credentials("peer").join("cert.der");
+    let (read, write) = io::pipe().unwrap();
+    drop(read);
+    let output = command(true)
+        .arg("run")
+        .arg(&database)
+        .args(["a", ID, "127.0.0.1:0", "127.0.0.1:1"])
+        .arg(local)
+        .arg(pin)
+        .arg("--no-push")
+        .stdout(write)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    diagnostic(
+        &String::from_utf8(output.stderr).unwrap(),
+        "local_command",
+        "io",
+        "broken_pipe",
+    );
+    assert_eq!(fs::read(&database).unwrap(), original);
+}
+
+#[test]
+fn roster_stdout_refusal_reports_io_and_preserves_the_staged_pair() {
+    let root = Root::new("study-cutover");
+    let [a, b, new_a, new_b, old, new, expected] = [
+        "a",
+        "b",
+        "new-a",
+        "new-b",
+        "old.policy",
+        "new.policy",
+        "old.checkpoint",
+    ]
+    .map(|name| root.0.join(name));
+    for (name, path) in ["a", "b"].into_iter().zip([&a, &b]) {
+        let out = command(true)
+            .arg("init")
+            .arg(path)
+            .args([name, ID])
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+    }
+    fs::write(
+        &old,
+        format!(
+            "study-policy-v1 {ID} 7 {} {}\n",
+            "01".repeat(16),
+            "02".repeat(16)
+        ),
+    )
+    .unwrap();
+    fs::write(
+        &new,
+        format!(
+            "study-policy-v1 {} 8 {} {}\n",
+            "0a".repeat(16),
+            "03".repeat(16),
+            "04".repeat(16)
+        ),
+    )
+    .unwrap();
+    let sources = [&a, &b];
+    let original = sources.map(|path| fs::read(path).unwrap());
+    let checkpoint = || {
+        let mut c = command(true);
+        c.arg("checkpoint-roster").args(sources).arg(&old);
+        c
+    };
+    let refuse_stdout = |mut c: Command| {
+        let (read, write) = io::pipe().unwrap();
+        drop(read);
+        let out = c.stdout(write).output().unwrap();
+        assert_eq!(out.status.code(), Some(1));
+        let text = String::from_utf8(out.stderr).unwrap();
+        diagnostic(&text, "local_command", "io", "broken_pipe");
+    };
+    refuse_stdout(checkpoint());
+    assert!(!new_a.exists() && !new_b.exists());
+    let receipt = checkpoint().output().unwrap();
+    assert!(receipt.status.success() && receipt.stderr.is_empty());
+    assert!(receipt.stdout.starts_with(b"study-roster-checkpoint-v1 "));
+    fs::write(&expected, receipt.stdout).unwrap();
+
+    let mut stage = command(true);
+    stage
+        .arg("stage-roster")
+        .args(sources)
+        .arg(&old)
+        .args([&new_a, &new_b, &new])
+        .arg("--expect-old")
+        .arg(&expected);
+    refuse_stdout(stage);
+    let destination = [&new_a, &new_b];
+    let staged = destination.map(|path| fs::read(path).unwrap());
+    let verify = || {
+        let mut c = command(true);
+        c.arg("verify-roster").args(destination).arg(&new);
+        c
+    };
+    refuse_stdout(verify());
+    let recovered = verify().output().unwrap();
+    assert!(recovered.status.success() && recovered.stderr.is_empty());
+    assert!(recovered.stdout.starts_with(b"verified generation=8 "));
+    assert_eq!(sources.map(|path| fs::read(path).unwrap()), original);
+    assert_eq!(destination.map(|path| fs::read(path).unwrap()), staged);
+}
+
 fn scenario(json: bool) {
     let root = Root::new("study-peer");
     let database = root.0.join("study.wdb");

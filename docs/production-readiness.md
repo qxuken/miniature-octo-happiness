@@ -20,9 +20,20 @@ Recent local evidence includes [stopped credential cutovers](snapshot-credential
 Further gates now cover actual [snapshot](snapshot-cli-upgrade.md) and
 [study](study-cli-upgrade.md) CLI upgrades, [both delivered validation modes](artifact-trace-validation-modes.md),
 and [packaged C and Odin publication-error recovery](delivered-c-faults.md).
+The [later compatibility checkpoint](compatibility-1f3f42a.md) runs all
+five configured pre-1 profile transitions on macOS and Docker Linux and
+restores the complete artifact evidence.
 The [four-platform delivery matrix](private-delivery.md#combined-and-isolated-matrix-at-651654c)
 binds all four Cargo feature masks, exact consumer traces and bounded
 ASan/fuzz evidence to one tested revision.
+The [later arm64 delivery checkpoint](delivery-checkpoint-1f3f42a.md)
+rebuilds and restores all four feature masks on macOS and Linux. Its native
+consumer loader checks verify the exact libraries from the extracted packages.
+The [extended ASan campaign](fuzz-qualification-1f3f42a.md) binds all 22
+targets and the four stable replay runs to that arm64 checkpoint.
+The [four-platform restore at 2596c57](delivery-checkpoint-2596c57.md)
+binds all sixteen private packages, the bounded ASan run and the small
+benchmark to one tested merge.
 `verify-delivery` checks the debug and release workspace tests in each
 lane and can bind retained release microbenchmark samples to the same
 clean source revision with `--benchmark`. An optional `--fuzz` binds a
@@ -165,6 +176,11 @@ qualification is a separate release-candidate requirement.
   With the writer and acknowledged-state locks split, fresh snapshot and
   retained-root acquisition also proceed during publication I/O.
   [Near-cap acquisition results](compound-resource-envelope.md#fresh-snapshots-during-durable-publication)
+  The [fresh-open and cache fork checkpoint](serialization-cache-forks.md)
+  checks two near-cap graph shapes with 64 data revisions, verifies every
+  root after publication, and reproduces exact image bytes across macOS
+  and Linux from the same seed. Sustained deployment schedules and agreed
+  service budgets remain release requirements.
   Windows compact copy is an existing capability.
   Qualify in-place Windows replacement independently if it becomes part
   of the release.
@@ -230,6 +246,10 @@ qualification is a separate release-candidate requirement.
   The accelerated Mac-to-Linux month checks live writes, durable receipt
   reconciliation and retained history with the regular TLS follower.
   [Workload and measured resource costs](live-replication-month.md)
+  The [Linux-primary rehearsal](live-replication-month.md#linux-primary-and-macos-follower-at-9f942db)
+  also verifies that a restored macOS follower returns the same durable receipt
+  across restart and duplicate delivery, with a byte-identical database and
+  manifest.
   Fresh-image staging limits individual append buffers to 64 KiB. Measure
   repeated-copy memory and check exact bytes and durability boundaries.
   [Fresh-image staging qualification](fresh-image-staging.md)
@@ -366,6 +386,18 @@ order, child staging and allocation propagation.
 The [COMMIT encoder ledger](decisions/codec-encode-commit-current.md) covers
 descriptor fields, retained DATA staging, catalog iteration and finishing
 both caches before publication.
+The shared TLS credential-file campaign covers type checks before
+opening, byte bounds and Unix key permissions in both network CLIs.
+The Study shutdown campaign verifies that a queued connection closes
+when its listener retires. Both retain the open native and deployed
+platform obligations. [Credential-file ledger](decisions/credential-file-admission-current.md),
+[listener retirement ledger](decisions/study-listener-retirement-current.md)
+
+Follower startup now reports a closed readiness pipe before admitting
+any peer. The operator can reopen status and verify the same durable
+receipt after a listen or readiness failure.
+[Snapshot startup ledger](decisions/snapshot-readiness-current.md)
+
 Use the individual reconciliation queue to identify remaining metadata,
 graph/cache, record and collection, allocator, FFI, file-adapter and replacement
 decisions, retaining existing exact evidence where it applies. Require every applicable decision
@@ -413,6 +445,12 @@ sanitizer job for the shipped ABI. Use [Miri](https://github.com/rust-lang/miri)
 for suitable unsafe Rust paths and a bounded scheduler such as
 [Loom](https://github.com/tokio-rs/loom) for modeled atomic interactions.
 Retain real threaded and cross-process tests on native artifacts.
+
+The [compound recovery ledger](decisions/compound-recovery-current.md) records
+which memory or I/O failure wins during writable reopen, including exact
+retained and current roots and the next acknowledged commit.
+The [ByteStore conformance test](bytestore-conformance.md) exercises adapter
+leases, short transfers, copy and fresh recovery through the public API.
 
 ## Crash, platform and release qualification
 

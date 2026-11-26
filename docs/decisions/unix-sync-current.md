@@ -37,19 +37,19 @@ four callbacks breaks that trace.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `cfcc5d7b40eadd689b34a717825cd59cdd62171a09c8397671c63e43f61c2756` |
+| `src/storage/file.rs` | `a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | E | weekend-db::weekend_db | src/storage/file.rs:36:9– | 1178..1183 | match | retry | Return an ordinary result and retain the terminal native diagnostic after interruption. |
 | P | weekend-db::weekend_db | src/storage/file.rs:37:23– | 1217..1255 | match_guard | retry | Retry Interrupted and return the succeeding result. A terminal failure also returns without retry. |
-| E | weekend-db::weekend_db | src/storage/file.rs:167:30– | 5269..5270 | try_propagation | sync_with | A first file barrier failure reaches the caller without a parent sync. |
-| E | weekend-db::weekend_db | src/storage/file.rs:169:40– | 5344..5345 | try_propagation | sync_with | A parent barrier failure stops before the final file sync. |
-| E | weekend-db::weekend_db | src/storage/file.rs:170:34– | 5380..5381 | try_propagation | sync_with | A final file barrier failure preserves the creation flag and error. |
-| P | weekend-db::weekend_db | src/storage/file.rs:424:13– | 13940..13942 | if | length | Length callbacks are labeled source during recovery/sizing and target through verification. |
-| P | weekend-db::weekend_db | src/storage/file.rs:434:13– | 14245..14247 | if | read | Source recovery and target verification record distinct read steps. |
-| P | weekend-db::weekend_db | src/storage/file.rs:444:13– | 14554..14556 | if | write | Writes that stabilize the source and create the candidate have distinct labels. |
-| P | weekend-db::weekend_db | src/storage/file.rs:454:13– | 14837..14839 | if | sync | Source stabilization and target publication have distinct sync labels. |
+| E | weekend-db::weekend_db | src/storage/file.rs:170:30– | 5390..5391 | try_propagation | sync_with | A first file barrier failure reaches the caller without a parent sync. |
+| E | weekend-db::weekend_db | src/storage/file.rs:172:40– | 5465..5466 | try_propagation | sync_with | A parent barrier failure stops before the final file sync. |
+| E | weekend-db::weekend_db | src/storage/file.rs:173:34– | 5501..5502 | try_propagation | sync_with | A final file barrier failure preserves the creation flag and error. |
+| P | weekend-db::weekend_db | src/storage/file.rs:427:13– | 14061..14063 | if | length | Length callbacks are labeled source during recovery/sizing and target through verification. |
+| P | weekend-db::weekend_db | src/storage/file.rs:437:13– | 14366..14368 | if | read | Source recovery and target verification record distinct read steps. |
+| P | weekend-db::weekend_db | src/storage/file.rs:447:13– | 14675..14677 | if | write | Writes that stabilize the source and create the candidate have distinct labels. |
+| P | weekend-db::weekend_db | src/storage/file.rs:457:13– | 14958..14960 | if | sync | Source stabilization and target publication have distinct sync labels. |
 
 ## Verification at a1b2dd5
 

@@ -37,6 +37,8 @@ mod windows_admission;
 #[cfg(any(windows, test))]
 mod windows_io;
 #[cfg(any(windows, test))]
+mod windows_open;
+#[cfg(any(windows, test))]
 mod windows_path;
 #[cfg(any(windows, test))]
 mod windows_rng;
@@ -781,6 +783,49 @@ mod decision_tests {
                 },
             );
         }
+
+        // Arm both resources on one medium. Change which one is encountered
+        // first, then recover the same selected graph after another crash.
+        let disk = SimulatedDisk::from_image(&unwitnessed).unwrap();
+        let first_read = decode_trace
+            .iter()
+            .position(|event| event.kind == IoKind::Read)
+            .unwrap();
+        let stabilize = decode_trace.len();
+        let before_indexes = box_requests + decode_requests;
+        let mem = allocator.memory(Limits::default());
+        for (step, allowance, expected) in [
+            (first_read, before_indexes, Error::Io),
+            (stabilize, before_indexes, Error::OutOfMemory),
+            (stabilize, before_indexes + phases.len(), Error::Io),
+        ] {
+            disk.arm(step, Fault::Error);
+            let (result, requests) =
+                allocator.count_with_refusal(allowance, || Storage::open(disk.clone(), &mem));
+            assert_eq!(result.err(), Some(expected));
+            assert_eq!(requests > allowance, expected == Error::OutOfMemory);
+            let mut trace = decode_trace[..(step + 1).min(stabilize)].to_vec();
+            if step == stabilize && expected == Error::Io {
+                trace.push(IoEvent {
+                    kind: IoKind::Sync,
+                    offset: 0,
+                    len: 0,
+                });
+            }
+            assert_eq!(disk.trace().unwrap(), trace);
+            assert_eq!(mem.usage().0, 0);
+            disk.clear_fault();
+            medium(&disk, &unwitnessed);
+            disk.crash(Crash::DropAll).unwrap();
+        }
+        let (opened, head, _, retention) = Storage::open(disk.clone(), &mem).unwrap();
+        graph(&head, &retention);
+        drop(opened);
+        drop(head);
+        drop(retention);
+        assert_eq!(mem.usage().0, 0);
+        medium(&disk, &original);
+
         eprintln!(
             "cold-open calibration: box={box_requests}, decoder={decode_requests}, phases={phases:?}"
         );

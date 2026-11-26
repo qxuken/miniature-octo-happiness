@@ -1,6 +1,8 @@
 name: Bounded fuzzing
 on:
   push:
+    branches: [main]
+    tags: ['**']
     paths:
       - 'src/**'
       - 'crates/**'
@@ -17,26 +19,56 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '23 2 * * 1'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
   address:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && 90 || 60 }}
+    env:
+      FUZZ_TOOLCHAIN: ${{ (github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && 'nightly-2026-11-12' || 'nightly' }}
+      EXTENDED: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' }}
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install 1.100.0 --profile minimal
-      - run: rustup toolchain install nightly --profile minimal
+      - run: rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
       - run: cargo install cargo-fuzz --version 0.13.2 --locked
       - run: cargo +1.100.0 fetch --locked
       - run: cargo +1.100.0 test --offline --locked -p xtask --bin xtask
       - name: Replay committed seeds and model regressions
-        run: cargo +1.100.0 test --locked --manifest-path fuzz/Cargo.toml --lib
+        shell: bash
+        run: |
+          mkdir -p target/fuzz-evidence
+          cargo +1.100.0 fetch --locked --manifest-path fuzz/Cargo.toml
+          cargo +1.100.0 test --offline --locked --manifest-path fuzz/Cargo.toml --lib 2>&1 | tee target/fuzz-evidence/replay-debug.log
+          if [[ "$EXTENDED" == true ]]; then
+            cargo +1.100.0 test --offline --locked --release --manifest-path fuzz/Cargo.toml --lib 2>&1 | tee target/fuzz-evidence/replay-release.log
+          fi
       - name: Run all manifest targets
-        env:
-          FUZZ_RUNS: ${{ github.event_name == 'schedule' && '100000' || '1000' }}
-          FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '120' || '20' }}
-        run: cargo +1.100.0 xtask fuzz --runs "$FUZZ_RUNS" --seconds "$FUZZ_SECONDS" --output target/fuzz-evidence/ci
+        shell: bash
+        run: |
+          runs=1000
+          seconds=20
+          if [[ "$EXTENDED" == true ]]; then
+            runs=100000
+            seconds=120
+          fi
+          cargo +1.100.0 xtask fuzz --toolchain "$FUZZ_TOOLCHAIN" --runs "$runs" --seconds "$seconds" --output target/fuzz-evidence/ci
+      - name: Preserve the complete fuzz evidence tree for offline verification
+        if: always()
+        run: |
+          if [[ -d target/fuzz-evidence/ci ]]; then
+            tar -C target/fuzz-evidence -cf target/fuzz-evidence/ci.tar ci
+            tar -C target/fuzz-evidence -df target/fuzz-evidence/ci.tar
+          fi
+      - name: Restore and verify archived campaign against the tested commit
+        run: |
+          restored=$(mktemp -d "$RUNNER_TEMP/fuzz-restore.XXXXXXXX")
+          tar -xf target/fuzz-evidence/ci.tar -C "$restored"
+          cargo +1.100.0 xtask verify-fuzz --source "$GITHUB_SHA" --evidence "$restored/ci" > target/fuzz-evidence/verified.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:

@@ -528,7 +528,8 @@ pub fn verify(root: &Path, source: &str, tree: &Path) -> Result<Value> {
         );
         directory(&root.join(&name))?;
         let artifacts = root.join(&name).join("artifacts");
-        directory(&artifacts)?;
+        directory(&artifacts)
+            .with_context(|| format!("checking retained {name}/artifacts directory"))?;
         ensure!(
             fs::read_dir(artifacts)?.next().is_none(),
             "fuzz artifacts present for {name}"
@@ -552,6 +553,25 @@ pub fn verify(root: &Path, source: &str, tree: &Path) -> Result<Value> {
         );
     }
     Ok(json!({"evidence_sha256":report_hash,"targets":summaries}))
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+pub fn verify_campaign(run: &mut crate::support::Run, source: &str, evidence: &Path) -> Result<()> {
+    let mut scratch = crate::support::Scratch::new(&std::env::temp_dir(), "fuzz-source")?;
+    let (commit, tree, archive) =
+        crate::source_archive::revision(scratch.path(), source, None, |args, _, _| {
+            run.capture(&args)
+        })?;
+    ensure!(commit == source, "expected the full Git commit ID");
+    let campaign = verify(evidence, &commit, &tree)?;
+    scratch.close()?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "source":commit, "source_archive_sha256":archive, "campaign":campaign
+        }))?
+    );
+    Ok(())
 }
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos", windows)))]

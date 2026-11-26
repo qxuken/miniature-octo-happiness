@@ -1057,7 +1057,7 @@ mod tests {
         impl AsRef<Path> for ProbePath {
             fn as_ref(&self) -> &Path {
                 match self {
-                    Self::Forbidden => panic!("pathname touched after failed identity"),
+                    Self::Forbidden => panic!("pathname touched before admission"),
                     Self::Owned(path) => path.as_path(),
                 }
             }
@@ -1087,6 +1087,11 @@ mod tests {
                 Some(expected)
             );
         }
+
+        assert_eq!(
+            Database::open_file(ProbePath::Forbidden, invalid).err(),
+            Some(Error::Invalid)
+        );
 
         struct OwnedDirectory(PathBuf);
         impl Drop for OwnedDirectory {
@@ -1227,17 +1232,18 @@ mod tests {
             assert_eq!(last.snapshot().revision(), 0);
             return;
         }
+        const TEST: &str = "engine::tests::store_identity_exhaustion_is_isolated_in_a_subprocess";
         let result = std::process::Command::new(std::env::current_exe().unwrap())
-            .args([
-                "--exact",
-                "engine::tests::store_identity_exhaustion_is_isolated_in_a_subprocess",
-            ])
+            .args(["--exact", TEST, "--format=pretty", "--color=never"])
             .env(CHILD, "1")
             .output()
             .unwrap();
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        let passed = format!("test {TEST} ... ok");
         assert!(
-            result.status.success(),
-            "{}",
+            result.status.success() && stdout.lines().any(|line| line == passed),
+            "child test {TEST} exited with {}\n{stdout}\n{}",
+            result.status,
             String::from_utf8_lossy(&result.stderr)
         );
     }

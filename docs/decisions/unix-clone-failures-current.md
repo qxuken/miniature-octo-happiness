@@ -24,12 +24,12 @@ native compaction sequence.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `cfcc5d7b40eadd689b34a717825cd59cdd62171a09c8397671c63e43f61c2756` |
+| `src/storage/file.rs` | `a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| E | weekend-db::weekend_db | src/storage/file.rs:482:48– | 15888..15889 | try_propagation | compact_file_impl | EMFILE on the canonical file clone stops before creating scratch. |
-| E | weekend-db::weekend_db | src/storage/file.rs:498:48– | 16478..16479 | try_propagation | compact_file_impl | EMFILE on the target file clone preserves an empty scratch file for inspection. |
+| E | weekend-db::weekend_db | src/storage/file.rs:495:48– | 16458..16459 | try_propagation | compact_file_impl | EMFILE on the canonical file clone stops before creating scratch. |
+| E | weekend-db::weekend_db | src/storage/file.rs:511:48– | 17048..17049 | try_propagation | compact_file_impl | EMFILE on the target file clone preserves an empty scratch file for inspection. |
 
 ## Verification
 

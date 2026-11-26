@@ -4,6 +4,8 @@ The `live_month` example exercises an open Rust primary against the regular
 `weekend-replicate serve` process over pinned mutual TLS. It runs 30 logical
 days on a macOS APFS primary and a Docker Linux ext4 follower. The sender
 keeps its native database lease from the first poll through the last shipment.
+The [reverse lane](#linux-primary-and-macos-follower-at-9f942db) repeats
+the schedule and checks duplicate delivery after reopening a macOS follower.
 
 ## Workload and oracle
 
@@ -184,3 +186,80 @@ for the corresponding checks. Run `bash run-month.sh` from macOS with the
 pinned Docker image and locked Cargo cache for the cross-platform replay.
 The archive SHA-256 is
 `3e8b9ac4f8d097af25090bcea4ddbfe3f91e786db92b5d9aa032e2f615ed127e`.
+
+## Linux primary and macOS follower at 9f942db
+
+The exact archive at `9f942db9d0f3b62765d1ba7ff46408ea815672f3` ran the same
+30-day schedule in the opposite direction. The native macOS arm64 follower
+stored data on APFS and listened on an ephemeral loopback port. The Docker
+Linux arm64 primary reached that port through Docker Desktop's host gateway.
+The Linux source, build, temporary files, primary database and exports were
+on ext4. Both builds used Rust 1.100.0, release optimization and locked
+offline dependencies.
+
+The 31 installations transferred 625,446,912 bytes in 63 authenticated
+exchanges, including 32 polls. On days 7, 14, 21 and 28 the sender recorded
+no shipment acknowledgment. The fresh polls returned revisions 23, 44, 65
+and 86 respectively, one behind those days' local commits. The final poll
+returned revision 93 with no gap. Both sides verified all 31 retained views
+and the current values. The selected 36,851,712-byte follower image matched
+the final export exactly. A fresh copy of the follower also reopened on
+Linux/ext4 with the same revision, retained views and selected image digest.
+
+A second macOS follower process opened a fresh copy of those durable files.
+With separate synthetic credentials, the ordinary Linux CLI polled,
+resent revision 93 and polled again. All three commands observed the same
+durable receipt. The repeated export matched the original export, and all
+three follower files and the Linux primary file were byte-identical after
+the exchange. Reopening the copied follower again verified revision 93 and
+all retained views. The selected digest was
+`f88227f62ace073b551ddc644771b30522348cbd15a8073e38c13161800c5ba3`.
+
+| Linux sender phase | p50 (ms) | p95 (ms) | p99 (ms) |
+| --- | ---: | ---: | ---: |
+| 32-row transaction | 2.410 | 4.124 | 4.376 |
+| Retention commit | 0.194 | 0.999 | 1.165 |
+| Verified capture | 78.538 | 148.724 | 151.210 |
+| Heartbeat write | 0.620 | 0.851 | 0.855 |
+| Shipment | 164.487 | 294.672 | 294.842 |
+| Post-upload wait | 69.373 | 119.007 | 119.981 |
+| Fresh poll | 0.672 | 0.813 | 0.897 |
+
+These are nearest-rank observations from 30 logical days on one development
+host. The macOS receiver's sampled peak RSS was 68,736 KiB. The Docker CLI
+runs on macOS, so its reported RSS describes the launcher process.
+Deployment timing, device durability, operational account approval and
+off-machine custody remain separate release gates.
+
+The first launch returned `NotFound` during enrollment because the harness
+omitted the required empty follower directory. The successful run created that
+directory and used a fresh primary and follower. The two bounded sessions
+retired their worker processes and containers, and both sides' ephemeral
+private keys were removed. The archive contains the app binaries, source,
+reports and restored data. The `weekend-replicate` all-targets suite passed
+111 tests per profile on macOS and 112 per profile on Linux, with one Linux
+test requiring separate full-tmpfs setup ignored. Strict all-targets Clippy
+passed on both hosts. Running the [opt-in full-storage test](follower-installation-profile.md#authenticated-follower-recovery-on-a-full-linux-tmpfs)
+separately on an 8 MiB Linux tmpfs passed in both profiles. It verifies the
+previous receipt at revision 4 while storage is full and the exact revision-5
+receipt after space is available, including the retained snapshot and
+duplicate-delivery checks.
+
+To reproduce, use the build, enrollment and shipment commands above with
+Linux as the sender and macOS as the follower. Start with an existing empty
+follower directory and bind the macOS listener to `127.0.0.1:0`. Resolve
+`host.docker.internal` to IPv4 in the sender container and use that address
+with the printed port for the `live_month send` call. Once the first follower
+has exited, use a fresh copy of its selected image, previous image and
+manifest for the second follower. Allow three exchanges and use the normal
+`poll`, `ship --attempts 1` and `poll` commands against revision 93. Compare
+both poll receipts, the duplicate export and every durable file with the
+originals.
+
+The local `target/archived-proof/snapshot-linux-primary-9f942db.tar.zst`
+archive includes the exact launch and repeat scripts. Fresh extraction
+verified all 141 indexed payloads and ran the retained macOS binary against
+the extracted follower files. The independent checker validates all 31 CSV
+records, 18 terminal command receipts, both cleanup outcomes and six
+negative CSV controls.
+[Archive and evidence checksums](decisions/snapshot-linux-primary-9f942db.sha256)

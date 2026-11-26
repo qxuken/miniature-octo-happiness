@@ -3,14 +3,9 @@ use std::process::Command;
 fn cli_dispatch_rejects_invalid_shapes_and_accepts_help() {
     let bin = env!("CARGO_BIN_EXE_study-peer");
     for args in [vec!["--help"], vec!["-h"]] {
-        assert!(
-            Command::new(bin)
-                .args(args)
-                .output()
-                .unwrap()
-                .status
-                .success()
-        );
+        let output = Command::new(bin).args(args).output().unwrap();
+        assert!(output.status.success() && output.stderr.is_empty());
+        assert!(output.stdout.starts_with(b"study-peer keygen "));
     }
     for args in [
         vec![],

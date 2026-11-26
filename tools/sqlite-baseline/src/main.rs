@@ -1,4 +1,7 @@
 //! Private durable retained-history fixture. The controller supplies a fresh directory.
+mod arrivals;
+
+use arrivals::{Schedule, WRITE_PERIOD_US};
 use std::{fs, path::Path, time::Instant};
 use weekend_db::{Database, Limits, Snapshot, storage};
 
@@ -107,7 +110,9 @@ fn main() {
         std::env::var("WEEKEND_DB_SOURCE_ID").expect("explicit runtime source identity")
     );
     let args: Vec<_> = std::env::args().collect();
-    assert_eq!(args.len(), 8);
+    assert!((8..=9).contains(&args.len()));
+    let write_period_us: Option<u64> = args.get(8).map(|arg| arg.parse().unwrap());
+    assert!(write_period_us.is_none_or(|period| WRITE_PERIOD_US.contains(&period)));
     let work = Work {
         commits: args[2].parse().unwrap(),
         keys: args[3].parse().unwrap(),
@@ -143,7 +148,10 @@ fn main() {
     let mut commit_ns = Vec::new();
     let mut transaction_ns = Vec::new();
     let mut pin_ns = Vec::new();
+    let mut write_arrivals_ns = Vec::new();
+    let schedule = write_period_us.map(Schedule::new);
     for epoch in 1..=work.commits {
+        let began = schedule.as_ref().map(|schedule| schedule.begin(epoch));
         let writes: Vec<_> = (0..work.batch)
             .map(|j| {
                 let key = (epoch * work.batch + j) % work.keys;
@@ -164,6 +172,10 @@ fn main() {
             let started = Instant::now();
             db.retain_snapshot(&db.snapshot()).unwrap();
             pin_ns.push(started.elapsed().as_nanos());
+        }
+        drop(tx);
+        if let Some((began, schedule)) = began.zip(schedule.as_ref()) {
+            write_arrivals_ns.push([began, schedule.finish()]);
         }
     }
     let digest = verify(&db, work);
@@ -196,8 +208,9 @@ fn main() {
     Database::compact_file(&path, Limits::default()).unwrap();
     verify_path(&path, work, digest);
     let compact_ns = started.elapsed().as_nanos();
+    let write_period = write_period_us.map_or_else(|| "null".into(), |value| value.to_string());
     println!(
-        "{{\"commit_ns\":{commit_ns:?},\"transaction_ns\":{transaction_ns:?},\"pin_ns\":{pin_ns:?},\"reopen_ns\":{reopen_ns:?},\"reopen_verify_ns\":{reopen_verify_ns:?},\"backup_ns\":{backup_ns},\"restore_ns\":{restore_ns},\"compact_ns\":{compact_ns},\"oracle_digest\":{digest},\"history_count\":{},\"bytes_live\":{bytes_live},\"bytes_closed\":{bytes_closed},\"bytes_compacted\":{},\"backup_bytes\":{},\"restored_bytes\":{}}}",
+        "{{\"commit_ns\":{commit_ns:?},\"transaction_ns\":{transaction_ns:?},\"pin_ns\":{pin_ns:?},\"write_period_us\":{write_period},\"write_arrivals_ns\":{write_arrivals_ns:?},\"reopen_ns\":{reopen_ns:?},\"reopen_verify_ns\":{reopen_verify_ns:?},\"backup_ns\":{backup_ns},\"restore_ns\":{restore_ns},\"compact_ns\":{compact_ns},\"oracle_digest\":{digest},\"history_count\":{},\"bytes_live\":{bytes_live},\"bytes_closed\":{bytes_closed},\"bytes_compacted\":{},\"backup_bytes\":{},\"restored_bytes\":{}}}",
         work.pins().len(),
         size(&path),
         size(&backup),

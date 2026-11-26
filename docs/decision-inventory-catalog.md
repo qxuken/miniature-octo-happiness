@@ -32,7 +32,7 @@ and build scripts. Integration-test targets are listed as excluded until
 `--include-tests` is selected. That optional mode also includes unit-test bodies
 and cannot be combined with a production review.
 
-The current catalog has 66 non-test Cargo targets and 46 explicitly excluded
+The current catalog has 67 non-test Cargo targets and 46 explicitly excluded
 integration-test targets. All twelve prior target IDs remain unchanged. Name
 collisions use workspace manifest, package, kind and target name; packages in
 independent workspaces and a same-named library/binary cannot collapse.

@@ -96,3 +96,39 @@ withdraws this and both 2490631 aggregate claims. Functional tests and independe
 scoped evidence keep their own status. The independent
 [source inventory](decision-inventory.md) makes additional source obligations
 and macro blind spots visible.
+
+## Core library measurement on November 25, 2026
+
+At `36c065d`, macOS arm64 ran the all-feature core library with
+`nightly-2026-11-25` (rustc `739adecd4`, LLVM 23.1.6). All 234 unit tests
+passed. Condition instrumentation measured 1,384/1,553 branch outcomes
+(89.12%), 16,271/17,252 lines (94.31%) and 22,148/23,703 regions (93.44%).
+These figures include in-source unit tests. The three calibration inputs
+measured 2/6, 6/6 and 6/6 branch outcomes as expected. The same compiler
+rejected the MC/DC flag before compilation; the condition export contains
+zero MC/DC conditions.
+
+The coverage runner now requires each exported file to resolve to a regular
+file in the campaign source inventory and rejects a second mapping to the
+same canonical file. Ten coverage-runner tests passed. Independent inspection
+matched all 34 files to their Git blobs and confirmed the exact integer
+counts and warning-free LLVM commands. The [archive manifest](decisions/compiler-coverage-36c065d.sha256)
+identifies the test objects, profiles, report, compiler probe, runner logs and
+source bundle.
+
+### Distinguishing an unavailable mode from a failed probe
+
+An unsupported result requires rustc's diagnostic for the requested flag and
+a supervised, normally retired child that exited with code 1. An unrelated
+compiler error also returns 1, so the exit code alone cannot establish the
+compiler's capability. Missing process evidence, a cancelled probe or an
+unrecognized diagnostic leaves the measurement rejected.
+
+At `df5edc2`, the real stable 1.100.0 compiler rejected the nightly flag and
+the November 25 nightly rejected the MC/DC value. A controlled compiler
+that reported the same version and failed the probe with exit 1 and an
+unrelated diagnostic produced `rejected`. The nightly condition fixture
+still calibrated successfully. Twelve coverage tests and the exact-exit
+supervision regression passed in debug and release on macOS arm64 and
+Docker Linux arm64. The [archive manifest](decisions/compiler-probe-df5edc2.sha256)
+covers the commands, process receipts, compiler output and negative control.

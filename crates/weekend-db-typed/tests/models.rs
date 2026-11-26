@@ -819,6 +819,28 @@ fn scalar_boundaries_binary_lookup_and_float_bit_identity_roundtrip() -> Result<
             },
         )
     })?;
+    // Read the physical keys without going through either typed key encoder.
+    let db = store.database();
+    let snapshot = db.snapshot();
+    let index = db.collection_id(3);
+    let signed = i64::from(i8::MIN).to_le_bytes();
+    let counter = u64::from(u32::MAX).to_le_bytes();
+    let nan = bits.to_le_bytes();
+    let claims: [(u64, u8, &[u8]); 5] = [
+        (1, 1, &[1]),
+        (2, 2, &signed),
+        (3, 3, &counter),
+        (4, 4, &nan),
+        (5, 5, &[0, 255, 1]),
+    ];
+    assert_eq!(snapshot.count(index)?, claims.len());
+    for (field, tag, payload) in claims {
+        let mut key = table.collection().as_u64().to_le_bytes().to_vec();
+        key.extend_from_slice(&field.to_le_bytes());
+        key.push(tag);
+        key.extend_from_slice(payload);
+        assert_eq!(snapshot.get(index, &key)?.unwrap().as_u64()?, 1);
+    }
     store.read(|r| {
         let row = r
             .find(&table, Scalars::PAYLOAD, [0, 255, 1].as_slice())?

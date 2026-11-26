@@ -84,6 +84,10 @@ struct PausedCopy {
     file: FileStore,
     pause: Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>,
 }
+
+// This is a deadlock watchdog for real native flushes on shared runners.
+const NATIVE_EXPORT_WATCHDOG: Duration = Duration::from_secs(60);
+
 impl ByteStore for PausedCopy {
     fn lock(&mut self) -> weekend_db::Result<()> {
         self.file.lock()
@@ -103,8 +107,8 @@ impl ByteStore for PausedCopy {
     fn sync(&mut self) -> weekend_db::Result<()> {
         self.file.sync()?;
         if let Some((arrived, resume)) = self.pause.take() {
-            arrived.send(()).unwrap();
-            resume.recv_timeout(Duration::from_secs(10)).unwrap();
+            arrived.send(()).map_err(|_| Error::Io)?;
+            resume.recv().map_err(|_| Error::Io)?;
         }
         Ok(())
     }
@@ -180,22 +184,37 @@ fn live_export_pins_old_roots_while_the_native_source_changes() {
         file: FileStore::create(&export_path).unwrap(),
         pause: Some((arrived, resumed)),
     };
+    let completed_publications = AtomicU64::new(0);
     let (mut export, latest, replacement) = std::thread::scope(|scope| {
+        // This scope owns the sender so unwind also releases the destination.
+        let resume = resume;
         let capture = scope.spawn(|| primary.export_live_to(&db, copy, limits));
-        at_sync.recv_timeout(Duration::from_secs(10)).unwrap();
+        at_sync
+            .recv_timeout(NATIVE_EXPORT_WATCHDOG)
+            .expect("destination did not reach its first durable sync");
         let (done, finished) = mpsc::channel();
         let db = &db;
+        let completed = &completed_publications;
         let writer = scope.spawn(move || {
             put(db, 3);
+            completed.store(1, Ordering::Relaxed);
             db.release_retained(retained).unwrap();
+            completed.store(2, Ordering::Relaxed);
             let replacement = db.retain_snapshot(&db.snapshot()).unwrap();
+            completed.store(3, Ordering::Relaxed);
             let _ = db.create_collection().unwrap();
+            completed.store(4, Ordering::Relaxed);
             done.send((db.snapshot().revision(), replacement)).unwrap();
         });
-        let result = finished.recv_timeout(Duration::from_secs(5));
-        resume.send(()).unwrap();
+        let result = finished.recv_timeout(NATIVE_EXPORT_WATCHDOG);
+        let completed_while_paused = completed_publications.load(Ordering::Relaxed);
+        resume.send(()).expect("destination exited before release");
         writer.join().unwrap();
-        let (latest, replacement) = result.expect("source waited for a destination sync");
+        let (latest, replacement) = result.unwrap_or_else(|error| {
+            panic!(
+                "source completed {completed_while_paused}/4 publications while the destination was paused: {error:?}"
+            )
+        });
         (capture.join().unwrap().unwrap(), latest, replacement)
     });
     assert_eq!(export.descriptor(), descriptor);
@@ -984,4 +1003,100 @@ fn native_manifest_growth_and_reseed_preserve_receipts() {
             }
         }
     }
+}
+
+#[test]
+fn primary_enrollment_requires_a_healthy_durable_writer() {
+    use weekend_db::storage::{Crash, Fault, SimulatedDisk};
+
+    let stream = [2; 16];
+    let memory = Database::new().unwrap();
+    assert_eq!(Primary::new(&memory, stream).err(), Some(Error::Invalid));
+
+    let disk = SimulatedDisk::new().unwrap();
+    let db = Database::create_on(disk.clone(), [1; 16], Limits::default()).unwrap();
+    let enrollment = Primary::new(&db, stream).unwrap().enrollment();
+    let revision = db.snapshot().revision();
+    disk.arm(0, Fault::Error);
+    assert_eq!(db.create_collection(), Err(Error::Io));
+    assert!(db.requires_recovery());
+    let trace = disk.trace().unwrap();
+    assert_eq!(
+        Primary::new(&db, stream).err(),
+        Some(Error::RecoveryRequired)
+    );
+    assert_eq!(db.snapshot().revision(), revision);
+    assert_eq!(disk.trace().unwrap(), trace);
+
+    drop(db);
+    disk.clear_fault();
+    disk.crash(Crash::DropAll).unwrap();
+    let reopened = Database::open_on(disk, Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), revision);
+    assert_eq!(
+        Primary::new(&reopened, stream).unwrap().enrollment(),
+        enrollment
+    );
+}
+
+#[test]
+fn live_capture_rejects_unusable_sources_before_writing_the_destination() {
+    use weekend_db::storage::{Fault, IoKind, SimulatedDisk};
+
+    let disk = SimulatedDisk::new().unwrap();
+    let source = Database::create_on(disk.clone(), [1; 16], Limits::default()).unwrap();
+    let mut primary = Primary::new(&source, [2; 16]).unwrap();
+    let retained = source.retain_snapshot(&source.snapshot()).unwrap();
+    let revision = source.snapshot().revision();
+    let destination = SimulatedDisk::new().unwrap();
+    destination.arm(usize::MAX, Fault::Error);
+    let memory = Database::new().unwrap();
+    assert_eq!(
+        primary
+            .export_live_to(&memory, destination.clone(), Limits::default())
+            .err(),
+        Some(Error::Invalid)
+    );
+    assert_eq!(
+        primary
+            .export_live_to(
+                &source,
+                destination.clone(),
+                Limits {
+                    max_live_bytes: 1,
+                    ..Limits::default()
+                }
+            )
+            .err(),
+        Some(Error::Limit)
+    );
+    assert!(destination.trace().unwrap().is_empty());
+    assert!(destination.durable_image().unwrap().is_empty());
+    assert_eq!(source.retained_ids().unwrap(), [retained]);
+    let export = primary
+        .export_live_to(&source, destination.clone(), Limits::default())
+        .unwrap();
+    assert_eq!(export.revision(), revision);
+    assert!(
+        destination
+            .trace()
+            .unwrap()
+            .iter()
+            .any(|event| event.kind == IoKind::Write)
+    );
+
+    disk.arm(0, Fault::Error);
+    assert_eq!(source.create_collection(), Err(Error::Io));
+    let untouched = SimulatedDisk::new().unwrap();
+    untouched.arm(usize::MAX, Fault::Error);
+    assert_eq!(
+        primary
+            .export_live_to(&source, untouched.clone(), Limits::default())
+            .err(),
+        Some(Error::RecoveryRequired)
+    );
+    assert!(untouched.trace().unwrap().is_empty());
+    assert!(untouched.durable_image().unwrap().is_empty());
+    assert_eq!(source.snapshot().revision(), revision);
+    assert_eq!(source.retained_ids().unwrap(), [retained]);
 }

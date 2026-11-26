@@ -136,6 +136,19 @@ impl Drop for Process {
     }
 }
 
+fn wait_for_child_output(mut child: Child, event: &str) -> std::process::Output {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while child.try_wait().unwrap().is_none() {
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("process did not exit after {event}");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    child.wait_with_output().unwrap()
+}
+
 fn wait_for_transition(mut observe: impl FnMut() -> String, previous: &str, expected: &str) {
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {
@@ -1430,14 +1443,13 @@ fn configured_secret_authenticates_before_writes_and_receipt_lookup() {
 #[test]
 fn command_line_dispatch_and_clean_client_exit() {
     for args in [vec!["--help"], vec!["-h"]] {
+        let output = Command::new(BIN).args(&args).output().unwrap();
+        assert!(output.status.success(), "{args:?}");
         assert!(
-            Command::new(BIN)
-                .args(args)
-                .output()
-                .unwrap()
-                .status
-                .success()
+            output.stdout.starts_with(b"write-coordinator init <file>"),
+            "{args:?}"
         );
+        assert!(output.stderr.is_empty(), "{args:?}");
     }
     for args in [
         vec![],
@@ -1446,26 +1458,370 @@ fn command_line_dispatch_and_clean_client_exit() {
         vec!["wrong", "path", "0"],
         vec!["wrong", "p", "0", "--secret-file", "s"],
         vec!["serve", "p", "0", "--bad", "s"],
+        vec!["serve-sequenced", "p", "0", "--bad", "s"],
         vec!["wrong", "0", "--secret-file", "s"],
         vec!["client", "0", "--bad", "s"],
     ] {
+        let output = Command::new(BIN).args(&args).output().unwrap();
+        assert!(!output.status.success(), "{args:?}");
+        assert!(output.stdout.is_empty(), "{args:?}");
         assert!(
-            !Command::new(BIN)
-                .args(args)
-                .output()
-                .unwrap()
-                .status
-                .success()
+            output.stderr.starts_with(b"write-coordinator init <file>"),
+            "{args:?}"
         );
     }
+    let eof = Command::new(BIN).args(["client", "0"]).output().unwrap();
+    assert!(eof.status.success());
+    assert!(eof.stdout.is_empty());
+    assert!(eof.stderr.is_empty());
     let mut client = Command::new(BIN)
         .args(["client", "0"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    client.stdin.take().unwrap().write_all(b"\nquit\n").unwrap();
+    client
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"\n  quit  \nget\n")
+        .unwrap();
     assert!(client.wait().unwrap().success());
+}
+
+#[test]
+fn command_line_preserves_port_and_configuration_errors() {
+    let dir = Directory::new();
+    let database = dir.0.join("database");
+    let database = database.to_str().unwrap();
+    let secret = dir.0.join("missing-secret");
+    let secret_path = secret.to_str().unwrap();
+    let bad_port = "invalid-port";
+    let parse_error = bad_port.parse::<u16>().unwrap_err().to_string();
+    let file_error = fs::metadata(&secret).unwrap_err().to_string();
+    for (args, expected) in [
+        (vec!["serve", database, bad_port], parse_error.as_str()),
+        (vec!["client", bad_port], parse_error.as_str()),
+        (
+            vec!["serve", database, bad_port, "--secret-file", secret_path],
+            parse_error.as_str(),
+        ),
+        (
+            vec![
+                "serve-sequenced",
+                database,
+                bad_port,
+                "--secret-file",
+                secret_path,
+            ],
+            parse_error.as_str(),
+        ),
+        (
+            vec!["client", bad_port, "--secret-file", secret_path],
+            parse_error.as_str(),
+        ),
+        (
+            vec!["serve", database, "0", "--secret-file", secret_path],
+            file_error.as_str(),
+        ),
+        (
+            vec![
+                "serve-sequenced",
+                database,
+                "0",
+                "--secret-file",
+                secret_path,
+            ],
+            file_error.as_str(),
+        ),
+        (
+            vec!["client", "0", "--secret-file", secret_path],
+            file_error.as_str(),
+        ),
+    ] {
+        let output = Command::new(BIN).args(&args).output().unwrap();
+        assert!(!output.status.success(), "{args:?}");
+        assert!(output.stdout.is_empty(), "{args:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert_eq!(stderr.lines().last(), Some(expected), "{args:?}");
+    }
+    assert!(!std::path::Path::new(database).exists());
+}
+
+#[test]
+fn command_line_checks_file_and_profile_before_binding() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let legacy = dir.0.join("legacy.db");
+    let sequenced = dir.0.join("sequenced.db");
+    let missing = dir.0.join("missing.db");
+    let secret = dir.0.join("secret");
+    write_secret(&secret, &"a".repeat(64));
+    let secret = secret.to_str().unwrap();
+    for (command, file) in [("init", &legacy), ("init-sequenced", &sequenced)] {
+        let path = file.to_str().unwrap();
+        let fresh = Command::new(BIN).args([command, path]).output().unwrap();
+        assert!(fresh.status.success(), "{command}");
+        assert!(fresh.stdout.is_empty(), "{command}");
+        let before = fs::read(file).unwrap();
+        let existing = Command::new(BIN).args([command, path]).output().unwrap();
+        assert!(!existing.status.success(), "{command}");
+        assert_eq!(
+            String::from_utf8(existing.stderr).unwrap().trim(),
+            weekend_db::Error::AlreadyExists.to_string()
+        );
+        assert_eq!(fs::read(file).unwrap(), before);
+    }
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let bound = listener.local_addr().unwrap();
+    let port = bound.port().to_string();
+    let bind_error = std::net::TcpListener::bind(bound).unwrap_err().to_string();
+    let before = fs::read(&sequenced).unwrap();
+    for (command, file, expected) in [
+        ("serve", &missing, weekend_db::Error::NotFound.to_string()),
+        (
+            "serve-sequenced",
+            &legacy,
+            weekend_db::Error::UnsupportedFormat.to_string(),
+        ),
+        ("serve", &sequenced, weekend_db::Error::NotFound.to_string()),
+        ("serve", &legacy, bind_error.clone()),
+        ("serve-sequenced", &sequenced, bind_error),
+    ] {
+        let output = Command::new(BIN)
+            .args([
+                command,
+                file.to_str().unwrap(),
+                &port,
+                "--secret-file",
+                secret,
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{command} {file:?}");
+        assert!(output.stdout.is_empty(), "{command} {file:?}");
+        assert_eq!(
+            String::from_utf8(output.stderr).unwrap().trim(),
+            expected,
+            "{command} {file:?}"
+        );
+    }
+    assert_eq!(fs::read(&sequenced).unwrap(), before);
+    let result = Command::new(BIN)
+        .args(["journal", "status", missing.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(result.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(result.stderr).unwrap().trim(),
+        weekend_db::Error::NotFound.to_string()
+    );
+}
+
+#[test]
+fn incomplete_legacy_images_are_read_only_at_startup() {
+    use weekend_db::{Database, Error, Limits};
+
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port().to_string();
+    for revision in [0, 1] {
+        let path = dir.0.join(format!("incomplete-{revision}.db"));
+        let db = Database::create_file(&path, Limits::default()).unwrap();
+        if revision == 1 {
+            assert_eq!(db.create_collection().unwrap().as_u64(), 1);
+        }
+        assert_eq!(db.snapshot().revision(), revision);
+        drop(db);
+        let before = fs::read(&path).unwrap();
+        let path_arg = path.as_os_str();
+        let rejected = Command::new(BIN)
+            .arg("serve")
+            .arg(path_arg)
+            .arg(&port)
+            .output()
+            .unwrap();
+        assert!(!rejected.status.success(), "revision {revision}");
+        assert!(rejected.stdout.is_empty(), "revision {revision}");
+        assert_eq!(
+            String::from_utf8(rejected.stderr).unwrap().lines().last(),
+            Some(Error::NotFound.to_string().as_str())
+        );
+        let repeat = Command::new(BIN)
+            .arg("init")
+            .arg(path_arg)
+            .output()
+            .unwrap();
+        assert!(!repeat.status.success(), "revision {revision}");
+        assert!(repeat.stdout.is_empty(), "revision {revision}");
+        assert_eq!(
+            String::from_utf8(repeat.stderr).unwrap().trim(),
+            Error::AlreadyExists.to_string()
+        );
+        assert_eq!(fs::read(&path).unwrap(), before, "revision {revision}");
+        let reopened = Database::open_file(&path, Limits::default()).unwrap();
+        assert_eq!(reopened.snapshot().revision(), revision);
+    }
+}
+
+#[test]
+fn readiness_write_error_releases_the_database_lease() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let path = dir.0.join("coordinator.db");
+    assert!(
+        Command::new(BIN)
+            .arg("init")
+            .arg(&path)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let before = fs::read(&path).unwrap();
+    let (reader, mut writer) = std::io::pipe().unwrap();
+    drop(reader);
+    let expected = writer.write_all(b"probe\n").unwrap_err().to_string();
+    let child = Command::new(BIN)
+        .arg("serve")
+        .arg(&path)
+        .arg("0")
+        .stdout(Stdio::from(writer))
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let output = wait_for_child_output(child, "losing its readiness pipe");
+    assert!(!output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().lines().last(),
+        Some(expected.as_str())
+    );
+    assert_eq!(fs::read(&path).unwrap(), before);
+    let reopened = weekend_db::Database::open_file(&path, weekend_db::Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), 2);
+}
+
+#[test]
+fn client_preserves_output_error_and_stops_before_the_next_request() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let path = dir.0.join("client-output.db");
+    let path = path.to_str().unwrap();
+    assert!(
+        Command::new(BIN)
+            .args(["init", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let initial = fs::read(path).unwrap();
+    let mut server = Process::start(&["serve", path, "0"]);
+    let ready = server.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    let (read_end, mut write_end) = std::io::pipe().unwrap();
+    drop(read_end);
+    let expected = write_end.write_all(b"probe\n").unwrap_err().to_string();
+    let mut child = Command::new(BIN)
+        .args(["client", port])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::from(write_end))
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"get\nset 2 9\n")
+        .unwrap();
+    let output = wait_for_child_output(child, "losing its reply output");
+    assert!(!output.status.success());
+    assert_eq!(String::from_utf8(output.stderr).unwrap().trim(), expected);
+    server.stop();
+    assert_eq!(fs::read(path).unwrap(), initial);
+    let reopened = weekend_db::Database::open_file(path, weekend_db::Limits::default()).unwrap();
+    assert_eq!(reopened.snapshot().revision(), 2);
+}
+
+#[test]
+fn connection_worker_reports_only_a_failed_request() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let path = dir.0.join("connection-diagnostic.db");
+    let path = path.to_str().unwrap();
+    assert!(
+        Command::new(BIN)
+            .args(["init", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let image = fs::read(path).unwrap();
+    let mut command = Command::new(BIN);
+    command.args(["serve", path, "0"]).stderr(Stdio::piped());
+    let mut server = Process::start_command(command);
+    let ready = server.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    let stderr = server.child.stderr.take().unwrap();
+    let (send, diagnostics) = mpsc::channel();
+    let logging = std::thread::spawn(move || {
+        for line in BufReader::new(stderr).lines() {
+            if send.send(line.unwrap()).is_err() {
+                break;
+            }
+        }
+    });
+    let wait = Duration::from_secs(15);
+    assert_eq!(
+        diagnostics.recv_timeout(wait).unwrap(),
+        "unauthenticated loopback demo mode"
+    );
+    let mut peer =
+        std::net::TcpStream::connect(("127.0.0.1", port.parse::<u16>().unwrap())).unwrap();
+    peer.write_all(b"get").unwrap();
+    peer.shutdown(std::net::Shutdown::Write).unwrap();
+    assert_eq!(
+        diagnostics.recv_timeout(wait).unwrap(),
+        "client connection: missing or oversized line"
+    );
+    let mut client = Process::start(&["client", port]);
+    client.send("get");
+    assert_eq!(client.receive(), "value 2 0");
+    drop(client);
+    server.stop();
+    logging.join().unwrap();
+    assert!(matches!(
+        diagnostics.try_recv(),
+        Err(mpsc::TryRecvError::Disconnected)
+    ));
+    assert_eq!(fs::read(path).unwrap(), image);
+}
+
+#[test]
+fn client_preserves_bad_input_and_refused_connection() {
+    let address = std::net::SocketAddr::from(([127, 0, 0, 1], 0));
+    let connect_error = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(3))
+        .unwrap_err()
+        .to_string();
+    for (input, expected) in [
+        (b"\xff\n".as_slice(), "stream did not contain valid UTF-8"),
+        (b"get\n".as_slice(), connect_error.as_str()),
+    ] {
+        let mut child = Command::new(BIN)
+            .args(["client", "0"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(input).unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert_eq!(String::from_utf8(output.stderr).unwrap().trim(), expected);
+    }
 }
 
 #[cfg(unix)]
@@ -1510,4 +1866,301 @@ fn secret_fifo_is_rejected_before_opening_database_or_waiting_for_input() {
         assert!(!status.success());
         assert_eq!(fs::read(&file).unwrap(), b"database must remain untouched");
     }
+}
+
+#[test]
+fn journal_cli_rejects_invalid_arguments_and_claimed_slots_without_writing() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let primary = dir.0.join("primary.db");
+    let journal = dir.0.join("writer.db");
+    let second = dir.0.join("second.db");
+    let key = dir.0.join("secret");
+    let token = "4".repeat(64);
+    write_secret(&key, &token);
+    assert!(
+        Command::new(BIN)
+            .arg("init-sequenced")
+            .arg(&primary)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let key = key.to_str().unwrap();
+    let (_service, client) =
+        configured_service("serve-sequenced", primary.to_str().unwrap(), key, &token);
+    let port = client.address.port().to_string();
+    let run = |action: &str, path: &std::path::Path, tail: &[&str]| {
+        Command::new(BIN)
+            .args(["journal", action])
+            .arg(path)
+            .args(tail)
+            .output()
+            .unwrap()
+    };
+    let rejected = |action, path: &std::path::Path, tail: &[&str], message: &str| {
+        let output = run(action, path, tail);
+        assert!(
+            !output.status.success() && output.stdout.is_empty(),
+            "{output:?}"
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(message),
+            "{output:?}"
+        );
+    };
+
+    rejected(
+        "init",
+        &journal,
+        &[&port, "1024", "--secret-file", key],
+        "Invalid",
+    );
+    assert!(!journal.exists());
+    let init = run("init", &journal, &[&port, "1023", "--secret-file", key]);
+    assert!(init.status.success(), "{init:?}");
+    let written = run("set", &journal, &[&port, "3", "42", "--secret-file", key]);
+    assert!(written.status.success(), "{written:?}");
+    let image = fs::read(&journal).unwrap();
+
+    // The primary is already leased by the server. Each command that opens
+    // a journal must return Busy before inspecting its connection settings.
+    for (action, tail) in [
+        ("status", &[][..]),
+        ("check", &["bad", "--secret-file", key][..]),
+        ("resume", &["bad", "--secret-file", key][..]),
+        ("set", &["bad", "4", "43", "--secret-file", key][..]),
+    ] {
+        rejected(action, &primary, tail, "Busy");
+    }
+    let directory = dir.0.to_str().unwrap();
+    for (action, tail) in [
+        ("check", &[port.as_str(), "--secret-file", directory][..]),
+        ("resume", &[port.as_str(), "--secret-file", directory][..]),
+        (
+            "set",
+            &[port.as_str(), "4", "43", "--secret-file", directory][..],
+        ),
+        (
+            "init",
+            &[port.as_str(), "7", "--secret-file", directory][..],
+        ),
+    ] {
+        rejected(action, &journal, tail, "secret must be a regular file");
+    }
+    rejected(
+        "init",
+        &second,
+        &["bad", "7", "--secret-file", key],
+        "invalid digit",
+    );
+    rejected(
+        "init",
+        &second,
+        &[&port, "bad", "--secret-file", key],
+        "invalid digit",
+    );
+    assert!(!second.exists());
+    rejected(
+        "init",
+        &journal,
+        &[&port, "7", "--secret-file", key],
+        "AlreadyExists",
+    );
+    #[cfg(unix)]
+    let invalid_slot =
+        <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(vec![0xff]);
+    #[cfg(windows)]
+    let invalid_slot =
+        <std::ffi::OsString as std::os::windows::ffi::OsStringExt>::from_wide(&[0xd800]);
+    let output = Command::new(BIN)
+        .args(["journal", "init"])
+        .arg(&second)
+        .arg(&port)
+        .arg(invalid_slot)
+        .args(["--secret-file", key])
+        .output()
+        .unwrap();
+    assert!(!output.status.success() && output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().trim_end(),
+        "expected a decimal number"
+    );
+    assert!(!second.exists());
+    let usage = "write-coordinator journal status <file>";
+    for (action, tail) in [
+        ("init", &[port.as_str(), "1023", "--wrong", key][..]),
+        ("resume", &[port.as_str(), "--wrong", key][..]),
+        ("check", &[port.as_str(), "--wrong", key][..]),
+        ("set", &[port.as_str(), "4", "43", "--wrong", key][..]),
+        ("other", &[][..]),
+        ("other", &[port.as_str(), "--secret-file", key][..]),
+        ("other", &[port.as_str(), "1023", "--secret-file", key][..]),
+        (
+            "other",
+            &[port.as_str(), "4", "43", "--secret-file", key][..],
+        ),
+    ] {
+        rejected(action, &journal, tail, usage);
+    }
+    for (expected, value) in [("bad", "43"), ("4", "bad")] {
+        rejected(
+            "set",
+            &journal,
+            &[&port, expected, value, "--secret-file", key],
+            "invalid digit",
+        );
+    }
+    for destination in [&journal, &second] {
+        rejected(
+            "init",
+            destination,
+            &[&port, "1023", "--secret-file", key],
+            "empty assigned slot",
+        );
+    }
+    assert!(!second.exists());
+    assert_eq!(fs::read(&journal).unwrap(), image);
+    assert_eq!(client.request("receipt 1023"), "receipt 1 3 42 4");
+}
+
+#[test]
+fn journal_init_creates_a_file_only_after_identity_and_empty_receipt() {
+    use std::net::TcpListener;
+
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let journal = dir.0.join("writer.db");
+    let key = dir.0.join("secret");
+    let token = "4".repeat(64);
+    write_secret(&key, &token);
+    let id = "0123456789abcdef0123456789abcdef";
+    let valid_identity = format!("identity {id}\n");
+    let invalid_identity = "invalid coordinator identity response";
+    let refused =
+        "journal initialization requires an empty assigned slot and a valid coordinator identity";
+    let truncated = "missing or oversized line";
+    for (identity_reply, receipt_reply, expected_error) in [
+        ("", None, Some(truncated)),
+        ("value 3 0\n", None, Some(invalid_identity)),
+        ("identity xyz\n", None, Some(invalid_identity)),
+        (
+            "identity 00000000000000000000000000000000\n",
+            None,
+            Some(refused),
+        ),
+        (valid_identity.as_str(), Some(""), Some(truncated)),
+        (valid_identity.as_str(), Some("receipt 00\n"), Some(refused)),
+        (valid_identity.as_str(), Some("receipt 0\n"), None),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let peer = AuthenticatedClient {
+            address: listener.local_addr().unwrap(),
+            token: token.clone(),
+        };
+        let child = Command::new(BIN)
+            .args(["journal", "init"])
+            .arg(&journal)
+            .arg(peer.address.port().to_string())
+            .args(["7", "--secret-file"])
+            .arg(&key)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let (mut socket, command) = accept_journal_request(&listener, &peer, "identity");
+        assert_eq!(command, "identity");
+        assert!(!journal.exists());
+        socket.write_all(identity_reply.as_bytes()).unwrap();
+        drop(socket);
+        if let Some(reply) = receipt_reply {
+            let (mut socket, command) = accept_journal_request(&listener, &peer, "journal-receipt");
+            assert_eq!(command, format!("journal-receipt {id} 7"));
+            assert!(!journal.exists());
+            socket.write_all(reply.as_bytes()).unwrap();
+        }
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        if let Some(error) = expected_error {
+            assert!(!output.status.success(), "{output:?}");
+            assert!(output.stdout.is_empty());
+            assert_eq!(String::from_utf8(output.stderr).unwrap().trim_end(), error);
+            assert!(!journal.exists());
+        } else {
+            assert!(output.status.success(), "{output:?}");
+            let reopened = Command::new(BIN)
+                .args(["journal", "status"])
+                .arg(&journal)
+                .output()
+                .unwrap();
+            assert!(reopened.status.success(), "{reopened:?}");
+            assert_eq!(output.stdout, reopened.stdout);
+            assert_eq!(
+                String::from_utf8(reopened.stdout).unwrap(),
+                format!("journal {id} 7\nreceipt 0\n")
+            );
+        }
+    }
+}
+
+#[test]
+fn journal_receipt_survives_failure_to_print_commit_acknowledgment() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let database = dir.0.join("primary.db");
+    let journal = dir.0.join("writer.db");
+    let key = dir.0.join("secret");
+    let token = "4".repeat(64);
+    write_secret(&key, &token);
+    assert!(
+        Command::new(BIN)
+            .arg("init-sequenced")
+            .arg(&database)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let key = key.to_str().unwrap();
+    let (_service, client) =
+        configured_service("serve-sequenced", database.to_str().unwrap(), key, &token);
+    let port = client.address.port().to_string();
+    let command = |action: &str, tail: &[&str]| {
+        let mut cmd = Command::new(BIN);
+        cmd.args(["journal", action]).arg(&journal).args(tail);
+        cmd
+    };
+    let fail_output = |mut cmd: Command| {
+        let (reader, mut writer) = std::io::pipe().unwrap();
+        drop(reader);
+        let expected = writer.write_all(b"probe").unwrap_err();
+        let out = cmd.stdout(writer).output().unwrap();
+        assert!(!out.status.success(), "{out:?}");
+        assert_eq!(
+            String::from_utf8(out.stderr).unwrap().trim_end(),
+            expected.to_string()
+        );
+    };
+    fail_output(command("init", &[&port, "7", "--secret-file", key]));
+    // Even the first failed status line follows durable creation.
+    assert!(command("status", &[]).output().unwrap().status.success());
+
+    fail_output(command("set", &[&port, "3", "42", "--secret-file", key]));
+    let image = fs::read(&journal).unwrap();
+    assert_eq!(client.request("receipt 7"), "receipt 1 3 42 4");
+    for action in ["check", "resume"] {
+        fail_output(command(action, &[&port, "--secret-file", key]));
+    }
+    let replay = command("resume", &[&port, "--secret-file", key])
+        .output()
+        .unwrap();
+    assert!(replay.status.success(), "{replay:?}");
+    assert_eq!(replay.stdout, b"committed 4\n");
+    assert_eq!(fs::read(&journal).unwrap(), image);
+    assert_eq!(client.request("get"), "value 4 42");
+    assert_eq!(client.request("receipt 7"), "receipt 1 3 42 4");
 }

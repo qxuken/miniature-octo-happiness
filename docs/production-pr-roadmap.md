@@ -53,6 +53,24 @@ records the current baseline.
 
 ## Stack order
 
+The original batch numbers below identify verification obligations. Use these
+groups for the remaining PRs so shared fixtures, source inventory updates and
+review evidence go through CI together.
+
+| Group | Original batches | Review checkpoint |
+|---|---|---|
+| Coordinator and client journal | 11, coordinator portion of 12 | Exercise admission, dispatch, durable receipt replay and client-journal recovery together. Carry forward delivered-package operator evidence with its original source. |
+| Engine assurance and bounded recovery | Residual work in 2–10, 12–13 | Group decision pairs, mutation controls and fuzz oracles by the engine or native boundary they exercise. Keep any independent native follow-up tied to its platform. |
+| Support contract and deployment | 1, 15–17 | Agree on the support matrix and performance budgets alongside assurance work. Combine workload, device and native evidence once the relevant deployment profile is agreed. |
+| Distributed transport and operator acceptance | 14, 18–20 | Share delivered fixtures and fault schedules across snapshot replication, fixed two-peer CRDTs and the write coordinator. Use the agreed deployment profile for operator sign-off. |
+| Compatibility and distribution review | 21–22 | Verify the same old and candidate versions against the agreed support window, package features, dependency locks and notices. |
+| Immutable candidate qualification | 23 | Run the full release matrix on one source and verify proof restoration before approval. |
+
+Run focused checks locally before pushing each group. Keep dependent changes in
+one PR when they share evidence and can be reviewed together. The PR lane
+retains its three macOS jobs and the portable Linux coverage. Release
+qualification retains the full platform matrix.
+
 The roadmap PR is the base. Batch 2 is split into the simulator allocator,
 the plain Rust output boundary, public hook retirement, and the remaining
 unit tests. The codec tests move first. Follow with cold-open and native
@@ -133,6 +151,10 @@ receipt coverage before progress is reported. The
 covers the two-actor event model, sequence and retirement admission, bounded
 minimum and maximum resolution, and rejection before publication or receipt.
 Native Windows and deployed peer qualification remain open.
+
+Batch 11 starts with [coordinator dispatch, receipts and journal recovery](decisions/coordinator-service-current.md).
+It verifies both roots after exact replay and rejected requests and reuses
+the earlier scheduler and ambiguous-acknowledgment simulator fixtures.
 
 Develop the support contract alongside the assurance work. The contract sets
 the deployment conditions for batches 15–22. Freeze the release after those

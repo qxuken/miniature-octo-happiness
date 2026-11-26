@@ -120,3 +120,18 @@ records the separate release-binary schema migration profile.
 See the [recorded Windows storage](../docs/storage-compatibility-21e5d26.md#windows-ntfs-result)
 and [snapshot results](../docs/snapshot-compatibility.md#windows-ntfs-result)
 for the pinned pairs and artifact hashes.
+
+## Release qualification
+
+A manual Engine checks run or a `v*` tag runs five compatibility
+profiles (storage, snapshot, typed, snapshot CLI and Study peer CLI) on macOS, Linux and Windows. Each job checks the GitHub event
+revision against its checkout, fetches the historical locks' dependencies
+and passes the checked-out commit to each offline qualification. The
+`candidate-compatibility` artifacts retain the endpoint identities, locks,
+consumer binaries, test files and command transcripts. Pull requests
+continue to run the existing fixed-endpoint controls.
+
+The Windows candidate job disables automatic CRLF conversion before checkout
+so the controller reads the committed fixture bytes. On every host the
+prefetch step extracts each historical lock with LF preserved and compares
+its unfiltered Git blob ID with the historical commit before invoking Cargo.

@@ -67,6 +67,16 @@ impl Report {
             && self.cleanup_failure.is_none()
             && self.cleanup_verified
     }
+    pub(crate) fn exited_with_error(&self, code: i32) -> bool {
+        code > 0
+            && self.returncode == Some(code)
+            && self.cleanup_verified
+            && self.cleanup_failure.is_none()
+            && !self.timed_out
+            && !self.cancelled
+            && !self.stopped
+            && self.failure.as_deref() == Some(&format!("child exit Some({code})"))
+    }
     pub(crate) fn stopped_cleanly(&self) -> bool {
         self.stopped
             && self.returncode == Some(-libc::SIGKILL)
@@ -257,6 +267,23 @@ impl Cancellation {
     }
 }
 
+#[cfg(unix)]
+fn write_response(value: &impl Serialize) -> Result<()> {
+    use std::os::fd::AsFd;
+
+    // Rust's Stdout ignores EBADF. A duplicate preserves the delivery error
+    // and keeps stdout's lifetime independent of the writer's lifetime.
+    let stdout = std::io::stdout().lock();
+    let fd = stdout
+        .as_fd()
+        .try_clone_to_owned()
+        .context("duplicate stdout")?;
+    let mut output = std::io::BufWriter::new(File::from(fd));
+    serde_json::to_writer(&mut output, value)?;
+    output.flush().context("flush supervisor response")
+}
+
+#[cfg(unix)]
 pub fn cli() -> Result<()> {
     let mut data = Vec::new();
     std::io::stdin()
@@ -267,14 +294,12 @@ pub fn cli() -> Result<()> {
         "oversized supervisor request"
     );
     let request: Request = serde_json::from_slice(&data)?;
-    serde_json::to_writer(std::io::stdout(), &run(&request)?)?;
-    Ok(())
+    write_response(&run(&request)?)
 }
 pub fn table_cli() -> Result<()> {
     #[cfg(unix)]
     {
-        serde_json::to_writer(std::io::stdout(), &process_table()?)?;
-        Ok(())
+        write_response(&process_table()?)
     }
     #[cfg(not(unix))]
     {
@@ -1084,6 +1109,108 @@ mod unix {
     #[cfg(test)]
     mod controls {
         use super::*;
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn proc_identity_reports_the_first_malformed_field() {
+            let rejected: &[(&str, &[u8], &str)] = &[
+                ("opening delimiter", b"42 name) R", "missing comm"),
+                ("closing delimiter", b"42 (name R", "missing comm end"),
+                (
+                    "delimiter order",
+                    b"42 ) R (",
+                    "invalid process name delimiters",
+                ),
+                (
+                    "delimiter space",
+                    b"42 (name)R",
+                    "invalid process name delimiters",
+                ),
+                ("PID mismatch", b"43 (name) R", "process ID changed"),
+                ("absent state", b"42 (name) ", "missing process state"),
+                ("state width", b"42 (name) RR", "invalid process state"),
+                ("state alphabet", b"42 (name) 8", "invalid process state"),
+                ("absent parent", b"42 (name) R", "missing parent PID"),
+                ("absent group", b"42 (name) R 1", "missing process group"),
+                (
+                    "absent start",
+                    b"42 (name) R 1 42",
+                    "missing process starttime",
+                ),
+            ];
+            for &(label, bytes, expected) in rejected {
+                let error = proc_identity(bytes, 42).expect_err(label);
+                assert_eq!(error.to_string(), expected, "{label}");
+            }
+            assert_eq!(
+                proc_identity(b"0 (name) R", 0).unwrap_err().to_string(),
+                "process ID changed",
+                "nonpositive PID"
+            );
+
+            for (label, bytes) in [
+                ("UTF-8 prefix", &b"\xff (name) R"[..]),
+                ("UTF-8 suffix", &b"42 (name) \xff"[..]),
+            ] {
+                let error = proc_identity(bytes, 42).expect_err(label);
+                assert!(error.is::<std::str::Utf8Error>(), "{label}: {error:#}");
+            }
+
+            let bad_start = format!("42 (name) R 1 42 {}-1", "0 ".repeat(16));
+            for (label, bytes) in [
+                ("PID parse", &b"x (name) R"[..]),
+                ("parent parse", &b"42 (name) R x 42"[..]),
+                ("group parse", &b"42 (name) R 1 x"[..]),
+                ("start parse", bad_start.as_bytes()),
+            ] {
+                let error = proc_identity(bytes, 42).expect_err(label);
+                assert!(error.is::<std::num::ParseIntError>(), "{label}: {error:#}");
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn proc_identity_distinguishes_reaped_and_live_rows() {
+            let stat = |parent, group| {
+                let mut bytes = b"42 (main (space) \xff\ncomm)) R ".to_vec();
+                bytes.extend_from_slice(
+                    format!("{parent} {group} {}{} 123 456\n", "0 ".repeat(16), u64::MAX)
+                        .as_bytes(),
+                );
+                bytes
+            };
+            let row = proc_identity(&stat(1, 42), 42).unwrap().unwrap();
+            assert_eq!((row.pid, row.parent, row.group), (42, 1, 42));
+            assert_eq!(row.start, u64::MAX.to_string());
+            assert_eq!(row.state, "R");
+            assert!(proc_identity(&stat(0, -1), 42).unwrap().is_none());
+            let row = proc_identity(&stat(0, 0), 42).unwrap().unwrap();
+            assert_eq!((row.parent, row.group), (0, 0));
+            for (parent, group) in [(1, -1), (-1, 42)] {
+                let error = proc_identity(&stat(parent, group), 42).unwrap_err();
+                assert_eq!(
+                    error.to_string(),
+                    "negative process identity",
+                    "{parent}, {group}"
+                );
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn proc_identity_matches_the_running_observer() {
+            let pid = std::process::id() as i32;
+            let raw = fs::read("/proc/self/stat").unwrap();
+            let direct = proc_identity(&raw, pid).unwrap().unwrap();
+            let inventory = table().unwrap();
+            let observed = &inventory[&pid];
+            assert_eq!(
+                (observed.pid, observed.parent, observed.group),
+                (pid, direct.parent, direct.group)
+            );
+            assert_eq!(observed.start, direct.start);
+        }
+
         #[test]
         fn discovery_walks_known_ancestors_and_never_reuses_a_reaped_root_pid() {
             let row = |pid, parent, group, start: &str| Identity {
@@ -1500,6 +1627,95 @@ mod unix {
 mod tests {
     use super::*;
     use crate::support::Scratch;
+
+    type ReportChange = (&'static str, fn(&mut Report));
+
+    #[test]
+    fn success_requires_zero_exit_and_verified_cleanup() {
+        let accepted = || Report {
+            returncode: Some(0),
+            cleanup_verified: true,
+            ..Report::default()
+        };
+        assert!(accepted().success());
+        let changes: &[ReportChange] = &[
+            ("zero exit", |r| r.returncode = Some(1)),
+            ("worker failure", |r| r.failure = Some("fixture".into())),
+            ("cleanup failure", |r| {
+                r.cleanup_failure = Some("fixture".into())
+            }),
+            ("cleanup proof", |r| r.cleanup_verified = false),
+        ];
+        for (condition, change) in changes {
+            let mut report = accepted();
+            change(&mut report);
+            assert!(!report.success(), "ordinary success ignored {condition}");
+        }
+    }
+
+    #[test]
+    fn expected_error_requires_positive_code_exact_reason_and_cleanup() {
+        let accepted = |code| Report {
+            returncode: Some(code),
+            failure: Some(format!("child exit Some({code})")),
+            cleanup_verified: true,
+            ..Report::default()
+        };
+        assert!(accepted(42).exited_with_error(42));
+        for code in [0, -libc::SIGKILL] {
+            assert!(
+                !accepted(code).exited_with_error(code),
+                "expected error ignored positive code"
+            );
+        }
+        let changes: &[ReportChange] = &[
+            ("exit code", |r| r.returncode = Some(43)),
+            ("cleanup proof", |r| r.cleanup_verified = false),
+            ("cleanup failure", |r| {
+                r.cleanup_failure = Some("fixture".into())
+            }),
+            ("timeout", |r| r.timed_out = true),
+            ("cancellation", |r| r.cancelled = true),
+            ("explicit stop", |r| r.stopped = true),
+            ("exact reason", |r| {
+                r.failure = Some("child exit Some(43)".into())
+            }),
+        ];
+        for (condition, change) in changes {
+            let mut report = accepted(42);
+            change(&mut report);
+            assert!(
+                !report.exited_with_error(42),
+                "expected error ignored {condition}"
+            );
+        }
+    }
+
+    #[test]
+    fn clean_stop_requires_requested_stop_sigkill_and_verified_cleanup() {
+        let accepted = || Report {
+            stopped: true,
+            returncode: Some(-libc::SIGKILL),
+            cleanup_verified: true,
+            ..Report::default()
+        };
+        assert!(accepted().stopped_cleanly());
+        let changes: &[ReportChange] = &[
+            ("explicit stop", |r| r.stopped = false),
+            ("kill status", |r| r.returncode = Some(-libc::SIGTERM)),
+            ("worker failure", |r| r.failure = Some("fixture".into())),
+            ("cleanup failure", |r| {
+                r.cleanup_failure = Some("fixture".into())
+            }),
+            ("cleanup proof", |r| r.cleanup_verified = false),
+        ];
+        for (condition, change) in changes {
+            let mut report = accepted();
+            change(&mut report);
+            assert!(!report.stopped_cleanly(), "clean stop ignored {condition}");
+        }
+    }
+
     pub(super) fn fixture(body: &str) -> (Scratch, Request) {
         let scratch = Scratch::new(&std::env::temp_dir(), "xtask-supervision").unwrap();
         let request = Request {
@@ -1518,6 +1734,105 @@ mod tests {
         };
         (scratch, request)
     }
+
+    #[test]
+    fn child_observes_incomplete_report_before_verified_finalization() {
+        for saved in [true, false] {
+            let (_owned, mut request) = fixture("printf 'unsaved'");
+            let expected_path = request.report.clone().unwrap();
+            if saved {
+                request.argv = vec!["/bin/cat".into(), expected_path.to_str().unwrap().into()];
+            } else {
+                request.report = None;
+            }
+            let report = run(&request).unwrap();
+            assert!(report.success(), "{report:?}");
+            if saved {
+                assert_eq!(
+                    fs::read(&request.stdout).unwrap(),
+                    b"{\"cleanup_verified\":false,\"failure\":\"supervision incomplete\"}\n"
+                );
+                let finalized = fs::read(&expected_path).unwrap();
+                let decoded: Report = serde_json::from_slice(&finalized).unwrap();
+                assert!(decoded.success(), "{decoded:?}");
+                assert_eq!(decoded.pid, report.pid);
+                assert_eq!(decoded.stdout_bytes, report.stdout_bytes);
+                assert_eq!(decoded.stderr_bytes, report.stderr_bytes);
+                assert_eq!(finalized.last(), Some(&b'\n'));
+            } else {
+                assert_eq!(fs::read(&request.stdout).unwrap(), b"unsaved");
+                assert!(!expected_path.exists());
+            }
+        }
+    }
+
+    #[test]
+    fn supervisor_handles_shared_and_distinct_output_paths() {
+        for shared in [true, false] {
+            let (_owned, mut request) = fixture("printf O; printf E >&2");
+            if shared {
+                request.stderr = request.stdout.clone();
+            }
+            let report = run(&request).unwrap();
+            assert!(report.success(), "{report:?}");
+            assert_eq!(
+                (report.stdout_bytes, report.stderr_bytes),
+                if shared { (2, 0) } else { (1, 1) }
+            );
+            let mut stdout = fs::read(&request.stdout).unwrap();
+            if shared {
+                stdout.sort_unstable();
+                assert_eq!(stdout, b"EO");
+            } else {
+                assert_eq!(stdout, b"O");
+                assert_eq!(fs::read(&request.stderr).unwrap(), b"E");
+            }
+        }
+    }
+
+    #[test]
+    fn output_preflight_checks_the_report_before_acquiring_logs() {
+        for kind in [
+            "stdout alias",
+            "stderr alias",
+            "existing report",
+            "missing parent",
+        ] {
+            let (owned, mut request) = fixture("exit 9");
+            let marker = request.report.clone().unwrap();
+            let expected = match kind {
+                "stdout alias" => {
+                    request.report = Some(request.stdout.clone());
+                    "report aliases log"
+                }
+                "stderr alias" => {
+                    request.report = Some(request.stderr.clone());
+                    "report aliases log"
+                }
+                "existing report" => {
+                    fs::write(&marker, b"preserve").unwrap();
+                    "output already exists"
+                }
+                "missing parent" => {
+                    request.report = Some(owned.path().join("missing").join("report.json"));
+                    "output parent missing"
+                }
+                _ => unreachable!(),
+            };
+            assert!(
+                run(&request).unwrap_err().to_string().contains(expected),
+                "{kind}"
+            );
+            assert!(!request.stdout.exists());
+            assert!(!request.stderr.exists());
+            if kind == "existing report" {
+                assert_eq!(fs::read(marker).unwrap(), b"preserve");
+            } else {
+                assert!(!marker.exists());
+            }
+        }
+    }
+
     #[test]
     fn bounds_both_streams_and_exact_limit() {
         for stream in [1, 2] {
@@ -1542,13 +1857,21 @@ mod tests {
         let (_owned, mut request) = fixture("");
         request.argv = vec!["/definitely/missing/xtask-child".into()];
         let report = run(&request).unwrap();
-        assert!(report.failure.as_ref().unwrap().contains("spawn child"));
+        assert!(
+            report
+                .failure
+                .as_deref()
+                .is_some_and(|text| text.contains("spawn child")),
+            "spawn error was absent from the terminal report"
+        );
         assert!(report.pid.is_none());
         assert!(report.cleanup_failure.is_none());
+        assert!(report.cleanup_verified);
         let saved: Report =
             serde_json::from_slice(&fs::read(request.report.unwrap()).unwrap()).unwrap();
         assert!(saved.failure.is_some());
         assert!(saved.returncode.is_none());
+        assert!(saved.cleanup_verified);
     }
     #[test]
     fn timeout_reaps_leader_and_cleans_descendants() {

@@ -229,3 +229,21 @@ application schema/key coverage, all journal slots or deployment latency-budget
 acceptance. Additional pending-intent/lost-reply and operator handoff profiles,
 ordinary-account Windows deployment and the release support window retain their
 explicit roadmap obligations. The R1 per-decision queue remains open.
+
+### Candidate operator recovery
+
+Manual and tagged Engine checks run the operator drill against the selected
+candidate in addition to the fixed historical CLI pair. The existing
+three-platform release job builds both binaries in debug and release and
+retains each executable alongside its incident report. The job compares
+the checkout to the event commit before building. The recovery evidence
+records the SHA-256 of each executable. Pull request scope stays the same.
+
+At `2e9f717` the release shell step passed all 85 commands in both profiles
+on native macOS arm64 and Docker Linux arm64/ext4. A fresh extraction
+verified 286 artifacts per profile and the exact two executables used in
+each drill. Restored state included revision 4 with value 21 and retained
+revision 2 with value 11. The coordinated handoff returned receipts at
+revisions 6 and 7. The [proof manifest](candidate-operator-2e9f717.sha256)
+identifies both archives, the source bundle and the executed shell step.
+Native Windows and hosted release execution for this candidate are pending.

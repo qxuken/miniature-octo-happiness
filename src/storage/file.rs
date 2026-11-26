@@ -94,6 +94,21 @@ impl FileStore {
             Err(Error::Io)
         }
     }
+    fn unlock_with(&mut self, mut unlock: impl FnMut(c_int) -> c_int) {
+        let result = retry(NativeIoOperation::Unlock, || {
+            if unlock(self.file.as_raw_fd()) == 0 {
+                Ok(())
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        });
+        self.lease = if result.is_ok() {
+            Lease::Released
+        } else {
+            // Disable I/O and leave the descriptor available for cleanup.
+            Lease::Open
+        };
+    }
 }
 impl Drop for FileStore {
     fn drop(&mut self) {
@@ -124,19 +139,7 @@ impl ByteStore for FileStore {
         Ok(())
     }
     fn unlock(&mut self) {
-        let result = retry(NativeIoOperation::Unlock, || {
-            if unsafe { flock(self.file.as_raw_fd(), 8) } == 0 {
-                Ok(())
-            } else {
-                Err(io::Error::last_os_error())
-            }
-        });
-        self.lease = if result.is_ok() {
-            Lease::Released
-        } else {
-            // Disable I/O and leave the descriptor available for cleanup.
-            Lease::Open
-        };
+        self.unlock_with(|fd| unsafe { flock(fd, 8) });
     }
     fn length(&mut self) -> Result<u64> {
         self.check()?;
@@ -469,12 +472,22 @@ pub fn compact_file_with_hook(
     limits: Limits,
     hook: impl FnMut(CompactionEvent) -> Result<()> + Send + 'static,
 ) -> Result<CompactionStats> {
-    let mem = Memory::new(limits)?;
+    compact_file_with_hook_on(path, limits, AllocatorHandle::default(), hook)
+}
+#[cfg(any(test, feature = "fault-injection"))]
+fn compact_file_with_hook_on(
+    path: &Path,
+    limits: Limits,
+    allocator: AllocatorHandle,
+    hook: impl FnMut(CompactionEvent) -> Result<()> + Send + 'static,
+) -> Result<CompactionStats> {
+    let mem = Memory::with_allocator(limits, allocator.clone())?;
     let hook: Hook = mem.boxed(hook)?;
     let observer = Observer {
         hook: Some(mem.shared(std::sync::Mutex::new(hook))?),
     };
-    compact_file_impl(path, &Memory::new(limits)?, observer)
+    // Keep instrumentation allocations out of the compaction budget.
+    compact_file_impl(path, &Memory::with_allocator(limits, allocator)?, observer)
 }
 fn compact_file_impl(path: &Path, mem: &Memory, observer: Observer) -> Result<CompactionStats> {
     let original = Location::new(path)?;
@@ -735,6 +748,91 @@ mod decision_tests {
         };
         compact_file_impl(&path, &memory, observer).unwrap();
         assert_eq!(verifications.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn compaction_setup_errors_leave_the_image_and_allocator_unchanged() {
+        use crate::memory::test_allocator::TestAllocator;
+        use std::fs;
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        let fixture = PathFixture::new("compaction-setup");
+        let path = fixture.0.join("store");
+        let limits = Limits::default();
+        let db = crate::Database::create_file(&path, limits).unwrap();
+        db.create_collection().unwrap();
+        drop(db);
+        let before = fs::read(&path).unwrap();
+        let invalid = Limits {
+            max_depth: 0,
+            ..limits
+        };
+        assert!(matches!(compact_file(&path, invalid), Err(Error::Invalid)));
+
+        let allocator = Arc::new(TestAllocator::default());
+        let handle = allocator.handle();
+        let baseline = allocator.live_bytes();
+        let callbacks = Arc::new(AtomicUsize::new(0));
+        let compact = |limits| {
+            let count = callbacks.clone();
+            compact_file_with_hook_on(&path, limits, handle.clone(), move |_| {
+                count.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        };
+        assert!(matches!(compact(invalid), Err(Error::Invalid)));
+        for allowed in 0..4 {
+            let (result, requests) = allocator.count_with_refusal(allowed, || compact(limits));
+            assert_eq!(requests, allowed + 1);
+            assert!(
+                matches!(result, Err(Error::OutOfMemory)),
+                "allowed {allowed}"
+            );
+            assert_eq!(callbacks.load(Ordering::Relaxed), 0);
+            assert_eq!(allocator.live_bytes(), baseline);
+            assert_eq!(fs::read(&path).unwrap(), before);
+            assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 1);
+        }
+        assert!(matches!(
+            compact(Limits {
+                max_live_bytes: 0,
+                ..limits
+            }),
+            Err(Error::Limit)
+        ));
+        assert_eq!(allocator.live_bytes(), baseline);
+        assert_eq!(fs::read(&path).unwrap(), before);
+
+        compact(limits).unwrap();
+        assert!(callbacks.load(Ordering::Relaxed) > 0);
+        assert_eq!(allocator.live_bytes(), baseline);
+        let db = crate::Database::open_file(&path, limits).unwrap();
+        assert_eq!(db.snapshot().revision(), 1);
+    }
+
+    #[test]
+    fn poisoned_compaction_observer_prevents_the_next_operation() {
+        let mem = Memory::new(Limits::default()).unwrap();
+        let hook: Hook = mem.boxed(|_: CompactionEvent| Ok(())).unwrap();
+        let hook = mem.shared(std::sync::Mutex::new(hook)).unwrap();
+        let poisoned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = hook.lock().unwrap();
+            panic!("test observer poison");
+        }));
+        assert!(poisoned.is_err());
+        let observer = Observer { hook: Some(hook) };
+        let operation = || panic!("the observer must stop the operation");
+        assert_eq!(
+            observer.call::<()>(CompactionStep::SourceLength, operation),
+            Err(Error::Panic)
+        );
+        assert_eq!(
+            Observer::default().call(CompactionStep::SourceLength, || Ok(7)),
+            Ok(7)
+        );
     }
 
     #[test]
@@ -1089,7 +1187,13 @@ mod decision_tests {
         let competing = FileStore::open_read_only(&path).unwrap();
         assert_eq!(first.lock(), Err(Error::Busy));
         reject_io(&mut first);
-        assert!(matches!(FileStore::open(&path), Err(Error::Busy)));
+        let failure = FileStore::open_with_diagnostics(&path).err().unwrap();
+        assert_eq!(failure.error, Error::Busy);
+        let operation = failure.native.unwrap().operation;
+        #[cfg(target_os = "linux")]
+        assert_eq!(operation, NativeIoOperation::Lock);
+        #[cfg(target_os = "macos")]
+        assert_eq!(operation, NativeIoOperation::Open);
         drop(competing);
         first.lock().unwrap();
         assert_eq!(first.length(), Ok(1));
@@ -1109,6 +1213,53 @@ mod decision_tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"replacement");
         drop(old);
         drop(first);
+    }
+
+    #[test]
+    fn failed_unlock_blocks_io_until_explicit_retry_or_drop() {
+        let fixture = PathFixture::new("unlock");
+        let path = fixture.0.join("data");
+        std::fs::write(&path, b"kept").unwrap();
+        for retry_on_drop in [false, true] {
+            let mut store = FileStore::open(&path).unwrap();
+            store.lock().unwrap();
+            let inherited = store.file.try_clone().unwrap();
+            let expected = store.file.as_raw_fd();
+            let failure = crate::storage::with_storage_diagnostics(|| {
+                store.unlock_with(|fd| {
+                    assert_eq!(fd, expected);
+                    // A separate invalid descriptor gives the real syscall error
+                    // without closing or otherwise changing the owned descriptor.
+                    unsafe { flock(-1, 8) }
+                });
+                let mut byte = *b"?";
+                assert_eq!(store.read(0, &mut byte), Err(Error::Io));
+                assert_eq!(byte, *b"?");
+                assert_eq!(store.write(0, b"bad"), Err(Error::Io));
+                assert_eq!(store.sync(), Err(Error::Io));
+                assert!(matches!(store.lease, Lease::Open));
+                store.length()
+            })
+            .unwrap_err();
+            assert_eq!(failure.error, Error::Io);
+            let native = failure.native.unwrap();
+            assert_eq!(native.operation, NativeIoOperation::Unlock);
+            assert_eq!(native.raw_os_error, Some(9)); // EBADF
+            assert!(matches!(FileStore::open(&path), Err(Error::Busy)));
+            if !retry_on_drop {
+                store.unlock();
+                assert!(matches!(store.lease, Lease::Released));
+                drop(FileStore::open(&path).unwrap());
+            }
+            drop(store);
+            // The other descriptor keeps the same open file description alive.
+            // Successful reopen therefore requires an actual unlock.
+            let reopened = FileStore::open(&path).unwrap();
+            assert!(inherited.metadata().is_ok());
+            assert_eq!(std::fs::read(&path).unwrap(), b"kept");
+            drop(reopened);
+            drop(inherited);
+        }
     }
 
     #[test]

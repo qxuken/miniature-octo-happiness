@@ -354,14 +354,7 @@ impl<'a> Campaign<'a> {
         let passed = report.as_ref().is_some_and(|r| match expected {
             ExpectedExit::Success => qualifies(r, &err, None),
             ExpectedExit::Assertion(marker) => qualifies(r, &err, Some(marker)),
-            ExpectedExit::Code(code) => {
-                r.returncode == Some(code)
-                    && r.cleanup_verified
-                    && r.cleanup_failure.is_none()
-                    && !r.timed_out
-                    && !r.cancelled
-                    && r.failure.as_deref() == Some(&format!("child exit Some({code})"))
-            }
+            ExpectedExit::Code(code) => r.exited_with_error(code),
             ExpectedExit::StoppedOrSuccess => qualifies(r, &err, None) || r.stopped_cleanly(),
         });
         let marker = if let ExpectedExit::Assertion(marker) = expected {

@@ -1,15 +1,66 @@
-//! Native Windows RNG controls using the existing Job-owned process boundary.
+//! Native Windows mutation controls using the existing Job-owned process boundary.
 use super::*;
 use crate::trace_process::Report;
 use sha2::Digest;
 const TEST: &str =
     "storage::windows_rng::tests::identity_rejects_every_nonzero_status_before_accepting_bytes";
-fn assertion(case: &Case) -> Result<&'static str> {
+const COORDINATOR_CASES: &str = include_str!("../tests/mutations.json");
+const COORDINATOR_ORACLE: &str = include_str!("../tests/coordinator-windows-oracle.json");
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CoordinatorOracle {
+    source_commit: String,
+    source_sha256: std::collections::BTreeMap<PathBuf, String>,
+    assertions: std::collections::BTreeMap<String, String>,
+}
+
+fn coordinator_oracle() -> Result<CoordinatorOracle> {
+    Ok(serde_json::from_str(COORDINATOR_ORACLE)?)
+}
+
+fn coordinator_cases() -> Result<Inventory> {
+    let oracle = coordinator_oracle()?;
+    ensure!(
+        oracle.source_commit.len() == 40
+            && oracle.source_commit.bytes().all(|b| b.is_ascii_hexdigit()),
+        "invalid coordinator oracle source commit"
+    );
+    let mut data = parse_inventory(COORDINATOR_CASES)?;
+    data.cases
+        .retain(|case| case.name.starts_with("r1-coordinator-"));
+    ensure!(
+        data.cases.len() == 32 && data.cases.len() == oracle.assertions.len(),
+        "incomplete coordinator oracle"
+    );
+    for case in &data.cases {
+        ensure!(
+            case.package == "write-coordinator"
+                && case.target == "--bin"
+                && case.test == case.package
+                && case.exact_test.is_some()
+                && case.manifest.is_none()
+                && case.os.is_none()
+                && oracle.source_sha256.contains_key(&case.file)
+                && oracle
+                    .assertions
+                    .get(&case.name)
+                    .is_some_and(|s| !s.is_empty()),
+            "coordinator mutation scope changed: {}",
+            case.name
+        );
+    }
+    Ok(data)
+}
+
+fn assertion(case: &Case) -> Result<String> {
     match case.name.as_str() {
         "windows-rng-status-negative" => Ok(
-            "called `Result::unwrap_err()` on an `Ok` value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7]",
+            "called `Result::unwrap_err()` on an `Ok` value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7]".into(),
         ),
-        "windows-rng-diagnostic-omission" => Ok("called `Option::unwrap()` on a `None` value"),
+        "windows-rng-diagnostic-omission" => Ok("called `Option::unwrap()` on a `None` value".into()),
+        name if name.starts_with("r1-coordinator-") => coordinator_oracle()?.assertions
+            .remove(name).context("missing coordinator assertion"),
         _ => anyhow::bail!("unknown Windows mutation contract"),
     }
 }
@@ -18,22 +69,11 @@ fn qualifies(report: &Report, log: &str, case: &Case, mutant: bool) -> bool {
     if report.stopped || report.timed_out || report.output_exceeded {
         return false;
     }
-    let (exit, outcome, passed, failed) = if mutant {
-        (101, "FAILED", "0", "1")
-    } else {
-        (0, "ok", "1", "0")
-    };
+    let (exit, outcome) = if mutant { (101, "FAILED") } else { (0, "ok") };
     if report.exit != Some(exit) || !report.qualifies(mutant) || log.contains("running 0 tests") {
         return false;
     }
-    let mut results = Vec::new();
-    let mut summaries = Vec::new();
     for line in log.lines() {
-        if line.starts_with("test result:") {
-            summaries.push(line);
-        } else if line.starts_with("test ") {
-            results.push(line);
-        }
         if (line.starts_with("error:") && !line.starts_with("error: test failed, to rerun pass "))
             || line.starts_with("error[")
         {
@@ -46,19 +86,13 @@ fn qualifies(report: &Report, log: &str, case: &Case, mutant: bool) -> bool {
             return false;
         }
     }
-    if results != [format!("test {} ... {outcome}", case.test).as_str()] || summaries.len() != 1 {
-        return false;
-    }
-    let footer = regex::Regex::new(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; 0 ignored; 0 measured; \d+ filtered out; finished in \d+(?:\.\d+)?s$").unwrap();
-    let Some(counts) = footer.captures(summaries[0]) else {
-        return false;
-    };
-    counts.get(1).unwrap().as_str() == outcome
-        && &counts[2] == passed
-        && &counts[3] == failed
-        && (!mutant
-            || assertion(case)
-                .is_ok_and(|needle| log.lines().filter(|line| *line == needle).count() == 1))
+    exact_test_result(
+        log,
+        case.exact_test.as_deref().unwrap_or(&case.test),
+        outcome,
+    ) && (!mutant
+        || assertion(case)
+            .is_ok_and(|needle| log.lines().filter(|line| *line == needle).count() == 1))
 }
 fn windows_cases() -> Result<Inventory> {
     #[cfg(windows)]
@@ -85,7 +119,12 @@ fn windows_cases() -> Result<Inventory> {
 }
 fn test_command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
     let mut argv = command(case, toolchain, release);
-    argv.extend(["--message-format=json", "--", "--exact", "--test-threads=1"].map(str::to_owned));
+    if let Some(separator) = argv.iter().position(|arg| arg == "--") {
+        argv.insert(separator, "--message-format=json".into());
+    } else {
+        argv.extend(["--message-format=json", "--", "--exact"].map(str::to_owned));
+    }
+    argv.push("--test-threads=1".into());
     argv
 }
 pub(super) fn apply_native(case: &Case, original: &str) -> Result<String> {
@@ -99,17 +138,30 @@ pub(super) fn apply_native(case: &Case, original: &str) -> Result<String> {
         apply(case, original)
     }
 }
-fn pinned_source(data: &Inventory, original: &str) -> Result<()> {
+fn pinned_source(data: &Inventory, case: &Case, original: &str) -> Result<()> {
+    let expected = if case.package == "write-coordinator" {
+        coordinator_oracle()?
+            .source_sha256
+            .remove(&case.file)
+            .context("missing coordinator source pin")?
+    } else {
+        data.source_sha256.clone()
+    };
     ensure!(
         format!(
             "{:x}",
             sha2::Sha256::digest(original.replace("\r\n", "\n").as_bytes())
-        ) == data.source_sha256,
+        ) == expected,
         "Windows source changed from the reviewed fixture"
     );
     Ok(())
 }
-fn artifact(log: &str, target: &Path) -> Result<PathBuf> {
+fn artifact(log: &str, target: &Path, case: &Case) -> Result<PathBuf> {
+    let (name, kind) = match case.target.as_str() {
+        "--bin" => (case.test.as_str(), json!(["bin"])),
+        "--lib" => ("weekend_db", json!(["rlib", "cdylib"])),
+        _ => anyhow::bail!("unsupported Windows test target"),
+    };
     let mut paths = BTreeSet::new();
     for line in log.lines() {
         let Ok(row) = serde_json::from_str::<Value>(line) else {
@@ -117,8 +169,8 @@ fn artifact(log: &str, target: &Path) -> Result<PathBuf> {
         };
         if row["reason"] == "compiler-artifact"
             && row["profile"]["test"] == true
-            && row["target"]["name"] == "weekend_db"
-            && row["target"]["kind"] == json!(["rlib", "cdylib"])
+            && row["target"]["name"] == name
+            && row["target"]["kind"] == kind
             && let Some(executable) = row["executable"].as_str()
         {
             paths.insert(PathBuf::from(executable));
@@ -205,7 +257,22 @@ pub(super) fn run(run: &Run, options: Options) -> Result<()> {
         instrumentation,
         support::{cmd, path},
     };
-    let data = windows_cases()?;
+    let coordinator = options
+        .prefixes
+        .iter()
+        .any(|p| p.starts_with("r1-coordinator-"));
+    let data = if coordinator {
+        ensure!(
+            options
+                .prefixes
+                .iter()
+                .all(|p| p.starts_with("r1-coordinator-")),
+            "select a single Windows mutation registry"
+        );
+        coordinator_cases()?
+    } else {
+        windows_cases()?
+    };
     let selected = data
         .cases
         .iter()
@@ -226,7 +293,7 @@ pub(super) fn run(run: &Run, options: Options) -> Result<()> {
     }
     for case in &selected {
         let source = fs::read_to_string(run.root.join(&case.file))?;
-        pinned_source(&data, &source)?;
+        pinned_source(&data, case, &source)?;
         apply_native(case, &source)?;
     }
     let output = options.output.unwrap_or_else(|| {
@@ -243,6 +310,20 @@ pub(super) fn run(run: &Run, options: Options) -> Result<()> {
     fs::create_dir_all(output.parent().context("output parent")?)?;
     fs::create_dir(&output)?;
     let mut proof = json!({"passed":false,"native_windows_verified":false,"scope":"Selected native Windows RNG guard mutations; exact nonempty baseline and genuine test failure required in debug/release","selected":selected.iter().map(|case|&case.name).collect::<Vec<_>>(),"commands":[],"results":[],"fixture_sha256":format!("{:x}",sha2::Sha256::digest(include_bytes!("../tests/mutations-windows.json"))),"fixture_provenance":{"source_commit":data.source_commit,"source_sha256":data.source_sha256},"runner_sha256":sha(&std::env::current_exe()?)?,"controlled_environment":{"CARGO_INCREMENTAL":"0","CARGO_ENCODED_RUSTFLAGS":"","CARGO_ENCODED_RUSTDOCFLAGS":"","CARGO_TERM_COLOR":"never","CARGO_BUILD_TARGET":"removed for test commands"}});
+    if coordinator {
+        proof["scope"] = json!(
+            "Native Windows coordinator controls with exact tests and assertion diagnostics in debug and release"
+        );
+        proof["fixture_sha256"] = json!(format!(
+            "{:x}",
+            sha2::Sha256::digest(COORDINATOR_CASES.as_bytes())
+        ));
+        proof["coordinator_oracle_sha256"] = json!(format!(
+            "{:x}",
+            sha2::Sha256::digest(COORDINATOR_ORACLE.as_bytes())
+        ));
+        proof["oracle_source_commit"] = json!(coordinator_oracle()?.source_commit);
+    }
     crate::trace_process::write_proof(&output, &proof)?;
     let result: Result<()> = (|| {
         let mut env = instrumentation::environment(&run.env, &output.join("metadata-target"), &[]);
@@ -315,7 +396,7 @@ pub(super) fn run(run: &Run, options: Options) -> Result<()> {
         for case in selected {
             let file = checkout.join(&case.file);
             let original = fs::read(&file)?;
-            pinned_source(&data, std::str::from_utf8(&original)?)?;
+            pinned_source(&data, case, std::str::from_utf8(&original)?)?;
             let restore = Restore {
                 file: file.clone(),
                 bytes: original.clone(),
@@ -346,15 +427,44 @@ pub(super) fn run(run: &Run, options: Options) -> Result<()> {
                         if mutant {
                             fs::write(&file, &changed)?;
                         }
-                        let target = output.join(format!("build-{label}"));
-                        fs::create_dir(&target)?;
+                        let target = if coordinator {
+                            output.join("build").join(profile)
+                        } else {
+                            output.join(format!("build-{label}"))
+                        };
+                        fs::create_dir_all(&target)?;
                         let mut env = instrumentation::environment(&run.env, &target, &[]);
                         env.insert(path("CARGO_TERM_COLOR"), path("never"));
                         env.remove(&path("CARGO_BUILD_TARGET"));
+                        if coordinator {
+                            let mut clean = cmd(["cargo"]);
+                            if let Some(toolchain) = &options.toolchain {
+                                clean.push(path(format!("+{toolchain}")));
+                            }
+                            clean.extend(cmd([
+                                "clean",
+                                "--offline",
+                                "--locked",
+                                "-p",
+                                &case.package,
+                            ]));
+                            let (cleaned, _) = invoke(
+                                &mut proof,
+                                &output,
+                                &format!("{label}-clean"),
+                                clean,
+                                &checkout,
+                                &env,
+                            )?;
+                            ensure!(
+                                cleaned.qualifies(false),
+                                "coordinator cleanup failed: {label}"
+                            );
+                        }
                         let argv = test_command(case, options.toolchain.as_deref(), release);
                         let (report, log) =
                             invoke(&mut proof, &output, &label, cmd(&argv), &checkout, &env)?;
-                        let executable = artifact(&log, &target)?;
+                        let executable = artifact(&log, &target, case)?;
                         let binary = output.join("binaries").join(format!("{label}.exe"));
                         fs::copy(&executable, &binary)?;
                         let passed = qualifies(&report, &log, case, mutant);
@@ -458,14 +568,74 @@ mod tests {
         }
     }
     #[test]
+    fn coordinator_controls_bind_exact_binary_source_and_assertion() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let data = coordinator_cases().unwrap();
+        let dir = Scratch::new(&std::env::temp_dir(), "coordinator-artifact").unwrap();
+        let binary = dir.path().join("write-coordinator.exe");
+        fs::write(&binary, b"fixture").unwrap();
+        for case in &data.cases {
+            let text = fs::read_to_string(root.join(&case.file)).unwrap();
+            pinned_source(&data, case, &text).unwrap();
+            assert!(pinned_source(&data, case, &format!("{text} ")).is_err());
+            apply_native(case, &text).unwrap();
+            let test = case.exact_test.as_deref().unwrap();
+            let args = test_command(case, Some("1.100.0"), true);
+            assert_eq!(
+                &args[8..],
+                [
+                    "--bin",
+                    "write-coordinator",
+                    "--release",
+                    test,
+                    "--message-format=json",
+                    "--",
+                    "--exact",
+                    "--test-threads=1"
+                ]
+            );
+            let row = json!({"reason":"compiler-artifact", "profile":{"test":true},
+                "target":{"name":"write-coordinator","kind":["bin"]}, "executable":binary});
+            assert_eq!(
+                artifact(&row.to_string(), dir.path(), case).unwrap(),
+                binary
+            );
+            let mut wrong = row;
+            wrong["target"]["kind"] = json!(["test"]);
+            assert!(artifact(&wrong.to_string(), dir.path(), case).is_err());
+            let message = assertion(case).unwrap();
+            let log = format!(
+                "running 1 test\ntest {test} ... FAILED\n{message}\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.00s"
+            );
+            let report = Report {
+                exit: Some(101),
+                cleanup_verified: true,
+                ..Default::default()
+            };
+            assert!(qualifies(&report, &log, case, true));
+            assert!(!qualifies(
+                &report,
+                &log.replace(&message, "unrelated failure"),
+                case,
+                true
+            ));
+        }
+    }
+
+    #[test]
     fn windows_inventory_is_exact_and_matches_current_production() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let data = windows_cases().unwrap();
         for case in &data.cases {
             let source = fs::read_to_string(root.join(&case.file)).unwrap();
-            pinned_source(&data, &source).unwrap();
-            pinned_source(&data, &source.replace("\r\n", "\n").replace('\n', "\r\n")).unwrap();
-            assert!(pinned_source(&data, &format!("{source}\n")).is_err());
+            pinned_source(&data, case, &source).unwrap();
+            pinned_source(
+                &data,
+                case,
+                &source.replace("\r\n", "\n").replace('\n', "\r\n"),
+            )
+            .unwrap();
+            assert!(pinned_source(&data, case, &format!("{source}\n")).is_err());
             apply_native(case, &source).unwrap();
         }
     }
@@ -500,11 +670,11 @@ mod tests {
     fn windows_outcomes_require_exact_nonempty_test_failure_and_retirement() {
         for case in windows_cases().unwrap().cases {
             let good = format!(
-                "test {} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s",
+                "running 1 test\ntest {} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s",
                 case.test
             );
             let failed = format!(
-                "test {} ... FAILED\n{}\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s",
+                "running 1 test\ntest {} ... FAILED\n{}\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s",
                 case.test,
                 assertion(&case).unwrap()
             );
@@ -526,7 +696,7 @@ mod tests {
                 "error: compilation failed".to_owned(),
                 format!("compiler help: {failed}"),
                 failed.replace(&case.test, "other_test"),
-                failed.replace(assertion(&case).unwrap(), "missing"),
+                failed.replace(assertion(&case).unwrap().as_str(), "missing"),
                 format!("running 0 tests\n{failed}"),
                 format!("{failed} GARBAGE"),
                 format!("{failed}\n{good}"),
@@ -573,27 +743,28 @@ mod tests {
     }
     #[test]
     fn windows_artifact_requires_one_real_owned_test_executable() {
+        let case = windows_cases().unwrap().cases.remove(0);
         let root = Scratch::new(&std::env::temp_dir(), "mutation-artifact").unwrap();
         let target = root.path().join("target");
         fs::create_dir(&target).unwrap();
         let binary = target.join("test.exe");
         fs::write(&binary, b"fixture").unwrap();
         let row = json!({"reason":"compiler-artifact","profile":{"test":true},"target":{"name":"weekend_db","kind":["rlib","cdylib"]},"executable":binary});
-        assert_eq!(artifact(&row.to_string(), &target).unwrap(), binary);
-        assert!(artifact("compiler failure", &target).is_err());
+        assert_eq!(artifact(&row.to_string(), &target, &case).unwrap(), binary);
+        assert!(artifact("compiler failure", &target, &case).is_err());
         let second = target.join("other.exe");
         fs::write(&second, b"other").unwrap();
         let mut duplicate = row.clone();
         duplicate["executable"] = json!(second);
-        assert!(artifact(&format!("{row}\n{duplicate}"), &target).is_err());
+        assert!(artifact(&format!("{row}\n{duplicate}"), &target, &case).is_err());
         let mut wrong = row.clone();
         wrong["profile"]["test"] = json!(false);
-        assert!(artifact(&wrong.to_string(), &target).is_err());
+        assert!(artifact(&wrong.to_string(), &target, &case).is_err());
         let outside = root.path().join("outside.exe");
         fs::write(&outside, b"fixture").unwrap();
         wrong = row;
         wrong["executable"] = json!(outside);
-        assert!(artifact(&wrong.to_string(), &target).is_err());
+        assert!(artifact(&wrong.to_string(), &target, &case).is_err());
     }
     #[test]
     fn isolated_source_restores_on_error_and_unwind() {

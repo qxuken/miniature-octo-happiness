@@ -1,3 +1,6 @@
+#[path = "support/logical_checksum.rs"]
+mod logical_checksum;
+use logical_checksum::sign;
 use weekend_db::{
     Database, Error, Limits,
     storage::{self, Crash, IoKind, SimulatedDisk},
@@ -36,21 +39,6 @@ fn fixture() -> Vec<u8> {
     let unused = db.create_collection().unwrap();
     db.drop_collection(unused).unwrap();
     disk.durable_image().unwrap()
-}
-fn crc(bytes: &[u8]) -> u64 {
-    let mut crc = 0;
-    for b in bytes {
-        crc ^= u64::from(*b) << 56;
-        for _ in 0..8 {
-            crc = (crc << 1) ^ (0x42f0_e1eb_a9ea_3693 & 0u64.wrapping_sub(crc >> 63));
-        }
-    }
-    crc
-}
-fn sign(bytes: &mut [u8]) {
-    let end = bytes.len() - 8;
-    let checksum = crc(&bytes[..end]);
-    bytes[end..].copy_from_slice(&checksum.to_le_bytes());
 }
 #[test]
 fn logical_export_import_preserves_values_roots_revisions_and_future_ids() {

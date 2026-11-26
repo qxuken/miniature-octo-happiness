@@ -348,7 +348,14 @@ pub fn run(run: &Run, opts: Options) -> Result<()> {
         instrument(&copy, opts.probe)?;
         let revision = format!("{}+{}-probe", opts.revision, opts.probe.name());
         let work = output.join("run");
-        resource_campaign::worker(run, &copy, &work, &revision, Profile::Compound)?;
+        resource_campaign::worker(
+            run,
+            &copy,
+            &work,
+            &revision,
+            Profile::Compound,
+            Default::default(),
+        )?;
         let evidence = work.join("evidence.json");
         let observed = delivery::read_json(&evidence)?;
         validate_reference(&observed, &revision, &inventory(&copy, &[])?)?;

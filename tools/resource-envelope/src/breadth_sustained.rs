@@ -20,8 +20,8 @@ const READERS: usize = 4;
 const ROUNDS: u64 = 16;
 const CYCLES: u64 = 8;
 const SAMPLES: usize = 4096;
-const ARRIVALS: usize = 1536;
-const PERIOD: Duration = Duration::from_micros(500);
+const ARRIVAL_WINDOW_US: u64 = 768_000;
+const PACED_DELAY: Duration = Duration::from_micros(500);
 const IDENTITY: [u8; 16] = *b"breadth-load-001";
 const TAG: u64 = 0x5355_0000_0000_0000;
 
@@ -114,13 +114,14 @@ impl Start {
 }
 
 struct Samples<const N: usize> {
-    writers: Vec<Vec<[u64; 2]>>,
+    writers: Vec<Vec<[u64; 4]>>,
     readers: Vec<Vec<[u64; N]>>,
 }
 
 fn run_cycle<const N: usize>(
     db: &Database,
     cycle: u64,
+    writer_period_us: Option<u64>,
     reader: impl Fn(&Database, CollectionId, &Start, u64, u64) -> Vec<[u64; N]> + Sync,
 ) -> Samples<N> {
     let first = 1 + (cycle - 1) * ROUNDS;
@@ -137,20 +138,40 @@ fn run_cycle<const N: usize>(
             .map(|writer| {
                 let start = &start;
                 scope.spawn(move || {
+                    let schedule =
+                        writer_period_us.map(|us| (start.wait(), Duration::from_micros(us)));
                     let base = writer as u32 * WRITES;
                     let mut samples = Vec::new();
                     for seq in first..=last {
+                        let began = schedule.map_or(0, |(epoch, period)| {
+                            wait_for_arrival(epoch, period * (seq - first) as u32)
+                        });
                         let mut draft = db.begin();
                         let value = db.unsigned(encoded(writer, seq)).unwrap();
                         for key in base..base + WRITES {
                             draft.put(collection, &key.to_be_bytes(), &value).unwrap();
                         }
-                        if seq == first {
+                        if schedule.is_none() && seq == first {
                             start.wait();
                         }
-                        let now = Instant::now();
+                        let commit_start = Instant::now();
                         let revision = draft.commit().unwrap();
-                        samples.push([revision, now.elapsed().as_nanos().try_into().unwrap()]);
+                        let completed = Instant::now();
+                        let origin = schedule.map_or(commit_start, |(epoch, _)| epoch);
+                        samples.push([
+                            revision,
+                            began,
+                            commit_start
+                                .duration_since(origin)
+                                .as_nanos()
+                                .try_into()
+                                .unwrap(),
+                            completed
+                                .duration_since(origin)
+                                .as_nanos()
+                                .try_into()
+                                .unwrap(),
+                        ]);
                     }
                     samples
                 })
@@ -194,7 +215,7 @@ fn completion_paced(
         assert!(sample[0] >= previous);
         samples.push(sample);
         if sample[0] < last {
-            thread::sleep(PERIOD);
+            thread::sleep(PACED_DELAY);
         }
     }
     assert_eq!(samples.last().unwrap()[0], last);
@@ -205,22 +226,16 @@ fn fixed_arrivals(
     db: &Database,
     collection: CollectionId,
     start: &Start,
-    _first: u64,
-    _last: u64,
+    period_us: u64,
 ) -> Vec<[u64; 7]> {
     let epoch = start.wait();
-    (0..ARRIVALS)
+    let period = Duration::from_micros(period_us);
+    let arrivals = (ARRIVAL_WINDOW_US / period_us) as u32;
+    (0..arrivals)
         .map(|index| {
             // Requests are scheduled by their ordinal. An overdue request
             // keeps its original deadline and is serviced in lane order.
-            let due = PERIOD * index as u32;
-            let began = loop {
-                let elapsed = epoch.elapsed();
-                if elapsed >= due {
-                    break u64::try_from(elapsed.as_nanos()).unwrap();
-                }
-                thread::sleep(due - elapsed);
-            };
+            let began = wait_for_arrival(epoch, period * index);
             let [rev, acquire, a, b, c] =
                 snapshot_sample(db, collection, |_| index.is_multiple_of(128));
             let done = u64::try_from(epoch.elapsed().as_nanos()).unwrap();
@@ -229,17 +244,41 @@ fn fixed_arrivals(
         .collect()
 }
 
-pub(crate) fn run(dir: &Path, arrivals: bool) {
-    if arrivals {
-        run_profile(dir, "breadth-arrivals", fixed_arrivals);
+fn wait_for_arrival(epoch: Instant, due: Duration) -> u64 {
+    loop {
+        let elapsed = epoch.elapsed();
+        if elapsed >= due {
+            return elapsed.as_nanos().try_into().unwrap();
+        }
+        thread::sleep(due - elapsed);
+    }
+}
+
+pub(crate) fn run(dir: &Path, period_us: Option<u64>, writer_period_us: Option<u64>) {
+    if let Some(period_us) = period_us {
+        assert!(
+            (250..=1_000).contains(&period_us) && ARRIVAL_WINDOW_US.is_multiple_of(period_us),
+            "arrival period must divide 768000 us and be between 250 and 1000 us"
+        );
+        assert!(writer_period_us.is_none_or(|us| (1_000..=48_000).contains(&us)));
+        run_profile(
+            dir,
+            "breadth-arrivals",
+            Some(period_us),
+            writer_period_us,
+            |db, collection, start, _, _| fixed_arrivals(db, collection, start, period_us),
+        );
     } else {
-        run_profile(dir, "breadth-sustained", completion_paced);
+        assert!(writer_period_us.is_none());
+        run_profile(dir, "breadth-sustained", None, None, completion_paced);
     }
 }
 
 fn run_profile<const N: usize>(
     dir: &Path,
     profile: &str,
+    period_us: Option<u64>,
+    writer_period_us: Option<u64>,
     reader: impl Fn(&Database, CollectionId, &Start, u64, u64) -> Vec<[u64; N]> + Sync,
 ) {
     fs::create_dir(dir).unwrap();
@@ -258,15 +297,23 @@ fn run_profile<const N: usize>(
     let initial = Database::open_file(&active, limits(CORE)).unwrap();
     let digest = verify(&initial, 0);
     let space = initial.storage_space().unwrap();
-    println!(
-        "{{\"phase\":\"sustained_seed\",\"revision\":{FINAL},\"digest\":{digest},\"file_bytes\":{}}}",
-        space.physical_bytes
+    let size = space.physical_bytes;
+    print!(
+        "{{\"phase\":\"sustained_seed\",\"revision\":{FINAL},\"digest\":{digest},\"file_bytes\":{size}"
     );
+    if let Some(period_us) = period_us {
+        let arrivals = ARRIVAL_WINDOW_US / period_us;
+        print!(",\"arrival_period_us\":{period_us},\"arrivals_per_lane\":{arrivals}");
+    }
+    if let Some(writer_period_us) = writer_period_us {
+        print!(",\"writer_period_us\":{writer_period_us},\"writes_per_lane\":{ROUNDS}");
+    }
+    println!("}}");
     drop(initial);
     for cycle in 1..=CYCLES {
         let db = Database::open_file(&active, limits(CORE)).unwrap();
         let start = Instant::now();
-        let samples = run_cycle(&db, cycle, &reader);
+        let samples = run_cycle(&db, cycle, writer_period_us, &reader);
         let workload_ns = start.elapsed().as_nanos();
         let digest = verify(&db, cycle * ROUNDS);
         let peak = db.memory_usage().peak_bytes;
@@ -290,13 +337,23 @@ fn run_profile<const N: usize>(
         let info = storage::inspect_file(&active, limits(CORE)).unwrap();
         assert!(info.witnessed);
         assert_eq!(info.revision, before.revision);
+        let writers = if writer_period_us.is_some() {
+            format!("{:?}", samples.writers)
+        } else {
+            let lanes: Vec<Vec<[u64; 2]>> = samples
+                .writers
+                .into_iter()
+                .map(|lane| {
+                    lane.into_iter()
+                        .map(|[rev, _, _, done]| [rev, done])
+                        .collect()
+                })
+                .collect();
+            format!("{lanes:?}")
+        };
         println!(
-            "{{\"phase\":\"sustained_cycle\",\"cycle\":{cycle},\"revision\":{},\"digest\":{digest},\"file_bytes\":{},\"compact_bytes\":{},\"core_peak_bytes\":{peak},\"workload_ns\":{workload_ns},\"maintenance_ns\":{maintenance_ns},\"reopen_ns\":{reopen_ns},\"writers\":{:?},\"readers\":{:?}}}",
-            before.revision,
-            stats.before_bytes,
-            stats.after_bytes,
-            samples.writers,
-            samples.readers
+            "{{\"phase\":\"sustained_cycle\",\"cycle\":{cycle},\"revision\":{},\"digest\":{digest},\"file_bytes\":{},\"compact_bytes\":{},\"core_peak_bytes\":{peak},\"workload_ns\":{workload_ns},\"maintenance_ns\":{maintenance_ns},\"reopen_ns\":{reopen_ns},\"writers\":{writers},\"readers\":{:?}}}",
+            before.revision, stats.before_bytes, stats.after_bytes, samples.readers
         );
     }
     complete(profile);

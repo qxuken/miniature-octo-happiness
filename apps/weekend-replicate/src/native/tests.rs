@@ -61,11 +61,11 @@ fn pair() -> (Tls, Tls) {
         Tls::new(&b, a.certificate()).unwrap(),
     )
 }
-fn exchange(
+fn exchange<T>(
     follower: &mut Follower,
     server: &Tls,
-    action: impl FnOnce(SocketAddr) -> AppResult<DurableAck>,
-) -> (AppResult<DurableAck>, Result<(), SessionError>) {
+    action: impl FnOnce(SocketAddr) -> AppResult<T>,
+) -> (AppResult<T>, Result<(), SessionError>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     thread::scope(|scope| {
@@ -452,6 +452,8 @@ fn structured_connect_refusal_after_lost_reply_does_not_deny_a_durable_install()
     let mut prepared = prepare(&path, [1; 16], &image).unwrap();
     let descriptor = prepared.export.descriptor();
     let enrollment = enrollment_of(&prepared);
+    let record = dir.0.join("descriptor");
+    capture_record::store(&record, descriptor).unwrap();
     let mut receiver = follower(&dir, enrollment);
     let folder = dir.0.join("follower");
     let (client, server) = pair();
@@ -501,7 +503,56 @@ fn structured_connect_refusal_after_lost_reply_does_not_deny_a_durable_install()
     assert_eq!(recovered.revision, 4);
     assert_eq!(recovered.digest, descriptor.digest);
     assert!(image.is_file());
+
+    let manifest_path = folder.join("replica-manifest.wdb");
+    let manifest_before = fs::read(&manifest_path).unwrap();
+    let context = "Export and descriptor retained. Retry with ship-captured.";
+    drop(prepared);
+    for enabled in [false, true] {
+        let mut arguments = vec!["ship-captured".into()];
+        if enabled {
+            arguments.insert(0, "--diagnostics=json".into());
+        }
+        let settings = diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut arguments);
+        let prepared = prepare_saved(&path, enrollment.stream_id, &image, &record).unwrap();
+        let mut output = Vec::new();
+        let (sent, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            deliver(prepared, &client, address, 1, &mut output, context)
+        });
+        let error = sent.unwrap_err();
+        if enabled {
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::ConnectionRefused)
+            );
+            let json = detail.unwrap().json(settings).to_string();
+            assert!(
+                json.contains(r#""phase":"connect","category":"io","code":"connection_refused""#)
+            );
+            assert!(json.contains(r#""follower_outcome":"unconfirmed""#));
+        } else {
+            assert!(detail.is_none());
+            let message = error.to_string();
+            assert!(
+                message.starts_with("transfer not confirmed; follower outcome may be uncertain:"),
+                "{message}"
+            );
+            assert!(message.ends_with(context), "{message}");
+        }
+        assert_eq!(
+            output,
+            format!(
+                "local captured_revision=4 stream={} file_identity={}\n",
+                hex(&enrollment.stream_id),
+                hex(&enrollment.file_identity)
+            )
+            .as_bytes()
+        );
+        assert_eq!(fs::read(&manifest_path).unwrap(), manifest_before);
+        assert_eq!(capture_record::load(&record).unwrap(), descriptor);
+    }
     let mut receiver = Follower::open(&folder, enrollment, Limits::default()).unwrap();
+    let mut prepared = prepare_saved(&path, enrollment.stream_id, &image, &record).unwrap();
     let manifest_bytes = receiver.status().unwrap().manifest_bytes;
     let (polled, served) = exchange(&mut receiver, &server, |address| {
         Ok(prepared.primary.poll(client.connect(address)?)?.unwrap())
@@ -588,4 +639,1303 @@ fn credential_fifo_rejects_before_open_and_keygen_uses_private_modes() {
     )
     .unwrap();
     assert!(Credentials::load(&credentials).is_ok());
+}
+
+#[test]
+fn capture_record_has_exact_bytes_and_rejects_incomplete_or_malformed_rows() {
+    use weekend_db::replication::ExportDescriptor;
+
+    let dir = Directory::new();
+    let path = dir.0.join("capture-record.wdb");
+    let descriptor = ExportDescriptor {
+        enrollment: Enrollment {
+            stream_id: std::array::from_fn(|i| i as u8),
+            file_identity: std::array::from_fn(|i| 16 + i as u8),
+        },
+        revision: 0x2726_2524_2322_2120,
+        length: 0x2f2e_2d2c_2b2a_2928,
+        digest: std::array::from_fn(|i| 48 + i as u8),
+    };
+    let mut golden = b"WDBCAP01".to_vec();
+    golden.extend(0..80);
+    let key = b"snapshot-capture";
+    assert_eq!(capture_record::load(&path), Err(Error::NotFound));
+    capture_record::store(&path, descriptor).unwrap();
+    let original = fs::read(&path).unwrap();
+    assert_eq!(
+        capture_record::store(&path, descriptor),
+        Err(Error::AlreadyExists)
+    );
+    assert_eq!(fs::read(&path).unwrap(), original);
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    let row = db
+        .snapshot()
+        .get(db.collection_id(1), key)
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.as_bytes().unwrap(), golden);
+    assert_eq!(capture_record::load(&path), Err(Error::Busy));
+    drop(db);
+    assert_eq!(capture_record::load(&path), Ok(descriptor));
+
+    let path = dir.0.join("partial-record.wdb");
+    drop(Database::create_file(&path, Limits::default()).unwrap());
+    assert_eq!(capture_record::load(&path), Err(Error::UnsupportedFormat));
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    db.create_collection().unwrap();
+    drop(db);
+    assert_eq!(capture_record::load(&path), Err(Error::UnsupportedFormat));
+    let mut wrong_format = golden.clone();
+    wrong_format[7] = b'2';
+    for bytes in [
+        None,
+        Some(Vec::new()),
+        Some(golden[..87].to_vec()),
+        Some([golden.as_slice(), &[0]].concat()),
+        Some(wrong_format),
+        Some(golden.clone()),
+    ] {
+        let db = Database::open_file(&path, Limits::default()).unwrap();
+        let value = match &bytes {
+            None => db.unsigned(7).unwrap(),
+            Some(bytes) => db.bytes(bytes).unwrap(),
+        };
+        let mut tx = db.begin();
+        tx.put(db.collection_id(1), key, &value).unwrap();
+        tx.commit().unwrap();
+        drop(tx);
+        drop(db);
+        let expected = if bytes.as_ref() == Some(&golden) {
+            Ok(descriptor)
+        } else {
+            Err(Error::Corrupt)
+        };
+        assert_eq!(capture_record::load(&path), expected);
+    }
+}
+
+#[test]
+fn saved_capture_checks_lineage_revision_length_and_digest_before_delivery() {
+    let dir = Directory::new();
+    let path = source(&dir);
+    let image = dir.0.join("export");
+    let stream = [1; 16];
+    let prepared = prepare(&path, stream, &image).unwrap();
+    let original = prepared.export.descriptor();
+    drop(prepared);
+    let image_bytes = fs::read(&image).unwrap();
+    let primary_bytes = fs::read(&path).unwrap();
+    let mut wrong = original;
+    wrong.enrollment.stream_id[0] ^= 1;
+    let mut foreign_file = original;
+    foreign_file.enrollment.file_identity[0] ^= 1;
+    let mut digest = original;
+    digest.digest[0] ^= 1;
+    for (name, descriptor, expected) in [
+        ("stream", wrong, Error::ForeignStore),
+        ("file", foreign_file, Error::ForeignStore),
+        (
+            "future",
+            weekend_db::replication::ExportDescriptor {
+                revision: original.revision + 1,
+                ..original
+            },
+            Error::ForeignStore,
+        ),
+        (
+            "past",
+            weekend_db::replication::ExportDescriptor {
+                revision: original.revision - 1,
+                ..original
+            },
+            Error::Corrupt,
+        ),
+        (
+            "length",
+            weekend_db::replication::ExportDescriptor {
+                length: 0,
+                ..original
+            },
+            Error::Limit,
+        ),
+        ("digest", digest, Error::Corrupt),
+    ] {
+        let record = dir.0.join(name);
+        capture_record::store(&record, descriptor).unwrap();
+        let before = fs::read(&record).unwrap();
+        let error = prepare_saved(&path, stream, &image, &record)
+            .err()
+            .expect(name);
+        assert_eq!(error.downcast_ref::<Error>(), Some(&expected), "{name}");
+        assert_eq!(fs::read(&record).unwrap(), before);
+    }
+    let record = dir.0.join("valid");
+    capture_record::store(&record, original).unwrap();
+    let reopened = prepare_saved(&path, stream, &image, &record).unwrap();
+    assert_eq!(reopened.export.descriptor(), original);
+    drop(reopened);
+    assert_eq!(fs::read(&image).unwrap(), image_bytes);
+    assert_eq!(fs::read(&path).unwrap(), primary_bytes);
+}
+
+struct FailingFlush {
+    bytes: Vec<u8>,
+    remaining_flushes: usize,
+}
+impl Write for FailingFlush {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.bytes.write(bytes)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if self.remaining_flushes == 0 {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        self.remaining_flushes -= 1;
+        Ok(())
+    }
+}
+
+#[test]
+fn capture_output_and_durable_acknowledgment_fail_independently() {
+    let dir = Directory::new();
+    let path = source(&dir);
+    let image = dir.0.join("export");
+    let stream = [1; 16];
+    let prepared = prepare(&path, stream, &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    let enrollment = descriptor.enrollment;
+    let local = format!(
+        "local captured_revision={} stream={} file_identity={}\n",
+        descriptor.revision,
+        hex(&enrollment.stream_id),
+        hex(&enrollment.file_identity)
+    );
+    let (client, server) = pair();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut output = FailingFlush {
+        bytes: Vec::new(),
+        remaining_flushes: 0,
+    };
+    let error = deliver(
+        prepared,
+        &client,
+        listener.local_addr().unwrap(),
+        1,
+        &mut output,
+        "",
+    )
+    .unwrap_err();
+    assert_eq!(
+        error.downcast_ref::<io::Error>().unwrap().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(output.bytes, local.as_bytes());
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
+
+    let record = dir.0.join("descriptor");
+    capture_record::store(&record, descriptor).unwrap();
+    let prepared = prepare_saved(&path, stream, &image, &record).unwrap();
+    let mut receiver = follower(&dir, enrollment);
+    let mut output = vec![0; local.len()];
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "ship-captured".into()],
+    );
+    let mut diagnostic = None;
+    let (sent, served) = exchange(&mut receiver, &server, |address| {
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            deliver(
+                prepared,
+                &client,
+                address,
+                1,
+                &mut output.as_mut_slice(),
+                "",
+            )
+        });
+        diagnostic = detail;
+        result
+    });
+    served.unwrap();
+    assert_eq!(
+        sent.unwrap_err()
+            .downcast_ref::<io::Error>()
+            .unwrap()
+            .kind(),
+        io::ErrorKind::WriteZero
+    );
+    assert_eq!(output, local.as_bytes());
+    let json = diagnostic.unwrap().json(settings).to_string();
+    assert!(json.contains(r#""phase":"local_command","category":"io""#));
+    assert!(json.contains(r#""follower_outcome":"unconfirmed""#));
+    let ack = DurableAck {
+        stream_id: stream,
+        revision: descriptor.revision,
+        digest: descriptor.digest,
+    };
+    let manifest = receiver.status().unwrap().manifest_bytes;
+    drop(receiver);
+
+    let mut reopened =
+        Follower::open(dir.0.join("follower"), enrollment, Limits::default()).unwrap();
+    check(&reopened, ack, 2);
+    let prepared = prepare_saved(&path, stream, &image, &record).unwrap();
+    let mut output = FailingFlush {
+        bytes: Vec::new(),
+        remaining_flushes: 1,
+    };
+    let (retried, served) = exchange(&mut reopened, &server, |address| {
+        deliver(prepared, &client, address, 1, &mut output, "")
+    });
+    served.unwrap();
+    assert_eq!(
+        retried
+            .unwrap_err()
+            .downcast_ref::<io::Error>()
+            .unwrap()
+            .kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(
+        output.bytes,
+        format!("{local}{}\n", ack_line(Some(ack))).as_bytes()
+    );
+
+    let mut prepared = prepare_saved(&path, stream, &image, &record).unwrap();
+    let (polled, served) = exchange(&mut reopened, &server, |address| {
+        Ok(prepared.primary.poll(client.connect(address)?)?)
+    });
+    served.unwrap();
+    assert_eq!(polled.unwrap(), Some(ack));
+    assert_eq!(reopened.status().unwrap().manifest_bytes, manifest);
+}
+
+#[test]
+fn poll_output_preserves_local_revision_and_follower_receipt() {
+    let dir = Directory::new();
+    let path = source(&dir);
+    let stream = [1; 16];
+    let mut prepared = prepare(&path, stream, &dir.0.join("export")).unwrap();
+    let enrollment = prepared.primary.enrollment();
+    let (client, server) = pair();
+    let mut receiver = follower(&dir, enrollment);
+    let (sent, served) = exchange(&mut receiver, &server, |address| {
+        ship(&mut prepared, &client, address, 1)
+    });
+    let receipt = sent.unwrap();
+    served.unwrap();
+    assert_eq!(receipt.revision, 4);
+    drop(receiver);
+    let follower_path = dir.0.join("follower");
+    let manifest = follower_path.join("replica-manifest.wdb");
+    let original = fs::read(&manifest).unwrap();
+    let mut receiver = Follower::open(&follower_path, enrollment, Limits::default()).unwrap();
+
+    let db = Database::open_file(&path, Limits::default()).unwrap();
+    let mut tx = db.begin();
+    tx.put(db.collection_id(1), b"key", &db.unsigned(3).unwrap())
+        .unwrap();
+    assert_eq!(tx.commit(), Ok(5));
+    drop(tx);
+    let revision = db.snapshot().revision();
+    let mut primary = Primary::new(&db, stream).unwrap();
+    drop(db);
+    let local = "local verified_revision=5\n";
+    let reports = format!("{local}{}\n", ack_line(Some(receipt)));
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "poll".into()],
+    );
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut output = FailingFlush {
+        bytes: Vec::new(),
+        remaining_flushes: 0,
+    };
+    let (failed, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+        poll(
+            &mut primary,
+            &client,
+            listener.local_addr().unwrap(),
+            revision,
+            &mut output,
+        )
+    });
+    let error = failed.unwrap_err();
+    assert_eq!(
+        error.downcast_ref::<io::Error>().map(io::Error::kind),
+        Some(io::ErrorKind::BrokenPipe)
+    );
+    assert!(
+        diagnostic
+            .unwrap()
+            .json(settings)
+            .to_string()
+            .contains(r#""phase":"local_command","category":"io","code":"broken_pipe""#)
+    );
+    assert_eq!(output.bytes, local.as_bytes());
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
+
+    let address = listener.local_addr().unwrap();
+    drop(listener);
+    let mut output = Vec::new();
+    let (refused, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+        poll(&mut primary, &client, address, revision, &mut output)
+    });
+    assert_eq!(
+        refused
+            .unwrap_err()
+            .downcast_ref::<io::Error>()
+            .map(io::Error::kind),
+        Some(io::ErrorKind::ConnectionRefused)
+    );
+    assert!(
+        detail
+            .unwrap()
+            .json(settings)
+            .to_string()
+            .contains(r#""phase":"connect","category":"io","code":"connection_refused""#)
+    );
+    assert_eq!(output, local.as_bytes());
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    output.clear();
+    let (interrupted, detail) = thread::scope(|scope| {
+        scope.spawn(|| {
+            let mut channel = server.accept(listener.accept().unwrap().0).unwrap();
+            channel.read_exact(&mut [0]).unwrap();
+        });
+        diagnostics::capture(settings, Phase::Arguments, || {
+            poll(&mut primary, &client, address, revision, &mut output)
+        })
+    });
+    assert_eq!(
+        interrupted.unwrap_err().downcast_ref::<Error>(),
+        Some(&Error::Io)
+    );
+    assert!(
+        detail
+            .unwrap()
+            .json(settings)
+            .to_string()
+            .contains(r#""phase":"replication","category":"engine","code":"Io""#)
+    );
+    assert_eq!(output, local.as_bytes());
+
+    let mut output = FailingFlush {
+        bytes: Vec::new(),
+        remaining_flushes: 1,
+    };
+    let (observed, served) = exchange(&mut receiver, &server, |address| {
+        poll(&mut primary, &client, address, revision, &mut output)
+    });
+    served.unwrap();
+    assert_eq!(
+        observed
+            .unwrap_err()
+            .downcast_ref::<io::Error>()
+            .map(io::Error::kind),
+        Some(io::ErrorKind::BrokenPipe)
+    );
+    assert_eq!(output.bytes, reports.as_bytes());
+
+    let mut output = Vec::new();
+    let (observed, served) = exchange(&mut receiver, &server, |address| {
+        poll(&mut primary, &client, address, revision, &mut output)
+    });
+    served.unwrap();
+    observed.unwrap();
+    assert_eq!(output, reports.as_bytes());
+    check(&receiver, receipt, 2);
+    drop(receiver);
+    assert_eq!(fs::read(&manifest).unwrap(), original);
+}
+
+#[test]
+fn export_preparation_reports_the_first_error_and_preserves_existing_files() {
+    let dir = Directory::new();
+    let primary = source(&dir);
+    let missing = dir.0.join("absent");
+    let image = dir.0.join("image");
+    let record = dir.0.join("record");
+    let existing = dir.0.join("existing");
+    fs::write(&existing, b"preserve this file").unwrap();
+
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "capture".into()],
+    );
+    let observe = |result: AppResult<Prepared>,
+                   diagnostic: Option<diagnostics::Diagnostic>,
+                   expected: Error,
+                   phase: &str| {
+        let error = result.err().expect("preparation passed unexpectedly");
+        assert_eq!(error.downcast_ref::<Error>(), Some(&expected));
+        let json = diagnostic.unwrap().json(settings).to_string();
+        assert!(json.contains(&format!("\"phase\":\"{phase}\"")), "{json}");
+    };
+
+    let stream = [1; 16];
+    for (source, stream, output, expected, phase) in [
+        (&missing, stream, &image, Error::NotFound, "storage_open"),
+        (&primary, [0; 16], &image, Error::Invalid, "replication"),
+        (&primary, stream, &existing, Error::AlreadyExists, "export"),
+    ] {
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            prepare(source, stream, output)
+        });
+        observe(result, detail, expected, phase);
+        assert!(!image.exists());
+    }
+    assert_eq!(fs::read(&existing).unwrap(), b"preserve this file");
+
+    let prepared = prepare(&primary, stream, &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    capture_record::store(&record, descriptor).unwrap();
+    drop(prepared);
+    let before = [&primary, &image, &record].map(|path| fs::read(path).unwrap());
+    let corrupt = dir.0.join("corrupt-record");
+    fs::write(&corrupt, b"not a database").unwrap();
+    for (source, stream, export, descriptor_path, expected, phase) in [
+        (
+            &missing,
+            stream,
+            &image,
+            &corrupt,
+            Error::Corrupt,
+            "storage_open",
+        ),
+        (
+            &missing,
+            stream,
+            &image,
+            &record,
+            Error::NotFound,
+            "storage_open",
+        ),
+        (
+            &primary,
+            [0; 16],
+            &image,
+            &record,
+            Error::Invalid,
+            "replication",
+        ),
+        (
+            &primary,
+            stream,
+            &missing,
+            &record,
+            Error::NotFound,
+            "storage_verify",
+        ),
+    ] {
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            prepare_saved(source, stream, export, descriptor_path)
+        });
+        observe(result, detail, expected, phase);
+        assert_eq!(
+            [&primary, &image, &record].map(|path| fs::read(path).unwrap()),
+            before
+        );
+    }
+    assert_eq!(
+        prepare_saved(&primary, stream, &image, &record)
+            .unwrap()
+            .export
+            .descriptor(),
+        descriptor
+    );
+}
+
+#[test]
+fn retry_preserves_terminal_errors_and_tolerates_a_closed_notice_pipe() {
+    let ack = DurableAck {
+        revision: 4,
+        stream_id: [1; 16],
+        digest: [2; 32],
+    };
+    let permanent_failures = [
+        Error::ForeignStore,
+        Error::UnsupportedFormat,
+        Error::Conflict,
+        Error::Invalid,
+        Error::Corrupt,
+        Error::Limit,
+        Error::RecoveryRequired,
+    ];
+    let cases = permanent_failures
+        .into_iter()
+        .map(|error| (2, error, 1, Err(error)))
+        .chain([
+            (1, Error::Io, 1, Err(Error::Io)),
+            (2, Error::Io, 2, Ok(ack)),
+        ]);
+    for (attempts, failure, calls, expected) in cases {
+        let mut count = 0;
+        let mut report = Vec::new();
+        let actual = retry_ship(attempts, &mut report, || {
+            count += 1;
+            if count == 1 {
+                Err(failure.into())
+            } else {
+                Ok(ack)
+            }
+        });
+        assert_eq!(
+            actual.map_err(|error| *error.downcast::<Error>().unwrap()),
+            expected
+        );
+        assert_eq!(count, calls);
+        if calls == 2 {
+            assert_eq!(
+                report,
+                b"exchange unconfirmed; reconnecting with the same export (attempt 2)\n"
+            );
+        } else {
+            assert!(report.is_empty());
+        }
+    }
+
+    let mut report = Vec::new();
+    let error = retry_ship(0, &mut report, || {
+        panic!("zero attempts reached the exchange")
+    })
+    .unwrap_err();
+    assert_eq!(error.to_string(), "no transfer attempt configured");
+    assert!(report.is_empty());
+
+    let (reader, mut writer) = io::pipe().unwrap();
+    drop(reader);
+    let mut count = 0;
+    let observed = retry_ship(2, &mut writer, || {
+        count += 1;
+        if count == 1 {
+            Err(io::Error::from(io::ErrorKind::ConnectionReset).into())
+        } else {
+            Ok(ack)
+        }
+    });
+    assert_eq!(observed.unwrap(), ack);
+    assert_eq!(count, 2);
+}
+
+#[test]
+fn interrupted_authenticated_exchange_retries_the_same_export() {
+    use sha2::{Digest, Sha256};
+
+    let dir = Directory::new();
+    let source = source(&dir);
+    let image = dir.0.join("retry-export.wdb");
+    let mut prepared = prepare(&source, [1; 16], &image).unwrap();
+    let descriptor = prepared.export.descriptor();
+    let mut follower = follower(&dir, descriptor.enrollment);
+    let (client, server) = pair();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+    let accept = || {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            match listener.accept() {
+                Ok((socket, _)) => break socket,
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline, "snapshot retry did not connect");
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("fixture accept failed: {error}"),
+            }
+        }
+    };
+
+    let ack = thread::scope(|scope| {
+        let receiver = scope.spawn(|| {
+            let mut interrupted = server.accept(accept()).unwrap();
+            interrupted.read_exact(&mut [0]).unwrap();
+            drop(interrupted);
+            serve_one(&mut follower, &server, accept()).unwrap();
+        });
+        let result = ship(&mut prepared, &client, address, 2);
+        receiver.join().unwrap();
+        result.unwrap()
+    });
+    assert_eq!(ack.revision, descriptor.revision);
+    assert_eq!(ack.stream_id, descriptor.enrollment.stream_id);
+    assert_eq!(ack.digest, descriptor.digest);
+    assert_eq!(prepared.export.descriptor(), descriptor);
+    drop(prepared);
+    assert_eq!(
+        Into::<[u8; 32]>::into(Sha256::digest(fs::read(image).unwrap())),
+        ack.digest
+    );
+    check(&follower, ack, 2);
+    drop(follower);
+    let reopened = Follower::open(
+        dir.0.join("follower"),
+        descriptor.enrollment,
+        Limits::default(),
+    )
+    .unwrap();
+    check(&reopened, ack, 2);
+}
+
+#[test]
+fn listener_setup_failure_preserves_the_receipt_and_closes_queued_clients() {
+    use std::cell::Cell;
+
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "serve".into()],
+    );
+    for (mode_fails, kind, code, detail) in [
+        (
+            true,
+            io::ErrorKind::PermissionDenied,
+            "permission_denied",
+            "set nonblocking",
+        ),
+        (
+            false,
+            io::ErrorKind::InvalidInput,
+            "invalid_input",
+            "read local address",
+        ),
+    ] {
+        let dir = Directory::new();
+        let path = source(&dir);
+        let image = dir.0.join("export.wdb");
+        let mut prepared = prepare(&path, [1; 16], &image).unwrap();
+        let enrollment = prepared.export.descriptor().enrollment;
+        let mut follower = follower(&dir, enrollment);
+        let (client, tls) = pair();
+        let (sent, served) = exchange(&mut follower, &tls, |address| {
+            ship(&mut prepared, &client, address, 1)
+        });
+        let receipt = sent.unwrap();
+        served.unwrap();
+        let slot = follower.status().unwrap().selected_slot.unwrap();
+        drop(follower);
+
+        let follower_path = dir.0.join("follower");
+        let manifest = follower_path.join("replica-manifest.wdb");
+        let before = fs::read(&manifest).unwrap();
+        let image = follower_path.join(format!("replica-{slot}.wdb"));
+        let image_before = fs::read(&image).unwrap();
+        let follower = Follower::open(&follower_path, enrollment, Limits::default()).unwrap();
+        let mut queued = None;
+        let queried = Cell::new(false);
+        let mut output = Vec::new();
+        let (result, diagnostic) = diagnostics::capture(settings, Phase::Arguments, || {
+            serve_with(
+                follower,
+                "127.0.0.1:0".parse().unwrap(),
+                &tls,
+                1,
+                |listener| {
+                    let peer = TcpStream::connect(listener.local_addr()?)?;
+                    peer.set_read_timeout(Some(Duration::from_secs(2)))?;
+                    queued = Some(peer);
+                    if mode_fails {
+                        Err(io::Error::new(kind, detail))
+                    } else {
+                        listener.set_nonblocking(true)
+                    }
+                },
+                |_| {
+                    queried.set(true);
+                    Err(io::Error::new(kind, detail))
+                },
+                &mut output,
+            )
+        });
+
+        let error = result.unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(kind)
+        );
+        assert_eq!(error.to_string(), detail);
+        assert!(
+            diagnostic
+                .unwrap()
+                .json(settings)
+                .to_string()
+                .contains(&format!(
+                    r#""phase":"listen","category":"io","code":"{code}""#
+                ))
+        );
+        assert_eq!(queried.get(), !mode_fails);
+        assert!(output.is_empty());
+
+        let mut queued = queued.unwrap();
+        match queued.read(&mut [0]) {
+            Ok(0) => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                ) => {}
+            other => panic!("listener setup left a queued connection open: {other:?}"),
+        }
+        assert_eq!(fs::read(&manifest).unwrap(), before);
+        assert_eq!(fs::read(&image).unwrap(), image_before);
+        let reopened = Follower::open(&follower_path, enrollment, Limits::default()).unwrap();
+        check(&reopened, receipt, 2);
+    }
+}
+
+fn installed_follower(dir: &Directory) -> (Follower, Enrollment, DurableAck) {
+    let mut prepared = prepare(&source(dir), [1; 16], &dir.0.join("export.wdb")).unwrap();
+    let enrollment = enrollment_of(&prepared);
+    let (mut follower, (client, server)) = (follower(dir, enrollment), pair());
+    let (sent, served) = exchange(&mut follower, &server, |address| {
+        ship(&mut prepared, &client, address, 1)
+    });
+    served.unwrap();
+    let ack = sent.unwrap();
+    check(&follower, ack, 2);
+    (follower, enrollment, ack)
+}
+
+fn invalid_native_argument() -> std::ffi::OsString {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        std::ffi::OsString::from_vec(vec![0xff])
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStringExt;
+        std::ffi::OsString::from_wide(&[0xd800])
+    }
+}
+
+#[test]
+fn network_commands_preserve_admission_errors() {
+    use std::ffi::OsString;
+
+    let dir = Directory::new();
+    let (follower, enrollment, ack) = installed_follower(&dir);
+    let follower_path = dir.0.join("follower");
+    let manifest = follower_path.join("replica-manifest.wdb");
+    let image = follower_path.join(format!(
+        "replica-{}.wdb",
+        follower.status().unwrap().selected_slot.unwrap()
+    ));
+    drop(follower);
+    let files = [&manifest, &image];
+    let original = files.map(|p| fs::read(p).unwrap());
+
+    let stream = hex(&enrollment.stream_id);
+    let file = hex(&enrollment.file_identity);
+    let missing = dir.0.join("missing");
+    let export = dir.0.join("new-export.wdb");
+    let credentials = dir.0.join("credentials");
+    let peer_credentials = dir.0.join("peer-credentials");
+    Credentials::generate().unwrap().write_fixture(&credentials);
+    Credentials::generate()
+        .unwrap()
+        .write_fixture(&peer_credentials);
+    let pin = peer_credentials.join("cert.der");
+    let malformed_pin = dir.0.join("wrong-pin.der");
+    fs::write(&malformed_pin, b"incomplete certificate").unwrap();
+
+    for (verb, inputs, option) in [
+        (
+            "serve",
+            vec![missing.as_os_str(), stream.as_ref(), file.as_ref()],
+            Some("--max-exchanges"),
+        ),
+        (
+            "ship",
+            vec![missing.as_os_str(), stream.as_ref(), export.as_os_str()],
+            Some("--attempts"),
+        ),
+        (
+            "ship-captured",
+            vec![
+                missing.as_os_str(),
+                stream.as_ref(),
+                export.as_os_str(),
+                missing.as_os_str(),
+            ],
+            Some("--attempts"),
+        ),
+        ("poll", vec![missing.as_os_str(), stream.as_ref()], None),
+    ] {
+        let mut args = vec![OsString::from(verb)];
+        args.extend(inputs.into_iter().map(OsString::from));
+        let address = args.len();
+        args.extend([
+            OsString::from("127.0.0.1:0"),
+            credentials.clone().into(),
+            pin.clone().into(),
+        ]);
+
+        let check_failure = |mut input: Vec<OsString>,
+                             phase: &str,
+                             code: &str,
+                             message: Option<&str>| {
+            input.insert(0, "--diagnostics=json".into());
+            let settings = diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut input);
+            let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || main(input));
+            let error = result.expect_err(verb);
+            if let Some(message) = message {
+                assert_eq!(error.to_string(), message, "{verb}");
+            }
+            match code {
+                "NotFound" => assert_eq!(error.downcast_ref::<Error>(), Some(&Error::NotFound)),
+                "not_found" => assert_eq!(
+                    error.downcast_ref::<io::Error>().map(io::Error::kind),
+                    Some(io::ErrorKind::NotFound)
+                ),
+                "invalid_certificate" => assert!(matches!(
+                    error.downcast_ref::<rustls::Error>(),
+                    Some(rustls::Error::InvalidCertificate(_))
+                )),
+                _ => {}
+            }
+            let detail = detail.unwrap().json(settings).to_string();
+            assert!(
+                detail.contains(&format!(r#""phase":"{phase}""#)),
+                "{verb}: {detail}"
+            );
+            assert!(
+                detail.contains(&format!(r#""code":"{code}""#)),
+                "{verb}: {detail}"
+            );
+            assert!(!export.exists(), "{verb} created an export");
+        };
+        let changed = |index, value: OsString| {
+            let mut input = args.clone();
+            input[index] = value;
+            input
+        };
+        check_failure(
+            changed(2, "0".into()),
+            "arguments",
+            "unclassified",
+            Some("identity must be 32 hexadecimal digits"),
+        );
+        check_failure(
+            changed(address, invalid_native_argument()),
+            "arguments",
+            "unclassified",
+            Some("expected UTF-8 argument"),
+        );
+        check_failure(
+            changed(address, "invalid".into()),
+            "arguments",
+            "invalid_input",
+            Some("invalid socket address syntax"),
+        );
+        if let Some(option) = option {
+            let mut input = args.clone();
+            input.extend([OsString::from(option), OsString::from("0")]);
+            check_failure(
+                input,
+                "arguments",
+                "unclassified",
+                Some("option outside bounds"),
+            );
+        }
+        check_failure(
+            changed(address + 1, missing.clone().into()),
+            "credentials_load",
+            "not_found",
+            None,
+        );
+        check_failure(
+            changed(address + 2, missing.clone().into()),
+            "credentials_load",
+            "not_found",
+            None,
+        );
+        check_failure(
+            changed(address + 2, malformed_pin.clone().into()),
+            "tls_config",
+            "invalid_certificate",
+            None,
+        );
+        check_failure(args, "storage_open", "NotFound", None);
+    }
+    assert_eq!(files.map(|p| fs::read(p).unwrap()), original);
+    check(
+        &Follower::open(&follower_path, enrollment, Limits::default()).unwrap(),
+        ack,
+        2,
+    );
+}
+
+#[test]
+fn snapshot_identity_errors_preserve_each_argument() {
+    let broken = invalid_native_argument();
+    let valid = OsStr::new("aB112233445566778899aabbccddeeff");
+    assert_eq!(
+        identity(valid).unwrap(),
+        [
+            0xab, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+            0xee, 0xff,
+        ]
+    );
+    let digits = "identity must be 32 hexadecimal digits";
+    for (input, expected) in [
+        (broken.as_os_str(), "expected UTF-8 argument"),
+        (OsStr::new("1"), digits),
+        (OsStr::new("+1111111111111111111111111111111"), digits),
+        (
+            OsStr::new("00000000000000000000000000000000"),
+            "identity must be nonzero",
+        ),
+    ] {
+        assert_eq!(identity(input).unwrap_err().to_string(), expected);
+        for (stream, file) in [(input, valid), (valid, input)] {
+            let error = enrollment(stream, file).expect_err("invalid identity accepted");
+            assert_eq!(error.to_string(), expected);
+        }
+    }
+    let e = enrollment(valid, OsStr::new("11111111111111111111111111111111")).unwrap();
+    assert_eq!(e.stream_id, identity(valid).unwrap());
+    assert_eq!(e.file_identity, [0x11; 16]);
+    assert_eq!(
+        identity(OsStr::new("00000000000000000000000000000001")).unwrap(),
+        1_u128.to_be_bytes()
+    );
+    assert_eq!(
+        identity(OsStr::new("ffffffffffffffffffffffffffffffff")).unwrap(),
+        u128::MAX.to_be_bytes()
+    );
+}
+
+#[test]
+fn capture_command_refusals_preserve_the_source_and_existing_descriptor() {
+    let dir = Directory::new();
+    let primary = source(&dir);
+    let missing = dir.0.join("missing");
+    let image = dir.0.join("export");
+    let descriptor = dir.0.join("existing-descriptor");
+    let original = fs::read(&primary).unwrap();
+    fs::write(&descriptor, b"descriptor sentinel").unwrap();
+    let stream = hex(&[1; 16]);
+    let capture = |source: &Path, stream: &str| {
+        let mut args = vec![
+            "--diagnostics=json".into(),
+            "capture".into(),
+            source.into(),
+            stream.into(),
+            image.clone().into(),
+            descriptor.clone().into(),
+        ];
+        let settings = diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut args);
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || main(args));
+        (
+            result.unwrap_err(),
+            detail.unwrap().json(settings).to_string(),
+        )
+    };
+    let (error, report) = capture(&primary, "1");
+    assert_eq!(error.to_string(), "identity must be 32 hexadecimal digits");
+    assert!(report.contains(r#""phase":"arguments""#));
+    assert!(!image.exists());
+
+    let (error, report) = capture(&missing, &stream);
+    assert_eq!(error.downcast_ref::<Error>(), Some(&Error::NotFound));
+    assert!(report.contains(r#""phase":"storage_open","category":"engine","code":"NotFound""#));
+    assert!(!image.exists());
+
+    let (error, report) = capture(&primary, &stream);
+    assert_eq!(error.downcast_ref::<Error>(), Some(&Error::AlreadyExists));
+    assert!(
+        report.contains(r#""phase":"storage_create","category":"engine","code":"AlreadyExists""#)
+    );
+    assert_eq!(fs::read(&descriptor).unwrap(), b"descriptor sentinel");
+    assert_eq!(fs::read(&primary).unwrap(), original);
+    let exported = Database::open_file(image, Limits::default()).unwrap();
+    let revision = exported.snapshot().revision();
+    let primary = Database::open_file(primary, Limits::default()).unwrap();
+    let enrollment = Primary::new(&primary, [1; 16]).unwrap().enrollment();
+    assert_eq!(
+        Primary::new(&exported, [1; 16]).unwrap().enrollment(),
+        enrollment
+    );
+    assert_eq!(revision, 4);
+    assert_eq!(exported.retained_ids().unwrap(), [1]);
+    assert_eq!(exported.retained_snapshot(1).unwrap().revision(), 2);
+}
+
+#[test]
+fn capture_report_preserves_the_first_output_failure() {
+    let dir = Directory::new();
+    let prepared = prepare(&source(&dir), [1; 16], &dir.0.join("export")).unwrap();
+    let descriptor = prepared.export.descriptor();
+    let enrollment = descriptor.enrollment;
+    let local = format!(
+        "local captured_revision=4 stream={} file_identity={}\n",
+        hex(&enrollment.stream_id),
+        hex(&enrollment.file_identity)
+    );
+    let complete = format!(
+        "{local}local export_length={} export_digest={}\n",
+        descriptor.length,
+        hex(&descriptor.digest)
+    );
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), "capture".into()],
+    );
+    let check_failure =
+        |error: AppResult<()>, detail: Option<diagnostics::Diagnostic>, kind, code| {
+            assert_eq!(
+                error
+                    .unwrap_err()
+                    .downcast_ref::<io::Error>()
+                    .map(io::Error::kind),
+                Some(kind)
+            );
+            assert!(
+                detail
+                    .unwrap()
+                    .json(settings)
+                    .to_string()
+                    .contains(&format!(
+                        r#""phase":"local_command","category":"io","code":"{code}""#
+                    ))
+            );
+        };
+    for (remaining_flushes, expected) in [(0, &local), (1, &complete)] {
+        let mut output = FailingFlush {
+            bytes: Vec::new(),
+            remaining_flushes,
+        };
+        let (error, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+            report_capture(&prepared, &mut output)
+        });
+        check_failure(error, detail, io::ErrorKind::BrokenPipe, "broken_pipe");
+        assert_eq!(output.bytes, expected.as_bytes());
+    }
+    let mut first_line = vec![0; local.len()];
+    let (error, detail) = diagnostics::capture(settings, Phase::Arguments, || {
+        report_capture(&prepared, &mut first_line.as_mut_slice())
+    });
+    check_failure(error, detail, io::ErrorKind::WriteZero, "other");
+    assert_eq!(first_line, local.as_bytes());
+    let mut output = Vec::new();
+    report_capture(&prepared, &mut output).unwrap();
+    assert_eq!(output, complete.as_bytes());
+}
+
+#[test]
+fn offline_command_refusals_preserve_the_follower() {
+    let dir = Directory::new();
+    let (follower, enrollment, ack) = installed_follower(&dir);
+    let path = dir.0.join("follower");
+    let manifest = path.join("replica-manifest.wdb");
+    let selected = path.join(format!(
+        "replica-{}.wdb",
+        follower.status().unwrap().selected_slot.unwrap()
+    ));
+    drop(follower);
+    let original = [&manifest, &selected].map(|file| fs::read(file).unwrap());
+    let stream = hex(&enrollment.stream_id);
+    let file = hex(&enrollment.file_identity);
+    let foreign = hex(&[2; 16]);
+    let fail = |verb: &str, path: &Path, ids: &[&str], expected: &str, phase: &str| {
+        let mut args = vec!["--diagnostics=json".into(), verb.into(), path.into()];
+        args.extend(ids.iter().copied().map(std::ffi::OsString::from));
+        let settings = diagnostics::settings_from_args(diagnostics::App::Snapshot, &mut args);
+        let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || main(args));
+        assert_eq!(result.unwrap_err().to_string(), expected, "{verb}");
+        let detail = detail.unwrap().json(settings).to_string();
+        assert!(
+            detail.contains(&format!(r#""phase":"{phase}""#)),
+            "{detail}"
+        );
+    };
+    let corrupt = dir.0.join("corrupt-source.wdb");
+    fs::write(&corrupt, b"incomplete image").unwrap();
+    fail(
+        "describe",
+        &corrupt,
+        &["1"],
+        "identity must be 32 hexadecimal digits",
+        "arguments",
+    );
+    fail(
+        "describe",
+        &corrupt,
+        &[&stream],
+        "Corrupt",
+        "storage_verify",
+    );
+    assert_eq!(fs::read(&corrupt).unwrap(), b"incomplete image");
+
+    let zero = "00000000000000000000000000000000";
+    for verb in [
+        "follower-init",
+        "status",
+        "cleanup-inactive",
+        "compact-manifest",
+    ] {
+        if cfg!(windows) && verb == "compact-manifest" {
+            continue;
+        }
+        fail(
+            verb,
+            &path,
+            &["1", &file],
+            "identity must be 32 hexadecimal digits",
+            "arguments",
+        );
+        fail(
+            verb,
+            &path,
+            &[&stream, zero],
+            "identity must be nonzero",
+            "arguments",
+        );
+        if verb == "follower-init" {
+            fail(
+                verb,
+                &path,
+                &[&stream, &file],
+                "AlreadyExists",
+                "storage_create",
+            );
+        } else {
+            fail(
+                verb,
+                &path,
+                &[&foreign, &file],
+                "ForeignStore",
+                "storage_open",
+            );
+        }
+        assert_eq!(
+            [&manifest, &selected].map(|file| fs::read(file).unwrap()),
+            original
+        );
+    }
+
+    #[cfg(unix)]
+    {
+        let alias = path.join("manifest-alias");
+        fs::hard_link(&manifest, &alias).unwrap();
+        fail(
+            "compact-manifest",
+            &path,
+            &[&stream, &file],
+            "Invalid",
+            "storage_maintenance",
+        );
+        assert_eq!(fs::read(&alias).unwrap(), original[0]);
+        fs::remove_file(alias).unwrap();
+    }
+    assert_eq!(
+        [&manifest, &selected].map(|file| fs::read(file).unwrap()),
+        original
+    );
+    let reopened = Follower::open(&path, enrollment, Limits::default()).unwrap();
+    check(&reopened, ack, 2);
+}
+
+#[cfg(unix)]
+fn verify_manifest_status_failure(
+    command: &str,
+    phase: &str,
+    call: impl FnOnce(&mut Vec<u8>) -> AppResult<()>,
+) {
+    let settings = diagnostics::settings_from_args(
+        diagnostics::App::Snapshot,
+        &mut vec!["--diagnostics=json".into(), command.into()],
+    );
+    let mut output = Vec::new();
+    let (result, detail) = diagnostics::capture(settings, Phase::Arguments, || call(&mut output));
+    assert_eq!(
+        result.unwrap_err().downcast_ref::<Error>(),
+        Some(&Error::NotFound)
+    );
+    let detail = detail.unwrap().json(settings).to_string();
+    assert!(
+        detail.contains(&format!(
+            r#""phase":"{phase}","category":"engine","code":"NotFound""#
+        )),
+        "{detail}"
+    );
+    assert!(output.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn manifest_status_failures_report_the_operation_phase() {
+    use weekend_db::replication::MANIFEST_LIMIT_BYTES;
+
+    let dir = Directory::new();
+    let (follower, enrollment, ack) = installed_follower(&dir);
+    let path = dir.0.join("follower");
+    let manifest = path.join("replica-manifest.wdb");
+    let hidden = path.join("temporarily-hidden-manifest");
+    let selected = path.join(format!(
+        "replica-{}.wdb",
+        follower.status().unwrap().selected_slot.unwrap()
+    ));
+    drop(follower);
+    let selected_bytes = fs::read(&selected).unwrap();
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&manifest)
+        .unwrap()
+        .set_len(MANIFEST_LIMIT_BYTES)
+        .unwrap();
+    let original = fs::read(&manifest).unwrap();
+    let open = || Follower::open(&path, enrollment, Limits::default()).unwrap();
+
+    let follower = open();
+    let mut healthy = Vec::new();
+    report_follower_status(&follower, &mut healthy).unwrap();
+    assert!(
+        String::from_utf8(healthy)
+            .unwrap()
+            .lines()
+            .any(|line| line == ack_line(Some(ack)))
+    );
+    // Move only the private fixture name to force the native metadata error.
+    fs::rename(&manifest, &hidden).unwrap();
+    verify_manifest_status_failure("status", "storage_verify", |output| {
+        report_follower_status(&follower, output)
+    });
+    verify_manifest_status_failure("compact-manifest", "storage_maintenance", |output| {
+        compact_follower_with(
+            follower,
+            |_| panic!("compaction ran after the initial status failed"),
+            output,
+        )
+    });
+    fs::rename(&hidden, &manifest).unwrap();
+    assert_eq!(fs::read(&manifest).unwrap(), original);
+
+    verify_manifest_status_failure("compact-manifest", "storage_maintenance", |output| {
+        compact_follower_with(
+            open(),
+            |follower| {
+                let replacement = follower.compact_manifest()?;
+                fs::rename(&manifest, &hidden).unwrap();
+                Ok(replacement)
+            },
+            output,
+        )
+    });
+    fs::rename(&hidden, &manifest).unwrap();
+    assert!(fs::metadata(&manifest).unwrap().len() < MANIFEST_LIMIT_BYTES);
+    assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    check(&open(), ack, 2);
 }

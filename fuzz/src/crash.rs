@@ -138,6 +138,7 @@ fn interrupt_recovery(
     revision: u64,
     expected_witness: &[u8],
     faults: &[[u8; 4]],
+    capped_attempts: u8,
 ) {
     let witness = (3 + (revision & 1) as usize) * REGION;
     let range = witness..witness + REGION;
@@ -152,7 +153,10 @@ fn interrupt_recovery(
     // medium does not complete an open between generated failures.
     let control = SimulatedDisk::from_image(image).unwrap();
     control.arm(usize::MAX, Fault::Error);
-    assert_eq!(open(&control).snapshot().revision(), revision);
+    let opened = open(&control);
+    assert_eq!(opened.snapshot().revision(), revision);
+    let peak = opened.memory_usage().peak_bytes;
+    drop(opened);
     let trace = control.trace().unwrap();
     let stabilize = trace.len() - 3;
     let write = stabilize + 1;
@@ -177,7 +181,41 @@ fn interrupt_recovery(
         .unwrap();
     drop(control);
 
-    for &[cut, mode, power, arg] in faults {
+    // Geometric reservations can retry with exact capacity. Find a cap that
+    // actually refuses this graph, using a fresh disk for every successful probe.
+    let capped = (capped_attempts != 0).then(|| {
+        let mut limits = Limits {
+            max_live_bytes: peak - 1,
+            ..Limits::default()
+        };
+        loop {
+            let calibration = SimulatedDisk::from_image(image).unwrap();
+            calibration.arm(usize::MAX, Fault::Error);
+            match Database::open_on(calibration.clone(), limits) {
+                Err(Error::Limit) => {
+                    let reads = calibration.trace().unwrap();
+                    assert!(reads.len() <= stabilize);
+                    assert_eq!(reads, trace[..reads.len()]);
+                    assert!(calibration.durable_image().unwrap() == image);
+                    break (limits, reads.len());
+                }
+                Ok(db) => {
+                    assert_eq!(db.snapshot().revision(), revision);
+                    assert!(db.memory_usage().peak_bytes <= limits.max_live_bytes);
+                    assert_eq!(calibration.trace().unwrap(), trace);
+                    let bytes = calibration.durable_image().unwrap();
+                    assert_eq!(&bytes[..witness], &image[..witness]);
+                    assert_eq!(&bytes[range.clone()], expected_witness);
+                    assert_eq!(&bytes[range.end..], &image[range.end..]);
+                    assert!(limits.max_live_bytes > 0);
+                    limits.max_live_bytes /= 2;
+                }
+                Err(error) => panic!("unexpected budget calibration error: {error:?}"),
+            }
+        }
+    });
+
+    for (attempt, &[cut, mode, power, arg]) in faults.iter().enumerate() {
         let step = [first, last, stabilize, write, sync][usize::from(cut) % 5];
         let fault = match (trace[step].kind, mode % 4) {
             (IoKind::Write, 0) => Fault::Error,
@@ -189,15 +227,24 @@ fn interrupt_recovery(
             (kind, _) => fault_for(kind, mode, arg),
         };
         let crash = power_loss(power, arg);
+        let (limits, stop) = if capped_attempts & (1 << attempt) != 0 {
+            let (limits, reads) = capped.unwrap();
+            (limits, reads.min(step + 1))
+        } else {
+            (Limits::default(), step + 1)
+        };
+        let io_reached = stop > step;
+        let expected = if io_reached { Error::Io } else { Error::Limit };
         disk.arm(step, fault);
-        assert!(matches!(
-            Database::open_on(disk.clone(), Limits::default()),
-            Err(Error::Io)
-        ));
-        assert_eq!(disk.trace().unwrap(), trace[..=step]);
+        assert_eq!(
+            Database::open_on(disk.clone(), limits).err(),
+            Some(expected),
+            "recovery attempt {attempt}, step {step}, fault {fault:?}"
+        );
+        assert_eq!(disk.trace().unwrap(), trace[..stop]);
         disk.crash(crash).unwrap();
 
-        if step >= write {
+        if io_reached && step >= write {
             let persisted = persisted_metadata(trace[step].kind, fault, crash);
             image[witness..witness + persisted].copy_from_slice(&expected_witness[..persisted]);
         }
@@ -216,6 +263,7 @@ pub fn commit_crash(input: &[u8]) {
     };
     // The first two flags retain their original meanings. The next two
     // give the number of four-byte recovery faults before the edit stream.
+    // Bits four through six also cap the corresponding recovery attempt.
     let recovery_bytes = usize::from((flags >> 2) & 3) * 4;
     let Some((recovery, program)) = program.split_at_checked(recovery_bytes) else {
         return;
@@ -223,6 +271,7 @@ pub fn commit_crash(input: &[u8]) {
     let (recovery, []) = recovery.as_chunks::<4>() else {
         unreachable!();
     };
+    let capped_attempts = (flags >> 4) & ((1 << recovery.len()) - 1);
     let edits: Vec<_> = program
         .as_chunks::<2>()
         .0
@@ -357,7 +406,14 @@ pub fn commit_crash(input: &[u8]) {
         disk.clear_fault();
     }
     if !recovery.is_empty() {
-        interrupt_recovery(&disk, &mut durable, recovered, expected_witness, recovery);
+        interrupt_recovery(
+            &disk,
+            &mut durable,
+            recovered,
+            expected_witness,
+            recovery,
+            capped_attempts,
+        );
     }
     let db = open(&disk);
     durable[selected_witness..selected_witness + REGION].copy_from_slice(expected_witness);

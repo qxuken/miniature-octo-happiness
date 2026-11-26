@@ -35,6 +35,13 @@ write. The demo leaves the next decision to the caller.
 Restart with `serve counter.db 8400` to reopen the existing file. On
 Windows, use a database path on local fixed NTFS.
 
+Legacy initialization creates the collection at revision 1 and seeds the
+counter at revision 2. An interrupted initialization can leave either
+step durable. Startup rejects revisions 0 and 1 because the counter is
+missing. Preserve an incomplete file for inspection and initialize at a
+fresh path. Repeating `init` on the existing path reports an error and
+preserves the file.
+
 ```sh
 cargo test -p write-coordinator
 ```
@@ -265,6 +272,15 @@ using that journal. `status` reads the recorded coordinator identity and slot,
 latest receipt and any pending request. Use `resume` after a lost reply or a
 client interruption. It retries a pending request verbatim or reports the
 latest local acknowledgment when the pending request already cleared.
+
+If the first `journal init` is interrupted, run `journal status` before
+submitting a write. If it reports the expected identity, assigned slot and
+`receipt 0`, that journal is ready. An interruption between file creation
+and publication of the initial journal row can leave a database that status
+rejects with `NotFound` or `UnsupportedFormat`. For this first initialization,
+keep the partial file and run init at a fresh path for the same assigned slot.
+Init checks that the coordinator slot is still empty. A previously used slot
+requires recovery of its existing journal and receipt history.
 
 A journal write can return `Io` when its filesystem fills before staging
 the request or after the coordinator records its receipt. Use `journal

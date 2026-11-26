@@ -47,10 +47,22 @@ retained count, strictly increasing read progress, monotonic elapsed time, core
 accounting and file bounds, and matching final counts. A completion flag alone
 is insufficient. A nonzero exit, malformed/inconsistent output or timeout fails
 and preserves `verified: false` with terminal status and failure context. A lower round bound may finish before the requested
-wall duration. Round duration may overshoot the deadline; the runner enforces a
+wall duration. When the child finishes below that round bound, the controller
+requires both the final child clock and its own observed runtime to reach the
+requested duration. Round duration may overshoot the deadline; the runner enforces a
 120-second grace and kills a stuck child. Defaults allow at most 100,000 rounds;
 accepted wall duration is 1–86,400 seconds. At four tiny records this is a bounded
 small-state lifecycle/concurrency workload, not a throughput benchmark.
+
+The driver now records durations per round for the concurrent writer/reader
+group, compaction, reopening and verifying the compacted file, backup and
+restore. It also records the full round duration, which includes retention
+and verification of the backup and restored files. The launcher checks
+that stage durations fit within their round and that round durations fit
+within the driver clock. Evidence includes sample count, zero-clock ticks,
+p50, p95, p99 and maximum nanoseconds for each stage using nearest rank.
+The concurrent duration describes a batch of 64 commits with readers
+running. Individual commit and queue times are outside this measurement.
 
 `sampled_peak_rss_kib` is the maximum child RSS observed at approximately 200 ms
 intervals through native process telemetry. The controller retains the peak
@@ -68,6 +80,22 @@ writer, network replication, large-dataset, total-RSS-bound or production-lifeti
 claim. Separate crash/fault, native interruption and platform qualification remain
 necessary. Evidence stays in caller-selected output directories rather than being
 committed as bulky artifacts.
+
+## Recheck extracted timed evidence
+
+Preserve the output directory, including its archived source and
+`build/release/weekend-native-soak`. After a fresh extraction, run:
+
+```sh
+cargo xtask soak-verify /absolute/path/to/extracted-evidence
+```
+
+The verifier checks the extracted files, executable, allowed process
+outcome and both completion clocks. It recomputes the timing percentiles
+from the raw JSONL records and compares both the timing and completion
+summaries to the evidence. Proofs produced before per-round timing do
+not have the fields required by this command. Check the archive's
+recorded SHA-256 before extraction to bind it to its original evidence.
 
 ## Recorded qualification
 
@@ -172,3 +200,81 @@ archive launcher under the container's older Python. Both records preserve
 their own tool, filesystem and resource boundaries. Neither qualifies Windows,
 physical-device power loss, network replication, larger cardinality or a month
 of wall-clock production operation.
+
+## Workload checkpoint at 5f49a59
+
+Two 600-second runs used Rust 1.100.0 and the same committed controller,
+driver and engine (`5f49a590bd7048e5ba6dea79c5544eb7e7264b70`). They ran
+concurrently on one development host. Each round checked the current and
+retained views after compaction, reopen, backup and restore.
+
+| Observation | macOS arm64 | Docker Linux aarch64, ext4 volume |
+| --- | ---: | ---: |
+| Driver / observer elapsed seconds | 600.738 / 601.054 | 600.007 / 600.023 |
+| Completed rounds | 701 | 3,202 |
+| Paired-key writer commits | 44,864 | 204,928 |
+| Reader observations | 1,788,323,587 | 2,131,891,361 |
+| Final revision / retained roots | 46,260 / 8 | 211,326 / 8 |
+| Maximum live / peak core bytes | 32,504 / 73,616 | 32,504 / 73,424 |
+| Sampled peak RSS (KiB) | 3,264 | 2,880 |
+| Maximum before / after compaction (bytes) | 917,504 / 122,880 | 917,504 / 122,880 |
+
+Independent review of each freshly extracted local proof checked both clocks,
+the full sequence of revisions, retention and resource bounds, all 858 source
+hashes, 38 output hashes and the separately saved executable. The SHA-256 of
+`soak-macos-5f49a59.tar.gz` is
+`d67c154dbf28b1ce1c4884ae977c474bfd9ef3d28f7e4700fe089e0e22fac733`.
+For `soak-linux-5f49a59.tar.gz` it is
+`7896913439fa829d7438771198eee592966b8ea8bd8e590f26ba01c78175ea86`.
+
+The controller now applies the two-clock duration check on future runs.
+A short zero-exit child with consistent round records and a child claiming
+60 seconds of work both failed the new controls. A real two-second macOS
+run passed below the round limit. The deployment-device soak and agreed
+operating budgets remain open.
+
+## Same-source one-hour runs at 4474f27
+
+The native workload completed a requested hour on each platform at frozen
+engine and driver `4474f271f633caac176923f12fbe7bc003ee2dfb`, using Rust
+1.100.0. The launcher tests passed eight cases per platform and profile.
+Each run crossed the deadline on both the child and launcher clocks,
+exited zero, and reaped the child. Each round verified the current and
+retained data after compaction, backup and restore. Both campaigns ran
+on the same development host and overlapped other qualification work.
+
+| Platform | Wall time (s) | Rounds | Writer commits | Reader iterations | Final revision | Retained roots | Peak RSS (KiB) | Peak core bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64 / APFS | 3600.838 | 3696 | 236544 | 11244670141 | 243930 | 8 | 3568 | 74368 |
+| Docker Linux arm64 / ext4 | 3600.015 | 10700 | 684800 | 12885737600 | 706194 | 8 | 2880 | 74080 |
+
+| Stage | macOS p50 / p95 / p99 (ms) | Docker Linux p50 / p95 / p99 (ms) |
+| --- | ---: | ---: |
+| Whole round | 951.079 / 1229.864 / 1669.686 | 308.600 / 563.713 / 1084.850 |
+| 64 commits with readers | 802.575 / 1047.029 / 1471.100 | 279.782 / 511.535 / 1015.307 |
+| Compact | 48.950 / 63.246 / 92.035 | 4.879 / 10.968 / 32.972 |
+| Reopen and verify | 7.980 / 12.008 / 18.293 | 3.569 / 9.951 / 19.453 |
+| Backup | 21.174 / 28.116 / 43.099 | 4.231 / 8.229 / 18.018 |
+| Restore | 21.002 / 28.005 / 43.131 | 3.854 / 6.760 / 15.909 |
+
+On both runs, the pre-compaction image was at most 917,504 bytes and the
+compacted image was 122,880 bytes. Maximum live core bytes were 32,504 on
+each platform. The concurrent timing covers a group of 64 commits with
+readers running. These measurements describe the four-key lifecycle
+workload and the host's observed latency during the runs. Production
+service limits still require the agreed deployment hardware, queue and
+per-commit measurements, heavier histories, and the matched release
+workload.
+
+Verify the [archive manifest](decisions/hour-soak-4474f27.sha256), extract
+each platform archive, and copy its recorded `weekend-native-soak` binary
+to `build/release/weekend-native-soak` inside the extraction. Both the
+Rust verifier and the independent JSONL parser checked the 923 archived
+sources, the terminal report and every timing percentile. A separate
+reader linked to the frozen macOS engine reopened each extracted final
+`data/live.db`. It checked all four key values and revisions in the
+current root and each of the eight retained roots, rejected a one-round
+offset in the expected revision, and checked that both images retained
+their original SHA-256 digests. The archives retain the binary, reports,
+raw rounds, original logs, reader and source bundle. Local custody is under
+`target/archived-proof/hour-soak-4474f27`.

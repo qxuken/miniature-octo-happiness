@@ -6,12 +6,15 @@
         any(target_arch = "x86_64", target_arch = "aarch64")
     )
 ))]
+#[path = "support/bytestore_contract.rs"]
+mod bytestore_contract;
+
 use std::{
     fs,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
-use weekend_db::{Database, Error, Limits};
+use weekend_db::{Database, Error, Limits, storage::FileStore};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Directory(PathBuf);
 impl Directory {
@@ -62,6 +65,16 @@ fn number(snapshot: &weekend_db::Snapshot<'_>, db: &Database, key: &[u8]) -> i64
         .as_i64()
         .unwrap()
 }
+
+#[test]
+fn native_file_passes_public_bytestore_lifecycle_contract() {
+    let dir = Directory::new();
+    bytestore_contract::check_lifecycle(
+        |name| FileStore::create(dir.file(name)),
+        |name| FileStore::open(dir.file(name)),
+    );
+}
+
 #[test]
 fn file_reopen_retention_abort_and_live_reader_lifetimes() {
     let dir = Directory::new();

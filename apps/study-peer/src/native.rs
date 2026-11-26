@@ -99,6 +99,7 @@ pub fn main(args: Vec<OsString>) -> AppResult<()> {
             diagnostics::at(Phase::ConfigurationLoad, || {
                 roster::policy_file(Path::new(policy))
             })?,
+            &mut io::stdout().lock(),
         ),
         [command, a, b, old, target_a, target_b, new, options @ ..]
             if command == "stage-roster" =>
@@ -113,6 +114,7 @@ pub fn main(args: Vec<OsString>) -> AppResult<()> {
                     roster::policy_file(Path::new(new))
                 })?,
                 expected_receipt(options, "--expect-old")?.as_deref(),
+                &mut io::stdout().lock(),
             )
         }
         [command, a, b, policy, options @ ..] if command == "verify-roster" => roster::verify(
@@ -121,6 +123,7 @@ pub fn main(args: Vec<OsString>) -> AppResult<()> {
                 roster::policy_file(Path::new(policy))
             })?,
             expected_receipt(options, "--expect-staged")?.as_deref(),
+            &mut io::stdout().lock(),
         ),
         [
             command,
@@ -215,6 +218,52 @@ fn run<S: io::Read + Write>(
     options: RunOptions,
     incoming: impl Fn(Incoming) -> S + Send + Sync,
 ) -> AppResult<()> {
+    run_with_io(
+        db,
+        enrollment,
+        network,
+        options,
+        incoming,
+        io::stdin().lock(),
+        io::stdout(),
+    )
+}
+
+fn run_with_io<S: io::Read + Write>(
+    db: &Database,
+    enrollment: Enrollment,
+    network: Network,
+    options: RunOptions,
+    incoming: impl Fn(Incoming) -> S + Send + Sync,
+    input: impl BufRead,
+    output: impl Write,
+) -> AppResult<()> {
+    run_with_listener_ops(
+        db,
+        enrollment,
+        network,
+        options,
+        incoming,
+        (input, output),
+        (
+            |listener| listener.set_nonblocking(true),
+            TcpListener::local_addr,
+        ),
+    )
+}
+
+fn run_with_listener_ops<S: io::Read + Write>(
+    db: &Database,
+    enrollment: Enrollment,
+    network: Network,
+    options: RunOptions,
+    incoming: impl Fn(Incoming) -> S + Send + Sync,
+    (input, mut output): (impl BufRead, impl Write),
+    (nonblocking, bound_address): (
+        impl FnOnce(&TcpListener) -> io::Result<()>,
+        impl FnOnce(&TcpListener) -> io::Result<SocketAddr>,
+    ),
+) -> AppResult<()> {
     let replica = diagnostics::storage(Phase::StorageOpen, || {
         StudyReplica::open(
             db,
@@ -228,13 +277,18 @@ fn run<S: io::Read + Write>(
         peer,
         tls,
     } = network;
-    listener.set_nonblocking(true)?;
+    let address = diagnostics::at(Phase::Listen, || {
+        nonblocking(&listener)?;
+        Ok(bound_address(&listener)?)
+    })?;
     let pushing = AtomicBool::new(options.pushing);
     let stop = Arc::new(AtomicBool::new(false));
     let status = Mutex::new(PeerStatus::default());
     let incoming_status = Mutex::new(admission::Status::default());
-    let stdout = io::stdout();
-    writeln!(stdout.lock(), "ready {}", listener.local_addr()?)?;
+    diagnostics::at(Phase::LocalCommand, || {
+        writeln!(output, "ready {address}")?;
+        Ok(())
+    })?;
 
     let settings = diagnostics::settings();
     thread::scope(|scope| {
@@ -242,7 +296,7 @@ fn run<S: io::Read + Write>(
         let receiving_replica = &replica;
         let server = &tls;
         let received = &incoming_status;
-        let receiving = scope.spawn(move || {
+        let receive = move || {
             diagnostics::capture(settings, Phase::Incoming, || {
                 admission::receive(listener, server, stop_receiving, received, |stream| {
                     Ok(diagnostics::storage(Phase::Replication, || {
@@ -250,8 +304,8 @@ fn run<S: io::Read + Write>(
                     })?)
                 })
             })
-        });
-        let outgoing = scope.spawn(|| {
+        };
+        let send = || {
             let mut delay = POLL;
             while !stop.load(Relaxed) {
                 if !pushing.load(Relaxed) {
@@ -278,11 +332,13 @@ fn run<S: io::Read + Write>(
                 }
                 thread::park_timeout(delay);
             }
-        });
+        };
+        let (receiving, outgoing) =
+            launch_workers(scope, &stop, receive, send, || Ok(thread::Builder::new()))?;
 
         let (result, local_diagnostic) =
             diagnostics::capture(settings, Phase::LocalCommand, || {
-                for line in io::stdin().lock().lines() {
+                for line in input.lines() {
                     let line = line?;
                     let words: Vec<_> = line.split_whitespace().collect();
                     match words.as_slice() {
@@ -291,7 +347,7 @@ fn run<S: io::Read + Write>(
                         ["push", value @ ("on" | "off")] => {
                             pushing.store(*value == "on", Relaxed);
                             outgoing.thread().unpark();
-                            writeln!(stdout.lock(), "push {value}")?;
+                            writeln!(output, "push {value}")?;
                         }
                         ["peer"] => {
                             let reply = {
@@ -310,7 +366,7 @@ fn run<S: io::Read + Write>(
                                     None => format!("peer {n} idle"),
                                 }
                             };
-                            writeln!(stdout.lock(), "{reply}")?;
+                            writeln!(output, "{reply}")?;
                         }
                         ["incoming"] => {
                             let report = {
@@ -321,44 +377,84 @@ fn run<S: io::Read + Write>(
                                     status.report()
                                 }
                             };
-                            writeln!(stdout.lock(), "{report}")?;
+                            writeln!(output, "{report}")?;
                         }
                         ["edit" | "practice", ..] if options.sync_only => {
                             if settings.enabled {
                                 let diagnostic =
                                     diagnostics::take(Phase::LocalCommand, &Error::Invalid);
-                                writeln!(stdout.lock(), "{}", diagnostic.json(settings))?;
+                                writeln!(output, "{}", diagnostic.json(settings))?;
                             } else {
-                                writeln!(
-                                    stdout.lock(),
-                                    "error local edits are disabled during staging"
-                                )?;
+                                writeln!(output, "error local edits are disabled during staging")?;
                             }
                         }
                         _ => match observe_local_command(|| command(&words, db, &replica)) {
-                            Ok(reply) => writeln!(stdout.lock(), "{reply}")?,
+                            Ok(reply) => writeln!(output, "{reply}")?,
                             Err(error) if settings.enabled => {
                                 let diagnostic =
                                     diagnostics::take(Phase::LocalCommand, error.as_ref());
-                                writeln!(stdout.lock(), "{}", diagnostic.json(settings))?;
+                                writeln!(output, "{}", diagnostic.json(settings))?;
                             }
-                            Err(error) => writeln!(stdout.lock(), "error {error}")?,
+                            Err(error) => writeln!(output, "error {error}")?,
                         },
                     }
                 }
                 Ok(())
             });
-        stop.store(true, Relaxed);
-        receiving.thread().unpark();
-        outgoing.thread().unpark();
-        let (received, diagnostic) = diagnostics::at(Phase::Shutdown, || {
-            Ok(receiving.join().map_err(|_| Error::Panic)?)
-        })?;
-        diagnostics::propagate(received, diagnostic)?;
-        diagnostics::at(Phase::Shutdown, || {
-            outgoing.join().map_err(|_| Error::Panic)?;
-            Ok(())
-        })?;
-        diagnostics::propagate(result, local_diagnostic)
+        finish_workers(&stop, receiving, outgoing, (result, local_diagnostic))
     })
+}
+
+type ServiceOutcome = (AppResult<()>, Option<diagnostics::Diagnostic>);
+
+fn finish_workers(
+    stop: &AtomicBool,
+    receiving: thread::ScopedJoinHandle<'_, ServiceOutcome>,
+    outgoing: thread::ScopedJoinHandle<'_, ()>,
+    (result, local_diagnostic): ServiceOutcome,
+) -> AppResult<()> {
+    stop.store(true, Relaxed);
+    receiving.thread().unpark();
+    outgoing.thread().unpark();
+    // Join both workers before returning either error.
+    let received = receiving.join();
+    let sent = outgoing.join();
+    let (received, diagnostic) = diagnostics::at(Phase::Shutdown, || {
+        received.map_err(|_| Error::Panic.into())
+    })?;
+    diagnostics::propagate(received, diagnostic)?;
+    diagnostics::at(Phase::Shutdown, || sent.map_err(|_| Error::Panic.into()))?;
+    diagnostics::propagate(result, local_diagnostic)
+}
+
+fn launch_workers<'scope, 'env, T: Send + 'scope>(
+    scope: &'scope thread::Scope<'scope, 'env>,
+    stop: &AtomicBool,
+    receive: impl FnOnce() -> T + Send + 'scope,
+    send: impl FnOnce() + Send + 'scope,
+    mut new_worker: impl FnMut() -> io::Result<thread::Builder>,
+) -> AppResult<(
+    thread::ScopedJoinHandle<'scope, T>,
+    thread::ScopedJoinHandle<'scope, ()>,
+)> {
+    let receiving = diagnostics::at(Phase::Incoming, || {
+        new_worker()
+            .and_then(|builder| builder.spawn_scoped(scope, receive))
+            .map_err(Into::into)
+    })?;
+    let outgoing = diagnostics::at(Phase::Connect, || {
+        new_worker()
+            .and_then(|builder| builder.spawn_scoped(scope, send))
+            .map_err(Into::into)
+    });
+    match outgoing {
+        Ok(outgoing) => Ok((receiving, outgoing)),
+        Err(error) => {
+            stop.store(true, Relaxed);
+            receiving.thread().unpark();
+            // The launch failure remains the result if the receiver also panics.
+            let _ = receiving.join();
+            Err(error)
+        }
+    }
 }

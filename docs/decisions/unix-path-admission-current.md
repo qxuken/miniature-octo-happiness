@@ -43,29 +43,29 @@ duplication failures and metadata syscall failures retain their own gates.
 
 | Source | SHA-256 |
 | --- | --- |
-| `src/storage/file.rs` | `cfcc5d7b40eadd689b34a717825cd59cdd62171a09c8397671c63e43f61c2756` |
+| `src/storage/file.rs` | `a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f` |
 
 | Status | Target | Position | Byte span | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | E | weekend-db::weekend_db | src/storage/file.rs:81:37– | 2717..2718 | try_propagation | open_read_only | Read-only open propagates an empty name as Invalid. |
 | E | weekend-db::weekend_db | src/storage/file.rs:88:51– | 2940..2941 | try_propagation | open_in | Create and writable reopen propagate allocator refusal before leaf open. |
-| P | weekend-db::weekend_db | src/storage/file.rs:193:9– | 6162..6164 | if | new_in | A path without zero is admitted and an embedded zero rejects before allocation. |
-| P | weekend-db::weekend_db | src/storage/file.rs:196:9– | 6244..6246 | if | new_in | Accept the exact 1 MiB cap and reject one byte more before allocation. |
-| I | weekend-db::weekend_db | src/storage/file.rs:199:77– | 6399..6400 | try_propagation | new_in | The split always yields a last segment, including the empty segment on empty input. |
-| P | weekend-db::weekend_db | src/storage/file.rs:200:9– | 6410..6412 | if | new_in | An ordinary leaf passes. Empty, dot and dot-dot independently reject. |
-| C | weekend-db::weekend_db | src/storage/file.rs:200:12– | 6413..6444 | short_circuit_or | new_in | Shares the empty and dot predicates of the final-component decision. |
-| C | weekend-db::weekend_db | src/storage/file.rs:200:12– | 6413..6461 | short_circuit_or | new_in | Same predicates and source bounds as the final-component decision. |
-| E | weekend-db::weekend_db | src/storage/file.rs:208:97– | 6775..6776 | try_propagation | new_in | Refuse the exact terminated parent size first and return OutOfMemory. |
-| E | weekend-db::weekend_db | src/storage/file.rs:213:17– | 7070..7072 | if | new_in | A real successful parent open and native ENOENT and ENOTDIR outcomes. Only a valid descriptor is owned. |
-| E | weekend-db::weekend_db | src/storage/file.rs:219:15– | 7317..7318 | try_propagation | new_in | A parent open refusal preserves its native status and stops before the leaf. |
-| E | weekend-db::weekend_db | src/storage/file.rs:221:58– | 7387..7388 | try_propagation | new_in | Refuse leaf storage after opening the parent and before creating or opening a target file. |
-| E | weekend-db::weekend_db | src/storage/file.rs:228:60– | 7618..7619 | try_propagation | terminated_path | Both terminated buffer calls propagate allocation refusal. Successful buffers include the terminating zero. |
-| E | weekend-db::weekend_db | src/storage/file.rs:239:45– | 7951..7952 | try_propagation | copy_path | The selected allocator grants or refuses the exact path capacity. |
-| E | weekend-db::weekend_db | src/storage/file.rs:247:80– | 8291..8292 | try_propagation | duplicate | Duplicate the path using the same provider. A refused copy preserves the previously held location. |
-| P | weekend-db::weekend_db | src/storage/file.rs:253:9– | 8543..8545 | if | open_mode | Opening a directory read-only reaches metadata and rejects a nonregular file. A regular file is admitted. |
-| P | weekend-db::weekend_db | src/storage/file.rs:287:13– | 9834..9836 | if | open_flags | Failed create and ordinary open record the correct native operation independently. |
-| E | weekend-db::weekend_db | src/storage/file.rs:301:17– | 10308..10310 | if | open_flags | Use real negative descriptors from missing or occupied leafs and a successful native open. |
-| E | weekend-db::weekend_db | src/storage/file.rs:307:10– | 10466..10467 | try_propagation | open_flags | Propagate the original leaf open error and its exact diagnostic. |
+| P | weekend-db::weekend_db | src/storage/file.rs:196:9– | 6283..6285 | if | new_in | A path without zero is admitted and an embedded zero rejects before allocation. |
+| P | weekend-db::weekend_db | src/storage/file.rs:199:9– | 6365..6367 | if | new_in | Accept the exact 1 MiB cap and reject one byte more before allocation. |
+| I | weekend-db::weekend_db | src/storage/file.rs:202:77– | 6520..6521 | try_propagation | new_in | The split always yields a last segment, including the empty segment on empty input. |
+| P | weekend-db::weekend_db | src/storage/file.rs:203:9– | 6531..6533 | if | new_in | An ordinary leaf passes. Empty, dot and dot-dot independently reject. |
+| C | weekend-db::weekend_db | src/storage/file.rs:203:12– | 6534..6565 | short_circuit_or | new_in | Shares the empty and dot predicates of the final-component decision. |
+| C | weekend-db::weekend_db | src/storage/file.rs:203:12– | 6534..6582 | short_circuit_or | new_in | Same predicates and source bounds as the final-component decision. |
+| E | weekend-db::weekend_db | src/storage/file.rs:211:97– | 6896..6897 | try_propagation | new_in | Refuse the exact terminated parent size first and return OutOfMemory. |
+| E | weekend-db::weekend_db | src/storage/file.rs:216:17– | 7191..7193 | if | new_in | A real successful parent open and native ENOENT and ENOTDIR outcomes. Only a valid descriptor is owned. |
+| E | weekend-db::weekend_db | src/storage/file.rs:222:15– | 7438..7439 | try_propagation | new_in | A parent open refusal preserves its native status and stops before the leaf. |
+| E | weekend-db::weekend_db | src/storage/file.rs:224:58– | 7508..7509 | try_propagation | new_in | Refuse leaf storage after opening the parent and before creating or opening a target file. |
+| E | weekend-db::weekend_db | src/storage/file.rs:231:60– | 7739..7740 | try_propagation | terminated_path | Both terminated buffer calls propagate allocation refusal. Successful buffers include the terminating zero. |
+| E | weekend-db::weekend_db | src/storage/file.rs:242:45– | 8072..8073 | try_propagation | copy_path | The selected allocator grants or refuses the exact path capacity. |
+| E | weekend-db::weekend_db | src/storage/file.rs:250:80– | 8412..8413 | try_propagation | duplicate | Duplicate the path using the same provider. A refused copy preserves the previously held location. |
+| P | weekend-db::weekend_db | src/storage/file.rs:256:9– | 8664..8666 | if | open_mode | Opening a directory read-only reaches metadata and rejects a nonregular file. A regular file is admitted. |
+| P | weekend-db::weekend_db | src/storage/file.rs:290:13– | 9955..9957 | if | open_flags | Failed create and ordinary open record the correct native operation independently. |
+| E | weekend-db::weekend_db | src/storage/file.rs:304:17– | 10429..10431 | if | open_flags | Use real negative descriptors from missing or occupied leafs and a successful native open. |
+| E | weekend-db::weekend_db | src/storage/file.rs:310:10– | 10587..10588 | try_propagation | open_flags | Propagate the original leaf open error and its exact diagnostic. |
 
 ## Verification at c28cad3
 

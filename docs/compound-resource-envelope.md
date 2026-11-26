@@ -1021,8 +1021,8 @@ The lock split lowers acquisition and full-response p99 in both pairs.
 Queueing still contributes to request latency after the split. The readers
 in each candidate run collectively observe all 376 intermediate revisions.
 Commit p99 falls on macOS and rises on Docker Linux at this fixed read
-rate. Multiple offered rates, direct installation timing, and deployment
-thresholds remain open.
+rate. The [three-rate follow-up](#three-offered-read-rates-on-a-fixed-window)
+measures the reader and commit tails across rates.
 
 The four seed files match byte for byte. All cycle checkpoints agree on
 revision, digest and file lengths. The final open verifies revision 517
@@ -1037,3 +1037,133 @@ The completion-paced profile also passes end to end on macOS.
 | `breadth-arrivals-macos-candidate` | `5f9af7fd9939e05eff02bc941d9f6b1618c9527ea05ea18f3538dccf8c18a014` | `d15feaa730840450f90348617356c5222c1e8bd7e4fcdd1897a6a40ab378010a` |
 | `breadth-arrivals-linux-baseline` | `c6f672ff255606b9c5ec737422711302cafe36709a54a1c4ff67fd24741ee4d3` | `354c4a2a30789b87450da6aea1f08365c4301022482f23c4f80ce6c0bd973c93` |
 | `breadth-arrivals-linux-candidate` | `9fdd44e021c3db4d10d4519d85c45f0f744ee945e0368b43ad9e04a518880815` | `c32eafaa2e28617567ed5c808815176d8620187e76e137a833c97e88095cd807` |
+
+## Three offered read rates on a fixed window
+
+Frozen `40fe1d555b55e011ff26224cb590f525c02231be` ran the full-width
+profile with Rust 1.100.0 on macOS arm64/APFS and Docker Linux arm64/ext4.
+The Linux controller ran inside an arm64 container with two CPUs and a
+2 GiB memory limit. Both used the same development host and byte-identical
+58,523,648-byte seed. Each run completed eight cycles of 48 commits across
+three writers and reopened revision 517 with all 64 retained roots.
+
+Four reader lanes use the same 768 ms scheduled window at every rate.
+Intervals of 1,000, 500 and 250 µs offer 4,000, 8,000 and 16,000 reads/s
+respectively. Each lane retains request arrival times through backlog.
+The mix includes a full scan on every 128th request starting at the first.
+The raw seed record binds the interval and the required count per lane.
+The controller checks both against the selected run and replays the full
+writer and reader schedule from the raw samples.
+
+The CLI defaults to 500 µs. An explicit interval must divide 768,000 µs
+and fall within 250 to 1,000 µs. For example, the high-rate run uses
+
+```sh
+cargo +1.100.0 xtask resource compound-breadth-arrivals --revision 40fe1d5 \
+  --arrival-period-us 250 --output target/breadth-arrivals-16k
+```
+
+| Platform | Offered reads/s | Completed reads | Queued reads | Queue wait p50 / p95 / p99 (ms) | Response p50 / p95 / p99 (ms) | Commit p99 (ms) | Peak RSS (KiB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64/APFS | 4000 | 24576 | 854 | 0.000 / 0.000 / 2.897 | 0.338 / 0.465 / 3.897 | 35.308 | 217296 |
+| macOS arm64/APFS | 8000 | 49152 | 3350 | 0.000 / 1.014 / 3.658 | 0.171 / 1.514 / 4.158 | 35.341 | 217120 |
+| macOS arm64/APFS | 16000 | 98304 | 13108 | 0.000 / 2.534 / 4.502 | 0.087 / 2.784 / 4.752 | 37.110 | 219200 |
+| Docker Linux arm64/ext4 | 4000 | 24576 | 1342 | 0.000 / 0.522 / 6.240 | 0.407 / 1.522 / 7.240 | 9.978 | 183968 |
+| Docker Linux arm64/ext4 | 8000 | 49152 | 20415 | 0.000 / 2.802 / 6.782 | 0.429 / 3.302 / 7.282 | 30.317 | 184192 |
+| Docker Linux arm64/ext4 | 16000 | 98304 | 73052 | 0.235 / 8.766 / 33.223 | 0.485 / 9.016 / 33.473 | 57.130 | 185440 |
+
+| Platform | Offered reads/s | Dispatch p99 (ms) | Service p99 (ms) | Compaction p99 (ms) | Reopen p99 (ms) | Completed at or after window end |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64/APFS | 4000 | 0.472 | 0.012 | 745.302 | 186.302 | 0 |
+| macOS arm64/APFS | 8000 | 0.242 | 0.009 | 695.784 | 183.843 | 0 |
+| macOS arm64/APFS | 16000 | 0.122 | 0.006 | 696.922 | 185.422 | 0 |
+| Docker Linux arm64/ext4 | 4000 | 0.757 | 0.022 | 769.317 | 166.060 | 0 |
+| Docker Linux arm64/ext4 | 8000 | 0.788 | 0.015 | 758.038 | 201.736 | 14 |
+| Docker Linux arm64/ext4 | 16000 | 0.789 | 0.011 | 817.418 | 201.602 | 32 |
+
+At 16,000 reads/s, 73,052 of the 98,304 Linux requests queued behind
+an earlier request. The observed response p99 was 33.473 ms, with a
+33.223 ms queue wait p99. Commit timing covers the call to `commit()`,
+including contention and publication after draft preparation. Queue
+wait measures scheduled reader backlog. These six finite runs describe
+this profile on the development host. Deployment thresholds and
+representative sustained workloads remain open.
+
+The resource tests passed in debug and release, with 20 tests per
+macOS profile and 21 per Linux profile. Both controllers and drivers
+passed strict Clippy. The completion-paced profile also passed on macOS.
+Fresh extraction of the six fixed-arrival runs checks 937 source files,
+the exact driver and controller binaries, 2,304 commit receipts and
+344,064 reader observations. The independent replay reproduces all the
+timing summaries. A reader linked against the frozen macOS engine
+reopens all six extracted final images and checks 4,096 rows per view
+in the current root and every retained root. Each image keeps its
+recorded SHA-256. [Archive manifest](decisions/arrival-rates-40fe1d5.sha256)
+
+## Scheduled writer arrivals under the fixed reader load
+
+Frozen `caadea67dc5f2cec694b90b9ef606af4e7c4f093` ran on macOS
+arm64/APFS and Docker Linux arm64/ext4 using Rust 1.100.0. The Docker
+controller ran with two CPUs and a 2 GiB memory limit. All runs use
+the same byte-identical seed and the same 8,000 scheduled reads/s
+per 768 ms reader window.
+
+Each cycle offers sixteen writes in each of three lanes. A writer
+prepares a full 1,024-key draft after its request starts. Intervals
+of 48 ms and 8 ms per lane offer 62.5 and 375 writes/s. Every run
+completes all 384 writes over eight cycles. The offered writer
+windows are 768 ms and 128 ms per cycle respectively. Completed
+writes/s divides the total acknowledgments by the sum of the
+times from each cycle's shared start to its final writer response.
+
+The raw writer records bind revision, request start, commit start
+and completion. Queue wait runs from the scheduled arrival to the
+later of that arrival and the preceding request's completion.
+Dispatch delay runs from eligibility to start. Draft timing ends
+at the commit call. Commit timing includes contention and durable
+publication. Response includes every stage from the scheduled
+arrival. The replay also checks each reader's observed revision
+against the start of that commit and the writer acknowledgments
+available when the read began.
+
+Use `--writer-period-us` with `compound-breadth-arrivals`.
+The accepted range is 1,000 to 48,000 µs. Omit the option for
+completion-paced writers.
+
+```sh
+cargo +1.100.0 xtask resource compound-breadth-arrivals --revision caadea6 \
+  --writer-period-us 8000 --output target/breadth-writers-375
+```
+
+| Platform | Offered writes/s | Completed writes/s | Writes | Queued writes | Writer wait p50 / p95 / p99 (ms) | Writer response p50 / p95 / p99 (ms) | Draft p99 (ms) | Commit p99 (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64/APFS | 62.5 | 63.7 | 384 | 0 | 0.000 / 0.000 / 0.000 | 23.642 / 36.539 / 40.115 | 5.967 | 32.442 |
+| macOS arm64/APFS | 375 | 93.7 | 384 | 360 | 172.031 / 342.181 / 363.952 | 203.289 / 373.061 / 394.638 | 6.917 | 34.602 |
+| Docker Linux arm64/ext4 | 62.5 | 65.8 | 384 | 0 | 0.000 / 0.000 / 0.000 | 8.476 / 14.682 / 16.546 | 9.307 | 6.966 |
+| Docker Linux arm64/ext4 | 375 | 347.7 | 384 | 207 | 0.390 / 21.992 / 26.012 | 8.743 / 30.321 / 34.012 | 16.354 | 25.251 |
+
+| Platform | Offered writes/s | Writer dispatch p99 (ms) | Writer service p99 (ms) | Reader response p99 (ms) | Writes completed at or after window end | Peak RSS (KiB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64/APFS | 62.5 | 9.949 | 36.524 | 3.939 | 0 | 217904 |
+| macOS arm64/APFS | 375 | 0.965 | 37.861 | 4.463 | 293 | 219024 |
+| Docker Linux arm64/ext4 | 62.5 | 10.123 | 13.986 | 5.165 | 0 | 189860 |
+| Docker Linux arm64/ext4 | 375 | 1.829 | 32.672 | 7.353 | 30 | 189632 |
+
+At the higher offered rate, 360 macOS writes and 207 Docker Linux
+writes queued. Response p99 reached 394.638 ms on macOS and 34.012 ms
+on Docker Linux in these runs. At 62.5 writes/s, each writer lane was
+ready by its next scheduled request. The runs report behavior on this
+development host. The intended deployment still needs representative
+sustained workloads and agreed limits.
+
+All 21 macOS and 22 Linux resource tests passed per debug and release
+profile. Strict Clippy passed for the controller and driver on both
+platforms. The macOS reader-only control retained the two-field paced
+writer trace and verified all 384 commits and 49,152 reads.
+
+Fresh extraction independently replays all 1,536 write acknowledgments
+and 196,608 reader observations across the four scheduled writer runs.
+A reader linked to the frozen macOS engine opens every final image,
+validates revision 517 and all 64 retained roots, and checks 4,096 rows
+per view. Each image retains its SHA-256 after the check.
+[Archive manifest](decisions/writer-arrivals-caadea6.sha256)

@@ -46,6 +46,11 @@ dangling symlinks reject. Environment values are transported in memory and are
 not copied into evidence. Helper campaigns bind their source inputs and binary
 before and after the run.
 
+The supervisor and process-table commands flush their JSON response before
+returning. A response write error fails the command. The separate saved
+terminal report still records the child outcome and verified cleanup.
+[Response delivery qualification](decisions/supervisor-cli-response-current.md)
+
 Rust owns pipes, deadlines, output accounting, signals, RSS probes and retirement:
 
 * Nonblocking reads have bounded work per turn, so a continuous writer cannot

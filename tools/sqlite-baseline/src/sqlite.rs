@@ -1,7 +1,9 @@
 //! SQLite side of the private durable retained-history comparison.
+mod arrivals;
 mod workload;
 
 use anyhow::{Context, Result, ensure};
+use arrivals::{Schedule, WRITE_PERIOD_US};
 use rusqlite::{
     Connection, OpenFlags,
     backup::{Backup, StepResult},
@@ -208,7 +210,12 @@ fn checkpoint(db: &Connection) -> Result<[u64; 3]> {
     Ok(status)
 }
 
-fn sqlite_run(directory: &Path, work: Work, expected: &Expected) -> Result<Value> {
+fn sqlite_run(
+    directory: &Path,
+    work: Work,
+    expected: &Expected,
+    write_period_us: Option<u64>,
+) -> Result<Value> {
     fs::create_dir(directory)?;
     let path = directory.join("main.sqlite");
     let db = connect(&path, true)?;
@@ -252,7 +259,10 @@ fn sqlite_run(directory: &Path, work: Work, expected: &Expected) -> Result<Value
         mut reopen_ns,
         mut reopen_verify_ns,
     ] = SAMPLES.map(|_| Vec::new());
+    let mut write_arrivals_ns = Vec::new();
+    let schedule = write_period_us.map(Schedule::new);
     for epoch in 1..=work.commits {
+        let began = schedule.as_ref().map(|schedule| schedule.begin(epoch));
         let writes = (0..work.batch)
             .map(|offset| {
                 let key = (epoch * work.batch + offset) % work.keys;
@@ -278,6 +288,9 @@ fn sqlite_run(directory: &Path, work: Work, expected: &Expected) -> Result<Value
             db.execute("INSERT INTO retained(epoch) VALUES(?)", [epoch])?;
             db.execute_batch("COMMIT")?;
             pin_ns.push(started.elapsed().as_nanos());
+        }
+        if let Some((began, schedule)) = began.zip(schedule.as_ref()) {
+            write_arrivals_ns.push([began, schedule.finish()]);
         }
     }
     verify(&db, work, expected)?;
@@ -347,6 +360,7 @@ fn sqlite_run(directory: &Path, work: Work, expected: &Expected) -> Result<Value
     let compact_ns = started.elapsed().as_nanos();
     Ok(json!({
         "commit_ns":commit_ns,"transaction_ns":transaction_ns,"pin_ns":pin_ns,
+        "write_period_us":write_period_us,"write_arrivals_ns":write_arrivals_ns,
         "reopen_ns":reopen_ns,"reopen_verify_ns":reopen_verify_ns,
         "oracle_digest":expected.digest,"history_count":expected.retained.len(),
         "version_rows_before_gc":before_gc,"version_rows_after_gc":after_gc,
@@ -362,8 +376,8 @@ fn sqlite_run(directory: &Path, work: Work, expected: &Expected) -> Result<Value
 fn main() -> Result<()> {
     let args = std::env::args_os().skip(1).collect::<Vec<_>>();
     ensure!(
-        args.len() == 7,
-        "SQLite comparator needs output and six workload parameters"
+        (7..=8).contains(&args.len()),
+        "SQLite comparator needs output, six workload parameters and an optional write period"
     );
     let parameter = |index: usize| -> Result<u64> {
         Ok(args[index]
@@ -380,12 +394,22 @@ fn main() -> Result<()> {
         reopens: parameter(6)?,
     };
     work.validate()?;
+    let write_period_us = args.get(7).map(|_| parameter(7)).transpose()?;
+    ensure!(
+        write_period_us.is_none_or(|period| WRITE_PERIOD_US.contains(&period)),
+        "write period exceeds the bounded supported range"
+    );
     let identity = Connection::open_in_memory()?;
     let version = identity.query_row("SELECT sqlite_version(), sqlite_source_id()", [], |row| {
         Ok([row.get::<_, String>(0)?, row.get::<_, String>(1)?])
     })?;
     close(identity)?;
-    let mut output = sqlite_run(&PathBuf::from(&args[0]), work, &work.expected())?;
+    let mut output = sqlite_run(
+        &PathBuf::from(&args[0]),
+        work,
+        &work.expected(),
+        write_period_us,
+    )?;
     output["sqlite_version"] = json!(version[0]);
     output["sqlite_source_id"] = json!(version[1]);
     println!("{output}");
@@ -458,7 +482,7 @@ mod tests {
             expected.retained.keys().copied().collect::<Vec<_>>(),
             [3, 6, 8]
         );
-        let report = sqlite_run(&tmp.0.join("sqlite"), WORK, &expected).unwrap();
+        let report = sqlite_run(&tmp.0.join("sqlite"), WORK, &expected, None).unwrap();
         assert_eq!(report["oracle_digest"], expected.digest);
         assert_eq!(report["version_rows_before_gc"], 29);
         assert!(report["version_rows_after_gc"].as_u64().unwrap() < 29);

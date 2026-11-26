@@ -36,6 +36,19 @@ fn invalid_admin_commands_do_not_touch_paths_and_errors_do_not_print_records() {
         assert_eq!(fs::read(&source).unwrap(), b"PRIVATE_RECORD_CONTENT");
         assert_eq!(fs::read(&destination).unwrap(), b"existing destination");
     }
+    // Match compact's arity so this command reaches its name guard.
+    let valid = directory.0.join("valid.db");
+    drop(weekend_db::Database::create_file(&valid, weekend_db::Limits::default()).unwrap());
+    let original = fs::read(&valid).unwrap();
+    let unknown = Command::new(env!("CARGO_BIN_EXE_weekend-admin"))
+        .arg("unknown")
+        .arg(&valid)
+        .output()
+        .unwrap();
+    assert!(!unknown.status.success());
+    assert!(unknown.stdout.is_empty());
+    assert!(unknown.stderr.starts_with(b"Invalid"));
+    assert_eq!(fs::read(&valid).unwrap(), original);
     let output = Command::new(env!("CARGO_BIN_EXE_weekend-admin"))
         .arg("check")
         .arg(&source)

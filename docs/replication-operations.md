@@ -77,6 +77,12 @@ a lease competitor or I/O error can interrupt maintenance. After any error, keep
 serving stopped, reopen with `status`, verify the authoritative receipt and retry
 maintenance only after recovery succeeds. Never select another image as fallback.
 
+These commands can report an I/O error while writing their output. If
+initialization, cleanup or compaction reached its storage operation, an
+output failure can leave the operation complete. Reopen with `status` to
+verify the selected receipt before retrying. Structured output errors
+use the `local_command` phase.
+
 The [capped ext4 fault drill](follower-installation-profile.md#ext4-writeback-errors-during-follower-maintenance)
 verified that either recovered canonical manifest reports the exact
 selected receipt. It also reproduced an inactive file returning after
@@ -343,6 +349,10 @@ Per-peer fairness and deployment capacity require separate qualification.
 
 ### Unconfirmed transfer, restart and retry
 
+Retry notices are best-effort. When stderr is unavailable, the sender
+continues with the same export and attempt limit.
+[Snapshot retry qualification](decisions/snapshot-retry-current.md)
+
 The default is at most three attempts (`--attempts 1..3`) with 250 ms between
 attempts. They all retain the **same** in-memory Export and file lease, use
 fresh authenticated connections, and let the core reject inconsistent receipts.
@@ -366,6 +376,11 @@ the follower's exact durable revision/digest (or `follower empty`). A restart
 does not persist the sender's previous in-memory progress watermark. The
 follower's recovered manifest remains authoritative. A restored/forked primary
 requires new stream enrollment; do not reinterpret it as the old live writer.
+
+The CLI flushes the local verified revision before it dials. It reports
+the follower receipt after the authenticated poll. If receipt output fails,
+run a fresh poll or reopen follower status to recover the same durable
+receipt. [Snapshot poll output qualification](decisions/snapshot-command-output-current.md)
 
 Sampled polling tracks the verified revision gap and the age of the last
 durable observation across transient failures. Each sample uses the same
@@ -433,6 +448,15 @@ That newer receipt describes the currently selected image. It carries no
 proof that the older image is still selected. The restartable workflow
 uses the existing snapshot wire protocol and the same enrollment policy.
 When restoring or forking a primary, configure a fresh stream and follower.
+
+The send commands exit on a capture-announcement write or flush error
+before connecting. If stdout fails after the follower installs the export,
+the send command exits with an output error. The follower may already have
+a durable receipt. Poll over a fresh authenticated connection to retrieve
+it. With structured diagnostics, these output errors report `local_command`
+and category `io`. A local `capture` that fails only while printing can
+leave a usable pair of files. The next `ship-captured` verifies the pair
+before contacting the follower.
 
 For embedded Rust, persist `Export::descriptor()` before transfer, then
 reconstruct `Primary` and use `Primary::reopen_export_file` or
@@ -646,3 +670,49 @@ cargo test --locked -p weekend-db --all-features --test replication \
 The [authenticated Mac-to-Linux month workload](live-replication-month.md)
 exercises the embedded primary against the actual TLS follower CLI, including
 31 installs, four dropped replies and all 31 retained roots after reopen.
+
+### Native overlap watchdog
+
+At PR #82 head `6f0b013`, the Windows MSVC minimum-Rust job checked out
+PR merge `983cd7ee9d1f33e146ea7cbbe8f29ca327c891dc`, whose tree matches
+the PR head. The replication suite reached the destination's first durable
+sync. The writer's five-second watchdog fired before the four native source
+publications completed. This was the sole failing test in the captured
+debug command. The captured log leaves the cause of the delay unresolved.
+[Hosted job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45733450473/job/139620886656)
+and [evidence archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45733450473/artifacts/15077792394).
+
+The separate native Windows job passed the original overlap test and the
+snapshot admission credential fixture in debug and release at `6f0b013`.
+[Native Windows job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45733450473/job/139620886035).
+
+At `f7d1db3`, the fixture allows 60 seconds for each wait and owns the
+release signal within the test scope. All four source publications must
+complete before that signal. On timeout the fixture records completed
+publications before releasing and joining the destination. The same test
+still compares exact export bytes, current and retained roots, and the
+reopened follower receipt.
+
+| Isolated macOS schedule | Result |
+| --- | --- |
+| Original fixture, normal execution | Pass |
+| Original fixture, 5.5-second delay before the source writer starts | Old timeout reproduced |
+| Updated fixture, same 5.5-second delay | Pass |
+| Updated fixture, source writer lock deliberately held across destination I/O | Fails with zero of four publications observed before release. This control uses a 750 ms watchdog. |
+
+The unmodified `f7d1db3` suite passed 11 tests per profile on macOS arm64
+and Docker Linux arm64/ext4, with one maintenance test ignored. Both
+profiles caught all nine linked replication integration mutations on each
+platform. Strict Clippy passed. The Windows x64 test executable cross-linked
+in both profiles.
+[Frozen source and evidence checksums](decisions/native-export-overlap-f7d1db3.sha256)
+
+The earlier failing Windows MSVC minimum-Rust job passed on PR #82 head
+`0f15e4512c982a2d27515e2eb9f393abcc1bc943`. The tested merge
+`e6760292c9bfcba0cd502364738c770f4b19686b` has the same tree as that head.
+The archived debug and release workspace logs both record
+`live_export_pins_old_roots_while_the_native_source_changes` passing.
+The Windows evidence ZIP SHA-256 is
+`7f6485ea3000c53daca8299211eb6c20c2433b4b61d1c03b2f7c3497cc2365a2`.
+[Hosted Windows minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241636/job/139639898280)
+and [checksummed archive](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45739241636/artifacts/15081556336).

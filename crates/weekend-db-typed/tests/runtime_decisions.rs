@@ -267,7 +267,7 @@ fn catalog_identity_unique_and_name_guards_have_independent_controls() -> Result
             assert_eq!(store.database().snapshot().revision(), before);
         }
     }
-    for case in 0..8 {
+    for case in 0..9 {
         let mut store = Store::memory()?;
         store.table::<Row>("rows")?;
         let db = store.database();
@@ -286,7 +286,8 @@ fn catalog_identity_unique_and_name_guards_have_independent_controls() -> Result
                     .list_push(&db.unsigned(1)?)?,
             )?,
             6 => base.map_set(b"unique", &db.boolean(true)?)?,
-            _ => base.map_set(b"records", &db.bytes(b"wrong-kind")?)?,
+            7 => base.map_set(b"records", &db.bytes(b"wrong-kind")?)?,
+            _ => base.map_set(b"unique", &db.list()?.list_push(&db.boolean(true)?)?)?,
         };
         let mut tx = db.begin();
         tx.put(catalog, b"table/rows", &altered)?;
@@ -310,6 +311,70 @@ impl<T: FieldValue> LookupValue<T> for Encoded {
         Ok(self.0.clone())
     }
 }
+struct RefusedLookup;
+
+impl LookupValue<String> for RefusedLookup {
+    fn encode_lookup(&self, _: &Database) -> Result<Value> {
+        Err(Error::InvalidField {
+            id: 1,
+            reason: "lookup refused by application",
+        })
+    }
+}
+
+#[test]
+fn lookup_admission_precedes_encoding_and_encoder_errors_abort_the_draft() -> Result<()> {
+    let mut store = Store::memory()?;
+    let table = store.table::<Row>("rows")?;
+    store.write(|w| w.insert(&table, 1, &Row { slug: "a".into() }))?;
+    let ordinary = store.table::<UnindexedRow>("ordinary")?;
+    let retained = store.checkpoint()?;
+    let before = store.database().snapshot().revision();
+    let refused = Error::InvalidField {
+        id: 1,
+        reason: "lookup refused by application",
+    };
+    let unindexed = Index::<UnindexedRow, String>::new(1);
+    assert!(matches!(
+        store.read(|r| r.find(&ordinary, unindexed, &RefusedLookup)),
+        Err(Error::NotIndexed(1))
+    ));
+    assert_eq!(
+        store
+            .read(|r| r.find(&table, Row::SLUG, &RefusedLookup))
+            .err(),
+        Some(refused.clone())
+    );
+    let result = store.write(|w| {
+        w.insert(
+            &table,
+            2,
+            &Row {
+                slug: "draft".into(),
+            },
+        )?;
+        assert_eq!(
+            w.find(&table, Row::SLUG, &RefusedLookup).err(),
+            Some(refused)
+        );
+        Ok(())
+    });
+    assert_eq!(
+        result,
+        Err(Error::Engine(weekend_db_typed::engine::Error::Closed))
+    );
+    assert_eq!(store.database().snapshot().revision(), before);
+    store.read(|r| {
+        assert!(r.get(&table, 2)?.is_none());
+        assert!(r.find(&table, Row::SLUG, "draft")?.is_none());
+        Ok(())
+    })?;
+    store.read_retained(retained, |r| {
+        assert_eq!(r.find(&table, Row::SLUG, "a")?.unwrap().id(), 1);
+        Ok(())
+    })
+}
+
 #[test]
 fn lookup_declared_kind_encoded_kind_and_null_exemption_have_pairs() -> Result<()> {
     let mut store = Store::memory()?;

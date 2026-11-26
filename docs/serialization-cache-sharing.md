@@ -219,9 +219,11 @@ the Rust probe tests cover current and synthetic legacy patch sites and reject
 malformed or regressing evidence. The qualification runs compile both archived
 instrumented Rust binaries.
 
-Remaining costs include affected-cache forks, copying large sparse hash tables,
-cold-open index construction, out-of-order insertion and broader DAG/history
-shapes. Next assurance work includes interrupted near-cap maintenance and second
+The [near-cap fork and fresh-open checkpoint](serialization-cache-forks.md)
+measures metadata, DATA-only and VALUE-plus-DATA publication on shared and
+independent graphs with 64 data revisions. Larger sparse hash tables,
+out-of-order insertion and broader DAG/history shapes remain open. Further
+assurance work includes interrupted near-cap maintenance and second
 failures during recovery, longer schedules, owner memory/latency budgets and
 one fixed platform/artifact candidate. No new native Windows qualification is
 inferred from Mac/Linux results or the historical Windows pass. All **19**

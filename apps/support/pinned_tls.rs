@@ -24,8 +24,14 @@ pub(crate) struct Credentials {
 impl Credentials {
     #[cfg(any(unix, test))]
     pub(crate) fn generate() -> AppResult<Self> {
-        let rcgen::CertifiedKey { cert, signing_key } =
-            rcgen::generate_simple_self_signed([SERVER_NAME.to_owned()])?;
+        Self::from_generated(rcgen::generate_simple_self_signed([SERVER_NAME.to_owned()]))
+    }
+
+    #[cfg(any(unix, test))]
+    fn from_generated(
+        generated: Result<rcgen::CertifiedKey<rcgen::KeyPair>, rcgen::Error>,
+    ) -> AppResult<Self> {
+        let rcgen::CertifiedKey { cert, signing_key } = generated?;
         Ok(Self {
             cert: cert.der().clone(),
             key: PrivatePkcs8KeyDer::from(signing_key.serialize_der()).into(),
@@ -34,16 +40,29 @@ impl Credentials {
 
     #[cfg(unix)]
     pub(crate) fn create(dir: &Path) -> AppResult<()> {
-        let creds = Self::generate()?;
+        Self::create_with(
+            dir,
+            Self::generate,
+            |options, path| options.open(path),
+            |path, bytes| fs::write(path, bytes),
+        )
+    }
+
+    #[cfg(unix)]
+    fn create_with<W: Write>(
+        dir: &Path,
+        generate: impl FnOnce() -> AppResult<Self>,
+        open_key: impl FnOnce(&fs::OpenOptions, &Path) -> io::Result<W>,
+        write_cert: impl FnOnce(&Path, &[u8]) -> io::Result<()>,
+    ) -> AppResult<()> {
+        let creds = generate()?;
         let mut key = fs::OpenOptions::new();
         use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
         fs::DirBuilder::new().mode(0o700).create(dir)?;
         key.mode(0o600);
-        key.write(true)
-            .create_new(true)
-            .open(dir.join("key.der"))?
-            .write_all(creds.key.secret_der())?;
-        fs::write(dir.join("cert.der"), creds.cert.as_ref())?;
+        key.write(true).create_new(true);
+        open_key(&key, &dir.join("key.der"))?.write_all(creds.key.secret_der())?;
+        write_cert(&dir.join("cert.der"), creds.cert.as_ref())?;
         Ok(())
     }
 
@@ -70,6 +89,21 @@ pub(crate) type Incoming = DeadlineStream<ServerConnection>;
 
 impl Tls {
     pub(crate) fn new(local: &Credentials, peer: CertificateDer<'static>) -> AppResult<Self> {
+        Self::configure(local, peer, |verifier, local| {
+            ServerConfig::builder()
+                .with_client_cert_verifier(verifier)
+                .with_single_cert(vec![local.cert.clone()], local.key.clone_key())
+        })
+    }
+
+    fn configure(
+        local: &Credentials,
+        peer: CertificateDer<'static>,
+        configure_server: impl FnOnce(
+            Arc<dyn rustls::server::danger::ClientCertVerifier>,
+            &Credentials,
+        ) -> Result<ServerConfig, rustls::Error>,
+    ) -> AppResult<Self> {
         if peer == local.cert {
             return Err("configure the other peer's certificate".into());
         }
@@ -79,9 +113,7 @@ impl Tls {
             .with_root_certificates(roots.clone())
             .with_client_auth_cert(vec![local.cert.clone()], local.key.clone_key())?;
         let verifier = WebPkiClientVerifier::builder(Arc::new(roots)).build()?;
-        let mut server = ServerConfig::builder()
-            .with_client_cert_verifier(verifier)
-            .with_single_cert(vec![local.cert.clone()], local.key.clone_key())?;
+        let mut server = configure_server(verifier, local)?;
         client.alpn_protocols = vec![ALPN.to_vec()];
         server.alpn_protocols = vec![ALPN.to_vec()];
         Ok(Self {
@@ -95,8 +127,16 @@ impl Tls {
         &self,
         address: SocketAddr,
     ) -> AppResult<DeadlineStream<ClientConnection>> {
+        self.connect_with(address, TcpStream::connect_timeout)
+    }
+
+    fn connect_with(
+        &self,
+        address: SocketAddr,
+        dial: impl FnOnce(&SocketAddr, Duration) -> io::Result<TcpStream>,
+    ) -> AppResult<DeadlineStream<ClientConnection>> {
         let deadline = Instant::now() + TIMEOUT;
-        let stream = TcpStream::connect_timeout(&address, TIMEOUT)?;
+        let stream = dial(&address, TIMEOUT)?;
         self.client_session(DeadlineSocket {
             stream,
             deadline,
@@ -106,12 +146,22 @@ impl Tls {
 
     fn client_session(
         &self,
+        socket: DeadlineSocket,
+    ) -> AppResult<DeadlineStream<ClientConnection>> {
+        self.client_session_with(socket, DeadlineStream::new)
+    }
+
+    fn client_session_with(
+        &self,
         mut socket: DeadlineSocket,
+        finish: impl FnOnce(
+            StreamOwned<ClientConnection, DeadlineSocket>,
+        ) -> io::Result<DeadlineStream<ClientConnection>>,
     ) -> AppResult<DeadlineStream<ClientConnection>> {
         let name = ServerName::try_from(SERVER_NAME)?;
         let mut tls = ClientConnection::new(self.client.clone(), name)?;
         self.client_handshake(&mut tls, &mut socket)?;
-        Ok(DeadlineStream::new(StreamOwned::new(tls, socket))?)
+        Ok(finish(StreamOwned::new(tls, socket))?)
     }
 
     fn client_handshake<T: Read + Write>(
@@ -143,8 +193,18 @@ impl Tls {
         accepted: Instant,
         cancellation: Option<Arc<AtomicBool>>,
     ) -> AppResult<Incoming> {
+        self.accept_at_with(socket, accepted, cancellation, TcpStream::set_nonblocking)
+    }
+
+    fn accept_at_with(
+        &self,
+        socket: TcpStream,
+        accepted: Instant,
+        cancellation: Option<Arc<AtomicBool>>,
+        set_nonblocking: impl FnOnce(&TcpStream, bool) -> io::Result<()>,
+    ) -> AppResult<Incoming> {
         let deadline = accepted + TIMEOUT;
-        socket.set_nonblocking(false)?;
+        set_nonblocking(&socket, false)?;
         self.server_session(DeadlineSocket {
             stream: socket,
             deadline,
@@ -152,11 +212,19 @@ impl Tls {
         })
     }
 
-    fn server_session(&self, mut socket: DeadlineSocket) -> AppResult<Incoming> {
+    fn server_session(&self, socket: DeadlineSocket) -> AppResult<Incoming> {
+        self.server_session_with(socket, DeadlineStream::new)
+    }
+
+    fn server_session_with(
+        &self,
+        mut socket: DeadlineSocket,
+        finish: impl FnOnce(StreamOwned<ServerConnection, DeadlineSocket>) -> io::Result<Incoming>,
+    ) -> AppResult<Incoming> {
         let mut tls = ServerConnection::new(self.server.clone())?;
         self.server_handshake(&mut tls, &mut socket)?;
         socket.cancellation = None;
-        Ok(DeadlineStream::new(StreamOwned::new(tls, socket))?)
+        Ok(finish(StreamOwned::new(tls, socket))?)
     }
 
     fn server_handshake<T: Read + Write>(
@@ -282,8 +350,9 @@ impl DeadlineSocket {
 impl Read for DeadlineSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.io(|stream, remaining| {
-            stream.set_read_timeout(Some(remaining))?;
-            stream.read(buf)
+            socket_io_with_timeout(stream, remaining, TcpStream::set_read_timeout, |stream| {
+                stream.read(buf)
+            })
         })
     }
 }
@@ -291,8 +360,9 @@ impl Read for DeadlineSocket {
 impl Write for DeadlineSocket {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.io(|stream, remaining| {
-            stream.set_write_timeout(Some(remaining))?;
-            stream.write(buf)
+            socket_io_with_timeout(stream, remaining, TcpStream::set_write_timeout, |stream| {
+                stream.write(buf)
+            })
         })
     }
 
@@ -301,17 +371,43 @@ impl Write for DeadlineSocket {
     }
 }
 
+fn socket_io_with_timeout(
+    stream: &mut TcpStream,
+    remaining: Duration,
+    set_timeout: impl FnOnce(&TcpStream, Option<Duration>) -> io::Result<()>,
+    operation: impl FnOnce(&mut TcpStream) -> io::Result<usize>,
+) -> io::Result<usize> {
+    set_timeout(stream, Some(remaining))?;
+    operation(stream)
+}
+
 pub(crate) fn bounded_file(path: &Path, limit: usize) -> AppResult<Vec<u8>> {
     bounded(path, limit, false)
 }
 fn bounded(path: &Path, limit: usize, private: bool) -> AppResult<Vec<u8>> {
+    bounded_with(
+        path,
+        limit,
+        private,
+        |path| fs::File::open(path),
+        fs::File::metadata,
+    )
+}
+
+fn bounded_with<R: Read>(
+    path: &Path,
+    limit: usize,
+    private: bool,
+    open: impl FnOnce(&Path) -> io::Result<R>,
+    opened_metadata: impl FnOnce(&R) -> io::Result<fs::Metadata>,
+) -> AppResult<Vec<u8>> {
     // Configuration lives in a trusted directory. Reject special files before
     // opening (notably blocking FIFOs), then recheck the opened handle.
     if !fs::metadata(path)?.is_file() {
         return Err("credential must be a regular file".into());
     }
-    let file = fs::File::open(path)?;
-    let metadata = file.metadata()?;
+    let file = open(path)?;
+    let metadata = opened_metadata(&file)?;
     if !metadata.is_file() {
         return Err("credential must be a regular file".into());
     }
@@ -363,6 +459,176 @@ impl Tls {
 #[cfg(test)]
 mod deadline_tests {
     use super::*;
+
+    fn connected_sockets() -> (TcpStream, TcpStream) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (peer, _) = listener.accept().unwrap();
+        (stream, peer)
+    }
+
+    #[test]
+    fn session_construction_preserves_the_rustls_configuration_error() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let mut tls = Tls::new(&local, peer.certificate()).unwrap();
+        Arc::make_mut(&mut tls.client).max_fragment_size = Some(1);
+        Arc::make_mut(&mut tls.server).max_fragment_size = Some(1);
+
+        for client in [true, false] {
+            let (stream, _peer) = connected_sockets();
+            let mut socket = DeadlineSocket::new(stream);
+            socket.deadline = Instant::now();
+            let result = if client {
+                tls.client_session(socket).map(drop)
+            } else {
+                tls.server_session(socket).map(drop)
+            };
+            let error = result.unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<rustls::Error>(),
+                Some(&rustls::Error::BadMaxFragmentSize),
+                "client={client}"
+            );
+        }
+    }
+
+    #[test]
+    fn session_handshake_preserves_an_expired_deadline_without_writing() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let tls = Tls::new(&local, peer.certificate()).unwrap();
+
+        for client in [true, false] {
+            let (stream, mut peer) = connected_sockets();
+            let mut socket = DeadlineSocket::new(stream);
+            socket.deadline = Instant::now();
+            let result = if client {
+                tls.client_session(socket).map(drop)
+            } else {
+                tls.server_session(socket).map(drop)
+            };
+            assert_eq!(
+                result
+                    .unwrap_err()
+                    .downcast_ref::<io::Error>()
+                    .map(io::Error::kind),
+                Some(io::ErrorKind::TimedOut),
+                "client={client}"
+            );
+            peer.set_read_timeout(Some(TIMEOUT)).unwrap();
+            assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0, "client={client}");
+        }
+    }
+
+    #[test]
+    fn both_finished_sessions_preserve_the_post_handshake_deadline() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let client = Tls::new(&a, b.certificate()).unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+
+        let (left, right) = connected_sockets();
+        std::thread::scope(|scope| {
+            let peer = scope.spawn(|| server.server_session(DeadlineSocket::new(right)).unwrap());
+            let ending = client.client_session_with(DeadlineSocket::new(left), |mut stream| {
+                let _peer = peer.join().unwrap();
+                assert!(!stream.conn.is_handshaking());
+                assert_eq!(stream.conn.alpn_protocol(), Some(ALPN));
+                stream.sock.deadline = Instant::now();
+                DeadlineStream::new(stream)
+            });
+            let error = ending.err().expect("expired client session was admitted");
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::TimedOut)
+            );
+        });
+
+        let (left, right) = connected_sockets();
+        std::thread::scope(|scope| {
+            let peer = scope.spawn(|| client.client_session(DeadlineSocket::new(left)).unwrap());
+            let mut socket = DeadlineSocket::new(right);
+            socket.cancellation = Some(Arc::new(AtomicBool::new(false)));
+            let ending = server.server_session_with(socket, |mut stream| {
+                let _peer = peer.join().unwrap();
+                assert!(!stream.conn.is_handshaking());
+                assert_eq!(stream.conn.alpn_protocol(), Some(ALPN));
+                assert!(stream.sock.cancellation.is_none());
+                stream.sock.deadline = Instant::now();
+                DeadlineStream::new(stream)
+            });
+            let error = ending.err().expect("expired server session was admitted");
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::TimedOut)
+            );
+        });
+    }
+
+    #[test]
+    fn transport_setup_preserves_native_errors_before_starting_io() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let tls = Tls::new(&local, peer.certificate()).unwrap();
+        let (stream, mut peer) = connected_sockets();
+        let local_address = stream.local_addr().unwrap();
+        let error = tls
+            .accept_at_with(stream, Instant::now(), None, |socket, nonblocking| {
+                assert_eq!(socket.local_addr().unwrap(), local_address);
+                assert!(!nonblocking);
+                Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "fixture blocking mode",
+                ))
+            })
+            .err()
+            .expect("accept ignored a blocking mode error");
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(io::ErrorKind::PermissionDenied)
+        );
+        assert_eq!(error.to_string(), "fixture blocking mode");
+        peer.set_read_timeout(Some(TIMEOUT)).unwrap();
+        assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0);
+
+        let (mut stream, _peer) = connected_sockets();
+        let address = stream.local_addr().unwrap();
+        let remaining = Duration::from_millis(25);
+        let error = socket_io_with_timeout(
+            &mut stream,
+            remaining,
+            |socket, limit| {
+                assert_eq!(socket.local_addr().unwrap(), address);
+                assert_eq!(limit, Some(remaining));
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "fixture timeout",
+                ))
+            },
+            |_| panic!("I/O started after timeout setup failed"),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(error.to_string(), "fixture timeout");
+        assert_eq!(
+            socket_io_with_timeout(
+                &mut stream,
+                remaining,
+                |_, limit| {
+                    assert_eq!(limit, Some(remaining));
+                    Ok(())
+                },
+                |socket| {
+                    assert_eq!(socket.local_addr().unwrap(), address);
+                    Ok(7)
+                },
+            )
+            .unwrap(),
+            7
+        );
+    }
+
     #[test]
     fn exact_leaf_pin_controls_are_distinct_from_chain_trust() {
         let a = Credentials::generate().unwrap();
@@ -372,14 +638,21 @@ mod deadline_tests {
         assert!(tls.check_pin(Some(&[])).is_err());
         assert!(tls.check_pin(Some(&[a.certificate()])).is_err());
         assert!(tls.check_pin(Some(&[b.certificate()])).is_ok());
+        assert!(
+            tls.check_pin(Some(&[a.certificate(), b.certificate()]))
+                .is_err()
+        );
+        assert!(
+            tls.check_pin(Some(&[b.certificate(), a.certificate()]))
+                .is_ok()
+        );
     }
     #[test]
     fn absolute_deadline_is_not_renewed_by_progress() {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-        let (mut peer, _) = listener.accept().unwrap();
+        let (stream, mut peer) = connected_sockets();
         let mut socket = DeadlineSocket::new(stream);
         let deadline = socket.deadline;
+        assert!(socket.remaining().is_ok());
         peer.write_all(&[42]).unwrap();
         let mut byte = [0];
         socket.read_exact(&mut byte).unwrap();
@@ -389,6 +662,10 @@ mod deadline_tests {
         // timeout or a bound on filesystem verification/flush duration.
         socket.deadline = Instant::now() - Duration::from_millis(1);
         assert_eq!(
+            socket.remaining().unwrap_err().kind(),
+            io::ErrorKind::TimedOut
+        );
+        assert_eq!(
             socket.read(&mut byte).unwrap_err().kind(),
             io::ErrorKind::TimedOut
         );
@@ -396,6 +673,110 @@ mod deadline_tests {
             socket.write(&byte).unwrap_err().kind(),
             io::ErrorKind::TimedOut
         );
+    }
+
+    #[test]
+    fn stream_construction_preserves_an_expired_socket_deadline() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let server = Tls::new(&a, b.certificate()).unwrap();
+        for expired in [false, true] {
+            let (stream, _peer) = connected_sockets();
+            let mut socket = DeadlineSocket::new(stream);
+            if expired {
+                socket.deadline = Instant::now();
+            }
+            let deadline = socket.deadline;
+            let connection = ServerConnection::new(server.server.clone()).unwrap();
+            let result = DeadlineStream::new(StreamOwned::new(connection, socket));
+            if expired {
+                assert_eq!(
+                    result.err().expect("expired socket was admitted").kind(),
+                    io::ErrorKind::TimedOut
+                );
+            } else {
+                assert_eq!(result.unwrap().0.sock.deadline, deadline);
+            }
+        }
+    }
+
+    #[test]
+    fn socket_retries_only_slice_expiry_and_checks_cancel_before_reentry() {
+        let (stream, _peer) = connected_sockets();
+        let mut socket = DeadlineSocket::new(stream);
+        socket.deadline = Instant::now() + Duration::from_secs(30);
+        let original_deadline = socket.deadline;
+        let cancel = Arc::new(AtomicBool::new(false));
+
+        for kind in [io::ErrorKind::WouldBlock, io::ErrorKind::TimedOut] {
+            let mut called = false;
+            let error = socket
+                .io(|_, wait| {
+                    assert!(!called, "uncancelable socket retried a timeout");
+                    called = true;
+                    assert!(
+                        wait > CANCEL_POLL,
+                        "uncancelable socket used a polling slice"
+                    );
+                    Err(io::Error::new(kind, "original socket timeout"))
+                })
+                .unwrap_err();
+            assert!(called);
+            assert_eq!(error.kind(), kind);
+            assert_eq!(error.to_string(), "original socket timeout");
+        }
+
+        socket.cancellation = Some(cancel.clone());
+        let mut steps = [io::ErrorKind::WouldBlock, io::ErrorKind::TimedOut].into_iter();
+        let count = socket.io(|_, wait| {
+            assert_eq!(
+                wait, CANCEL_POLL,
+                "cancelable socket did not use a polling slice"
+            );
+            match steps.next() {
+                Some(kind) => Err(kind.into()),
+                None => Ok(7),
+            }
+        });
+        assert_eq!(
+            count.ok(),
+            Some(7),
+            "slice expiry did not resume the operation"
+        );
+        assert_eq!(socket.deadline, original_deadline);
+
+        let mut called = false;
+        let error = socket
+            .io(|_, _| {
+                assert!(!called, "cancelable socket retried a terminal error");
+                called = true;
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionReset,
+                    "original reset",
+                ))
+            })
+            .unwrap_err();
+        assert!(called);
+        assert_eq!(error.kind(), io::ErrorKind::ConnectionReset);
+        assert_eq!(error.to_string(), "original reset");
+
+        let mut called = false;
+        let error = socket
+            .io(|_, _| {
+                assert!(!called, "canceled socket began another operation");
+                called = true;
+                cancel.store(true, Relaxed);
+                Err(io::ErrorKind::TimedOut.into())
+            })
+            .unwrap_err();
+        assert!(called);
+        assert_eq!(error.kind(), io::ErrorKind::ConnectionAborted);
+
+        socket.deadline = Instant::now();
+        let error = socket
+            .io(|_, _| panic!("expired socket began an operation"))
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
     }
 
     #[test]
@@ -590,24 +971,48 @@ mod audit_admission_tests {
         let path =
             std::env::temp_dir().join(format!("snapshot-credential-audit-{}", std::process::id()));
         fs::create_dir(&path).unwrap();
-        assert!(bounded_file(&path, 64).is_err());
+        let _cleanup = Cleanup(&path);
         let file = path.join("value");
-        fs::write(&file, []).unwrap();
+        let missing = bounded_file(&file, 64).unwrap_err();
         assert_eq!(
-            bounded_file(&file, 64).err().unwrap().to_string(),
-            "credential size outside bounds"
+            missing.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::NotFound
         );
+        assert_eq!(
+            bounded_file(&path, 64).unwrap_err().to_string(),
+            "credential must be a regular file"
+        );
+        for bytes in [&[][..], &[42; 65]] {
+            fs::write(&file, bytes).unwrap();
+            assert_eq!(
+                bounded_file(&file, 64).unwrap_err().to_string(),
+                "credential size outside bounds"
+            );
+        }
+        fs::write(&file, [42; 64]).unwrap();
+        assert_eq!(bounded_file(&file, 64).unwrap(), [42; 64]);
         fs::write(&file, b"public").unwrap();
+        assert_eq!(bounded_file(&file, 64).unwrap(), b"public");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
             assert_eq!(bounded(&file, 64, false).unwrap(), b"public");
-            assert!(bounded(&file, 64, true).is_err());
+            assert_eq!(
+                bounded(&file, 64, true).unwrap_err().to_string(),
+                "private key must have owner-only permissions"
+            );
             fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
             assert_eq!(bounded(&file, 64, true).unwrap(), b"public");
         }
-        fs::remove_dir_all(path).unwrap();
+    }
+
+    struct Cleanup<'a>(&'a Path);
+
+    impl Drop for Cleanup<'_> {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(self.0);
+        }
     }
 }
 
@@ -778,15 +1183,275 @@ mod shared_admission_tests {
 #[cfg(test)]
 mod credential_boundary_tests {
     use super::*;
+    use std::{path::PathBuf, sync::atomic::AtomicU64};
+
+    struct FixtureDirectory(PathBuf);
+
+    impl FixtureDirectory {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let sequence = NEXT.fetch_add(1, Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "weekend-credential-test-{}-{sequence}",
+                std::process::id(),
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for FixtureDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn assert_io_failure(
+        error: &(dyn std::error::Error + 'static),
+        kind: io::ErrorKind,
+        message: &str,
+    ) {
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(kind)
+        );
+        assert_eq!(error.to_string(), message);
+    }
+
+    #[test]
+    fn opened_credential_failures_preserve_error_and_skip_later_reads() {
+        use std::cell::Cell;
+
+        struct FailedRead<'a>(&'a Cell<usize>);
+        impl Read for FailedRead<'_> {
+            fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+                self.0.set(self.0.get() + 1);
+                Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "fixture credential read",
+                ))
+            }
+        }
+
+        let root = FixtureDirectory::new();
+        let path = root.0.join("credential");
+        fs::write(&path, b"credential data").unwrap();
+        let reads = Cell::new(0);
+        let error = bounded_with(
+            &path,
+            64,
+            false,
+            |_| {
+                Err::<FailedRead<'_>, _>(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "fixture credential open",
+                ))
+            },
+            |_| panic!("handle metadata requested after a failed open"),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::PermissionDenied,
+            "fixture credential open",
+        );
+
+        let error = bounded_with(
+            &path,
+            64,
+            false,
+            |_| Ok(FailedRead(&reads)),
+            |_| {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "fixture credential metadata",
+                ))
+            },
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::NotFound,
+            "fixture credential metadata",
+        );
+        let error = bounded_with(
+            &path,
+            64,
+            false,
+            |_| Ok(FailedRead(&reads)),
+            |_| fs::metadata(&root.0),
+        )
+        .unwrap_err();
+        assert_eq!(error.to_string(), "credential must be a regular file");
+        assert_eq!(reads.get(), 0);
+
+        let error = bounded_with(
+            &path,
+            64,
+            false,
+            |_| Ok((&b"ab"[..]).chain(FailedRead(&reads))),
+            |_| fs::metadata(&path),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::UnexpectedEof,
+            "fixture credential read",
+        );
+        assert_eq!(reads.get(), 1);
+        assert_eq!(fs::read(&path).unwrap(), b"credential data");
+    }
+
+    #[test]
+    fn generation_preserves_the_original_certificate_error() {
+        let error = Credentials::from_generated(Err(rcgen::Error::RingUnspecified))
+            .err()
+            .expect("failed certificate generation returned credentials");
+        assert!(matches!(
+            error.downcast_ref::<rcgen::Error>(),
+            Some(rcgen::Error::RingUnspecified)
+        ));
+        assert_eq!(error.to_string(), rcgen::Error::RingUnspecified.to_string());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_keygen_preserves_the_error_and_the_completed_file_prefix() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = FixtureDirectory::new();
+        let absent = root.0.join("generation");
+        let error = Credentials::create_with::<fs::File>(
+            &absent,
+            || Err(io::Error::new(io::ErrorKind::PermissionDenied, "fixture generation").into()),
+            |_, _| panic!("failed generation opened a key"),
+            |_, _| panic!("failed generation opened a certificate"),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::PermissionDenied,
+            "fixture generation",
+        );
+        assert!(!absent.exists());
+
+        let unopened = root.0.join("key-open");
+        let error = Credentials::create_with(
+            &unopened,
+            Credentials::generate,
+            |_, _| {
+                Err::<fs::File, _>(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "fixture key open",
+                ))
+            },
+            |_, _| panic!("failed key open started the certificate"),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::PermissionDenied,
+            "fixture key open",
+        );
+        assert_eq!(fs::read_dir(&unopened).unwrap().count(), 0);
+
+        struct PartialKey(fs::File, bool);
+        impl Write for PartialKey {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                if self.1 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::StorageFull,
+                        "fixture key write",
+                    ));
+                }
+                self.1 = true;
+                self.0.write(&bytes[..1])
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                self.0.flush()
+            }
+        }
+
+        let partial = root.0.join("key-write");
+        let error = Credentials::create_with(
+            &partial,
+            Credentials::generate,
+            |options, path| Ok(PartialKey(options.open(path)?, false)),
+            |_, _| panic!("failed key write started the certificate"),
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::StorageFull,
+            "fixture key write",
+        );
+        let key_metadata = fs::metadata(partial.join("key.der")).unwrap();
+        assert_eq!(key_metadata.len(), 1);
+        assert_eq!(key_metadata.permissions().mode() & 0o777, 0o600);
+        assert!(!partial.join("cert.der").exists());
+
+        let written = root.0.join("certificate-write");
+        let credentials = Credentials::generate().unwrap();
+        let expected_key = credentials.key.secret_der().to_vec();
+        let error = Credentials::create_with(
+            &written,
+            || Ok(credentials),
+            |options, path| options.open(path),
+            |_, _| {
+                Err(io::Error::new(
+                    io::ErrorKind::StorageFull,
+                    "fixture certificate write",
+                ))
+            },
+        )
+        .unwrap_err();
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::StorageFull,
+            "fixture certificate write",
+        );
+        assert!(
+            fs::read(written.join("key.der")).unwrap() == expected_key,
+            "completed key differs"
+        );
+        assert!(!written.join("cert.der").exists());
+        for dir in [unopened, partial, written] {
+            let error = Credentials::load(&dir)
+                .err()
+                .expect("incomplete credential pair loaded");
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::NotFound)
+            );
+        }
+    }
+
     #[test]
     fn load_bounds_and_regular_file_checks_precede_tls() {
-        let path = std::env::temp_dir().join(format!("shared-tls-bounds-{}", std::process::id()));
+        let root = FixtureDirectory::new();
+        let path = root.0.join("credentials");
         let local = Credentials::generate().unwrap();
         local.write_fixture(&path);
         let loaded = Credentials::load(&path).unwrap();
         assert_eq!(loaded.certificate(), local.certificate());
+        assert!(
+            loaded.key.secret_der() == local.key.secret_der(),
+            "loaded key differs"
+        );
         for (name, cap) in [("cert.der", 65536), ("key.der", 16384)] {
             let file = path.join(name);
+            let held = path.join("held.der");
+            fs::rename(&file, &held).unwrap();
+            let error = Credentials::load(&path)
+                .err()
+                .expect("missing credential loaded");
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::NotFound),
+                "{name}"
+            );
+            fs::rename(&held, &file).unwrap();
+
             let original = fs::read(&file).unwrap();
             fs::write(&file, vec![0; cap + 1]).unwrap();
             assert!(Credentials::load(&path).is_err());
@@ -805,7 +1470,130 @@ mod credential_boundary_tests {
             );
             assert!(Credentials::load(&path).is_err());
         }
-        fs::remove_dir_all(&path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn keygen_directory_failure_preserves_native_error_and_existing_files() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = FixtureDirectory::new();
+        let missing_parent = root.0.join("missing").join("credentials");
+        let error = Credentials::create(&missing_parent).unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(io::ErrorKind::NotFound)
+        );
+        assert!(!missing_parent.exists());
+
+        let path = root.0.join("credentials");
+        Credentials::create(&path).unwrap();
+        let key = path.join("key.der");
+        let cert = path.join("cert.der");
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert_eq!(
+            fs::metadata(&key).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        let before_key = fs::read(&key).unwrap();
+        let before_cert = fs::read(&cert).unwrap();
+        let error = Credentials::create(&path).unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(io::ErrorKind::AlreadyExists)
+        );
+        assert!(
+            fs::read(&key).unwrap() == before_key,
+            "existing key changed"
+        );
+        assert!(
+            fs::read(&cert).unwrap() == before_cert,
+            "existing certificate changed"
+        );
+        assert_eq!(
+            Credentials::load(&path).unwrap().certificate().as_ref(),
+            before_cert
+        );
+    }
+
+    #[test]
+    fn tls_configuration_preserves_certificate_and_key_errors() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let same = Tls::new(&local, local.certificate())
+            .err()
+            .expect("local certificate accepted as peer");
+        assert_eq!(same.to_string(), "configure the other peer's certificate");
+
+        let malformed = CertificateDer::from(vec![0x30, 0]);
+        let expected = RootCertStore::empty().add(malformed.clone()).unwrap_err();
+        let error = Tls::new(&local, malformed)
+            .err()
+            .expect("malformed peer certificate accepted");
+        assert_eq!(error.downcast_ref::<rustls::Error>(), Some(&expected));
+
+        let mut roots = RootCertStore::empty();
+        roots.add(peer.certificate()).unwrap();
+        for key in [
+            PrivatePkcs8KeyDer::from(vec![0x30, 0]).into(),
+            peer.key.clone_key(),
+        ] {
+            let invalid = Credentials {
+                cert: local.certificate(),
+                key,
+            };
+            let expected = ClientConfig::builder()
+                .with_root_certificates(roots.clone())
+                .with_client_auth_cert(vec![invalid.certificate()], invalid.key.clone_key())
+                .unwrap_err();
+            let error = Tls::new(&invalid, peer.certificate())
+                .err()
+                .expect("invalid local key accepted");
+            assert_eq!(error.downcast_ref::<rustls::Error>(), Some(&expected));
+        }
+        assert!(Tls::new(&local, peer.certificate()).is_ok());
+    }
+
+    #[test]
+    fn server_configuration_preserves_the_original_setup_error() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let expected = rustls::Error::FailedToGetRandomBytes;
+        let error = Tls::configure(&local, peer.certificate(), |_, received| {
+            assert_eq!(received.certificate(), local.certificate());
+            Err(expected.clone())
+        })
+        .err()
+        .expect("failed server configuration produced a TLS setup");
+        assert_eq!(error.downcast_ref::<rustls::Error>(), Some(&expected));
+        assert_eq!(error.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn connection_refusal_preserves_the_original_socket_error() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let tls = Tls::new(&local, peer.certificate()).unwrap();
+        let address = "127.0.0.1:1".parse().unwrap();
+        let error = tls
+            .connect_with(address, |actual, timeout| {
+                assert_eq!(*actual, address);
+                assert_eq!(timeout, TIMEOUT);
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionRefused,
+                    "fixture refused connection",
+                ))
+            })
+            .err()
+            .expect("refused connection was admitted");
+        assert_io_failure(
+            error.as_ref(),
+            io::ErrorKind::ConnectionRefused,
+            "fixture refused connection",
+        );
     }
 }
 
@@ -813,6 +1601,134 @@ mod credential_boundary_tests {
 mod handshake_decision_tests {
     use super::*;
     use std::{collections::VecDeque, io::Cursor};
+
+    #[test]
+    fn both_endpoints_preserve_the_first_handshake_io_error() {
+        struct Refused;
+        impl Read for Refused {
+            fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionReset,
+                    "handshake read",
+                ))
+            }
+        }
+        impl Write for Refused {
+            fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+                Err(io::Error::new(io::ErrorKind::BrokenPipe, "handshake write"))
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                panic!("failed handshake reached flush");
+            }
+        }
+
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let client = Tls::new(&a, b.certificate()).unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+        let mut local_client = ClientConnection::new(
+            client.client.clone(),
+            ServerName::try_from(SERVER_NAME).unwrap(),
+        )
+        .unwrap();
+        let mut local_server = ServerConnection::new(server.server.clone()).unwrap();
+        for (error, kind, message) in [
+            (
+                client
+                    .client_handshake(&mut local_client, &mut Refused)
+                    .unwrap_err(),
+                io::ErrorKind::BrokenPipe,
+                "handshake write",
+            ),
+            (
+                server
+                    .server_handshake(&mut local_server, &mut Refused)
+                    .unwrap_err(),
+                io::ErrorKind::ConnectionReset,
+                "handshake read",
+            ),
+        ] {
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(kind)
+            );
+            assert_eq!(error.to_string(), message);
+        }
+    }
+
+    #[test]
+    fn both_finished_endpoints_require_the_exact_pin_and_alpn() {
+        const PIN_ERROR: &str = "peer certificate does not match the configured pin";
+        for local_is_client in [true, false] {
+            for (exact_pin, peer_alpn, expected_error) in [
+                (true, true, None),
+                (false, true, Some(PIN_ERROR)),
+                (true, false, Some(ALPN_ERROR)),
+            ] {
+                let a = Credentials::generate().unwrap();
+                let b = Credentials::generate().unwrap();
+                let mut client = Tls::new(&a, b.certificate()).unwrap();
+                let mut server = Tls::new(&b, a.certificate()).unwrap();
+                if !exact_pin {
+                    client.peer = a.certificate();
+                    server.peer = b.certificate();
+                }
+                if !peer_alpn {
+                    if local_is_client {
+                        Arc::make_mut(&mut server.server).alpn_protocols.clear();
+                    } else {
+                        Arc::make_mut(&mut client.client).alpn_protocols.clear();
+                    }
+                }
+                let client_conn = ClientConnection::new(
+                    client.client.clone(),
+                    ServerName::try_from(SERVER_NAME).unwrap(),
+                )
+                .unwrap();
+                let server_conn = ServerConnection::new(server.server.clone()).unwrap();
+                let (mut local, peer) = if local_is_client {
+                    (
+                        rustls::Connection::Client(client_conn),
+                        rustls::Connection::Server(server_conn),
+                    )
+                } else {
+                    (
+                        rustls::Connection::Server(server_conn),
+                        rustls::Connection::Client(client_conn),
+                    )
+                };
+                let mut io = PeerTransport {
+                    peer,
+                    incoming: VecDeque::new(),
+                    local_is_client,
+                    fault: Fault::None,
+                    sent_peer_flight: false,
+                    fault_hit: false,
+                };
+                let result = match &mut local {
+                    rustls::Connection::Client(conn) => client.client_handshake(conn, &mut io),
+                    rustls::Connection::Server(conn) => server.server_handshake(conn, &mut io),
+                };
+                assert!(!local.is_handshaking());
+                assert!(!local.wants_write());
+                assert_eq!(local.alpn_protocol(), peer_alpn.then_some(ALPN));
+                let expected_peer = if local_is_client {
+                    b.certificate()
+                } else {
+                    a.certificate()
+                };
+                assert_eq!(
+                    local.peer_certificates().and_then(|chain| chain.first()),
+                    Some(&expected_peer)
+                );
+                assert_eq!(
+                    result.err().map(|error| error.to_string()).as_deref(),
+                    expected_error,
+                    "client={local_is_client}, exact pin={exact_pin}, peer ALPN={peer_alpn}"
+                );
+            }
+        }
+    }
 
     #[derive(Clone, Copy)]
     enum Fault {

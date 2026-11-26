@@ -111,7 +111,14 @@ fn distribution(values: impl Iterator<Item = u64>) -> Value {
     }
     values.sort_unstable();
     let len = values.len();
-    json!({"count":len,"min":values[0],"median":values[len/2],"p95":values[(95*len)/100],"max":values[len-1]})
+    json!({
+        "count": len,
+        "min": values[0],
+        "median": values[len / 2],
+        "p95": values[95 * len / 100],
+        "p99": values[99 * len / 100],
+        "max": values[len - 1],
+    })
 }
 fn command_sample(c: &Campaign<'_>, label: &str) -> Result<(f64, u64)> {
     let command = c.evidence["commands"]
@@ -771,8 +778,12 @@ mod tests {
         assert_eq!(value["process_wall_ms"], 31.234);
         assert_eq!(
             distribution([11, 3, 6, 5].into_iter()),
-            json!({"count":4,"min":3,"median":6,"p95":11,"max":11}),
+            json!({"count":4,"min":3,"median":6,"p95":11,"p99":11,"max":11}),
         );
+        let ordered = distribution((0..200).rev());
+        assert_eq!(ordered["p95"], 190);
+        assert_eq!(ordered["p99"], 198);
+        assert_eq!(ordered["max"], 199);
         let mut stale = backup;
         stale.as_object_mut().unwrap().remove("restore_us");
         assert!(row(&stale.to_string(), 1, 30, "backup", 0.031_234).is_err());

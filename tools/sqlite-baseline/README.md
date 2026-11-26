@@ -29,3 +29,15 @@ and 32 reopen samples. Bounds reject unbounded parameters. No cache eviction,
 concurrency, crash injection, reads-only workload, throughput claim or statistical
 performance guarantee is implied. See [the protocol and results](../../docs/sqlite-baseline.md)
 for timing boundaries, durability settings, oracle coverage and differences.
+
+Pass `--sample-rss` to retain the main worker's RSS samples, sample count
+and largest observed value (KiB) in the supervision report for each round.
+Sampling covers startup through maintenance and exit. A zero sample count
+means the worker exited before measurement. Run timing-only comparisons
+separately to keep the sampling overhead out of latency results.
+
+Pass `--write-period-us` (1,000–25,000) to offer writes at fixed intervals
+after seeding. Each worker still uses one writer. The schedule includes every
+data transaction and any durable history pin due before the next write.
+The report retains per-request start and finish times and summarizes queue
+wait, dispatch delay, service time and response from the scheduled arrival.

@@ -5,6 +5,9 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
@@ -40,6 +43,25 @@ jobs:
         run: cargo build --offline --locked --release --manifest-path target/r2-engine/Cargo.toml --target-dir target/r2-artifacts -p weekend-db -p write-coordinator --all-features --bin weekend-admin --bin write-coordinator
       - name: Rehearse the handoff against the optimized selected CLIs
         run: cargo xtask incident-recovery --admin target/r2-artifacts/release/weekend-admin${{ runner.os == 'Windows' && '.exe' || '' }} --coordinator target/r2-artifacts/release/write-coordinator${{ runner.os == 'Windows' && '.exe' || '' }} --artifact-source ${{ env.R2_ENGINE_SOURCE }} --output target/operator-recovery-release
+      - name: Rehearse operator recovery with the release candidate binaries
+        if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+        shell: bash
+        run: |
+          candidate=$(git rev-parse HEAD)
+          test "$candidate" = "$(git rev-parse "$GITHUB_SHA^{commit}")"
+          suffix=""
+          if [[ "$RUNNER_OS" == Windows ]]; then suffix=".exe"; fi
+          for profile in debug release; do
+            cargo_profile=$profile
+            if [[ "$profile" == debug ]]; then cargo_profile=dev; fi
+            WEEKEND_DB_SOURCE_ID="$candidate" cargo build --offline --locked --profile "$cargo_profile" \
+              --target-dir target/candidate-operator-build -p weekend-db -p write-coordinator \
+              --all-features --bin weekend-admin --bin write-coordinator
+            bin="target/candidate-operator-build/$profile"
+            cargo xtask incident-recovery --admin "$bin/weekend-admin$suffix" \
+              --coordinator "$bin/write-coordinator$suffix" --artifact-source "$candidate" \
+              --output "target/candidate-operator/$profile"
+          done
       - name: Retain operator recovery evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -51,6 +73,12 @@ jobs:
             !target/operator-recovery/*.secret
             target/operator-recovery-release/**
             !target/operator-recovery-release/*.secret
+            target/candidate-operator/**
+            !target/candidate-operator/**/*.secret
+            target/candidate-operator-build/*/weekend-admin
+            target/candidate-operator-build/*/write-coordinator
+            target/candidate-operator-build/*/weekend-admin.exe
+            target/candidate-operator-build/*/write-coordinator.exe
   coordinator-package-recovery:
     name: Packaged coordinator recovery (${{ matrix.os }})
     permissions:
@@ -151,7 +179,7 @@ jobs:
           - os: windows-latest
             shard: 8
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || matrix.mode == 'darwin' && 120 || 90 }}
+    timeout-minutes: ${{ matrix.mode == 'darwin' && 120 || 90 }}
     defaults:
       run:
         shell: bash
@@ -159,6 +187,8 @@ jobs:
       - name: Preserve committed file bytes
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - name: Install the pinned compiler and cache locked inputs
         run: |
           rustup toolchain install 1.100.0 --profile minimal --component clippy
@@ -174,6 +204,7 @@ jobs:
       - name: Detect the R1 controls in debug and release
         if: runner.os != 'Windows' && matrix.mode == 'full'
         run: |
+          cargo +1.100.0 fetch --locked --manifest-path fuzz/Cargo.toml
           cargo +1.100.0 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --toolchain 1.100.0 --output target/r1/mutations-debug
           cargo +1.100.0 xtask mutations --case r1- --shard-index ${{ matrix.shard }} --shard-count 9 --release --toolchain 1.100.0 --output target/r1/mutations-release
       - name: Detect Darwin-specific R1 controls in debug and release
@@ -198,6 +229,14 @@ jobs:
           cmp target/r1/darwin-cases.txt target/r1/darwin-selected.txt
           cargo +1.100.0 xtask mutations "${cases[@]}" --toolchain 1.100.0 --output target/r1/mutations-debug
           cargo +1.100.0 xtask mutations "${cases[@]}" --release --toolchain 1.100.0 --output target/r1/mutations-release
+      - name: Check exact coordinator mutations on native Windows
+        if: runner.os == 'Windows' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag')
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            git diff --name-only HEAD^1 HEAD -- apps/write-coordinator xtask/src/mutations.rs xtask/src/mutations_windows.rs xtask/tests/mutations.json xtask/tests/coordinator-windows-oracle.json > target/r1/coordinator-input-changes.txt
+            [[ -s target/r1/coordinator-input-changes.txt ]] || exit 0
+          fi
+          cargo +1.100.0 xtask mutations --case r1-coordinator- --toolchain 1.100.0 --output target/r1/mutations-coordinator
       - name: Retain the source-bound reconciliation and mutation evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -570,6 +609,63 @@ jobs:
       - name: Enforce the macOS maintenance fault result
         if: always() && runner.os == 'macOS' && steps.macos_maintenance_space.outcome == 'failure'
         run: exit 1
+  candidate-compatibility:
+    name: Candidate compatibility (${{ matrix.os }})
+    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - name: Preserve committed fixture bytes on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - name: Install the qualification compiler
+        run: rustup toolchain install 1.100.0 --profile minimal --component clippy
+      - name: Check historical consumers against the selected candidate
+        shell: bash
+        run: |
+          rustup override set 1.100.0
+          cargo fetch --locked
+          candidate=$(git rev-parse HEAD)
+          test "$candidate" = "$(git rev-parse "$GITHUB_SHA^{commit}")"
+          result=0
+          for profile in storage snapshot typed snapshot-cli study-cli; do
+            case "$profile" in
+              storage) historical=a7dc34309a8841ab3ee72fd88b9cae9281507b7c ;;
+              snapshot) historical=dcd2402adeb034f15a5293c52238524ace9c4070 ;;
+              typed) historical=1ca5e5ab63a2772f679c7186e2d84fba3ac0a534 ;;
+              snapshot-cli) historical=315068fc38b99d8ec616fdb5a8ee81107b471534 ;;
+              study-cli) historical=fb80989d98bd977743168ee10418a434a67a0261 ;;
+            esac
+            git fetch --no-tags --depth=1 origin "$historical"
+            inputs=$(mktemp -d)
+            git -c core.autocrlf=false -c core.eol=lf archive "$historical" | tar -x -C "$inputs"
+            test "$(git hash-object --no-filters "$inputs/Cargo.lock")" = "$(git rev-parse "$historical:Cargo.lock")"
+            cargo +1.100.0 fetch --locked --manifest-path "$inputs/Cargo.toml"
+            case "$profile" in
+              snapshot-cli) args=(snapshot-cli-upgrade --historical "$historical" --current "$candidate") ;;
+              study-cli) args=(study-cli-upgrade --new "$candidate") ;;
+              *) args=(compatibility --profile "$profile" --historical "$historical" --current "$candidate") ;;
+            esac
+            cargo xtask "${args[@]}" --output "target/candidate-compatibility/$profile" || result=1
+          done
+          exit "$result"
+      - name: Retain compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidate-compatibility-${{ runner.os }}-${{ runner.arch }}
+          if-no-files-found: error
+          path: |
+            target/candidate-compatibility/**
+            !target/candidate-compatibility/*/source/**
+            !target/candidate-compatibility/*/build/**
+            !target/candidate-compatibility/study-cli/work/**
+            !target/candidate-compatibility/**/key.der
   windows-maintenance-quota:
     name: Native Windows maintenance owner quota
     runs-on: windows-latest

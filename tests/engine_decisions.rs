@@ -357,6 +357,7 @@ fn snapshot_collection_and_key_errors_have_valid_controls() {
     assert_eq!(db.begin().get(c, b"x"), Err(Error::Limit));
     assert_eq!(db.begin().contains(c, b"x"), Err(Error::Limit));
     assert_eq!(s.scan(c), Ok(vec![]));
+    assert_eq!(s.scan_iter(c).unwrap().count(), 0);
     assert_eq!(s.count(c), Ok(0));
     for (id, expected) in [
         (foreign.collection_id(1), Error::ForeignStore),
@@ -364,11 +365,15 @@ fn snapshot_collection_and_key_errors_have_valid_controls() {
     ] {
         assert_eq!(s.get(id, b""), Err(expected));
         assert_eq!(s.scan(id), Err(expected));
+        assert_eq!(s.scan_iter(id).err(), Some(expected));
         assert_eq!(s.count(id), Err(expected));
         assert_eq!(db.drop_collection(id), Err(expected));
         assert_eq!(db.begin().get(id, b""), Err(expected));
         assert_eq!(db.begin().scan(id), Err(expected));
     }
+    db.drop_collection(c).unwrap();
+    assert_eq!(db.snapshot().count(c), Err(Error::NotFound));
+    assert_eq!(s.count(c), Ok(0));
 }
 
 #[test]
@@ -445,4 +450,91 @@ fn retained_id_output_allocation_failure_does_not_change_catalog() {
     );
     assert_eq!(db.retained_ids(), Ok(vec![retained]));
     assert_eq!(db.snapshot().revision(), revision);
+}
+
+#[test]
+fn catalog_preparation_refusals_preserve_live_and_pinned_collections() {
+    for removing in [false, true] {
+        let allocator = Arc::new(TestAllocator::default());
+        let db = Database::with_options(allocator.options()).unwrap();
+        let ids: Vec<_> = (0..8).map(|_| db.create_collection().unwrap()).collect();
+        let first = ids[0];
+        seed(&db, first);
+        let pinned = db.snapshot();
+        let live = db.memory_usage().live_bytes;
+        let allocated = allocator.live_bytes();
+        let mut completed = false;
+        for allowance in 0..128 {
+            let result = allocator.with_refusal(allowance, || {
+                if removing {
+                    db.drop_collection(first)
+                } else {
+                    db.create_collection().map(|id| assert_eq!(id.as_u64(), 9))
+                }
+            });
+            assert_eq!(pinned.count(first), Ok(2));
+            if result.is_ok() {
+                assert!(allowance > 0);
+                let current = db.snapshot();
+                assert_eq!(current.revision(), pinned.revision() + 1);
+                assert_eq!(current.data_revision(), current.revision());
+                if removing {
+                    assert_eq!(current.count(first), Err(Error::NotFound));
+                } else {
+                    assert_eq!(current.count(db.collection_id(9)), Ok(0));
+                }
+                completed = true;
+                break;
+            }
+            assert_eq!(result, Err(Error::OutOfMemory));
+            assert_eq!(db.snapshot().revision(), pinned.revision());
+            assert_eq!(db.snapshot().data_revision(), pinned.data_revision());
+            assert_eq!(db.snapshot().count(first), Ok(2));
+            assert_eq!(
+                db.snapshot().count(db.collection_id(9)),
+                Err(Error::NotFound)
+            );
+            assert_eq!(db.memory_usage().live_bytes, live);
+            assert_eq!(allocator.live_bytes(), allocated);
+        }
+        assert!(completed);
+        drop(pinned);
+        drop(db);
+        assert_eq!(allocator.live(), 0);
+    }
+}
+
+#[test]
+fn catalog_io_failure_preserves_reopened_current_and_retained_roots() {
+    use weekend_db::storage::{Crash, Fault, SimulatedDisk};
+
+    for removing in [false, true] {
+        let disk = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(disk.clone(), [9; 16], Limits::default()).unwrap();
+        let first = db.create_collection().unwrap();
+        seed(&db, first);
+        let retained = db.retain_snapshot(&db.snapshot()).unwrap();
+        let revision = db.snapshot().revision();
+        disk.arm(0, Fault::Error);
+        let result = if removing {
+            db.drop_collection(first)
+        } else {
+            db.create_collection().map(|_| ())
+        };
+        assert_eq!(result, Err(Error::Io));
+        assert_eq!(db.create_collection(), Err(Error::RecoveryRequired));
+        assert_eq!(db.drop_collection(first), Err(Error::RecoveryRequired));
+        assert_eq!(db.snapshot().revision(), revision);
+        drop(db);
+        disk.crash(Crash::DropAll).unwrap();
+        let db = Database::open_on(disk, Limits::default()).unwrap();
+        let first = db.collection_id(first.as_u64());
+        assert_eq!(db.snapshot().revision(), revision);
+        assert_eq!(db.snapshot().count(first), Ok(2));
+        assert_eq!(db.retained_snapshot(retained).unwrap().count(first), Ok(2));
+        assert_eq!(db.create_collection().unwrap().as_u64(), 2);
+        db.drop_collection(first).unwrap();
+        assert_eq!(db.snapshot().count(first), Err(Error::NotFound));
+        assert_eq!(db.retained_snapshot(retained).unwrap().count(first), Ok(2));
+    }
 }

@@ -106,14 +106,19 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
                 && c.old != c.new
                 && c.occurrence > 0
                 && c.matches.is_none_or(|n| n > 0)
-                && matches!(c.target.as_str(), "--lib" | "--test" | "--bin" | "--bins")
+                && matches!(
+                    c.target.as_str(),
+                    "--lib" | "--test" | "--bin" | "--bins" | "--example"
+                )
                 && match (&c.manifest, c.package.as_str()) {
                     (
                         None,
-                        "weekend-db" | "weekend-db-typed" | "weekend-db-macros" | "study-peer",
+                        "weekend-db" | "weekend-db-typed" | "weekend-db-macros" | "study-peer"
+                        | "write-coordinator" | "weekend-replicate" | "xtask",
                     ) => true,
                     (Some(manifest), "weekend-decision-inventory") =>
                         manifest == Path::new("tools/decision-inventory/Cargo.toml"),
+                    (Some(manifest), "weekend-db-fuzz") => manifest == Path::new("fuzz/Cargo.toml"),
                     _ => false,
                 }
                 && !c.test.is_empty(),
@@ -121,13 +126,14 @@ fn parse_inventory(fixture: &str) -> Result<Inventory> {
         );
         ensure!(
             c.exact_test.as_deref().is_none_or(|name| {
-                c.target == "--test"
+                (matches!(c.target.as_str(), "--test" | "--bin" | "--example")
+                    || (c.target == "--lib" && c.test == name))
                     && name.split("::").all(|part| {
                         !part.is_empty()
                             && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
                     })
             }),
-            "invalid exact integration test for {}",
+            "invalid exact test for {}",
             c.name
         );
     }
@@ -203,18 +209,43 @@ fn command(case: &Case, toolchain: Option<&str>, release: bool) -> Vec<String> {
         ]);
     }
     if let Some(test) = &case.exact_test {
-        args.extend([test.clone(), "--".into(), "--exact".into()]);
+        if case.target != "--lib" {
+            args.push(test.clone());
+        }
+        args.extend(["--".into(), "--exact".into()]);
     }
     args
 }
+fn exact_test_result(log: &str, test: &str, outcome: &str) -> bool {
+    let mut results = log
+        .lines()
+        .filter(|line| line.starts_with("running ") || line.starts_with("test "));
+    let expected = format!("test {test} ... {outcome}");
+    if results.next() != Some("running 1 test") || results.next() != Some(expected.as_str()) {
+        return false;
+    }
+    let Some(summary) = results.next() else {
+        return false;
+    };
+    let prefix = match outcome {
+        "ok" => "test result: ok. 1 passed; 0 failed; ",
+        "FAILED" => "test result: FAILED. 0 passed; 1 failed; ",
+        _ => return false,
+    };
+    let suffix = regex::Regex::new(
+        r"^0 ignored; 0 measured; [0-9]+ filtered out; finished in [0-9]+(?:\.[0-9]+)?s$",
+    )
+    .unwrap();
+    results.next().is_none()
+        && summary
+            .strip_prefix(prefix)
+            .is_some_and(|s| suffix.is_match(s))
+}
 #[cfg(unix)]
 fn expected_test_outcome(case: &Case, stdout: &[u8], outcome: &str) -> bool {
-    case.exact_test.as_ref().is_none_or(|test| {
-        let expected = format!("test {test} ... {outcome}");
-        String::from_utf8_lossy(stdout)
-            .lines()
-            .any(|line| line == expected)
-    })
+    case.exact_test
+        .as_ref()
+        .is_none_or(|test| exact_test_result(&String::from_utf8_lossy(stdout), test, outcome))
 }
 #[cfg(unix)]
 fn baseline(report: &crate::supervise::Report, log: &str) -> bool {
@@ -378,9 +409,10 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
         let checkout = c.output.join("source");
         c.env = instrumentation::environment(&run.env, &c.output.join("build"), &[]);
         let mut baselines = BTreeSet::new();
-        let mut failed = false;
-        for case in selected {
-            let args = command(&case, options.toolchain.as_deref(), options.release);
+        // Run baselines on the pristine copy so Cargo can reuse the test binaries
+        // across named assertions before the first mutant invalidates a package.
+        for case in &selected {
+            let args = command(case, options.toolchain.as_deref(), options.release);
             if baselines.insert(args.clone()) {
                 let name = format!("{}-baseline", case.name);
                 c.command_at(cmd(&args), &name, None, 120., &checkout)?;
@@ -389,7 +421,7 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                         .clone(),
                 )?;
                 let mut log = fs::read(c.output.join(format!("{name}.stdout.log")))?;
-                let selected_passed = expected_test_outcome(&case, &log, "ok");
+                let selected_passed = expected_test_outcome(case, &log, "ok");
                 log.extend(fs::read(c.output.join(format!("{name}.stderr.log")))?);
                 ensure!(
                     selected_passed && baseline(&report, &String::from_utf8_lossy(&log)),
@@ -397,6 +429,10 @@ pub fn run(run: &Run, options: Options) -> Result<()> {
                     case.name
                 );
             }
+        }
+        let mut failed = false;
+        for case in selected {
+            let args = command(&case, options.toolchain.as_deref(), options.release);
             let file = checkout.join(&case.file);
             let original = fs::read_to_string(&file)?;
             let changed = apply(&case, &original)?;
@@ -728,7 +764,7 @@ mod tests {
     }
     #[cfg(unix)]
     #[test]
-    fn exact_integration_selection_requires_the_named_test_outcome() {
+    fn exact_target_selection_requires_the_named_test_outcome() {
         let inventory = inventory().unwrap();
         let mut case = inventory.cases[0].clone();
         case.exact_test = Some("module::expected".into());
@@ -737,23 +773,30 @@ mod tests {
             &args[args.len() - 4..],
             ["--release", "module::expected", "--", "--exact"]
         );
-        assert!(expected_test_outcome(
-            &case,
-            b"running 1 test\r\ntest module::expected ... ok\r\n",
-            "ok"
-        ));
-        assert!(expected_test_outcome(
-            &case,
-            b"test module::expected ... FAILED\n",
-            "FAILED"
-        ));
+        let pass = "running 1 test\r\ntest module::expected ... ok\r\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.01s\r\n";
+        let fail = pass
+            .replace("ok", "FAILED")
+            .replace("1 passed; 0 failed", "0 passed; 1 failed");
+        assert!(expected_test_outcome(&case, pass.as_bytes(), "ok"));
+        assert!(expected_test_outcome(&case, fail.as_bytes(), "FAILED"));
         for log in [
-            b"test module::expected_suffix ... FAILED\n".as_slice(),
-            b"test module::other ... FAILED\n",
-            b"panic: test module::expected ... FAILED\n",
-            b"test module::expected ... ok\n",
+            fail.replace("module::expected", "module::expected_suffix"),
+            fail.replace("test module", "panic: test module"),
+            fail.replace("0 passed; 1 failed", "0 passed; 2 failed"),
+            fail.replace("0 ignored", "1 ignored"),
+            fail.replace("running 1 test", "running 2 tests"),
+            fail.replace(
+                "test result:",
+                "test module::other ... FAILED\ntest result:",
+            ),
+            format!("{fail}{pass}"),
+            format!(
+                "{}running 1 test",
+                fail.trim_start_matches("running 1 test\r\n")
+            ),
+            "test module::expected ... FAILED\n".into(),
         ] {
-            assert!(!expected_test_outcome(&case, log, "FAILED"));
+            assert!(!expected_test_outcome(&case, log.as_bytes(), "FAILED"));
         }
 
         let mut data: Value = serde_json::from_str(FIXTURE).unwrap();
@@ -763,8 +806,55 @@ mod tests {
         }
         data["cases"][0]["exact_test"] = json!("module::expected");
         assert!(parse_inventory(&data.to_string()).is_ok());
+        data["cases"][0]["package"] = json!("write-coordinator");
+        data["cases"][0]["target"] = json!("--bin");
+        data["cases"][0]["test"] = json!("write-coordinator");
+        let inventory = parse_inventory(&data.to_string()).unwrap();
+        let args = command(&inventory.cases[0], Some("1.100.0"), false);
+        assert_eq!(
+            &args[6..],
+            [
+                "write-coordinator",
+                "--all-features",
+                "--bin",
+                "write-coordinator",
+                "module::expected",
+                "--",
+                "--exact",
+            ]
+        );
+        for target in ["--lib", "--bins"] {
+            data["cases"][0]["target"] = json!(target);
+            assert!(parse_inventory(&data.to_string()).is_err());
+        }
         data["cases"][0]["target"] = json!("--lib");
-        assert!(parse_inventory(&data.to_string()).is_err());
+        data["cases"][0]["test"] = json!("module::expected");
+        data["cases"][0]["package"] = json!("weekend-db-fuzz");
+        for manifest in [
+            Value::Null,
+            json!("../fuzz/Cargo.toml"),
+            json!("Cargo.toml"),
+        ] {
+            data["cases"][0]["manifest"] = manifest;
+            assert!(parse_inventory(&data.to_string()).is_err());
+        }
+        data["cases"][0]["manifest"] = json!("fuzz/Cargo.toml");
+        let inventory = parse_inventory(&data.to_string()).unwrap();
+        let args = command(&inventory.cases[0], Some("1.100.0"), true);
+        assert_eq!(
+            &args[6..],
+            [
+                "weekend-db-fuzz",
+                "--all-features",
+                "--lib",
+                "module::expected",
+                "--release",
+                "--manifest-path",
+                "fuzz/Cargo.toml",
+                "--",
+                "--exact",
+            ]
+        );
     }
     #[test]
     fn only_requested_production_occurrence_changes_and_source_drift_rejects() {

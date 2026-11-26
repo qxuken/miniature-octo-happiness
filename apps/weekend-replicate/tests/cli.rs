@@ -3,7 +3,7 @@ use std::{
     collections::BTreeMap,
     fs,
     io::Read,
-    net::TcpStream,
+    net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
@@ -36,6 +36,32 @@ fn run(args: &[&str]) -> String {
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8(output.stdout).unwrap()
+}
+fn run_with_closed_stdout(mut command: Command) {
+    let (reader, writer) = std::io::pipe().unwrap();
+    drop(reader);
+    let mut child = Server(
+        command
+            .stdout(writer)
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let status = child.exit_status();
+    let mut error = String::new();
+    child
+        .0
+        .stderr
+        .take()
+        .unwrap()
+        .read_to_string(&mut error)
+        .unwrap();
+    assert_eq!(status.code(), Some(1), "{error}");
+    assert_eq!(error.lines().count(), 1, "{error}");
+    assert!(
+        error.contains(r#""phase":"local_command","category":"io","code":"broken_pipe""#),
+        "{error}"
+    );
 }
 struct Server(Child);
 impl Drop for Server {
@@ -137,12 +163,45 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         run(&["follower-init", follower, stream, identity]),
         "follower empty\n"
     );
+    let silent_follower = dir.0.join("follower-with-closed-stdout");
+    fs::create_dir(&silent_follower).unwrap();
+    let silent_follower = silent_follower.to_str().unwrap();
+    let mut init = Command::new(BIN);
+    init.args([
+        "--diagnostics=json",
+        "follower-init",
+        silent_follower,
+        stream,
+        identity,
+    ]);
+    run_with_closed_stdout(init);
+    assert!(run(&["status", silent_follower, stream, identity]).starts_with("follower empty\n"));
     let a = dir.0.join("a");
     let b = dir.0.join("b");
     credentials(&a);
     credentials(&b);
     let a_pin = a.join("cert.der");
     let b_pin = b.join("cert.der");
+    let mut help = Command::new(BIN);
+    help.args(["--diagnostics=json", "--help"]);
+    run_with_closed_stdout(help);
+    let mut describe = Command::new(BIN);
+    describe.args(["--diagnostics=json", "describe", source, stream]);
+    run_with_closed_stdout(describe);
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap().to_string();
+    let mut poll = Command::new(BIN);
+    poll.args(["--diagnostics=json", "poll", source, stream, &address])
+        .arg(&a)
+        .arg(&b_pin);
+    run_with_closed_stdout(poll);
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+
     let server_args = [
         "serve",
         follower,
@@ -177,6 +236,62 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     assert!(ack.contains("digest="));
     let status = run(&["status", follower, stream, identity]);
     assert!(status.lines().any(|l| l == ack));
+    let follower_path = Path::new(follower);
+    let manifest = follower_path.join("replica-manifest.wdb");
+    assert!(status.contains("selected_slot=Some(0)"));
+    let selected = follower_path.join("replica-0.wdb");
+    let selected_bytes = fs::read(&selected).unwrap();
+    let manifest_bytes = fs::read(&manifest).unwrap();
+    let check_receipt = || {
+        assert_eq!(fs::read(&manifest).unwrap(), manifest_bytes);
+        assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+        assert_eq!(run(&["status", follower, stream, identity]), status);
+    };
+
+    let occupied = TcpListener::bind("127.0.0.1:0").unwrap();
+    let occupied_address = occupied.local_addr().unwrap().to_string();
+    let native = TcpListener::bind(&occupied_address).unwrap_err();
+    let mut busy_server = server_args;
+    busy_server[4] = &occupied_address;
+    let mut child = Server(
+        Command::new(BIN)
+            .arg("--diagnostics=json")
+            .args(busy_server)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    assert_eq!(child.exit_status().code(), Some(1));
+    drop(occupied);
+    assert_eq!(child.0.stdout.take().unwrap().read(&mut [0]).unwrap(), 0);
+    let mut error = String::new();
+    child
+        .0
+        .stderr
+        .take()
+        .unwrap()
+        .read_to_string(&mut error)
+        .unwrap();
+    assert_eq!(error.lines().count(), 1, "{error}");
+    assert!(
+        error.contains(r#""phase":"listen","category":"io""#),
+        "{error}"
+    );
+
+    let os_code = native.raw_os_error().unwrap();
+    assert!(
+        error.contains(&format!(r#""os_code":{os_code}}}"#)),
+        "{error}"
+    );
+
+    check_receipt();
+
+    let mut closed_server = Command::new(BIN);
+    closed_server.arg("--diagnostics=json").args(server_args);
+    run_with_closed_stdout(closed_server);
+    check_receipt();
+
     let mut server_args = server_args;
     server_args[8] = "2";
     let (mut server, address) = Server::start(&dir.0, &server_args);
@@ -228,12 +343,7 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("option outside bounds"));
     assert!(!forbidden_export.exists());
     // Offline maintenance: all process/file leases are closed before raw reads.
-    let follower_path = Path::new(follower);
-    let manifest = follower_path.join("replica-manifest.wdb");
-    assert!(status.contains("selected_slot=Some(0)"));
-    let selected = follower_path.join("replica-0.wdb");
     let inactive = follower_path.join("replica-1.wdb");
-    let selected_bytes = fs::read(&selected).unwrap();
     fs::write(&inactive, b"abandoned incomplete image").unwrap();
     fs::write(follower_path.join("operator-note"), b"keep").unwrap();
     let before = fs::read(&manifest).unwrap();
@@ -261,6 +371,43 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         assert_eq!(fs::read(&inactive).unwrap(), b"abandoned incomplete image");
         assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
     }
+    let maintenance_with_closed_stdout = |verb| {
+        let mut command = Command::new(BIN);
+        command.args(["--diagnostics=json", verb, follower, stream, identity]);
+        run_with_closed_stdout(command);
+    };
+    fs::remove_file(&inactive).unwrap();
+    fs::create_dir(&inactive).unwrap();
+    let rejected = Command::new(BIN)
+        .args([
+            "--diagnostics=json",
+            "cleanup-inactive",
+            follower,
+            stream,
+            identity,
+        ])
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(rejected.stdout.is_empty());
+    let detail = String::from_utf8(rejected.stderr).unwrap();
+    assert!(
+        detail.contains(r#""phase":"storage_maintenance","category":"engine","code":"Invalid""#),
+        "{detail}"
+    );
+    assert!(inactive.is_dir());
+    assert_eq!(fs::read(&manifest).unwrap(), before);
+    assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    fs::remove_dir(&inactive).unwrap();
+    fs::write(&inactive, b"abandoned incomplete image").unwrap();
+    maintenance_with_closed_stdout("status");
+    assert_eq!(fs::read(&manifest).unwrap(), before);
+    assert_eq!(fs::read(&inactive).unwrap(), b"abandoned incomplete image");
+    maintenance_with_closed_stdout("cleanup-inactive");
+    assert!(!inactive.exists());
+    assert_eq!(fs::read(&manifest).unwrap(), before);
+    assert_eq!(fs::read(&selected).unwrap(), selected_bytes);
+    fs::write(&inactive, b"abandoned incomplete image").unwrap();
     let cleaned = run(&["cleanup-inactive", follower, stream, identity]);
     assert!(cleaned.contains("maintenance removed_inactive=1"));
     assert!(cleaned.lines().any(|line| line == ack));
@@ -284,6 +431,14 @@ fn native_cli_enrollment_ship_restart_poll_and_bounded_server_lifetime() {
         let compacted = run(&["compact-manifest", follower, stream, identity]);
         assert!(compacted.contains("maintenance_required=false"));
         assert!(compacted.lines().any(|line| line == ack));
+        assert!(fs::metadata(&manifest).unwrap().len() < MANIFEST_LIMIT_BYTES);
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&manifest)
+            .unwrap()
+            .set_len(MANIFEST_LIMIT_BYTES)
+            .unwrap();
+        maintenance_with_closed_stdout("compact-manifest");
         assert!(fs::metadata(&manifest).unwrap().len() < MANIFEST_LIMIT_BYTES);
     }
     #[cfg(windows)]
@@ -392,6 +547,34 @@ fn native_captured_export_survives_sender_kill_and_primary_advancement() {
     let stalled = TcpListener::bind("127.0.0.1:0").unwrap();
     stalled.set_nonblocking(true).unwrap();
     let stalled_address = stalled.local_addr().unwrap().to_string();
+    let mut closed_ship = Command::new(BIN);
+    closed_ship
+        .arg("--diagnostics=json")
+        .args(command(stream, &image, &record, &stalled_address).get_args());
+    run_with_closed_stdout(closed_ship);
+
+    let other_image = root.join("capture-with-closed-stdout.wdb");
+    let other_record = root.join("descriptor-with-closed-stdout.wdb");
+    let mut closed_capture = Command::new(BIN);
+    closed_capture
+        .args(["--diagnostics=json", "capture", source, stream])
+        .args([&other_image, &other_record]);
+    run_with_closed_stdout(closed_capture);
+    assert_eq!(fs::read(&other_image).unwrap(), original);
+    let check_capture = command(stream, &other_image, &other_record, &stalled_address);
+    // A new process validates the newly written descriptor before reporting
+    // another output error, without opening a network connection.
+    let mut closed_reopen = Command::new(BIN);
+    closed_reopen
+        .arg("--diagnostics=json")
+        .args(check_capture.get_args());
+    run_with_closed_stdout(closed_reopen);
+
+    assert!(matches!(stalled.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock));
+    assert_eq!(files(&follower), empty_follower);
+    assert_eq!(fs::read(&image).unwrap(), original);
+    assert_eq!(fs::read(&record).unwrap(), ticket);
+
     let mut interrupted = Server(
         command(stream, &image, &record, &stalled_address)
             .stdout(Stdio::piped())
@@ -698,4 +881,131 @@ fn native_authenticated_follower_backup_restore_and_reseed_keep_old_receipt() {
     assert_eq!(fs::read(&primary).unwrap(), original_bytes);
     assert_eq!(fs::read(&backup).unwrap(), backup_bytes);
     assert_eq!(fs::read(&restored).unwrap(), restored_bytes);
+}
+
+#[test]
+fn native_dispatch_checks_command_names_and_options_before_creating_files() {
+    let dir = directory("dispatch");
+    let root = dir.0.to_str().unwrap();
+    let missing = dir.0.join("missing").join("requested");
+    let missing = missing.to_str().unwrap();
+    let export = dir.0.join("export");
+    let export = export.to_str().unwrap();
+    let descriptor = dir.0.join("descriptor");
+    let descriptor = descriptor.to_str().unwrap();
+    let stream = "aabb334455661122aabb334455661122";
+    let identity = "aabb334455661122aabb334455661133";
+    let address = "127.0.0.1:0";
+    let before = files(&dir.0);
+    let usage = "weekend-replicate keygen <new-credentials-dir>";
+    let reject = |verb: &str, args: &[&str], field: &str, structured: bool| {
+        let mut command = Command::new(BIN);
+        if structured {
+            command.arg("--diagnostics=json");
+        }
+        let output = command.arg(verb).args(args).output().unwrap();
+        assert!(!output.status.success(), "{verb} {args:?}");
+        assert!(output.stdout.is_empty(), "{verb} {args:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(stderr.contains(field), "{verb} {args:?}: {stderr}");
+        assert_eq!(files(&dir.0), before, "{verb} {args:?}");
+    };
+
+    for (verb, arguments, phase) in [
+        ("keygen", &[missing][..], "credentials_load"),
+        ("describe", &[missing, stream][..], "storage_verify"),
+        (
+            "follower-init",
+            &[missing, stream, identity][..],
+            "storage_create",
+        ),
+        ("status", &[missing, stream, identity][..], "storage_open"),
+        (
+            "cleanup-inactive",
+            &[missing, stream, identity][..],
+            "storage_open",
+        ),
+        (
+            "compact-manifest",
+            &[missing, stream, identity][..],
+            "storage_open",
+        ),
+        (
+            "capture",
+            &[missing, stream, export, descriptor][..],
+            "storage_open",
+        ),
+        (
+            "serve",
+            &[root, stream, identity, address, missing, missing][..],
+            "credentials_load",
+        ),
+        (
+            "ship",
+            &[missing, stream, export, address, missing, missing][..],
+            "credentials_load",
+        ),
+        (
+            "ship-captured",
+            &[
+                missing, stream, export, descriptor, address, missing, missing,
+            ][..],
+            "credentials_load",
+        ),
+        (
+            "poll",
+            &[missing, stream, address, missing, missing][..],
+            "credentials_load",
+        ),
+    ] {
+        reject("unrecognized", arguments, usage, false);
+        if cfg!(windows) && verb == "compact-manifest" {
+            reject(
+                verb,
+                arguments,
+                "compact-manifest unsupported on Windows",
+                false,
+            );
+        } else {
+            reject(verb, arguments, &format!("\"phase\":\"{phase}\""), true);
+        }
+    }
+
+    for (verb, args, flag) in [
+        (
+            "serve",
+            &[root, stream, identity, address, missing, missing][..],
+            "--max-exchanges",
+        ),
+        (
+            "ship",
+            &[missing, stream, export, address, missing, missing][..],
+            "--attempts",
+        ),
+        (
+            "ship-captured",
+            &[
+                missing, stream, export, descriptor, address, missing, missing,
+            ][..],
+            "--attempts",
+        ),
+    ] {
+        let mut extended = args.to_vec();
+        extended.extend([flag, "1"]);
+        reject(verb, &extended, r#""phase":"credentials_load""#, true);
+        *extended.last_mut().unwrap() = "0";
+        reject(verb, &extended, "option outside bounds", false);
+        *extended.last_mut().unwrap() = "invalid";
+        reject(verb, &extended, "invalid digit found in string", false);
+        extended.pop();
+        reject(verb, &extended, usage, false);
+        extended.pop();
+        extended.extend(["--wrong", "1"]);
+        reject(verb, &extended, usage, false);
+        if flag == "--attempts" {
+            extended.truncate(args.len());
+            extended.extend([flag, "4"]);
+            reject(verb, &extended, "option outside bounds", false);
+        }
+    }
 }

@@ -108,6 +108,26 @@ fn malformed_attributes_fail_in_downstream_compilation() {
             "nongeneric",
         ),
         (
+            "Model",
+            "#[weekend(type_id=1,version=1)] enum Bad { Item }",
+            "supports structs only",
+        ),
+        (
+            "Model",
+            "#[weekend(type_id=1,version=1)] union Bad { a:u64 }",
+            "supports structs only",
+        ),
+        (
+            "Model",
+            "#[weekend(type_id=1,version=1)] struct Bad(u64);",
+            "requires named fields",
+        ),
+        (
+            "Model",
+            "#[weekend(type_id=1,version=1)] struct Bad;",
+            "requires named fields",
+        ),
+        (
             "Record",
             "#[record(key=1,format=b\"12345678\",fields(a,a))] struct Bad { a:u64 }",
             "duplicate",
@@ -121,6 +141,26 @@ fn malformed_attributes_fail_in_downstream_compilation() {
             "Record",
             "#[record(key=1,format=b\"12345678\",fields())] struct Bad { a:u64 }",
             "field",
+        ),
+        (
+            "Record",
+            "#[record(key=b\"r\",format=b\"12345678\",fields())] enum Bad { Item }",
+            "supports structs only",
+        ),
+        (
+            "Record",
+            "#[record(key=b\"r\",format=b\"12345678\",fields(a))] union Bad { a:u64 }",
+            "supports structs only",
+        ),
+        (
+            "Record",
+            "#[record(key=b\"r\",format=b\"12345678\",fields())] struct Bad(u64);",
+            "requires named fields",
+        ),
+        (
+            "Record",
+            "#[record(key=b\"r\",format=b\"12345678\",fields())] struct Bad;",
+            "requires named fields",
         ),
         (
             "Resolution",
@@ -137,6 +177,14 @@ fn malformed_attributes_fail_in_downstream_compilation() {
             "struct Bad { #[resolve] #[resolve] a:u64 }",
             "duplicate",
         ),
+        ("Resolution", "enum Bad { Item }", "supports structs only"),
+        ("Resolution", "union Bad { a:u64 }", "supports structs only"),
+        (
+            "Resolution",
+            "struct Bad(#[resolve] u64);",
+            "requires named fields",
+        ),
+        ("Resolution", "struct Bad;", "requires named fields"),
     ];
     for (derive, source, expected) in cases {
         fs::write(

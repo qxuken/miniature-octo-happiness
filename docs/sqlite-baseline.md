@@ -226,3 +226,146 @@ finding. That independent smoke has its own workload/source bindings and is not
 pooled into the performance samples. This report does not close larger-state/history,
 concurrency, cold-cache, sustained throughput, long-duration, other-platform,
 crash/power-loss, alternative SQLite-schema/tuning or actual storage-device gates.
+
+## Comparison at 5f49a59
+
+Three alternating-order rounds on macOS compared the same 32-key history
+with four durable pins per round. Both engines verified the current and
+four retained maps through reopen, backup, restore and compaction.
+
+| Engine | Commit p50 | Commit p95 | Commit p99 | Durable pin p50 |
+| --- | ---: | ---: | ---: | ---: |
+| Weekend DB | 8.996 ms | 10.003 ms | 11.052 ms | 8.972 ms |
+| SQLite | 0.435 ms | 0.818 ms | 0.927 ms | 0.403 ms |
+
+Each row pools 192 data commits and 12 separately timed pins. These
+observations cover the local single-writer fixture. The accelerated
+two-peer workload and deployed service budgets have separate evidence.
+
+## Sixty-four retained roots on macOS and Linux
+
+On November 25 the private Rust comparator ran against clean checkpoint
+`49ddab548fa60fced67f04d666d429cd49746492` with Rust 1.100.0 on arm64
+macOS/APFS and in an offline arm64 Linux container on ext4. Each of three
+fresh-file rounds performed 128 commits of eight updates among 128 keys,
+pinned every second commit, and reopened eight times. Both engines passed
+the complete current and 64-root byte oracle through backup, restore and
+compaction in every round. The checked-state digest was
+`414107962869247620` on both platforms.
+
+| Platform and engine | Durable commit p50 / p95 / p99 (ms) | Warm reopen plus full verification p50 / p95 / p99 (ms) | Verified restore range (ms) |
+| --- | --- | --- | --- |
+| macOS, weekend-db | 8.98 / 9.98 / 10.08 | 16.64 / 23.45 / 26.08 | 64.94–83.11 |
+| macOS, SQLite 3.54.0 | 0.25 / 0.75 / 1.14 | 7.87 / 9.00 / 9.30 | 20.07–21.92 |
+| Docker Linux, weekend-db | 0.32 / 0.63 / 2.84 | 13.53 / 14.98 / 21.93 | 52.55–53.20 |
+| Docker Linux, SQLite 3.40.1 | 0.18 / 0.25 / 0.38 | 9.53 / 10.75 / 10.76 | 19.87–21.41 |
+
+Quantiles pool 384 commits and 24 reopens per engine and platform. With
+24 observations, reopen p99 is the largest observed sample. The compacted
+weekend-db file occupied 5,201,920 logical bytes in each round. SQLite
+retained 1,136 of 1,152 version rows in a 352,256-byte compacted main file.
+At the size observation the WAL was empty on both platforms and macOS
+also reported a 32,768-byte shared-memory file. These single-writer,
+warm-cache measurements leave deployment concurrency and hardware budgets open.
+
+Reproduce from the checkpoint with Rust 1.100.0 first on PATH, the locked
+dependencies cached and a fresh output directory on the tested filesystem.
+
+```sh
+cargo xtask sqlite-baseline --revision 49ddab548fa60fced67f04d666d429cd49746492 \
+  --commits 128 --keys 128 --batch 8 --payload 256 --retain-every 2 \
+  --reopens 8 --rounds 3 --output "$OUTPUT"
+```
+
+The retained raw reports have SHA-256
+`52e26c8cccc2db9b549bf459f08f6559f765ae94bceb1bd616149bff24daf80b`
+(macOS) and `7b75d886aa3300ae85b985a735258bba7f035bb368f3be13bd273df81b5b8dd0`
+(Linux).
+
+### Resident memory with four and 64 retained roots
+
+Controller `7f74949` repeated the 128-key workload above against the
+same archived engine. The four-root runs pinned every 32nd commit and
+the 64-root runs pinned every second commit. Adding `--sample-rss` to
+the command recorded each worker's RSS during the full round. All 24
+workers passed the current/retained byte checks, including maintenance.
+The four-root digest was `16897395541532850317` on both platforms.
+
+| Platform and engine | Four roots, largest observed RSS by round (KiB) | 64 roots, largest observed RSS by round (KiB) |
+| --- | --- | --- |
+| macOS, weekend-db | 6,048 / 5,872 / 6,176 | 14,704 / 14,512 / 14,688 |
+| macOS, SQLite | 3,200 / 4,080 / 3,360 | 6,320 / 6,752 / 6,368 |
+| Docker Linux, weekend-db | 4,840 / 4,840 / 4,844 | 6,840 / 6,844 / 10,812 |
+| Docker Linux, SQLite | 308 / 292 / 4,264 | 6,556 / 6,556 / 6,888 |
+
+Two short Linux SQLite rounds supplied only one sample apiece. Their
+308 and 292 KiB observations give little information about memory use
+after startup. All sampled peaks are lower bounds on whole-process peak
+RSS. The harness measures the worker and its verification code together.
+Use the separate timing-only run above for latency.
+
+The development proof directory `retained-baseline-49ddab5` holds all
+four reports. Their SHA-256 digests in four-root, then 64-root order are
+`7fac5020742be61299a79f726c97450dffc20d73e35f205257aab4e1060cf44f`
+and `d34a4ef515ae40c4d60b853ef0d9d7a5bf415b9d9c6a15cefd30030a953d288c`
+for macOS, and
+`e1be1c98064aff2b335bd6428801a161c82cca0c64b8e45014c8cf59a6d32269`
+and `2f063d82e1fe224beacdf0a6432134024a9d7da84ad6df4ee7254cc3754a2125`
+for Linux.
+
+### Fixed writer arrivals with 64 retained roots
+
+Checkpoint `b07977a79292e18f4197e826e58f9523ee77ab34` repeated the
+64-root workload with one writer offering 40 and 1,000 requests per second.
+Each rate used three fresh-file rounds per engine and platform, alternating
+engine order. Rust 1.100.0 built the locked fixtures on arm64 macOS/APFS and
+offline arm64 Docker Linux/ext4 (two vCPUs and 2 GiB). The native SQLite
+versions were 3.54.0 and 3.40.1, respectively. The comparator retained the
+same WAL, FULL and fullfsync settings, with RSS sampling disabled.
+
+Arrivals start immediately after seeding. Each deadline is its zero-based
+request number times the selected interval. A request is ready at the later
+of its deadline and the previous request's finish. Queue time covers the
+deadline to the ready time. Dispatch covers ready time to worker start,
+including timer and scheduler delay. Service covers start through payload
+preparation, the durable transaction and any separately durable pin. Response
+covers the deadline through service completion. The original commit and pin
+measurements still time their own calls. The driver checks each request's
+ordering and measured transaction and pin durations before accepting a round.
+
+| Platform and engine | Offered writes/s | Queued / 384 | Response p50 / p95 / p99 (ms) | Queue p99 (ms) | Dispatch p99 (ms) | Commit / pin p99 (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS, weekend-db | 40 | 46 | 15.968 / 26.011 / 26.975 | 1.975 | 8.072 | 10.181 / 15.831 |
+| macOS, SQLite | 40 | 0 | 7.688 / 11.314 / 12.368 | 0.000 | 10.024 | 2.440 / 1.439 |
+| macOS, weekend-db | 1,000 | 381 | 777.113 / 1491.031 / 1561.037 | 1543.053 | 0.001 | 10.098 / 9.998 |
+| macOS, SQLite | 1,000 | 219 | 1.072 / 2.446 / 4.034 | 3.034 | 0.315 | 1.626 / 1.064 |
+| Docker Linux, weekend-db | 40 | 0 | 7.896 / 13.607 / 14.690 | 0.000 | 10.201 | 4.162 / 1.886 |
+| Docker Linux, SQLite | 40 | 0 | 8.015 / 12.281 / 13.526 | 0.000 | 10.242 | 3.207 / 1.304 |
+| Docker Linux, weekend-db | 1,000 | 132 | 0.876 / 1.260 / 1.915 | 0.915 | 0.828 | 1.062 / 0.857 |
+| Docker Linux, SQLite | 1,000 | 62 | 0.675 / 1.199 / 1.753 | 0.753 | 0.830 | 0.952 / 1.100 |
+
+Quantiles pool 384 data writes and 192 pins per engine, platform and rate.
+The macOS weekend-db worker completed about 75 requests per second while
+draining the 1,000/s burst. Dispatch was the largest measured source of
+delay in the 40/s SQLite runs on both platforms, with zero queued requests.
+The Linux 1,000/s results cover a 128-request burst. Sustained service rates
+and production-device budgets remain open.
+
+```sh
+for period in 25000 1000; do
+  cargo +1.100.0 xtask sqlite-baseline \
+    --revision b07977a79292e18f4197e826e58f9523ee77ab34 \
+    --commits 128 --keys 128 --batch 8 --payload 256 --retain-every 2 \
+    --reopens 8 --rounds 3 --write-period-us "$period" --output "$OUTPUT-$period"
+done
+```
+
+Both platforms passed the four controller and four standalone SQLite tests
+in debug and release, plus a small unpaced run. Fresh extraction reproduced
+all 3,072 paced samples and their quantiles. A separate native verifier
+opened 72 paced and 12 unpaced compacted, backup and restored images, and
+compared every current and retained value against a forward replay of the
+workload. It queried SQLite's integrity check and rechecked the Weekend DB
+revision and retained IDs. The paced rounds all reported digest
+`414107962869247620`. The [proof checksums](decisions/sqlite-arrivals-b07977a.sha256)
+bind the local archive's exact sources, workers, raw logs and replay tools.

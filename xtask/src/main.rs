@@ -161,6 +161,9 @@ enum Task {
     /// Exercise a bounded native lifecycle workload on a frozen engine.
     #[cfg(unix)]
     Soak(soak::Options),
+    /// Verify extracted evidence from a completed timed native soak.
+    #[cfg(unix)]
+    SoakVerify { directory: std::path::PathBuf },
     /// Qualify storage, typed schema, or core snapshot compatibility across archives.
     #[cfg(any(unix, windows))]
     Compatibility(compatibility::Options),
@@ -245,6 +248,14 @@ enum Task {
     /// Run discovered fuzz targets with bounded ASan execution and evidence.
     #[cfg(unix)]
     Fuzz(fuzz::Options),
+    /// Verify an extracted complete fuzz campaign against the exact Git commit.
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    VerifyFuzz {
+        #[arg(long)]
+        source: String,
+        #[arg(long)]
+        evidence: std::path::PathBuf,
+    },
     /// Rehearse offline administrative restore and isolated journal reconciliation.
     #[cfg(any(unix, windows))]
     IncidentRecovery(incident_recovery::Options),
@@ -370,6 +381,8 @@ fn execute(cli: Cli) -> Result<()> {
         Task::FollowerBackupRestore(options) => follower_backup::run(&run, options),
         #[cfg(unix)]
         Task::Soak(options) => soak::run(&run, options),
+        #[cfg(unix)]
+        Task::SoakVerify { directory } => soak::verify(&assurance::absolute(&run.root, &directory)),
         #[cfg(any(unix, windows))]
         Task::Compatibility(options) => compatibility::run(&run, options),
         #[cfg(unix)]
@@ -404,6 +417,10 @@ fn execute(cli: Cli) -> Result<()> {
         Task::AtomicModel(options) => atomic_model::run(&run, options),
         #[cfg(unix)]
         Task::Fuzz(options) => fuzz::run(&run, options),
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+        Task::VerifyFuzz { source, evidence } => {
+            fuzz::verify_campaign(&mut run, &source, &evidence)
+        }
         #[cfg(any(unix, windows))]
         Task::IncidentRecovery(options) => incident_recovery::run(&run, options),
         #[cfg(any(unix, windows))]

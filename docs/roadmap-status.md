@@ -12,6 +12,43 @@ for e2d2268. Older entries below retain their historical source and scope.
 The project name is provisional. Baseline `1e883c8` checkpoints the prior
 decision tests and first four fuzz targets.
 
+The [R3 fresh-open and cache fork checkpoint](serialization-cache-forks.md)
+checks 96 native publications on shared and independent near-cap graphs
+using macOS/APFS and Docker Linux/ext4. All 12 cross-platform replays
+reproduce exact files from identical seeds and reopen revision 139 with
+every retained root. The run measures fresh-process open and publication
+latency plus core heap and process RSS. Sustained deployment evidence
+and service budget approval remain open.
+
+The [Linux-primary snapshot rehearsal](live-replication-month.md#linux-primary-and-macos-follower-at-9f942db)
+passes the 30-day schedule against the native macOS follower. Fresh restores
+verify all 31 retained views on APFS and ext4. After follower restart and
+duplicate delivery, both polls report revision 93 with the same digest and
+all durable files match their original bytes.
+
+The [arm64 delivery checkpoint](delivery-checkpoint-1f3f42a.md) qualifies
+all four package masks on macOS and Docker Linux at `1f3f42a`. Fresh
+extraction verifies the package manifests, optimized 134-cell traces and
+all 24 restored C, C++ and Odin consumer runs. PR #82 also passes
+28 checks at its previous head `9e5ebee`, with the release-only
+compatibility job skipped.
+
+The [later compatibility checkpoint](compatibility-1f3f42a.md) passes
+storage, typed migration, snapshot wire, snapshot CLI and Study CLI on
+macOS and Docker Linux at `1f3f42a`. The Study guard admits the exact audited
+test-only source change, with twelve mutation detections across both hosts
+and profiles. Stable replay passes 55 cases in each profile on both hosts.
+
+The [extended ASan campaign](fuzz-qualification-1f3f42a.md) completed
+1,425,865 executions across all 22 targets at `1f3f42a`. Fresh extraction
+reproduces the verifier's source and actual completion counts.
+
+The [four-platform delivery report](delivery-checkpoint-2596c57.md)
+verifies all sixteen package profiles on tested merge `2596c57`.
+Two restored verifiers reproduce the package, benchmark and bounded
+fuzz results. The original hosted x64 recovery artifacts are bound to
+the exact delivered libraries.
+
 The [2026-11-18 dependency snapshot](locked-dependency-review-3de695f.md)
 scans all fourteen lockfiles at `3de695f` against frozen RustSec `233155b`
 (1,527 parsed advisories): zero reported vulnerabilities and warnings.
@@ -79,6 +116,134 @@ Rust 1.99.0/1.99.1 and the hosted Windows RNG/owner-quota checks. The minimum-Ru
 rerun then exposed overlapping coordinator storage fixtures and real socket
 deadlines; the corrected fixture passes native Windows in both profiles, as
 recorded in the R1 report. Each hosted result retains its exact source.
+
+All legacy protocol, native coordinator CLI, service, stop and shared
+listener source records have dispositions. The latest `6855f58` audit
+passed 166 tests on macOS and 167 on Docker Linux/ext4 per profile, with
+all 12 controls detected. That audit left 76 runtime gaps in
+shared TLS and Windows storage, plus 7,441 tooling gaps. Native Windows
+execution for this source and the compiler and delegated coverage
+obligations remain open. Earlier lifecycle and legacy coordinator tests
+passed on the Windows minimum-Rust lane at `908f3c5`.
+[Platform stop and readiness qualification](decisions/coordinator-platform-signals-current.md)
+and [hosted follow-up](decisions/coordinator-client-io-current.md#hosted-windows-evidence-for-earlier-batches).
+
+At `c6869a2`, shared TLS credential failure paths have directed evidence
+in both binaries and the live-month example. macOS passed 175 tests and
+Docker Linux/ext4 passed 176 in each profile, with all 54 named mutations
+caught on both platforms. Ten Windows x64 test executables linked per
+profile. Native execution remains pending. The queue has 58 runtime and
+7,423 tooling gaps.
+[Credential I/O qualification](decisions/shared-tls-credential-io-current.md)
+
+At `0fe8b54`, both TLS endpoint roles have directed handshake and first
+transport-error evidence in all three targets. Each profile passed 181
+tests on macOS and 182 on Docker Linux/ext4 and detected all 30 named
+mutations on both platforms. Ten Windows x64 test executables linked per
+profile. Native execution remains pending. That audit left 38
+runtime and 7,413 tooling gaps.
+[Handshake admission qualification](decisions/shared-tls-handshake-current.md)
+
+At `0cd752b`, Rustls setup, both session roles and socket timeout setup have
+directed source evidence. Each profile passed 196 tests on macOS and 197
+on Docker Linux/ext4 and caught all 46 named mutations on both platforms.
+Ten Windows x64 test executables linked per profile. Native execution
+remains pending. The audit leaves 18 runtime gaps in Windows storage and
+7,384 tooling gaps.
+[Session and transport qualification](decisions/shared-tls-transport-current.md)
+
+At `ee67459`, the Windows parent and leaf open flow exercises twelve
+failure stages and verifies handle cleanup. Each profile passed 291 tests
+on macOS and 301 on Docker Linux/ext4, including both golden images.
+Both hosts detected all 12 controls. Three Windows x64 test executables
+linked per profile. The audit leaves six native path-entry records and
+7,384 tooling gaps. Native Windows execution remains pending.
+[Windows open-flow qualification](decisions/windows-open-flow-current.md)
+
+At `24b6e34`, both Unix hosts passed 22 supervisor tests and caught all
+17 result controls per profile. The audit closes 14 tooling records and
+leaves 7,370 tooling gaps.
+[Supervisor result qualification](decisions/supervisor-result-pairs-current.md)
+
+The hosted Windows x64 job tested the exact `c44c26d` tree in debug and
+release. Both profiles passed the drive-prefix and early-path guard test
+and the native open and reopen regression. All runtime source records now
+have dispositions. Tooling, compiler MC/DC and release gates remain open.
+[Native Windows path entry](decisions/windows-native-path-entry-current.md)
+
+The Ubuntu native `c44c26d` run caught a loopback port-reuse race in
+the refusal fixture. The corrected source `9e50334` passed 196 macOS and
+197 Docker Linux tests per profile and detected all three refusal
+mutations on both hosts. Hosted follow-up remains pending.
+[Socket-refusal qualification](decisions/tls-connect-refusal-current.md)
+
+The Ubuntu native job for `9e5ebee` passed the socket-refusal regression
+in both Study and snapshot binaries in debug and release. The archived
+job log verifies the four results and identifies the exact merge tree.
+[Hosted Ubuntu verification](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45765188872/job/139724314903)
+[Hosted evidence checksums](decisions/hosted-tls-refusal-9e5ebee.sha256)
+
+The Windows minimum-Rust job for the same tree passed the debug retry
+regression, then failed in release after TLS admission when the follower
+returned `Io`. Its command exited with a test failure and verified cleanup.
+The separate native Windows job passed the same test in both profiles.
+The verified minimum-Rust artifact leaves the failing operation unresolved.
+[Minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45756615197/job/139696612818)
+[Original evidence checksums](decisions/windows-msrv-retry-c44c26d.sha256)
+
+The targeted rerun used the same Windows tree and passed both profiles
+of the retry regression and the full minimum-Rust job. The restored
+archive verifies the exact job, source and test-output hashes. The
+cause of the original `Io` remains unresolved.
+[Targeted Windows rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45756615197/job/139716521805)
+[Rerun evidence checksums](decisions/windows-msrv-retry-c44c26d-attempt2.sha256)
+
+The Windows x64 minimum-Rust job at `9e5ebee` passed the Study retry
+regression in debug and release. Fresh extraction verified all four
+feature masks and 5,021 declared payload hashes across the packages,
+C/C++/Odin trace and Odin fault reports. The 30 trace cases, six Odin
+publication cases and native NTFS exhaustion drill used the same
+combined DLL. The full-volume drill reopened revision 3 with retained
+revision 2 and committed revision 4 after space was freed.
+[Hosted Windows qualification](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45765188872/job/139724315057)
+[Artifact checksums](decisions/hosted-windows-msrv-9e5ebee.sha256)
+
+At `52605e4`, macOS and Docker Linux passed all 28 supervisor and trace
+tests and caught all 12 named controls per profile. The batch closes 13
+tooling records and leaves 7,357 open. [Supervisor output qualification](decisions/supervisor-output-flow-current.md)
+
+At `1ec259c`, the Study retry assertion distinguishes transport and
+storage failures. Both Unix hosts passed 85 Study tests and caught all
+six retry controls per profile. Native Windows follow-up remains pending.
+[Study retry diagnostics](decisions/study-retry-diagnostic-current.md)
+
+At `05e99c6`, the Linux supervisor checks the process identity it will
+use for ownership, including malformed records, reaped identities and
+comparison with the live process table. Both profiles caught all 23
+controls. The reconciliation closes 14 tooling records and leaves
+7,343 open. [Process-identity qualification](decisions/supervisor-proc-identity-current.md)
+
+At `4a3ea5d`, the supervisor and process-table commands return an
+error when stdout cannot accept their response. The regression verifies
+the child result and cleanup report independently. Both Unix hosts
+caught the two response controls in both profiles.
+[Supervisor response delivery qualification](decisions/supervisor-cli-response-current.md)
+
+The hosted `9e5ebee` fuzz smoke job passed 55 debug replay tests and
+20,842 AddressSanitizer executions over all 22 manifest targets and 253
+committed seeds. The two counts below the 1,000-run cap were 441 for
+schema/index migration and 401 for adversarial tree keys. A fresh
+source bundle and artifact restoration reproduced the hosted verification
+byte for byte. The verified merge tree matches the PR head.
+[Hosted fuzz run](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45765188623)
+[Artifact checksums](decisions/hosted-fuzz-9e5ebee.sha256)
+
+At `92ff7bf`, a trace requires both output digests before it can
+qualify. The evidence records the exact exit and verified cleanup when
+one digest is missing. Both Unix hosts passed their xtask unit and
+supervisor integration suites and caught six mutations in each profile.
+Source reconciliation leaves 7,340 tooling gaps.
+[Trace log evidence](decisions/trace-log-evidence-current.md)
 
 | Gate | Progress and remaining evidence |
 |---|---|

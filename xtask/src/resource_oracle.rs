@@ -331,7 +331,7 @@ fn sustained_digest(cycle: u64) -> u64 {
 }
 
 #[cfg(unix)]
-fn latency_samples(mut samples: Vec<u64>) -> Value {
+pub(crate) fn latency_samples(mut samples: Vec<u64>) -> Value {
     samples.sort_unstable();
     let rank = |percent: usize| samples[(samples.len() * percent).div_ceil(100) - 1];
     json!({
@@ -342,13 +342,46 @@ fn latency_samples(mut samples: Vec<u64>) -> Value {
 }
 
 #[cfg(unix)]
-const ARRIVALS_PER_LANE: usize = 1536;
+const ARRIVAL_WINDOW_US: u64 = 768_000;
 #[cfg(unix)]
-const PERIOD_NS: u64 = 500_000;
+pub(crate) const DEFAULT_ARRIVAL_PERIOD_US: u64 = 500;
+#[cfg(unix)]
+const WRITES_PER_LANE: usize = 16;
+
+#[cfg(unix)]
+#[derive(Clone, Copy, Default)]
+pub(crate) struct BreadthSchedule {
+    pub reader_period_us: Option<u64>,
+    pub writer_period_us: Option<u64>,
+}
+
+#[cfg(unix)]
+impl BreadthSchedule {
+    pub(crate) fn validate(self) -> Result<Option<usize>> {
+        if let Some(period) = self.writer_period_us {
+            ensure!(
+                self.reader_period_us.is_some() && (1_000..=48_000).contains(&period),
+                "writer period requires fixed reader arrivals and must be between 1000 and 48000 us"
+            );
+        }
+        self.reader_period_us.map(arrivals_per_lane).transpose()
+    }
+}
+
+#[cfg(unix)]
+pub(crate) fn arrivals_per_lane(period_us: u64) -> Result<usize> {
+    ensure!(
+        (250..=1_000).contains(&period_us) && ARRIVAL_WINDOW_US.is_multiple_of(period_us),
+        "arrival period must divide 768000 us and be between 250 and 1000 us"
+    );
+    Ok((ARRIVAL_WINDOW_US / period_us) as usize)
+}
 
 #[cfg(unix)]
 #[derive(Default)]
 struct ArrivalTimings {
+    period_ns: u64,
+    window_ns: u64,
     queue: Vec<u64>,
     dispatch: Vec<u64>,
     service: Vec<u64>,
@@ -358,16 +391,25 @@ struct ArrivalTimings {
 
 #[cfg(unix)]
 impl ArrivalTimings {
+    fn new(period_us: u64, requests: usize) -> Self {
+        let period_ns = period_us * 1_000;
+        Self {
+            period_ns,
+            window_ns: period_ns * requests as u64,
+            ..Self::default()
+        }
+    }
+
     fn record(
         &mut self,
         index: usize,
         prior_done: u64,
-        acquisition: u64,
+        inner_stage: u64,
         began: u64,
         done: u64,
         wall: u64,
     ) -> Result<()> {
-        let due = index as u64 * PERIOD_NS;
+        let due = index as u64 * self.period_ns;
         let ready = due.max(prior_done);
         ensure!(
             ready <= began && began <= done && done <= wall,
@@ -375,14 +417,14 @@ impl ArrivalTimings {
         );
         let service = done - began;
         ensure!(
-            acquisition <= service,
-            "acquisition exceeds request service time"
+            inner_stage <= service,
+            "timed stage exceeds request service time"
         );
         self.queue.push(ready - due);
         self.dispatch.push(began - ready);
         self.service.push(service);
         self.response.push(done - due);
-        self.drained += usize::from(done >= ARRIVALS_PER_LANE as u64 * PERIOD_NS);
+        self.drained += usize::from(done >= self.window_ns);
         Ok(())
     }
 
@@ -414,7 +456,28 @@ fn sustained_readers(row: &Value, arrivals: bool) -> Result<Vec<Vec<[u64; 7]>>> 
 }
 
 #[cfg(unix)]
-pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result<Value> {
+fn sustained_writers(row: &Value, scheduled: bool) -> Result<Vec<Vec<[u64; 4]>>> {
+    if scheduled {
+        return Ok(serde_json::from_value(row["writers"].clone())?);
+    }
+    let paced: Vec<Vec<[u64; 2]>> = serde_json::from_value(row["writers"].clone())?;
+    Ok(paced
+        .into_iter()
+        .map(|lane| {
+            lane.into_iter()
+                .map(|[revision, duration]| [revision, 0, 0, duration])
+                .collect()
+        })
+        .collect())
+}
+
+#[cfg(unix)]
+pub(crate) fn sustained_breadth(
+    rows: &[Value],
+    source: &str,
+    schedule: BreadthSchedule,
+) -> Result<Value> {
+    let arrivals = schedule.reader_period_us.is_some();
     let profile = if arrivals {
         "breadth-arrivals"
     } else {
@@ -425,10 +488,19 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
         "incomplete sustained breadth cycles or wrong build identity"
     );
     let mut start_bytes = 58_523_648;
+    let mut expected_seed = json!({"phase":"sustained_seed","revision":133,"digest":breadth_digest(133),"file_bytes":start_bytes});
+    let requests = schedule.validate()?;
+    if let Some(period_us) = schedule.reader_period_us {
+        expected_seed["arrival_period_us"] = json!(period_us);
+        expected_seed["arrivals_per_lane"] = json!(requests.unwrap());
+    }
+    if let Some(period_us) = schedule.writer_period_us {
+        expected_seed["writer_period_us"] = json!(period_us);
+        expected_seed["writes_per_lane"] = json!(WRITES_PER_LANE);
+    }
     ensure!(
-        rows[0]
-            == json!({"phase":"sustained_seed","revision":133,"digest":breadth_digest(133),"file_bytes":start_bytes}),
-        "invalid sustained breadth seed"
+        rows[0] == expected_seed,
+        "invalid sustained breadth seed or arrival schedule"
     );
     let mut commits = Vec::new();
     let mut acquisitions = Vec::new();
@@ -436,7 +508,14 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
     let mut compactions = Vec::new();
     let mut reopens = Vec::new();
     let mut intermediate_revisions = 0;
-    let mut schedule = ArrivalTimings::default();
+    let mut reader_clock = schedule
+        .reader_period_us
+        .zip(requests)
+        .map(|(period, requests)| ArrivalTimings::new(period, requests));
+    let mut writer_clock = schedule
+        .writer_period_us
+        .map(|period| ArrivalTimings::new(period, WRITES_PER_LANE));
+    let mut drafts = Vec::new();
     for (index, row) in rows[1..9].iter().enumerate() {
         let cycle = index as u64 + 1;
         let start = 133 + 48 * (cycle - 1);
@@ -462,7 +541,7 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
         compactions.push(maintenance);
         reopens.push(reopen);
 
-        let writers: Vec<Vec<[u64; 2]>> = serde_json::from_value(row["writers"].clone())?;
+        let writers = sustained_writers(row, writer_clock.is_some())?;
         let readers = sustained_readers(row, arrivals)?;
         ensure!(
             writers.len() == 3 && readers.len() == 4,
@@ -471,13 +550,23 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
         let mut order = Vec::new();
         for (writer, samples) in writers.iter().enumerate() {
             ensure!(
-                samples.len() == 16 && samples.windows(2).all(|w| w[0][0] < w[1][0]),
+                samples.len() == WRITES_PER_LANE && samples.windows(2).all(|w| w[0][0] < w[1][0]),
                 "writer receipts out of order"
             );
-            for &[revision, ns] in samples {
-                ensure!((1..=wall).contains(&ns), "invalid writer timing");
+            let mut prior_done = 0;
+            for (index, &[revision, began, commit, done]) in samples.iter().enumerate() {
+                ensure!(
+                    began <= commit && commit < done && done <= wall,
+                    "invalid writer timing"
+                );
+                let ns = done - commit;
+                if let Some(clock) = &mut writer_clock {
+                    clock.record(index, prior_done, ns, began, done, wall)?;
+                    drafts.push(commit - began);
+                    prior_done = done;
+                }
                 commits.push(ns);
-                order.push((revision, writer));
+                order.push((revision, writer, commit, done));
             }
         }
         order.sort_unstable();
@@ -487,15 +576,15 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
         );
         let mut sequences = [16 * (cycle - 1); 3];
         let mut states = vec![sequences];
-        for (_, writer) in order {
+        for &(_, writer, _, _) in &order {
             sequences[writer] += 1;
             states.push(sequences);
         }
         let mut seen = std::collections::BTreeSet::new();
         for samples in readers {
-            if arrivals {
+            if let Some(requests) = requests {
                 ensure!(
-                    samples.len() == ARRIVALS_PER_LANE,
+                    samples.len() == requests,
                     "scheduled requests missing or duplicated"
                 );
             } else {
@@ -519,9 +608,17 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
                     states[(revision - start) as usize] == [a, b, c],
                     "reader observed a state inconsistent with the acknowledged order"
                 );
-                if arrivals {
-                    schedule.record(i, prior_done, ns, began, done, wall)?;
+                if let Some(clock) = &mut reader_clock {
+                    clock.record(i, prior_done, ns, began, done, wall)?;
                     prior_done = done;
+                }
+                if writer_clock.is_some() {
+                    let offset = (revision - start) as usize;
+                    ensure!(
+                        (offset == 0 || order[offset - 1].2 <= done)
+                            && order[offset..].iter().all(|entry| entry.3 >= began),
+                        "reader timing disagrees with writer publication"
+                    );
                 }
                 if arrivals || i != 0 {
                     acquisitions.push(ns);
@@ -549,8 +646,13 @@ pub fn sustained_breadth(rows: &[Value], source: &str, arrivals: bool) -> Result
         "reopen":latency_samples(reopens),
         "intermediate_revisions":intermediate_revisions
     });
-    if arrivals {
-        summary["arrivals"] = schedule.summary();
+    if let Some(clock) = reader_clock {
+        summary["arrivals"] = clock.summary();
+    }
+    if let Some(clock) = writer_clock {
+        let mut timings = clock.summary();
+        timings["draft"] = latency_samples(drafts);
+        summary["writer_arrivals"] = timings;
     }
     Ok(summary)
 }
@@ -1170,8 +1272,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn sustained_breadth_replays_reader_states_from_writer_receipts() {
+    fn sustained_fixture() -> Vec<Value> {
         let mut rows = vec![json!({"phase":"sustained_seed","revision":133,
                 "digest":7_918_828_611_224_877_843u64,"file_bytes":58_523_648})];
         for cycle in 1..=8u64 {
@@ -1199,26 +1300,33 @@ mod tests {
             }));
         }
         rows.push(completion("breadth-sustained", "sample"));
-        let summary = sustained_breadth(&rows, "sample", false).unwrap();
+        rows
+    }
+
+    #[test]
+    fn sustained_breadth_replays_reader_states_from_writer_receipts() {
+        let rows = sustained_fixture();
+        let paced = BreadthSchedule::default();
+        let summary = sustained_breadth(&rows, "sample", paced).unwrap();
         assert_eq!(summary["commits"]["count"], 384);
         assert_eq!(summary["snapshot_acquisition"]["count"], 96);
         assert_eq!(summary["snapshot_acquisition"]["zero_ticks"], 32);
         assert_eq!(summary["snapshot_acquisition"]["p99_ns"], 9);
         assert_eq!(summary["revision_transition_acquisition"]["count"], 64);
         assert_eq!(summary["revision_transition_acquisition"]["p99_ns"], 8);
-        assert!(sustained_breadth(&rows[..9], "sample", false).is_err());
+        assert!(sustained_breadth(&rows[..9], "sample", paced).is_err());
 
         let mut bad = rows.clone();
         bad[1]["readers"][0][1][2] = json!(0);
-        assert!(sustained_breadth(&bad, "sample", false).is_err());
+        assert!(sustained_breadth(&bad, "sample", paced).is_err());
         bad = rows.clone();
         bad[8]["writers"][0][0][0] = bad[8]["writers"][1][0][0].clone();
-        assert!(sustained_breadth(&bad, "sample", false).is_err());
+        assert!(sustained_breadth(&bad, "sample", paced).is_err());
         bad = rows.clone();
         for reader in bad[1]["readers"].as_array_mut().unwrap() {
             reader.as_array_mut().unwrap().drain(1..3);
         }
-        assert!(sustained_breadth(&bad, "sample", false).is_err());
+        assert!(sustained_breadth(&bad, "sample", paced).is_err());
 
         let mut incomplete = rows;
         for lane in incomplete[1]["readers"].as_array_mut().unwrap() {
@@ -1227,16 +1335,162 @@ mod tests {
             }
         }
         incomplete[9] = completion("breadth-arrivals", "sample");
-        let error = sustained_breadth(&incomplete, "sample", true).unwrap_err();
+        incomplete[0]["arrival_period_us"] = json!(500);
+        incomplete[0]["arrivals_per_lane"] = json!(1536);
+        let default_rate = BreadthSchedule {
+            reader_period_us: Some(500),
+            ..paced
+        };
+        let fast = BreadthSchedule {
+            reader_period_us: Some(250),
+            ..paced
+        };
+        let error = sustained_breadth(&incomplete, "sample", default_rate).unwrap_err();
         assert_eq!(
             error.to_string(),
             "scheduled requests missing or duplicated"
         );
+        let wrong_rate = sustained_breadth(&incomplete, "sample", fast).unwrap_err();
+        assert_eq!(
+            wrong_rate.to_string(),
+            "invalid sustained breadth seed or arrival schedule"
+        );
+        incomplete[0]["arrival_period_us"] = json!(250);
+        let wrong_count = sustained_breadth(&incomplete, "sample", fast).unwrap_err();
+        assert_eq!(
+            wrong_count.to_string(),
+            "invalid sustained breadth seed or arrival schedule"
+        );
+    }
+
+    #[test]
+    fn scheduled_writers_charge_the_queue_and_bind_reader_times_to_commits() {
+        let schedule = BreadthSchedule {
+            reader_period_us: Some(1_000),
+            writer_period_us: Some(8_000),
+        };
+        let mut rows = sustained_fixture();
+        rows[0]["arrival_period_us"] = json!(1_000);
+        rows[0]["arrivals_per_lane"] = json!(768);
+        rows[0]["writer_period_us"] = json!(8_000);
+        rows[0]["writes_per_lane"] = json!(16);
+        rows[9] = completion("breadth-arrivals", "sample");
+        for (index, row) in rows[1..9].iter_mut().enumerate() {
+            let index = index as u64;
+            let start = 133 + index * 48;
+            let writers: Vec<Vec<[u64; 4]>> = (0..3)
+                .map(|actor| {
+                    (0..16)
+                        .map(|seq| {
+                            let began = seq * 17_000_000;
+                            [
+                                start + 3 * seq + actor + 1,
+                                began,
+                                began + 2,
+                                began + 17_000_000,
+                            ]
+                        })
+                        .collect()
+                })
+                .collect();
+            let reader: Vec<[u64; 7]> = (0..768)
+                .map(|seq| {
+                    let began = seq * 1_000_000;
+                    let completed = (began / 17_000_000).min(16);
+                    let value = 16 * index + completed;
+                    [
+                        start + completed * 3,
+                        50,
+                        value,
+                        value,
+                        value,
+                        began,
+                        began + 100,
+                    ]
+                })
+                .collect();
+            row["workload_ns"] = json!(768_000_000);
+            row["writers"] = json!(writers);
+            row["readers"] = json!([reader.clone(), reader.clone(), reader.clone(), reader]);
+        }
+        let summary = sustained_breadth(&rows, "sample", schedule).unwrap();
+        assert_eq!(summary["arrivals"]["response"]["count"], 24_576);
+        assert_eq!(
+            summary["writer_arrivals"]["queue_wait"]["p99_ns"],
+            135_000_000
+        );
+        assert_eq!(summary["writer_arrivals"]["draft"]["p99_ns"], 2);
+        assert_eq!(summary["commits"]["p99_ns"], 16_999_998);
+        assert_eq!(
+            summary["writer_arrivals"]["completed_after_offered_window"],
+            216
+        );
+
+        let mut bad = rows.clone();
+        bad[0]["writer_period_us"] = json!(9_000);
+        assert!(sustained_breadth(&bad, "sample", schedule).is_err());
+        bad = rows.clone();
+        bad[1]["writers"][0][1][1] = json!(16_999_999);
+        assert!(
+            sustained_breadth(&bad, "sample", schedule)
+                .unwrap_err()
+                .to_string()
+                .contains("overlaps")
+        );
+        bad = rows.clone();
+        bad[1]["readers"][0][0] = json!([139, 50, 2, 2, 2, 0, 100]);
+        assert!(
+            sustained_breadth(&bad, "sample", schedule)
+                .unwrap_err()
+                .to_string()
+                .contains("writer publication")
+        );
+        bad = rows;
+        bad[1]["readers"][0][18] = json!([133, 50, 0, 0, 0, 18_000_000, 18_000_100]);
+        bad[1]["readers"][0][17] = json!([133, 50, 0, 0, 0, 17_000_000, 17_000_100]);
+        assert!(
+            sustained_breadth(&bad, "sample", schedule)
+                .unwrap_err()
+                .to_string()
+                .contains("writer publication")
+        );
+    }
+
+    #[test]
+    fn arrival_periods_change_counts_and_keep_the_offered_window() {
+        for (period_us, count) in [(250, 3072), (500, 1536), (1_000, 768)] {
+            assert_eq!(arrivals_per_lane(period_us).unwrap(), count);
+            let period_ns = period_us * 1_000;
+            let mut timings = ArrivalTimings::new(period_us, count);
+            let prior = period_ns + 7;
+            timings.record(0, 0, 1, 0, prior, 768_000_000).unwrap();
+            timings
+                .record(1, prior, 1, prior + 3, prior + 20, 768_000_000)
+                .unwrap();
+            assert_eq!(timings.queue, [0, 7]);
+            assert_eq!(timings.dispatch, [0, 3]);
+            assert_eq!(timings.response, [prior, 27]);
+            timings
+                .record(
+                    count - 1,
+                    prior + 20,
+                    1,
+                    768_000_000 - period_ns,
+                    768_000_000,
+                    768_000_000,
+                )
+                .unwrap();
+            assert_eq!(timings.drained, 1);
+        }
+        for invalid in [0, 249, 251, 1_001, u64::MAX] {
+            assert!(arrivals_per_lane(invalid).is_err(), "{invalid}");
+        }
     }
 
     #[test]
     fn fixed_arrival_clock_charges_queueing_and_dispatch_to_original_deadline() {
-        let mut timings = ArrivalTimings::default();
+        let period_ns = DEFAULT_ARRIVAL_PERIOD_US * 1_000;
+        let mut timings = ArrivalTimings::new(DEFAULT_ARRIVAL_PERIOD_US, 1536);
         timings.record(0, 0, 0, 5, 1_000_000, 1_000_100).unwrap();
         timings
             .record(1, 1_000_000, 2, 1_000_010, 1_000_030, 1_000_100)
@@ -1271,13 +1525,13 @@ mod tests {
                 .is_err()
         );
         assert_eq!(timings.response.len(), 2);
-        let offered = ARRIVALS_PER_LANE as u64 * PERIOD_NS;
+        let offered = ARRIVAL_WINDOW_US * 1_000;
         timings
             .record(
-                ARRIVALS_PER_LANE - 1,
+                arrivals_per_lane(DEFAULT_ARRIVAL_PERIOD_US).unwrap() - 1,
                 0,
                 1,
-                offered - PERIOD_NS,
+                offered - period_ns,
                 offered,
                 offered,
             )

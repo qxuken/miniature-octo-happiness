@@ -32,6 +32,12 @@ const HISTORICAL: &str = "fb80989d98bd977743168ee10418a434a67a0261";
 const CURRENT: &str = "365daf6c8a6b7c85fb049fb5a0370b401dde2424";
 const LABELS: [&str; 2] = ["old", "new"];
 const FIXTURE: &str = "study-cli-upgrade-fixture.rs";
+const PROTOCOL_SOURCE: &str = "apps/study-peer/src/native/protocol.rs";
+// The two audited files differ only inside the inline #[cfg(test)] module.
+const PROTOCOL_TEST_ONLY_CHANGE: (&str, &str) = (
+    "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e",
+    "4517dfe5c848f7033f8b7c80c5a9c0a85b771f1fb6cd9fa28495e7d835e2518a",
+);
 const MARKERS: [&str; 3] = [
     "PASS old-old",
     "PASS reachable mixed-version ALPN",
@@ -79,16 +85,21 @@ fn fixture(helpers: &str, scenario: &str, windows: bool) -> Result<String> {
         .replace(old, "        (log, binary): (&Log, &str),\n    ) -> Self {")
         .replace("Command::new(BIN)", "Command::new(binary)");
     if windows {
+        moved = replace_fixture_once(
+            &moved,
+            "std::env::temp_dir().join",
+            "PathBuf::from(std::env::var_os(\"STUDY_UPGRADE_RUNTIME\").unwrap()).join",
+        )?;
+    }
+    if windows
+        && !moved.starts_with("#![cfg(any(target_os = \"macos\", target_os = \"linux\", windows))]")
+    {
         for (before, after) in [
             (
                 "#![cfg(any(target_os = \"macos\", target_os = \"linux\"))]",
                 "#![cfg(windows)]",
             ),
             ("    os::unix::fs::{DirBuilderExt, PermissionsExt},\n", ""),
-            (
-                "std::env::temp_dir().join",
-                "PathBuf::from(std::env::var_os(\"STUDY_UPGRADE_RUNTIME\").unwrap()).join",
-            ),
             (
                 "fs::DirBuilder::new().mode(0o700).create(&path).unwrap();",
                 "fs::create_dir(&path).unwrap();",
@@ -116,21 +127,48 @@ fn generate(source: &Path, scenario: &Path) -> Result<String> {
     )
 }
 
+fn protocol_source_matches(old: &str, new: &str) -> bool {
+    old == new || (old, new) == PROTOCOL_TEST_ONLY_CHANGE
+}
+
 fn source_locks(source: &Path) -> Result<()> {
-    for name in [
-        "examples/support/study.rs",
-        "src/crdt.rs",
-        "apps/study-peer/src/native/protocol.rs",
-    ] {
+    for name in ["examples/support/study.rs", "src/crdt.rs"] {
         ensure!(
             sha(&source.join("old").join(name))? == sha(&source.join("new").join(name))?,
             "unqualified state/wire source change: {name}"
         );
     }
     ensure!(
-        inventory(&source.join("old/src/crdt"), &[])?
-            == inventory(&source.join("new/src/crdt"), &[])?,
+        protocol_source_matches(
+            &sha(&source.join("old").join(PROTOCOL_SOURCE))?,
+            &sha(&source.join("new").join(PROTOCOL_SOURCE))?,
+        ),
+        "unqualified state/wire source change: {PROTOCOL_SOURCE}"
+    );
+    ensure!(
+        inventory(&source.join("old/src/crdt"), &["decisions.rs"])?
+            == inventory(&source.join("new/src/crdt"), &["decisions.rs"])?,
         "unqualified CRDT container change"
+    );
+    Ok(())
+}
+
+// Cargo's binary depfile includes transitive workspace sources. Check the
+// release build on both endpoints before exempting the CRDT test module.
+fn verify_crdt_inputs(depfile: &str) -> Result<()> {
+    let paths = depfile.replace('\\', "/");
+    let includes = |suffix: &str| {
+        paths
+            .split_ascii_whitespace()
+            .any(|path| path.ends_with(suffix))
+    };
+    ensure!(
+        includes("/src/crdt.rs") && includes("/src/crdt/multi_value_register.rs"),
+        "study binary dependency report is missing CRDT runtime inputs"
+    );
+    ensure!(
+        !includes("/src/crdt/decisions.rs"),
+        "study binary depends on the CRDT test module"
     );
     Ok(())
 }
@@ -240,6 +278,9 @@ fn worker(run: &Run, seed: &Path, work: &Path) -> Result<()> {
                 .join(format!("study-peer{EXE_SUFFIX}"));
             let copied = c.output.join(format!("{label}-study-peer{EXE_SUFFIX}"));
             fs::copy(&binary, &copied)?;
+            let depfile = fs::read_to_string(target.join("release/study-peer.d"))?;
+            verify_crdt_inputs(&depfile)?;
+            fs::write(c.output.join(format!("{label}-study-peer.d")), depfile)?;
             let binary_hash = sha(&binary)?;
             ensure!(
                 sha(&copied)? == binary_hash,
@@ -344,6 +385,9 @@ fn verify_copy(result: &Path, source: &Value, fixture_hash: &str) -> Result<Stri
         "copied artifact inventory differs"
     );
     for label in LABELS {
+        verify_crdt_inputs(&fs::read_to_string(
+            result.join(format!("{label}-study-peer.d")),
+        )?)?;
         let observed = &proof["sources"][label];
         ensure!(
             observed["files"] == source[label]["files"]
@@ -544,6 +588,19 @@ mod tests {
     use crate::support::Scratch;
 
     #[test]
+    fn protocol_source_allows_only_the_reviewed_test_only_transition() {
+        let historical = "3a11026d333bf97ff105748dd38e98023720752bced98b2b12af2a251b55d73e";
+        let test_only = "4517dfe5c848f7033f8b7c80c5a9c0a85b771f1fb6cd9fa28495e7d835e2518a";
+        let unknown = "0000000000000000000000000000000000000000000000000000000000000000";
+
+        assert!(protocol_source_matches(unknown, unknown));
+        assert!(protocol_source_matches(historical, test_only));
+        assert!(!protocol_source_matches(historical, unknown));
+        assert!(!protocol_source_matches(unknown, test_only));
+        assert!(!protocol_source_matches(test_only, historical));
+    }
+
+    #[test]
     fn fixture_requires_one_native_binary_seam_and_preserves_public_oracles() {
         let helper = include_str!("../../apps/study-peer/tests/credential_rotation.rs");
         let scenario = include_str!("../../tools/study-cli-upgrade-fixture.rs");
@@ -556,6 +613,9 @@ mod tests {
         );
         assert!(generated.contains("Command::new(binary)"));
         assert!(!generated.contains("Command::new(BIN)"));
+        let native_windows = fixture(helper, scenario, true).unwrap();
+        assert!(native_windows.contains("STUDY_UPGRADE_RUNTIME"));
+        assert!(!native_windows.contains("std::env::temp_dir().join"));
         assert!(generated.contains("STUDY_OLD_BINARY"));
         assert!(generated.contains("core(root, \"a\")"));
         assert!(fixture("changed helper", scenario, false).is_err());
@@ -570,6 +630,19 @@ mod tests {
     }
 
     #[test]
+    fn release_dependencies_must_include_runtime_and_exclude_the_test_module() {
+        let runtime = r"C:\repo\src\crdt.rs C:\repo\src\crdt\multi_value_register.rs";
+        assert!(verify_crdt_inputs(runtime).is_ok());
+        assert!(verify_crdt_inputs("").is_err());
+        for required in ["crdt.rs", "multi_value_register.rs"] {
+            let renamed = runtime.replace(required, &format!("{required}.old"));
+            assert!(verify_crdt_inputs(&renamed).is_err());
+        }
+        assert!(verify_crdt_inputs(&format!("{runtime} /repo/src/crdt/decisions.rs.old")).is_ok());
+        assert!(verify_crdt_inputs(&format!("{runtime} /repo/src/crdt/decisions.rs")).is_err());
+    }
+
+    #[test]
     fn copied_study_evidence_rejects_mutated_artifact_source_or_fixture() {
         let tmp = Scratch::new(&std::env::temp_dir(), "study-copy").unwrap();
         let root = tmp.path();
@@ -578,6 +651,11 @@ mod tests {
         for label in LABELS {
             let binary = root.join(format!("{label}-study-peer{EXE_SUFFIX}"));
             fs::write(&binary, label.as_bytes()).unwrap();
+            fs::write(
+                root.join(format!("{label}-study-peer.d")),
+                "/repo/src/crdt.rs /repo/src/crdt/multi_value_register.rs",
+            )
+            .unwrap();
             let lock = root.join(format!("{label}-Cargo.lock"));
             fs::write(&lock, b"frozen lock").unwrap();
             let lock_hash = sha(&lock).unwrap();

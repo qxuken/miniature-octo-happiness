@@ -224,3 +224,47 @@ fn native_backup_restore_and_check_run_in_independent_processes() {
     assert!(storage::restore_file(&broken, &absent, Limits::default()).is_err());
     assert!(!absent.exists());
 }
+
+#[test]
+fn backup_verification_read_failure_returns_no_receipt_for_a_durable_copy() {
+    let image = fixture();
+    let source = SimulatedDisk::from_image(&image).unwrap();
+    let clean = SimulatedDisk::new().unwrap();
+    let expected = storage::backup_on(source.clone(), clean.clone(), Limits::default()).unwrap();
+    let trace = clean.trace().unwrap();
+    let last_sync = trace
+        .iter()
+        .rposition(|event| event.kind == IoKind::Sync)
+        .unwrap();
+    let verify_read = trace
+        .iter()
+        .enumerate()
+        .skip(last_sync + 1)
+        .find(|(_, event)| event.kind == IoKind::Read && event.offset == 0)
+        .map(|(step, _)| step)
+        .unwrap();
+
+    let target = SimulatedDisk::new().unwrap();
+    target.arm(verify_read, Fault::Error);
+    assert_eq!(
+        storage::backup_on(source.clone(), target.clone(), Limits::default()),
+        Err(Error::Io)
+    );
+    assert_eq!(target.trace().unwrap(), trace[..=verify_read]);
+    unchanged(&source, &image);
+    target.clear_fault();
+    target.crash(Crash::DropAll).unwrap();
+    assert_eq!(
+        target.durable_image().unwrap(),
+        clean.durable_image().unwrap()
+    );
+    verify_rows(target);
+
+    let retry = SimulatedDisk::new().unwrap();
+    assert_eq!(
+        storage::backup_on(source.clone(), retry.clone(), Limits::default()),
+        Ok(expected)
+    );
+    verify_rows(retry);
+    unchanged(&source, &image);
+}

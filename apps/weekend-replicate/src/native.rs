@@ -67,6 +67,16 @@ fn ack_line(ack: Option<DurableAck>) -> String {
         None => "follower empty".into(),
     }
 }
+fn print_report(args: std::fmt::Arguments<'_>) -> AppResult<()> {
+    write_report(&mut io::stdout().lock(), args)
+}
+fn write_report(output: &mut impl Write, args: std::fmt::Arguments<'_>) -> AppResult<()> {
+    diagnostics::at(Phase::LocalCommand, || {
+        writeln!(output, "{args}")?;
+        output.flush()?;
+        Ok(())
+    })
+}
 fn transport(dir: &OsStr, pin: &OsStr) -> AppResult<Tls> {
     let credentials =
         diagnostics::at(Phase::CredentialsLoad, || Credentials::load(Path::new(dir)))?;
@@ -96,10 +106,7 @@ fn option(
 }
 pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
     match args.as_slice() {
-        [c] if c == "--help" || c == "-h" => {
-            println!("{USAGE}");
-            Ok(())
-        }
+        [c] if c == "--help" || c == "-h" => print_report(format_args!("{USAGE}")),
         [c, dir] if c == "keygen" => diagnostics::at(Phase::CredentialsLoad, || {
             Credentials::create(Path::new(dir))
         }),
@@ -108,39 +115,28 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let info = diagnostics::storage(Phase::StorageVerify, || {
                 weekend_db::storage::inspect_file(source, Limits::default())
             })?;
-            println!(
-                "local verified_revision={} stream={} file_identity={}",
+            print_report(format_args!(
+                "local verified_revision={} stream={} file_identity={}\nweekend-replicate follower-init EMPTY_DIR {} {}",
                 info.revision,
                 hex(&stream),
-                hex(&info.identity)
-            );
-            println!(
-                "weekend-replicate follower-init EMPTY_DIR {} {}",
+                hex(&info.identity),
                 hex(&stream),
                 hex(&info.identity)
-            );
-            Ok(())
+            ))
         }
         [c, dir, stream, file] if c == "follower-init" => {
             let e = enrollment(stream, file)?;
             let f = diagnostics::storage(Phase::StorageCreate, || {
                 Follower::create(dir, e, Limits::default())
             })?;
-            println!("{}", ack_line(f.progress()?));
-            Ok(())
+            print_report(format_args!("{}", ack_line(f.progress()?)))
         }
         [c, dir, stream, file] if c == "status" => {
             let e = enrollment(stream, file)?;
             let f = diagnostics::storage(Phase::StorageOpen, || {
                 Follower::open(dir, e, Limits::default())
             })?;
-            let s = f.status()?;
-            println!("{}", ack_line(s.durable_ack));
-            println!(
-                "status requires_recovery={} manifest_bytes={} maintenance_required={} selected_slot={:?}",
-                s.requires_recovery, s.manifest_bytes, s.maintenance_required, s.selected_slot
-            );
-            Ok(())
+            report_follower_status(&f, &mut io::stdout().lock())
         }
         [c, dir, stream, file] if c == "cleanup-inactive" => {
             let e = enrollment(stream, file)?;
@@ -148,9 +144,10 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 Follower::open(dir, e, Limits::default())
             })?;
             let removed = diagnostics::storage(Phase::Maintenance, || f.cleanup_inactive())?;
-            println!("maintenance removed_inactive={removed}");
-            println!("{}", ack_line(f.progress()?));
-            Ok(())
+            print_report(format_args!(
+                "maintenance removed_inactive={removed}\n{}",
+                ack_line(f.progress()?)
+            ))
         }
         [c, dir, stream, file] if c == "compact-manifest" => {
             #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -159,15 +156,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 let f = diagnostics::storage(Phase::StorageOpen, || {
                     Follower::open(dir, e, Limits::default())
                 })?;
-                let before = f.status()?.manifest_bytes;
-                let f = diagnostics::storage(Phase::Maintenance, || f.compact_manifest())?;
-                let after = f.status()?;
-                println!(
-                    "maintenance manifest_before={before} manifest_after={} maintenance_required={}",
-                    after.manifest_bytes, after.maintenance_required
-                );
-                println!("{}", ack_line(after.durable_ack));
-                Ok(())
+                compact_follower_with(f, Follower::compact_manifest, &mut io::stdout().lock())
             }
             #[cfg(windows)]
             {
@@ -202,13 +191,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let prepared = prepare(source.as_ref(), stream, export.as_ref())?;
             let capture = prepared.export.descriptor();
             capture_record::store(Path::new(descriptor), capture)?;
-            announce(&prepared)?;
-            println!(
-                "local export_length={} export_digest={}",
-                capture.length,
-                hex(&capture.digest)
-            );
-            Ok(())
+            report_capture(&prepared, &mut io::stdout().lock())
         }
         [
             c,
@@ -230,6 +213,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 &tls,
                 address,
                 attempts,
+                &mut io::stdout(),
                 "Export file retained. Use capture to preserve a descriptor for a future restart.",
             )
         }
@@ -259,6 +243,7 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
                 &tls,
                 address,
                 attempts,
+                &mut io::stdout(),
                 "Export and descriptor retained. Retry with ship-captured.",
             )
         }
@@ -273,29 +258,86 @@ pub(crate) fn main(args: Vec<std::ffi::OsString>) -> AppResult<()> {
             let mut primary =
                 diagnostics::storage(Phase::Replication, || Primary::new(&db, stream))?;
             drop(db);
-            println!("local verified_revision={revision}");
-            let channel = diagnostics::at(Phase::Connect, || tls.connect(address))?;
-            let ack = diagnostics::storage(Phase::Replication, || primary.poll(channel))?;
-            println!("{}", ack_line(ack));
-            Ok(())
+            poll(&mut primary, &tls, address, revision, &mut io::stdout())
         }
         _ => Err(USAGE.into()),
     }
 }
+fn report_follower_status(follower: &Follower, output: &mut impl Write) -> AppResult<()> {
+    let status = diagnostics::storage(Phase::StorageVerify, || follower.status())?;
+    write_report(
+        output,
+        format_args!(
+            "{}\nstatus requires_recovery={} manifest_bytes={} maintenance_required={} selected_slot={:?}",
+            ack_line(status.durable_ack),
+            status.requires_recovery,
+            status.manifest_bytes,
+            status.maintenance_required,
+            status.selected_slot
+        ),
+    )
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn compact_follower_with(
+    follower: Follower,
+    compact: impl FnOnce(Follower) -> weekend_db::Result<Follower>,
+    output: &mut impl Write,
+) -> AppResult<()> {
+    let before = diagnostics::storage(Phase::Maintenance, || follower.status())?.manifest_bytes;
+    let follower = diagnostics::storage(Phase::Maintenance, || compact(follower))?;
+    let after = diagnostics::storage(Phase::Maintenance, || follower.status())?;
+    write_report(
+        output,
+        format_args!(
+            "maintenance manifest_before={before} manifest_after={} maintenance_required={}\n{}",
+            after.manifest_bytes,
+            after.maintenance_required,
+            ack_line(after.durable_ack),
+        ),
+    )
+}
+
+fn poll(
+    primary: &mut Primary,
+    tls: &Tls,
+    address: SocketAddr,
+    revision: u64,
+    output: &mut impl Write,
+) -> AppResult<()> {
+    write_report(output, format_args!("local verified_revision={revision}"))?;
+    let channel = diagnostics::at(Phase::Connect, || tls.connect(address))?;
+    let ack = diagnostics::storage(Phase::Replication, || primary.poll(channel))?;
+    write_report(output, format_args!("{}", ack_line(ack)))
+}
+
 struct Prepared {
     primary: Primary,
     export: Export,
 }
-fn announce(prepared: &Prepared) -> AppResult<()> {
+fn announce(prepared: &Prepared, output: &mut impl Write) -> AppResult<()> {
     let e = prepared.primary.enrollment();
-    println!(
+    writeln!(
+        output,
         "local captured_revision={} stream={} file_identity={}",
         prepared.export.revision(),
         hex(&e.stream_id),
         hex(&e.file_identity),
-    );
-    io::stdout().flush()?;
+    )?;
+    output.flush()?;
     Ok(())
+}
+fn report_capture(prepared: &Prepared, output: &mut impl Write) -> AppResult<()> {
+    diagnostics::at(Phase::LocalCommand, || announce(prepared, output))?;
+    let capture = prepared.export.descriptor();
+    write_report(
+        output,
+        format_args!(
+            "local export_length={} export_digest={}",
+            capture.length,
+            hex(&capture.digest)
+        ),
+    )
 }
 fn prepare(source: &Path, stream: [u8; 16], destination: &Path) -> AppResult<Prepared> {
     let mut db = diagnostics::storage(Phase::StorageOpen, || {
@@ -328,16 +370,20 @@ fn deliver(
     tls: &Tls,
     address: SocketAddr,
     attempts: usize,
+    output: &mut impl Write,
     context: &str,
 ) -> AppResult<()> {
-    announce(&prepared)?;
+    diagnostics::at(Phase::LocalCommand, || announce(&prepared, output))?;
     let ack = ship(&mut prepared, tls, address, attempts).map_err(|error| {
         if diagnostics::settings().enabled { error } else {
             format!("transfer not confirmed; follower outcome may be uncertain: {error}. Poll on a fresh authenticated connection. {context}").into()
         }
     })?;
-    println!("{}", ack_line(Some(ack)));
-    Ok(())
+    diagnostics::at(Phase::LocalCommand, || {
+        writeln!(output, "{}", ack_line(Some(ack)))?;
+        output.flush()?;
+        Ok(())
+    })
 }
 fn ship(
     prepared: &mut Prepared,
@@ -345,13 +391,21 @@ fn ship(
     address: SocketAddr,
     attempts: usize,
 ) -> AppResult<DurableAck> {
-    for attempt in 0..attempts {
-        let result = diagnostics::at(Phase::Connect, || tls.connect(address)).and_then(|channel| {
+    retry_ship(attempts, &mut io::stderr(), || {
+        diagnostics::at(Phase::Connect, || tls.connect(address)).and_then(|channel| {
             Ok(diagnostics::storage(Phase::Replication, || {
                 prepared.primary.ship(&mut prepared.export, channel)
             })?)
-        });
-        match result {
+        })
+    })
+}
+fn retry_ship(
+    attempts: usize,
+    report: &mut impl Write,
+    mut exchange: impl FnMut() -> AppResult<DurableAck>,
+) -> AppResult<DurableAck> {
+    for attempt in 0..attempts {
+        match exchange() {
             Ok(ack) => return Ok(ack),
             Err(error) => {
                 let permanent = error.downcast_ref::<Error>().is_some_and(|e| {
@@ -369,7 +423,8 @@ fn ship(
                 if permanent || attempt + 1 == attempts {
                     return Err(error);
                 }
-                eprintln!(
+                let _ = writeln!(
+                    report,
                     "exchange unconfirmed; reconnecting with the same export (attempt {})",
                     attempt + 2
                 );
@@ -404,10 +459,32 @@ fn serve_one(follower: &mut Follower, tls: &Tls, socket: TcpStream) -> Result<()
         .map_err(SessionError::Replication)
 }
 fn serve(follower: Follower, address: SocketAddr, tls: &Tls, maximum: usize) -> AppResult<()> {
-    let listener = diagnostics::at(Phase::Listen, || Ok(TcpListener::bind(address)?))?;
-    listener.set_nonblocking(true)?;
-    println!("ready {}", listener.local_addr()?);
-    io::stdout().flush()?;
+    serve_with(
+        follower,
+        address,
+        tls,
+        maximum,
+        |listener| listener.set_nonblocking(true),
+        TcpListener::local_addr,
+        &mut io::stdout(),
+    )
+}
+fn serve_with(
+    follower: Follower,
+    address: SocketAddr,
+    tls: &Tls,
+    maximum: usize,
+    nonblocking: impl FnOnce(&TcpListener) -> io::Result<()>,
+    bound_address: impl FnOnce(&TcpListener) -> io::Result<SocketAddr>,
+    output: &mut impl Write,
+) -> AppResult<()> {
+    let (listener, address) = diagnostics::at(Phase::Listen, || {
+        let listener = TcpListener::bind(address)?;
+        nonblocking(&listener)?;
+        let address = bound_address(&listener)?;
+        Ok((listener, address))
+    })?;
+    write_report(output, format_args!("ready {address}"))?;
     diagnostics::at(Phase::Replication, || {
         admission::serve(listener, follower, tls, maximum)
     })

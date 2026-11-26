@@ -726,3 +726,41 @@ fn wrapper_allocation_failures_abort_drafts_before_primary_index_or_migration_ca
         assert!(succeeded, "operation={operation}");
     }
 }
+
+#[test]
+fn schema_field_iteration_releases_scratch_at_every_allocation_refusal() {
+    fn sweep(allocator: &TestAllocator, operation: impl Fn() -> Result<(), Error>) {
+        let live = allocator.live_bytes();
+        let before = allocator.requests();
+        operation().unwrap();
+        let requests = allocator.requests() - before;
+        assert!(requests > 0);
+        for allowed in 0..requests {
+            let (result, observed) = allocator.count_with_refusal(allowed, &operation);
+            assert_eq!(result, Err(Error::Engine(EngineError::OutOfMemory)));
+            assert!(observed > allowed);
+            assert_eq!(allocator.live_bytes(), live);
+        }
+        operation().unwrap();
+        assert_eq!(allocator.live_bytes(), live);
+    }
+
+    let allocator = Arc::new(TestAllocator::default());
+    let db = Database::with_options(allocator.options()).unwrap();
+    let fields = [spec(1, "score", Kind::Unsigned)];
+    let old = Schema::build(&db, 17, 1, &fields, &[]).unwrap();
+    let next = Schema::build(&db, 17, 2, &fields, &[]).unwrap();
+    let record = Record::new(&db, &old)
+        .unwrap()
+        .set(1, &db.unsigned(7).unwrap())
+        .unwrap();
+
+    sweep(&allocator, || {
+        Schema::from_value(old.as_value().clone()).map(drop)
+    });
+    sweep(&allocator, || next.successor_of(&old));
+    sweep(&allocator, || old.validate(&record));
+    sweep(&allocator, || {
+        Record::from_value(record.as_value().clone()).map(drop)
+    });
+}

@@ -145,7 +145,12 @@ fn historical_rows_in_scope(text: &str, file: &str, d: &Value, single_source: bo
         }
         let cells = row
             .split('|')
-            .map(|c| c.trim().trim_matches('`'))
+            .map(str::trim)
+            .map(|cell| {
+                cell.strip_prefix('`')
+                    .and_then(|s| s.strip_suffix('`'))
+                    .unwrap_or(cell)
+            })
             .collect::<Vec<_>>();
         if let Some(column) = cells.iter().position(|c| c.eq_ignore_ascii_case("target")) {
             target_column = Some(column);
@@ -202,7 +207,7 @@ fn historical_rows_in_scope(text: &str, file: &str, d: &Value, single_source: bo
         let position = format!("{}:{}", d["location"]["line"], d["location"]["column"]);
         let exact_position = span
             .strip_prefix(&position)
-            .is_some_and(|rest| rest.as_bytes().first().is_some_and(|b| !b.is_ascii_digit()));
+            .is_some_and(|rest| !rest.as_bytes().first().is_some_and(u8::is_ascii_digit));
         let numeric = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
         let has_bytes = cells.iter().any(|cell| {
             cell.split_once("..")
@@ -217,7 +222,7 @@ fn historical_rows_in_scope(text: &str, file: &str, d: &Value, single_source: bo
                     })
         });
         let identity = if has_bytes {
-            cells.contains(&byte_range.as_str()) || row.contains(&bracket_range)
+            exact_position && (cells.contains(&byte_range.as_str()) || row.contains(&bracket_range))
         } else {
             exact_position
         };
@@ -409,6 +414,7 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
         references.contains_key("xtask/tests/mutations.json"),
         "mutation fixture must be pinned",
     )?;
+    coordinator_source_pins(root, &mutations, &sources, &references)?;
     let decisions = report["decisions"].as_array().ok_or("decisions required")?;
     let mut ids = BTreeSet::new();
     let source_bytes = sources
@@ -582,6 +588,55 @@ pub(super) fn reconcile(root: &Path, report: &Value, manifest: &Value) -> Result
     }
     Ok(result)
 }
+const COORDINATOR_ORACLE: &str = "xtask/tests/coordinator-windows-oracle.json";
+
+fn coordinator_source_pins(
+    root: &Path,
+    mutations: &Value,
+    sources: &BTreeMap<String, String>,
+    references: &BTreeMap<String, String>,
+) -> Result<()> {
+    let files = mutations["cases"]
+        .as_array()
+        .ok_or("mutation cases required")?
+        .iter()
+        .filter(|case| {
+            case["name"]
+                .as_str()
+                .is_some_and(|name| name.starts_with("r1-coordinator-"))
+        })
+        .map(|case| {
+            case["file"]
+                .as_str()
+                .ok_or("coordinator source path required")
+        })
+        .collect::<std::result::Result<BTreeSet<_>, _>>()?;
+    if files.is_empty() && !references.contains_key(COORDINATOR_ORACLE) {
+        return Ok(());
+    }
+    ensure(
+        references.contains_key(COORDINATOR_ORACLE),
+        "Windows coordinator oracle must be pinned",
+    )?;
+    let oracle: Value = serde_json::from_slice(&read(root, COORDINATOR_ORACLE)?)?;
+    let pins = oracle["source_sha256"]
+        .as_object()
+        .ok_or("Windows coordinator source pins required")?;
+    for file in &files {
+        let current = sources
+            .get(*file)
+            .ok_or_else(|| format!("Windows coordinator source outside inventory: {file}"))?;
+        ensure(
+            pins.get(*file).and_then(Value::as_str) == Some(current.as_str()),
+            format!("stale Windows coordinator source pin: {file}"),
+        )?;
+    }
+    ensure(
+        !files.is_empty() && files.len() == pins.len(),
+        "Windows coordinator oracle source set differs from mutation inventory",
+    )
+}
+
 pub(super) fn markdown(review: &Value) -> String {
     let mut out = format!(
         "# Current source reconciliation\n\nBaseline `{}`. References preserve their original scope; source matching does not establish test execution or compiler MC/DC.\n\n| Scope | Source records |\n|---|---:|\n",
@@ -725,6 +780,52 @@ mod tests {
         }
     }
     #[test]
+    fn windows_coordinator_oracle_must_match_the_current_reviewed_source() {
+        let mut fixture = Fixture::new();
+        let mutation_path = "xtask/tests/mutations.json";
+        let mut mutations: Value =
+            serde_json::from_slice(&read(&fixture.root, mutation_path).unwrap()).unwrap();
+        mutations["cases"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"name":"r1-coordinator-fixture","file":"lib.rs"}));
+        let bytes = serde_json::to_vec(&mutations).unwrap();
+        fs::write(fixture.root.join(mutation_path), &bytes).unwrap();
+        fixture.manifest["reference_files"][mutation_path] = json!(hash(&bytes));
+        assert!(
+            fixture
+                .review()
+                .unwrap_err()
+                .to_string()
+                .contains("oracle must be pinned")
+        );
+
+        let source = fixture.manifest["source_files"]["lib.rs"].clone();
+        for (pins, expected_error) in [
+            (json!({"lib.rs":source}), None),
+            (
+                json!({"lib.rs":"0".repeat(64)}),
+                Some("stale Windows coordinator source pin: lib.rs"),
+            ),
+            (
+                json!({"lib.rs":source, "unused.rs":"0".repeat(64)}),
+                Some("source set differs"),
+            ),
+        ] {
+            let bytes = serde_json::to_vec(&json!({"source_sha256":pins})).unwrap();
+            fs::write(fixture.root.join(COORDINATOR_ORACLE), &bytes).unwrap();
+            // Even a current outer pin must not authorize an obsolete inner pin.
+            fixture.manifest["reference_files"][COORDINATOR_ORACLE] = json!(hash(&bytes));
+            let result = fixture.review();
+            if let Some(expected_error) = expected_error {
+                assert!(result.unwrap_err().to_string().contains(expected_error));
+            } else {
+                result.unwrap();
+            }
+        }
+    }
+
+    #[test]
     fn historical_rows_require_exact_positions_owners_and_target_profiles() {
         let f = Fixture::new();
         let d = f.report["decisions"]
@@ -758,6 +859,31 @@ mod tests {
         assert!(historical_rows(&format!("{text}\n{row}"), "lib.rs", d).is_empty());
         assert!(historical_rows("| P | if | check | 935f68319d4f |", "lib.rs", d).is_empty());
     }
+    #[test]
+    fn typed_appendix_requires_the_exact_owner_position_and_byte_range() {
+        let f = Fixture::new();
+        let d = f.report["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["kind"] == "if")
+            .unwrap();
+        let l = &d["location"];
+        let row = format!(
+            "| lib.rs:{}:{} [{}–{}] | if / `check` | P | T2 |",
+            l["line"], l["column"], l["start_byte"], l["end_byte"]
+        );
+        assert_eq!(historical_rows(&row, "lib.rs", d).len(), 1);
+        for wrong in [
+            row.replace("`check`", "`check_extra`"),
+            row.replace("lib.rs:", "other.rs:"),
+            row.replace("lib.rs:", "lib.rs:9"),
+            row.replace(']', "0]"),
+        ] {
+            assert!(historical_rows(&wrong, "lib.rs", d).is_empty(), "{wrong}");
+        }
+    }
+
     #[test]
     fn exact_source_pairs_keep_references_residuals_and_execution_scope_separate() {
         let f = Fixture::new();
