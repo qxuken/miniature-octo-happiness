@@ -15,7 +15,7 @@
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
     "apps/weekend-replicate/src/native.rs": "1bc1c4acbb9396680175062487e6eb8920faf843390084a0206e442dd6a64a22",
-    "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
+    "apps/weekend-replicate/src/native/admission.rs": "1f8a4b980720e8fa5fee5aa7325af7390597dcb0f021ed990b40691677a0ad5a",
     "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
     "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
     "apps/weekend-tasks/src/lib.rs": "887d9ce8c80ae6b4d92166e5c6947dce64dbf0611fd393559b8510d23d1980c6",
@@ -436,7 +436,7 @@
     "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1",
     "docs/decisions/snapshot-network-admission-current.md": "9e8ad4ed48298b6a311f35374d85e243b34e0d42a061aa3c2979649aad1e14a9",
     "docs/decisions/snapshot-command-effects-current.md": "d7b27490c1622ad5f9e2e8eda55f787b136dd2c3e8bfde25bdaf61072aa6b1c9",
-    "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
+    "apps/weekend-replicate/src/native/admission.rs": "1f8a4b980720e8fa5fee5aa7325af7390597dcb0f021ed990b40691677a0ad5a",
     "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
     "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
     "apps/support/pinned_tls.rs": "c96c908c2d18af6ebf31d4dbaf0d3bcf56cfd395cf6b5ee29fe2b73f0416192c",
@@ -463,7 +463,8 @@
     "docs/decisions/shared-tls-credential-io-c6869a2.sha256": "c80b5745bdd81dcee5e202c3cbc083f4a6ec4c1a1262cab65545299048f6354b",
     "docs/decisions/shared-tls-handshake-current.md": "e643c26ab4850d287963fb9ba1d558d92a9fbf96b190297f3edcd9352a35955f",
     "docs/decisions/shared-tls-handshake-0fe8b54.sha256": "ff29e6f007d4a2a3e1caa4cb89dc115ac7b44287b18b0d012023c1351bcb49eb",
-    "docs/decisions/shared-tls-transport-current.md": "4b98226730df3d869b77c3a518770a746584f81cce242f18e5dd72aaae1cc874"
+    "docs/decisions/shared-tls-transport-current.md": "4b98226730df3d869b77c3a518770a746584f81cce242f18e5dd72aaae1cc874",
+    "docs/decisions/snapshot-reaper-fixture-current.md": "3a22f607854fc718b61412880e14ac4647fe0557a0e437be5b2cf6289a9b099c"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -972,7 +973,8 @@
         "docs/decisions/snapshot-listener-current.md",
         "docs/decisions/snapshot-network-admission-current.md",
         "docs/decisions/snapshot-command-effects-current.md",
-        "docs/decisions/snapshot-admission-retirement-current.md"
+        "docs/decisions/snapshot-admission-retirement-current.md",
+        "docs/decisions/snapshot-reaper-fixture-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },

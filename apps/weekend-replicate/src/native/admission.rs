@@ -669,7 +669,7 @@ mod tests {
         let (listener, address) = listener();
         let connected = TcpStream::connect(address).unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
-        let mut first = true;
+        let mut force_retry = true;
         let error = admit_with(
             listener,
             &server,
@@ -680,20 +680,27 @@ mod tests {
                 Ok(())
             },
             AdmissionIo {
-                wait: |_: &TcpListener, _, _: &FollowerThread<'_>| {
+                wait: |listener: &TcpListener, wait, worker: &FollowerThread<'_>| {
                     assert!(
                         Instant::now() < deadline,
                         "reaper left the listener running"
                     );
-                    thread::yield_now();
-                    Ok(std::mem::take(&mut first))
+                    wait_for_connection(listener, wait, worker)
                 },
-                accept: TcpListener::accept,
+                accept: |listener: &TcpListener| {
+                    // Simulate readiness which disappears before accept.
+                    if std::mem::take(&mut force_retry) {
+                        Err(io::ErrorKind::WouldBlock.into())
+                    } else {
+                        listener.accept()
+                    }
+                },
                 worker: |_: &str| Ok(thread::Builder::new()),
                 handshake: |_: &Tls, _: TcpStream, _, _| panic!("controlled acceptance panic"),
             },
         )
         .unwrap_err();
+        assert!(!force_retry, "the transient refusal was skipped");
         assert_eq!(error.to_string(), "snapshot TLS worker panicked");
         assert_closed(connected);
     }
