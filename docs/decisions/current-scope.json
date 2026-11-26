@@ -9,7 +9,7 @@
     "apps/study-peer/src/native/roster.rs": "2e832210576c1b352b20613ec3fadf7a6f9a018a7fb552c97dd198ac4ed2417e",
     "apps/study-peer/src/native/tls.rs": "e16a32ddc4eea72c0497b2706a9640ea6959d02d8d60a374dcbb4f9c7be7bf05",
     "apps/support/listener_ready.rs": "0ea50472dbdbf0a26d98252bf93909e4b090fb675024d12ccc206f9de79c8dd9",
-    "apps/support/pinned_tls.rs": "309e4f892388147b5061652c30e11b4fb8bf3775458e01294f6744da2a6df39d",
+    "apps/support/pinned_tls.rs": "c96c908c2d18af6ebf31d4dbaf0d3bcf56cfd395cf6b5ee29fe2b73f0416192c",
     "apps/support/service_diagnostics.rs": "fb80728e4368315a21775a33e08081f321717c05066f9a06f49107c84c6bf4a9",
     "apps/weekend-replicate/examples/live_month.rs": "452ca13b7f1c02bfe3cbb31bd3634d259bc46e413732a5fbf1b1f401e3d5a358",
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "c169587020d1de544f9bc31caf30a1a72cce995311cf4afb081f0dc388c67921",
+    "xtask/tests/mutations.json": "c70adb66e7176b4536b70645476fbc52c4a843d328b03caedc23ac337a4a0f79",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -439,7 +439,7 @@
     "apps/weekend-replicate/src/native/admission.rs": "2750283885e215f7bef0331283c9386cdfdf22d5161af2ce64d6bf5f588a995f",
     "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
     "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
-    "apps/support/pinned_tls.rs": "309e4f892388147b5061652c30e11b4fb8bf3775458e01294f6744da2a6df39d",
+    "apps/support/pinned_tls.rs": "c96c908c2d18af6ebf31d4dbaf0d3bcf56cfd395cf6b5ee29fe2b73f0416192c",
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
     "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
@@ -462,14 +462,15 @@
     "docs/decisions/shared-tls-credential-io-current.md": "be4b50c2945ceed5b6e373e412ed002746af7455aaf1b6a0018c9e2c6e2eba1d",
     "docs/decisions/shared-tls-credential-io-c6869a2.sha256": "c80b5745bdd81dcee5e202c3cbc083f4a6ec4c1a1262cab65545299048f6354b",
     "docs/decisions/shared-tls-handshake-current.md": "e643c26ab4850d287963fb9ba1d558d92a9fbf96b190297f3edcd9352a35955f",
-    "docs/decisions/shared-tls-handshake-0fe8b54.sha256": "ff29e6f007d4a2a3e1caa4cb89dc115ac7b44287b18b0d012023c1351bcb49eb"
+    "docs/decisions/shared-tls-handshake-0fe8b54.sha256": "ff29e6f007d4a2a3e1caa4cb89dc115ac7b44287b18b0d012023c1351bcb49eb",
+    "docs/decisions/shared-tls-transport-current.md": "4b98226730df3d869b77c3a518770a746584f81cce242f18e5dd72aaae1cc874"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
     "monthly-workload::monthly-workload": 25,
     "private-rust-consumer::private-rust-consumer": 34,
     "replica-progress-fixture::replica-progress-fixture": 2,
-    "study-peer::study-peer": 305,
+    "study-peer::study-peer": 304,
     "typed-renamed-consumer::typed-renamed-consumer": 3,
     "weekend-atomic-model::budget": 6,
     "weekend-atomic-model::weekend-atomic-model": 11,
@@ -520,8 +521,8 @@
     "weekend-decision-inventory::weekend-decision-inventory": 413,
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
-    "weekend-replicate::live_month": 128,
-    "weekend-replicate::weekend-replicate": 253,
+    "weekend-replicate::live_month": 127,
+    "weekend-replicate::weekend-replicate": 252,
     "weekend-resource-envelope::build-script-build": 1,
     "weekend-resource-envelope::weekend-compound-resource": 227,
     "weekend-resource-envelope::weekend-resource-envelope": 30,
@@ -1026,7 +1027,8 @@
         "docs/decisions/shared-tls-config-current.md",
         "docs/decisions/coordinator-platform-signals-current.md",
         "docs/decisions/shared-tls-credential-io-current.md",
-        "docs/decisions/shared-tls-handshake-current.md"
+        "docs/decisions/shared-tls-handshake-current.md",
+        "docs/decisions/shared-tls-transport-current.md"
       ],
       "residual": "TLS dependency/native outcomes and generated logging/error branches are not inferred covered for every binary."
     },
@@ -1169,7 +1171,8 @@
         "docs/decision-inventory-catalog.md",
         "docs/mutations.md",
         "tools/decision-inventory/tests/catalog.rs",
-        "docs/decisions/public-allocation-hook-retirement.md"
+        "docs/decisions/public-allocation-hook-retirement.md",
+        "docs/decisions/shared-tls-transport-current.md"
       ],
       "residual": "Additional Cargo target contexts and oracle/consumer code retain individual G obligations. Macro expansion, compiled configurations and delegated/native behavior need separate qualification."
     }
@@ -32058,7 +32061,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 10857,
+        "start_byte": 12647,
         "conditions": [
           "fs::metadata(path)"
         ]
@@ -32081,7 +32084,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 10835,
+        "start_byte": 12625,
         "conditions": [
           "!fs::metadata(path)?.is_file()"
         ]
@@ -32118,7 +32121,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11190,
+        "start_byte": 12980,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32166,7 +32169,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "short_circuit_and",
-        "start_byte": 11193,
+        "start_byte": 12983,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32214,7 +32217,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11481,
+        "start_byte": 13271,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32262,7 +32265,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "short_circuit_or",
-        "start_byte": 11484,
+        "start_byte": 13274,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32310,7 +32313,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 10857,
+        "start_byte": 12647,
         "conditions": [
           "fs::metadata(path)"
         ]
@@ -32333,7 +32336,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 10835,
+        "start_byte": 12625,
         "conditions": [
           "!fs::metadata(path)?.is_file()"
         ]
@@ -32370,7 +32373,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11190,
+        "start_byte": 12980,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32418,7 +32421,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "short_circuit_and",
-        "start_byte": 11193,
+        "start_byte": 12983,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -32466,7 +32469,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11481,
+        "start_byte": 13271,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -32514,7 +32517,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "short_circuit_or",
-        "start_byte": 11484,
+        "start_byte": 13274,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -36689,7 +36692,7 @@
         "target": "study-peer::study-peer",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 7199,
+        "start_byte": 8557,
         "conditions": [
           "stream.sock.remaining()"
         ]
@@ -36712,7 +36715,7 @@
         "target": "study-peer::study-peer",
         "owner": "read",
         "kind": "try_propagation",
-        "start_byte": 7695,
+        "start_byte": 9053,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36735,7 +36738,7 @@
         "target": "study-peer::study-peer",
         "owner": "write",
         "kind": "try_propagation",
-        "start_byte": 7909,
+        "start_byte": 9267,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36758,7 +36761,7 @@
         "target": "study-peer::study-peer",
         "owner": "flush",
         "kind": "try_propagation",
-        "start_byte": 8020,
+        "start_byte": 9378,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -36781,7 +36784,7 @@
         "target": "study-peer::study-peer",
         "owner": "remaining",
         "kind": "if",
-        "start_byte": 8580,
+        "start_byte": 9938,
         "conditions": [
           "remaining.is_zero()"
         ]
@@ -36818,7 +36821,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "try_propagation",
-        "start_byte": 8917,
+        "start_byte": 10275,
         "conditions": [
           "self.remaining()"
         ]
@@ -36841,7 +36844,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "if",
-        "start_byte": 8932,
+        "start_byte": 10290,
         "conditions": [
           "let Some(canceled) = &self.cancellation"
         ]
@@ -36878,7 +36881,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "if",
-        "start_byte": 8993,
+        "start_byte": 10351,
         "conditions": [
           "canceled.load(Relaxed)"
         ]
@@ -36915,7 +36918,7 @@
         "target": "study-peer::study-peer",
         "owner": "io",
         "kind": "match_guard",
-        "start_byte": 9291,
+        "start_byte": 10649,
         "conditions": [
           "self.cancellation.is_some()",
           "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
@@ -36965,7 +36968,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "new",
         "kind": "try_propagation",
-        "start_byte": 7199,
+        "start_byte": 8557,
         "conditions": [
           "stream.sock.remaining()"
         ]
@@ -36988,7 +36991,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "read",
         "kind": "try_propagation",
-        "start_byte": 7695,
+        "start_byte": 9053,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37011,7 +37014,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "write",
         "kind": "try_propagation",
-        "start_byte": 7909,
+        "start_byte": 9267,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37034,7 +37037,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "flush",
         "kind": "try_propagation",
-        "start_byte": 8020,
+        "start_byte": 9378,
         "conditions": [
           "self.0.sock.remaining()"
         ]
@@ -37057,7 +37060,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "remaining",
         "kind": "if",
-        "start_byte": 8580,
+        "start_byte": 9938,
         "conditions": [
           "remaining.is_zero()"
         ]
@@ -37094,7 +37097,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "try_propagation",
-        "start_byte": 8917,
+        "start_byte": 10275,
         "conditions": [
           "self.remaining()"
         ]
@@ -37117,7 +37120,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "if",
-        "start_byte": 8932,
+        "start_byte": 10290,
         "conditions": [
           "let Some(canceled) = &self.cancellation"
         ]
@@ -37154,7 +37157,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "if",
-        "start_byte": 8993,
+        "start_byte": 10351,
         "conditions": [
           "canceled.load(Relaxed)"
         ]
@@ -37191,7 +37194,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "io",
         "kind": "match_guard",
-        "start_byte": 9291,
+        "start_byte": 10649,
         "conditions": [
           "self.cancellation.is_some()",
           "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
@@ -37308,9 +37311,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "new",
+        "owner": "configure",
         "kind": "if",
-        "start_byte": 2941,
+        "start_byte": 3481,
         "conditions": [
           "peer == local.cert"
         ]
@@ -37345,9 +37348,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "new",
+        "owner": "configure",
         "kind": "try_propagation",
-        "start_byte": 3127,
+        "start_byte": 3667,
         "conditions": [
           "roots.add(peer.clone())"
         ]
@@ -37368,9 +37371,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "study-peer::study-peer",
-        "owner": "new",
+        "owner": "configure",
         "kind": "try_propagation",
-        "start_byte": 3313,
+        "start_byte": 3853,
         "conditions": [
           "ClientConfig::builder()\n            .with_root_certificates(roots.clone())\n            .with_client_auth_cert(vec![local.cert.clone()], local.key.clone_key())"
         ]
@@ -37393,7 +37396,7 @@
         "target": "study-peer::study-peer",
         "owner": "connect",
         "kind": "try_propagation",
-        "start_byte": 4052,
+        "start_byte": 4474,
         "conditions": [
           "TcpStream::connect_timeout(&address, TIMEOUT)"
         ]
@@ -37416,7 +37419,7 @@
         "target": "study-peer::study-peer",
         "owner": "check_pin",
         "kind": "if",
-        "start_byte": 6802,
+        "start_byte": 8160,
         "conditions": [
           "chain.and_then(|certs| certs.first()) == Some(&self.peer)"
         ]
@@ -37520,9 +37523,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "new",
+        "owner": "configure",
         "kind": "if",
-        "start_byte": 2941,
+        "start_byte": 3481,
         "conditions": [
           "peer == local.cert"
         ]
@@ -37557,9 +37560,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "new",
+        "owner": "configure",
         "kind": "try_propagation",
-        "start_byte": 3127,
+        "start_byte": 3667,
         "conditions": [
           "roots.add(peer.clone())"
         ]
@@ -37580,9 +37583,9 @@
       "selector": {
         "file": "apps/support/pinned_tls.rs",
         "target": "weekend-replicate::weekend-replicate",
-        "owner": "new",
+        "owner": "configure",
         "kind": "try_propagation",
-        "start_byte": 3313,
+        "start_byte": 3853,
         "conditions": [
           "ClientConfig::builder()\n            .with_root_certificates(roots.clone())\n            .with_client_auth_cert(vec![local.cert.clone()], local.key.clone_key())"
         ]
@@ -37605,7 +37608,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "connect",
         "kind": "try_propagation",
-        "start_byte": 4052,
+        "start_byte": 4474,
         "conditions": [
           "TcpStream::connect_timeout(&address, TIMEOUT)"
         ]
@@ -37628,7 +37631,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "check_pin",
         "kind": "if",
-        "start_byte": 6802,
+        "start_byte": 8160,
         "conditions": [
           "chain.and_then(|certs| certs.first()) == Some(&self.peer)"
         ]
@@ -42534,7 +42537,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 10857,
+        "start_byte": 12647,
         "conditions": [
           "fs::metadata(path)"
         ]
@@ -42557,7 +42560,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 10835,
+        "start_byte": 12625,
         "conditions": [
           "!fs::metadata(path)?.is_file()"
         ]
@@ -42594,7 +42597,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11190,
+        "start_byte": 12980,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -42642,7 +42645,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "short_circuit_and",
-        "start_byte": 11193,
+        "start_byte": 12983,
         "conditions": [
           "private",
           "metadata.permissions().mode() & 0o077 != 0"
@@ -42690,7 +42693,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11481,
+        "start_byte": 13271,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -42738,7 +42741,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "short_circuit_or",
-        "start_byte": 11484,
+        "start_byte": 13274,
         "conditions": [
           "bytes.is_empty()",
           "bytes.len() > limit"
@@ -42970,7 +42973,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 10966,
+        "start_byte": 12756,
         "conditions": [
           "open(path)"
         ]
@@ -42993,7 +42996,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 11010,
+        "start_byte": 12800,
         "conditions": [
           "opened_metadata(&file)"
         ]
@@ -43016,7 +43019,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 11474,
+        "start_byte": 13264,
         "conditions": [
           "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
         ]
@@ -43039,7 +43042,7 @@
         "target": "study-peer::study-peer",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11017,
+        "start_byte": 12807,
         "conditions": [
           "!metadata.is_file()"
         ]
@@ -43191,7 +43194,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 10966,
+        "start_byte": 12756,
         "conditions": [
           "open(path)"
         ]
@@ -43214,7 +43217,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 11010,
+        "start_byte": 12800,
         "conditions": [
           "opened_metadata(&file)"
         ]
@@ -43237,7 +43240,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 11474,
+        "start_byte": 13264,
         "conditions": [
           "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
         ]
@@ -43260,7 +43263,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11017,
+        "start_byte": 12807,
         "conditions": [
           "!metadata.is_file()"
         ]
@@ -43412,7 +43415,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 10966,
+        "start_byte": 12756,
         "conditions": [
           "open(path)"
         ]
@@ -43435,7 +43438,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 11010,
+        "start_byte": 12800,
         "conditions": [
           "opened_metadata(&file)"
         ]
@@ -43458,7 +43461,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "try_propagation",
-        "start_byte": 11474,
+        "start_byte": 13264,
         "conditions": [
           "file.take(limit as u64 + 1).read_to_end(&mut bytes)"
         ]
@@ -43481,7 +43484,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "bounded_with",
         "kind": "if",
-        "start_byte": 11017,
+        "start_byte": 12807,
         "conditions": [
           "!metadata.is_file()"
         ]
@@ -43518,7 +43521,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 4925,
+        "start_byte": 5680,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43566,7 +43569,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 4928,
+        "start_byte": 5683,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43614,7 +43617,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 4748,
+        "start_byte": 5503,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -43637,7 +43640,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5088,
+        "start_byte": 5843,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -43660,7 +43663,7 @@
         "target": "study-peer::study-peer",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5099,
+        "start_byte": 5854,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -43697,7 +43700,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 6425,
+        "start_byte": 7783,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43745,7 +43748,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 6428,
+        "start_byte": 7786,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43793,7 +43796,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 6248,
+        "start_byte": 7606,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -43816,7 +43819,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 6588,
+        "start_byte": 7946,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -43839,7 +43842,7 @@
         "target": "study-peer::study-peer",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 6599,
+        "start_byte": 7957,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -43876,7 +43879,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 4925,
+        "start_byte": 5680,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43924,7 +43927,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 4928,
+        "start_byte": 5683,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -43972,7 +43975,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 4748,
+        "start_byte": 5503,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -43995,7 +43998,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5088,
+        "start_byte": 5843,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -44018,7 +44021,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5099,
+        "start_byte": 5854,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -44055,7 +44058,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 6425,
+        "start_byte": 7783,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44103,7 +44106,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 6428,
+        "start_byte": 7786,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44151,7 +44154,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 6248,
+        "start_byte": 7606,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -44174,7 +44177,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 6588,
+        "start_byte": 7946,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -44197,7 +44200,7 @@
         "target": "weekend-replicate::weekend-replicate",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 6599,
+        "start_byte": 7957,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -44234,7 +44237,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 4925,
+        "start_byte": 5680,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44282,7 +44285,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 4928,
+        "start_byte": 5683,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44330,7 +44333,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 4748,
+        "start_byte": 5503,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -44353,7 +44356,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "try_propagation",
-        "start_byte": 5088,
+        "start_byte": 5843,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -44376,7 +44379,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "client_handshake",
         "kind": "if",
-        "start_byte": 5099,
+        "start_byte": 5854,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -44413,7 +44416,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 6425,
+        "start_byte": 7783,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44461,7 +44464,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "short_circuit_or",
-        "start_byte": 6428,
+        "start_byte": 7786,
         "conditions": [
           "tls.is_handshaking()",
           "tls.wants_write()"
@@ -44509,7 +44512,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 6248,
+        "start_byte": 7606,
         "conditions": [
           "tls.complete_io(socket)"
         ]
@@ -44532,7 +44535,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "try_propagation",
-        "start_byte": 6588,
+        "start_byte": 7946,
         "conditions": [
           "self.check_pin(tls.peer_certificates())"
         ]
@@ -44555,7 +44558,7 @@
         "target": "weekend-replicate::live_month",
         "owner": "server_handshake",
         "kind": "if",
-        "start_byte": 6599,
+        "start_byte": 7957,
         "conditions": [
           "tls.alpn_protocol() != Some(ALPN)"
         ]
@@ -44582,6 +44585,1046 @@
       ],
       "mutations": [
         "r1-tls-handshake-example-server-alpn"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-CONSTRUCT-EXPIRED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "new",
+        "kind": "try_propagation",
+        "start_byte": 8557,
+        "conditions": [
+          "stream.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "stream_construction_preserves_an_expired_socket_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-construct-expired"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-STREAM-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "read",
+        "kind": "try_propagation",
+        "start_byte": 9053,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-stream-read"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-STREAM-WRITE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "write",
+        "kind": "try_propagation",
+        "start_byte": 9267,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-stream-write"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-STREAM-FLUSH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "flush",
+        "kind": "try_propagation",
+        "start_byte": 9378,
+        "conditions": [
+          "self.0.sock.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "expired_tls_stream_rejects_buffered_reads_and_new_output"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-stream-flush"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-REMAINING-ZERO",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "remaining",
+        "kind": "if",
+        "start_byte": 9938,
+        "conditions": [
+          "remaining.is_zero()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "absolute_deadline_is_not_renewed_by_progress"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-remaining-zero"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-IO-EXPIRED",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "io",
+        "kind": "try_propagation",
+        "start_byte": 10275,
+        "conditions": [
+          "self.remaining()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-io-expired"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-CANCELLATION-TOKEN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "io",
+        "kind": "if",
+        "start_byte": 10290,
+        "conditions": [
+          "let Some(canceled) = &self.cancellation"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-cancellation-token"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-CANCELED-FLAG",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "io",
+        "kind": "if",
+        "start_byte": 10351,
+        "conditions": [
+          "canceled.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-canceled-flag"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-DEADLINE-EXAMPLE-RETRY-GUARD",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "io",
+        "kind": "match_guard",
+        "start_byte": 10649,
+        "conditions": [
+          "self.cancellation.is_some()",
+          "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut\n                        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "socket_retries_only_slice_expiry_and_checks_cancel_before_reentry"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-deadline-retry-requires-token",
+        "r1-tls-transport-example-deadline-retry-requires-timeout",
+        "r1-tls-transport-example-deadline-retry-would-block",
+        "r1-tls-transport-example-deadline-retry-timed-out"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-CONFIG-EXAMPLE-SELF-PIN",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "configure",
+        "kind": "if",
+        "start_byte": 3481,
+        "conditions": [
+          "peer == local.cert"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "tls_configuration_preserves_certificate_and_key_errors"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-config-self-pin"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SHARED-TLS-CONFIG-EXAMPLE-PARSE-PEER",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "configure",
+        "kind": "try_propagation",
+        "start_byte": 3667,
+        "conditions": [
+          "roots.add(peer.clone())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "tls_configuration_preserves_certificate_and_key_errors"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-config-parse-peer"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-CONFIG-EXAMPLE-CLIENT-KEY",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "configure",
+        "kind": "try_propagation",
+        "start_byte": 3853,
+        "conditions": [
+          "ClientConfig::builder()\n            .with_root_certificates(roots.clone())\n            .with_client_auth_cert(vec![local.cert.clone()], local.key.clone_key())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "tls_configuration_preserves_certificate_and_key_errors"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-config-client-key"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-CONFIG-EXAMPLE-SOCKET-REFUSAL",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "connect",
+        "kind": "try_propagation",
+        "start_byte": 4474,
+        "conditions": [
+          "TcpStream::connect_timeout(&address, TIMEOUT)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "connection_refusal_preserves_the_original_socket_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-config-socket-refusal"
+      ]
+    },
+    {
+      "name": "SHARED-TLS-CONFIG-EXAMPLE-LEAF-ONLY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "check_pin",
+        "kind": "if",
+        "start_byte": 8160,
+        "conditions": [
+          "chain.and_then(|certs| certs.first()) == Some(&self.peer)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "exact_leaf_pin_controls_are_distinct_from_chain_trust"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-config-leaf-only"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-SERVER-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "configure",
+        "kind": "try_propagation",
+        "conditions": [
+          "configure_server(verifier, local)"
+        ],
+        "start_byte": 3994
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "server_configuration_preserves_the_original_setup_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-server-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-ACCEPT-BLOCKING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "accept_at_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "set_nonblocking(&socket, false)"
+        ],
+        "start_byte": 6718
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "transport_setup_preserves_native_errors_before_starting_io"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-accept-blocking"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-SOCKET-TIMEOUT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "socket_io_with_timeout",
+        "kind": "try_propagation",
+        "conditions": [
+          "set_timeout(stream, Some(remaining))"
+        ],
+        "start_byte": 11895
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "transport_setup_preserves_native_errors_before_starting_io"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-socket-timeout"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-CLIENT-SESSION-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "ClientConnection::new(self.client.clone(), name)"
+        ],
+        "start_byte": 5214
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_construction_preserves_the_rustls_configuration_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-client-session-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-CLIENT-SESSION-HANDSHAKE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.client_handshake(&mut tls, &mut socket)"
+        ],
+        "start_byte": 5269
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_handshake_preserves_an_expired_deadline_without_writing"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-client-session-handshake"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-CLIENT-SESSION-FINISH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "finish(StreamOwned::new(tls, socket))"
+        ],
+        "start_byte": 5320
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_sessions_preserve_the_post_handshake_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-client-session-finish"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-SERVER-SESSION-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "ServerConnection::new(self.server.clone())"
+        ],
+        "start_byte": 7281
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_construction_preserves_the_rustls_configuration_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-server-session-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-SERVER-SESSION-HANDSHAKE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.server_handshake(&mut tls, &mut socket)"
+        ],
+        "start_byte": 7336
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_handshake_preserves_an_expired_deadline_without_writing"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-server-session-handshake"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-STUDY-SERVER-SESSION-FINISH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "study-peer::study-peer",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "finish(StreamOwned::new(tls, socket))"
+        ],
+        "start_byte": 7423
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_sessions_preserve_the_post_handshake_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-study-server-session-finish"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-SERVER-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "configure",
+        "kind": "try_propagation",
+        "conditions": [
+          "configure_server(verifier, local)"
+        ],
+        "start_byte": 3994
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "server_configuration_preserves_the_original_setup_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-server-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-ACCEPT-BLOCKING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "accept_at_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "set_nonblocking(&socket, false)"
+        ],
+        "start_byte": 6718
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "transport_setup_preserves_native_errors_before_starting_io"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-accept-blocking"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-SOCKET-TIMEOUT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "socket_io_with_timeout",
+        "kind": "try_propagation",
+        "conditions": [
+          "set_timeout(stream, Some(remaining))"
+        ],
+        "start_byte": 11895
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "transport_setup_preserves_native_errors_before_starting_io"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-socket-timeout"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-CLIENT-SESSION-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "ClientConnection::new(self.client.clone(), name)"
+        ],
+        "start_byte": 5214
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_construction_preserves_the_rustls_configuration_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-client-session-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-CLIENT-SESSION-HANDSHAKE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.client_handshake(&mut tls, &mut socket)"
+        ],
+        "start_byte": 5269
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_handshake_preserves_an_expired_deadline_without_writing"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-client-session-handshake"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-CLIENT-SESSION-FINISH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "finish(StreamOwned::new(tls, socket))"
+        ],
+        "start_byte": 5320
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_sessions_preserve_the_post_handshake_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-client-session-finish"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-SERVER-SESSION-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "ServerConnection::new(self.server.clone())"
+        ],
+        "start_byte": 7281
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_construction_preserves_the_rustls_configuration_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-server-session-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-SERVER-SESSION-HANDSHAKE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.server_handshake(&mut tls, &mut socket)"
+        ],
+        "start_byte": 7336
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_handshake_preserves_an_expired_deadline_without_writing"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-server-session-handshake"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-SNAPSHOT-SERVER-SESSION-FINISH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "finish(StreamOwned::new(tls, socket))"
+        ],
+        "start_byte": 7423
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_sessions_preserve_the_post_handshake_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-snapshot-server-session-finish"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-SERVER-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "configure",
+        "kind": "try_propagation",
+        "conditions": [
+          "configure_server(verifier, local)"
+        ],
+        "start_byte": 3994
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "server_configuration_preserves_the_original_setup_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-server-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-ACCEPT-BLOCKING",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "accept_at_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "set_nonblocking(&socket, false)"
+        ],
+        "start_byte": 6718
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "transport_setup_preserves_native_errors_before_starting_io"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-accept-blocking"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-SOCKET-TIMEOUT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "socket_io_with_timeout",
+        "kind": "try_propagation",
+        "conditions": [
+          "set_timeout(stream, Some(remaining))"
+        ],
+        "start_byte": 11895
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "transport_setup_preserves_native_errors_before_starting_io"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-socket-timeout"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-CLIENT-SESSION-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "ClientConnection::new(self.client.clone(), name)"
+        ],
+        "start_byte": 5214
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_construction_preserves_the_rustls_configuration_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-client-session-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-CLIENT-SESSION-HANDSHAKE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.client_handshake(&mut tls, &mut socket)"
+        ],
+        "start_byte": 5269
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_handshake_preserves_an_expired_deadline_without_writing"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-client-session-handshake"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-CLIENT-SESSION-FINISH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "client_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "finish(StreamOwned::new(tls, socket))"
+        ],
+        "start_byte": 5320
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_sessions_preserve_the_post_handshake_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-client-session-finish"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-SERVER-SESSION-CONFIG",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "ServerConnection::new(self.server.clone())"
+        ],
+        "start_byte": 7281
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_construction_preserves_the_rustls_configuration_error"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-server-session-config"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-SERVER-SESSION-HANDSHAKE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "self.server_handshake(&mut tls, &mut socket)"
+        ],
+        "start_byte": 7336
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "session_handshake_preserves_an_expired_deadline_without_writing"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-server-session-handshake"
+      ]
+    },
+    {
+      "name": "TLS-TRANSPORT-EXAMPLE-SERVER-SESSION-FINISH",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/support/pinned_tls.rs",
+        "target": "weekend-replicate::live_month",
+        "owner": "server_session_with",
+        "kind": "try_propagation",
+        "conditions": [
+          "finish(StreamOwned::new(tls, socket))"
+        ],
+        "start_byte": 7423
+      },
+      "tests": [
+        {
+          "file": "apps/support/pinned_tls.rs",
+          "name": "both_finished_sessions_preserve_the_post_handshake_deadline"
+        }
+      ],
+      "mutations": [
+        "r1-tls-transport-example-server-session-finish"
       ]
     }
   ],
@@ -46208,6 +47251,7 @@
     "weekend-db::file-worker",
     "weekend-db::weekend-admin",
     "weekend-db::weekend_db",
+    "weekend-replicate::live_month",
     "weekend-replicate::weekend-replicate",
     "weekend-tasks::weekend-tasks",
     "weekend-tasks::weekend_tasks",

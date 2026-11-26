@@ -89,6 +89,21 @@ pub(crate) type Incoming = DeadlineStream<ServerConnection>;
 
 impl Tls {
     pub(crate) fn new(local: &Credentials, peer: CertificateDer<'static>) -> AppResult<Self> {
+        Self::configure(local, peer, |verifier, local| {
+            ServerConfig::builder()
+                .with_client_cert_verifier(verifier)
+                .with_single_cert(vec![local.cert.clone()], local.key.clone_key())
+        })
+    }
+
+    fn configure(
+        local: &Credentials,
+        peer: CertificateDer<'static>,
+        configure_server: impl FnOnce(
+            Arc<dyn rustls::server::danger::ClientCertVerifier>,
+            &Credentials,
+        ) -> Result<ServerConfig, rustls::Error>,
+    ) -> AppResult<Self> {
         if peer == local.cert {
             return Err("configure the other peer's certificate".into());
         }
@@ -98,9 +113,7 @@ impl Tls {
             .with_root_certificates(roots.clone())
             .with_client_auth_cert(vec![local.cert.clone()], local.key.clone_key())?;
         let verifier = WebPkiClientVerifier::builder(Arc::new(roots)).build()?;
-        let mut server = ServerConfig::builder()
-            .with_client_cert_verifier(verifier)
-            .with_single_cert(vec![local.cert.clone()], local.key.clone_key())?;
+        let mut server = configure_server(verifier, local)?;
         client.alpn_protocols = vec![ALPN.to_vec()];
         server.alpn_protocols = vec![ALPN.to_vec()];
         Ok(Self {
@@ -125,12 +138,22 @@ impl Tls {
 
     fn client_session(
         &self,
+        socket: DeadlineSocket,
+    ) -> AppResult<DeadlineStream<ClientConnection>> {
+        self.client_session_with(socket, DeadlineStream::new)
+    }
+
+    fn client_session_with(
+        &self,
         mut socket: DeadlineSocket,
+        finish: impl FnOnce(
+            StreamOwned<ClientConnection, DeadlineSocket>,
+        ) -> io::Result<DeadlineStream<ClientConnection>>,
     ) -> AppResult<DeadlineStream<ClientConnection>> {
         let name = ServerName::try_from(SERVER_NAME)?;
         let mut tls = ClientConnection::new(self.client.clone(), name)?;
         self.client_handshake(&mut tls, &mut socket)?;
-        Ok(DeadlineStream::new(StreamOwned::new(tls, socket))?)
+        Ok(finish(StreamOwned::new(tls, socket))?)
     }
 
     fn client_handshake<T: Read + Write>(
@@ -162,8 +185,18 @@ impl Tls {
         accepted: Instant,
         cancellation: Option<Arc<AtomicBool>>,
     ) -> AppResult<Incoming> {
+        self.accept_at_with(socket, accepted, cancellation, TcpStream::set_nonblocking)
+    }
+
+    fn accept_at_with(
+        &self,
+        socket: TcpStream,
+        accepted: Instant,
+        cancellation: Option<Arc<AtomicBool>>,
+        set_nonblocking: impl FnOnce(&TcpStream, bool) -> io::Result<()>,
+    ) -> AppResult<Incoming> {
         let deadline = accepted + TIMEOUT;
-        socket.set_nonblocking(false)?;
+        set_nonblocking(&socket, false)?;
         self.server_session(DeadlineSocket {
             stream: socket,
             deadline,
@@ -171,11 +204,19 @@ impl Tls {
         })
     }
 
-    fn server_session(&self, mut socket: DeadlineSocket) -> AppResult<Incoming> {
+    fn server_session(&self, socket: DeadlineSocket) -> AppResult<Incoming> {
+        self.server_session_with(socket, DeadlineStream::new)
+    }
+
+    fn server_session_with(
+        &self,
+        mut socket: DeadlineSocket,
+        finish: impl FnOnce(StreamOwned<ServerConnection, DeadlineSocket>) -> io::Result<Incoming>,
+    ) -> AppResult<Incoming> {
         let mut tls = ServerConnection::new(self.server.clone())?;
         self.server_handshake(&mut tls, &mut socket)?;
         socket.cancellation = None;
-        Ok(DeadlineStream::new(StreamOwned::new(tls, socket))?)
+        Ok(finish(StreamOwned::new(tls, socket))?)
     }
 
     fn server_handshake<T: Read + Write>(
@@ -301,8 +342,9 @@ impl DeadlineSocket {
 impl Read for DeadlineSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.io(|stream, remaining| {
-            stream.set_read_timeout(Some(remaining))?;
-            stream.read(buf)
+            socket_io_with_timeout(stream, remaining, TcpStream::set_read_timeout, |stream| {
+                stream.read(buf)
+            })
         })
     }
 }
@@ -310,14 +352,25 @@ impl Read for DeadlineSocket {
 impl Write for DeadlineSocket {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.io(|stream, remaining| {
-            stream.set_write_timeout(Some(remaining))?;
-            stream.write(buf)
+            socket_io_with_timeout(stream, remaining, TcpStream::set_write_timeout, |stream| {
+                stream.write(buf)
+            })
         })
     }
 
     fn flush(&mut self) -> io::Result<()> {
         self.stream.flush()
     }
+}
+
+fn socket_io_with_timeout(
+    stream: &mut TcpStream,
+    remaining: Duration,
+    set_timeout: impl FnOnce(&TcpStream, Option<Duration>) -> io::Result<()>,
+    operation: impl FnOnce(&mut TcpStream) -> io::Result<usize>,
+) -> io::Result<usize> {
+    set_timeout(stream, Some(remaining))?;
+    operation(stream)
 }
 
 pub(crate) fn bounded_file(path: &Path, limit: usize) -> AppResult<Vec<u8>> {
@@ -404,6 +457,168 @@ mod deadline_tests {
         let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
         let (peer, _) = listener.accept().unwrap();
         (stream, peer)
+    }
+
+    #[test]
+    fn session_construction_preserves_the_rustls_configuration_error() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let mut tls = Tls::new(&local, peer.certificate()).unwrap();
+        Arc::make_mut(&mut tls.client).max_fragment_size = Some(1);
+        Arc::make_mut(&mut tls.server).max_fragment_size = Some(1);
+
+        for client in [true, false] {
+            let (stream, _peer) = connected_sockets();
+            let mut socket = DeadlineSocket::new(stream);
+            socket.deadline = Instant::now();
+            let result = if client {
+                tls.client_session(socket).map(drop)
+            } else {
+                tls.server_session(socket).map(drop)
+            };
+            let error = result.unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<rustls::Error>(),
+                Some(&rustls::Error::BadMaxFragmentSize),
+                "client={client}"
+            );
+        }
+    }
+
+    #[test]
+    fn session_handshake_preserves_an_expired_deadline_without_writing() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let tls = Tls::new(&local, peer.certificate()).unwrap();
+
+        for client in [true, false] {
+            let (stream, mut peer) = connected_sockets();
+            let mut socket = DeadlineSocket::new(stream);
+            socket.deadline = Instant::now();
+            let result = if client {
+                tls.client_session(socket).map(drop)
+            } else {
+                tls.server_session(socket).map(drop)
+            };
+            assert_eq!(
+                result
+                    .unwrap_err()
+                    .downcast_ref::<io::Error>()
+                    .map(io::Error::kind),
+                Some(io::ErrorKind::TimedOut),
+                "client={client}"
+            );
+            peer.set_read_timeout(Some(TIMEOUT)).unwrap();
+            assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0, "client={client}");
+        }
+    }
+
+    #[test]
+    fn both_finished_sessions_preserve_the_post_handshake_deadline() {
+        let a = Credentials::generate().unwrap();
+        let b = Credentials::generate().unwrap();
+        let client = Tls::new(&a, b.certificate()).unwrap();
+        let server = Tls::new(&b, a.certificate()).unwrap();
+
+        let (left, right) = connected_sockets();
+        std::thread::scope(|scope| {
+            let peer = scope.spawn(|| server.server_session(DeadlineSocket::new(right)).unwrap());
+            let ending = client.client_session_with(DeadlineSocket::new(left), |mut stream| {
+                let _peer = peer.join().unwrap();
+                assert!(!stream.conn.is_handshaking());
+                assert_eq!(stream.conn.alpn_protocol(), Some(ALPN));
+                stream.sock.deadline = Instant::now();
+                DeadlineStream::new(stream)
+            });
+            let error = ending.err().expect("expired client session was admitted");
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::TimedOut)
+            );
+        });
+
+        let (left, right) = connected_sockets();
+        std::thread::scope(|scope| {
+            let peer = scope.spawn(|| client.client_session(DeadlineSocket::new(left)).unwrap());
+            let mut socket = DeadlineSocket::new(right);
+            socket.cancellation = Some(Arc::new(AtomicBool::new(false)));
+            let ending = server.server_session_with(socket, |mut stream| {
+                let _peer = peer.join().unwrap();
+                assert!(!stream.conn.is_handshaking());
+                assert_eq!(stream.conn.alpn_protocol(), Some(ALPN));
+                assert!(stream.sock.cancellation.is_none());
+                stream.sock.deadline = Instant::now();
+                DeadlineStream::new(stream)
+            });
+            let error = ending.err().expect("expired server session was admitted");
+            assert_eq!(
+                error.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(io::ErrorKind::TimedOut)
+            );
+        });
+    }
+
+    #[test]
+    fn transport_setup_preserves_native_errors_before_starting_io() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let tls = Tls::new(&local, peer.certificate()).unwrap();
+        let (stream, mut peer) = connected_sockets();
+        let local_address = stream.local_addr().unwrap();
+        let error = tls
+            .accept_at_with(stream, Instant::now(), None, |socket, nonblocking| {
+                assert_eq!(socket.local_addr().unwrap(), local_address);
+                assert!(!nonblocking);
+                Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "fixture blocking mode",
+                ))
+            })
+            .err()
+            .expect("accept ignored a blocking mode error");
+        assert_eq!(
+            error.downcast_ref::<io::Error>().map(io::Error::kind),
+            Some(io::ErrorKind::PermissionDenied)
+        );
+        assert_eq!(error.to_string(), "fixture blocking mode");
+        peer.set_read_timeout(Some(TIMEOUT)).unwrap();
+        assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0);
+
+        let (mut stream, _peer) = connected_sockets();
+        let address = stream.local_addr().unwrap();
+        let remaining = Duration::from_millis(25);
+        let error = socket_io_with_timeout(
+            &mut stream,
+            remaining,
+            |socket, limit| {
+                assert_eq!(socket.local_addr().unwrap(), address);
+                assert_eq!(limit, Some(remaining));
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "fixture timeout",
+                ))
+            },
+            |_| panic!("I/O started after timeout setup failed"),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(error.to_string(), "fixture timeout");
+        assert_eq!(
+            socket_io_with_timeout(
+                &mut stream,
+                remaining,
+                |_, limit| {
+                    assert_eq!(limit, Some(remaining));
+                    Ok(())
+                },
+                |socket| {
+                    assert_eq!(socket.local_addr().unwrap(), address);
+                    Ok(7)
+                },
+            )
+            .unwrap(),
+            7
+        );
     }
 
     #[test]
@@ -1332,6 +1547,21 @@ mod credential_boundary_tests {
             assert_eq!(error.downcast_ref::<rustls::Error>(), Some(&expected));
         }
         assert!(Tls::new(&local, peer.certificate()).is_ok());
+    }
+
+    #[test]
+    fn server_configuration_preserves_the_original_setup_error() {
+        let local = Credentials::generate().unwrap();
+        let peer = Credentials::generate().unwrap();
+        let expected = rustls::Error::FailedToGetRandomBytes;
+        let error = Tls::configure(&local, peer.certificate(), |_, received| {
+            assert_eq!(received.certificate(), local.certificate());
+            Err(expected.clone())
+        })
+        .err()
+        .expect("failed server configuration produced a TLS setup");
+        assert_eq!(error.downcast_ref::<rustls::Error>(), Some(&expected));
+        assert_eq!(error.to_string(), expected.to_string());
     }
 
     #[test]
