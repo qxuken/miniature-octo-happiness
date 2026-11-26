@@ -111,7 +111,7 @@ fn run_checks(
                     // Compile first so cold builds and native test execution have independent deadlines.
                     let mut compile = args.clone();
                     compile.push("--no-run".into());
-                    c.command(compile, &format!("{prefix}-compile"), None, 300.)?;
+                    c.command(compile, &format!("{prefix}-compile"), None, 600.)?;
                 }
             }
             c.command(args, &format!("{prefix}-{}", index + 1), None, 300.)?;

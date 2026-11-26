@@ -184,7 +184,7 @@
     "xtask/src/maintenance_space.rs": "402ec5e967227f12fc6e901e393fdedb253bef1bb235b510a94f8948753b43a0",
     "xtask/src/migration.rs": "59a95a3f58847ed13b95e2c416d4cdbf630ea5b138462b3be71b7e3bc1a11895",
     "xtask/src/monthly_workload.rs": "908c0003f5d40873e75f5f2a573826f9abe91818f21370fd4ec1765910ce90fe",
-    "xtask/src/msrv.rs": "d3f4be23be311c042661ca40c1e97a9348bba3e7d79041477919b266683063e0",
+    "xtask/src/msrv.rs": "829e98f0737d08b5f8eb2c0fb492705d953d44b420970e9050c8f2d6a71a813e",
     "xtask/src/mutations.rs": "c409a8edb575124ca0967d604c61b7be26e3af9fcf65c73ae5944104088ecf1a",
     "xtask/src/mutations_windows.rs": "a51f73211e0c0db1df2f13522c3eadf7956619ec05447aa99a1a02dafbe24c5d",
     "xtask/src/notices.rs": "f6053168c4b39a9c0f16edb19010253851f992fe71f61d5f678607a4eefe0216",
