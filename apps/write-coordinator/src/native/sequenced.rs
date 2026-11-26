@@ -307,6 +307,179 @@ mod tests {
     }
 
     #[test]
+    fn initialization_io_faults_reopen_at_each_publication_boundary() {
+        let original = SimulatedDisk::new().unwrap();
+        let mut db = Database::create_on(original.clone(), [7; 16], Limits::default()).unwrap();
+        let initial = original.durable_image().unwrap();
+        original.arm(usize::MAX, Fault::Error);
+        initialize(&db).unwrap();
+        let trace = original.trace().unwrap();
+        let syncs: Vec<_> = trace
+            .iter()
+            .enumerate()
+            .filter_map(|(step, event)| (event.kind == IoKind::Sync).then_some(step))
+            .collect();
+        let [
+            format_append,
+            format_root,
+            format_witness,
+            data_append,
+            data_root,
+            data_witness,
+            seed_append,
+            seed_root,
+            _,
+        ]: [usize; 9] = syncs.try_into().unwrap();
+        assert_eq!(admit(&db), Ok(()));
+        assert_eq!(handle(&mut db, "get"), Ok("value 3 0".into()));
+
+        for step in 0..trace.len() {
+            for crash in [Crash::DropAll, Crash::PersistAll] {
+                let disk = SimulatedDisk::from_image(&initial).unwrap();
+                let mut db = open(&disk);
+                disk.arm(step, Fault::Error);
+                let (revision, append) = if step <= format_witness {
+                    (0, format_append)
+                } else if step <= data_witness {
+                    (1, data_append)
+                } else {
+                    (2, seed_append)
+                };
+                let expected = if step <= append {
+                    Error::Io
+                } else {
+                    Error::OutcomeUnknown
+                };
+                assert_eq!(initialize(&db), Err(expected), "step {step}");
+                assert_eq!(db.snapshot().revision(), revision, "step {step}");
+                assert_eq!(disk.trace().unwrap(), trace[..=step]);
+                assert_eq!(handle(&mut db, "get"), Err(Error::RecoveryRequired));
+                drop(db);
+                disk.clear_fault();
+                disk.crash(crash).unwrap();
+
+                let reopened = open(&disk);
+                let persisted =
+                    |root| step > root || (step == root && matches!(crash, Crash::PersistAll));
+                let revision = [format_root, data_root, seed_root]
+                    .into_iter()
+                    .filter(|&root| persisted(root))
+                    .count() as u64;
+                assert_eq!(reopened.snapshot().revision(), revision, "step {step}");
+                let expected = match revision {
+                    0 => Err(Error::NotFound),
+                    1 | 2 => Err(Error::UnsupportedFormat),
+                    INITIAL_REVISION => Ok(()),
+                    _ => unreachable!(),
+                };
+                let image = disk.durable_image().unwrap();
+                assert_eq!(admit(&reopened), expected, "step {step}");
+                assert_eq!(disk.durable_image().unwrap(), image);
+                assert_eq!(
+                    state_in(&reopened, DATA_COLLECTION),
+                    if revision == INITIAL_REVISION {
+                        Ok((INITIAL_REVISION, 0))
+                    } else {
+                        Err(Error::NotFound)
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn initialization_limits_leave_both_collections_unseeded() {
+        for limits in [
+            Limits {
+                max_bytes: FORMAT.len() - 1,
+                ..Limits::default()
+            },
+            Limits {
+                max_writes: 0,
+                ..Limits::default()
+            },
+            Limits {
+                max_writes: 1,
+                ..Limits::default()
+            },
+        ] {
+            let disk = SimulatedDisk::new().unwrap();
+            let db = Database::create_on(disk.clone(), [7; 16], limits).unwrap();
+            assert_eq!(initialize(&db), Err(Error::Limit), "{limits:?}");
+            assert_eq!(db.snapshot().revision(), 2);
+            assert!(!db.requires_recovery());
+            drop(db);
+            disk.crash(Crash::DropAll).unwrap();
+            let reopened = open(&disk);
+            let snapshot = reopened.snapshot();
+            assert_eq!(snapshot.revision(), 2);
+            assert_eq!(
+                snapshot.count(reopened.collection_id(FORMAT_COLLECTION)),
+                Ok(0)
+            );
+            assert_eq!(
+                snapshot.count(reopened.collection_id(DATA_COLLECTION)),
+                Ok(0)
+            );
+            assert_eq!(admit(&reopened), Err(Error::UnsupportedFormat));
+        }
+    }
+
+    #[test]
+    fn format_admission_preserves_read_errors_and_leaves_the_image_unchanged() {
+        #[derive(Clone, Copy, Debug)]
+        enum Field {
+            Missing,
+            Bytes(&'static [u8]),
+            Unsigned(u64),
+        }
+        use Field::{Bytes, Missing, Unsigned};
+
+        for (marker, counter, expected) in [
+            (Missing, Unsigned(0), Err(Error::UnsupportedFormat)),
+            (Bytes(b"other"), Unsigned(0), Err(Error::UnsupportedFormat)),
+            (Unsigned(0), Unsigned(0), Err(Error::Corrupt)),
+            (Bytes(FORMAT), Missing, Err(Error::NotFound)),
+            (Bytes(FORMAT), Bytes(b"wrong type"), Err(Error::Type)),
+            (Bytes(FORMAT), Unsigned(0), Ok(())),
+        ] {
+            let disk = SimulatedDisk::new().unwrap();
+            let db = Database::create_on(disk.clone(), [7; 16], Limits::default()).unwrap();
+            let format = db.create_collection().unwrap();
+            let data = db.create_collection().unwrap();
+            let mut tx = db.begin();
+            for (collection, key, field) in [(format, FORMAT_KEY, marker), (data, KEY, counter)] {
+                let value = match field {
+                    Missing => continue,
+                    Bytes(bytes) => db.bytes(bytes).unwrap(),
+                    Unsigned(number) => db.unsigned(number).unwrap(),
+                };
+                tx.put(collection, key, &value).unwrap();
+            }
+            assert_eq!(tx.commit(), Ok(INITIAL_REVISION));
+            drop(tx);
+            drop(db);
+
+            let mut db = open(&disk);
+            let image = disk.durable_image().unwrap();
+            assert_eq!(
+                admit(&db),
+                expected,
+                "marker {marker:?}, counter {counter:?}"
+            );
+            assert_eq!(
+                handle(&mut db, "get"),
+                match counter {
+                    Missing => Err(Error::NotFound),
+                    Bytes(_) => Err(Error::Type),
+                    Unsigned(number) => Ok(format!("value 3 {number}")),
+                }
+            );
+            assert_eq!(disk.durable_image().unwrap(), image);
+        }
+    }
+
+    #[test]
     fn malformed_receipts_fail_closed_for_lookup_and_retry() {
         for (sequence, expected, revision, len, version) in [
             (1, 3, 4, 34, 1),        // otherwise valid, with trailing bytes
