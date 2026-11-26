@@ -16,8 +16,8 @@ mod value;
 pub mod version;
 
 pub use engine::{
-    CollectionId, Database, DatabaseOptions, MAX_RETAINED_SNAPSHOTS, Rows, Snapshot, Transaction,
-    TransactionState, Validation,
+    CollectionId, Database, DatabaseOptions, MAX_RETAINED_SNAPSHOTS, ReadOnlyDatabase, Rows,
+    Snapshot, Transaction, TransactionState, Validation,
 };
 pub use memory::{AllocatorHandle, Limits, MemoryUsage};
 pub use value::{Kind, Value};

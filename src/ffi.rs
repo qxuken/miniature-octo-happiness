@@ -215,14 +215,14 @@ macro_rules! file_factory {
 file_factory!(wdb_file_create, create_file);
 file_factory!(wdb_file_open, open_file);
 macro_rules! file_factory_with_options {
-    ($name:ident,$method:ident) => { export!($name(
+    ($name:ident,$method:ident $(,$option:ident)?) => { export!($name(
         bytes:*const u8,len:usize,options:*const CDatabaseOptions,out:*mut *mut CDatabase
     ) {
         output(out)?;
         #[cfg(any(target_os="macos",target_os="linux",windows))]
         {
             let name = path(bytes,len)?;
-            let database = Database::$method(name, database_options(options)?)?;
+            let database = Database::$method(name, database_options(options)? $(.$option())?)?;
             *out = into_database_handle(database)?; Ok(())
         }
         #[cfg(not(any(target_os="macos",target_os="linux",windows)))]
@@ -231,6 +231,11 @@ macro_rules! file_factory_with_options {
 }
 file_factory_with_options!(wdb_file_create_with_options, create_file_with_options);
 file_factory_with_options!(wdb_file_open_with_options, open_file_with_options);
+file_factory_with_options!(
+    wdb_file_open_paged,
+    open_file_with_options,
+    with_paged_reads
+);
 export!(wdb_file_compact(bytes: *const u8, len: usize, before: *mut u64, after: *mut u64) {
     if before.is_null() || after.is_null() {return Err(Error::Invalid);}
     *before = 0; *after = 0;

@@ -1,5 +1,7 @@
 # Production qualification status
 
+The [v2 paging implementation and measurements](paged-reads.md) cover strict writable open, witnessed read-only open, on-demand values, ordered visits and retained-root verification. A million-key directory with a shared value fits a 64 MiB reader budget, including a retained one-key commit. The durable capacity track still needs packed independently stored values, incremental on-disk directory updates and a migration for larger files.
+
 Release scope includes the local store, typed Rust, snapshot replication,
 CRDT peers and coordinator, as requested on 2026-11-09. The project uses
 `MIT OR Apache-2.0`. Cargo packages stay private with `publish = false`.

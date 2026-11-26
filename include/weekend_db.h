@@ -107,6 +107,9 @@ wdb_status wdb_file_create_with_options(const uint8_t *path, size_t len,
                                          const wdb_database_options *options, wdb_database **out);
 wdb_status wdb_file_open_with_options(const uint8_t *path, size_t len,
                                        const wdb_database_options *options, wdb_database **out);
+/* Strictly verify the image, then read records on demand. NULL options select defaults. */
+wdb_status wdb_file_open_paged(const uint8_t *path, size_t len,
+                                       const wdb_database_options *options, wdb_database **out);
 /* Offline macOS/Linux compaction: close ALL database handles for this path first.
  * BUSY if an inode is leased; hard-link sources are rejected. Current/retained
  * roots, revisions and local IDs survive; file format remains v2. A verified,

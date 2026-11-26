@@ -855,6 +855,15 @@ impl RetainedHistory {
             Some(error),
             "{case}"
         );
+        assert_eq!(
+            Database::open_on_with_options(
+                candidate.clone(),
+                DatabaseOptions::default().with_paged_reads()
+            )
+            .err(),
+            Some(error),
+            "paged {case}"
+        );
         assert!(
             candidate
                 .trace()

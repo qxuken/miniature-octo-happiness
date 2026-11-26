@@ -1,7 +1,7 @@
 //! Experimental byte storage, publication protocol, and power-loss simulator.
 //! Native file adapters preserve the modeled ordering; hardware assumptions
 //! remain conditional and are documented in DESIGN.md.
-mod codec;
+pub(crate) mod codec;
 pub(crate) mod diagnostics;
 pub use diagnostics::capture as with_native_diagnostics;
 pub use diagnostics::capture as with_storage_diagnostics;
@@ -11,9 +11,9 @@ pub use diagnostics::{
 };
 mod inspection;
 mod logical;
-pub use inspection::{ImageInfo, RetainedInfo, backup_on, inspect_on};
+pub use inspection::{ImageInfo, RetainedInfo, backup_on, inspect_on, inspect_on_with_options};
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
-pub use inspection::{backup_file, inspect_file, restore_file};
+pub use inspection::{backup_file, inspect_file, inspect_file_with_options, restore_file};
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
 pub use logical::{export_logical_file, import_logical_file};
 pub use logical::{export_logical_on, import_logical_on};
@@ -104,6 +104,12 @@ pub struct StorageSpace {
 /// Methods are serialized and must not re-enter their Database. A panic poisons
 /// publication until the database is closed and recovered.
 pub trait ByteStore: Send {
+    /// Preferred maximum request for sequential reads. The engine caps this at 64 KiB.
+    /// Existing backends retain the 4 KiB transfer schedule by default.
+    fn read_window(&self) -> usize {
+        REGION
+    }
+
     fn lock(&mut self) -> Result<()>;
     fn unlock(&mut self);
     fn length(&mut self) -> Result<u64>;
@@ -252,11 +258,28 @@ impl Storage {
         backend: B,
         mem: &Memory,
     ) -> Result<(Self, Shared<Head>, u64, Retention)> {
+        Self::open_impl(backend, mem, None)
+    }
+    pub(crate) fn open_paged<B: ByteStore + 'static>(
+        backend: B,
+        mem: &Memory,
+    ) -> Result<(Self, Shared<Head>, u64, Retention)> {
+        let source = codec::paging::Source::acquire(backend, mem)?;
+        Self::open_impl(source.clone(), mem, Some(source))
+    }
+    fn open_impl<B: ByteStore + 'static>(
+        backend: B,
+        mem: &Memory,
+        source: Option<codec::paging::Source>,
+    ) -> Result<(Self, Shared<Head>, u64, Retention)> {
         let mut storage = Self::locked(backend, mem)?;
-        let recovered = codec::recover(&mut *storage.backend, mem)?;
+        let id = source.as_ref().map_or(0, |s| s.id());
+        let recovered = codec::recover_with_pages(&mut *storage.backend, mem, source)?;
         // Build indexes once, before stabilization I/O; recovered entry order
         // remains authoritative. Subsequent candidates reuse or privately fork.
-        let cache = mem.shared(ValueCache::from_entries(mem, recovered.cache)?)?;
+        let mut cache = ValueCache::from_entries(mem, recovered.cache)?;
+        cache.source_id = id;
+        let cache = mem.shared(cache)?;
         let data_cache = mem.shared(DataCache::from_entries(mem, recovered.data_cache)?)?;
         // Reopening in the same process can see a complete but unsynced root
         // through volatile/page-cache bytes. Stabilize the verified generation,
@@ -368,8 +391,9 @@ pub(crate) fn read_all(
     mut offset: u64,
     mut out: &mut [u8],
 ) -> Result<()> {
+    let window = backend.read_window().clamp(1, 64 * 1024);
     while !out.is_empty() {
-        let size = out.len().min(REGION);
+        let size = out.len().min(window);
         let n = backend.read(offset, &mut out[..size])?;
         if n == 0 || n > size {
             return Err(Error::Io);

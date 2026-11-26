@@ -96,33 +96,36 @@
     "src/crdt/add_wins_set.rs": "f85d1760911aa28a43b1b6b09f365b4debcdda02d399c8023997277ae22d8085",
     "src/crdt/multi_value_register.rs": "e0df3ce6ac2d80038a8d7ba4b8ca31178f54a924cb11fc9829bdaaef06177380",
     "src/crdt/policy_register.rs": "ed9cc73268c0160fce60a7110eafed28a2baa740a6376fb06a1a4bf210090b30",
-    "src/engine.rs": "105601d113f1cc7ec74299d33f0c2aecc5edb46bcb86c4982da145593efc1266",
-    "src/ffi.rs": "badceb85abf4de706b52d6ee8d03836712055e8e5a3b93ca8b7cca2fbf963e29",
-    "src/lib.rs": "9ff143a41e86bd50fb5ec30486fe17a916eeae001f35349f88062bc3fa6c24b8",
-    "src/memory.rs": "e6ebf06ad09de067f4ad341c7f517532cd9d8ca0c33fb41cc4575b092c8062cf",
+    "src/engine.rs": "bfd4848bf099854f5e7e9e4babab40d7c8ca64332e629f33e71b3ec3db3aaa68",
+    "src/engine/pages.rs": "21aa761c32c37f4eb4af4b93a57c3676463fedde4e9f1304220db30e1e3e076e",
+    "src/engine/read_only.rs": "3254062258184907f40cbfb040fdc19080563fd3fbae7dd5348f775b89229aea",
+    "src/ffi.rs": "0a0a5b9866d2aee32ced824d3796f869ad13aa1c7af7462e93cfd29ac9143e9b",
+    "src/lib.rs": "a0fe73f74af38d68a90bddb23670e3fc0e41c48d4fe0cec9a6611fb02fd5fc0c",
+    "src/memory.rs": "9cdbed77d31d5fa82baaac45ea46a5111a30d106901b0e48be1f2bf86d1f0d49",
     "src/replication/follower.rs": "7b1566228ed57f5b41d15be8a583416a14f8dcefae1521a5ba1764413e37e035",
     "src/replication/mod.rs": "69f34f20a61afbf73ace1f3fb442a06a7644f726a6357546b4cfad375bdf45cf",
     "src/replication/wire.rs": "5cf5678754772352d27f094f0920607bf07db9e39dbf56a7f44535b7acf3c693",
     "src/schema.rs": "66bb396906513bf771b53627bbfeccc9da8a719bb3667df996677398f17170b8",
-    "src/storage/codec.rs": "593b1dc249ceca770b436133c894b41aad0596c5f20be79abf96cd69644205ee",
+    "src/storage/codec.rs": "d183fc9feb0772c37963ac73173b6a43feb104fa3ae39e0841c63faf49d8237b",
+    "src/storage/codec/paging.rs": "0504991f8fc941ba997649c3d35155e8334537287b689923ba1ebf0ee61d08e3",
     "src/storage/diagnostics.rs": "1387cc634a599b19426b4fd2c83ac6b014f3fd25018cb72f37b4b74b637a89eb",
-    "src/storage/file.rs": "a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f",
-    "src/storage/inspection.rs": "f4c8b4b51570019de30e45a58285f28104f18c2e8b1a0c7cd9391e3b1d06fbf6",
+    "src/storage/file.rs": "ce7dca17ba6afabdaec10275ff42d84020132132e3166fc465acb54df6723f44",
+    "src/storage/inspection.rs": "f918925a7e5287b1d838658de92af71882ab37d81e63872935b4b0d854f40543",
     "src/storage/linux.rs": "512931ec540b580a4cf83706878f73aeae4358e74fefd1e0b15fd74a3fcf0220",
-    "src/storage/logical.rs": "754297e6d5ed285ef4bcbe69621d59baab4d14e6664b43ad2ac34c938d514836",
+    "src/storage/logical.rs": "3b30da8197a145a7e372bf608847e281f725ab98d974d5407d40b1f5b8ee4780",
     "src/storage/macos.rs": "da5c860e2e339f78e53b9d63e993c96c89aeee62f40e22c4c06c15952c6700e2",
-    "src/storage/mod.rs": "1ed765a74f3e47804266317534b65a77252d55d7275fc0bb4dd865aaf33e9dae",
+    "src/storage/mod.rs": "5fec78486afaa9f012e1cdbec790bfbf0cae3bc581e33de711215902b61c2a0b",
     "src/storage/replacement.rs": "758de2d4ff064a05b11d046097206602d2f2504f9748d2d0e99ec3693b12ebdf",
     "src/storage/salvage.rs": "aa5aa505afcde9d987f843582c75af4d29069d06bedd7c3f7a73b57d3050a69d",
     "src/storage/simulator.rs": "f52d26ee5547b04e900282b05095eee6d9d01e3faf9fe5955f22bc466206ab50",
-    "src/storage/windows.rs": "e15440da569ded3c2da401382ca1cc0895f52df7cc83a8a3980e971b7cf52710",
+    "src/storage/windows.rs": "80e0ec68e70ad3cb31806cf87da35bfa1933b287b104260536677190c0b2c52f",
     "src/storage/windows_admission.rs": "6313b98e035f9b32d5f3c2c7dd9ef7dd657e47cb49123d23a65d931ff34052a7",
     "src/storage/windows_io.rs": "93f7e139d6d8e9436e8b18edefe7cf887e23a8d83316a607d6631e54bd354fc3",
     "src/storage/windows_open.rs": "a0ce130f6509e1acff24be7a4e926c5a37068364ded03cfe4f5f0ce9f69c3a51",
     "src/storage/windows_path.rs": "74eab9df1d4c9aa0314f79e75bd68986429d7863079af68df3795a5b2e35f9fe",
     "src/storage/windows_rng.rs": "80fe6d4649e03e6c54ca8e2049800a7733b87cbdcb560b4412a23cdeb8e883d6",
     "src/tree.rs": "f2b4099a101747b657f8990d223710cbd176f8ef9e251b5799fa4744ccd8c8b3",
-    "src/value.rs": "afcbbdab3833c9230027232a11b4ff55222d2912b3d1ac9671b897cb4da6f120",
+    "src/value.rs": "812d6dbcbb8b28402aefc912ab2149013587a97ef8d1d317442f7ab9412c4859",
     "src/version.rs": "5006fbd7ced8252c579cb6695cd0ecbf1c6ab15491a7fc43f8a999539cb2fcf3",
     "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
     "tests/support/mod.rs": "007e7da58df3c8818418cb4460436e7b15e18026a32b5b0b742ebc78c89a7ab4",
@@ -231,263 +234,264 @@
   "reference_files": {
     "apps/study-peer/src/native/tests.rs": "c9176b2e22c85e2b6f121d98a970ad52908abc39d275c668e4d4c75880ce4d6e",
     "apps/study-peer/tests/cli.rs": "7f195cc0224ccda71e9552acd8e779a64724350ef439db8823f5bff96ea1b582",
+    "apps/study-peer/tests/service_diagnostics.rs": "bd7790b20933e411bed5778836f2c0ceb8db3aaaadd001efd0fe304481f1deb0",
+    "apps/support/pinned_tls.rs": "056b374b234ba260a66cfe1916300838d5861594a61a53bc9c1b8cc0ac889e3c",
+    "apps/weekend-replicate/src/native/admission.rs": "1f8a4b980720e8fa5fee5aa7325af7390597dcb0f021ed990b40691677a0ad5a",
+    "apps/weekend-replicate/src/native/pin_tests.rs": "76b408cae4f5a780ecbedf28352d118893d22f60ec1c7f6cf9ba39bbd11f748c",
     "apps/weekend-replicate/src/native/tests.rs": "a50bfdb8d5cb0af1d20d178f8e7f640bcd59ba3900b070a576595553865fc7e1",
+    "apps/weekend-replicate/tests/audit_cli.rs": "273b5711541e219ca03885c66cca8addc8cd60eb0bd9031cbe90d1e7a7c5d056",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
     "apps/write-coordinator/tests/writers.rs": "f88c7ff42b84ba746d7b67f52b859cad808460f3acf6b9d5d28b68e57691088f",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
+    "crates/weekend-db-macros/tests/compile_fail.rs": "f4ca6defd9fd6d02223e0862df2ccae6e0a3905a26db17dfd772e7568e6562c5",
+    "crates/weekend-db-macros/tests/expansion_guards.rs": "99faf75170cda407b4a88a86fddd9db025e70a48790ed7b3cb9167f1f72d2eec",
     "crates/weekend-db-typed/tests/migration_allocator.rs": "970fba9fe1555a04d807a069cd56e6e3315f636361584042f60c3ccbe37eba0c",
     "crates/weekend-db-typed/tests/models.rs": "f080864d86f8e5fc63a18c282d3910bd706f23a191b9ee870fcb6647bcefc703",
     "crates/weekend-db-typed/tests/runtime_decisions.rs": "b3a132cb4768c0623aef71bbd1acb28136222da49660cde318e8def85c7d8a6d",
     "docs/coordinator-artifact-recovery.md": "89679ef0737929ae332126527d3532695f8e92c3716ccc33bea9d72fc1c6e60e",
     "docs/coordinator-operator-handoff.md": "b87f399fc29eb77a18fb1ea99fb62bfae6ae0f025ca50e06a6cc29dc85dc088a",
     "docs/coordinator-pending-restore.md": "d05d279ac7d4586c8e5caff39d6075edeac3ce57a439d419b1c21dc6ce1a2c18",
+    "docs/decision-inventory-catalog.md": "11471d8d8bf0710deec26e38a242e59990be95932851dd44f26c210bd0248af1",
+    "docs/decisions/admin-dispatch-current.md": "079257d079e209b777d8b90c5369f4d5c947edd6f44d46d7cf17bec4f825edc2",
+    "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
+    "docs/decisions/apfs-detach-current.md": "031d9abf45e92bc3625a5cef3c7082ecb6b503f1867b6e8f1d3664f36c1a6ffd",
+    "docs/decisions/bytestore-publication-current.md": "dbde6175ae083da54e48faa497837bd67765216ca1d32b150946772399245f31",
+    "docs/decisions/capture-record-current.md": "89e1d03816322b7e74ccee14e044f4019d794c969ea74a8ddc8d0629f71d6e2c",
+    "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
+    "docs/decisions/codec-arithmetic-current.md": "b5db51c831e6c224fe13c7858187536ad6ecf34c9266778d700c36436716bffd",
+    "docs/decisions/codec-cache-index-current.md": "7ca3ab5d31063681ee25992977f891f4722f03ea5058e5e914f02aceec51dad4",
+    "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
+    "docs/decisions/codec-crc-current.md": "86f5c8ac361be7c5832a232bc2ca37a683f204eab861b1ccfd8905bf31f97bee",
+    "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
+    "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
+    "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
+    "docs/decisions/codec-encode-value-current.md": "57516e4c482d3e90dc3a0c41b889ccc9d43e9213334acb825a0465d73ea6dea8",
+    "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
+    "docs/decisions/codec-metadata-current.md": "4055bdaa6c5396f1cfd930e34a4dc130923256563109bbeea2488c6f8cd10edc",
+    "docs/decisions/codec-recovery-offsets-current.md": "242563ede2264b216cbba326d7dc4e0d14e86a3608a4374be2232bd28ee79ba5",
+    "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
     "docs/decisions/codec.md": "af20592d5d61e9ab8db5c1171a9be0babde8277c54a631049730e0c007232046",
     "docs/decisions/command-line.md": "f23888d065e1761fc3cf74707c036f228a7ece935285b2c9553f490aa9f1dd69",
+    "docs/decisions/compact-copy-current.md": "1de619c305f3e8c8174196617509a92c7c4d077437126b836d99890cd6589c24",
+    "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7",
+    "docs/decisions/coordinator-cli-native-current.md": "b428a1fd22001f7beef09ba97fb5224bbcd9c3979dd4d43c6018f1fee328ecf5",
+    "docs/decisions/coordinator-client-io-bce6c3b.sha256": "e20aee8e523a90bac9ee306514208752183261e11edf11ddef1776fbed7b4a21",
+    "docs/decisions/coordinator-client-io-current.md": "26d39453123777a648199a556985bceb624b9a81f5ccd877145e51917701246e",
+    "docs/decisions/coordinator-connection-handoff-current.md": "c82b333c26f1e9f1cf0369127eadcb6f1206dfc7d891e5f8b81a08cc686cefa5",
+    "docs/decisions/coordinator-init-8040d89.sha256": "983b4d5289ad1b76a00897db71f93c14ee362f630a7bcffbe462c92e08129754",
+    "docs/decisions/coordinator-initialization-current.md": "2af183e32daa733162931110184763f7a3c6bed10285c77013fe0d9ef7d62d33",
+    "docs/decisions/coordinator-legacy-boundaries-current.md": "6c7167d807ff6fd82767aaf90e037c6acb26b0cb2ff4b9a5a60a0cb99710542d",
+    "docs/decisions/coordinator-legacy-boundaries-e25f2f9.sha256": "58373d985cef1e89f26597aa7df9c7cde35a8b38b7ccabbfc7499b41442506df",
+    "docs/decisions/coordinator-legacy-commit-current.md": "f98506d9ec744ca4b1230603f2e62dc5a40d245ffc569d2a4e9c8c33d3b7cb14",
+    "docs/decisions/coordinator-legacy-receipts-current.md": "ce45c3172123a6c8275376d39619c0b83bc83bfcc530f49f385c0311e1c37afb",
+    "docs/decisions/coordinator-platform-signals-6855f58.sha256": "85c0d6ddfb3923cac4e8e1b58ed28c8f7ba185043faacc9800d06104b3019aee",
+    "docs/decisions/coordinator-platform-signals-current.md": "79e545320c4c6ddd666885ae5f537ff8cb7c1cd0db5741e7363e3cfb91f8a1a2",
+    "docs/decisions/coordinator-sequenced-requests-current.md": "9dc75c37459933ae5124c6091236ddb125ae406e5034c8ac78bc19b1ec1a65c3",
+    "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
+    "docs/decisions/coordinator-sequenced-submit-current.md": "f57eb5cd4c7aaa6e834520cdc7a968af0e22509575c829751cc1bc673d794cea",
+    "docs/decisions/coordinator-service-current.md": "147ac14a4580140c553a7d7a22c653c05f274c1e787f657f7b14ed12d6d3ff6c",
+    "docs/decisions/coordinator-service-errors-9a403fa.sha256": "767e74cabb0c5a8ade2fc83b2d4b7cfb0b8823b6fabd38717ca4167ea7f84428",
+    "docs/decisions/coordinator-service-errors-current.md": "f4b39f4e307013c646523b2726ea4f33a071085e1aa2e9e2955477fc5a39ac13",
+    "docs/decisions/coordinator-service-lifecycle-b3a2a18.sha256": "a2ac828f8b2c09fb2990384b18383f963e7a9d4b4d4cc0062e5a31e0afdad3b8",
+    "docs/decisions/coordinator-service-lifecycle-current.md": "577e66695319e89af6da7e34a86c3714f3a85e3d187a467bef6cf90f40b8bae0",
+    "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
+    "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12",
     "docs/decisions/crdt.md": "f69579306648095ed3552f58d205d2cdd6f39be744a5b3552ff555174acab274",
+    "docs/decisions/credential-file-admission-current.md": "b53ddc975a9d003124345dd1f8aadb4a268d2c4024ba1290d51009ab0c119962",
     "docs/decisions/current.md": "fc26e89154fd2077e63ac2815bde91d8be7ac8275e627f686d03d9e2329e6c1f",
+    "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
     "docs/decisions/diagnostics.md": "034c6dd99e61d1f1b0140caece02ca482238a46721d8cd6fea28d32bdaf1ae35",
     "docs/decisions/distributed-apps.md": "10107c3c88f1dc3a2d406becb4157a30dea0d82444bd0c80c96c5662da25c825",
     "docs/decisions/engine.md": "f5ad16c33b6559caa8301a2bff9861910d93f4c89af7811703b0ea51a047eaff",
+    "docs/decisions/ffi-boundaries-current.md": "134bbe5cd6dd47a8d6de146aa5613ee180d6be2a4a82873bb24c07a7eab860c1",
+    "docs/decisions/ffi-file-factories-current.md": "53f0d983a931631ea8204b5341336f296156db46c153fa86383553184afb07da",
+    "docs/decisions/ffi-generated-exports-current.md": "0963872250e22d81476120a4376c941c32e4487f015493cbd597c28d877aaac5",
+    "docs/decisions/ffi-handle-accounting-current.md": "e3d8761a89b228d7412094d729920d181e80b109a5e44a03ebdc8203011fa11a",
+    "docs/decisions/ffi-transaction-reads-current.md": "f53aa2b9a3476efa8dd308c9433209c395c915e154dc0e8fb269c752343fc5c9",
     "docs/decisions/ffi.md": "5de80429b18fb25cc5ff237cd58d96064b99e4e8335df23242b6334e1b9d36ef",
+    "docs/decisions/foreign-allocator-current.md": "4102fa64070f267104176245528c9e6156081a6c14db449f872dec5168ac4435",
+    "docs/decisions/inspection-backup-current.md": "7e43d86dc40a5858c09a0f87cd4d7f2def6fdee4027191618b24d2f7a5a71e6d",
+    "docs/decisions/journal-admission-current.md": "4632b71c2b0e9de89d2acfe1b21c377a0f738342d164b0159e2e61a075a36456",
+    "docs/decisions/journal-cli-current.md": "2f820ee2db5c43b9393fdc1cb94f14cf22045542899f5e419c255b2e3a8c86f9",
+    "docs/decisions/journal-replay-current.md": "503c73b6a6b87c7e51f344529530e87917821225536074e32e882fc00a895b52",
+    "docs/decisions/journal-state-current.md": "87c03e39f11595528de2bdf7b740ce9b31b7e4f54f61eb424e09918d74e1a489",
+    "docs/decisions/linux-architecture-current.md": "428d80d23f6b06a399e61cc8f423b4f852ecbce7beb3c9ff3e5bd4307cab87d9",
+    "docs/decisions/linux-metadata-current.md": "9322111c3a33fd7c8b048a9874d150c550644dbd100b5a12a73ab4eda2cee12e",
+    "docs/decisions/linux-primitives-current.md": "05d0e30b6bc23b0ad93116c44a941db70768b2e568797669085679c27c9ec1ed",
+    "docs/decisions/logical-storage-current.md": "b8fb96c3a29b62d45ce3e43d56c5af5b6608471612dfb34f069308d2291964b0",
+    "docs/decisions/macos-primitives-current.md": "5980f031c5237e3cf8df4d43793a949b37f82cc378919e25ff7977a2a5299c88",
     "docs/decisions/macros.md": "abf03b25df4e801504b94bcfd6fb2eb038f8c9bf34cfce2356272ad6645f0f35",
+    "docs/decisions/memory-growth-current.md": "ed7001d955f500ec2f49cb24053803a25d3ee70c2d3c5a054462b07e8e2a2229",
     "docs/decisions/memory.md": "df5ed308bd4ec52582215d342f4b1b511129ea7905ff0c9db5052b0953a448d8",
+    "docs/decisions/model-derive-current.md": "8a5d881b26348e0536014019a49423c36ee09e4eb038f98ce9285ca15999ec77",
+    "docs/decisions/native-compaction-setup-current.md": "3d69b238c78fceeb39b20798a0b31b62e988b25f1313df2fc7108506d986384f",
+    "docs/decisions/native-replacement-current.md": "800b23b2b83bbfe0bab145c394d216469573974aa8e32cbc66812e01fda1a5c3",
     "docs/decisions/native-storage.md": "0bdafa8a9733a3ecb60625dff2d0298fe1653759b3a1fa6a54968e191e843af8",
     "docs/decisions/operations.md": "a4fddf27ab8fec2bc7f834536244ede88cca96fdb54fd3dc67eefb4e13111e3a",
+    "docs/decisions/provider-ownership-current.md": "f92b393f49dec2717f17f5f87a5bb6f011ba169209ce7de2b9f0b50c9ae2351f",
+    "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa",
+    "docs/decisions/record-derive-current.md": "aeaebc7fefbf270bb253d89a5e597f81dca25c21ff44fc7d4fab0871cd307f6a",
     "docs/decisions/replacement.md": "51ca29d454cde7576cccb39e147449bd5dd5c1b47a53d308c2f52287a3754317",
+    "docs/decisions/replica-decode-current.md": "1648af39c4a87c40f7a03096befeaafa780e4753decb50f16875fff56b54d5a7",
+    "docs/decisions/replica-envelope-current.md": "b324cbf3360151880dd016c42733c2acdff027f31ade2cad51677ecb1c38c641",
     "docs/decisions/replication.md": "c878715b597564370205df1887d5b398fe278fb70948762023bea76f40b1eed8",
-    "docs/decisions/schema.md": "7ab28cc3450ecdf3d60b7b21da33878b4e70064171d7f254b1ab7e18b41553b7",
+    "docs/decisions/resolution-derive-current.md": "a794a1f9316f92210eecb68eb77d3e48705aa3d6ec5f63bf9e678a2638ab6a88",
+    "docs/decisions/runtime-identity-current.md": "1fa85fa316980a6ab55f2bd73f7890d879d1bc62cfc0d6f74d8a471c849ca00c",
+    "docs/decisions/rust-output-allocation.md": "d5da95d17be8fb22c7f6a4aefcf12d90779dc70685c7f9f02c33dcdb29f09623",
     "docs/decisions/schema-allocator-current.md": "a024e4212c36a872b01b5469b2ce38fe0f7d17f630617c6852b5f9b808fc1a74",
+    "docs/decisions/schema.md": "7ab28cc3450ecdf3d60b7b21da33878b4e70064171d7f254b1ab7e18b41553b7",
+    "docs/decisions/service-diagnostics-current.md": "6e1fefc7b06a3ee3a25158288e2568aee38ca530076c3f0b3ac646b5efa0fc42",
+    "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
+    "docs/decisions/shared-tls-credential-io-c6869a2.sha256": "c80b5745bdd81dcee5e202c3cbc083f4a6ec4c1a1262cab65545299048f6354b",
+    "docs/decisions/shared-tls-credential-io-current.md": "be4b50c2945ceed5b6e373e412ed002746af7455aaf1b6a0018c9e2c6e2eba1d",
+    "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
+    "docs/decisions/shared-tls-handshake-0fe8b54.sha256": "ff29e6f007d4a2a3e1caa4cb89dc115ac7b44287b18b0d012023c1351bcb49eb",
+    "docs/decisions/shared-tls-handshake-current.md": "e643c26ab4850d287963fb9ba1d558d92a9fbf96b190297f3edcd9352a35955f",
+    "docs/decisions/shared-tls-transport-0cd752b.sha256": "d64b956dbdef18cbb8ed339adad784f9e60bddd4a40954775ced926c3879f0f3",
+    "docs/decisions/shared-tls-transport-current.md": "4d423e21c442164262dffe518464eeb67a7639e70d64bf2362e27a1f1b44a9bd",
+    "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
+    "docs/decisions/simulator-survival-current.md": "9b731edf4d3bb656a0aafca2c16e5a1b1126d9d580147cba2e55501559625af2",
     "docs/decisions/simulator.md": "33cffe2f6c97cddde019f32fa292b7815afe0e7424d5bedebd38585821c8858f",
+    "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
+    "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
+    "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
+    "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
     "docs/decisions/snapshot-cli.md": "6f3016cf826a3c06985ffb1be8d25ca032bb7c886e6027741aa91d6076be9634",
+    "docs/decisions/snapshot-command-effects-current.md": "d7b27490c1622ad5f9e2e8eda55f787b136dd2c3e8bfde25bdaf61072aa6b1c9",
+    "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719",
+    "docs/decisions/snapshot-dispatch-current.md": "ac3be20b5980d8888b679004c40e949ebc6b7bf4105648358b5e91ffded625c1",
+    "docs/decisions/snapshot-listener-current.md": "63b8ff931998fbd604f0eb74fde7cac9d757b5e917f7fa0664ff5bbcdd27867c",
+    "docs/decisions/snapshot-maintenance-output-current.md": "a1e0d8119f0a4784f7ef6f0b09718da3bbf5bfed12d37da16b1ee01b3ecce5d6",
+    "docs/decisions/snapshot-network-admission-current.md": "9e8ad4ed48298b6a311f35374d85e243b34e0d42a061aa3c2979649aad1e14a9",
+    "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1",
+    "docs/decisions/snapshot-output-current.md": "6f132ba771930de5f454d3cb588e8945a74cfc235f76ce4cb9943b8dc00466fc",
+    "docs/decisions/snapshot-readiness-current.md": "e1839a70d1c1ab08ad6407a30165b9d52258cb498a10a022c5593d061ff128c3",
+    "docs/decisions/snapshot-reaper-fixture-current.md": "3a22f607854fc718b61412880e14ac4647fe0557a0e437be5b2cf6289a9b099c",
+    "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679",
+    "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
     "docs/decisions/storage-core.md": "f4903525352908d017e9ff6858fdc70a45e38dcaca11e98a8ae726f96a2f2ef2",
+    "docs/decisions/storage-creation-reopen-current.md": "a4017782123dbd96eddbb3711613c8454fd7e963a73848c1e05329eb4c16c331",
+    "docs/decisions/study-cli-admission-current.md": "ce52224f8a52a09cf0c353c04c21207c3bc5be3ce6ce599a83520337bfd49d15",
+    "docs/decisions/study-incoming-worker-current.md": "f94f0d11e3bd22ae1df89ae4574953425ec3a07b591c5dc86988b6749339b5bb",
+    "docs/decisions/study-interactive-io-current.md": "b45280815b11f7095a4c0fe6daf05f86b5bad8ce5a26842b8e8dec8649a216a5",
+    "docs/decisions/study-listener-current.md": "1042959f13fc8b745f0bfeff0f6076a420a3bfee6d8df51776509176de540b0e",
+    "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403",
+    "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f",
+    "docs/decisions/study-protocol-current.md": "f64491f0ba1600aa1aa3e192e58be8e53f18fa4f1c07b9a638b881c46eb7aa35",
+    "docs/decisions/study-protocol-upgrade-source.md": "3619b9ba71b1c76f14036c8ba754d92e23273e714d44a61166ef6b90227fe7b1",
+    "docs/decisions/study-receive-current.md": "5f5474cad2d6d7941dc8dace7227a2aa770dbbb7a1c63bb3aab18c45fb177536",
+    "docs/decisions/study-retry-diagnostic-1ec259c.sha256": "1107a15e59443a11f7099e167a68b4e12dd65f573aff14d2f7d1162bb788bee4",
+    "docs/decisions/study-retry-diagnostic-current.md": "269829306be8806db1ba30ba420473e3e55cb8b6459715ce020e16916da44d8f",
+    "docs/decisions/study-seed-pair-current.md": "0a78ae4c18d91c23a8361dce28ea35b41fea270802987b94f4b9bf6f7951d4d6",
+    "docs/decisions/study-service-launch-current.md": "d271a3fcbcfeefc1ec3871c3f3b6b5e7c0bc60b8cf028a47a19bafb147874ca7",
+    "docs/decisions/study-service-shutdown-current.md": "f30d9f7b68de9ffe6037ed386e8779adbee16b2af41661ba9812cb6b83588330",
+    "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
+    "docs/decisions/study-windows-fixtures-current.md": "97531770ea0ada7b26b432ceec1f4d13f894329ea40557c989eb6a6760339493",
+    "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591",
+    "docs/decisions/supervisor-cli-response-4a3ea5d.sha256": "04ac223dfdae8ef21b3beb7fe9cdff472f1c8ca674217804a58b3dab93b07f20",
+    "docs/decisions/supervisor-cli-response-current.md": "4c7dd9437733ca28c7255190fbc0b516a87e76c276072e62862d90c6b170db66",
+    "docs/decisions/supervisor-output-flow-52605e4.sha256": "0813f3adf79087127899c4364bdf75231a9ed84021369e10443d8924164a2e9f",
+    "docs/decisions/supervisor-output-flow-current.md": "d9dc1e132d48a69ecc3ff3488601b0a4372026dd18e8829371371c743d58f5c5",
+    "docs/decisions/supervisor-proc-identity-05e99c6.sha256": "6a1b5603334b900a7bd20b10a18eb6ec2f09061ecd22944043ef7865b11b690c",
+    "docs/decisions/supervisor-proc-identity-current.md": "231f28c054a7558456ad3ec426de2a602bb2f1fe90ae8ca36e7b52b9407fb9a2",
+    "docs/decisions/supervisor-result-pairs-24b6e34.sha256": "f3fb6df47cf29d6882eb91d4144f7095ef88ea9d2769c0ea76effb07be7ff0b9",
+    "docs/decisions/supervisor-result-pairs-current.md": "dc575ecee8bf53af16f4c7b5c4b70dc0d9eb8f89bfab629fab8d3ce8f1b40d48",
+    "docs/decisions/tls-connect-refusal-9e50334.sha256": "0d507bee1d8e475f53563e8de7f0f8af1562f6db50e27b1f4eb0899cd3fed411",
+    "docs/decisions/tls-connect-refusal-current.md": "3f626f862cefaec86370e53c1af828085ee6c7459ec5bfbec56e8411020c0c4b",
+    "docs/decisions/trace-log-evidence-92ff7bf.sha256": "390ccff60da87baf010eb7e61aec788f34f27626092a15bf32e0776155f2a945",
+    "docs/decisions/trace-log-evidence-current.md": "8800cf81ec8749a006f95d79d968dc9c7c53021e10a93d9059f3cbee4e2b104e",
+    "docs/decisions/transaction-assignment-commit-current.md": "68704d00fc7bde2719ac5262beaa293d04481a28695851830ead5ddae2e9acc3",
+    "docs/decisions/transaction-observation-scan-current.md": "d036c9575fe20eb343c3f1a744cc9511fcb0675bec4f2207daca725493fc9ab2",
+    "docs/decisions/tree-current.md": "e9b5fe8e5b11c2863bbb4869ca424790c09c1563e42762cc2157ab23b5bf1129",
     "docs/decisions/tree.md": "284d9f918e6fc8d58e50af85e833c66dccf2f269f47e1efbce662354f3d457c1",
+    "docs/decisions/typed-catalog-current.md": "5e498217efc23dcd2e299041a945ede86752ab62b773a1ef6cadd52d7b805fee",
+    "docs/decisions/typed-index-allocator-current.md": "378c8a341252aba5a761a99da8e92ce6fcd33bca15d2fb19fc7c9db551795cb1",
+    "docs/decisions/typed-lookup-current.md": "5737b59d961037bc7a8d703e740f41b0b441ebaf1228c8835408312b4fee8f71",
+    "docs/decisions/typed-migration-recovery-current.md": "2079c473658a94d7542796b2a2fd2d871d4652f7b020ab33dac6320bad7bd908",
     "docs/decisions/typed-runtime.md": "fd53f0fdd169a7dcabab4362c88fcdffb96c338f5ddc6f25e8fe733d8f16a4a9",
+    "docs/decisions/typed-store-current.md": "4a908d642fd6f9d85e5004f3dadc06c94de429816e8e4649848352529a20879c",
+    "docs/decisions/typed-unique-claims-current.md": "524965db8c78e505a08ba4dfbcf617d0b7b1dc58323f19f7bc565e2474a141fc",
+    "docs/decisions/unix-clone-failures-current.md": "08d24c5416025094d12e9a1d1189bc5f29ed01844acf1799d3de903a6e141c81",
+    "docs/decisions/unix-descriptors-current.md": "c28a6d9dd469aefe24b1cc4f852906141378748510b86be2ce404776e75bf190",
+    "docs/decisions/unix-leases-current.md": "033fec62102c7060d741bdb3844937f763d77f9e4c5efad738a2130fd6594fb3",
+    "docs/decisions/unix-metadata-reads-current.md": "aaf3cd7c24a541ab70c8ebbdd1d77674c2f02872ad3b67f97ae5bf173fdbf258",
+    "docs/decisions/unix-path-admission-current.md": "4b0ea4b1dd98bcd9e81e53b7006343423a71e819e057598e58ff5bb49e930349",
+    "docs/decisions/unix-scratch-io-current.md": "7bf5c1d7e9d68d442fee605ef55b1d6e30cf622531cb906365383334bc3f9422",
+    "docs/decisions/unix-sync-current.md": "07bd12f2254e91503accb01afb23ea59512e757cb10731d95e27df28af6470b4",
+    "docs/decisions/value-current.md": "601ddff42e9fa6b955fada563c961cd40f3d88bd1d26b4e05971c9b51b5cce3b",
     "docs/decisions/value.md": "6eb1b11f18d377c4b79bb183ecc162e3d2cd4cd1c74f782bda13745864b30a47",
+    "docs/decisions/windows-admission-current.md": "148245e024712e57cf43f02cdedb7d5f98a82509af6b8b389835569d6a3d4c93",
+    "docs/decisions/windows-handle-io-current.md": "ed74f70a7f7ce018c3aac4c879da8b637f84500e22c1a375bc76fe8d1a9a995a",
+    "docs/decisions/windows-native-path-entry-c44c26d.sha256": "537f54fdbf78fc30d22ed0a979b0577486109df1fc490a933963cd7cb7736c34",
+    "docs/decisions/windows-native-path-entry-current.md": "c638e6b0287b1bc196e19545c8589fca90b79b69f1dceadaf7bf1ce16a66e014",
+    "docs/decisions/windows-open-flow-current.md": "3ffb4b681b95a4f3676f5f92b3e1054118efc16c7ccf95fff30214e7de3d4931",
+    "docs/decisions/windows-open-flow-ee67459.sha256": "0010a04678335a378e44dad73309a7e91ff0adca4a1cd367b0d176b29b8e5269",
+    "docs/decisions/windows-open-results-current.md": "1469eb6cc3a288e990f504e12d9ccbeda2c7e6cb85e30dd94ae4f5c90da7ad19",
+    "docs/decisions/windows-paths-current.md": "09fc05b2d123e33c10006f65242359f7ea2002bf1774dfc3bfc16557b33f7a6f",
+    "docs/decisions/windows-rng-results-current.md": "cc3e39c76f21ce226d474403cb5a31c14de93e5b3916350abee4e1e045f42a8f",
     "docs/helper-controls.md": "637a97679335158f58d134bb883b3f10ddca975256c89feb521a7e3ee923246f",
     "docs/memory-budget-decisions.md": "eb7988af2064bcc8076d3fc8c8def3653d8c4932340863b8ca7a5fc915661500",
     "docs/mutations.md": "546622bf9c7f293cc86c97d0c7770e50231a2ceb95475ffe502d177ca295ea2e",
     "docs/native-identity-assurance.md": "ffdc001bb853f4b312cfe13ec4caee281aa3964ebaea051449108aa65ab1addd",
+    "docs/r1-ci-shards.md": "4ab5df8b04da818bb73547c39fd6aca3f677a7171404ec1797969d63527ce61c",
     "docs/release-contract.md": "643fb28b58804ce6d1b39034e62ce2910bde31b60576d2b2248cdced3e3f046f",
     "docs/service-diagnostics.md": "63273f7d7bd77764251d023609b81471a2b84cd0a6f8ab28e96ab0a6af453ebe",
     "docs/tls-handshake-decisions.md": "8642a290a1922b2056270d750e6cbb32a54f966e54807f865f71b48757825a78",
-    "include/weekend_db.h": "615e635bd99076fa2781a23ee04ca5083bf4c38332f45b6d37f2fb17774d524c",
+    "examples/memory.c": "b259fda793fcda3db83989f49e9b04e8017a2eaad87eaae32f2322b909fa6af4",
+    "examples/support/allocator_contract.h": "b86da5ca90ca078d9c9cca8f6c8425b33150477534af65c31cb8029bec070fc9",
+    "examples/support/file_allocator_contract.h": "999190bd1d65617b042832b821fbb89909c3698c7a3ce9f00d49a33d828e0ba1",
+    "include/weekend_db.h": "9e68ce63e6c73e65b834b20b722578b4b1f949111222508edbfecb6498b6e41a",
+    "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
+    "src/memory/test_allocator.rs": "82ae341c680760f0d6980cf367e4c247f8cdd756635de7a399eb820d78924029",
     "src/replication/follower/tests.rs": "5e8afbd69178077862bee3d44a1560fa462d58d8f256d4e0340686a1febf3492",
     "src/replication/tests.rs": "4752d275a9781684266d0da0db6985a3416c73ab83e0096f9f2e2161c5143235",
+    "src/storage/file.rs": "ce7dca17ba6afabdaec10275ff42d84020132132e3166fc465acb54df6723f44",
+    "src/storage/logical/decisions.rs": "b3bd8042e68a4f4e56455998d19d579d39d87529b63303d36768ff9f15959bf8",
+    "src/storage/mod.rs": "5fec78486afaa9f012e1cdbec790bfbf0cae3bc581e33de711215902b61c2a0b",
     "tests/admin_decisions.rs": "52d6edddba79b65e4861177c10c1c6743b50d73c9c6c07ab29d5a4b54dc1b6e1",
     "tests/allocation.rs": "b2546afd7e746c8fefc5d12f0df66d27f84d2a9eaca19fb50a8286fe255dbc31",
     "tests/allocator_routing.rs": "eb9f78809734a6684708ddc06a9cf47f2589a3fa06006465758a30c44bc47f06",
+    "tests/bytestore.rs": "40bf48f20083f6dca4ffa29f63284d11e5789dcb142ecc11ab2f5ff5be03a8cd",
     "tests/compaction.rs": "46a541c50a130a78d68dc5542693aacc3478feda297a74d98368af33115e4375",
     "tests/concurrency.rs": "2455b3fc5fc857a26753d3182ebd2186f2322222a07dabcd09df8e1baffb8774",
     "tests/crdt.rs": "640453983ad46e445c360fd75a90e1cd5e81ccb3e9ba3df69c9aa305eb2e38ef",
-    "tests/durability.rs": "dfefb8f8abdc5c6613bd3b80947769f31a2cba5892046437748a7c2d2aa65f79",
+    "tests/durability.rs": "0abbfbf960c5e3607afaa0936d1d53af1692bae7e1081b5b380d4a38be57220e",
     "tests/engine_decisions.rs": "602a92e910290944be5b441b665ac3bd4547b9d6f00a174c51a549cf51a1ded7",
     "tests/files.rs": "43eb35eab3e6c0dca33eb7d7c32c4f217ffa637b2dbdc0bf42d8a00ff1c08e37",
+    "tests/headroom.rs": "d9ea3f3559aabc199495fba51a8d4020bb7f472b8a3112155e1d8e920005606c",
     "tests/inspection.rs": "02aaed4526353dbbb1d880c72531678d553a83d7216e0e06a6c78b60812f40c9",
+    "tests/linux_architecture.rs": "45f6c0859c890fe3540f3f322f0d1d5d41aff762eb116066fe07ec0143a36e2e",
     "tests/live_budget_decisions.rs": "d57f2af87a5e1cc928eee832397792f342153dedbc25351784904f5b71e0393b",
     "tests/logical.rs": "ef4f3a09a7d51234e588f17f6d995904d681d5ba5ccae07f7a11e76ba7304c9e",
+    "tests/paging.rs": "cd86dd3e65ebf41e60b92c29869e8e8b9dfc501892eb5880c9951c775c9299e2",
+    "tests/replication.rs": "91cc5dc9e1e33f05657e58105c6f3ee4d15ba043dedc381350c04ae8a99a4dcc",
     "tests/retention.rs": "19c377d14d73e0cf58502f13374a1bd837d280b352daf52a70c62af98f3fd14d",
     "tests/salvage.rs": "0a73db147aa823fe8d7a20005b149896efdc318f830ca94ecddefc12403cc191",
-    "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
     "tests/schema.rs": "1c560b21d176392a589dd217972438f2064556c02c0d367e40fccca9ab819e50",
+    "tests/schema_decisions.rs": "ca5f9e7a26c635791848e70365c4f21be59bf38ab2d6117579ec69a954b8fb07",
     "tests/storage_decisions.rs": "415cd1e0d799ad189d8c7797a80effcee04374d90fd077f59901779c5cec04b4",
+    "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
+    "tests/support/bytestore_contract.rs": "bf48ba939e043e05e30b6f8d0fb52eac5aa3c947126be1181512477fa7bd4d78",
+    "tests/support/descriptor_limit.rs": "4e0810a10a9658351bdb92fdb60535bfe1268d74db8b9897e7b41b71030e72d7",
+    "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6",
     "tests/transactions.rs": "f4d6aec6b5f63cea148c64b9a31b89f755848b196fb0e38b542e5d4802cdf112",
     "tests/value_decisions.rs": "605fd7d6147b1cbf504cdecc5d3f2d76181ada66b8d9d81c199d4b2fd0f77934",
     "tests/values.rs": "c93575a92084db933f4a51713e91af598c85efdebcaf9f1ccf6e0d1c2c98306f",
+    "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419",
+    "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
     "tools/incident-recovery/src/main.rs": "81995d6a7ade96e89cc1068e41b724fbab2508798a67a5b6cd96792bd0fa5431",
     "xtask/src/assurance.rs": "a905e07220d815c4655344f95e88ff9db10d0ff69e4b0e8309d9d19b0f082dee",
     "xtask/src/coordinator_recovery.rs": "d29dfd88d57a1cd5d964a2358a2615b37b783f2268fc84791592fa07ce20f32d",
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
+    "xtask/src/mutations.rs": "c409a8edb575124ca0967d604c61b7be26e3af9fcf65c73ae5944104088ecf1a",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "b499ecc84bcd266ef3e18ebbf8b51f5d921d1cb5c46f2c943804a5b6cf1bd6fc",
-    "xtask/tests/supervise.rs": "c246ea1294e470f8a32271209c961da00c116bbf8c6ad3811154a0d00e2067d8",
-    "docs/decision-inventory-catalog.md": "11471d8d8bf0710deec26e38a242e59990be95932851dd44f26c210bd0248af1",
-    "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
-    "docs/decisions/codec-arithmetic-current.md": "b5db51c831e6c224fe13c7858187536ad6ecf34c9266778d700c36436716bffd",
-    "docs/decisions/codec-metadata-current.md": "4055bdaa6c5396f1cfd930e34a4dc130923256563109bbeea2488c6f8cd10edc",
-    "docs/r1-ci-shards.md": "4ab5df8b04da818bb73547c39fd6aca3f677a7171404ec1797969d63527ce61c",
-    "docs/decisions/codec-graph-current.md": "cd345252c623bbe54c1f9cc12476b1471f8a4447c102687e11cf0107b4fb8062",
-    "docs/decisions/codec-catalog-current.md": "2a7ed6d87701ed3bd2b2622e388423b6f6ed3cf73cae9a5c12442fd31860237c",
-    "src/storage/mod.rs": "1ed765a74f3e47804266317534b65a77252d55d7275fc0bb4dd865aaf33e9dae",
-    "docs/decisions/codec-data-current.md": "54ae0641bc1568c4496be6ea2bba4c69accdb51bfbb8fd5f5320ddbf6bf81a2d",
-    "docs/decisions/codec-value-current.md": "1472aee0b2c434572112ff630cfc666bad94ffcc1bff24c4c385e652baf9a211",
-    "docs/decisions/codec-append-current.md": "2fe70fa3600dfbf50b5c2a7b5f9317d4157ec21490c479a5989d3ba7b933c530",
-    "docs/decisions/codec-encode-value-current.md": "57516e4c482d3e90dc3a0c41b889ccc9d43e9213334acb825a0465d73ea6dea8",
-    "docs/decisions/codec-encode-data-current.md": "45c36834a90778bad49f4501c0eea973b6d0b57c6b50d7aa16df89d47aa62aac",
-    "docs/decisions/codec-encode-commit-current.md": "d5a09e228e10f4f10dc8c2116f1a2ff84a53c934ed3d23c7bddeb3acc1d49794",
-    "docs/decisions/allocation-recovery-current.md": "88e9f59b8e4d9ffbc29a59f9271a3067c5a03628b1d9f9501c2a09d48c806ef9",
-    "src/memory/test_allocator.rs": "82ae341c680760f0d6980cf367e4c247f8cdd756635de7a399eb820d78924029",
-    "tests/support/allocator.rs": "2d6f5f1cb4082252ee807d1303e35044b4dd9162df404bee73f01e49b18e0400",
-    "docs/decisions/simulator-allocator-current.md": "3905c60adc7be9ba22dae797125cc2ed367193379635d67589fac31b16b47946",
-    "docs/decisions/rust-output-allocation.md": "d5da95d17be8fb22c7f6a4aefcf12d90779dc70685c7f9f02c33dcdb29f09623",
-    "docs/decisions/public-allocation-hook-retirement.md": "71ac72f87c00067760cd04e746f65636f4ea6b1a19deb14cd1ec89bc583fc0fa",
-    "docs/decisions/codec-cache-index-current.md": "7ca3ab5d31063681ee25992977f891f4722f03ea5058e5e914f02aceec51dad4",
-    "docs/decisions/transaction-observation-scan-current.md": "d036c9575fe20eb343c3f1a744cc9511fcb0675bec4f2207daca725493fc9ab2",
-    "docs/decisions/transaction-assignment-commit-current.md": "68704d00fc7bde2719ac5262beaa293d04481a28695851830ead5ddae2e9acc3",
-    "docs/decisions/tree-current.md": "e9b5fe8e5b11c2863bbb4869ca424790c09c1563e42762cc2157ab23b5bf1129",
-    "docs/decisions/value-current.md": "601ddff42e9fa6b955fada563c961cd40f3d88bd1d26b4e05971c9b51b5cce3b",
-    "docs/decisions/bytestore-publication-current.md": "dbde6175ae083da54e48faa497837bd67765216ca1d32b150946772399245f31",
-    "docs/decisions/storage-creation-reopen-current.md": "a4017782123dbd96eddbb3711613c8454fd7e963a73848c1e05329eb4c16c331",
-    "tests/headroom.rs": "d9ea3f3559aabc199495fba51a8d4020bb7f472b8a3112155e1d8e920005606c",
-    "docs/decisions/compact-copy-current.md": "1de619c305f3e8c8174196617509a92c7c4d077437126b836d99890cd6589c24",
-    "docs/decisions/native-replacement-current.md": "800b23b2b83bbfe0bab145c394d216469573974aa8e32cbc66812e01fda1a5c3",
-    "docs/decisions/unix-leases-current.md": "033fec62102c7060d741bdb3844937f763d77f9e4c5efad738a2130fd6594fb3",
-    "docs/decisions/unix-path-admission-current.md": "4b0ea4b1dd98bcd9e81e53b7006343423a71e819e057598e58ff5bb49e930349",
-    "docs/decisions/unix-sync-current.md": "07bd12f2254e91503accb01afb23ea59512e757cb10731d95e27df28af6470b4",
-    "docs/decisions/macos-primitives-current.md": "5980f031c5237e3cf8df4d43793a949b37f82cc378919e25ff7977a2a5299c88",
-    "docs/decisions/linux-primitives-current.md": "05d0e30b6bc23b0ad93116c44a941db70768b2e568797669085679c27c9ec1ed",
-    "docs/decisions/linux-metadata-current.md": "9322111c3a33fd7c8b048a9874d150c550644dbd100b5a12a73ab4eda2cee12e",
-    "docs/decisions/windows-paths-current.md": "09fc05b2d123e33c10006f65242359f7ea2002bf1774dfc3bfc16557b33f7a6f",
-    "docs/decisions/unix-scratch-io-current.md": "7bf5c1d7e9d68d442fee605ef55b1d6e30cf622531cb906365383334bc3f9422",
-    "tests/linux_architecture.rs": "45f6c0859c890fe3540f3f322f0d1d5d41aff762eb116066fe07ec0143a36e2e",
-    "docs/decisions/linux-architecture-current.md": "428d80d23f6b06a399e61cc8f423b4f852ecbce7beb3c9ff3e5bd4307cab87d9",
-    "docs/decisions/unix-descriptors-current.md": "c28a6d9dd469aefe24b1cc4f852906141378748510b86be2ce404776e75bf190",
-    "docs/decisions/unix-metadata-reads-current.md": "aaf3cd7c24a541ab70c8ebbdd1d77674c2f02872ad3b67f97ae5bf173fdbf258",
-    "docs/decisions/unix-clone-failures-current.md": "08d24c5416025094d12e9a1d1189bc5f29ed01844acf1799d3de903a6e141c81",
-    "tests/support/descriptor_limit.rs": "4e0810a10a9658351bdb92fdb60535bfe1268d74db8b9897e7b41b71030e72d7",
-    "xtask/tests/mutations-windows.json": "6a2eb401d709f79bed86b435797a054729fedd60da8b6dffc0f9ce918de35862",
-    "docs/decisions/windows-admission-current.md": "148245e024712e57cf43f02cdedb7d5f98a82509af6b8b389835569d6a3d4c93",
-    "docs/decisions/windows-handle-io-current.md": "ed74f70a7f7ce018c3aac4c879da8b637f84500e22c1a375bc76fe8d1a9a995a",
-    "docs/decisions/windows-rng-results-current.md": "cc3e39c76f21ce226d474403cb5a31c14de93e5b3916350abee4e1e045f42a8f",
-    "docs/decisions/windows-open-results-current.md": "1469eb6cc3a288e990f504e12d9ccbeda2c7e6cb85e30dd94ae4f5c90da7ad19",
-    "docs/decisions/ffi-handle-accounting-current.md": "e3d8761a89b228d7412094d729920d181e80b109a5e44a03ebdc8203011fa11a",
-    "docs/decisions/ffi-boundaries-current.md": "134bbe5cd6dd47a8d6de146aa5613ee180d6be2a4a82873bb24c07a7eab860c1",
-    "docs/decisions/ffi-generated-exports-current.md": "0963872250e22d81476120a4376c941c32e4487f015493cbd597c28d877aaac5",
-    "examples/memory.c": "b259fda793fcda3db83989f49e9b04e8017a2eaad87eaae32f2322b909fa6af4",
-    "examples/support/allocator_contract.h": "b86da5ca90ca078d9c9cca8f6c8425b33150477534af65c31cb8029bec070fc9",
-    "docs/decisions/ffi-file-factories-current.md": "53f0d983a931631ea8204b5341336f296156db46c153fa86383553184afb07da",
-    "examples/support/file_allocator_contract.h": "62f2c7646407824cee6e5ef7f8e6a5f2cf8adb456adb431e87b364db74d94ddb",
-    "docs/decisions/foreign-allocator-current.md": "4102fa64070f267104176245528c9e6156081a6c14db449f872dec5168ac4435",
-    "docs/decisions/provider-ownership-current.md": "f92b393f49dec2717f17f5f87a5bb6f011ba169209ce7de2b9f0b50c9ae2351f",
-    "tools/atomic-model/README.md": "55f17083b7a7325939f8553d0eb9842f9a90fe05d45f311a6c29106497949419",
-    "docs/decisions/ffi-transaction-reads-current.md": "f53aa2b9a3476efa8dd308c9433209c395c915e154dc0e8fb269c752343fc5c9",
-    "docs/decisions/typed-unique-claims-current.md": "524965db8c78e505a08ba4dfbcf617d0b7b1dc58323f19f7bc565e2474a141fc",
-    "docs/decisions/typed-index-allocator-current.md": "378c8a341252aba5a761a99da8e92ce6fcd33bca15d2fb19fc7c9db551795cb1",
-    "docs/decisions/typed-migration-recovery-current.md": "2079c473658a94d7542796b2a2fd2d871d4652f7b020ab33dac6320bad7bd908",
-    "crates/weekend-db-macros/tests/compile_fail.rs": "f4ca6defd9fd6d02223e0862df2ccae6e0a3905a26db17dfd772e7568e6562c5",
-    "crates/weekend-db-macros/tests/expansion_guards.rs": "99faf75170cda407b4a88a86fddd9db025e70a48790ed7b3cb9167f1f72d2eec",
-    "docs/decisions/derive-admission-current.md": "289f3611db93e7a26488dccc35e7cc3260851c01d7c2773a049c3e22d471c32a",
-    "docs/decisions/resolution-derive-current.md": "a794a1f9316f92210eecb68eb77d3e48705aa3d6ec5f63bf9e678a2638ab6a88",
-    "docs/decisions/record-derive-current.md": "aeaebc7fefbf270bb253d89a5e597f81dca25c21ff44fc7d4fab0871cd307f6a",
-    "docs/decisions/model-derive-current.md": "8a5d881b26348e0536014019a49423c36ee09e4eb038f98ce9285ca15999ec77",
     "xtask/tests/fixtures/failing-cargo.sh": "01ebc9a3fbf722fed8e68e9b9ef59a0629640adfd4a4a02822f34620bf061076",
-    "xtask/src/mutations.rs": "c409a8edb575124ca0967d604c61b7be26e3af9fcf65c73ae5944104088ecf1a",
-    "docs/decisions/snapshot-ack-current.md": "e43b54348a149c1149cfb60cacfd028e1a3f99e9aece027c00f5244d003a7f12",
-    "docs/decisions/snapshot-capture-current.md": "c0cccb97b3f556c4740359d5d00f45e6124fe175bf0abf5b36168b897610ff10",
-    "tests/replication.rs": "91cc5dc9e1e33f05657e58105c6f3ee4d15ba043dedc381350c04ae8a99a4dcc",
-    "docs/decisions/snapshot-sender-current.md": "b0d6c25e6f16f6285b6057bdd0a8c69e060e14184906b6e24734a81880f63eee",
-    "src/crdt/decisions.rs": "99a5086427a05fc2cf9cb7e257a9dbfa7c84c83b13e18d8539995dad761fd489",
-    "docs/decisions/crdt-admission-current.md": "ad8652f59b104383b3a243c0465ead8bc7c3e0e504ab28cbd6c3d87b2742ec81",
-    "docs/decisions/crdt-causality-current.md": "ce2fbc2379c516ef403f63a06dad18bfacb5cfc4e6da688a7b6f03e22f8f4d12",
-    "docs/decisions/coordinator-service-current.md": "147ac14a4580140c553a7d7a22c653c05f274c1e787f657f7b14ed12d6d3ff6c",
-    "docs/decisions/compound-recovery-current.md": "658862f7a4b5f74eccaf48c6cf6a261780cf6306e6f4153bdbb0064ff3c291a7",
-    "docs/decisions/replica-decode-current.md": "1648af39c4a87c40f7a03096befeaafa780e4753decb50f16875fff56b54d5a7",
-    "docs/decisions/logical-storage-current.md": "b8fb96c3a29b62d45ce3e43d56c5af5b6608471612dfb34f069308d2291964b0",
-    "src/storage/logical/decisions.rs": "b3bd8042e68a4f4e56455998d19d579d39d87529b63303d36768ff9f15959bf8",
-    "docs/decisions/inspection-backup-current.md": "7e43d86dc40a5858c09a0f87cd4d7f2def6fdee4027191618b24d2f7a5a71e6d",
-    "docs/decisions/admin-dispatch-current.md": "079257d079e209b777d8b90c5369f4d5c947edd6f44d46d7cf17bec4f825edc2",
-    "docs/decisions/typed-store-current.md": "4a908d642fd6f9d85e5004f3dadc06c94de429816e8e4649848352529a20879c",
-    "docs/decisions/typed-catalog-current.md": "5e498217efc23dcd2e299041a945ede86752ab62b773a1ef6cadd52d7b805fee",
-    "docs/decisions/typed-lookup-current.md": "5737b59d961037bc7a8d703e740f41b0b441ebaf1228c8835408312b4fee8f71",
-    "docs/decisions/simulator-survival-current.md": "9b731edf4d3bb656a0aafca2c16e5a1b1126d9d580147cba2e55501559625af2",
-    "tests/bytestore.rs": "40bf48f20083f6dca4ffa29f63284d11e5789dcb142ecc11ab2f5ff5be03a8cd",
-    "tests/support/bytestore_contract.rs": "bf48ba939e043e05e30b6f8d0fb52eac5aa3c947126be1181512477fa7bd4d78",
-    "docs/decisions/codec-crc-current.md": "86f5c8ac361be7c5832a232bc2ca37a683f204eab861b1ccfd8905bf31f97bee",
-    "docs/decisions/codec-recovery-offsets-current.md": "242563ede2264b216cbba326d7dc4e0d14e86a3608a4374be2232bd28ee79ba5",
-    "docs/decisions/memory-growth-current.md": "ed7001d955f500ec2f49cb24053803a25d3ee70c2d3c5a054462b07e8e2a2229",
-    "docs/decisions/journal-replay-current.md": "503c73b6a6b87c7e51f344529530e87917821225536074e32e882fc00a895b52",
-    "docs/decisions/journal-admission-current.md": "4632b71c2b0e9de89d2acfe1b21c377a0f738342d164b0159e2e61a075a36456",
-    "docs/decisions/journal-state-current.md": "87c03e39f11595528de2bdf7b740ce9b31b7e4f54f61eb424e09918d74e1a489",
-    "docs/decisions/journal-cli-current.md": "2f820ee2db5c43b9393fdc1cb94f14cf22045542899f5e419c255b2e3a8c86f9",
-    "docs/decisions/service-diagnostics-current.md": "6e1fefc7b06a3ee3a25158288e2568aee38ca530076c3f0b3ac646b5efa0fc42",
-    "docs/decisions/capture-record-current.md": "89e1d03816322b7e74ccee14e044f4019d794c969ea74a8ddc8d0629f71d6e2c",
-    "docs/decisions/snapshot-output-current.md": "6f132ba771930de5f454d3cb588e8945a74cfc235f76ce4cb9943b8dc00466fc",
-    "docs/decisions/snapshot-dispatch-current.md": "ac3be20b5980d8888b679004c40e949ebc6b7bf4105648358b5e91ffded625c1",
-    "apps/weekend-replicate/tests/audit_cli.rs": "273b5711541e219ca03885c66cca8addc8cd60eb0bd9031cbe90d1e7a7c5d056",
-    "apps/weekend-replicate/src/native/pin_tests.rs": "76b408cae4f5a780ecbedf28352d118893d22f60ec1c7f6cf9ba39bbd11f748c",
-    "docs/decisions/snapshot-maintenance-output-current.md": "a1e0d8119f0a4784f7ef6f0b09718da3bbf5bfed12d37da16b1ee01b3ecce5d6",
-    "docs/decisions/replica-envelope-current.md": "b324cbf3360151880dd016c42733c2acdff027f31ade2cad51677ecb1c38c641",
-    "docs/decisions/runtime-identity-current.md": "1fa85fa316980a6ab55f2bd73f7890d879d1bc62cfc0d6f74d8a471c849ca00c",
-    "docs/decisions/native-compaction-setup-current.md": "3d69b238c78fceeb39b20798a0b31b62e988b25f1313df2fc7108506d986384f",
-    "src/storage/file.rs": "a671d59cc6d2ca075ad49084901aa1d39a1c45532c4cc5a9c7c077eab3176c4f",
-    "apps/study-peer/tests/service_diagnostics.rs": "bd7790b20933e411bed5778836f2c0ceb8db3aaaadd001efd0fe304481f1deb0",
-    "docs/decisions/study-seed-pair-current.md": "0a78ae4c18d91c23a8361dce28ea35b41fea270802987b94f4b9bf6f7951d4d6",
-    "docs/decisions/study-cli-admission-current.md": "ce52224f8a52a09cf0c353c04c21207c3bc5be3ce6ce599a83520337bfd49d15",
-    "docs/decisions/study-interactive-io-current.md": "b45280815b11f7095a4c0fe6daf05f86b5bad8ce5a26842b8e8dec8649a216a5",
-    "docs/decisions/study-service-startup-current.md": "154762f0cb8719546fc87499e9a0e0075ed950ff5bee7b63e75afab0843750a3",
-    "docs/decisions/study-peer-status-current.md": "750b20bea6949b14c296b483aaeaa181b1eee8e66ff846fd93d7126db207cf3f",
-    "docs/decisions/study-incoming-worker-current.md": "f94f0d11e3bd22ae1df89ae4574953425ec3a07b591c5dc86988b6749339b5bb",
-    "docs/decisions/study-worker-launch-current.md": "eddf7f9a0fe014bc4ed728ad38b2b873fe5ef4b65e83802570dd7c6fa8b3f591",
-    "docs/decisions/study-service-launch-current.md": "d271a3fcbcfeefc1ec3871c3f3b6b5e7c0bc60b8cf028a47a19bafb147874ca7",
-    "docs/decisions/study-service-shutdown-current.md": "f30d9f7b68de9ffe6037ed386e8779adbee16b2af41661ba9812cb6b83588330",
-    "docs/decisions/study-windows-fixtures-current.md": "97531770ea0ada7b26b432ceec1f4d13f894329ea40557c989eb6a6760339493",
-    "docs/decisions/study-receive-current.md": "5f5474cad2d6d7941dc8dace7227a2aa770dbbb7a1c63bb3aab18c45fb177536",
-    "docs/decisions/coordinator-connection-handoff-current.md": "c82b333c26f1e9f1cf0369127eadcb6f1206dfc7d891e5f8b81a08cc686cefa5",
-    "docs/decisions/credential-file-admission-current.md": "b53ddc975a9d003124345dd1f8aadb4a268d2c4024ba1290d51009ab0c119962",
-    "docs/decisions/study-listener-retirement-current.md": "195f7899b9e087c00d9cc6197b950ac8520c30e8e0e67a55a7ce074f49022403",
-    "docs/decisions/snapshot-readiness-current.md": "e1839a70d1c1ab08ad6407a30165b9d52258cb498a10a022c5593d061ff128c3",
-    "docs/decisions/snapshot-command-output-current.md": "2f52a75ca5607e561a2fd2d09c817239f8824b33b8c6abd5a3e778e5b2206719",
-    "docs/decisions/snapshot-retry-current.md": "d47d809dbee2dce6cf21444b6e7205d484a96014274f0e488912d1c642692679",
-    "docs/decisions/snapshot-listener-current.md": "63b8ff931998fbd604f0eb74fde7cac9d757b5e917f7fa0664ff5bbcdd27867c",
-    "docs/decisions/study-listener-current.md": "1042959f13fc8b745f0bfeff0f6076a420a3bfee6d8df51776509176de540b0e",
-    "docs/decisions/study-protocol-current.md": "f64491f0ba1600aa1aa3e192e58be8e53f18fa4f1c07b9a638b881c46eb7aa35",
-    "docs/decisions/coordinator-legacy-receipts-current.md": "ce45c3172123a6c8275376d39619c0b83bc83bfcc530f49f385c0311e1c37afb",
-    "docs/decisions/apfs-detach-current.md": "031d9abf45e92bc3625a5cef3c7082ecb6b503f1867b6e8f1d3664f36c1a6ffd",
-    "docs/decisions/coordinator-legacy-commit-current.md": "f98506d9ec744ca4b1230603f2e62dc5a40d245ffc569d2a4e9c8c33d3b7cb14",
-    "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1",
-    "docs/decisions/snapshot-network-admission-current.md": "9e8ad4ed48298b6a311f35374d85e243b34e0d42a061aa3c2979649aad1e14a9",
-    "docs/decisions/snapshot-command-effects-current.md": "d7b27490c1622ad5f9e2e8eda55f787b136dd2c3e8bfde25bdaf61072aa6b1c9",
-    "apps/weekend-replicate/src/native/admission.rs": "1f8a4b980720e8fa5fee5aa7325af7390597dcb0f021ed990b40691677a0ad5a",
-    "docs/decisions/snapshot-admission-scheduling-current.md": "da6efa3d8e35280b579ab6a9edda8d8f6fe90f49c0f3d43bfbb08d1ac6ec47e5",
-    "docs/decisions/snapshot-admission-retirement-current.md": "455959701abbae322fec3c8fe4bdf9228c5f588f423efbb77909d9535ec8c0be",
-    "apps/support/pinned_tls.rs": "056b374b234ba260a66cfe1916300838d5861594a61a53bc9c1b8cc0ac889e3c",
-    "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
-    "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
-    "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
-    "docs/decisions/coordinator-sequenced-submit-current.md": "f57eb5cd4c7aaa6e834520cdc7a968af0e22509575c829751cc1bc673d794cea",
-    "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6",
-    "docs/decisions/coordinator-sequenced-requests-current.md": "9dc75c37459933ae5124c6091236ddb125ae406e5034c8ac78bc19b1ec1a65c3",
-    "docs/decisions/coordinator-cli-native-current.md": "b428a1fd22001f7beef09ba97fb5224bbcd9c3979dd4d43c6018f1fee328ecf5",
-    "docs/decisions/coordinator-service-lifecycle-current.md": "577e66695319e89af6da7e34a86c3714f3a85e3d187a467bef6cf90f40b8bae0",
-    "docs/decisions/coordinator-service-lifecycle-b3a2a18.sha256": "a2ac828f8b2c09fb2990384b18383f963e7a9d4b4d4cc0062e5a31e0afdad3b8",
-    "docs/decisions/coordinator-legacy-boundaries-current.md": "6c7167d807ff6fd82767aaf90e037c6acb26b0cb2ff4b9a5a60a0cb99710542d",
-    "docs/decisions/coordinator-legacy-boundaries-e25f2f9.sha256": "58373d985cef1e89f26597aa7df9c7cde35a8b38b7ccabbfc7499b41442506df",
-    "docs/decisions/coordinator-initialization-current.md": "2af183e32daa733162931110184763f7a3c6bed10285c77013fe0d9ef7d62d33",
-    "docs/decisions/coordinator-init-8040d89.sha256": "983b4d5289ad1b76a00897db71f93c14ee362f630a7bcffbe462c92e08129754",
-    "docs/decisions/coordinator-client-io-current.md": "26d39453123777a648199a556985bceb624b9a81f5ccd877145e51917701246e",
-    "docs/decisions/coordinator-client-io-bce6c3b.sha256": "e20aee8e523a90bac9ee306514208752183261e11edf11ddef1776fbed7b4a21",
-    "docs/decisions/coordinator-service-errors-current.md": "f4b39f4e307013c646523b2726ea4f33a071085e1aa2e9e2955477fc5a39ac13",
-    "docs/decisions/coordinator-service-errors-9a403fa.sha256": "767e74cabb0c5a8ade2fc83b2d4b7cfb0b8823b6fabd38717ca4167ea7f84428",
-    "docs/decisions/coordinator-platform-signals-current.md": "79e545320c4c6ddd666885ae5f537ff8cb7c1cd0db5741e7363e3cfb91f8a1a2",
-    "docs/decisions/coordinator-platform-signals-6855f58.sha256": "85c0d6ddfb3923cac4e8e1b58ed28c8f7ba185043faacc9800d06104b3019aee",
-    "docs/decisions/shared-tls-credential-io-current.md": "be4b50c2945ceed5b6e373e412ed002746af7455aaf1b6a0018c9e2c6e2eba1d",
-    "docs/decisions/shared-tls-credential-io-c6869a2.sha256": "c80b5745bdd81dcee5e202c3cbc083f4a6ec4c1a1262cab65545299048f6354b",
-    "docs/decisions/shared-tls-handshake-current.md": "e643c26ab4850d287963fb9ba1d558d92a9fbf96b190297f3edcd9352a35955f",
-    "docs/decisions/shared-tls-handshake-0fe8b54.sha256": "ff29e6f007d4a2a3e1caa4cb89dc115ac7b44287b18b0d012023c1351bcb49eb",
-    "docs/decisions/shared-tls-transport-current.md": "4d423e21c442164262dffe518464eeb67a7639e70d64bf2362e27a1f1b44a9bd",
-    "docs/decisions/snapshot-reaper-fixture-current.md": "3a22f607854fc718b61412880e14ac4647fe0557a0e437be5b2cf6289a9b099c",
-    "docs/decisions/shared-tls-transport-0cd752b.sha256": "d64b956dbdef18cbb8ed339adad784f9e60bddd4a40954775ced926c3879f0f3",
-    "docs/decisions/windows-open-flow-current.md": "3ffb4b681b95a4f3676f5f92b3e1054118efc16c7ccf95fff30214e7de3d4931",
-    "docs/decisions/windows-open-flow-ee67459.sha256": "0010a04678335a378e44dad73309a7e91ff0adca4a1cd367b0d176b29b8e5269",
-    "docs/decisions/supervisor-result-pairs-current.md": "dc575ecee8bf53af16f4c7b5c4b70dc0d9eb8f89bfab629fab8d3ce8f1b40d48",
-    "docs/decisions/supervisor-result-pairs-24b6e34.sha256": "f3fb6df47cf29d6882eb91d4144f7095ef88ea9d2769c0ea76effb07be7ff0b9",
-    "docs/decisions/tls-connect-refusal-current.md": "3f626f862cefaec86370e53c1af828085ee6c7459ec5bfbec56e8411020c0c4b",
-    "docs/decisions/tls-connect-refusal-9e50334.sha256": "0d507bee1d8e475f53563e8de7f0f8af1562f6db50e27b1f4eb0899cd3fed411",
-    "docs/decisions/windows-native-path-entry-current.md": "c638e6b0287b1bc196e19545c8589fca90b79b69f1dceadaf7bf1ce16a66e014",
-    "docs/decisions/windows-native-path-entry-c44c26d.sha256": "537f54fdbf78fc30d22ed0a979b0577486109df1fc490a933963cd7cb7736c34",
-    "docs/decisions/supervisor-output-flow-current.md": "d9dc1e132d48a69ecc3ff3488601b0a4372026dd18e8829371371c743d58f5c5",
-    "docs/decisions/supervisor-output-flow-52605e4.sha256": "0813f3adf79087127899c4364bdf75231a9ed84021369e10443d8924164a2e9f",
-    "docs/decisions/study-retry-diagnostic-1ec259c.sha256": "1107a15e59443a11f7099e167a68b4e12dd65f573aff14d2f7d1162bb788bee4",
-    "docs/decisions/study-retry-diagnostic-current.md": "269829306be8806db1ba30ba420473e3e55cb8b6459715ce020e16916da44d8f",
-    "docs/decisions/supervisor-proc-identity-current.md": "231f28c054a7558456ad3ec426de2a602bb2f1fe90ae8ca36e7b52b9407fb9a2",
-    "docs/decisions/supervisor-proc-identity-05e99c6.sha256": "6a1b5603334b900a7bd20b10a18eb6ec2f09061ecd22944043ef7865b11b690c",
-    "docs/decisions/supervisor-cli-response-current.md": "4c7dd9437733ca28c7255190fbc0b516a87e76c276072e62862d90c6b170db66",
-    "docs/decisions/supervisor-cli-response-4a3ea5d.sha256": "04ac223dfdae8ef21b3beb7fe9cdff472f1c8ca674217804a58b3dab93b07f20",
-    "docs/decisions/trace-log-evidence-current.md": "8800cf81ec8749a006f95d79d968dc9c7c53021e10a93d9059f3cbee4e2b104e",
-    "docs/decisions/trace-log-evidence-92ff7bf.sha256": "390ccff60da87baf010eb7e61aec788f34f27626092a15bf32e0776155f2a945",
-    "docs/decisions/study-protocol-upgrade-source.md": "3619b9ba71b1c76f14036c8ba754d92e23273e714d44a61166ef6b90227fe7b1"
+    "xtask/tests/mutations-windows.json": "6a2eb401d709f79bed86b435797a054729fedd60da8b6dffc0f9ce918de35862",
+    "xtask/tests/mutations.json": "2517249ed27ac22c44af1da810e056185aaec16073bc84958177a65c5d97974a",
+    "xtask/tests/supervise.rs": "c246ea1294e470f8a32271209c961da00c116bbf8c6ad3811154a0d00e2067d8"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -541,7 +545,7 @@
     "weekend-db::study_progress": 31,
     "weekend-db::typed": 186,
     "weekend-db::weekend-admin": 30,
-    "weekend-db::weekend_db": 1682,
+    "weekend-db::weekend_db": 1881,
     "weekend-decision-inventory::weekend-decision-inventory": 413,
     "weekend-native-soak::weekend-native-soak": 17,
     "weekend-probe::weekend_probe": 46,
@@ -564,7 +568,8 @@
       "name": "engine",
       "scope": "runtime",
       "paths": [
-        "src/engine.rs"
+        "src/engine.rs",
+        "src/engine/"
       ],
       "references": [
         "docs/decisions/current.md",
@@ -711,7 +716,8 @@
       "name": "codec",
       "scope": "runtime",
       "paths": [
-        "src/storage/codec.rs"
+        "src/storage/codec.rs",
+        "src/storage/codec/"
       ],
       "references": [
         "docs/decisions/current.md",
@@ -1712,7 +1718,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "length < APPEND_START as u64",
@@ -1759,7 +1765,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "&header[..8] != b\"WEEKDB01\"",
@@ -1806,7 +1812,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "checksum(&header, 64) != u64_at(&header, 64)",
@@ -1938,7 +1944,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "identity == [0; 16]"
@@ -2317,7 +2323,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "witness.revision > slot.revision",
@@ -2377,7 +2383,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "slots[0].is_some_and(|a| slots[1].is_some_and(|b| a.revision.abs_diff(b.revision) != 1))"
@@ -2417,7 +2423,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "slots\n            .into_iter()\n            .flatten()\n            .max_by_key(|s| s.revision)\n            .ok_or(Error::Corrupt)"
@@ -2890,7 +2896,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "backend.length()"
@@ -2912,7 +2918,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "diagnostics::verify(Stage::ImageLength, None, || {\n        let length = backend.length()?;\n        if length < APPEND_START as u64 || length > MAX_IMAGE_BYTES as u64 {\n            return Err(Error::Corrupt);\n        }\n        Ok(length)\n    })"
@@ -2934,7 +2940,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "read_all(backend, 0, &mut header)"
@@ -2956,7 +2962,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "diagnostics::verify(Stage::Header, Some(0), || {\n        let mut header = [0; REGION];\n        read_all(backend, 0, &mut header)?;\n        if &header[..8] != b\"WEEKDB01\" || u32_at(&header, 8) != VERSION {\n            return Err(Error::UnsupportedFormat);\n        }\n        if checksum(&header, 64) != u64_at(&header, 64)\n            || u32_at(&header, 12) != 0\n            || u64_at(&header, 16) != REGION as u64\n            || u64_at(&header, 24) != APPEND_START as u64\n            || u64_at(&header, 48) != MAX_IMAGE_BYTES as u64\n            || u64_at(&header, 56) != MAX_OBJECTS as u64\n            || header[72..].iter().any(|b| *b != 0)\n        {\n            return Err(Error::Corrupt);\n        }\n        let identity: [u8; 16] = header[32..48].try_into().unwrap();\n        if identity == [0; 16] {\n            return Err(Error::Corrupt);\n        }\n        Ok(identity)\n    })"
@@ -2978,7 +2984,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "read_all(backend, ((1 + i) * REGION) as u64, &mut bytes)"
@@ -3000,7 +3006,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "diagnostics::verify(Stage::RootSlot, Some(((1 + i) * REGION) as u64), || {\n            let mut bytes = [0; REGION];\n            read_all(backend, ((1 + i) * REGION) as u64, &mut bytes)?;\n            parse_metadata(&bytes, identity, i, false, length)\n        })"
@@ -3022,7 +3028,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "read_all(backend, ((3 + i) * REGION) as u64, &mut bytes)"
@@ -3044,7 +3050,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "diagnostics::verify(Stage::Witness, Some(((3 + i) * REGION) as u64), || {\n                let mut bytes = [0; REGION];\n                read_all(backend, ((3 + i) * REGION) as u64, &mut bytes)?;\n                parse_metadata(&bytes, identity, i, true, length)\n            })"
@@ -3066,7 +3072,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "reader.object(slot.descriptor, COMMIT, slot.end)"
@@ -3088,7 +3094,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "revision != slot.revision",
@@ -3135,7 +3141,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "next_id == 0"
@@ -3171,7 +3177,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "cursor.count(MAX_RETAINED_SNAPSHOTS)"
@@ -3197,7 +3203,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "reader.data(data_ref, slot.descriptor, data_revision)"
@@ -3219,7 +3225,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "mem.shared(Head {\n            revision,\n            data_revision,\n            collections,\n        })"
@@ -3241,7 +3247,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "mem.reserve(&mut entries, count)"
@@ -3263,7 +3269,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "id <= previous_id",
@@ -3355,7 +3361,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "reader.data(offset, slot.descriptor, snapshot_data_revision)"
@@ -3377,7 +3383,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "if",
         "conditions": [
           "next_collection > head_next_collection"
@@ -3413,7 +3419,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "mem.shared(Head {\n                revision: snapshot_revision,\n                data_revision: snapshot_data_revision,\n                collections,\n            })"
@@ -3435,7 +3441,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "cursor.done()"
@@ -3457,7 +3463,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "recover",
+        "owner": "recover_mode",
         "kind": "try_propagation",
         "conditions": [
           "mem.reserve(&mut data_cache, reader.data_cache.len())"
@@ -3821,7 +3827,7 @@
         "owner": "data_inner",
         "kind": "try_propagation",
         "conditions": [
-          "self.value(cursor.int()?, offset, 1)"
+          "self.value(value_offset, offset, 1)"
         ]
       },
       "tests": [
@@ -3869,7 +3875,7 @@
         "owner": "data_inner",
         "kind": "try_propagation",
         "conditions": [
-          "collections.set(\n                self.mem,\n                &id.to_le_bytes(),\n                Collection {\n                    revision: content_revision,\n                    records,\n                },\n            )"
+          "collections.set(\n                self.mem,\n                &id.to_le_bytes(),\n                Collection {\n                    base,\n                    revision: content_revision,\n                    records,\n                },\n            )"
         ]
       },
       "tests": [
@@ -3990,7 +3996,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "if",
         "conditions": [
           "e == Error::Invalid"
@@ -4031,10 +4037,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "try_propagation",
         "conditions": [
-          "Value::scalar(self.mem, kind, bits).map_err(|e| {\n                    if e == Error::Invalid {\n                        Error::Corrupt\n                    } else {\n                        e\n                    }\n                })"
+          "Value::scalar(mem, kind, bits).map_err(|e| {\n                if e == Error::Invalid {\n                    Error::Corrupt\n                } else {\n                    e\n                }\n            })"
         ]
       },
       "tests": [
@@ -4053,10 +4059,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "try_propagation",
         "conditions": [
-          "Value::bytes_new(self.mem, cursor.key(self.mem.limits().max_bytes)?)"
+          "Value::bytes_new(mem, cursor.key(mem.limits().max_bytes)?)"
         ]
       },
       "tests": [
@@ -4075,7 +4081,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "if",
         "conditions": [
           "previous.is_some_and(|old| old >= key)"
@@ -4111,10 +4117,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "try_propagation",
         "conditions": [
-          "map.set(self.mem, key, child)"
+          "map.set(mem, key, child)"
         ]
       },
       "tests": [
@@ -4133,10 +4139,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "try_propagation",
         "conditions": [
-          "Value::from_map(self.mem, map)"
+          "Value::from_map(mem, map)"
         ]
       },
       "tests": [
@@ -4155,10 +4161,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "try_propagation",
         "conditions": [
-          "list.push(self.mem, child)"
+          "list.push(mem, child)"
         ]
       },
       "tests": [
@@ -4177,10 +4183,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "try_propagation",
         "conditions": [
-          "Value::from_list(self.mem, list)"
+          "Value::from_list(mem, list)"
         ]
       },
       "tests": [
@@ -4199,7 +4205,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/codec.rs",
-        "owner": "value_inner",
+        "owner": "decode_value",
         "kind": "try_propagation",
         "conditions": [
           "cursor.done()"
@@ -4908,7 +4914,7 @@
         "conditions": [
           "payload.int(offset)"
         ],
-        "start_byte": 20369
+        "start_byte": 20746
       },
       "tests": [
         {
@@ -4975,7 +4981,7 @@
         "conditions": [
           "payload.int(offset)"
         ],
-        "start_byte": 20632
+        "start_byte": 21009
       },
       "tests": [
         {
@@ -5332,7 +5338,7 @@
         "owner": "data",
         "kind": "try_propagation",
         "conditions": [
-          "payload.int(c.records.len() as u64)"
+          "payload.int(c.len() as u64)"
         ]
       },
       "tests": [
@@ -5377,7 +5383,8 @@
         "kind": "try_propagation",
         "conditions": [
           "self.value(&r.value)"
-        ]
+        ],
+        "start_byte": 24421
       },
       "tests": [
         {
@@ -5399,7 +5406,8 @@
         "kind": "try_propagation",
         "conditions": [
           "payload.key(key)"
-        ]
+        ],
+        "start_byte": 24456
       },
       "tests": [
         {
@@ -5955,7 +5963,7 @@
       "selector": {
         "file": "src/storage/mod.rs",
         "target": "weekend-db::weekend_db",
-        "owner": "open",
+        "owner": "open_impl",
         "kind": "try_propagation",
         "conditions": [
           "ValueCache::from_entries(mem, recovered.cache)"
@@ -5977,7 +5985,7 @@
       "selector": {
         "file": "src/storage/mod.rs",
         "target": "weekend-db::weekend_db",
-        "owner": "open",
+        "owner": "open_impl",
         "kind": "try_propagation",
         "conditions": [
           "DataCache::from_entries(mem, recovered.data_cache)"
@@ -6112,7 +6120,7 @@
         "conditions": [
           "entries > MAX_OBJECTS"
         ],
-        "start_byte": 7539
+        "start_byte": 7609
       },
       "tests": [
         {
@@ -6265,7 +6273,7 @@
         "conditions": [
           "entries > MAX_OBJECTS"
         ],
-        "start_byte": 9836
+        "start_byte": 9906
       },
       "tests": [
         {
@@ -6418,7 +6426,7 @@
         "conditions": [
           "fork_vec(mem, &self.entries, MAX_OBJECTS)"
         ],
-        "start_byte": 11436
+        "start_byte": 11624
       },
       "tests": [
         {
@@ -6485,7 +6493,7 @@
         "conditions": [
           "fork_vec(mem, &self.entries, MAX_OBJECTS)"
         ],
-        "start_byte": 12158
+        "start_byte": 12385
       },
       "tests": [
         {
@@ -6605,10 +6613,10 @@
       "selector": {
         "file": "src/storage/mod.rs",
         "target": "weekend-db::weekend_db",
-        "owner": "open",
+        "owner": "open_impl",
         "kind": "try_propagation",
         "conditions": [
-          "mem.shared(ValueCache::from_entries(mem, recovered.cache)?)"
+          "mem.shared(cache)"
         ]
       },
       "tests": [
@@ -6627,7 +6635,7 @@
       "selector": {
         "file": "src/storage/mod.rs",
         "target": "weekend-db::weekend_db",
-        "owner": "open",
+        "owner": "open_impl",
         "kind": "try_propagation",
         "conditions": [
           "mem.shared(DataCache::from_entries(mem, recovered.data_cache)?)"
@@ -6950,7 +6958,7 @@
         "owner": "observe",
         "kind": "let_else",
         "conditions": [
-          "collection(&self.base, id)?.records.get(k)"
+          "collection(&self.base, id)?.record_revision(&self.db.mem, k)?"
         ]
       },
       "tests": [
@@ -7309,7 +7317,7 @@
         "conditions": [
           "self.scan_owned(id)"
         ],
-        "start_byte": 30360
+        "start_byte": 31054
       },
       "tests": [
         {
@@ -7486,11 +7494,11 @@
       "disposition": "propagation_control",
       "selector": {
         "target": "weekend-db::weekend_db",
-        "file": "src/engine.rs",
-        "owner": "scan_records",
+        "file": "src/engine/pages.rs",
+        "owner": "edit",
         "kind": "try_propagation",
         "conditions": [
-          "records.set(\n                    &self.db.mem,\n                    &w.key,\n                    Record {\n                        revision: 0,\n                        value: value.clone(),\n                    },\n                )"
+          "self.records.set(\n                mem,\n                key,\n                Record {\n                    revision,\n                    value: value.clone(),\n                },\n            )"
         ]
       },
       "tests": [
@@ -7508,11 +7516,11 @@
       "disposition": "propagation_control",
       "selector": {
         "target": "weekend-db::weekend_db",
-        "file": "src/engine.rs",
-        "owner": "scan_records",
+        "file": "src/engine/pages.rs",
+        "owner": "edit",
         "kind": "try_propagation",
         "conditions": [
-          "records.remove(&self.db.mem, &w.key)"
+          "self.records.remove(mem, key)"
         ]
       },
       "tests": [
@@ -7992,11 +8000,11 @@
       "disposition": "propagation_control",
       "selector": {
         "target": "weekend-db::weekend_db",
-        "file": "src/engine.rs",
-        "owner": "publish",
+        "file": "src/engine/pages.rs",
+        "owner": "edit",
         "kind": "try_propagation",
         "conditions": [
-          "c.records.set(\n                    &self.db.mem,\n                    &w.key,\n                    Record {\n                        revision: next,\n                        value: value.clone(),\n                    },\n                )"
+          "self.records.set(\n                mem,\n                key,\n                Record {\n                    revision,\n                    value: value.clone(),\n                },\n            )"
         ]
       },
       "tests": [
@@ -8014,11 +8022,11 @@
       "disposition": "propagation_control",
       "selector": {
         "target": "weekend-db::weekend_db",
-        "file": "src/engine.rs",
-        "owner": "publish",
+        "file": "src/engine/pages.rs",
+        "owner": "edit",
         "kind": "try_propagation",
         "conditions": [
-          "c.records.remove(&self.db.mem, &w.key)"
+          "self.records.remove(mem, key)"
         ]
       },
       "tests": [
@@ -9598,7 +9606,7 @@
         "owner": "new",
         "kind": "try_propagation",
         "conditions": [
-          "mem.shared(Node {\n                data,\n                depth,\n                weight,\n            })"
+          "mem.shared(Node {\n                disk_source: 0,\n                disk_offset: 0,\n                data,\n                depth,\n                weight,\n            })"
         ]
       },
       "tests": [
@@ -9622,7 +9630,7 @@
         "conditions": [
           "bits == 0"
         ],
-        "start_byte": 2714
+        "start_byte": 3673
       },
       "tests": [
         {
@@ -9695,7 +9703,7 @@
         "conditions": [
           "bits == 0"
         ],
-        "start_byte": 2987
+        "start_byte": 3946
       },
       "tests": [
         {
@@ -9732,7 +9740,7 @@
         "conditions": [
           "bits == 0"
         ],
-        "start_byte": 3049
+        "start_byte": 4008
       },
       "tests": [
         {
@@ -11574,7 +11582,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/mod.rs",
-        "owner": "open",
+        "owner": "open_impl",
         "kind": "try_propagation",
         "conditions": [
           "Self::locked(backend, mem)"
@@ -11596,10 +11604,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/mod.rs",
-        "owner": "open",
+        "owner": "open_impl",
         "kind": "try_propagation",
         "conditions": [
-          "codec::recover(&mut *storage.backend, mem)"
+          "codec::recover_with_pages(&mut *storage.backend, mem, source)"
         ]
       },
       "tests": [
@@ -11618,7 +11626,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/mod.rs",
-        "owner": "open",
+        "owner": "open_impl",
         "kind": "try_propagation",
         "conditions": [
           "storage.backend.sync().map_err(|_| Error::Io)"
@@ -11641,7 +11649,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/mod.rs",
-        "owner": "open",
+        "owner": "open_impl",
         "kind": "try_propagation",
         "conditions": [
           "write_synced(\n            &mut *storage.backend,\n            ((3 + recovered.slot.index) * REGION) as u64,\n            &witness,\n        )\n        .map_err(|_| Error::Io)"
@@ -12925,10 +12933,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/file.rs",
-        "owner": "open_read_only",
+        "owner": "open_read_only_in",
         "kind": "try_propagation",
         "conditions": [
-          "Location::new(path.as_ref())"
+          "Location::new_in(path.as_ref(), allocator)"
         ]
       },
       "tests": [
@@ -13369,7 +13377,7 @@
         "conditions": [
           "sync_file(&self.file)"
         ],
-        "start_byte": 5390
+        "start_byte": 5667
       },
       "tests": [
         {
@@ -13414,7 +13422,7 @@
         "conditions": [
           "sync_file(&self.file)"
         ],
-        "start_byte": 5501
+        "start_byte": 5778
       },
       "tests": [
         {
@@ -17904,7 +17912,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "scan_iter",
         "kind": "try_propagation",
-        "start_byte": 36853,
+        "start_byte": 36868,
         "conditions": [
           "self.scan_owned(id)"
         ]
@@ -25460,7 +25468,7 @@
         "owner": "create_collection",
         "kind": "try_propagation",
         "conditions": [
-          "state.head.collections.set(\n            &self.mem,\n            &id.to_le_bytes(),\n            Collection {\n                revision: next,\n                records: Map::new(),\n            },\n        )"
+          "state.head.collections.set(\n            &self.mem,\n            &id.to_le_bytes(),\n            Collection {\n                base: None,\n                revision: next,\n                records: Map::new(),\n            },\n        )"
         ]
       },
       "tests": [
@@ -26642,10 +26650,10 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/inspection.rs",
-        "owner": "inspect_on",
+        "owner": "inspect_on_with_options",
         "kind": "try_propagation",
         "conditions": [
-          "Storage::locked(source, &mem)"
+          "Storage::locked(backend, &mem)"
         ]
       },
       "tests": [
@@ -26664,7 +26672,7 @@
       "selector": {
         "target": "weekend-db::weekend_db",
         "file": "src/storage/inspection.rs",
-        "owner": "inspect_on",
+        "owner": "inspect_on_with_options",
         "kind": "try_propagation",
         "conditions": [
           "codec::recover(&mut *source.backend, &mem)"
@@ -27255,7 +27263,7 @@
         "target": "weekend-db::weekend_db",
         "owner": "reserve_geometric",
         "kind": "if",
-        "start_byte": 14717,
+        "start_byte": 15050,
         "conditions": [
           "needed > maximum"
         ]
@@ -27751,7 +27759,7 @@
         "target": "weekend-db::weekend_db",
         "kind": "if",
         "owner": "recover_replica",
-        "start_byte": 14322,
+        "start_byte": 15323,
         "conditions": [
           "recovered.identity != identity",
           "recovered.slot.revision != revision",
@@ -27827,7 +27835,7 @@
         "target": "weekend-db::weekend_db",
         "kind": "if",
         "owner": "unlock_with",
-        "start_byte": 3272,
+        "start_byte": 3487,
         "conditions": [
           "unlock(self.file.as_raw_fd()) == 0"
         ]
@@ -27864,7 +27872,7 @@
         "target": "weekend-db::weekend_db",
         "kind": "if",
         "owner": "unlock_with",
-        "start_byte": 3451,
+        "start_byte": 3666,
         "conditions": [
           "result.is_ok()"
         ]
@@ -47960,6 +47968,89 @@
           "outcome": false
         }
       ]
+    },
+    {
+      "name": "PAGING-WITNESSED-READ-ONLY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec.rs",
+        "owner": "recover_mode",
+        "kind": "short_circuit_and",
+        "conditions": [
+          "defer_blobs",
+          "witnesses[slot.index] == Some(slot)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/paging.rs",
+          "name": "witnessed_read_only_open_defers_big_blobs_and_check_visits_retained_only_data"
+        }
+      ],
+      "mutations": [
+        "r1-paging-read-only-mode",
+        "r1-paging-matching-witness"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "PAGING-DIRECTORY-DIGEST",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "target": "weekend-db::weekend_db",
+        "file": "src/storage/codec/paging.rs",
+        "owner": "page",
+        "kind": "if",
+        "conditions": [
+          "crc(&bytes) != f.digest"
+        ]
+      },
+      "tests": [
+        {
+          "file": "tests/paging.rs",
+          "name": "disk_reads_verify_page_and_nested_value_bytes_against_open_time_checksums"
+        }
+      ],
+      "mutations": [
+        "r1-paging-directory-digest"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
     }
   ],
   "cargo_scope": {
@@ -48343,6 +48434,19 @@
         "reason": "integration test target; use --include-tests",
         "required_features": [],
         "target": "weekend-db::logical",
+        "workspace_manifest": "Cargo.toml"
+      },
+      {
+        "entry": "tests/paging.rs",
+        "kinds": [
+          "test"
+        ],
+        "name": "paging",
+        "package": "weekend-db",
+        "package_manifest": "Cargo.toml",
+        "reason": "integration test target; use --include-tests",
+        "required_features": [],
+        "target": "weekend-db::paging",
         "workspace_manifest": "Cargo.toml"
       },
       {

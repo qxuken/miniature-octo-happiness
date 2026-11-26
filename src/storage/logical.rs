@@ -274,6 +274,7 @@ impl Reader<'_> {
                 self.mem,
                 &id.to_le_bytes(),
                 Collection {
+                    base: None,
                     revision: content,
                     records,
                 },

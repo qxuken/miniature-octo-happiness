@@ -78,7 +78,13 @@ impl FileStore {
     }
     /// Open with read access and the same exclusive lease as a writer.
     pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
-        Location::new(path.as_ref())?.open_mode(false, false)
+        Self::open_read_only_in(path, AllocatorHandle::default())
+    }
+    pub(crate) fn open_read_only_in(
+        path: impl AsRef<Path>,
+        allocator: AllocatorHandle,
+    ) -> Result<Self> {
+        Location::new_in(path.as_ref(), allocator)?.open_mode(false, false)
     }
     pub(crate) fn open_in(
         path: impl AsRef<Path>,
@@ -119,6 +125,10 @@ impl Drop for FileStore {
     }
 }
 impl ByteStore for FileStore {
+    fn read_window(&self) -> usize {
+        64 * 1024
+    }
+
     fn lock(&mut self) -> Result<()> {
         if self.lease == Lease::Claimed {
             return Err(Error::Busy);

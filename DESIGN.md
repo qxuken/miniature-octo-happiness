@@ -6046,3 +6046,7 @@ offers explicit xtask runtime admission. Engine zero-progress rejection and
 durability barriers are unchanged. macOS and Linux each pass 31 stable replays
 in debug/release, strict fuzz Clippy and 1,000 actual ASan runs per snapshot
 target. Full candidate and physical-device acceptance remain separate gates.
+
+## Paged collections and witnessed read-only access
+
+V2 supports opt-in on-demand materialization across all collections and value kinds. Writable open fully verifies both current and retained graphs and keeps the publication barriers. A read-only view with a matching witness can defer large byte payloads and explicitly verify the entire graph under the same lease. The in-process directory index, snapshot overlay and file-scoped value identities preserve transaction conflict detection, immutable history and sharing across compact copies. The [API, corruption behavior and release measurements](docs/paged-reads.md) cover the million-key directory and the existing physical capacity boundary.

@@ -1,6 +1,6 @@
 //! Quiescent inspection and verified copies with an exclusive source lease.
 use super::{ByteStore, CompactionStats, Storage, codec};
-use crate::{Limits, Result, memory::Memory};
+use crate::{DatabaseOptions, Limits, Result, memory::Memory};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RetainedInfo {
@@ -53,10 +53,25 @@ fn information(
 /// Verify a quiescent image under an exclusive lease. Never writes or syncs the
 /// source, including on failure. The lease is released before returning.
 pub fn inspect_on<B: ByteStore + 'static>(source: B, limits: Limits) -> Result<ImageInfo> {
-    let mem = Memory::new(limits)?;
-    let mut source = Storage::locked(source, &mem)?;
-    let recovered = codec::recover(&mut *source.backend, &mem)?;
-    information(&mut source, &recovered, &mem)
+    inspect_on_with_options(source, limits.into())
+}
+
+/// Verify the selected graph and retained roots using the requested allocator and read mode.
+pub fn inspect_on_with_options<B: ByteStore + 'static>(
+    backend: B,
+    options: DatabaseOptions,
+) -> Result<ImageInfo> {
+    let mem = Memory::with_allocator(options.limits, options.allocator)?;
+    if options.paged_reads {
+        let page_source = codec::paging::Source::acquire(backend, &mem)?;
+        let mut source = Storage::locked(page_source.clone(), &mem)?;
+        let recovered = codec::recover_with_pages(&mut *source.backend, &mem, Some(page_source))?;
+        information(&mut source, &recovered, &mem)
+    } else {
+        let mut source = Storage::locked(backend, &mem)?;
+        let recovered = codec::recover(&mut *source.backend, &mem)?;
+        information(&mut source, &recovered, &mem)
+    }
 }
 
 fn copy_verified<B: ByteStore + 'static>(
@@ -118,6 +133,16 @@ pub fn inspect_file(path: impl AsRef<std::path::Path>, limits: Limits) -> Result
     inspect_on(super::FileStore::open_read_only(path)?, limits)
 }
 
+/// Read-only full verification with the same read-mode policy as database open.
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
+pub fn inspect_file_with_options(
+    path: impl AsRef<std::path::Path>,
+    options: DatabaseOptions,
+) -> Result<ImageInfo> {
+    options.limits.validate()?;
+    let file = super::FileStore::open_read_only_in(path, options.allocator.clone())?;
+    inspect_on_with_options(file, options)
+}
 /// Offline backup to a new file. Close source database handles first. Validates
 /// the source before creating the destination. An existing destination is never
 /// overwritten. A failed copy can leave a partial destination for inspection.

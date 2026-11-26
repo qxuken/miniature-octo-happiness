@@ -180,6 +180,11 @@ static void verify_file_allocator_contract(void) {
     size_t open_requests = reopening.requests;
     check_file_roots(db, collection, retained);
     assert(wdb_close(db) == WDB_OK && reopening.live == 0 && reopening.releases == 1);
+    allocator_state paging = {0, 0, 0, 0, 0, 0};
+    db = open_allocated_file(wdb_file_open_paged, path, &paging);
+    size_t paged_requests = paging.requests;
+    check_file_roots(db, collection, retained);
+    assert(wdb_close(db) == WDB_OK && paging.live == 0 && paging.releases == 1);
     size_t image_size;
     uint8_t *image = read_file_image(path, &image_size);
     for (size_t request = 1; request <= open_requests; request++) {
@@ -192,10 +197,17 @@ static void verify_file_allocator_contract(void) {
         check_file_roots(db, collection, retained);
         assert(wdb_close(db) == WDB_OK);
     }
+    for (size_t request = 1; request <= paged_requests; request++) {
+        file_factory_refusal(wdb_file_open_paged, path, request);
+        size_t actual_size;
+        uint8_t *actual = read_file_image(path, &actual_size);
+        assert(actual_size == image_size && memcmp(actual, image, image_size) == 0);
+        free(actual);
+    }
     free(image);
     assert(remove(path) == 0);
     printf("C file allocator contract: %zu create refusals (%zu absent, %zu empty, %zu published), "
-           "%zu reopen refusals preserved exact bytes and both roots.\n",
+           "%zu eager and %zu paged reopen refusals preserved exact bytes.\n",
            create_requests, create_states[NO_FILE], create_states[EMPTY_FILE],
-           create_states[PUBLISHED_FILE], open_requests);
+           create_states[PUBLISHED_FILE], open_requests, paged_requests);
 }

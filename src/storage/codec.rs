@@ -1,3 +1,4 @@
+pub(crate) mod paging;
 use super::diagnostics::{self, VerificationStage as Stage};
 use super::{APPEND_START, ByteStore, MAX_IMAGE_BYTES, REGION, read_all, write_all};
 use crate::memory::ChargedVec;
@@ -7,6 +8,7 @@ use crate::{
     memory::{Memory, Shared},
     tree::{List, Map},
 };
+use paging::{Directory, Graph, Shape, Source};
 
 const VERSION: u32 = crate::version::FORMAT_VERSION;
 const MAX_OBJECTS: usize = MAX_IMAGE_BYTES / REGION;
@@ -314,12 +316,14 @@ impl DataIndex {
 // Cache entries and their indexes share one immutable lifetime. Forks keep
 // entry order and index positions, so copying an index needs no rehash/sort.
 pub(crate) struct ValueCache {
+    pub(super) source_id: usize,
     entries: ChargedVec<CacheEntry>,
     index: ValueIndex,
 }
 impl ValueCache {
     fn new() -> Self {
         Self {
+            source_id: 0,
             entries: ChargedVec::new(),
             index: ValueIndex::new(),
         }
@@ -327,12 +331,17 @@ impl ValueCache {
     pub(super) fn from_entries(mem: &Memory, entries: ChargedVec<CacheEntry>) -> Result<Self> {
         let mut index = ValueIndex::new();
         index.reserve(mem, &entries, entries.len())?;
-        Ok(Self { entries, index })
+        Ok(Self {
+            source_id: 0,
+            entries,
+            index,
+        })
     }
     fn fork(&self, mem: &Memory) -> Result<Self> {
         let entries = fork_vec(mem, &self.entries, MAX_OBJECTS)?;
         let slots = fork_vec(mem, &self.index.slots, 2 * MAX_OBJECTS)?;
         Ok(Self {
+            source_id: self.source_id,
             entries,
             index: ValueIndex { slots },
         })
@@ -519,6 +528,7 @@ impl<'a> Writer<'a> {
     }
 }
 struct Encoder<'a> {
+    copied: ChargedVec<Option<Value>>,
     mem: &'a Memory,
     identity: [u8; 16],
     revision: u64,
@@ -562,6 +572,9 @@ impl Encoder<'_> {
         Ok((offset, end))
     }
     fn value(&mut self, value: &Value) -> Result<u64> {
+        if let Some(offset) = value.offset_in(self.cache.source_id) {
+            return Ok(offset);
+        }
         let cached = self.cache.index.get(value, &self.cache.entries);
         #[cfg(test)]
         assert_eq!(
@@ -655,7 +668,29 @@ impl Encoder<'_> {
         for (id, c) in collections {
             payload.int(id)?;
             payload.int(c.revision)?;
-            payload.int(c.records.len() as u64)?;
+            payload.int(c.len() as u64)?;
+            if c.base.is_some() {
+                c.visit_paged(self.mem, |key, row| {
+                    let revision = row.revision();
+                    let off = match row {
+                        crate::engine::Row::Memory(r) => self.value(&r.value)?,
+                        crate::engine::Row::Disk { graph, offset, .. }
+                            if graph.source_id() == self.cache.source_id =>
+                        {
+                            offset
+                        }
+                        crate::engine::Row::Disk { graph, offset, .. } => {
+                            graph.prepare_cache(self.mem, &mut self.copied)?;
+                            let v = graph.load_cached(self.mem, offset, &mut self.copied)?;
+                            self.value(&v)?
+                        }
+                    };
+                    payload.key(key)?;
+                    payload.int(revision)?;
+                    payload.int(off)
+                })?;
+                continue;
+            }
             let mut records = ChargedVec::new();
             self.mem.reserve(&mut records, c.records.len())?;
             c.records.visit(&mut |key, record| {
@@ -756,6 +791,7 @@ fn encode_with_append(
         None => CacheState::Owned(DataCache::new()),
     };
     let mut encoder = Encoder {
+        copied: ChargedVec::new(),
         mem,
         identity,
         revision: head.revision,
@@ -832,11 +868,17 @@ impl<'a> Cursor<'a> {
     }
 }
 struct Object {
+    deferred_blob: bool,
+    digest: u64,
     payload: ChargedVec<u8>,
     born: u64,
     end: u64,
 }
 struct Reader<'a> {
+    defer_blobs: bool,
+    graph: Option<Shared<Graph>>,
+    shapes: ChargedVec<Shape>,
+    scratch: ChargedVec<u8>,
     backend: &'a mut dyn ByteStore,
     mem: &'a Memory,
     identity: [u8; 16],
@@ -854,6 +896,61 @@ struct DecodedData {
     entry: DataEntry,
     collections: Map<Collection>,
     end: u64,
+}
+fn decode_value(
+    mem: &Memory,
+    payload: &[u8],
+    mut child: impl FnMut(u64) -> Result<Value>,
+) -> Result<Value> {
+    let mut cursor = Cursor::new(payload);
+    let tag = cursor.int()?;
+    let value = match tag {
+        0..=4 => {
+            let bits = cursor.int()?;
+            let kind = match tag {
+                0 => Kind::None,
+                1 => Kind::Boolean,
+                2 => Kind::Integer,
+                3 => Kind::Unsigned,
+                _ => Kind::Float,
+            };
+            Value::scalar(mem, kind, bits).map_err(|e| {
+                if e == Error::Invalid {
+                    Error::Corrupt
+                } else {
+                    e
+                }
+            })?
+        }
+        5 => Value::bytes_new(mem, cursor.key(mem.limits().max_bytes)?)?,
+        6 => {
+            let count = cursor.count(mem.limits().max_entries)?;
+            let mut map = Map::new();
+            let mut previous: Option<&[u8]> = None;
+            for _ in 0..count {
+                let key = cursor.key(mem.limits().max_bytes)?;
+                if previous.is_some_and(|old| old >= key) {
+                    return Err(Error::Corrupt);
+                }
+                previous = Some(key);
+                let child = child(cursor.int()?)?;
+                map = map.set(mem, key, child)?;
+            }
+            Value::from_map(mem, map)?
+        }
+        7 => {
+            let count = cursor.count(mem.limits().max_entries)?;
+            let mut list = List::new();
+            for _ in 0..count {
+                let child = child(cursor.int()?)?;
+                list = list.push(mem, child)?;
+            }
+            Value::from_list(mem, list)?
+        }
+        _ => return Err(Error::Corrupt),
+    };
+    cursor.done()?;
+    Ok(value)
 }
 impl Reader<'_> {
     fn object(&mut self, offset: u64, kind: u32, bound: u64) -> Result<Object> {
@@ -906,15 +1003,36 @@ impl Reader<'_> {
             .checked_add(size as usize + OBJECT_HEADER)
             .filter(|n| *n <= 2 * MAX_IMAGE_BYTES)
             .ok_or(Error::Limit)?;
-        let mut bytes = ChargedVec::new();
-        self.mem.reserve(&mut bytes, size as usize)?;
-        bytes.resize(size as usize, 0);
-        read_all(self.backend, offset, &mut bytes)?;
-        if bytes[..OBJECT_HEADER] != header
-            || checksum(&bytes, 48) != u64_at(&bytes, 48)
-            || bytes[OBJECT_HEADER + payload_len..].iter().any(|b| *b != 0)
-        {
-            return Err(Error::Corrupt);
+        let mut bytes = std::mem::replace(&mut self.scratch, ChargedVec::new());
+        bytes.clear();
+        // Only a witnessed, read-only view may defer a multi-region byte value.
+        // Validate its declared extent and type/length prefix now. All structural
+        // objects and single-region values take the complete verification path.
+        let mut deferred_blob = false;
+        if self.defer_blobs && kind == VALUE && size > REGION as u64 && payload_len >= 16 {
+            let mut prefix = [0; 16];
+            read_all(self.backend, offset + OBJECT_HEADER as u64, &mut prefix)?;
+            if u64_at(&prefix, 0) == 5 {
+                if u64_at(&prefix, 8) != (payload_len - 16) as u64 {
+                    return Err(Error::Corrupt);
+                }
+                self.mem.reserve(&mut bytes, 16)?;
+                bytes.extend_from_slice(&prefix);
+                deferred_blob = true;
+            }
+        }
+        if !deferred_blob {
+            self.mem.reserve(&mut bytes, size as usize)?;
+            bytes.resize(size as usize, 0);
+            read_all(self.backend, offset, &mut bytes)?;
+            if bytes[..OBJECT_HEADER] != header
+                || checksum(&bytes, 48) != u64_at(&bytes, 48)
+                || bytes[OBJECT_HEADER + payload_len..].iter().any(|b| *b != 0)
+            {
+                return Err(Error::Corrupt);
+            }
+            bytes.copy_within(OBJECT_HEADER..OBJECT_HEADER + payload_len, 0);
+            bytes.truncate(payload_len);
         }
         // Allocate lazily at the former range-registration boundary, after the
         // full object validates. Malformed first headers still fail before any
@@ -928,10 +1046,9 @@ impl Reader<'_> {
             .ok_or(Error::Corrupt)?
             .fill(1);
         self.objects += 1;
-        // Move the payload down in the already allocated buffer; no second allocation.
-        bytes.copy_within(OBJECT_HEADER..OBJECT_HEADER + payload_len, 0);
-        bytes.truncate(payload_len);
         Ok(Object {
+            deferred_blob,
+            digest: u64_at(&header, 48),
             payload: bytes,
             born,
             end,
@@ -960,54 +1077,9 @@ impl Reader<'_> {
             return Ok(old.value.clone());
         }
         let object = self.object(offset, VALUE, parent)?;
-        let mut cursor = Cursor::new(&object.payload);
-        let tag = cursor.int()?;
-        let value = match tag {
-            0..=4 => {
-                let bits = cursor.int()?;
-                let kind = match tag {
-                    0 => Kind::None,
-                    1 => Kind::Boolean,
-                    2 => Kind::Integer,
-                    3 => Kind::Unsigned,
-                    _ => Kind::Float,
-                };
-                Value::scalar(self.mem, kind, bits).map_err(|e| {
-                    if e == Error::Invalid {
-                        Error::Corrupt
-                    } else {
-                        e
-                    }
-                })?
-            }
-            5 => Value::bytes_new(self.mem, cursor.key(self.mem.limits().max_bytes)?)?,
-            6 => {
-                let count = cursor.count(self.mem.limits().max_entries)?;
-                let mut map = Map::new();
-                let mut previous: Option<&[u8]> = None;
-                for _ in 0..count {
-                    let key = cursor.key(self.mem.limits().max_bytes)?;
-                    if previous.is_some_and(|old| old >= key) {
-                        return Err(Error::Corrupt);
-                    }
-                    previous = Some(key);
-                    let child = self.value(cursor.int()?, offset, depth + 1)?;
-                    map = map.set(self.mem, key, child)?;
-                }
-                Value::from_map(self.mem, map)?
-            }
-            7 => {
-                let count = cursor.count(self.mem.limits().max_entries)?;
-                let mut list = List::new();
-                for _ in 0..count {
-                    let child = self.value(cursor.int()?, offset, depth + 1)?;
-                    list = list.push(self.mem, child)?;
-                }
-                Value::from_list(self.mem, list)?
-            }
-            _ => return Err(Error::Corrupt),
-        };
-        cursor.done()?;
+        let value = decode_value(self.mem, &object.payload, |child| {
+            self.value(child, offset, depth + 1)
+        })?;
         self.mem
             .reserve_geometric(&mut self.cache, 1, MAX_OBJECTS)?;
         self.regions[(offset / REGION as u64) as usize] = self.cache.len() + 2;
@@ -1017,6 +1089,83 @@ impl Reader<'_> {
             end: object.end,
         });
         Ok(value)
+    }
+    // Validate a value graph without constructing the public immutable values.
+    fn verify_shape(&mut self, offset: u64, parent: u64, depth: usize) -> Result<Shape> {
+        diagnostics::verify(Stage::Value, Some(offset), || {
+            if depth > self.mem.limits().max_depth
+                || offset >= parent
+                || !offset.is_multiple_of(REGION as u64)
+            {
+                return Err(Error::Corrupt);
+            }
+            let region = (offset / REGION as u64) as usize;
+            if let Some(i) = self.regions.get(region).and_then(|s| s.checked_sub(2)) {
+                let shape = self.shapes[i];
+                return if shape.end <= parent {
+                    Ok(shape)
+                } else {
+                    Err(Error::Corrupt)
+                };
+            }
+            let obj = self.object(offset, VALUE, parent)?;
+            let limits = self.mem.limits();
+            let mut c = Cursor::new(&obj.payload);
+            let tag = c.int()?;
+            let mut weight = 16usize;
+            let mut height = 1;
+            match tag {
+                0..=4 => {
+                    let bits = c.int()?;
+                    if (tag == 0 && bits != 0) || (tag == 1 && bits > 1) {
+                        return Err(Error::Corrupt);
+                    }
+                }
+                5 => {
+                    let len = if obj.deferred_blob {
+                        c.count(limits.max_bytes)?
+                    } else {
+                        c.key(limits.max_bytes)?.len()
+                    };
+                    weight = weight.checked_add(len).ok_or(Error::Limit)?
+                }
+                6 | 7 => {
+                    let count = c.count(limits.max_entries)?;
+                    let mut previous = None;
+                    for _ in 0..count {
+                        if tag == 6 {
+                            let k = c.key(limits.max_bytes)?;
+                            if previous.is_some_and(|old: &[u8]| old >= k) {
+                                return Err(Error::Corrupt);
+                            }
+                            previous = Some(k);
+                            weight = weight.checked_add(k.len()).ok_or(Error::Limit)?;
+                        }
+                        let child = self.verify_shape(c.int()?, offset, depth + 1)?;
+                        weight = weight.checked_add(child.weight).ok_or(Error::Limit)?;
+                        height = height.max(child.depth + 1);
+                    }
+                }
+                _ => return Err(Error::Corrupt),
+            }
+            c.done()?;
+            if weight > limits.max_value_bytes || height > limits.max_depth {
+                return Err(Error::Limit);
+            }
+            let shape = Shape {
+                end: obj.end,
+                depth: height,
+                weight,
+                digest: obj.digest,
+                composite: tag == 6 || tag == 7,
+            };
+            self.mem
+                .reserve_geometric(&mut self.shapes, 1, MAX_OBJECTS)?;
+            self.regions[region] = self.shapes.len() + 2;
+            self.shapes.push(shape);
+            self.scratch = obj.payload;
+            Ok(shape)
+        })
     }
     fn data(
         &mut self,
@@ -1071,7 +1220,10 @@ impl Reader<'_> {
             let records_count = cursor.count(self.mem.limits().max_entries)?;
             let mut records = Map::new();
             let mut previous: Option<&[u8]> = None;
+            let mut directory = self.graph.clone().map(Directory::new);
+            let mut start = cursor.pos;
             for _ in 0..records_count {
+                let row_start = cursor.pos;
                 let key = cursor.key(self.mem.limits().max_bytes)?;
                 if previous.is_some_and(|old| old >= key) {
                     return Err(Error::Corrupt);
@@ -1081,7 +1233,20 @@ impl Reader<'_> {
                 if write_revision == 0 || write_revision > content_revision {
                     return Err(Error::Corrupt);
                 }
-                let value = self.value(cursor.int()?, offset, 1)?;
+                let value_offset = cursor.int()?;
+                if let Some(dir) = directory.as_mut() {
+                    self.verify_shape(value_offset, offset, 1)?;
+                    if row_start > start && cursor.pos - start > REGION {
+                        dir.add(
+                            self.mem,
+                            offset + OBJECT_HEADER as u64 + start as u64,
+                            &object.payload[start..row_start],
+                        )?;
+                        start = row_start;
+                    }
+                    continue;
+                }
+                let value = self.value(value_offset, offset, 1)?;
                 records = records.set(
                     self.mem,
                     key,
@@ -1091,10 +1256,26 @@ impl Reader<'_> {
                     },
                 )?;
             }
+            let base = if let Some(mut dir) = directory {
+                if cursor.pos > start {
+                    dir.add(
+                        self.mem,
+                        offset + OBJECT_HEADER as u64 + start as u64,
+                        &object.payload[start..cursor.pos],
+                    )?;
+                }
+                Some(crate::engine::Base::new(
+                    self.mem.shared(dir)?,
+                    records_count,
+                ))
+            } else {
+                None
+            };
             collections = collections.set(
                 self.mem,
                 &id.to_le_bytes(),
                 Collection {
+                    base,
                     revision: content_revision,
                     records,
                 },
@@ -1126,6 +1307,28 @@ pub(crate) struct Recovered {
     pub retention: Retention,
 }
 pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recovered> {
+    recover_with_pages(backend, mem, None)
+}
+pub(super) fn recover_with_pages(
+    backend: &mut dyn ByteStore,
+    mem: &Memory,
+    source: Option<Source>,
+) -> Result<Recovered> {
+    recover_mode(backend, mem, source, false)
+}
+pub(crate) fn recover_read_only(
+    source: Source,
+    mem: &Memory,
+    defer_blobs: bool,
+) -> Result<Recovered> {
+    recover_mode(&mut source.clone(), mem, Some(source), defer_blobs)
+}
+fn recover_mode(
+    backend: &mut dyn ByteStore,
+    mem: &Memory,
+    source: Option<Source>,
+    defer_blobs: bool,
+) -> Result<Recovered> {
     diagnostics::clear_verification();
     let length = diagnostics::verify(Stage::ImageLength, None, || {
         let length = backend.length()?;
@@ -1191,7 +1394,12 @@ pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recov
         Ok(slot)
     })?;
     diagnostics::verify(Stage::CommitDescriptor, Some(slot.descriptor), || {
+        let graph = source.map(|s| mem.shared(Graph::new(s))).transpose()?;
         let mut reader = Reader {
+            defer_blobs: defer_blobs && witnesses[slot.index] == Some(slot),
+            graph: graph.clone(),
+            shapes: ChargedVec::new(),
+            scratch: ChargedVec::new(),
             backend,
             mem,
             identity,
@@ -1264,6 +1472,9 @@ pub(crate) fn recover(backend: &mut dyn ByteStore, mem: &Memory) -> Result<Recov
         let mut data_cache = ChargedVec::new();
         mem.reserve(&mut data_cache, reader.data_cache.len())?;
         data_cache.extend(reader.data_cache.into_iter().map(|r| r.entry));
+        if let Some(graph) = graph {
+            graph.finish(reader.regions, reader.shapes);
+        }
         Ok(Recovered {
             identity,
             slot,
@@ -1423,6 +1634,7 @@ mod tests {
                 &mem,
                 &1u64.to_le_bytes(),
                 Collection {
+                    base: None,
                     revision: 1,
                     records,
                 },
@@ -1488,6 +1700,7 @@ mod tests {
                 &mem,
                 &1u64.to_le_bytes(),
                 Collection {
+                    base: None,
                     revision: 4,
                     records,
                 },
@@ -1540,6 +1753,7 @@ mod tests {
         let cached = Value::bytes_new(&mem, b"shared").unwrap();
         let uncached = Value::bytes_new(&mem, b"new").unwrap();
         let make_encoder = |start, cache| Encoder {
+            copied: ChargedVec::new(),
             mem: &mem,
             identity: ID,
             revision: 1,
@@ -1789,6 +2003,7 @@ mod tests {
         let allocator = Arc::new(TestAllocator::default());
         let mem = allocator.memory(Limits::default());
         let make_encoder = |start, data_cache| Encoder {
+            copied: ChargedVec::new(),
             mem: &mem,
             identity: ID,
             revision: 6,
@@ -1860,6 +2075,7 @@ mod tests {
                     &mem,
                     &256u64.to_le_bytes(),
                     Collection {
+                        base: None,
                         revision: 2,
                         records: Map::new(),
                     },
@@ -1869,6 +2085,7 @@ mod tests {
                     &mem,
                     &8u64.to_le_bytes(),
                     Collection {
+                        base: None,
                         revision: 4,
                         records,
                     },
@@ -1883,6 +2100,7 @@ mod tests {
                     &mem,
                     b"short",
                     Collection {
+                        base: None,
                         revision: 1,
                         records: Map::new(),
                     },
@@ -2062,6 +2280,7 @@ mod tests {
                     &mem,
                     &1u64.to_le_bytes(),
                     Collection {
+                        base: None,
                         revision: data_revision,
                         records: Map::new()
                             .set(
@@ -4022,6 +4241,7 @@ mod tests {
         );
         assert!(writer.bytes.is_empty());
         let mut encoder = Encoder {
+            copied: ChargedVec::new(),
             mem: &mem,
             identity: ID,
             revision: 0,
@@ -4087,6 +4307,7 @@ mod tests {
             );
         }
         let mut encoder = Encoder {
+            copied: ChargedVec::new(),
             mem: &mem,
             identity: ID,
             revision: 0,
@@ -4129,6 +4350,7 @@ mod tests {
                     &mem,
                     &1u64.to_le_bytes(),
                     Collection {
+                        base: None,
                         revision: 1,
                         records,
                     },
@@ -4302,3 +4524,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(all(test, any(target_os = "macos", target_os = "linux", windows)))]
+mod paging_bench;

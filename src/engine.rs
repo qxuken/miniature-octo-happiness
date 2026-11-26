@@ -51,6 +51,10 @@ impl CollectionId {
         self.id
     }
 }
+mod pages;
+mod read_only;
+pub(crate) use pages::{Base, Row};
+pub use read_only::ReadOnlyDatabase;
 #[derive(Clone)]
 pub(crate) struct Record {
     pub(crate) revision: u64,
@@ -58,6 +62,7 @@ pub(crate) struct Record {
 }
 #[derive(Clone)]
 pub(crate) struct Collection {
+    pub(crate) base: Option<Base>,
     pub(crate) revision: u64,
     pub(crate) records: Map<Record>,
 }
@@ -137,8 +142,9 @@ impl Publication<'_> {
 /// Resource policy and allocator for an in-memory or durable database.
 #[derive(Default)]
 pub struct DatabaseOptions {
+    pub(crate) paged_reads: bool,
     pub limits: Limits,
-    allocator: AllocatorHandle,
+    pub(crate) allocator: AllocatorHandle,
 }
 
 impl From<Limits> for DatabaseOptions {
@@ -151,6 +157,13 @@ impl From<Limits> for DatabaseOptions {
 }
 
 impl DatabaseOptions {
+    /// Keep verified file-backed collection directories and materialize records on demand
+    /// after open. This process-local option works with the existing v2 file format.
+    pub fn with_paged_reads(mut self) -> Self {
+        self.paged_reads = true;
+        self
+    }
+
     pub fn with_limits(mut self, limits: Limits) -> Self {
         self.limits = limits;
         self
@@ -432,8 +445,13 @@ impl Database {
         backend: B,
         options: DatabaseOptions,
     ) -> Result<Self> {
+        let paged = options.paged_reads;
         let mut db = Self::with_options(options)?;
-        let (storage, head, next_collection, retention) = Storage::open(backend, &db.mem)?;
+        let (storage, head, next_collection, retention) = if paged {
+            Storage::open_paged(backend, &db.mem)?
+        } else {
+            Storage::open(backend, &db.mem)?
+        };
         *db.state.get_mut().unwrap() = State {
             head,
             next_collection,
@@ -593,6 +611,7 @@ impl Database {
             &self.mem,
             &id.to_le_bytes(),
             Collection {
+                base: None,
                 revision: next,
                 records: Map::new(),
             },
@@ -691,9 +710,6 @@ fn key(db: &Database, key: &[u8]) -> Result<()> {
 }
 pub type Rows = Vec<(Vec<u8>, Value)>;
 pub(crate) type OwnedRows = ChargedVec<(ChargedVec<u8>, Value)>;
-fn rows(db: &Database, records: &Map<Record>) -> Result<Rows> {
-    records.materialize(&db.mem, |record| record.value.clone())
-}
 
 impl Snapshot<'_> {
     pub fn revision(&self) -> u64 {
@@ -705,24 +721,29 @@ impl Snapshot<'_> {
     pub fn get(&self, id: CollectionId, k: &[u8]) -> Result<Option<Value>> {
         self.db.check_collection(id)?;
         key(self.db, k)?;
-        Ok(collection(&self.head, id)?
-            .records
-            .get(k)
-            .map(|r| r.value.clone()))
+        collection(&self.head, id)?.lookup(&self.db.mem, k)
+    }
+    /// Visit rows in binary-key order. Paged directories stream through one page
+    /// at a time. A callback error stops the traversal and is returned unchanged.
+    pub fn visit(
+        &self,
+        id: CollectionId,
+        visit: impl FnMut(&[u8], &Value) -> Result<()>,
+    ) -> Result<()> {
+        self.db.check_collection(id)?;
+        collection(&self.head, id)?.visit_values(&self.db.mem, visit)
     }
     pub fn scan(&self, id: CollectionId) -> Result<Rows> {
         self.db.check_collection(id)?;
-        rows(self.db, &collection(&self.head, id)?.records)
+        collection(&self.head, id)?.rows(&self.db.mem)
     }
     pub(crate) fn scan_owned(&self, id: CollectionId) -> Result<OwnedRows> {
         self.db.check_collection(id)?;
-        collection(&self.head, id)?
-            .records
-            .materialize_owned(&self.db.mem, |record| record.value.clone())
+        collection(&self.head, id)?.rows_owned(&self.db.mem)
     }
     pub fn count(&self, id: CollectionId) -> Result<usize> {
         self.db.check_collection(id)?;
-        Ok(collection(&self.head, id)?.records.len())
+        Ok(collection(&self.head, id)?.len())
     }
 }
 impl Transaction<'_> {
@@ -765,7 +786,7 @@ impl Transaction<'_> {
         self.active()?;
         self.db.check_collection(id)?;
         key(self.db, k)?;
-        let Some(record) = collection(&self.base, id)?.records.get(k) else {
+        let Some(revision) = collection(&self.base, id)?.record_revision(&self.db.mem, k)? else {
             return self.observe_collection(id);
         };
         if self
@@ -783,7 +804,6 @@ impl Transaction<'_> {
                 .checked_add(std::mem::size_of::<Point>())
                 .ok_or(Error::Limit)?,
         )?;
-        let revision = record.revision;
         let k = self.db.mem.copy(k)?;
         self.db.mem.reserve(&mut self.points, 1)?;
         self.points.push(Point {
@@ -803,10 +823,7 @@ impl Transaction<'_> {
         {
             return Ok(w.value.clone());
         }
-        Ok(collection(&self.base, id)?
-            .records
-            .get(k)
-            .map(|r| r.value.clone()))
+        collection(&self.base, id)?.lookup(&self.db.mem, k)
     }
     pub fn contains(&mut self, id: CollectionId, k: &[u8]) -> Result<bool> {
         Ok(self.get(id, k)?.is_some())
@@ -857,7 +874,7 @@ impl Transaction<'_> {
         Ok(())
     }
     pub fn scan(&mut self, id: CollectionId) -> Result<Rows> {
-        rows(self.db, &self.scan_records(id)?)
+        self.scan_records(id)?.rows(&self.db.mem)
     }
     /// Materialize rows in binary-key order using this database's allocator
     /// and budget. The iterator owns its rows, so the transaction can be
@@ -869,13 +886,12 @@ impl Transaction<'_> {
         Ok(self.scan_owned(id)?.into_iter())
     }
     pub(crate) fn scan_owned(&mut self, id: CollectionId) -> Result<OwnedRows> {
-        self.scan_records(id)?
-            .materialize_owned(&self.db.mem, |record| record.value.clone())
+        self.scan_records(id)?.rows_owned(&self.db.mem)
     }
-    fn scan_records(&mut self, id: CollectionId) -> Result<Map<Record>> {
+    fn scan_records(&mut self, id: CollectionId) -> Result<Collection> {
         self.active()?;
         self.observe_collection(id)?;
-        let mut records = collection(&self.base, id)?.records.clone();
+        let mut records = collection(&self.base, id)?.clone();
         for w in self
             .writes
             .iter()
@@ -886,17 +902,7 @@ impl Transaction<'_> {
                     .filter(|w| w.collection == id && w.value.is_some()),
             )
         {
-            records = match &w.value {
-                Some(value) => records.set(
-                    &self.db.mem,
-                    &w.key,
-                    Record {
-                        revision: 0,
-                        value: value.clone(),
-                    },
-                )?,
-                None => records.remove(&self.db.mem, &w.key)?,
-            };
+            records.edit(&self.db.mem, &w.key, w.value.as_ref(), 0)?;
         }
         Ok(records)
     }
@@ -913,10 +919,10 @@ impl Transaction<'_> {
             }
         }
         for p in &self.points {
-            let actual = collection(current, p.collection)
-                .ok()
-                .and_then(|c| c.records.get(&p.key))
-                .map(|r| r.revision);
+            let actual = match collection(current, p.collection) {
+                Ok(c) => c.record_revision(&self.db.mem, &p.key)?,
+                Err(_) => None,
+            };
             if actual != Some(p.revision) {
                 return Err(Error::Conflict);
             }
@@ -941,17 +947,7 @@ impl Transaction<'_> {
                 .get(&w.collection.id.to_le_bytes())
                 .ok_or(Error::Conflict)?
                 .clone();
-            c.records = match &w.value {
-                Some(value) => c.records.set(
-                    &self.db.mem,
-                    &w.key,
-                    Record {
-                        revision: next,
-                        value: value.clone(),
-                    },
-                )?,
-                None => c.records.remove(&self.db.mem, &w.key)?,
-            };
+            c.edit(&self.db.mem, &w.key, w.value.as_ref(), next)?;
             c.revision = next; // Accepted deletes bump this even if already absent.
             collections = collections.set(&self.db.mem, &w.collection.id.to_le_bytes(), c)?;
         }

@@ -6,6 +6,7 @@ Licensed under MIT OR Apache-2.0. Cargo packages remain private.
 A weekend learning project: an embedded store for persistent nested values,
 explicitly retained snapshots, and conservative record-scoped transactions.
 Implemented in Rust, with a native Rust API and a C shared library for Odin.
+For a bounded reader, see [paged collections, fast read-only open and full verification](docs/paged-reads.md).
 
 The Rust convenience package is [`weekend-db-typed`](crates/weekend-db-typed/README.md).
 It provides `#[derive(Model)]`, named typed tables, transaction closures,

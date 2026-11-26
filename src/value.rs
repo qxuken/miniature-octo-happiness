@@ -28,6 +28,10 @@ enum Data {
     List(List<Value>),
 }
 struct Node {
+    // Only set on a freshly decoded immutable node. Source identity is compared
+    // while encoding a live snapshot, never dereferenced or used to perform I/O.
+    disk_source: usize,
+    disk_offset: u64,
     data: Data,
     depth: usize,
     weight: usize,
@@ -47,11 +51,26 @@ impl Value {
         self.mem.public_usage()
     }
 
+    pub(crate) fn with_disk_origin(mut self, source: usize, offset: u64) -> Self {
+        let node = self.node.get_mut().expect("decoder returns a fresh root");
+        node.disk_source = source;
+        node.disk_offset = offset;
+        self
+    }
+    pub(crate) fn offset_in(&self, source: usize) -> Option<u64> {
+        (source != 0 && self.node.disk_source == source).then_some(self.node.disk_offset)
+    }
     pub(crate) fn same_node(&self, other: &Self) -> bool {
         self.node.ptr_eq(&other.node)
+            || (self.node.disk_source != 0
+                && self.offset_in(other.node.disk_source) == Some(other.node.disk_offset))
     }
     pub(crate) fn node_identity(&self) -> usize {
-        self.node.identity()
+        if self.node.disk_source == 0 {
+            self.node.identity()
+        } else {
+            self.node.disk_source ^ self.node.disk_offset as usize
+        }
     }
     pub(crate) fn from_map(mem: &Memory, map: Map<Value>) -> Result<Self> {
         let mut depth = 1;
@@ -83,6 +102,8 @@ impl Value {
         Ok(Self {
             mem: mem.clone(),
             node: mem.shared(Node {
+                disk_source: 0,
+                disk_offset: 0,
                 data,
                 depth,
                 weight,

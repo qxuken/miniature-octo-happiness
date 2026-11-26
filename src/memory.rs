@@ -330,6 +330,14 @@ impl<T> Shared<T> {
             _owns: PhantomData,
         })
     }
+    pub(crate) fn get_mut(&mut self) -> Option<&mut T> {
+        // Shared has no weak references. A unique strong owner excludes concurrent access.
+        if unsafe { self.ptr.as_ref().refs.load(Ordering::Acquire) } == 1 {
+            Some(unsafe { &mut self.ptr.as_mut().value })
+        } else {
+            None
+        }
+    }
     pub(crate) fn ptr_eq(&self, other: &Self) -> bool {
         self.ptr == other.ptr
     }
