@@ -66,7 +66,20 @@ pub(super) fn serve(
     secret: Option<Secret>,
     profile: Profile,
 ) -> AppResult<()> {
-    let stop = Stop::register()?;
+    serve_with(path, address, secret, profile, Stop::register, |listener| {
+        listener.set_nonblocking(true)
+    })
+}
+
+fn serve_with(
+    path: &Path,
+    address: SocketAddr,
+    secret: Option<Secret>,
+    profile: Profile,
+    register_stop: impl FnOnce() -> io::Result<Stop>,
+    configure_listener: impl FnOnce(&TcpListener) -> io::Result<()>,
+) -> AppResult<()> {
+    let stop = register_stop()?;
     let stopping = stop.requested();
     let mut db = Database::open_file(path, Limits::default())?;
     let dispatch: fn(&mut Database, &str) -> DbResult<String> = match profile {
@@ -80,64 +93,129 @@ pub(super) fn serve(
         }
     };
     let listener = TcpListener::bind(address)?;
-    listener.set_nonblocking(true)?;
+    configure_listener(&listener)?;
     let secret = secret.as_ref();
     thread::scope(|scope| {
-        let (requests, pending) = mpsc::sync_channel(MAX_QUEUED_COMMANDS);
-        let database = thread::Builder::new()
-            .name("coordinator-database".into())
-            .spawn_scoped(scope, move || {
-                let _stop_on_exit = StopOnExit(stopping);
-                dispatch_requests(pending, stopping, |command| dispatch(&mut db, command));
-            })?;
-        let mut connections = Vec::with_capacity(MAX_CONNECTIONS);
-        let result: AppResult<()> = (|| {
-            writeln!(io::stdout().lock(), "ready {}", listener.local_addr()?)?;
-            while let Some(mut stream) = next_connection(
-                stopping,
-                || wait_for_connection(&listener),
-                || listener.accept().map(|(stream, _)| stream),
-            )? {
-                let deadline = Instant::now() + TIMEOUT;
-                reap_connections(&mut connections)?;
-                if connections.len() == MAX_CONNECTIONS {
-                    // Saturation must never make the listener wait on the peer.
-                    if stream.set_nonblocking(true).is_ok() {
-                        let _ = stream.write_all(b"error Busy\n");
-                    }
-                    continue;
-                }
-                let requests = requests.clone();
-                connections.push(
-                    thread::Builder::new()
-                        .name("coordinator-connection".into())
-                        .spawn_scoped(scope, move || {
-                            if let Err(error) =
-                                serve_connection(stream, deadline, secret, &requests)
-                            {
-                                eprintln!("client connection: {error}");
-                            }
-                        })?,
-                );
-            }
-            Ok(())
-        })();
-        stopping.store(true, Relaxed);
-        drop(listener);
-        drop(requests);
-        join_workers(connections.into_iter().chain([database]), result)
+        serve_workers(
+            listener,
+            stopping,
+            move |pending| {
+                thread::Builder::new()
+                    .name("coordinator-database".into())
+                    .spawn_scoped(scope, move || {
+                        let _stop_on_exit = StopOnExit(stopping);
+                        dispatch_requests(pending, stopping, |command| dispatch(&mut db, command));
+                    })
+            },
+            |listener, requests, connections| {
+                writeln!(io::stdout().lock(), "ready {}", listener.local_addr()?)?;
+                serve_connections(
+                    connections,
+                    || {
+                        next_connection(
+                            stopping,
+                            || wait_for_connection(listener),
+                            || listener.accept().map(|(stream, _)| stream),
+                        )
+                    },
+                    |stream| refuse_busy(stream, |stream| stream.set_nonblocking(true)),
+                    |stream, deadline| {
+                        let requests = requests.clone();
+                        thread::Builder::new()
+                            .name("coordinator-connection".into())
+                            .spawn_scoped(scope, move || {
+                                report_connection(
+                                    serve_connection(stream, deadline, secret, &requests),
+                                    |error| eprintln!("client connection: {error}"),
+                                );
+                            })
+                    },
+                )
+            },
+        )
     })
 }
 
+fn serve_workers<'scope>(
+    listener: TcpListener,
+    stopping: &AtomicBool,
+    start_database: impl FnOnce(Receiver<Request>) -> io::Result<ScopedJoinHandle<'scope, ()>>,
+    listen: impl FnOnce(
+        &TcpListener,
+        &SyncSender<Request>,
+        &mut Vec<ScopedJoinHandle<'scope, ()>>,
+    ) -> AppResult<()>,
+) -> AppResult<()> {
+    let (requests, pending) = mpsc::sync_channel(MAX_QUEUED_COMMANDS);
+    let database = start_database(pending)?;
+    let mut connections = Vec::with_capacity(MAX_CONNECTIONS);
+    let result = listen(&listener, &requests, &mut connections);
+    stopping.store(true, Relaxed);
+    drop(listener);
+    drop(requests);
+    join_workers(connections.into_iter().chain([database]), result)
+}
+
+fn serve_connections<'scope, T>(
+    connections: &mut Vec<ScopedJoinHandle<'scope, ()>>,
+    mut next: impl FnMut() -> io::Result<Option<T>>,
+    mut refuse: impl FnMut(T),
+    mut start_connection: impl FnMut(T, Instant) -> io::Result<ScopedJoinHandle<'scope, ()>>,
+) -> AppResult<()> {
+    while let Some(stream) = next()? {
+        let deadline = Instant::now() + TIMEOUT;
+        reap_connections(connections)?;
+        if connections.len() == MAX_CONNECTIONS {
+            refuse(stream);
+            continue;
+        }
+        connections.push(start_connection(stream, deadline)?);
+    }
+    Ok(())
+}
+
+fn refuse_busy<W: Write>(mut stream: W, set_nonblocking: impl FnOnce(&W) -> io::Result<()>) {
+    // Saturation must never make the listener wait on the peer.
+    if set_nonblocking(&stream).is_ok() {
+        let _ = stream.write_all(b"error Busy\n");
+    }
+}
+
+fn report_connection(result: io::Result<()>, report: impl FnOnce(io::Error)) {
+    if let Err(error) = result {
+        report(error);
+    }
+}
+
 fn serve_connection(
-    mut stream: TcpStream,
+    stream: TcpStream,
     deadline: Instant,
     secret: Option<&Secret>,
     requests: &SyncSender<Request>,
 ) -> io::Result<()> {
-    stream.set_nonblocking(false)?;
-    stream.set_write_timeout(Some(TIMEOUT))?;
-    let request = read_line(&stream, deadline)?;
+    serve_connection_with(
+        stream,
+        deadline,
+        secret,
+        requests,
+        |stream| stream.set_nonblocking(false),
+        |stream| stream.set_write_timeout(Some(TIMEOUT)),
+        read_line,
+    )
+}
+
+fn serve_connection_with<W: Write>(
+    mut stream: W,
+    deadline: Instant,
+    secret: Option<&Secret>,
+    requests: &SyncSender<Request>,
+    set_blocking: impl FnOnce(&W) -> io::Result<()>,
+    set_timeout: impl FnOnce(&W) -> io::Result<()>,
+    read_request: impl FnOnce(&W, Instant) -> io::Result<String>,
+) -> io::Result<()> {
+    set_blocking(&stream)?;
+    set_timeout(&stream)?;
+    let request = read_request(&stream, deadline)?;
     let command = match secret {
         Some(secret) => secret.authorize(&request),
         None => Some(request.as_str()),
@@ -212,7 +290,7 @@ fn join_workers<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::io::{BufRead, BufReader, Read};
     use std::sync::mpsc::TryRecvError;
     use std::time::Duration;
@@ -223,6 +301,304 @@ mod tests {
             assert!(Instant::now() < deadline, "worker did not finish");
             thread::yield_now();
         }
+    }
+
+    #[test]
+    fn startup_preserves_registration_and_listener_setup_failures() {
+        use std::fs;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "coordinator-startup-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir(&dir).unwrap();
+        let path = dir.join("coordinator.db");
+        let address = SocketAddr::from(([127, 0, 0, 1], 0));
+        let error = serve_with(
+            &path,
+            address,
+            None,
+            Profile::Legacy,
+            || {
+                Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "fixture stop registration",
+                ))
+            },
+            |_| panic!("listener configured after stop registration failed"),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(error.to_string(), "fixture stop registration");
+        assert!(!path.exists());
+
+        let database = Database::create_file(&path, Limits::default()).unwrap();
+        super::super::initialize_legacy(&database).unwrap();
+        drop(database);
+        let image = fs::read(&path).unwrap();
+        let bound = Cell::new(None);
+        let error = serve_with(
+            &path,
+            address,
+            None,
+            Profile::Legacy,
+            Stop::register,
+            |listener| {
+                bound.set(Some(listener.local_addr().unwrap()));
+                Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "fixture listener mode",
+                ))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert_eq!(error.to_string(), "fixture listener mode");
+        drop(TcpListener::bind(bound.get().unwrap()).unwrap());
+        let reopened = Database::open_file(&path, Limits::default()).unwrap();
+        assert_eq!(protocol::state(&reopened), Ok((2, 0)));
+        drop(reopened);
+        assert_eq!(fs::read(&path).unwrap(), image);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn database_launch_failure_closes_listener_and_queue() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let stopping = AtomicBool::new(false);
+        let pending = RefCell::new(None);
+        let error = serve_workers(
+            listener,
+            &stopping,
+            |receiver| {
+                pending.replace(Some(receiver));
+                Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "fixture database launch",
+                ))
+            },
+            |_, _, _| panic!("listener ran after database launch failed"),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().unwrap().kind(),
+            io::ErrorKind::WouldBlock
+        );
+        assert_eq!(error.to_string(), "fixture database launch");
+        assert!(matches!(
+            pending.into_inner().unwrap().try_recv(),
+            Err(TryRecvError::Disconnected)
+        ));
+        drop(TcpListener::bind(address).unwrap());
+    }
+
+    #[test]
+    fn listener_failures_join_live_workers_and_preserve_the_error() {
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum Stage {
+            Accept,
+            Reap,
+            Launch,
+        }
+
+        for (failure, kind, diagnostic) in [
+            (
+                Stage::Accept,
+                io::ErrorKind::ConnectionAborted,
+                "fixture accept",
+            ),
+            (
+                Stage::Reap,
+                io::ErrorKind::Other,
+                "coordinator connection worker panicked",
+            ),
+            (
+                Stage::Launch,
+                io::ErrorKind::WouldBlock,
+                "fixture connection launch",
+            ),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let stopping = AtomicBool::new(false);
+            let database_finished = AtomicBool::new(false);
+            let connection_finished = AtomicBool::new(false);
+            let launches = Cell::new(0);
+            thread::scope(|scope| {
+                let error = serve_workers(
+                    listener,
+                    &stopping,
+                    |pending| {
+                        let database_finished = &database_finished;
+                        let stopping = &stopping;
+                        Ok(scope.spawn(move || {
+                            assert!(matches!(
+                                pending.recv_timeout(TIMEOUT),
+                                Err(mpsc::RecvTimeoutError::Disconnected)
+                            ));
+                            assert!(stopping.load(Relaxed));
+                            database_finished.store(true, Relaxed);
+                        }))
+                    },
+                    |_, _, workers| {
+                        workers.push(scope.spawn(|| {
+                            let deadline = Instant::now() + Duration::from_secs(15);
+                            while !stopping.load(Relaxed) {
+                                assert!(
+                                    Instant::now() < deadline,
+                                    "listener did not request shutdown"
+                                );
+                                thread::yield_now();
+                            }
+                            connection_finished.store(true, Relaxed);
+                        }));
+                        if failure == Stage::Reap {
+                            let worker = scope.spawn(|| panic!("fixture connection worker"));
+                            wait_for_worker(&worker);
+                            workers.push(worker);
+                        }
+                        serve_connections(
+                            workers,
+                            || {
+                                if failure == Stage::Accept {
+                                    Err(io::Error::new(
+                                        io::ErrorKind::ConnectionAborted,
+                                        "fixture accept",
+                                    ))
+                                } else {
+                                    Ok(Some(()))
+                                }
+                            },
+                            |_| panic!("fixture did not fill the connection capacity"),
+                            |(), _| {
+                                launches.set(launches.get() + 1);
+                                Err(io::Error::new(
+                                    io::ErrorKind::WouldBlock,
+                                    "fixture connection launch",
+                                ))
+                            },
+                        )
+                    },
+                )
+                .unwrap_err();
+                assert_eq!(error.downcast_ref::<io::Error>().unwrap().kind(), kind);
+                assert_eq!(error.to_string(), diagnostic);
+                assert!(database_finished.load(Relaxed));
+                assert!(connection_finished.load(Relaxed));
+            });
+            assert_eq!(launches.get(), usize::from(failure == Stage::Launch));
+            drop(TcpListener::bind(address).unwrap());
+        }
+    }
+
+    #[test]
+    fn saturation_sends_a_reply_only_after_nonblocking_is_enabled() {
+        let mut bytes = Vec::new();
+        refuse_busy(&mut bytes, |_| Err(io::ErrorKind::Unsupported.into()));
+        assert!(bytes.is_empty());
+        refuse_busy(&mut bytes, |_| Ok(()));
+        assert_eq!(bytes, b"error Busy\n");
+    }
+
+    #[test]
+    fn connection_reporting_preserves_failure_and_stays_quiet_on_success() {
+        report_connection(Ok(()), |_| {
+            panic!("successful connection produced a diagnostic")
+        });
+        let mut observed = None;
+        report_connection(
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "fixture malformed frame",
+            )),
+            |error| observed = Some((error.kind(), error.to_string())),
+        );
+        assert_eq!(
+            observed,
+            Some((io::ErrorKind::InvalidData, "fixture malformed frame".into()))
+        );
+    }
+
+    #[test]
+    fn connection_setup_failures_leave_the_queue_empty() {
+        let (requests, pending) = mpsc::sync_channel(1);
+        for blocking_fails in [true, false] {
+            let expected = if blocking_fails {
+                "fixture blocking mode"
+            } else {
+                "fixture write timeout"
+            };
+            let mut bytes = Vec::new();
+            let error = serve_connection_with(
+                &mut bytes,
+                Instant::now() + TIMEOUT,
+                None,
+                &requests,
+                |_| {
+                    if blocking_fails {
+                        Err(io::Error::new(io::ErrorKind::Unsupported, expected))
+                    } else {
+                        Ok(())
+                    }
+                },
+                |_| {
+                    assert!(
+                        !blocking_fails,
+                        "write timeout followed failed blocking mode"
+                    );
+                    Err(io::Error::new(io::ErrorKind::Unsupported, expected))
+                },
+                |_, _| panic!("request read after failed socket configuration"),
+            )
+            .unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+            assert_eq!(error.to_string(), expected);
+            assert!(bytes.is_empty());
+            assert!(matches!(pending.try_recv(), Err(TryRecvError::Empty)));
+        }
+    }
+
+    #[test]
+    fn deadline_expiring_after_framing_disconnects_pending_admission() {
+        let (requests, pending) = mpsc::sync_channel(1);
+        let deadline = Instant::now();
+        let mut bytes = Vec::new();
+        let error = serve_connection_with(
+            &mut bytes,
+            deadline,
+            None,
+            &requests,
+            |_| Ok(()),
+            |_| Ok(()),
+            |_, supplied| {
+                assert_eq!(supplied, deadline);
+                Ok("get".into())
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(error.to_string(), "coordinator deadline exceeded");
+        assert!(bytes.is_empty());
+        let request = pending.try_recv().unwrap();
+        assert_eq!(request.command, "get");
+        assert_eq!(request.deadline, deadline);
+        let (_, reply) = mpsc::sync_channel(1);
+        assert!(matches!(
+            request.admitted.try_send(reply),
+            Err(TrySendError::Disconnected(_))
+        ));
     }
 
     #[test]

@@ -1746,6 +1746,60 @@ fn client_preserves_output_error_and_stops_before_the_next_request() {
 }
 
 #[test]
+fn connection_worker_reports_only_a_failed_request() {
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let path = dir.0.join("connection-diagnostic.db");
+    let path = path.to_str().unwrap();
+    assert!(
+        Command::new(BIN)
+            .args(["init", path])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let image = fs::read(path).unwrap();
+    let mut command = Command::new(BIN);
+    command.args(["serve", path, "0"]).stderr(Stdio::piped());
+    let mut server = Process::start_command(command);
+    let ready = server.receive();
+    let port = ready.strip_prefix("ready 127.0.0.1:").unwrap();
+    let stderr = server.child.stderr.take().unwrap();
+    let (send, diagnostics) = mpsc::channel();
+    let logging = std::thread::spawn(move || {
+        for line in BufReader::new(stderr).lines() {
+            if send.send(line.unwrap()).is_err() {
+                break;
+            }
+        }
+    });
+    let wait = Duration::from_secs(15);
+    assert_eq!(
+        diagnostics.recv_timeout(wait).unwrap(),
+        "unauthenticated loopback demo mode"
+    );
+    let mut peer =
+        std::net::TcpStream::connect(("127.0.0.1", port.parse::<u16>().unwrap())).unwrap();
+    peer.write_all(b"get").unwrap();
+    peer.shutdown(std::net::Shutdown::Write).unwrap();
+    assert_eq!(
+        diagnostics.recv_timeout(wait).unwrap(),
+        "client connection: missing or oversized line"
+    );
+    let mut client = Process::start(&["client", port]);
+    client.send("get");
+    assert_eq!(client.receive(), "value 2 0");
+    drop(client);
+    server.stop();
+    logging.join().unwrap();
+    assert!(matches!(
+        diagnostics.try_recv(),
+        Err(mpsc::TryRecvError::Disconnected)
+    ));
+    assert_eq!(fs::read(path).unwrap(), image);
+}
+
+#[test]
 fn client_preserves_bad_input_and_refused_connection() {
     let address = std::net::SocketAddr::from(([127, 0, 0, 1], 0));
     let connect_error = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(3))
