@@ -2708,3 +2708,14 @@ each reaped-identity condition and the observer's live procfs identity.
 Docker Linux caught all 23 mutations in both profiles. The reconciliation
 closes 14 tooling records and leaves 7,343 tooling gaps.
 [Process-identity ledger](decisions/supervisor-proc-identity-current.md)
+
+### Supervisor response delivery and Windows retry follow-up
+
+The supervisor CLI now detects failures delivering its JSON response even
+when the child succeeded and cleanup was verified. macOS and Docker Linux
+caught both response-delivery mutations in debug and release.
+[Supervisor response ledger](decisions/supervisor-cli-response-current.md)
+
+The targeted Windows rerun passed debug and release on the original
+tree. The initial retry error's operation remains unresolved.
+[Windows rerun evidence checksums](decisions/windows-msrv-retry-c44c26d-attempt2.sha256)

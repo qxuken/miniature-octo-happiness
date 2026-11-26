@@ -29,3 +29,16 @@ source spans are identical to the previous proof.
 | C | xtask::xtask | xtask/src/supervise.rs:250:12– | 7362..7365 | pattern_test | run_controlled | The same Some or None input drives the terminal-report guard. |
 | C | xtask::xtask | xtask/src/supervise.rs:243:12– | 7097..7100 | pattern_test | run_controlled | The same Ok or Err input drives the recorded launch error. |
 | E | xtask::xtask | xtask/src/supervise.rs:214:9– | 5925..5928 | for_iteration | run_controlled | Preflight inspects both outputs and the optional report. A rejected third path prevents both log acquisitions and preserves the existing report. |
+
+## Qualification
+
+Frozen `4a3ea5d79e45b819ff1a0cf1061b7106d6e388a4` used Rust 1.100.0. macOS passed 20
+supervisor unit tests and six integration tests in each profile. Docker
+Linux arm64/ext4 passed 23 unit tests and the same six integrations.
+Both hosts detected the two response mutations in debug and release.
+Strict Clippy passed on macOS, Linux and Windows MSVC x64.
+
+Fresh extraction verified both false-success reproductions, the corrected
+regression, 11 supervised commands and 1,059 source hashes per campaign.
+The reconciliation leaves 7,343 tooling gaps.
+[Frozen source and evidence checksums](supervisor-cli-response-4a3ea5d.sha256)

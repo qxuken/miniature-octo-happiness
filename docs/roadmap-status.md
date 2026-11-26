@@ -148,6 +148,13 @@ The verified minimum-Rust artifact leaves the failing operation unresolved.
 [Minimum-Rust job](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45756615197/job/139696612818)
 [Original evidence checksums](decisions/windows-msrv-retry-c44c26d.sha256)
 
+The targeted rerun used the same Windows tree and passed both profiles
+of the retry regression and the full minimum-Rust job. The restored
+archive verifies the exact job, source and test-output hashes. The
+cause of the original `Io` remains unresolved.
+[Targeted Windows rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45756615197/job/139716521805)
+[Rerun evidence checksums](decisions/windows-msrv-retry-c44c26d-attempt2.sha256)
+
 At `52605e4`, macOS and Docker Linux passed all 28 supervisor and trace
 tests and caught all 12 named controls per profile. The batch closes 13
 tooling records and leaves 7,357 open. [Supervisor output qualification](decisions/supervisor-output-flow-current.md)
@@ -162,6 +169,12 @@ use for ownership, including malformed records, reaped identities and
 comparison with the live process table. Both profiles caught all 23
 controls. The reconciliation closes 14 tooling records and leaves
 7,343 open. [Process-identity qualification](decisions/supervisor-proc-identity-current.md)
+
+At `4a3ea5d`, the supervisor and process-table commands return an
+error when stdout cannot accept their response. The regression verifies
+the child result and cleanup report independently. Both Unix hosts
+caught the two response controls in both profiles.
+[Supervisor response delivery qualification](decisions/supervisor-cli-response-current.md)
 
 | Gate | Progress and remaining evidence |
 |---|---|
