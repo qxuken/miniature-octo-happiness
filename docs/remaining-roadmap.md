@@ -2737,3 +2737,9 @@ The hosted `9e5ebee` smoke run passed all 22 fuzz targets and 55 debug
 replay tests. Its restored evidence independently reproduces all 20,842
 observed executions. Release candidate fuzz qualification remains open.
 [Hosted fuzz evidence checksums](decisions/hosted-fuzz-9e5ebee.sha256)
+
+The same pushed head passed its Windows x64 minimum-Rust job. The
+restored artifacts bind all four package masks, the 30-case trace and
+Odin publication and NTFS exhaustion reports to the exact DLL. The
+Study retry regression passed in both profiles.
+[Hosted Windows MSRV evidence checksums](decisions/hosted-windows-msrv-9e5ebee.sha256)

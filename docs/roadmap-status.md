@@ -161,6 +161,16 @@ cause of the original `Io` remains unresolved.
 [Targeted Windows rerun](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45756615197/job/139716521805)
 [Rerun evidence checksums](decisions/windows-msrv-retry-c44c26d-attempt2.sha256)
 
+The Windows x64 minimum-Rust job at `9e5ebee` passed the Study retry
+regression in debug and release. Fresh extraction verified all four
+feature masks and 5,021 declared payload hashes across the packages,
+C/C++/Odin trace and Odin fault reports. The 30 trace cases, six Odin
+publication cases and native NTFS exhaustion drill used the same
+combined DLL. The full-volume drill reopened revision 3 with retained
+revision 2 and committed revision 4 after space was freed.
+[Hosted Windows qualification](https://github.com/qxuken/miniature-octo-happiness/actions/runs/45765188872/job/139724315057)
+[Artifact checksums](decisions/hosted-windows-msrv-9e5ebee.sha256)
+
 At `52605e4`, macOS and Docker Linux passed all 28 supervisor and trace
 tests and caught all 12 named controls per profile. The batch closes 13
 tooling records and leaves 7,357 open. [Supervisor output qualification](decisions/supervisor-output-flow-current.md)
