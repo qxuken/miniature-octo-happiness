@@ -20809,8 +20809,8 @@
     {
       "name": "r1-native-coordinator-cli-legacy-init-result",
       "file": "apps/write-coordinator/src/native.rs",
-      "old": "initialize(Path::new(path))?",
-      "new": "initialize(Path::new(path)).map_err(|_| io::Error::other(\"altered coordinator error\"))?",
+      "old": "initialize(Path::new(path), initialize_legacy)?",
+      "new": "initialize(Path::new(path), initialize_legacy).map_err(|_| io::Error::other(\"altered coordinator error\"))?",
       "package": "write-coordinator",
       "target": "--test",
       "test": "writers",
@@ -20831,10 +20831,10 @@
       "matches": 1
     },
     {
-      "name": "r1-native-coordinator-cli-sequenced-create-file",
+      "name": "r1-native-coordinator-cli-sequenced-init-result",
       "file": "apps/write-coordinator/src/native.rs",
-      "old": "Database::create_file(Path::new(path), Limits::default())?",
-      "new": "Database::create_file(Path::new(path), Limits::default()).map_err(|_| io::Error::other(\"altered coordinator error\"))?",
+      "old": "initialize(Path::new(path), sequenced::initialize)?",
+      "new": "initialize(Path::new(path), sequenced::initialize).map_err(|_| io::Error::other(\"altered coordinator error\"))?",
       "package": "write-coordinator",
       "target": "--test",
       "test": "writers",
@@ -21829,6 +21829,54 @@
       "occurrence": 1,
       "matches": 1,
       "exact_test": "coordinator::protocol::decisions::authentication_and_line_bounds"
+    },
+    {
+      "name": "r1-native-coordinator-cli-legacy-collection",
+      "file": "apps/write-coordinator/src/native.rs",
+      "old": "db.create_collection()?",
+      "new": "db.create_collection().map_err(|_| weekend_db::Error::Invalid)?",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::decisions::legacy_initialization_io_faults_reopen_each_publication",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-native-coordinator-cli-legacy-seed-value",
+      "file": "apps/write-coordinator/src/native.rs",
+      "old": "db.unsigned(0)?",
+      "new": "db.unsigned(0).map_err(|_| weekend_db::Error::Invalid)?",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::decisions::legacy_initialization_draft_refusals_keep_the_empty_collection",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-native-coordinator-cli-legacy-seed-draft",
+      "file": "apps/write-coordinator/src/native.rs",
+      "old": "tx.put(collection, KEY, &db.unsigned(0)?)?",
+      "new": "tx.put(collection, KEY, &db.unsigned(0)?).map_err(|_| weekend_db::Error::Invalid)?",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::decisions::legacy_initialization_draft_refusals_keep_the_empty_collection",
+      "occurrence": 1,
+      "matches": 1
+    },
+    {
+      "name": "r1-native-coordinator-cli-legacy-seed-commit",
+      "file": "apps/write-coordinator/src/native.rs",
+      "old": "tx.commit()?",
+      "new": "tx.commit().map_err(|_| weekend_db::Error::Invalid)?",
+      "package": "write-coordinator",
+      "target": "--bin",
+      "test": "write-coordinator",
+      "exact_test": "native::decisions::legacy_initialization_io_faults_reopen_each_publication",
+      "occurrence": 1,
+      "matches": 1
     }
   ]
 }

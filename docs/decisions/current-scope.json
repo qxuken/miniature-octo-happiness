@@ -21,9 +21,9 @@
     "apps/weekend-tasks/src/lib.rs": "887d9ce8c80ae6b4d92166e5c6947dce64dbf0611fd393559b8510d23d1980c6",
     "apps/weekend-tasks/src/main.rs": "c30b765061790065812d268281f5d6f7c54113d91977f48692635f8045003f46",
     "apps/write-coordinator/src/main.rs": "0baa2da45ecc666867adbf652fc95958edefe1ac0523c76d96934b69e7b5517b",
-    "apps/write-coordinator/src/native.rs": "1891fbd97bff686d9486424a69be983ad9c5d92bec2aee161fbc77f073f667f0",
+    "apps/write-coordinator/src/native.rs": "0c0c92ddbbdf876740a19b975dba0ef8ef84d9540bbf36854299b375767e4822",
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
-    "apps/write-coordinator/src/native/protocol.rs": "d987550248dbba747bd98d535284d3ca334a19238f9b511e7e07e8bcd39f325d",
+    "apps/write-coordinator/src/native/protocol.rs": "e8d3019808a1ba5b676ecbf6ed4724a14e16cf02a534ab43c4f0d3d76cdae952",
     "apps/write-coordinator/src/native/sequenced.rs": "05b48dac35ba15d3dd70ccb32c39cfec7913f3ae81d25e8792af52738cfa7ad2",
     "apps/write-coordinator/src/native/service.rs": "d895230b5e4321bea46aaa21d1c11d20c53ef1202969ff2b622e1daf38c15375",
     "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
@@ -232,7 +232,7 @@
     "apps/weekend-replicate/src/native/tests.rs": "a50bfdb8d5cb0af1d20d178f8e7f640bcd59ba3900b070a576595553865fc7e1",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
-    "apps/write-coordinator/tests/writers.rs": "aaf2eed1863a5b38aa672be16624f743acb7bda27379046b430d8400181ec94f",
+    "apps/write-coordinator/tests/writers.rs": "6d8799e08fde8ccab8ab5a5c8998ac578c7926eb3e9f14223fd51a8e046ae34b",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/migration_allocator.rs": "970fba9fe1555a04d807a069cd56e6e3315f636361584042f60c3ccbe37eba0c",
     "crates/weekend-db-typed/tests/models.rs": "f080864d86f8e5fc63a18c282d3910bd706f23a191b9ee870fcb6647bcefc703",
@@ -298,8 +298,8 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/coordinator-windows-oracle.json": "ad0e0eb4a1ad75d3db62d61c9fbc11cc640e54cada7cbaff9c3afe97bcdf4cb4",
-    "xtask/tests/mutations.json": "9d9ab93d029667bb3bc4c5e38db319f2d15beae2f2c45d676e2d387510f62b60",
+    "xtask/tests/coordinator-windows-oracle.json": "fd8979ef872c83e3696b04f554e216cc408c9c25be1528a65e75395c687eb421",
+    "xtask/tests/mutations.json": "f4b57d763017bbb5f620d615e097db04c2a4eddde20cc94c70be81178585ec44",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -449,8 +449,9 @@
     "docs/decisions/coordinator-cli-native-current.md": "b428a1fd22001f7beef09ba97fb5224bbcd9c3979dd4d43c6018f1fee328ecf5",
     "docs/decisions/coordinator-service-lifecycle-current.md": "813a06ebded9626181dd8374ed72e22df1f8d68acb18081337d4ac69b7176239",
     "docs/decisions/coordinator-service-lifecycle-b3a2a18.sha256": "a2ac828f8b2c09fb2990384b18383f963e7a9d4b4d4cc0062e5a31e0afdad3b8",
-    "docs/decisions/coordinator-legacy-boundaries-current.md": "aa650726e1b94eda7f7057838338bd14ae4d0988ecdea7e36d32fb7b0254d2fd",
-    "docs/decisions/coordinator-legacy-boundaries-e25f2f9.sha256": "58373d985cef1e89f26597aa7df9c7cde35a8b38b7ccabbfc7499b41442506df"
+    "docs/decisions/coordinator-legacy-boundaries-current.md": "9a0171703d364386dd86386940f698201995f422c3ff75f899b375d2beba3182",
+    "docs/decisions/coordinator-legacy-boundaries-e25f2f9.sha256": "58373d985cef1e89f26597aa7df9c7cde35a8b38b7ccabbfc7499b41442506df",
+    "docs/decisions/coordinator-initialization-current.md": "9f4fd0a895da742a0b34bdc7b7583dd8ae1576dd5fee3e4e41514e4cb509d007"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -518,7 +519,7 @@
     "weekend-sqlite-baseline::weekend-sqlite-baseline": 15,
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
-    "write-coordinator::write-coordinator": 345,
+    "write-coordinator::write-coordinator": 344,
     "xtask::xtask": 5337
   },
   "groups": [
@@ -988,7 +989,8 @@
         "docs/decisions/coordinator-sequenced-requests-current.md",
         "docs/decisions/coordinator-cli-native-current.md",
         "docs/decisions/coordinator-service-lifecycle-current.md",
-        "docs/decisions/coordinator-legacy-boundaries-current.md"
+        "docs/decisions/coordinator-legacy-boundaries-current.md",
+        "docs/decisions/coordinator-initialization-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -39224,9 +39226,9 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 1741,
+        "start_byte": 1760,
         "conditions": [
-          "initialize(Path::new(path))"
+          "initialize(Path::new(path), initialize_legacy)"
         ]
       },
       "tests": [
@@ -39247,7 +39249,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "match_guard",
-        "start_byte": 1772,
+        "start_byte": 1791,
         "conditions": [
           "command == \"init-sequenced\""
         ]
@@ -39281,16 +39283,16 @@
       ]
     },
     {
-      "name": "NATIVE-COORDINATOR-CLI-SEQUENCED-CREATE-FILE",
+      "name": "NATIVE-COORDINATOR-CLI-SEQUENCED-INIT-RESULT",
       "disposition": "propagation_control",
       "selector": {
         "file": "apps/write-coordinator/src/native.rs",
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 1899,
+        "start_byte": 1889,
         "conditions": [
-          "Database::create_file(Path::new(path), Limits::default())"
+          "initialize(Path::new(path), sequenced::initialize)"
         ]
       },
       "tests": [
@@ -39300,7 +39302,7 @@
         }
       ],
       "mutations": [
-        "r1-native-coordinator-cli-sequenced-create-file"
+        "r1-native-coordinator-cli-sequenced-init-result"
       ]
     },
     {
@@ -39311,7 +39313,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "match_guard",
-        "start_byte": 1948,
+        "start_byte": 1935,
         "conditions": [
           "command == \"serve\""
         ]
@@ -39356,7 +39358,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 2081,
+        "start_byte": 2068,
         "conditions": [
           "address(port)"
         ]
@@ -39379,7 +39381,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "match_guard",
-        "start_byte": 2144,
+        "start_byte": 2131,
         "conditions": [
           "command == \"client\""
         ]
@@ -39424,7 +39426,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 2187,
+        "start_byte": 2174,
         "conditions": [
           "address(port)"
         ]
@@ -39447,7 +39449,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "match_guard",
-        "start_byte": 2244,
+        "start_byte": 2231,
         "conditions": [
           "command == \"serve\"",
           "flag == \"--secret-file\""
@@ -39499,7 +39501,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 2376,
+        "start_byte": 2363,
         "conditions": [
           "address(port)"
         ]
@@ -39522,7 +39524,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 2431,
+        "start_byte": 2418,
         "conditions": [
           "Secret::load(Path::new(secret))"
         ]
@@ -39545,7 +39547,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "match_guard",
-        "start_byte": 2551,
+        "start_byte": 2538,
         "conditions": [
           "command == \"serve-sequenced\"",
           "flag == \"--secret-file\""
@@ -39597,7 +39599,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 2701,
+        "start_byte": 2688,
         "conditions": [
           "address(port)"
         ]
@@ -39620,7 +39622,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 2756,
+        "start_byte": 2743,
         "conditions": [
           "Secret::load(Path::new(secret))"
         ]
@@ -39643,7 +39645,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "match_guard",
-        "start_byte": 2861,
+        "start_byte": 2848,
         "conditions": [
           "command == \"client\"",
           "flag == \"--secret-file\""
@@ -39695,7 +39697,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 2945,
+        "start_byte": 2932,
         "conditions": [
           "address(port)"
         ]
@@ -39718,7 +39720,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "try_propagation",
-        "start_byte": 2984,
+        "start_byte": 2971,
         "conditions": [
           "Secret::load(Path::new(secret))"
         ]
@@ -39741,7 +39743,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "run",
         "kind": "match_guard",
-        "start_byte": 3038,
+        "start_byte": 3025,
         "conditions": [
           "command == \"journal\""
         ]
@@ -39782,7 +39784,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "load",
         "kind": "if",
-        "start_byte": 3377,
+        "start_byte": 3364,
         "conditions": [
           "!std::fs::metadata(path)?.is_file()"
         ]
@@ -39819,7 +39821,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "load",
         "kind": "try_propagation",
-        "start_byte": 3404,
+        "start_byte": 3391,
         "conditions": [
           "std::fs::metadata(path)"
         ]
@@ -39842,7 +39844,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "load",
         "kind": "if",
-        "start_byte": 3781,
+        "start_byte": 3768,
         "conditions": [
           "metadata.permissions().mode() & 0o077 != 0"
         ]
@@ -39879,7 +39881,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "load",
         "kind": "if",
-        "start_byte": 4028,
+        "start_byte": 4015,
         "conditions": [
           "bytes.last() == Some(&b'\\n')"
         ]
@@ -39916,7 +39918,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "load",
         "kind": "if",
-        "start_byte": 4105,
+        "start_byte": 4092,
         "conditions": [
           "bytes.len() != 64",
           "!bytes.iter().all(u8::is_ascii_hexdigit)"
@@ -39964,7 +39966,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "address",
         "kind": "try_propagation",
-        "start_byte": 4564,
+        "start_byte": 4551,
         "conditions": [
           "port\n        .to_str()\n        .ok_or(\"expected a port number\")"
         ]
@@ -39987,7 +39989,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "address",
         "kind": "try_propagation",
-        "start_byte": 4589,
+        "start_byte": 4576,
         "conditions": [
           "port\n        .to_str()\n        .ok_or(\"expected a port number\")?\n        .parse::<u16>()"
         ]
@@ -40010,7 +40012,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "initialize",
         "kind": "try_propagation",
-        "start_byte": 4753,
+        "start_byte": 4777,
         "conditions": [
           "Database::create_file(path, Limits::default())"
         ]
@@ -40033,7 +40035,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "read_line",
         "kind": "try_propagation",
-        "start_byte": 5420,
+        "start_byte": 5515,
         "conditions": [
           "time_remaining(deadline)"
         ]
@@ -40056,7 +40058,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "client",
         "kind": "try_propagation",
-        "start_byte": 5576,
+        "start_byte": 5671,
         "conditions": [
           "line"
         ]
@@ -40079,7 +40081,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "client",
         "kind": "if",
-        "start_byte": 5622,
+        "start_byte": 5717,
         "conditions": [
           "command == \"quit\""
         ]
@@ -40116,7 +40118,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "client",
         "kind": "if",
-        "start_byte": 5682,
+        "start_byte": 5777,
         "conditions": [
           "command.is_empty()"
         ]
@@ -40153,7 +40155,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "client",
         "kind": "try_propagation",
-        "start_byte": 5800,
+        "start_byte": 5895,
         "conditions": [
           "request(address, secret.as_ref(), command)"
         ]
@@ -40176,7 +40178,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "request",
         "kind": "try_propagation",
-        "start_byte": 6035,
+        "start_byte": 6130,
         "conditions": [
           "TcpStream::connect_timeout(&address, TIMEOUT)"
         ]
@@ -40199,7 +40201,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "request",
         "kind": "if",
-        "start_byte": 6088,
+        "start_byte": 6183,
         "conditions": [
           "let Some(secret) = secret"
         ]
@@ -40236,7 +40238,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "request",
         "kind": "try_propagation",
-        "start_byte": 6310,
+        "start_byte": 6405,
         "conditions": [
           "read_line(&stream, Instant::now() + TIMEOUT)"
         ]
@@ -41633,6 +41635,98 @@
       ],
       "mutations": [
         "r1-legacy-coordinator-boundary-fuzz-read-limit"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-INITIALIZATION-LEGACY-COLLECTION",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "initialize_legacy",
+        "kind": "try_propagation",
+        "start_byte": 4894,
+        "conditions": [
+          "db.create_collection()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "legacy_initialization_io_faults_reopen_each_publication"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-legacy-collection"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-INITIALIZATION-LEGACY-SEED-VALUE",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "initialize_legacy",
+        "kind": "try_propagation",
+        "start_byte": 5018,
+        "conditions": [
+          "db.unsigned(0)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "legacy_initialization_draft_refusals_keep_the_empty_collection"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-legacy-seed-value"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-INITIALIZATION-LEGACY-SEED-DRAFT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "initialize_legacy",
+        "kind": "try_propagation",
+        "start_byte": 5020,
+        "conditions": [
+          "tx.put(collection, KEY, &db.unsigned(0)?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "legacy_initialization_draft_refusals_keep_the_empty_collection"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-legacy-seed-draft"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-INITIALIZATION-LEGACY-SEED-COMMIT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "initialize_legacy",
+        "kind": "try_propagation",
+        "start_byte": 5038,
+        "conditions": [
+          "tx.commit()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native.rs",
+          "name": "legacy_initialization_io_faults_reopen_each_publication"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-cli-legacy-seed-commit"
       ]
     }
   ],

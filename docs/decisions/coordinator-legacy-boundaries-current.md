@@ -52,6 +52,10 @@ parent. The production code in both files stayed byte-identical.
 | Source | SHA-256 |
 | --- | --- |
 | `apps/write-coordinator/src/native/protocol.rs` | `d987550248dbba747bd98d535284d3ca334a19238f9b511e7e07e8bcd39f325d` |
+| `apps/write-coordinator/src/native/protocol.rs` | `e8d3019808a1ba5b676ecbf6ed4724a14e16cf02a534ab43c4f0d3d76cdae952` |
+
+The second pin exposes the allocator fixture to the enclosing test module.
+The protocol decisions and source positions are unchanged.
 
 | Status | Target | Position | Bytes | Kind | Owner | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
