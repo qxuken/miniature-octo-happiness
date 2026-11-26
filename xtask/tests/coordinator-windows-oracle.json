@@ -1,9 +1,9 @@
 {
-  "source_commit": "ba39bb01ce28fda6dcfa49ae4b1357b8208b0a81",
+  "source_commit": "598bed1d05492490485933c923e557b8f105dc1f",
   "source_sha256": {
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "a4a86e7cfc549405c55cdce86a33c9ff10751e91aae1ecb65c402d466b6e9f36",
-    "apps/write-coordinator/src/native/sequenced.rs": "cfb7566de7deb025b272c3ef77a2eb2827dbd27a685ebe2b17938a6f47e37bd6",
+    "apps/write-coordinator/src/native/sequenced.rs": "1efb15b1635802c7cd2f985b9b8a4e579ca6fb13094c3584af5ae84c474dd228",
     "apps/write-coordinator/src/native/service.rs": "a5c5dd34ac9de1685f58631f3ccde36e15771baca3a5e3871e86d8869a2bbaf6"
   },
   "assertions": {
