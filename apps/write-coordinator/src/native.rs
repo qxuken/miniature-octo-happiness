@@ -44,10 +44,10 @@ pub(super) fn run() -> AppResult<()> {
             println!("{USAGE}");
             Ok(())
         }
-        [command, path] if command == "init" => Ok(initialize(Path::new(path))?),
-        [command, path] if command == "init-sequenced" => Ok(sequenced::initialize(
-            &Database::create_file(Path::new(path), Limits::default())?,
-        )?),
+        [command, path] if command == "init" => Ok(initialize(Path::new(path), initialize_legacy)?),
+        [command, path] if command == "init-sequenced" => {
+            Ok(initialize(Path::new(path), sequenced::initialize)?)
+        }
         [command, path, port] if command == "serve" => {
             eprintln!("unauthenticated loopback demo mode");
             serve(Path::new(path), address(port)?, None, Profile::Legacy)
@@ -122,8 +122,12 @@ fn address(port: &OsStr) -> AppResult<SocketAddr> {
     Ok(SocketAddr::from((Ipv4Addr::LOCALHOST, port)))
 }
 
-fn initialize(path: &Path) -> DbResult<()> {
+fn initialize(path: &Path, seed: fn(&Database) -> DbResult<()>) -> DbResult<()> {
     let db = Database::create_file(path, Limits::default())?;
+    seed(&db)
+}
+
+fn initialize_legacy(db: &Database) -> DbResult<()> {
     let collection = db.create_collection()?;
     assert_eq!(collection.as_u64(), COLLECTION);
     let mut tx = db.begin();
@@ -175,6 +179,145 @@ fn request(address: SocketAddr, secret: Option<&Secret>, command: &str) -> AppRe
 #[cfg(test)]
 mod decisions {
     use super::*;
+    use weekend_db::{
+        Error,
+        storage::{Crash, Fault, IoKind, SimulatedDisk},
+    };
+
+    #[test]
+    fn legacy_initialization_io_faults_reopen_each_publication() {
+        let limits = Limits::default();
+        let baseline = SimulatedDisk::new().unwrap();
+        let db = Database::create_on(baseline.clone(), [5; 16], limits).unwrap();
+        let initial = baseline.durable_image().unwrap();
+        baseline.arm(usize::MAX, Fault::Error);
+        assert_eq!(initialize_legacy(&db), Ok(()));
+        assert_eq!(protocol::state(&db), Ok((2, 0)));
+        let trace = baseline.trace().unwrap();
+        let syncs: Vec<_> = trace
+            .iter()
+            .enumerate()
+            .filter_map(|(step, event)| (event.kind == IoKind::Sync).then_some(step))
+            .collect();
+        let [
+            collection_append,
+            collection_root,
+            collection_witness,
+            seed_append,
+            seed_root,
+            _,
+        ]: [usize; 6] = syncs.try_into().unwrap();
+        drop(db);
+
+        for step in 0..trace.len() {
+            for crash in [Crash::DropAll, Crash::PersistAll] {
+                let disk = SimulatedDisk::from_image(&initial).unwrap();
+                let db = Database::open_on(disk.clone(), limits).unwrap();
+                disk.arm(step, Fault::Error);
+                let (acknowledged, append) = if step <= collection_witness {
+                    (0, collection_append)
+                } else {
+                    (1, seed_append)
+                };
+                let error = if step <= append {
+                    Error::Io
+                } else {
+                    Error::OutcomeUnknown
+                };
+                assert_eq!(initialize_legacy(&db), Err(error), "step {step}");
+                assert_eq!(disk.trace().unwrap(), trace[..=step], "step {step}");
+                assert_eq!(db.snapshot().revision(), acknowledged, "step {step}");
+                assert!(db.requires_recovery(), "step {step}");
+                drop(db);
+                disk.clear_fault();
+                disk.crash(crash).unwrap();
+                let reopened = Database::open_on(disk.clone(), limits).unwrap();
+                let persisted =
+                    |root| step > root || (step == root && matches!(crash, Crash::PersistAll));
+                let revision =
+                    u64::from(persisted(collection_root)) + u64::from(persisted(seed_root));
+                let (counter, rows) = match revision {
+                    0 => (Err(Error::NotFound), Err(Error::NotFound)),
+                    1 => (Err(Error::NotFound), Ok(0)),
+                    2 => (Ok((2, 0)), Ok(1)),
+                    _ => unreachable!(),
+                };
+                let image = disk.durable_image().unwrap();
+                assert_eq!(reopened.snapshot().revision(), revision, "step {step}");
+                assert_eq!(protocol::state(&reopened), counter, "step {step}");
+                assert_eq!(
+                    reopened
+                        .snapshot()
+                        .count(reopened.collection_id(COLLECTION)),
+                    rows,
+                    "step {step}"
+                );
+                assert_eq!(disk.durable_image().unwrap(), image, "step {step}");
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_initialization_draft_refusals_keep_the_empty_collection() {
+        use protocol::allocator::TestAllocator;
+        use std::sync::Arc;
+
+        let baseline = SimulatedDisk::new().unwrap();
+        let probe = Arc::new(TestAllocator::default());
+        let db =
+            Database::create_on_with_options(baseline.clone(), [5; 16], probe.options()).unwrap();
+        let initial = baseline.durable_image().unwrap();
+        let requests = probe.requests();
+        assert_eq!(db.create_collection(), Ok(db.collection_id(COLLECTION)));
+        let allowed = probe.requests() - requests;
+        assert!(allowed > 0);
+        let partial = baseline.durable_image().unwrap();
+        drop(db);
+
+        for (limits, expected) in [
+            (Limits::default(), Error::OutOfMemory),
+            (
+                Limits {
+                    max_writes: 0,
+                    ..Limits::default()
+                },
+                Error::Limit,
+            ),
+        ] {
+            let disk = SimulatedDisk::from_image(&initial).unwrap();
+            let allocator = Arc::new(TestAllocator::default());
+            let db = Database::open_on_with_options(
+                disk.clone(),
+                allocator.options().with_limits(limits),
+            )
+            .unwrap();
+            let result = if expected == Error::OutOfMemory {
+                let (result, requests) =
+                    allocator.count_with_refusal(allowed, || initialize_legacy(&db));
+                assert_eq!(requests, allowed + 1);
+                result
+            } else {
+                initialize_legacy(&db)
+            };
+            assert_eq!(result, Err(expected));
+            assert_eq!(db.snapshot().revision(), 1);
+            assert!(!db.requires_recovery());
+            assert_eq!(disk.durable_image().unwrap(), partial);
+            drop(db);
+            disk.crash(Crash::DropAll).unwrap();
+            let reopened = Database::open_on(disk.clone(), Limits::default()).unwrap();
+            assert_eq!(reopened.snapshot().revision(), 1);
+            assert_eq!(protocol::state(&reopened), Err(Error::NotFound));
+            assert_eq!(
+                reopened
+                    .snapshot()
+                    .count(reopened.collection_id(COLLECTION)),
+                Ok(0)
+            );
+            assert_eq!(disk.durable_image().unwrap(), partial);
+        }
+    }
+
     #[test]
     fn secret_file_and_loopback_address_admission() {
         let root = std::env::temp_dir().join(format!(

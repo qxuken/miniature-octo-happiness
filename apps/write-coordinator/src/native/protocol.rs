@@ -647,7 +647,7 @@ use weekend_db as allocator_engine;
 #[cfg(test)]
 #[allow(dead_code)]
 #[path = "../../../../tests/support/allocator.rs"]
-mod allocator;
+pub(super) mod allocator;
 #[cfg(test)]
 #[path = "../../../../tests/support/logical_checksum.rs"]
 mod logical_checksum;

@@ -1608,6 +1608,53 @@ fn command_line_checks_file_and_profile_before_binding() {
 }
 
 #[test]
+fn incomplete_legacy_images_are_read_only_at_startup() {
+    use weekend_db::{Database, Error, Limits};
+
+    let _exclusive = storage_workload();
+    let dir = Directory::new();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port().to_string();
+    for revision in [0, 1] {
+        let path = dir.0.join(format!("incomplete-{revision}.db"));
+        let db = Database::create_file(&path, Limits::default()).unwrap();
+        if revision == 1 {
+            assert_eq!(db.create_collection().unwrap().as_u64(), 1);
+        }
+        assert_eq!(db.snapshot().revision(), revision);
+        drop(db);
+        let before = fs::read(&path).unwrap();
+        let path_arg = path.as_os_str();
+        let rejected = Command::new(BIN)
+            .arg("serve")
+            .arg(path_arg)
+            .arg(&port)
+            .output()
+            .unwrap();
+        assert!(!rejected.status.success(), "revision {revision}");
+        assert!(rejected.stdout.is_empty(), "revision {revision}");
+        assert_eq!(
+            String::from_utf8(rejected.stderr).unwrap().lines().last(),
+            Some(Error::NotFound.to_string().as_str())
+        );
+        let repeat = Command::new(BIN)
+            .arg("init")
+            .arg(path_arg)
+            .output()
+            .unwrap();
+        assert!(!repeat.status.success(), "revision {revision}");
+        assert!(repeat.stdout.is_empty(), "revision {revision}");
+        assert_eq!(
+            String::from_utf8(repeat.stderr).unwrap().trim(),
+            Error::AlreadyExists.to_string()
+        );
+        assert_eq!(fs::read(&path).unwrap(), before, "revision {revision}");
+        let reopened = Database::open_file(&path, Limits::default()).unwrap();
+        assert_eq!(reopened.snapshot().revision(), revision);
+    }
+}
+
+#[test]
 fn readiness_write_error_releases_the_database_lease() {
     let _exclusive = storage_workload();
     let dir = Directory::new();
