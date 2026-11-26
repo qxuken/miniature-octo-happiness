@@ -15,7 +15,7 @@
     "apps/weekend-replicate/examples/live_month/native.rs": "841d7a9611dc2232437056acbcd227d78e791d49a6885d0cbaa33629bb558b5e",
     "apps/weekend-replicate/src/main.rs": "6abd661cdad7ac8bb8c0f87bca0ee4688bd5aa689cc70add5873820bfc650357",
     "apps/weekend-replicate/src/native.rs": "1bc1c4acbb9396680175062487e6eb8920faf843390084a0206e442dd6a64a22",
-    "apps/weekend-replicate/src/native/admission.rs": "7144c0e040b9955bf64fe857361653378d3e01fb784639da5c8eae125ad312c3",
+    "apps/weekend-replicate/src/native/admission.rs": "7b26ee0b29a9cd70e955fec57b8eba0742e4fa66c7c8565751898ba8dc6dbd0f",
     "apps/weekend-replicate/src/native/capture_record.rs": "223a36ac490ec4448b301f3f4a777e4ba3d198b62b9b0da9abfbe19da5656954",
     "apps/weekend-replicate/src/tls.rs": "bd0e599e22191a68b19f4ff6ec552d90c177b64b48722d063e2f97fae60c959c",
     "apps/weekend-tasks/src/lib.rs": "887d9ce8c80ae6b4d92166e5c6947dce64dbf0611fd393559b8510d23d1980c6",
@@ -299,7 +299,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "66f32e10c0c20f6736c96137abb7af9aa55ed54d39d4cfb9bd32b06c2f3813ea",
-    "xtask/tests/mutations.json": "827741f344c0d07a924d9da7b4ca8171797a9a7dac11d2e12d73d4f455e30ef4",
+    "xtask/tests/mutations.json": "85bffa3091b70d629c68d46f17c6cb2a4928bc8e6e0a9e8976694e76e0cbb10b",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -435,7 +435,9 @@
     "docs/decisions/coordinator-legacy-commit-current.md": "f98506d9ec744ca4b1230603f2e62dc5a40d245ffc569d2a4e9c8c33d3b7cb14",
     "docs/decisions/snapshot-offline-maintenance-current.md": "ceb3deffc931fcad55010350bf80b7fcc8c22994580419b81fc7c40e8826eff1",
     "docs/decisions/snapshot-network-admission-current.md": "2c6a468dbd4aa9e72a554b8444d557ea6bd36f4bf5c7a932990a9ce655e11660",
-    "docs/decisions/snapshot-command-effects-current.md": "d7b27490c1622ad5f9e2e8eda55f787b136dd2c3e8bfde25bdaf61072aa6b1c9"
+    "docs/decisions/snapshot-command-effects-current.md": "d7b27490c1622ad5f9e2e8eda55f787b136dd2c3e8bfde25bdaf61072aa6b1c9",
+    "apps/weekend-replicate/src/native/admission.rs": "7b26ee0b29a9cd70e955fec57b8eba0742e4fa66c7c8565751898ba8dc6dbd0f",
+    "docs/decisions/snapshot-admission-scheduling-current.md": "62c7cf5bee2f195961376ddf9db4176efc172ca92b6a35ae73af0b89247cbec0"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -943,7 +945,8 @@
         "docs/decisions/snapshot-retry-current.md",
         "docs/decisions/snapshot-listener-current.md",
         "docs/decisions/snapshot-network-admission-current.md",
-        "docs/decisions/snapshot-command-effects-current.md"
+        "docs/decisions/snapshot-command-effects-current.md",
+        "docs/decisions/snapshot-admission-scheduling-current.md"
       ],
       "residual": "Native/socket/dependency errors and operator/device profiles retain their separate scoped evidence."
     },
@@ -36010,6 +36013,360 @@
       ],
       "mutations": [
         "r1-snapshot-command-effects-deliver-error"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-REAP-FINISHED",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "reap",
+        "kind": "while",
+        "start_byte": 634,
+        "conditions": [
+          "let Some(done) = handshakes.iter().position(ScopedJoinHandle::is_finished)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "completed_workers_are_reaped_and_panics_keep_the_first_shutdown_error"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-reap-finished"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-REAP-JOIN-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "reap",
+        "kind": "try_propagation",
+        "start_byte": 861,
+        "conditions": [
+          "handshakes\n            .swap_remove(done)\n            .join()\n            .map_err(|_| io::Error::other(\"snapshot TLS worker panicked\"))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "completed_workers_are_reaped_and_panics_keep_the_first_shutdown_error"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-reap-join-error"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-LAUNCH-FOLLOWER-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "try_propagation",
+        "start_byte": 2893,
+        "conditions": [
+          "(operations.worker)(\"snapshot-follower\").and_then(|worker| {\n            worker.spawn_scoped(scope, move || {\n                diagnostics::capture(settings, Phase::Replication, || consume(pending))\n            })\n        })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "failed_worker_launch_preserves_the_os_error_and_retires_sockets"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-launch-follower-error"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-LAUNCH-HANDSHAKE-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "try_propagation",
+        "start_byte": 4824,
+        "conditions": [
+          "(operations.worker)(\"snapshot-tls\").and_then(|worker| {\n                    worker.spawn_scoped(scope, move || {\n                        if let Ok(channel) = tls.accept_at(socket, started, Some(cancel)) {\n                            // An overloaded connection closes without a protocol reply.\n                            let _ = ready.try_send(channel);\n                        }\n                    })\n                })"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "failed_worker_launch_preserves_the_os_error_and_retires_sockets"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-launch-handshake-error"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-READINESS-INTERRUPTED",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "match_guard",
+        "start_byte": 3386,
+        "conditions": [
+          "error.kind() == io::ErrorKind::Interrupted"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "listener_retries_temporary_readiness_and_accept_failures"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-readiness-interrupted"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-ACCEPT-RETRY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "match_guard",
+        "start_byte": 3783,
+        "conditions": [
+          "matches!(\n                            error.kind(),\n                            io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted\n                        )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "listener_retries_temporary_readiness_and_accept_failures"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-accept-would-block",
+        "r1-snapshot-admission-scheduling-accept-interrupted"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-HANDSHAKE-LIMIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "if",
+        "start_byte": 4190,
+        "conditions": [
+          "handshakes.len() == handshake_limit"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "excess_handshake_closes_while_admitted_sockets_are_stalled"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-handshake-limit"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-HANDSHAKE-RESULT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "admit_with",
+        "kind": "if",
+        "start_byte": 4539,
+        "conditions": [
+          "let Ok(channel) = tls.accept_at(socket, started, Some(cancel))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "excess_handshake_closes_while_admitted_sockets_are_stalled"
+        },
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "excess_authenticated_channel_closes_when_the_ready_queue_is_full"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-tls-refusal",
+        "r1-snapshot-admission-scheduling-tls-success"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-SHUTDOWN-PRECEDENCE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "join_handshakes",
+        "kind": "if",
+        "start_byte": 5727,
+        "conditions": [
+          "handshake.join().is_err()",
+          "result.is_ok()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "completed_workers_are_reaped_and_panics_keep_the_first_shutdown_error"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-shutdown-worker-failure",
+        "r1-snapshot-admission-scheduling-shutdown-earlier-error"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-FINISH-WORKER-PANIC",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "finish",
+        "kind": "try_propagation",
+        "start_byte": 6241,
+        "conditions": [
+          "worker.map_err(|_| io::Error::other(\"snapshot follower worker panicked\"))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "admission_error_and_worker_panic_keep_their_existing_precedence"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-finish-worker-panic"
+      ]
+    },
+    {
+      "name": "SNAPSHOT-ADMISSION-SCHEDULING-FINISH-NATIVE-ERROR",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/weekend-replicate/src/native/admission.rs",
+        "target": "weekend-replicate::weekend-replicate",
+        "owner": "finish",
+        "kind": "try_propagation",
+        "start_byte": 6257,
+        "conditions": [
+          "admission"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/weekend-replicate/src/native/admission.rs",
+          "name": "admission_error_and_worker_panic_keep_their_existing_precedence"
+        }
+      ],
+      "mutations": [
+        "r1-snapshot-admission-scheduling-finish-native-error"
       ]
     }
   ],

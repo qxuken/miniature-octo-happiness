@@ -5,7 +5,7 @@ use super::{
 use crate::diagnostics::{self, Diagnostic, Phase};
 use std::{
     io,
-    net::TcpListener,
+    net::{SocketAddr, TcpListener, TcpStream},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering::Relaxed},
@@ -59,21 +59,53 @@ fn admit(
     handshake_limit: usize,
     consume: impl FnOnce(Receiver<Incoming>) -> AppResult<()> + Send,
 ) -> AppResult<()> {
+    admit_with(
+        listener,
+        tls,
+        maximum,
+        handshake_limit,
+        consume,
+        AdmissionIo {
+            wait: listener_ready::wait_for_connection,
+            accept: TcpListener::accept,
+            worker: |name: &str| Ok(thread::Builder::new().name(name.into())),
+        },
+    )
+}
+
+struct AdmissionIo<W, A, S> {
+    wait: W,
+    accept: A,
+    worker: S,
+}
+
+fn admit_with(
+    listener: TcpListener,
+    tls: &Tls,
+    maximum: usize,
+    handshake_limit: usize,
+    consume: impl FnOnce(Receiver<Incoming>) -> AppResult<()> + Send,
+    mut operations: AdmissionIo<
+        impl FnMut(&TcpListener, i32) -> io::Result<bool>,
+        impl FnMut(&TcpListener) -> io::Result<(TcpStream, SocketAddr)>,
+        impl FnMut(&str) -> io::Result<thread::Builder>,
+    >,
+) -> AppResult<()> {
     let settings = diagnostics::settings();
     thread::scope(|scope| {
         let (ready, pending) = mpsc::sync_channel(MAX_READY);
-        let follower = thread::Builder::new()
-            .name("snapshot-follower".into())
-            .spawn_scoped(scope, move || {
+        let follower = (operations.worker)("snapshot-follower").and_then(|worker| {
+            worker.spawn_scoped(scope, move || {
                 diagnostics::capture(settings, Phase::Replication, || consume(pending))
-            })?;
+            })
+        })?;
         let mut handshakes = Vec::with_capacity(handshake_limit);
         let cancellation = Arc::new(AtomicBool::new(false));
         let mut result = (|| -> io::Result<()> {
             let mut accepted = 0;
             while accepted < maximum && !follower.is_finished() {
                 reap(&mut handshakes)?;
-                match listener_ready::wait_for_connection(&listener, WAIT_MS) {
+                match (operations.wait)(&listener, WAIT_MS) {
                     Ok(true) => {}
                     Ok(false) => continue,
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
@@ -82,7 +114,7 @@ fn admit(
                 if follower.is_finished() {
                     break;
                 }
-                let (socket, _) = match listener.accept() {
+                let (socket, _) = match (operations.accept)(&listener) {
                     Ok(connection) => connection,
                     Err(error)
                         if matches!(
@@ -101,14 +133,14 @@ fn admit(
                 }
                 let ready = ready.clone();
                 let cancel = cancellation.clone();
-                let worker = thread::Builder::new()
-                    .name("snapshot-tls".into())
-                    .spawn_scoped(scope, move || {
+                let worker = (operations.worker)("snapshot-tls").and_then(|worker| {
+                    worker.spawn_scoped(scope, move || {
                         if let Ok(channel) = tls.accept_at(socket, started, Some(cancel)) {
                             // An overloaded connection closes without a protocol reply.
                             let _ = ready.try_send(channel);
                         }
-                    })?;
+                    })
+                })?;
                 handshakes.push(worker);
             }
             drop(listener);
@@ -126,16 +158,20 @@ fn admit(
         if result.is_err() || follower.is_finished() {
             cancellation.store(true, Relaxed);
         }
-        for handshake in handshakes {
-            if handshake.join().is_err() && result.is_ok() {
-                result = Err(io::Error::other(
-                    "snapshot TLS worker panicked during shutdown",
-                ));
-            }
-        }
+        join_handshakes(handshakes, &mut result);
         drop(ready);
         finish(result, follower.join())
     })
+}
+
+fn join_handshakes(handshakes: Vec<ScopedJoinHandle<'_, ()>>, result: &mut io::Result<()>) {
+    for handshake in handshakes {
+        if handshake.join().is_err() && result.is_ok() {
+            *result = Err(io::Error::other(
+                "snapshot TLS worker panicked during shutdown",
+            ));
+        }
+    }
 }
 
 fn finish(
@@ -392,18 +428,210 @@ mod tests {
     }
 
     fn assert_closed(mut socket: TcpStream) {
-        socket
-            .set_read_timeout(Some(Duration::from_secs(5)))
-            .unwrap();
-        match socket.read(&mut [0]) {
-            Ok(0) => {}
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
-                ) => {}
-            result => panic!("expected a closed socket, got {result:?}"),
+        socket.set_nonblocking(true).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            match socket.read(&mut [0]) {
+                Ok(0) => return,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                    ) =>
+                {
+                    return;
+                }
+                Err(error)
+                    if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < deadline =>
+                {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                result => panic!("expected a closed socket, got {result:?}"),
+            }
         }
+    }
+
+    #[test]
+    fn listener_retries_temporary_readiness_and_accept_failures() {
+        use std::cell::Cell;
+
+        let (_, server) = pair();
+        let (unused, _) = listener();
+        admit_with(
+            unused,
+            &server,
+            0,
+            MAX_HANDSHAKES,
+            |pending| {
+                assert!(pending.into_iter().next().is_none());
+                Ok(())
+            },
+            AdmissionIo {
+                wait: |_: &TcpListener, _| panic!("an exhausted accept limit polled the listener"),
+                accept: TcpListener::accept,
+                worker: |_: &str| Ok(thread::Builder::new()),
+            },
+        )
+        .unwrap();
+
+        for fail_readiness in [false, true] {
+            let (listener, _) = listener();
+            let next_wait = Cell::new(0);
+            let mut accepted_at = Vec::new();
+            let result = admit_with(
+                listener,
+                &server,
+                1,
+                MAX_HANDSHAKES,
+                |pending| {
+                    assert!(pending.into_iter().next().is_none());
+                    Ok(())
+                },
+                AdmissionIo {
+                    wait: |_: &TcpListener, wait| {
+                        assert_eq!(wait, WAIT_MS);
+                        let index = next_wait.get();
+                        next_wait.set(index + 1);
+                        match index {
+                            0 => Ok(false),
+                            1 => Err(io::ErrorKind::Interrupted.into()),
+                            2 | 3 => Ok(true),
+                            4 if fail_readiness => Err(io::Error::from_raw_os_error(22)),
+                            4 => Ok(true),
+                            _ => panic!("listener continued after a fatal error"),
+                        }
+                    },
+                    accept: |_: &TcpListener| {
+                        let index = next_wait.get() - 1;
+                        accepted_at.push(index);
+                        match index {
+                            2 => Err(io::ErrorKind::WouldBlock.into()),
+                            3 => Err(io::ErrorKind::Interrupted.into()),
+                            4 if !fail_readiness => Err(io::Error::from_raw_os_error(5)),
+                            _ => panic!("accept called without readiness at step {index}"),
+                        }
+                    },
+                    worker: |_: &str| Ok(thread::Builder::new()),
+                },
+            );
+            assert_eq!(
+                result
+                    .unwrap_err()
+                    .downcast_ref::<io::Error>()
+                    .unwrap()
+                    .raw_os_error(),
+                Some(if fail_readiness { 22 } else { 5 })
+            );
+            assert_eq!(next_wait.get(), 5);
+            assert_eq!(
+                accepted_at,
+                if fail_readiness {
+                    &[2, 3][..]
+                } else {
+                    &[2, 3, 4]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn failed_worker_launch_preserves_the_os_error_and_retires_sockets() {
+        let (_, server) = pair();
+        for fail_follower in [true, false] {
+            let (listener, address) = listener();
+            let stalled = TcpStream::connect(address).unwrap();
+            let rejected = TcpStream::connect(address).unwrap();
+            let mut launches = Vec::new();
+            let error = admit_with(
+                listener,
+                &server,
+                2,
+                MAX_HANDSHAKES,
+                |pending| {
+                    assert!(pending.into_iter().next().is_none());
+                    Ok(())
+                },
+                AdmissionIo {
+                    wait: listener_ready::wait_for_connection,
+                    accept: TcpListener::accept,
+                    worker: |name: &str| {
+                        launches.push(name.to_owned());
+                        if fail_follower || launches.len() == 3 {
+                            Err(io::Error::from_raw_os_error(22))
+                        } else {
+                            Ok(thread::Builder::new().name(name.into()))
+                        }
+                    },
+                },
+            )
+            .unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<io::Error>().unwrap().raw_os_error(),
+                Some(22)
+            );
+            assert_eq!(
+                launches,
+                if fail_follower {
+                    &["snapshot-follower"][..]
+                } else {
+                    &["snapshot-follower", "snapshot-tls", "snapshot-tls"]
+                }
+            );
+            assert_closed(stalled);
+            assert_closed(rejected);
+        }
+    }
+
+    #[test]
+    fn completed_workers_are_reaped_and_panics_keep_the_first_shutdown_error() {
+        fn finished(worker: &ScopedJoinHandle<'_, ()>) {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !worker.is_finished() {
+                assert!(Instant::now() < deadline, "worker did not finish");
+                thread::yield_now();
+            }
+        }
+
+        thread::scope(|scope| {
+            let (release, pending) = mpsc::channel::<()>();
+            let waiting = scope.spawn(move || {
+                let _ = pending.recv_timeout(Duration::from_secs(5));
+            });
+            let done = scope.spawn(|| ());
+            finished(&done);
+            let mut handshakes = vec![waiting, done];
+            reap(&mut handshakes).unwrap();
+            assert_eq!(handshakes.len(), 1);
+            assert!(!handshakes[0].is_finished());
+
+            let doomed = scope.spawn(|| panic!("controlled reap panic"));
+            finished(&doomed);
+            handshakes.push(doomed);
+            let error = reap(&mut handshakes).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::Other);
+            assert_eq!(error.to_string(), "snapshot TLS worker panicked");
+            release.send(()).unwrap();
+            let mut clean = Ok(());
+            join_handshakes(handshakes, &mut clean);
+            assert!(clean.is_ok());
+
+            for earlier in [Ok(()), Err(io::Error::from_raw_os_error(22))] {
+                let mut result = earlier;
+                let prior = result.as_ref().err().and_then(io::Error::raw_os_error);
+                let doomed = scope.spawn(|| panic!("controlled shutdown panic"));
+                let healthy = scope.spawn(|| ());
+                join_handshakes(vec![doomed, healthy], &mut result);
+                let error = result.unwrap_err();
+                if let Some(prior) = prior {
+                    assert_eq!(error.raw_os_error(), Some(prior));
+                } else {
+                    assert_eq!(
+                        error.to_string(),
+                        "snapshot TLS worker panicked during shutdown"
+                    );
+                }
+            }
+        });
     }
 
     #[test]
@@ -427,6 +655,13 @@ mod tests {
                 .map(|_| TcpStream::connect(address).unwrap())
                 .collect();
             assert_closed(TcpStream::connect(address).unwrap());
+            for mut socket in &stalled {
+                socket.set_nonblocking(true).unwrap();
+                assert_eq!(
+                    socket.read(&mut [0]).unwrap_err().kind(),
+                    io::ErrorKind::WouldBlock
+                );
+            }
             drop(stalled);
             run.join().unwrap().unwrap();
         });
