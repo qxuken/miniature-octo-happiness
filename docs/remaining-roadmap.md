@@ -2772,3 +2772,13 @@ and the exact exported image. The rehearsal covers the proposed direction
 on one development host. Intended operator accounts, deployment hardware
 and off-machine evidence custody remain open.
 [Restored archive checksums](decisions/snapshot-linux-primary-9f942db.sha256)
+
+### Same-source arm64 delivery and archive restore
+
+At `1f3f42a`, all eight macOS/arm64 and Docker Linux/arm64 packages pass
+the four feature profiles. Their combined packages pass the 134-cell trace,
+and all 24 restored C, C++ and Odin consumers load the exact extracted
+library. The source, package and notice hashes verify from a portable archive.
+All 14 lock blobs match the prior R6 review. R7 still requires the final
+same-source x64 lanes and an off-machine restore.
+[Private delivery and hosted CI evidence](delivery-checkpoint-1f3f42a.md)

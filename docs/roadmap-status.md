@@ -26,6 +26,13 @@ verify all 31 retained views on APFS and ext4. After follower restart and
 duplicate delivery, both polls report revision 93 with the same digest and
 all durable files match their original bytes.
 
+The [arm64 delivery checkpoint](delivery-checkpoint-1f3f42a.md) qualifies
+all four package masks on macOS and Docker Linux at `1f3f42a`. Fresh
+extraction verifies the package manifests, optimized 134-cell traces and
+all 24 restored C, C++ and Odin consumer runs. PR #82 also passes
+28 checks at its previous head `9e5ebee`, with the release-only
+compatibility job skipped.
+
 The [2026-11-18 dependency snapshot](locked-dependency-review-3de695f.md)
 scans all fourteen lockfiles at `3de695f` against frozen RustSec `233155b`
 (1,527 parsed advisories): zero reported vulnerabilities and warnings.
