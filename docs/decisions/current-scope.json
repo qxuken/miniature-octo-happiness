@@ -479,7 +479,8 @@
     "docs/decisions/supervisor-output-flow-52605e4.sha256": "0813f3adf79087127899c4364bdf75231a9ed84021369e10443d8924164a2e9f",
     "docs/decisions/study-retry-diagnostic-1ec259c.sha256": "1107a15e59443a11f7099e167a68b4e12dd65f573aff14d2f7d1162bb788bee4",
     "docs/decisions/study-retry-diagnostic-current.md": "269829306be8806db1ba30ba420473e3e55cb8b6459715ce020e16916da44d8f",
-    "docs/decisions/supervisor-proc-identity-current.md": "d94c6fd80f1e3d5a2fc321bc689cce10862809eedcf44a8fb4233ba1c17b3049"
+    "docs/decisions/supervisor-proc-identity-current.md": "231f28c054a7558456ad3ec426de2a602bb2f1fe90ae8ca36e7b52b9407fb9a2",
+    "docs/decisions/supervisor-proc-identity-05e99c6.sha256": "6a1b5603334b900a7bd20b10a18eb6ec2f09061ecd22944043ef7865b11b690c"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,

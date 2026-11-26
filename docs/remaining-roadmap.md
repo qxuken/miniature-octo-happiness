@@ -2700,3 +2700,11 @@ authenticated retry fails. Both Unix test matrices and all six named
 controls pass. The original Windows minimum-Rust release failure still
 requires native follow-up.
 [Study retry ledger](decisions/study-retry-diagnostic-current.md)
+
+### Linux supervisor process identity
+
+The process-identity batch verifies the first malformed-field diagnostic,
+each reaped-identity condition and the observer's live procfs identity.
+Docker Linux caught all 23 mutations in both profiles. The reconciliation
+closes 14 tooling records and leaves 7,343 tooling gaps.
+[Process-identity ledger](decisions/supervisor-proc-identity-current.md)

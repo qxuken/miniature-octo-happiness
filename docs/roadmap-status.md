@@ -157,6 +157,12 @@ storage failures. Both Unix hosts passed 85 Study tests and caught all
 six retry controls per profile. Native Windows follow-up remains pending.
 [Study retry diagnostics](decisions/study-retry-diagnostic-current.md)
 
+At `05e99c6`, the Linux supervisor checks the process identity it will
+use for ownership, including malformed records, reaped identities and
+comparison with the live process table. Both profiles caught all 23
+controls. The reconciliation closes 14 tooling records and leaves
+7,343 open. [Process-identity qualification](decisions/supervisor-proc-identity-current.md)
+
 | Gate | Progress and remaining evidence |
 |---|---|
 | Current immutable candidate | [`e2d2268`](candidate-qualification-e2d2268.md) binds all sixteen four-platform packages, 3 × 17 benchmark samples, 22-target ASan fuzzing (1,441,898 actual runs), and 31 stable replay tests in debug/release. All fourteen required CI jobs pass on attempt 1, including workspace ASan/TSan and calibrated C/Rust ASan. The snapshot flush regression passes Mac/APFS and Linux/ext4 without weakening zero-progress checks. Fresh operational rehearsals, owner/device decisions and broader decision/workload/support acceptance remain in the [unfinished roadmap](remaining-roadmap.md). |
