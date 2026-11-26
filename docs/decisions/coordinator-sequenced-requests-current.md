@@ -17,6 +17,27 @@ and version valid while varying the reserved sequence, revision relationship,
 sequence prefix limit and acknowledged head. The two shorter `||` records
 are evaluations within that same four-condition decision.
 
+## Qualification
+
+Frozen source `11a32db4b6e38ec2356a1794e54f5c346c81be83` ran with Rust
+1.100.0 and locked dependencies. Each debug and release profile on macOS
+arm64 and Docker Linux arm64/ext4 passed 43 coordinator unit tests, 16
+coordinator integration tests and 53 standalone fuzz-library tests. Two
+macOS and three Linux extended workloads remained opt-in. Strict Clippy
+passed in both Cargo targets.
+
+Each campaign detected all 28 new controls and six existing receipt
+controls in the coordinator binary. Fresh extraction verified the intended
+failure assertions, 112 supervised commands and 1,020 restored source
+files per campaign. Three Windows x64 test executables cross-linked per
+profile. Native execution is pending for this source.
+
+The 34 remaining runtime records in the sequenced module have source
+dispositions, including the six scoped rows below. Repository reconciliation
+leaves 192 runtime and 7,458 tooling gaps. The standalone library also runs
+the five new fixtures. Its source records retain their own tooling ledger.
+[Frozen source and evidence checksums](coordinator-sequenced-requests-11a32db.sha256)
+
 ## Coordinator source records
 
 | Source | SHA-256 |

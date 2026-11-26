@@ -2467,3 +2467,18 @@ x64 test executables linked per profile. Native execution remains pending.
 Reconciliation covers another 15 runtime and 10 tooling records and leaves
 226 runtime and 7,458 tooling gaps.
 [Sequenced submission ledger](decisions/coordinator-sequenced-submit-current.md)
+
+### Sequenced request parsing and receipt lookup
+
+At `11a32db`, invalid operands and foreign storage identities preserve the
+specific errors at each command boundary. Lookup distinguishes a missing
+collection, an empty slot and a corrupt receipt. A refused initial counter
+allocation leaves both collections empty at revision 2 after reopen.
+
+Each macOS and Docker Linux/ext4 profile passed 59 coordinator and 53
+standalone fuzz-library tests. The coordinator caught all 28 new and six
+existing receipt controls. Three Windows x64 test executables cross-linked
+per profile, with native execution pending. The sequenced source file has
+no unclassified runtime decisions. Repository reconciliation leaves 192
+runtime and 7,458 tooling gaps.
+[Sequenced request and lookup ledger](decisions/coordinator-sequenced-requests-current.md)

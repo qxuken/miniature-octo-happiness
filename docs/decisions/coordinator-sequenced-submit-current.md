@@ -58,6 +58,9 @@ and 7,458 tooling gaps.
 
 ## Coordinator source records
 
+The second fingerprint binds these submission source ranges after adding the
+request and lookup fixtures at `2ea321e`.
+
 | Source | SHA-256 |
 | --- | --- |
 | `apps/write-coordinator/src/native/sequenced.rs` | `7c0ded9fd3380747be331b51a468a4d17254017fb438a6a1c5f8293bc31deebb` |

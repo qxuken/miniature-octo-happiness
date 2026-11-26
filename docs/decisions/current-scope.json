@@ -443,9 +443,9 @@
     "docs/decisions/shared-tls-deadline-current.md": "fc3ddc1230ad38edd647efd4e38798b4fab438ecad6f9915a7f35ec7fc3940e9",
     "docs/decisions/shared-tls-config-current.md": "65e0d3fe895ee915b58eba9e58e56d12c50dcde80827758860c61fe9e46db8e4",
     "docs/decisions/coordinator-sequenced-startup-current.md": "e434a351d6fe5f508bab9abe9e2ea62331b35c487e2b01adfae08013055b06cd",
-    "docs/decisions/coordinator-sequenced-submit-current.md": "5ce9a9248edac234a7962c77514bf12f284eead9d2eb552048ac930bded3c92b",
+    "docs/decisions/coordinator-sequenced-submit-current.md": "d2d516950f76552b81d27add5a65dfd08dbfad70a30c84671b4ec47ec0540293",
     "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6",
-    "docs/decisions/coordinator-sequenced-requests-current.md": "0cfef28f9c2ae525ef0de615100edbf48231ad3e32d428012f06e7e3fd5e0293"
+    "docs/decisions/coordinator-sequenced-requests-current.md": "f7831f501b18e1bfcd7b25321153d90eec58a2ee50ff4fd6f5989aea938dd3bf"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
