@@ -218,7 +218,7 @@
     "xtask/src/support.rs": "ab81f996e6e6e19a44180b3a350176859a343b4a5b34f04bbf24789b62c67dd1",
     "xtask/src/toolchain.rs": "a0e44e9f90a3d893fa9402a64e4c860e44f0e3029020ce9f8395978fa92fa7b5",
     "xtask/src/trace_model.rs": "34b77532f317f1a3a0edae74e4c89150b7b709668b2a6ad9ffcdb7904350627c",
-    "xtask/src/trace_process.rs": "670d7c9fc682e0e4c1f93ee9e5f64a5156b79dea3ca6e1c616b077d9e78fbd1a",
+    "xtask/src/trace_process.rs": "ed3e89b7e430be459268b14101165663a98d1a8ad3278e0d2d017b867115496f",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/src/windows_faults.rs": "442b5030ecd61fe492f2d52fddb10c5f30bc93a0003d90fec4cf044cbec5a9c4",
     "xtask/src/windows_process.rs": "89549e971c4e51a4f9ef2a8c177107cb7da04144dac73f0e9d5c0d3ee439698d",
@@ -300,7 +300,7 @@
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
     "xtask/tests/coordinator-windows-oracle.json": "9900d30d80e2617a1847f7b1a259488041ff51169dcd68b1e200ac1541339cf5",
-    "xtask/tests/mutations.json": "9701ddb6e7a637a6281b94232770c9e53e1bdcf374002139e476973863f5a170",
+    "xtask/tests/mutations.json": "754e184d283e882c712549fa0eb79c90add676f9af94e1e5ed37b84d1c13331e",
     "xtask/tests/supervise.rs": "c246ea1294e470f8a32271209c961da00c116bbf8c6ad3811154a0d00e2067d8",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -482,7 +482,8 @@
     "docs/decisions/supervisor-proc-identity-current.md": "231f28c054a7558456ad3ec426de2a602bb2f1fe90ae8ca36e7b52b9407fb9a2",
     "docs/decisions/supervisor-proc-identity-05e99c6.sha256": "6a1b5603334b900a7bd20b10a18eb6ec2f09061ecd22944043ef7865b11b690c",
     "docs/decisions/supervisor-cli-response-current.md": "4c7dd9437733ca28c7255190fbc0b516a87e76c276072e62862d90c6b170db66",
-    "docs/decisions/supervisor-cli-response-4a3ea5d.sha256": "04ac223dfdae8ef21b3beb7fe9cdff472f1c8ca674217804a58b3dab93b07f20"
+    "docs/decisions/supervisor-cli-response-4a3ea5d.sha256": "04ac223dfdae8ef21b3beb7fe9cdff472f1c8ca674217804a58b3dab93b07f20",
+    "docs/decisions/trace-log-evidence-current.md": "f2f7e6a18b51a4bf9a6a123c27a279dc29340ac38b2b418974e79b93e74f0ce6"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -1105,7 +1106,8 @@
         "docs/decisions/supervisor-result-pairs-current.md",
         "docs/decisions/supervisor-output-flow-current.md",
         "docs/decisions/supervisor-proc-identity-current.md",
-        "docs/decisions/supervisor-cli-response-current.md"
+        "docs/decisions/supervisor-cli-response-current.md",
+        "docs/decisions/trace-log-evidence-current.md"
       ],
       "residual": "Helper and native negative controls remain scoped evidence, not individual independence pairs for all tooling records. Standalone workspaces and consumers are now inventoried in their own target contexts; their records and macro/compiled boundaries remain explicit obligations."
     },
@@ -47827,6 +47829,77 @@
           ],
           "outcome": false
         }
+      ]
+    },
+    {
+      "name": "TRACE-PROCESS-DIGEST-FAILURE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "xtask/src/trace_process.rs",
+        "target": "xtask::xtask",
+        "kind": "if",
+        "owner": "execute",
+        "start_byte": 5346,
+        "conditions": [
+          "let Some(error) = stdout_digest\n                .as_ref()\n                .err()\n                .or(stderr_digest.as_ref().err())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/trace_process.rs",
+          "name": "real_success_and_nonzero_status_preserve_cleanup"
+        },
+        {
+          "file": "xtask/src/trace_process.rs",
+          "name": "a_successful_trace_requires_both_output_digests"
+        }
+      ],
+      "mutations": [
+        "r1-trace-log-evidence-ignore-stdout-macos",
+        "r1-trace-log-evidence-ignore-stderr-macos",
+        "r1-trace-log-evidence-ignore-stdout-linux",
+        "r1-trace-log-evidence-ignore-stderr-linux"
+      ],
+      "table": [
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        }
+      ]
+    },
+    {
+      "name": "TRACE-PROCESS-ADMISSION-RETURN",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "xtask/src/trace_process.rs",
+        "target": "xtask::xtask",
+        "kind": "try_propagation",
+        "owner": "execute",
+        "start_byte": 5904,
+        "conditions": [
+          "result"
+        ]
+      },
+      "tests": [
+        {
+          "file": "xtask/src/trace_process.rs",
+          "name": "real_success_and_nonzero_status_preserve_cleanup"
+        },
+        {
+          "file": "xtask/src/trace_process.rs",
+          "name": "trace_admission_records_the_original_error_without_creating_logs"
+        }
+      ],
+      "mutations": [
+        "r1-trace-log-evidence-replace-admission-error"
       ]
     }
   ],

@@ -24396,6 +24396,106 @@
       "matches": 1,
       "package": "xtask",
       "exact_test": "supervisor_reports_response_delivery_failure_after_verified_cleanup"
+    },
+    {
+      "name": "r1-trace-log-evidence-ignore-stdout-macos",
+      "file": "xtask/src/trace_process.rs",
+      "old": "stdout_digest\n                .as_ref()\n                .err()\n                .or(stderr_digest.as_ref().err())",
+      "new": "stderr_digest.as_ref().err()",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "trace_process::tests::a_successful_trace_requires_both_output_digests",
+      "os": "macos"
+    },
+    {
+      "name": "r1-trace-log-evidence-ignore-stderr-macos",
+      "file": "xtask/src/trace_process.rs",
+      "old": "stdout_digest\n                .as_ref()\n                .err()\n                .or(stderr_digest.as_ref().err())",
+      "new": "stdout_digest.as_ref().err()",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "trace_process::tests::a_successful_trace_requires_both_output_digests",
+      "os": "macos"
+    },
+    {
+      "name": "r1-trace-log-evidence-ignore-stdout-linux",
+      "file": "xtask/src/trace_process.rs",
+      "old": "stdout_digest\n                .as_ref()\n                .err()\n                .or(stderr_digest.as_ref().err())",
+      "new": "stderr_digest.as_ref().err()",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "trace_process::tests::a_successful_trace_requires_both_output_digests",
+      "os": "linux"
+    },
+    {
+      "name": "r1-trace-log-evidence-ignore-stderr-linux",
+      "file": "xtask/src/trace_process.rs",
+      "old": "stdout_digest\n                .as_ref()\n                .err()\n                .or(stderr_digest.as_ref().err())",
+      "new": "stdout_digest.as_ref().err()",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "trace_process::tests::a_successful_trace_requires_both_output_digests",
+      "os": "linux"
+    },
+    {
+      "name": "r1-trace-log-evidence-admit-stdout-only",
+      "file": "xtask/src/trace_process.rs",
+      "old": "[request.stdout, request.stderr]",
+      "new": "[request.stdout]",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "trace_process::tests::trace_admission_records_the_original_error_without_creating_logs"
+    },
+    {
+      "name": "r1-trace-log-evidence-admit-stderr-only",
+      "file": "xtask/src/trace_process.rs",
+      "old": "[request.stdout, request.stderr]",
+      "new": "[request.stderr]",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "trace_process::tests::trace_admission_records_the_original_error_without_creating_logs"
+    },
+    {
+      "name": "r1-trace-log-evidence-discard-admission-row",
+      "file": "xtask/src/trace_process.rs",
+      "old": "Err(e) => json!({\"command\":strings,\"error\":format!(\"{e:#}\")}),",
+      "new": "Err(_) => json!({\"command\":strings,\"error\":\"trace not archived\"}),",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "trace_process::tests::trace_admission_records_the_original_error_without_creating_logs"
+    },
+    {
+      "name": "r1-trace-log-evidence-replace-admission-error",
+      "file": "xtask/src/trace_process.rs",
+      "old": "let report = result?;",
+      "new": "let report = result.unwrap_or_default();",
+      "occurrence": 1,
+      "matches": 1,
+      "test": "xtask",
+      "target": "--bin",
+      "package": "xtask",
+      "exact_test": "trace_process::tests::trace_admission_records_the_original_error_without_creating_logs"
     }
   ]
 }

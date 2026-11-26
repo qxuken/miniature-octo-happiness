@@ -154,7 +154,7 @@ pub fn execute(
     );
     let stdout = cwd.join(format!("{label}.stdout"));
     let stderr = cwd.join(format!("{label}.stderr"));
-    let result = run(&Request {
+    let mut result = run(&Request {
         argv: &argv,
         cwd,
         env,
@@ -167,9 +167,20 @@ pub fn execute(
         .iter()
         .map(|s| s.to_str().context("UTF-8 recorded trace command"))
         .collect::<Result<_>>()?;
-    let row = match &result {
+    let row = match &mut result {
         Ok(report) => {
-            json!({"command":strings,"report":report,"stdout_sha256":sha(&stdout).ok(),"stderr_sha256":sha(&stderr).ok()})
+            let stdout_digest = sha(&stdout);
+            let stderr_digest = sha(&stderr);
+            if let Some(error) = stdout_digest
+                .as_ref()
+                .err()
+                .or(stderr_digest.as_ref().err())
+            {
+                report
+                    .failure
+                    .get_or_insert_with(|| format!("trace log digest: {error:#}"));
+            }
+            json!({"command":strings,"report":report,"stdout_sha256":stdout_digest.ok(),"stderr_sha256":stderr_digest.ok()})
         }
         Err(e) => json!({"command":strings,"error":format!("{e:#}")}),
     };
@@ -384,5 +395,72 @@ mod tests {
                 .is_some_and(|s| s.contains("deadline")),
             "{timeout:?}"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_successful_trace_requires_both_output_digests() {
+        let owned = Scratch::new(&std::env::temp_dir(), "trace-log-digest").unwrap();
+        let env = std::env::vars_os().collect();
+        let mut commands = Vec::new();
+        for (missing, retained, exit) in [("stdout", "stderr", 0), ("stderr", "stdout", 2)] {
+            let label = format!("lost-{missing}");
+            let removed = owned.path().join(format!("{label}.{missing}"));
+            let kept = owned.path().join(format!("{label}.{retained}"));
+            let mut argv = crate::support::cmd([
+                "/bin/sh",
+                "-c",
+                "printf stdout; printf stderr >&2; /bin/rm \"$1\" && exit \"$2\"",
+                "fixture",
+            ]);
+            argv.push(removed.as_os_str().to_owned());
+            argv.push(exit.to_string().into());
+            let error = execute(argv, owned.path(), &label, &env, &mut commands, exit != 0)
+                .expect_err("a trace qualified without both log digests");
+            assert!(error.to_string().contains("trace log digest"), "{error:#}");
+            assert!(!removed.exists());
+            assert_eq!(fs::read(&kept).unwrap(), retained.as_bytes());
+            let row = commands.last().unwrap();
+            assert_eq!(row["report"]["exit"], exit);
+            assert_eq!(row["report"]["cleanup_verified"], true);
+            assert!(
+                row["report"]["failure"]
+                    .as_str()
+                    .unwrap()
+                    .contains(removed.to_str().unwrap())
+            );
+            assert_eq!(row[format!("{missing}_sha256")], Value::Null);
+            assert_eq!(row[format!("{retained}_sha256")], sha(&kept).unwrap());
+        }
+        assert_eq!(commands.len(), 2);
+    }
+
+    #[test]
+    fn trace_admission_records_the_original_error_without_creating_logs() {
+        let owned = Scratch::new(&std::env::temp_dir(), "trace-log-admission").unwrap();
+        let env = std::env::vars_os().collect();
+        let mut commands = Vec::new();
+        let expected = "trace log output already exists or cannot be inspected";
+        for (existing, absent) in [("stdout", "stderr"), ("stderr", "stdout")] {
+            let label = format!("existing-{existing}");
+            let kept = owned.path().join(format!("{label}.{existing}"));
+            fs::write(&kept, b"preserve").unwrap();
+            let error = execute(
+                fixture("ok"),
+                owned.path(),
+                &label,
+                &env,
+                &mut commands,
+                false,
+            )
+            .expect_err("trace admission accepted an existing log");
+            assert_eq!(error.to_string(), expected, "{existing}");
+            let row = commands.last().unwrap();
+            assert_eq!(row["error"], expected, "{existing}");
+            assert!(row.get("report").is_none());
+            assert_eq!(fs::read(kept).unwrap(), b"preserve");
+            assert!(!owned.path().join(format!("{label}.{absent}")).exists());
+        }
+        assert_eq!(commands.len(), 2);
     }
 }
