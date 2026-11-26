@@ -1,10 +1,10 @@
 {
-  "source_commit": "2ea321e60469893d9deffbc88f9f039a0ddecede",
+  "source_commit": "d87c0709fc33e0ce7b49c19c1c3052a0541671a2",
   "source_sha256": {
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "a4a86e7cfc549405c55cdce86a33c9ff10751e91aae1ecb65c402d466b6e9f36",
     "apps/write-coordinator/src/native/sequenced.rs": "4c8b7d2c5408e5b19d57943f317d3bad7efa1da3188cb6538027d9c259f4f2c5",
-    "apps/write-coordinator/src/native/service.rs": "a5c5dd34ac9de1685f58631f3ccde36e15771baca3a5e3871e86d8869a2bbaf6"
+    "apps/write-coordinator/src/native/service.rs": "d895230b5e4321bea46aaa21d1c11d20c53ef1202969ff2b622e1daf38c15375"
   },
   "assertions": {
     "r1-coordinator-auth-length": "assertion `left == right` failed",

@@ -25,7 +25,7 @@
     "apps/write-coordinator/src/native/journal.rs": "76aa147ef70e8f423870bded014438c2d8ad683e0a13c67c238c421fce96d35c",
     "apps/write-coordinator/src/native/protocol.rs": "a4a86e7cfc549405c55cdce86a33c9ff10751e91aae1ecb65c402d466b6e9f36",
     "apps/write-coordinator/src/native/sequenced.rs": "4c8b7d2c5408e5b19d57943f317d3bad7efa1da3188cb6538027d9c259f4f2c5",
-    "apps/write-coordinator/src/native/service.rs": "a5c5dd34ac9de1685f58631f3ccde36e15771baca3a5e3871e86d8869a2bbaf6",
+    "apps/write-coordinator/src/native/service.rs": "d895230b5e4321bea46aaa21d1c11d20c53ef1202969ff2b622e1daf38c15375",
     "apps/write-coordinator/src/native/stop.rs": "45f687f71f7a7bdb1a5bb37e6056c19f7999f260131fb56d35fe70b74261632d",
     "crates/weekend-db-macros/src/lib.rs": "5d0708c15d60b2cdd679fbc0a08a6504caf6f136b90bb32be1c271a63753b9f4",
     "crates/weekend-db-macros/src/model.rs": "fa796e2ebcfbf9acfea6354b9b0ea7533b948c4a2252b5163e8d09b9a6e5c5f9",
@@ -232,7 +232,7 @@
     "apps/weekend-replicate/src/native/tests.rs": "a50bfdb8d5cb0af1d20d178f8e7f640bcd59ba3900b070a576595553865fc7e1",
     "apps/weekend-replicate/tests/cli.rs": "051206e6f76f58555c71419046695aee60d39dcc6a649b18f8a97c9c5a80e545",
     "apps/weekend-tasks/tests/decisions.rs": "b6ce664050684e7afa3183213909029b96576b23f3a6cd522c2641f74e81a303",
-    "apps/write-coordinator/tests/writers.rs": "172001556048a4ab65f5611eabecb3d722aab15281279a96691d187be647b2f9",
+    "apps/write-coordinator/tests/writers.rs": "aaf2eed1863a5b38aa672be16624f743acb7bda27379046b430d8400181ec94f",
     "apps/write-coordinator/tests/writers/pending_restore.rs": "b9a179859ddfba8d705604f36b6a2cccb5449e0a35e2453fa6d6217a21460c4b",
     "crates/weekend-db-typed/tests/migration_allocator.rs": "970fba9fe1555a04d807a069cd56e6e3315f636361584042f60c3ccbe37eba0c",
     "crates/weekend-db-typed/tests/models.rs": "f080864d86f8e5fc63a18c282d3910bd706f23a191b9ee870fcb6647bcefc703",
@@ -298,8 +298,8 @@
     "xtask/src/incident_recovery.rs": "1fca4d04dda6d71e8bb4b11326e7f15bb2f3d6ef6f3b6cf351c2280b23ddf074",
     "xtask/src/windows_compatibility.rs": "addca6fc20d300c52b5dcd956e1fadc0e6e38dc6795799d0849a2367b5935f46",
     "xtask/tests/commands.rs": "192aed27288f2fcc9a0a3a39af85bbfef668680f5e5a8c15066858e0ff6d40c1",
-    "xtask/tests/coordinator-windows-oracle.json": "8c7047bc069a53dbfc83f941c1c03f08cada121f7fb342cee24a862dd8c5a7de",
-    "xtask/tests/mutations.json": "1478e5c813b6ea7777d29bb86e3c6d48e18e7b380ffbea28df9dcfd2a26e554e",
+    "xtask/tests/coordinator-windows-oracle.json": "82279f7eac55d1acca0e44c6606e5ffc6bb93a1d7190219714ca56e1213dc65a",
+    "xtask/tests/mutations.json": "16c1f28f9bb5889a19a9a97dfbe00f59a22fc3fba8f285b95d5d30eb4bc62cbc",
     "xtask/tests/supervise.rs": "fec82720193efc81d941781eb55331ebe667769bbc8fdef5d9b1dc3f68da6a43",
     "docs/decision-inventory-catalog.md": "94072b5522273799200cdd4365e13d0041feefe793ca02184221b2976037e54e",
     "tools/decision-inventory/tests/catalog.rs": "dc0a58ac413a2506155d9593a22fa2828f1d85ee1f13ab23f628967583890d24",
@@ -446,7 +446,8 @@
     "docs/decisions/coordinator-sequenced-submit-current.md": "d2d516950f76552b81d27add5a65dfd08dbfad70a30c84671b4ec47ec0540293",
     "tests/support/logical_checksum.rs": "f1392079f42ab47c950eae7c43fa44ad0c7bbf579fc4b09c100ab5c3a62359a6",
     "docs/decisions/coordinator-sequenced-requests-current.md": "f7831f501b18e1bfcd7b25321153d90eec58a2ee50ff4fd6f5989aea938dd3bf",
-    "docs/decisions/coordinator-cli-native-current.md": "b428a1fd22001f7beef09ba97fb5224bbcd9c3979dd4d43c6018f1fee328ecf5"
+    "docs/decisions/coordinator-cli-native-current.md": "b428a1fd22001f7beef09ba97fb5224bbcd9c3979dd4d43c6018f1fee328ecf5",
+    "docs/decisions/coordinator-service-lifecycle-current.md": "06ec42df7b150ce066e02953e769e08de13b86c3dc30d78b083733bb2bd1e06b"
   },
   "target_records": {
     "incident-recovery-consumer::incident-recovery-consumer": 7,
@@ -514,7 +515,7 @@
     "weekend-sqlite-baseline::weekend-sqlite-baseline": 15,
     "weekend-tasks::weekend-tasks": 55,
     "weekend-tasks::weekend_tasks": 38,
-    "write-coordinator::write-coordinator": 342,
+    "write-coordinator::write-coordinator": 345,
     "xtask::xtask": 5337
   },
   "groups": [
@@ -982,7 +983,8 @@
         "docs/decisions/coordinator-sequenced-startup-current.md",
         "docs/decisions/coordinator-sequenced-submit-current.md",
         "docs/decisions/coordinator-sequenced-requests-current.md",
-        "docs/decisions/coordinator-cli-native-current.md"
+        "docs/decisions/coordinator-cli-native-current.md",
+        "docs/decisions/coordinator-service-lifecycle-current.md"
       ],
       "residual": "Slot/receipt retirement, stale restore, I/O and deployment policies retain explicit acceptance gates."
     },
@@ -31983,7 +31985,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "serve_connection",
         "kind": "try_propagation",
-        "start_byte": 6626,
+        "start_byte": 5706,
         "conditions": [
           "start\n        .recv_timeout(time_remaining(deadline)?)\n        .map_err(|error| match error {\n            mpsc::RecvTimeoutError::Timeout => io::ErrorKind::TimedOut,\n            mpsc::RecvTimeoutError::Disconnected => io::ErrorKind::ConnectionAborted,\n        })"
         ]
@@ -32007,7 +32009,7 @@
         "target": "write-coordinator::write-coordinator",
         "owner": "serve_connection",
         "kind": "try_propagation",
-        "start_byte": 6806,
+        "start_byte": 5886,
         "conditions": [
           "response\n        .recv()\n        .map_err(|_| io::ErrorKind::ConnectionAborted)"
         ]
@@ -40335,6 +40337,394 @@
       ],
       "mutations": [
         "r1-native-coordinator-cli-startup-bind"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-REAP-LOOP",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "reap_connections",
+        "kind": "while",
+        "start_byte": 1491,
+        "conditions": [
+          "let Some(finished) = connections.iter().position(|worker| worker.is_finished())"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "a_released_connection_slot_can_be_reused"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-reap-loop"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-REAP-PANIC",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "reap_connections",
+        "kind": "try_propagation",
+        "start_byte": 1738,
+        "conditions": [
+          "connections\n            .swap_remove(finished)\n            .join()\n            .map_err(|_| io::Error::other(\"coordinator connection worker panicked\"))"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "reap_reports_a_panicked_connection_worker"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-reap-panic"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-READINESS-OUTPUT",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve",
+        "kind": "try_propagation",
+        "start_byte": 3061,
+        "conditions": [
+          "writeln!(io::stdout().lock(), \"ready {}\", listener.local_addr()?)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "readiness_write_error_releases_the_database_lease"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-readiness-output"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-CONNECTION-CAPACITY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve",
+        "kind": "if",
+        "start_byte": 3406,
+        "conditions": [
+          "connections.len() == MAX_CONNECTIONS"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "excess_connections_receive_busy_without_publishing_requests"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-connection-capacity"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-FRAME-READ",
+      "disposition": "propagation_control",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_connection",
+        "kind": "try_propagation",
+        "start_byte": 4789,
+        "conditions": [
+          "read_line(&stream, deadline)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "connection_rejects_bad_input_or_expiry_before_dispatch"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-frame-read"
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-ADMISSION-SHAPE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "serve_connection",
+        "kind": "let_else",
+        "start_byte": 4928,
+        "conditions": [
+          "command"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/tests/writers.rs",
+          "name": "configured_secret_authenticates_before_writes_and_receipt_lookup"
+        },
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "connection_rejects_bad_input_or_expiry_before_dispatch"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-admission-shape"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-STOPPED-BEFORE-WAIT",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "next_connection",
+        "kind": "while",
+        "start_byte": 6124,
+        "conditions": [
+          "!stopping.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "stopping_before_wait_or_after_readiness_avoids_accept"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-stopped-before-wait"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-READINESS-INTERRUPTION",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "next_connection",
+        "kind": "match_guard",
+        "start_byte": 6267,
+        "conditions": [
+          "error.kind() == io::ErrorKind::Interrupted"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "readiness_and_accept_retry_only_their_transient_outcomes"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-readiness-interruption"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-STOPPED-AFTER-READY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "next_connection",
+        "kind": "if",
+        "start_byte": 6386,
+        "conditions": [
+          "stopping.load(Relaxed)"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "stopping_before_wait_or_after_readiness_avoids_accept"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-stopped-after-ready"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-ACCEPT-RETRY",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "next_connection",
+        "kind": "match_guard",
+        "start_byte": 6569,
+        "conditions": [
+          "matches!(\n                    error.kind(),\n                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted\n                )"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "readiness_and_accept_retry_only_their_transient_outcomes"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-accept-retry-block",
+        "r1-native-coordinator-lifecycle-accept-retry-interrupt"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            false
+          ],
+          "outcome": false
+        }
+      ]
+    },
+    {
+      "name": "NATIVE-COORDINATOR-LIFECYCLE-JOIN-PRECEDENCE",
+      "disposition": "directed_source_pair",
+      "selector": {
+        "file": "apps/write-coordinator/src/native/service.rs",
+        "target": "write-coordinator::write-coordinator",
+        "owner": "join_workers",
+        "kind": "if",
+        "start_byte": 6963,
+        "conditions": [
+          "worker.join().is_err()",
+          "result.is_ok()"
+        ]
+      },
+      "tests": [
+        {
+          "file": "apps/write-coordinator/src/native/service.rs",
+          "name": "worker_joins_preserve_the_first_service_error"
+        }
+      ],
+      "mutations": [
+        "r1-native-coordinator-lifecycle-join-precedence-panic",
+        "r1-native-coordinator-lifecycle-join-precedence-earlier"
+      ],
+      "table": [
+        {
+          "conditions": [
+            true,
+            true
+          ],
+          "outcome": true
+        },
+        {
+          "conditions": [
+            true,
+            false
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            true
+          ],
+          "outcome": false
+        },
+        {
+          "conditions": [
+            false,
+            false
+          ],
+          "outcome": false
+        }
       ]
     }
   ],
