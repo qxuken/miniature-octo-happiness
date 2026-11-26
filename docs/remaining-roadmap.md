@@ -2394,3 +2394,18 @@ profiles and caught all 25 affected controls per campaign. Five Windows
 x64 test executables cross-linked per profile. Native execution on the
 corrected source remains open.
 [Snapshot network admission ledger](decisions/snapshot-network-admission-current.md#windows-fixture-correction)
+
+### Shared TLS deadlines and cancellation
+
+At `88e202c`, the snapshot and Study CLIs independently exercise their
+shared transport's absolute cutoff, cancellation, polling slices and
+retry guard. The tests verify both retryable errors, preservation of a
+terminal error and its message, and the cutoff for already buffered
+plaintext. Both macOS and Docker Linux/ext4 profiles passed and detected
+all 26 controls, 13 for each binary. Both Windows x64 unit-test
+executables cross-linked per profile. Native execution remains open.
+
+The review reconciles 24 runtime records. The native timeout setters
+and the monthly-workload example retain their own open records.
+Repository reconciliation leaves 273 runtime and 7,468 tooling gaps.
+[Shared TLS deadline ledger](decisions/shared-tls-deadline-current.md)

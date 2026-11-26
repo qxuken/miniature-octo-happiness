@@ -22,6 +22,25 @@ records. These cases exercise controlled deadlines and callback outcomes.
 The existing stalled-handshake test also exercises real socket wait slices.
 The monthly-workload example retains its own decision records.
 
+## Qualification
+
+Frozen source `88e202ca60f9110cf629e1406725f9d5bc93f459` ran with
+Rust 1.100.0 and locked dependencies.
+
+| Platform | Debug and release, per profile |
+| --- | --- |
+| macOS arm64 | 68 snapshot CLI and 72 Study tests passed. All 26 mutations were caught. |
+| Docker Linux arm64/ext4 | 69 snapshot CLI and 72 Study tests passed. One opt-in snapshot test was ignored. All 26 mutations were caught. |
+| Windows x64/MSVC | The two CLI unit-test executables cross-linked. Native execution is pending. |
+
+The core replication suite passed 11 tests with one ignored on macOS and
+Linux. Clippy with warnings denied passed for both applications on
+both platforms. Fresh extraction confirmed all intended failure assertions,
+90 supervised commands and 1,010 restored source inputs per campaign.
+The source review reconciles 12 records in each binary and leaves
+273 runtime and 7,468 tooling gaps across the repository.
+[Frozen campaign checksums](shared-tls-deadline-88e202c.sha256)
+
 ## Exact source rows
 
 | Source | SHA-256 |
